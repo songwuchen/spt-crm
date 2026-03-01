@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Project Opportunity Kanban &amp; AI Insights</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f8fafc",
+                        "column-bg": "#f1f5f9",
+                        "surface-paper": "#ffffff",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .kanban-column {
+            min-width: 320px;
+            width: 320px;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(19, 127, 236, 0.2);
+            border-radius: 10px;
+        }
+        .paper-shadow {
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body class="bg-background-light text-slate-900 antialiased overflow-hidden h-screen flex flex-col">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 px-6 py-3 bg-white z-10">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-primary">
+<span class="material-symbols-outlined text-3xl">factory</span>
+<h2 class="text-slate-900 text-lg font-bold leading-tight tracking-tight">Industrial CRM AI</h2>
+</div>
+<label class="flex flex-col min-w-40 !h-10 max-w-64">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full overflow-hidden">
+<div class="text-slate-400 flex border-none bg-slate-100 items-center justify-center pl-3">
+<span class="material-symbols-outlined text-xl">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-slate-100 text-slate-900 focus:ring-0 h-full placeholder:text-slate-500 text-sm" placeholder="Search accounts, projects..." value=""/>
+</div>
+</label>
+</div>
+<div class="flex flex-1 justify-end gap-6 items-center">
+<nav class="hidden lg:flex items-center gap-6">
+<a class="text-slate-600 text-sm font-medium hover:text-primary transition-colors" href="#">Dashboard</a>
+<a class="text-primary text-sm font-semibold" href="#">Opportunities</a>
+<a class="text-slate-600 text-sm font-medium hover:text-primary transition-colors" href="#">Accounts</a>
+<a class="text-slate-600 text-sm font-medium hover:text-primary transition-colors" href="#">Reports</a>
+</nav>
+<div class="flex gap-2">
+<button class="p-2 rounded-lg bg-slate-100 text-slate-600 hover:text-primary transition-colors relative">
+<span class="material-symbols-outlined text-xl">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+</button>
+<button class="p-2 rounded-lg bg-slate-100 text-slate-600 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">settings</span>
+</button>
+</div>
+<div class="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center overflow-hidden">
+<img alt="User profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9jes3ZhAKPX5LnUXF-NWJVbu9I3AHO62AUU9i_slIr-IWr6_I4hZBE3lmjinoTy1IBauBza88BWMZqLjtY77lsvCqv3g0bJUu0S3moN_CmJ9PG2xy2z5KzGgOgSaAca0Ri13NuOz2gBI8zCP5VtS5cVJmcDgaItWHoWxPi8jUC6gvzDOK4crknsN73NrVK2yYx_h7RbMieI2KpdcDD_lc_0rCF-B4G6uoGcCHnhhM9f3KLHHovXK3nzLDrtOWjERr70tQd7R4s1xd"/>
+</div>
+</div>
+</header>
+<main class="flex-1 flex overflow-hidden">
+<aside class="w-16 lg:w-64 border-r border-slate-200 bg-white flex flex-col py-6 shrink-0 transition-all">
+<div class="px-4 mb-6 hidden lg:block">
+<h1 class="text-slate-900 text-xs font-bold uppercase tracking-widest">Sales Workspace</h1>
+<p class="text-slate-400 text-[10px] font-medium">ENTERPRISE DIVISION</p>
+</div>
+<nav class="flex flex-col gap-1 px-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/5 text-primary font-semibold" href="#">
+<span class="material-symbols-outlined">view_kanban</span>
+<span class="hidden lg:block text-sm">Pipeline</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors" href="#">
+<span class="material-symbols-outlined">insights</span>
+<span class="hidden lg:block text-sm">AI Insights</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="hidden lg:block text-sm">Strategic Accounts</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="hidden lg:block text-sm">Technical Specs</span>
+</a>
+</nav>
+<div class="mt-auto px-4 hidden lg:block">
+<div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+<div class="flex items-center gap-2 text-primary mb-2">
+<span class="material-symbols-outlined text-lg">bolt</span>
+<span class="text-[10px] font-bold uppercase">AI Status</span>
+</div>
+<p class="text-[11px] text-slate-500 leading-relaxed mb-3">Syncing real-time market indicators for predictive lead scoring.</p>
+<div class="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-3/4"></div>
+</div>
+</div>
+</div>
+</aside>
+<section class="flex-1 flex flex-col bg-slate-50 overflow-hidden">
+<div class="flex items-center justify-between p-6 bg-white border-b border-slate-200">
+<div>
+<h2 class="text-xl font-bold text-slate-900 tracking-tight">Project Opportunity Kanban</h2>
+<p class="text-slate-500 text-sm mt-0.5">Industrial pipeline with integrated AI risk assessment</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-700 text-sm font-semibold transition-colors shadow-sm">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+                    Filter
+                </button>
+<button class="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 rounded-lg text-white text-sm font-bold transition-shadow shadow-md shadow-primary/20">
+<span class="material-symbols-outlined text-lg">add_circle</span>
+                    New Opportunity
+                </button>
+</div>
+</div>
+<div class="flex-1 overflow-x-auto p-6 custom-scrollbar">
+<div class="flex gap-6 h-full min-w-max">
+<div class="kanban-column flex flex-col gap-4">
+<div class="flex items-center justify-between px-2">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+<h3 class="font-bold text-xs text-slate-500 uppercase tracking-wider">Lead / Qual (3)</h3>
+</div>
+<span class="text-xs font-bold text-slate-400">$3.4M</span>
+</div>
+<div class="flex flex-col gap-3 p-2 rounded-xl bg-slate-200/40 border border-slate-200/60 min-h-[200px]">
+<div class="bg-white p-4 rounded-xl border border-slate-200 paper-shadow hover:border-primary/40 cursor-pointer transition-all group">
+<div class="flex justify-between items-start mb-2">
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] font-bold">warning</span>
+                                    GATE 1: VALIDATION
+                                </span>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">more_horiz</span>
+</div>
+<h4 class="text-slate-900 font-bold text-sm mb-1">Global Logistics Hub</h4>
+<p class="text-xs text-slate-500 mb-3">Alpha Corp • $1.2M • 45% Prob.</p>
+<div class="flex items-center justify-between">
+<div class="flex -space-x-1.5">
+<img alt="Team member" class="w-6 h-6 rounded-full border-2 border-white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuByKushKoTItm6tWqPBwPqg5fLB0rYwXab_N_cIEffgYy_TSWPTkbyjr_MaM-zHY0FWvpAjTfd2HKZKVv1_rinl-KPazIkFGNmoU9sKlQ5YPT5VKCVmOuKMF_XIalLmKngQwMCZ0muoNDJ5xM6o50SGAk2IMK3aPDTgap3GHb6CaqnVj-Jj4wXg6Djm5kXIc93F8yY1Ba8FTdgnmw5IQlsrJgPdRDMGRzZht5HAUOu5gMidSt0mURmenPc0T9LfGwhIR_iSVwCduPnZ"/>
+<img alt="Team member" class="w-6 h-6 rounded-full border-2 border-white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnTY7NRBHURBBTgV3AFcFJK-P5N5-5b9uJchzIcYaKPTqUmWfPogr2XlZM0FxlSCg7WYNai_LXeTWQWbUHJIbx6ZtrSjAIzl8Qa5p60uW5K6fB0LJvue9sBt5YH-DWjngQbq3se4m4gn0PjFMf3H2n2njtABzUjxKIhmDUaTjLZbow5QTnsv5gqdGXaJSHJJ9H97H4jEK37_I-PTca5dL4KyH1DYxsaz8uZF-p-K1NKOgC7I6kWkvOoqAhXYX7Mx4A-iW-Eqg-YbIt"/>
+</div>
+<div class="flex items-center gap-1 text-[10px] text-primary font-bold">
+<span class="material-symbols-outlined text-xs">auto_awesome</span>
+                                    AI Score: 84
+                                </div>
+</div>
+</div>
+<div class="bg-white p-4 rounded-xl border border-slate-200 paper-shadow hover:border-primary/40 cursor-pointer transition-all">
+<div class="flex justify-between items-start mb-2">
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-50 text-slate-500 border border-slate-100">QUALIFIED</span>
+</div>
+<h4 class="text-slate-900 font-bold text-sm mb-1">Duisburg Port Expansion</h4>
+<p class="text-xs text-slate-500 mb-3">EuroTrade Ltd • $850k</p>
+<div class="flex items-center justify-between">
+<div class="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px] text-slate-400">person</span>
+</div>
+<div class="flex items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined text-xs">attach_file</span>
+<span class="text-[10px]">3</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="kanban-column flex flex-col gap-4">
+<div class="flex items-center justify-between px-2">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-primary"></span>
+<h3 class="font-bold text-xs text-slate-500 uppercase tracking-wider">Proposal (2)</h3>
+</div>
+<span class="text-xs font-bold text-slate-400">$12.1M</span>
+</div>
+<div class="flex flex-col gap-3 p-2 rounded-xl bg-primary/5 border border-primary/10 min-h-[200px]">
+<div class="bg-white p-4 rounded-xl border-l-4 border-l-primary border-y border-r border-slate-200 shadow-sm ring-4 ring-primary/5">
+<div class="flex justify-between items-start mb-2">
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-50 text-green-600 border border-green-100 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] font-bold">check_circle</span>
+                                    GATE 2: READY
+                                </span>
+<span class="material-symbols-outlined text-primary">psychology</span>
+</div>
+<h4 class="text-slate-900 font-bold text-sm mb-1">Semiconductor Cleanroom</h4>
+<p class="text-xs text-slate-500 mb-3">MicroSystems SA • $8.5M • 70% Prob.</p>
+<div class="p-2.5 bg-slate-50 rounded-lg border border-slate-100 mb-3">
+<p class="text-[10px] text-slate-500 italic leading-relaxed">"High similarity to Singapore Phase 3 project (92%)"</p>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex">
+<img alt="Team member" class="w-6 h-6 rounded-full border-2 border-white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCSvkdwO7JLtX9M3YGOjWJvjw87eMvhyC1gCtnKChCYHlX88u0gXT2TDKQXVA4xReE8PXtcpHUYTgrQx2dnkNOcGB6QD-5H9Z8OWNUk7Cpt23NcQ787YOkiDtMWMlX4iBoOJna_FcyO2ovntRim-Wg12J6HRFTrNpAg0SyJC_WegbfYM292R745ytF4NuOVC9RqcRmyR2JOeZCdq7bS0Hz3ekyKk1xLXTN2nq20usLe88X74BEOdYvhi9SvJmU1r8Gm6KayvkaDXLYN"/>
+</div>
+<div class="flex items-center gap-1 text-[10px] text-primary font-bold">
+<span class="material-symbols-outlined text-xs">schedule</span>
+                                    Due in 2d
+                                </div>
+</div>
+</div>
+</div>
+</div>
+<div class="kanban-column flex flex-col gap-4">
+<div class="flex items-center justify-between px-2">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+<h3 class="font-bold text-xs text-slate-500 uppercase tracking-wider">Negotiation (1)</h3>
+</div>
+<span class="text-xs font-bold text-slate-400">$4.2M</span>
+</div>
+<div class="flex flex-col gap-3 p-2 rounded-xl bg-purple-50/50 border border-purple-100 min-h-[200px]">
+<div class="bg-white p-4 rounded-xl border border-slate-200 paper-shadow">
+<div class="flex justify-between items-start mb-2">
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-600 border border-red-100 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] font-bold">priority_high</span>
+                                    GATE 3: RE-VAL
+                                </span>
+</div>
+<h4 class="text-slate-900 font-bold text-sm mb-1">Steel Mill Modernization</h4>
+<p class="text-xs text-slate-500 mb-3">IronWorks Group • $4.2M</p>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs text-red-500">trending_down</span>
+<span class="text-[10px] text-red-600 font-bold uppercase">Risk Detected</span>
+</div>
+<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+<span class="material-symbols-outlined text-[14px] text-slate-400">person</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="kanban-column flex flex-col gap-4">
+<div class="flex items-center justify-between px-2">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+<h3 class="font-bold text-xs text-slate-500 uppercase tracking-wider">Closed / Won (12)</h3>
+</div>
+<span class="text-xs font-bold text-slate-400">$48.9M</span>
+</div>
+<div class="flex flex-col gap-3 p-2 rounded-xl bg-green-50/40 border border-green-100 min-h-[200px] opacity-70">
+<div class="bg-white p-4 rounded-xl border border-slate-200 paper-shadow grayscale">
+<h4 class="text-slate-900 font-bold text-sm mb-1">Automated Bottling Line</h4>
+<p class="text-xs text-slate-500">BeverageCo • $2.1M</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<aside class="w-80 border-l border-slate-200 bg-white flex flex-col shrink-0 paper-shadow">
+<div class="p-5 border-b border-slate-100 flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<h3 class="font-bold text-sm text-slate-900 uppercase tracking-tight">AI Sales Insights</h3>
+</div>
+<div class="flex border-b border-slate-100">
+<button class="flex-1 py-3 text-[10px] font-bold text-primary border-b-2 border-primary uppercase tracking-wider">Demand</button>
+<button class="flex-1 py-3 text-[10px] font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-wider">Similar</button>
+<button class="flex-1 py-3 text-[10px] font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-wider">Action</button>
+</div>
+<div class="flex-1 overflow-y-auto p-5 custom-scrollbar bg-white">
+<div class="space-y-8">
+<section>
+<h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Demand Clarification</h4>
+<div class="space-y-4">
+<div class="p-4 rounded-xl bg-blue-50/50 border border-blue-100/50">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-sm">chat_bubble</span>
+<span class="text-xs font-bold text-slate-800">Technical Gap Analysis</span>
+</div>
+<p class="text-xs text-slate-600 leading-relaxed">The RFP for "MicroSystems" mentions ISO 14644 compliance but lacks specific air exchange rates. <span class="text-primary font-medium cursor-pointer underline underline-offset-2">Request clarification</span>.</p>
+</div>
+<div class="p-4 rounded-xl bg-slate-50 border border-slate-100">
+<div class="flex items-center gap-2 mb-2 text-slate-500">
+<span class="material-symbols-outlined text-sm">inventory</span>
+<span class="text-xs font-bold">Supply Chain Risk</span>
+</div>
+<p class="text-xs text-slate-500 leading-relaxed">High demand for PLC modules from primary vendor might affect the July delivery window by up to 3 weeks.</p>
+</div>
+</div>
+</section>
+<section>
+<h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Similar Projects</h4>
+<div class="space-y-2">
+<div class="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-100 transition-all group cursor-pointer">
+<div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">dataset</span>
+</div>
+<div>
+<p class="text-xs font-bold text-slate-700">Singapore Fab 7</p>
+<p class="text-[10px] text-slate-500">92% Match • $12.4M Won</p>
+</div>
+</div>
+<div class="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-100 transition-all group cursor-pointer">
+<div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined">dataset</span>
+</div>
+<div>
+<p class="text-xs font-bold text-slate-700">Austin Micro-Extension</p>
+<p class="text-[10px] text-slate-500">78% Match • $4.5M Won</p>
+</div>
+</div>
+</div>
+</section>
+<section>
+<h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Follow-up Suggestions</h4>
+<div class="p-5 rounded-2xl border border-dashed border-slate-200 flex flex-col items-center justify-center text-center bg-slate-50/30">
+<div class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center mb-3">
+<span class="material-symbols-outlined text-slate-400">calendar_today</span>
+</div>
+<p class="text-xs text-slate-500 mb-4 px-2">Schedule a technical review for IronWorks negotiation stage to address risk.</p>
+<button class="w-full py-2.5 bg-slate-900 text-white text-[11px] font-bold rounded-lg shadow-sm hover:bg-slate-800 transition-colors">DRAFT CALENDAR INVITE</button>
+</div>
+</section>
+</div>
+</div>
+<div class="p-4 border-t border-slate-100">
+<div class="bg-primary p-3 rounded-xl text-white flex items-center justify-between shadow-lg shadow-primary/25 cursor-pointer hover:bg-primary/95 transition-all">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">auto_fix_high</span>
+<span class="text-[11px] font-bold uppercase tracking-widest">AI Copilot</span>
+</div>
+<span class="material-symbols-outlined text-lg">keyboard_arrow_up</span>
+</div>
+</div>
+</aside>
+</main>
+
+</body></html>

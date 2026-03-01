@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Project AI Risk Analysis</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+            },
+            fontFamily: {
+              "display": ["Inter", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display">
+<div class="relative flex min-h-screen w-full flex-col overflow-x-hidden max-w-[430px] mx-auto bg-background-light shadow-2xl">
+<!-- Header -->
+<div class="flex items-center bg-background-light p-4 pb-2 justify-between sticky top-0 z-10">
+<div class="text-slate-900 flex size-12 shrink-0 items-center">
+<span class="material-symbols-outlined cursor-pointer">arrow_back</span>
+</div>
+<h2 class="text-slate-900 text-lg font-bold leading-tight tracking-[-0.015em] flex-1">Project AI Risk Analysis</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex cursor-pointer items-center justify-center rounded-lg h-12 bg-transparent text-slate-900">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</div>
+</div>
+<!-- Navigation Tabs -->
+<div class="pb-3 sticky top-[64px] bg-background-light z-10">
+<div class="flex border-b border-slate-200 px-4 gap-8 overflow-x-auto no-scrollbar">
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-slate-500 pb-[13px] pt-4 whitespace-nowrap" href="#">
+<p class="text-sm font-bold leading-normal">Overview</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-slate-500 pb-[13px] pt-4 whitespace-nowrap" href="#">
+<p class="text-sm font-bold leading-normal">Tasks</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-primary text-primary pb-[13px] pt-4 whitespace-nowrap" href="#">
+<p class="text-sm font-bold leading-normal">AI &amp; Risk</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-slate-500 pb-[13px] pt-4 whitespace-nowrap" href="#">
+<p class="text-sm font-bold leading-normal">Documents</p>
+</a>
+</div>
+</div>
+<!-- Team Avatars -->
+<div class="flex items-center px-4 py-4 justify-start bg-white/50 border-b border-slate-100">
+<div class="flex -space-x-3 overflow-hidden">
+<div class="inline-block size-9 rounded-full ring-2 ring-background-light bg-slate-200 bg-cover" data-alt="Team member profile picture 1" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCEpUWNQ_Rbs1jVtmTVI-5LU9FXkUbwujHcXhTvLq9LAXtgvBDpJJe5778W-UslgBn-1gqZOw2U9R3TUWilZVV_JUnGS1Qt1nnx-G9HxtBBxpisJn1nZ6rNMEJqcgTImLjJyP4QSYHphtv56kyaLsENqYnK425RqZwawkp_Md0NH9sY-nFoJ0bJrQcuvBtgGeJKs4Ze1yCKQZabyEOV35pyA_UfobL7nCPnQ7sXdrEG6sTcGIFSURq-eaiPjurMTF-Wl5Pr5hjKKW8')"></div>
+<div class="inline-block size-9 rounded-full ring-2 ring-background-light bg-slate-200 bg-cover" data-alt="Team member profile picture 2" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA-aPhJ_qs2lj_NZyVwLC6a6HKbPNlDL3V_DreSgFP9rTPAJYkiFvyAAG6UCgcBoCMliN6M3kWif4OekTyjy688YRUkZBAHYrrH-pDEhxwrpL-mDAMViaQFu6BBeWlUdeV9b-6I2OjQS022wSjFN9-bORHXgdkKyQEhlEBCE1MCE65pI0TTkjz3uYXbuewDef7dQ1lNwfYPDWYQEVya0YI4T--wAfD7KJ0dEN5XUCe2Fh8386j6jMpDbl64bmfEW_Jr3-5pR4dZigQ')"></div>
+<div class="inline-block size-9 rounded-full ring-2 ring-background-light bg-slate-200 bg-cover" data-alt="Team member profile picture 3" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAzAU5c5_AhKd9yt4T8Zb4gWg_Xb7obdTMlOwvrfrU6ijnjBc-EOMZXmnjCBqxXZuJKOxeyWVd7WANkglX1jE_o1RXLbjVSOfgOONPojE3exypeM8qkytZDa1w-ULl4azOv9UMamEuQfPW25rMgSeWhIio60Ul4VVzzd0i2_51qW2JngaY7syNFKPjrBXRorU2H6thzFb4DyHkSG3FcNIoxo5whJzMQAQKxwuOTk6xiiUpXive9eYsAa-LiKHEEIajaiDHLMLou7CY')"></div>
+<div class="inline-block size-9 rounded-full ring-2 ring-background-light bg-slate-200 bg-cover" data-alt="Team member profile picture 4" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCh1_EseFGg9GnU-y-kYUg2GrZOm5NyNQMJ3CkqYgTTPMrgAcSiIjRncdqHr7LPn_b4tZOWh4r-rWZiq5rzzOXJt3wTmdOLGKdBr56E56autKJsPuPjWSUp46_BnIlUBqoYFqLsFwZulsyEo4MopBYMuMYVH-R1vV4m1TXub0jRrC5amRxfZpym2Mu5GVuJJNq24LaMMbuZlyzcQWtNpppP5el8xkcgjj3JwI4azZAd-TDLpCEPgRG0wHO_3alapG-csQU5rQsaOZ4')"></div>
+<div class="flex size-9 items-center justify-center rounded-full ring-2 ring-background-light bg-primary/10 text-primary text-xs font-bold">+3</div>
+</div>
+<p class="ml-4 text-xs font-medium text-slate-500">7 members active</p>
+</div>
+<!-- Risk Dashboard -->
+<div class="px-4 py-6">
+<h3 class="text-slate-900 text-lg font-bold leading-tight tracking-[-0.015em] mb-4">Risk Dashboard</h3>
+<div class="grid grid-cols-3 gap-3">
+<div class="bg-red-50 border border-red-100 rounded-xl p-4 flex flex-col items-center">
+<span class="text-red-600 text-2xl font-bold">02</span>
+<span class="text-red-500 text-[10px] font-bold uppercase tracking-wider">High Risk</span>
+</div>
+<div class="bg-orange-50 border border-orange-100 rounded-xl p-4 flex flex-col items-center">
+<span class="text-orange-600 text-2xl font-bold">05</span>
+<span class="text-orange-500 text-[10px] font-bold uppercase tracking-wider">Medium</span>
+</div>
+<div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex flex-col items-center">
+<span class="text-emerald-600 text-2xl font-bold">12</span>
+<span class="text-emerald-500 text-[10px] font-bold uppercase tracking-wider">Low Risk</span>
+</div>
+</div>
+</div>
+<!-- AI Risk Cards -->
+<div class="px-4 space-y-3">
+<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+<div class="flex justify-between items-start mb-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-red-500 text-lg">warning</span>
+<h4 class="font-bold text-slate-900">Margin Alert</h4>
+</div>
+<span class="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Critical</span>
+</div>
+<p class="text-sm text-slate-600 mb-3 leading-relaxed">Projected margin dropped by 4.2% due to raw material price surge in the APAC region.</p>
+<a class="flex items-center text-primary text-xs font-bold gap-1" href="#">
+<span class="material-symbols-outlined text-sm">link</span>
+                    View Evidence &amp; Sources
+                </a>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+<div class="flex justify-between items-start mb-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-orange-500 text-lg">schedule</span>
+<h4 class="font-bold text-slate-900">Delivery Commitment Risk</h4>
+</div>
+<span class="bg-orange-100 text-orange-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Warning</span>
+</div>
+<p class="text-sm text-slate-600 mb-1 leading-relaxed">3 manufacturing milestones at the Pune plant are delayed. Est. impact: 12 days.</p>
+</div>
+</div>
+<!-- AI Suggestions -->
+<div class="px-4 py-8">
+<div class="bg-primary/5 border border-primary/20 rounded-2xl p-5">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<h3 class="text-slate-900 font-bold">Next 3 actions for this project</h3>
+</div>
+<div class="space-y-4">
+<div class="flex items-center justify-between gap-4">
+<p class="text-sm text-slate-700">1. Renegotiate supplier contract for Steel-X4</p>
+<button class="bg-primary text-white text-xs font-bold px-3 py-2 rounded-lg shrink-0">Create Task</button>
+</div>
+<div class="w-full h-px bg-primary/10"></div>
+<div class="flex items-center justify-between gap-4">
+<p class="text-sm text-slate-700">2. Re-allocate 2 senior engineers to Pune plant</p>
+<button class="bg-primary text-white text-xs font-bold px-3 py-2 rounded-lg shrink-0">Create Task</button>
+</div>
+<div class="w-full h-px bg-primary/10"></div>
+<div class="flex items-center justify-between gap-4">
+<p class="text-sm text-slate-700">3. Update client on new delivery timeline</p>
+<button class="bg-primary text-white text-xs font-bold px-3 py-2 rounded-lg shrink-0">Create Task</button>
+</div>
+</div>
+</div>
+</div>
+<div class="h-20 shrink-0"></div>
+<!-- Bottom Navigation -->
+<div class="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto border-t border-slate-200 bg-white px-4 pb-6 pt-2 z-20">
+<div class="flex gap-2">
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">home</span>
+<p class="text-[10px] font-medium leading-normal tracking-[0.015em]">Home</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-900" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">business_center</span>
+<p class="text-[10px] font-bold leading-normal tracking-[0.015em]">Projects</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<p class="text-[10px] font-bold leading-normal tracking-[0.015em]">AI Insights</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">check_circle</span>
+<p class="text-[10px] font-medium leading-normal tracking-[0.015em]">Tasks</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">person</span>
+<p class="text-[10px] font-medium leading-normal tracking-[0.015em]">Profile</p>
+</a>
+</div>
+</div>
+</div>
+</body></html>

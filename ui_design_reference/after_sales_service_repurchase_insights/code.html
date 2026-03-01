@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>After-sales Service &amp; Repurchase Insights</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f8fafc",
+                        "surface-light": "#ffffff",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined { font-size: 24px; }.ticket-table tbody tr:nth-child(even) {
+            background-color: #f1f5f9;
+        }
+    </style>
+</head>
+<body class="bg-background-light text-slate-900 font-display">
+<div class="flex h-screen flex-col">
+<header class="flex items-center justify-between border-b border-slate-200 px-8 py-3 bg-white sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-primary">
+<span class="material-symbols-outlined text-3xl font-bold">factory</span>
+<h2 class="text-slate-900 text-lg font-bold tracking-tight">Industrial AI-CRM</h2>
+</div>
+<div class="hidden md:flex items-center gap-6">
+<a class="text-slate-500 hover:text-primary text-sm font-medium transition-colors" href="#">Dashboard</a>
+<a class="text-slate-500 hover:text-primary text-sm font-medium transition-colors" href="#">Sales</a>
+<a class="text-primary text-sm font-semibold border-b-2 border-primary pb-1" href="#">After-sales</a>
+<a class="text-slate-500 hover:text-primary text-sm font-medium transition-colors" href="#">Inventory</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+<input class="bg-slate-100 border-none rounded-lg pl-10 pr-4 py-2 text-sm w-64 focus:ring-2 focus:ring-primary" placeholder="Search accounts or parts..." type="text"/>
+</div>
+<button class="p-2 text-slate-500 hover:bg-slate-100 rounded-lg relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+</button>
+<div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold overflow-hidden border border-primary/30">
+<img alt="User Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCmo_LngigjZB8bLeFVZcq4fWYKJG-2PXvVP5ktt3gWVDOQ1dBfZQFQ0oxFtHUca7zdlvTeHVU8SkYpEGBGVU3f9WV76DOZ44l4iKOXlHCMH-q4W_O7nVO2hV9BlS61NrFghrZLNk5OZeD_Ng1wctCbyOo1SIAWuaR9cHVYBOherWPlcuA5yM2syPR6iBlklUDgeB-0AP4mT9iRMxEORa3iwyaZyUsVctfaEbVslir114dJIaa__Cdx1jCBLWjMjH20zHRBUPGWCGwH"/>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<aside class="w-64 border-r border-slate-200 bg-white flex flex-col p-4 gap-2">
+<div class="mb-4 px-2">
+<p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Service Management</p>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary text-white font-medium shadow-sm" href="#">
+<span class="material-symbols-outlined">confirmation_number</span>
+<span>Service Tickets</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 font-medium" href="#">
+<span class="material-symbols-outlined">auto_awesome</span>
+<span>AI Recommendations</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 font-medium" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span>Spare Parts Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 font-medium" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span>Knowledge Base</span>
+</a>
+</nav>
+<div class="mt-auto p-4 bg-slate-50 rounded-xl border border-slate-100">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-lg">insights</span>
+<p class="text-xs font-bold text-slate-700">AI Active Monitor</p>
+</div>
+<p class="text-[11px] text-slate-500 leading-relaxed">System tracking equipment health across <span class="text-primary font-semibold">428 active units</span>.</p>
+</div>
+</aside>
+<main class="flex-1 overflow-y-auto bg-background-light p-6">
+<div class="max-w-7xl mx-auto space-y-6">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+<div>
+<h1 class="text-3xl font-black text-slate-900 tracking-tight">After-sales &amp; Repurchase</h1>
+<p class="text-slate-500 mt-1 font-medium">AI monitoring and conversion opportunity insights.</p>
+</div>
+<div class="flex gap-3">
+<button class="bg-white border border-slate-200 shadow-sm px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 text-slate-700 hover:bg-slate-50">
+<span class="material-symbols-outlined text-lg">download</span> Export
+                            </button>
+<button class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-lg">add</span> New Ticket
+                            </button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Critical Alerts</p>
+<div class="flex items-end justify-between mt-2">
+<h3 class="text-3xl font-black text-slate-900">12</h3>
+<span class="text-red-500 text-sm font-bold flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded">
+<span class="material-symbols-outlined text-sm">trending_up</span> +2
+                                </span>
+</div>
+</div>
+<div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Avg. Resolution</p>
+<div class="flex items-end justify-between mt-2">
+<h3 class="text-3xl font-black text-slate-900">4.2h</h3>
+<span class="text-green-600 text-sm font-bold flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded">
+<span class="material-symbols-outlined text-sm">trending_down</span> -12%
+                                </span>
+</div>
+</div>
+<div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Upsell Pipeline</p>
+<div class="flex items-end justify-between mt-2">
+<h3 class="text-3xl font-black text-slate-900">$1.8M</h3>
+<span class="text-green-600 text-sm font-bold flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded">
+<span class="material-symbols-outlined text-sm">trending_up</span> +18%
+                                </span>
+</div>
+</div>
+<div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+<p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Replacement Risk</p>
+<div class="flex items-end justify-between mt-2">
+<h3 class="text-3xl font-black text-slate-900">8.4%</h3>
+<span class="text-slate-400 text-sm font-bold px-2 py-0.5 rounded bg-slate-50 border border-slate-100 uppercase tracking-tighter">Stable</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<div class="lg:col-span-8 space-y-6">
+<div class="border-b border-slate-200 flex gap-8">
+<button class="pb-3 border-b-2 border-primary text-primary font-bold text-sm">Active Tickets</button>
+<button class="pb-3 text-slate-400 font-semibold text-sm hover:text-slate-600 transition-colors">History</button>
+<button class="pb-3 text-slate-400 font-semibold text-sm hover:text-slate-600 transition-colors">SLA Monitoring</button>
+</div>
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+<table class="w-full text-left ticket-table">
+<thead class="bg-slate-50 text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100">
+<tr>
+<th class="px-6 py-4">Ticket ID</th>
+<th class="px-6 py-4">Customer / Asset</th>
+<th class="px-6 py-4">Issue Type</th>
+<th class="px-6 py-4">Priority</th>
+<th class="px-6 py-4">Status</th>
+<th class="px-6 py-4 text-right">Action</th>
+</tr>
+</thead>
+<tbody class="text-sm">
+<tr class="hover:bg-slate-100/50 transition-colors">
+<td class="px-6 py-4 font-mono text-primary font-bold">#SRV-9021</td>
+<td class="px-6 py-4">
+<div class="font-bold text-slate-900">Global Logistics Corp</div>
+<div class="text-[11px] text-slate-500">X-Series Crane (Unit 04)</div>
+</td>
+<td class="px-6 py-4 font-medium">Hydraulic Leak</td>
+<td class="px-6 py-4">
+<span class="bg-red-100 text-red-600 px-2 py-0.5 rounded text-[10px] font-black uppercase">High</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+<span class="font-medium">In Progress</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:underline font-bold">View</button>
+</td>
+</tr>
+<tr class="hover:bg-slate-100/50 transition-colors">
+<td class="px-6 py-4 font-mono text-primary font-bold">#SRV-8842</td>
+<td class="px-6 py-4">
+<div class="font-bold text-slate-900">SteelFab Inc.</div>
+<div class="text-[11px] text-slate-500">Furnace Controller A2</div>
+</td>
+<td class="px-6 py-4 font-medium">Software Glitch</td>
+<td class="px-6 py-4">
+<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-black uppercase">Medium</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-blue-500"></span>
+<span class="font-medium">Assigned</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:underline font-bold">View</button>
+</td>
+</tr>
+<tr class="hover:bg-slate-100/50 transition-colors">
+<td class="px-6 py-4 font-mono text-primary font-bold">#SRV-8831</td>
+<td class="px-6 py-4">
+<div class="font-bold text-slate-900">Nordic Pharma</div>
+<div class="text-[11px] text-slate-500">Bio-Reactor MKII</div>
+</td>
+<td class="px-6 py-4 font-medium">Sensor Recalibration</td>
+<td class="px-6 py-4">
+<span class="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[10px] font-black uppercase">Low</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-slate-300"></span>
+<span class="font-medium">Pending Part</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:underline font-bold">View</button>
+</td>
+</tr>
+<tr class="hover:bg-slate-100/50 transition-colors">
+<td class="px-6 py-4 font-mono text-primary font-bold">#SRV-8790</td>
+<td class="px-6 py-4">
+<div class="font-bold text-slate-900">Apex Mining Co</div>
+<div class="text-[11px] text-slate-500">Excavator Boom (D-02)</div>
+</td>
+<td class="px-6 py-4 font-medium">Stress Analysis</td>
+<td class="px-6 py-4">
+<span class="bg-red-100 text-red-600 px-2 py-0.5 rounded text-[10px] font-black uppercase">High</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-green-500"></span>
+<span class="font-medium">Validated</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:underline font-bold">View</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="bg-blue-50 rounded-xl border border-blue-100 p-6 shadow-sm">
+<div class="flex items-center gap-3 mb-4">
+<div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white shadow-md">
+<span class="material-symbols-outlined">psychology</span>
+</div>
+<div>
+<h4 class="font-bold text-slate-900">AI Knowledge Assistant</h4>
+<p class="text-xs text-slate-500 font-medium">Access deep technical diagnostics and repair manuals.</p>
+</div>
+</div>
+<div class="relative">
+<input class="w-full bg-white border border-blue-200 rounded-xl py-4 pl-5 pr-12 focus:ring-primary focus:border-primary shadow-sm" placeholder="Search manuals or ask: 'Hydraulic leak Unit 04 solutions'" type="text"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-primary text-white rounded-lg shadow-sm">
+<span class="material-symbols-outlined text-sm">auto_awesome</span>
+</button>
+</div>
+<div class="mt-4 flex flex-wrap gap-2">
+<span class="text-[10px] text-slate-400 font-black uppercase tracking-wider py-1">Hot Topics:</span>
+<button class="text-[11px] font-bold bg-white border border-slate-200 text-slate-600 px-3 py-1 rounded-full hover:border-primary transition-colors">Sensor Recall 2023</button>
+<button class="text-[11px] font-bold bg-white border border-slate-200 text-slate-600 px-3 py-1 rounded-full hover:border-primary transition-colors">X-Series Manual</button>
+<button class="text-[11px] font-bold bg-white border border-slate-200 text-slate-600 px-3 py-1 rounded-full hover:border-primary transition-colors">Vibration Safety Limits</button>
+</div>
+</div>
+</div>
+<div class="lg:col-span-4 space-y-6">
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+<div class="flex items-center justify-between mb-6">
+<h4 class="font-black text-slate-900 uppercase tracking-tight">Repurchase Scoring</h4>
+<div class="bg-blue-50 text-primary px-2 py-1 rounded flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">auto_graph</span>
+<span class="text-[10px] font-bold">AI SCORE</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="p-4 rounded-lg bg-slate-50 border border-slate-200 relative">
+<div class="absolute top-0 right-0 p-2">
+<span class="text-[9px] font-black uppercase bg-green-500 text-white px-2 py-0.5 rounded shadow-sm">High Value</span>
+</div>
+<div class="flex gap-4">
+<div class="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0 border border-primary/20">
+<span class="material-symbols-outlined">precision_manufacturing</span>
+</div>
+<div class="flex-1">
+<h5 class="font-bold text-sm text-slate-900">X-Series Crane 04</h5>
+<p class="text-[11px] text-slate-500 mb-2 font-medium">Global Logistics Corp</p>
+<div class="flex items-center gap-4 text-[11px] font-bold text-slate-400 mb-4">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">history</span> 7.2Y</span>
+<span class="flex items-center gap-1 text-red-500"><span class="material-symbols-outlined text-[14px]">warning</span> FAULTS: +40%</span>
+</div>
+<button class="w-full py-2 bg-primary text-white text-[11px] font-bold rounded-lg shadow-sm hover:bg-primary/90 transition-all">Create Upgrade Lead</button>
+</div>
+</div>
+</div>
+<div class="p-4 rounded-lg bg-white border border-slate-200 shadow-sm">
+<div class="flex gap-4">
+<div class="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 shrink-0 border border-slate-200">
+<span class="material-symbols-outlined">settings_input_component</span>
+</div>
+<div class="flex-1">
+<h5 class="font-bold text-sm text-slate-900">Generator #12</h5>
+<p class="text-[11px] text-slate-500 mb-2 font-medium">PowerGrid Solutions</p>
+<div class="flex items-center gap-4 text-[11px] font-bold text-slate-400 mb-3">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">history</span> 4.8Y</span>
+<span class="flex items-center gap-1 text-primary"><span class="material-symbols-outlined text-[14px]">payments</span> $42k/Y</span>
+</div>
+<button class="w-full py-2 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-lg border border-slate-200 hover:bg-slate-200 transition-all">View Opportunity</button>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-8 pt-6 border-t border-slate-100">
+<h5 class="text-[11px] font-black uppercase text-slate-400 tracking-wider mb-4">Predictive Failure vs Age</h5>
+<div class="h-44 w-full bg-slate-50 rounded-xl flex flex-col justify-end p-3 relative border border-slate-100 shadow-inner">
+<div class="flex items-end gap-2 h-full px-1">
+<div class="flex-1 bg-primary/20 rounded-t h-[15%]"></div>
+<div class="flex-1 bg-primary/30 rounded-t h-[22%]"></div>
+<div class="flex-1 bg-primary/40 rounded-t h-[35%]"></div>
+<div class="flex-1 bg-primary/50 rounded-t h-[30%]"></div>
+<div class="flex-1 bg-primary/60 rounded-t h-[50%]"></div>
+<div class="flex-1 bg-primary/70 rounded-t h-[65%] shadow-sm"></div>
+<div class="flex-1 bg-primary/80 rounded-t h-[82%] shadow-md"></div>
+<div class="flex-1 bg-orange-500 rounded-t h-[95%] shadow-lg"></div>
+</div>
+<div class="flex justify-between mt-3 text-[10px] font-black text-slate-400 uppercase tracking-tight">
+<span>Y1-2</span>
+<span>Y4-5</span>
+<span>Y8+</span>
+</div>
+</div>
+<p class="text-[11px] text-slate-500 mt-4 leading-snug font-medium italic">
+<span class="text-orange-600 font-bold">Alert:</span> AI projects a significant spike in downtime risk for assets exceeding 7.5 years operational life.
+                                    </p>
+</div>
+</div>
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+<h4 class="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-5">Efficiency Metrics</h4>
+<div class="space-y-5">
+<div>
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-[11px] font-bold text-slate-600">Self-service Closure</span>
+<span class="text-sm font-black text-green-600">62%</span>
+</div>
+<div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-50">
+<div class="bg-green-500 h-full w-[62%] rounded-full"></div>
+</div>
+</div>
+<div>
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-[11px] font-bold text-slate-600">AI Response Accuracy</span>
+<span class="text-sm font-black text-primary">88%</span>
+</div>
+<div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-50">
+<div class="bg-primary h-full w-[88%] rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+</body></html>

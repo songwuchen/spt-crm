@@ -1,0 +1,195 @@
+from datetime import datetime, timezone
+import random
+
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import generate_uuid
+from app.common.exceptions import BusinessException
+from app.common.error_codes import NOT_FOUND, LEAD_ALREADY_QUALIFIED, LEAD_ALREADY_DISCARDED
+from app.domains.lead.models import Lead
+from app.domains.lead.schemas import LeadCreate, LeadUpdate
+from app.domains.customer.models import Customer
+from app.domains.audit.service import log_action
+
+
+def _generate_lead_code() -> str:
+    now = datetime.now(timezone.utc)
+    seq = random.randint(1000, 9999)
+    return f"LD-{now.strftime('%Y%m%d')}-{seq}"
+
+
+async def _unique_lead_code(db: AsyncSession, tenant_id: str) -> str:
+    """Generate a unique lead code with collision retry."""
+    for _ in range(10):
+        code = _generate_lead_code()
+        exists = (await db.execute(
+            select(func.count(Lead.id)).where(Lead.tenant_id == tenant_id, Lead.lead_code == code)
+        )).scalar()
+        if not exists:
+            return code
+    return _generate_lead_code()
+
+
+def _compute_score(lead: Lead) -> int:
+    """Basic rule-based scoring per requirements: source, industry, demand, budget, contact."""
+    score = 0
+    if lead.company_name:
+        score += 15
+    if lead.contact_phone or lead.contact_email:
+        score += 15
+    if lead.contact_name:
+        score += 10
+    if lead.industry:
+        score += 10
+    if lead.region:
+        score += 5
+    if lead.source:
+        score += 10
+    if lead.demand_summary:
+        score += 15
+    if lead.budget_range:
+        score += 10
+    # Extra: multiple contact methods
+    if lead.contact_phone and lead.contact_email:
+        score += 10
+    return min(score, 100)
+
+
+async def list_leads(
+    db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20,
+    keyword: str | None = None, status: str | None = None, owner_id: str | None = None,
+):
+    base = select(Lead).where(Lead.tenant_id == tenant_id, Lead.is_deleted == False)
+    if keyword:
+        base = base.where(Lead.title.ilike(f"%{keyword}%") | Lead.company_name.ilike(f"%{keyword}%") | Lead.lead_code.ilike(f"%{keyword}%"))
+    if status:
+        base = base.where(Lead.status == status)
+    if owner_id:
+        base = base.where(Lead.owner_id == owner_id)
+
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
+    items = (await db.execute(
+        base.order_by(Lead.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+    )).scalars().all()
+    return items, total
+
+
+async def get_lead(db: AsyncSession, tenant_id: str, lead_id: str) -> Lead:
+    lead = (await db.execute(
+        select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant_id, Lead.is_deleted == False)
+    )).scalar_one_or_none()
+    if not lead:
+        raise BusinessException(code=NOT_FOUND, message="线索不存在")
+    return lead
+
+
+async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: dict) -> Lead:
+    lead = Lead(
+        id=generate_uuid(), tenant_id=tenant_id,
+        lead_code=await _unique_lead_code(db, tenant_id),
+        owner_id=user["sub"], owner_name=user.get("real_name") or user.get("username"),
+        **data.model_dump(),
+    )
+    lead.score = _compute_score(lead)
+    db.add(lead)
+    await db.commit()
+    await db.refresh(lead)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="create", resource_type="lead", resource_id=lead.id,
+                     summary=f"创建线索: {lead.title}")
+    return lead
+
+
+async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: LeadUpdate, user: dict) -> Lead:
+    lead = await get_lead(db, tenant_id, lead_id)
+    for field, val in data.model_dump(exclude_unset=True).items():
+        setattr(lead, field, val)
+    lead.score = _compute_score(lead)
+    await db.commit()
+    await db.refresh(lead)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="update", resource_type="lead", resource_id=lead.id,
+                     summary=f"更新线索: {lead.title}")
+    return lead
+
+
+async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict) -> dict:
+    """Convert a lead into a customer."""
+    lead = await get_lead(db, tenant_id, lead_id)
+    if lead.status == "qualified":
+        raise BusinessException(code=LEAD_ALREADY_QUALIFIED, message="线索已转化")
+    if lead.status == "discarded":
+        raise BusinessException(code=LEAD_ALREADY_DISCARDED, message="线索已废弃，无法转化")
+
+    # Create customer from lead
+    customer = Customer(
+        id=generate_uuid(), tenant_id=tenant_id,
+        name=lead.company_name or lead.title,
+        industry=lead.industry, region=lead.region,
+        source=lead.source, owner_id=lead.owner_id, owner_name=lead.owner_name,
+    )
+    db.add(customer)
+
+    lead.status = "qualified"
+    lead.converted_customer_id = customer.id
+    await db.commit()
+    await db.refresh(lead)
+    await db.refresh(customer)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="qualify", resource_type="lead", resource_id=lead.id,
+                     summary=f"转化线索: {lead.title} -> 客户: {customer.name}")
+
+    # Auto-activity: record lead qualification on lead timeline
+    try:
+        from app.common.auto_activity import record_activity
+        await record_activity(db, tenant_id, "lead", lead.id, "system",
+                              f"线索转化为客户: {customer.name}", None,
+                              user["sub"], user.get("real_name") or user.get("username"))
+    except Exception:
+        pass
+
+    return {"lead_id": lead.id, "customer_id": customer.id, "customer_name": customer.name}
+
+
+async def delete_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict):
+    lead = await get_lead(db, tenant_id, lead_id)
+    lead_title = lead.title
+
+    # Soft delete
+    lead.is_deleted = True
+    await db.commit()
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="delete", resource_type="lead", resource_id=lead_id,
+                     summary=f"删除线索: {lead_title}")
+
+
+async def discard_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict) -> Lead:
+    lead = await get_lead(db, tenant_id, lead_id)
+    if lead.status == "qualified":
+        raise BusinessException(code=LEAD_ALREADY_QUALIFIED, message="线索已转化，无法废弃")
+    if lead.status == "discarded":
+        raise BusinessException(code=LEAD_ALREADY_DISCARDED, message="线索已废弃")
+
+    lead.status = "discarded"
+    await db.commit()
+    await db.refresh(lead)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="discard", resource_type="lead", resource_id=lead.id,
+                     summary=f"废弃线索: {lead.title}")
+
+    # Auto-activity: record lead discard
+    try:
+        from app.common.auto_activity import record_activity
+        await record_activity(db, tenant_id, "lead", lead.id, "system",
+                              "线索已废弃", None,
+                              user["sub"], user.get("real_name") or user.get("username"))
+    except Exception:
+        pass
+
+    return lead

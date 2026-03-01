@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI CRM Workbench Dashboard - Light Mode</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --primary: #137fec;
+            --background: #FFFFFF;
+            --sidebar-bg: #F8FAFC;
+            --border-color: #E2E8F0;
+            --card-bg: #FFFFFF;
+        }
+        @theme {
+            extend: {
+                colors: {
+                    "primary": "var(--primary)",
+                }
+            }
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#FFFFFF",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-[#FFFFFF] font-display text-slate-900 min-h-screen">
+<div class="flex h-screen overflow-hidden">
+<aside class="w-64 flex-shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col">
+<div class="p-6 flex items-center gap-3">
+<div class="size-8 bg-primary rounded-lg flex items-center justify-center text-white shadow-sm">
+<span class="material-symbols-outlined">analytics</span>
+</div>
+<h1 class="text-xl font-bold tracking-tight text-slate-900">AI CRM</h1>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-bold">Dashboard</span>
+</div>
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all cursor-pointer">
+<span class="material-symbols-outlined">handshake</span>
+<span class="text-sm font-semibold">Opportunities</span>
+</div>
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all cursor-pointer">
+<span class="material-symbols-outlined">task_alt</span>
+<span class="text-sm font-semibold">Tasks</span>
+</div>
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all cursor-pointer">
+<span class="material-symbols-outlined">corporate_fare</span>
+<span class="text-sm font-semibold">Accounts</span>
+</div>
+<div class="pt-6 pb-2">
+<p class="px-3 text-xs font-bold uppercase tracking-wider text-slate-400">Analysis</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all cursor-pointer">
+<span class="material-symbols-outlined">bar_chart_4_bars</span>
+<span class="text-sm font-semibold">Sales Pipeline</span>
+</div>
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all cursor-pointer">
+<span class="material-symbols-outlined">psychology</span>
+<span class="text-sm font-semibold">AI Insights</span>
+</div>
+</nav>
+<div class="p-4 border-t border-slate-200">
+<div class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all cursor-pointer">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-sm font-semibold">Settings</span>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col overflow-y-auto bg-white">
+<header class="h-16 border-b border-slate-200 flex items-center justify-between px-8 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+<div class="flex items-center gap-4 flex-1 max-w-xl">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm transition-all" placeholder="Search industrial clients, orders, or tasks..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-500 hover:bg-slate-100 rounded-lg relative transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+</button>
+<div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
+<div class="flex items-center gap-3">
+<div class="text-right hidden sm:block">
+<p class="text-sm font-bold text-slate-900">Alex Rivera</p>
+<p class="text-xs font-medium text-slate-500">Sales Director</p>
+</div>
+<img alt="Alex Rivera" class="size-10 rounded-full border-2 border-slate-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8CelhxZ788sxA48Tis0az5D4M2gnxhc0wLcquWdw_6E8sQuXUeuYN-zGhkAYmneUMlQHHuAc8lcA4v6qUY3bzPo3VJH-fGPYLEY4jFYf1XvGy1W1iQ_nKuov0IFKbBMzPfjL7F5_jDAfeW-21mW8WlzEyLsmcOfUGk8ssu25g5m05_Hz6fCd9Rsciw_mAQ38CIhwy-y_PogEQeTWvYiOeMilLs4Nhd5C-X40KlhAqk0coDfzeEvsLI4VTTPQPdJT0x-fl0ICKuLf8"/>
+</div>
+</div>
+</header>
+<div class="p-8 space-y-8 max-w-7xl mx-auto w-full">
+<div class="flex justify-between items-end">
+<div>
+<h2 class="text-3xl font-extrabold text-slate-900 tracking-tight">Workbench Overview</h2>
+<p class="text-slate-500 font-medium mt-1">Industrial AI engine active. <span class="text-primary font-bold">3 high-priority</span> actions detected.</p>
+</div>
+<button class="bg-primary text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all active:scale-95">
+<span class="material-symbols-outlined text-lg">refresh</span>
+                    Refresh Data
+                </button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-bold text-slate-900 flex items-center gap-2 text-base">
+<span class="material-symbols-outlined text-primary">calendar_today</span>
+                            Today's Tasks
+                        </h3>
+<span class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-1 rounded-full">19 Total</span>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-lg border border-slate-100 group hover:border-primary/30 transition-colors">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-orange-600 font-medium">pending_actions</span>
+<span class="text-sm font-semibold text-slate-700">Pending Approvals</span>
+</div>
+<span class="font-bold text-slate-900">4</span>
+</div>
+<div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-lg border border-slate-100 group hover:border-primary/30 transition-colors">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-600 font-medium">chat_bubble</span>
+<span class="text-sm font-semibold text-slate-700">Customer Follow-ups</span>
+</div>
+<span class="font-bold text-slate-900">12</span>
+</div>
+<div class="flex items-center justify-between p-3.5 bg-red-50 rounded-lg border border-red-100 group">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-red-600 font-medium">warning</span>
+<span class="text-sm font-bold text-red-600">Overdue Actions</span>
+</div>
+<span class="font-bold text-red-700">3</span>
+</div>
+</div>
+</div>
+<div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-bold text-slate-900 flex items-center gap-2 text-base">
+<span class="material-symbols-outlined text-primary">campaign</span>
+                            Opportunity Alerts
+                        </h3>
+</div>
+<div class="space-y-3">
+<div class="flex gap-4 p-3.5 rounded-lg border border-slate-100 bg-white hover:border-amber-200 transition-colors">
+<div class="flex-shrink-0 text-amber-600">
+<span class="material-symbols-outlined">hourglass_empty</span>
+</div>
+<div>
+<p class="text-[10px] font-bold uppercase tracking-widest text-amber-600 mb-0.5">Stagnation Risk</p>
+<p class="text-sm font-bold text-slate-800">Global Steel Corp (Q4 Expansion)</p>
+</div>
+</div>
+<div class="flex gap-4 p-3.5 rounded-lg border border-slate-100 bg-white hover:border-red-200 transition-colors">
+<div class="flex-shrink-0 text-red-600">
+<span class="material-symbols-outlined">trending_down</span>
+</div>
+<div>
+<p class="text-[10px] font-bold uppercase tracking-widest text-red-600 mb-0.5">Margin Redline</p>
+<p class="text-sm font-bold text-slate-800">Renewable Parts Tender #202</p>
+</div>
+</div>
+<div class="flex gap-4 p-3.5 rounded-lg border border-slate-100 bg-white hover:border-blue-200 transition-colors">
+<div class="flex-shrink-0 text-blue-600">
+<span class="material-symbols-outlined">local_shipping</span>
+</div>
+<div>
+<p class="text-[10px] font-bold uppercase tracking-widest text-blue-600 mb-0.5">Delivery Risk</p>
+<p class="text-sm font-bold text-slate-800">Nordic Turbine Service Contract</p>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-blue-50/50 p-6 rounded-xl border border-blue-100 shadow-sm flex flex-col">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary fill-1">auto_awesome</span>
+<h3 class="font-bold text-slate-900 text-base">AI Copilot Suggestions</h3>
+</div>
+<div class="space-y-4 flex-1">
+<div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm group cursor-pointer hover:border-primary transition-all">
+<div class="flex justify-between items-start mb-1.5">
+<p class="text-[10px] font-bold text-primary uppercase tracking-wider">Draft Ready</p>
+<span class="material-symbols-outlined text-primary text-xs">arrow_forward</span>
+</div>
+<p class="text-sm font-bold text-slate-900 mb-1">Generate Meeting Summary</p>
+<p class="text-xs text-slate-500 font-medium leading-relaxed mb-4">AI extracted 4 key action items from your morning call with "PetroChem Solutions".</p>
+<button class="w-full py-2 bg-white border border-primary text-primary rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all">Review Summary</button>
+</div>
+<div class="bg-white p-4 rounded-xl border border-blue-100 shadow-sm group cursor-pointer hover:border-primary transition-all">
+<div class="flex justify-between items-start mb-1.5">
+<p class="text-[10px] font-bold text-primary uppercase tracking-wider">Proactive Task</p>
+<span class="material-symbols-outlined text-primary text-xs">arrow_forward</span>
+</div>
+<p class="text-sm font-bold text-slate-900 mb-1">Follow-up Checklist</p>
+<p class="text-xs text-slate-500 font-medium leading-relaxed mb-4">Create a customized technical compliance checklist for the "SolarFarm Hub" RFP.</p>
+<button class="w-full py-2 bg-white border border-primary text-primary rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-all">Create Checklist</button>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+<div class="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+<h3 class="font-bold text-lg text-slate-900">Recent Pipeline Activities</h3>
+<button class="text-sm text-primary font-bold hover:underline underline-offset-4 decoration-2">View All Activities</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-white text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-100">
+<th class="px-6 py-4">Account</th>
+<th class="px-6 py-4">Stage</th>
+<th class="px-6 py-4">Value</th>
+<th class="px-6 py-4">AI Sentiment</th>
+<th class="px-6 py-4">Last Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100">
+<tr class="hover:bg-slate-50/80 transition-colors">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="size-9 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-slate-600 border border-slate-200">GS</div>
+<div>
+<p class="text-sm font-bold text-slate-900">Global Steel Corp</p>
+<p class="text-xs font-medium text-slate-500">Enterprise</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-[11px] font-bold">Negotiation</span>
+</td>
+<td class="px-6 py-5">
+<p class="text-sm font-bold text-slate-900">$1,250,000</p>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+<div class="h-full bg-green-500 w-[85%]"></div>
+</div>
+<span class="text-xs font-bold text-green-600">Positive</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<p class="text-sm text-slate-600 font-medium">2h ago <span class="text-slate-300 mx-1">•</span> Quote sent</p>
+</td>
+</tr>
+<tr class="hover:bg-slate-50/80 transition-colors">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="size-9 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-slate-600 border border-slate-200">NM</div>
+<div>
+<p class="text-sm font-bold text-slate-900">NexGen Manufacturing</p>
+<p class="text-xs font-medium text-slate-500">Tier 1 Supplier</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[11px] font-bold">Proposal</span>
+</td>
+<td class="px-6 py-5">
+<p class="text-sm font-bold text-slate-900">$450,000</p>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+<div class="h-full bg-amber-500 w-[40%]"></div>
+</div>
+<span class="text-xs font-bold text-amber-600">Neutral</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<p class="text-sm text-slate-600 font-medium">Yesterday <span class="text-slate-300 mx-1">•</span> Tech Review</p>
+</td>
+</tr>
+<tr class="hover:bg-slate-50/80 transition-colors">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="size-9 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-slate-600 border border-slate-200">BT</div>
+<div>
+<p class="text-sm font-bold text-slate-900">BlueTech Energy</p>
+<p class="text-xs font-medium text-slate-500">Public Sector</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">Discovery</span>
+</td>
+<td class="px-6 py-5">
+<p class="text-sm font-bold text-slate-900">$2,800,000</p>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+<div class="h-full bg-red-500 w-[20%]"></div>
+</div>
+<span class="text-xs font-bold text-red-600">Risk</span>
+</div>
+</td>
+<td class="px-6 py-5">
+<p class="text-sm text-slate-600 font-medium">3d ago <span class="text-slate-300 mx-1">•</span> Needs Meeting</p>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

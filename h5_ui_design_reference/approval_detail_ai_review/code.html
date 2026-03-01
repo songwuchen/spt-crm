@@ -1,0 +1,154 @@
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Approval Detail &amp; AI Review</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
+<div class="relative flex h-screen w-full flex-col overflow-hidden max-w-[430px] mx-auto bg-background-light dark:bg-background-dark shadow-2xl">
+<!-- Top Navigation -->
+<div class="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
+<div class="text-slate-900 dark:text-slate-100 flex size-10 shrink-0 items-center justify-center cursor-pointer">
+<span class="material-symbols-outlined">arrow_back_ios</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Approval Detail</h2>
+<div class="flex w-10 items-center justify-end">
+<button class="flex cursor-pointer items-center justify-center rounded-lg h-10 bg-transparent text-slate-900 dark:text-slate-100 p-0">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</div>
+</div>
+<!-- Content Area -->
+<div class="flex-1 overflow-y-auto pb-32">
+<!-- Header Info Card -->
+<div class="flex p-4 @container">
+<div class="flex w-full flex-col gap-4 @[520px]:flex-row @[520px]:justify-between @[520px]:items-center">
+<div class="flex gap-4 items-center">
+<div class="bg-primary/10 flex items-center justify-center rounded-xl min-h-20 w-20 border border-primary/20">
+<span class="material-symbols-outlined text-primary text-4xl">description</span>
+</div>
+<div class="flex flex-col justify-center">
+<p class="text-slate-900 dark:text-slate-100 text-xl font-bold leading-tight tracking-tight">Quote Approval</p>
+<p class="text-primary text-lg font-bold leading-normal mt-0.5">$45,000.00</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal">Initiated by John Doe • 2h ago</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Key Information Section -->
+<div class="mx-4 mb-6 p-4 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+<h3 class="text-slate-900 dark:text-slate-100 text-sm font-bold uppercase tracking-wider mb-4">Key Information</h3>
+<div class="space-y-3">
+<div class="flex justify-between items-center py-1">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal">Gross Margin</p>
+<p class="text-slate-900 dark:text-slate-100 text-sm font-semibold text-right">24.5%</p>
+</div>
+<div class="flex justify-between items-center py-1 border-t border-slate-100 dark:border-slate-800 pt-3">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal">Payment Terms</p>
+<p class="text-slate-900 dark:text-slate-100 text-sm font-semibold text-right">Net 30</p>
+</div>
+<div class="flex justify-between items-center py-1 border-t border-slate-100 dark:border-slate-800 pt-3">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal">Customer</p>
+<p class="text-slate-900 dark:text-slate-100 text-sm font-semibold text-right">Acme Industrial Ltd.</p>
+</div>
+<div class="flex justify-between items-center py-1 border-t border-slate-100 dark:border-slate-800 pt-3">
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal">Priority</p>
+<div class="flex items-center gap-1.5">
+<span class="h-2 w-2 rounded-full bg-orange-500"></span>
+<p class="text-slate-900 dark:text-slate-100 text-sm font-semibold text-right">High</p>
+</div>
+</div>
+</div>
+</div>
+<!-- AI Risk Report Section -->
+<div class="px-4 mb-6">
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-primary text-xl">auto_awesome</span>
+<h3 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-[-0.015em]">AI Risk Report</h3>
+</div>
+<div class="space-y-3">
+<!-- Risk Item 1 -->
+<div class="p-4 bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-100 dark:border-red-900/30">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-red-600 mt-0.5">report_problem</span>
+<div>
+<p class="text-red-900 dark:text-red-200 text-sm font-bold">Unusual Discount Level</p>
+<p class="text-red-800/80 dark:text-red-300/80 text-xs mt-1 leading-relaxed">The requested 15% discount exceeds the regional average of 8% for discrete manufacturing components.</p>
+</div>
+</div>
+</div>
+<!-- Risk Item 2 -->
+<div class="p-4 bg-orange-50 dark:bg-orange-950/20 rounded-xl border border-orange-100 dark:border-orange-900/30">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-orange-600 mt-0.5">warning</span>
+<div>
+<p class="text-orange-900 dark:text-orange-200 text-sm font-bold">Modified Warranty Clause</p>
+<p class="text-orange-800/80 dark:text-orange-300/80 text-xs mt-1 leading-relaxed">Standard liability cap has been increased from $1M to $5M. Requires legal verification.</p>
+</div>
+</div>
+</div>
+<!-- Risk Item 3 (Low Risk/Positive) -->
+<div class="p-4 bg-green-50 dark:bg-green-950/20 rounded-xl border border-green-100 dark:border-green-900/30">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-green-600 mt-0.5">check_circle</span>
+<div>
+<p class="text-green-900 dark:text-green-200 text-sm font-bold">Payment History Good</p>
+<p class="text-green-800/80 dark:text-green-300/80 text-xs mt-1 leading-relaxed">Customer has 100% on-time payment record for the last 24 months.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Supporting Documents -->
+<div class="px-4">
+<h3 class="text-slate-900 dark:text-slate-100 text-sm font-bold uppercase tracking-wider mb-3">Attachments</h3>
+<div class="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
+<span class="material-symbols-outlined text-slate-400">picture_as_pdf</span>
+<div class="flex-1 overflow-hidden">
+<p class="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">Quote_Q4_Final_V2.pdf</p>
+<p class="text-xs text-slate-500">2.4 MB • Updated today</p>
+</div>
+<span class="material-symbols-outlined text-slate-400">download</span>
+</div>
+</div>
+</div>
+<!-- Fixed Bottom Action Bar -->
+<div class="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-900 p-4 pb-8 border-t border-slate-200 dark:border-slate-800 flex gap-3 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+<button class="flex-1 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold text-sm transition-colors active:bg-slate-200">
+                Reject
+            </button>
+<button class="flex-1 h-12 rounded-xl bg-primary/10 text-primary font-bold text-sm transition-colors active:bg-primary/20">
+                Transfer
+            </button>
+<button class="flex-[1.5] h-12 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/30 transition-colors active:scale-95">
+                Approve
+            </button>
+</div>
+</div>
+</body></html>

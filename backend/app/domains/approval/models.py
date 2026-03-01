@@ -1,0 +1,34 @@
+from sqlalchemy import String, Text, JSON, Integer
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.database import TenantScopedBase
+
+
+class ApprovalFlow(TenantScopedBase):
+    """审批流主单 — 每次提交审批生成一条"""
+    __tablename__ = "approval_flows"
+
+    biz_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    # quote_version / contract_version / change_request
+    biz_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    title: Mapped[str | None] = mapped_column(String(300))
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    # pending / approved / rejected
+    current_node: Mapped[int] = mapped_column(Integer, default=1)
+    total_nodes: Mapped[int] = mapped_column(Integer, default=1)
+    submitted_by_id: Mapped[str | None] = mapped_column(String(36))
+    submitted_by_name: Mapped[str | None] = mapped_column(String(100))
+
+
+class ApprovalTask(TenantScopedBase):
+    """审批节点 — 每个审批人对应一条"""
+    __tablename__ = "approval_tasks"
+
+    flow_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    node_order: Mapped[int] = mapped_column(Integer, default=1)
+    assignee_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    assignee_name: Mapped[str | None] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    # pending / approved / rejected
+    comment: Mapped[str | None] = mapped_column(Text)
+    decided_at: Mapped[str | None] = mapped_column(String(30))

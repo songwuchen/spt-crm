@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Create Follow-up Record</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .ios-shadow { box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+<div class="relative mx-auto flex h-full min-h-screen max-w-[430px] flex-col bg-background-light dark:bg-background-dark">
+<!-- Header -->
+<header class="sticky top-0 z-50 flex items-center justify-between bg-white/80 px-4 py-4 backdrop-blur-md dark:bg-background-dark/80 border-b border-slate-200 dark:border-slate-800">
+<button class="flex items-center text-primary">
+<span class="material-symbols-outlined">chevron_left</span>
+<span class="text-base font-medium">Back</span>
+</button>
+<h1 class="text-lg font-semibold text-slate-900 dark:text-slate-100">New Follow-up</h1>
+<button class="text-base font-bold text-primary">Save</button>
+</header>
+<!-- Main Form -->
+<main class="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+<!-- Customer/Project Picker -->
+<section class="space-y-2">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">Customer / Project</label>
+<div class="relative group">
+<select class="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-slate-900 focus:border-primary focus:ring-1 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+<option value="">Select customer or project</option>
+<option value="1">Precision Gear Ltd - Line Expansion</option>
+<option value="2">Titanium Casting Corp - Q3 Supply</option>
+<option value="3">Aerospace Dynamics - Maintenance</option>
+</select>
+<span class="material-symbols-outlined pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">expand_more</span>
+</div>
+</section>
+<!-- Interaction Type -->
+<section class="space-y-3">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">Interaction Type</label>
+<div class="flex gap-2">
+<button class="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-primary px-3 py-4 text-white">
+<span class="material-symbols-outlined">call</span>
+<span class="text-xs font-medium">Call</span>
+</button>
+<button class="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-white border border-slate-200 px-3 py-4 text-slate-600 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400">
+<span class="material-symbols-outlined">distance</span>
+<span class="text-xs font-medium">Visit</span>
+</button>
+<button class="flex flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-white border border-slate-200 px-3 py-4 text-slate-600 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400">
+<span class="material-symbols-outlined">groups</span>
+<span class="text-xs font-medium">Meeting</span>
+</button>
+</div>
+</section>
+<!-- Result Selector -->
+<section class="space-y-3">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">Current Result</label>
+<div class="flex flex-col gap-2">
+<label class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:bg-slate-900 dark:border-slate-700">
+<input checked="" class="h-5 w-5 text-primary border-slate-300 focus:ring-primary" name="result" type="radio"/>
+<div class="flex-1">
+<p class="text-sm font-medium text-slate-900 dark:text-slate-100">Progress</p>
+<p class="text-xs text-slate-500">Positive development or milestone reached</p>
+</div>
+<span class="material-symbols-outlined text-green-500">trending_up</span>
+</label>
+<label class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:bg-slate-900 dark:border-slate-700">
+<input class="h-5 w-5 text-primary border-slate-300 focus:ring-primary" name="result" type="radio"/>
+<div class="flex-1">
+<p class="text-sm font-medium text-slate-900 dark:text-slate-100">Stagnant</p>
+<p class="text-xs text-slate-500">No significant change in status</p>
+</div>
+<span class="material-symbols-outlined text-amber-500">pause_circle</span>
+</label>
+<label class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:bg-slate-900 dark:border-slate-700">
+<input class="h-5 w-5 text-primary border-slate-300 focus:ring-primary" name="result" type="radio"/>
+<div class="flex-1">
+<p class="text-sm font-medium text-slate-900 dark:text-slate-100">Risk</p>
+<p class="text-xs text-slate-500">Potential issue or negative feedback</p>
+</div>
+<span class="material-symbols-outlined text-red-500">warning</span>
+</label>
+</div>
+</section>
+<!-- Visit Content / Notes -->
+<section class="space-y-2">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">Visit Details</label>
+<textarea class="w-full rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-900 focus:border-primary focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="Enter follow-up details, discussion points, etc..." rows="4"></textarea>
+</section>
+<!-- Attachments -->
+<section class="space-y-3">
+<label class="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">Attachments</label>
+<div class="flex gap-3">
+<div class="flex h-20 w-20 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 dark:bg-slate-800 dark:border-slate-700">
+<span class="material-symbols-outlined">add_a_photo</span>
+<span class="text-[10px]">Photo</span>
+</div>
+<div class="flex h-20 w-20 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 dark:bg-slate-800 dark:border-slate-700">
+<span class="material-symbols-outlined">mic</span>
+<span class="text-[10px]">Voice</span>
+</div>
+</div>
+</section>
+<!-- AI Summary Action -->
+<section class="pt-2">
+<button class="flex w-full items-center justify-center gap-2 rounded-xl bg-primary/10 py-4 text-primary transition-colors hover:bg-primary/20">
+<span class="material-symbols-outlined">auto_awesome</span>
+<span class="font-bold">Generate AI Summary</span>
+</button>
+</section>
+<!-- Placeholder for Generated AI Card -->
+<div class="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3 hidden">
+<div class="flex items-center gap-2 text-primary font-bold text-sm">
+<span class="material-symbols-outlined text-lg">description</span>
+                    AI Generated Summary
+                </div>
+<p class="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
+                    Discussion centered on the Q3 production delay. Client is concerned about the CNC machine uptime. Agreed to provide a technical audit by next Thursday.
+                </p>
+<div class="border-t border-primary/10 pt-2">
+<p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Next Steps</p>
+<ul class="mt-1 space-y-1 text-xs text-slate-700 dark:text-slate-300">
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-primary">circle</span>
+                            Schedule audit with engineering team
+                        </li>
+</ul>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="sticky bottom-0 z-50 flex items-center justify-around border-t border-slate-200 bg-white px-2 py-3 dark:border-slate-800 dark:bg-background-dark">
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="text-[10px] font-medium">Home</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span class="text-[10px] font-medium">Customers</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1">add_circle</span>
+<span class="text-[10px] font-medium">Record</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">factory</span>
+<span class="text-[10px] font-medium">Projects</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">more_horiz</span>
+<span class="text-[10px] font-medium">More</span>
+</a>
+</nav>
+<!-- iOS Safe Area Spacer -->
+<div class="h-8 bg-white dark:bg-background-dark"></div>
+</div>
+</body></html>

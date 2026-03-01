@@ -1,0 +1,70 @@
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.dependencies import get_db, get_tenant_id, require_permissions
+from app.common.schemas import ok
+from app.domains.change import service
+from app.domains.change.schemas import ChangeRequestCreate, ChangeRequestUpdate
+
+router = APIRouter(tags=["变更管理"])
+
+
+def _cr_dict(c) -> dict:
+    return {
+        "id": c.id, "project_id": c.project_id,
+        "change_no": c.change_no, "change_type": c.change_type,
+        "from_version_ref_json": c.from_version_ref_json,
+        "to_version_ref_json": c.to_version_ref_json,
+        "reason": c.reason, "impact_json": c.impact_json,
+        "status": c.status,
+        "created_by_id": c.created_by_id, "created_by_name": c.created_by_name,
+        "created_at": c.created_at.isoformat() if c.created_at else "",
+        "updated_at": c.updated_at.isoformat() if c.updated_at else "",
+    }
+
+
+@router.get("/api/v1/projects/{project_id}/change_requests")
+async def list_change_requests(
+    project_id: str, tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("change:view")),
+):
+    items = await service.list_by_project(db, tenant_id, project_id)
+    return ok([_cr_dict(c) for c in items])
+
+
+@router.post("/api/v1/projects/{project_id}/change_requests")
+async def create_change_request(
+    project_id: str, body: ChangeRequestCreate,
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("change:create")),
+):
+    cr = await service.create(db, tenant_id, project_id, body, current_user)
+    return ok(_cr_dict(cr))
+
+
+@router.get("/api/v1/change_requests/{cr_id}")
+async def get_change_request(
+    cr_id: str, tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("change:view")),
+):
+    cr = await service.get(db, tenant_id, cr_id)
+    return ok(_cr_dict(cr))
+
+
+@router.put("/api/v1/change_requests/{cr_id}")
+async def update_change_request(
+    cr_id: str, body: ChangeRequestUpdate,
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("change:edit")),
+):
+    cr = await service.update(db, tenant_id, cr_id, body, current_user)
+    return ok(_cr_dict(cr))
+
+
+@router.delete("/api/v1/change_requests/{cr_id}")
+async def delete_change_request(
+    cr_id: str, tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db), current_user: dict = Depends(require_permissions("change:delete")),
+):
+    await service.delete(db, tenant_id, cr_id, current_user)
+    return ok(None)

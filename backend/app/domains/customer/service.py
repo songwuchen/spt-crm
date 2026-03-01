@@ -1,0 +1,236 @@
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import generate_uuid
+from app.common.exceptions import BusinessException
+from app.common.error_codes import NOT_FOUND
+from app.domains.customer.models import Customer, Contact, CustomerRelation, AclShare
+from app.domains.customer.schemas import CustomerCreate, CustomerUpdate, ContactCreate, ContactUpdate
+from app.domains.audit.service import log_action
+
+
+# ==================== Customer ====================
+
+async def list_customers(
+    db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20,
+    keyword: str | None = None, industry: str | None = None,
+    region: str | None = None, owner_id: str | None = None,
+    current_user: dict | None = None,
+):
+    base = select(Customer).where(Customer.tenant_id == tenant_id, Customer.is_deleted == False)
+    if keyword:
+        base = base.where(Customer.name.ilike(f"%{keyword}%"))
+    if industry:
+        base = base.where(Customer.industry == industry)
+    if region:
+        base = base.where(Customer.region.ilike(f"%{region}%"))
+    if owner_id:
+        base = base.where(Customer.owner_id == owner_id)
+
+    # Apply data scope (non-admin only sees owned/shared records)
+    if current_user:
+        from app.common.data_scope import apply_data_scope
+        base = await apply_data_scope(base, db, tenant_id, current_user, Customer, "customer")
+
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
+    items = (await db.execute(
+        base.order_by(Customer.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+    )).scalars().all()
+    return items, total
+
+
+async def get_customer(db: AsyncSession, tenant_id: str, customer_id: str) -> Customer:
+    c = (await db.execute(
+        select(Customer).where(Customer.id == customer_id, Customer.tenant_id == tenant_id, Customer.is_deleted == False)
+    )).scalar_one_or_none()
+    if not c:
+        raise BusinessException(code=NOT_FOUND, message="客户不存在")
+    return c
+
+
+async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate, user: dict) -> Customer:
+    customer = Customer(
+        id=generate_uuid(), tenant_id=tenant_id,
+        owner_id=user["sub"], owner_name=user.get("real_name") or user.get("username"),
+        **data.model_dump(),
+    )
+    db.add(customer)
+    await db.commit()
+    await db.refresh(customer)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="create", resource_type="customer", resource_id=customer.id,
+                     summary=f"创建客户: {customer.name}")
+    return customer
+
+
+async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, data: CustomerUpdate, user: dict) -> Customer:
+    customer = await get_customer(db, tenant_id, customer_id)
+    for field, val in data.model_dump(exclude_unset=True).items():
+        setattr(customer, field, val)
+    await db.commit()
+    await db.refresh(customer)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="update", resource_type="customer", resource_id=customer.id,
+                     summary=f"更新客户: {customer.name}")
+    return customer
+
+
+async def delete_customer(db: AsyncSession, tenant_id: str, customer_id: str, user: dict):
+    customer = await get_customer(db, tenant_id, customer_id)
+    customer_name = customer.name
+
+    # Soft delete
+    customer.is_deleted = True
+    await db.commit()
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="delete", resource_type="customer", resource_id=customer_id,
+                     summary=f"删除客户: {customer_name}")
+
+
+# ==================== Contact ====================
+
+async def list_contacts(db: AsyncSession, tenant_id: str, customer_id: str):
+    result = await db.execute(
+        select(Contact).where(Contact.tenant_id == tenant_id, Contact.customer_id == customer_id)
+        .order_by(Contact.is_primary.desc(), Contact.created_at)
+    )
+    return result.scalars().all()
+
+
+async def create_contact(db: AsyncSession, tenant_id: str, customer_id: str, data: ContactCreate, user: dict) -> Contact:
+    # Verify customer exists
+    await get_customer(db, tenant_id, customer_id)
+
+    contact = Contact(
+        id=generate_uuid(), tenant_id=tenant_id,
+        customer_id=customer_id, **data.model_dump(),
+    )
+    db.add(contact)
+    await db.commit()
+    await db.refresh(contact)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="create", resource_type="contact", resource_id=contact.id,
+                     summary=f"创建联系人: {contact.name}")
+    return contact
+
+
+async def update_contact(db: AsyncSession, tenant_id: str, contact_id: str, data: ContactUpdate, user: dict) -> Contact:
+    contact = (await db.execute(
+        select(Contact).where(Contact.id == contact_id, Contact.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not contact:
+        raise BusinessException(code=NOT_FOUND, message="联系人不存在")
+
+    for field, val in data.model_dump(exclude_unset=True).items():
+        setattr(contact, field, val)
+    await db.commit()
+    await db.refresh(contact)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="update", resource_type="contact", resource_id=contact.id,
+                     summary=f"更新联系人: {contact.name}")
+    return contact
+
+
+async def delete_contact(db: AsyncSession, tenant_id: str, contact_id: str, user: dict):
+    contact = (await db.execute(
+        select(Contact).where(Contact.id == contact_id, Contact.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not contact:
+        raise BusinessException(code=NOT_FOUND, message="联系人不存在")
+
+    contact_name = contact.name
+    await db.delete(contact)
+    await db.commit()
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="delete", resource_type="contact", resource_id=contact_id,
+                     summary=f"删除联系人: {contact_name}")
+
+
+# ==================== Customer Relations ====================
+
+async def list_relations(db: AsyncSession, tenant_id: str, customer_id: str):
+    result = await db.execute(
+        select(CustomerRelation).where(
+            CustomerRelation.tenant_id == tenant_id,
+            (CustomerRelation.from_customer_id == customer_id) | (CustomerRelation.to_customer_id == customer_id),
+        ).order_by(CustomerRelation.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+async def create_relation(db: AsyncSession, tenant_id: str, data: dict, user: dict) -> CustomerRelation:
+    rel = CustomerRelation(
+        id=generate_uuid(), tenant_id=tenant_id,
+        from_customer_id=data["from_customer_id"],
+        to_customer_id=data["to_customer_id"],
+        relation_type=data["relation_type"],
+        note=data.get("note"),
+    )
+    db.add(rel)
+    await db.commit()
+    await db.refresh(rel)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="create", resource_type="customer_relation", resource_id=rel.id,
+                     summary=f"创建客户关系: {data['relation_type']}")
+    return rel
+
+
+async def delete_relation(db: AsyncSession, tenant_id: str, relation_id: str, user: dict):
+    rel = (await db.execute(
+        select(CustomerRelation).where(CustomerRelation.id == relation_id, CustomerRelation.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not rel:
+        raise BusinessException(code=NOT_FOUND, message="客户关系不存在")
+    await db.delete(rel)
+    await db.commit()
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="delete", resource_type="customer_relation", resource_id=relation_id,
+                     summary="删除客户关系")
+
+
+# ==================== ACL Share ====================
+
+async def list_shares(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str):
+    result = await db.execute(
+        select(AclShare).where(
+            AclShare.tenant_id == tenant_id,
+            AclShare.biz_type == biz_type,
+            AclShare.biz_id == biz_id,
+        ).order_by(AclShare.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+async def create_share(db: AsyncSession, tenant_id: str, data: dict, user: dict) -> AclShare:
+    share = AclShare(
+        id=generate_uuid(), tenant_id=tenant_id,
+        biz_type=data["biz_type"], biz_id=data["biz_id"],
+        shared_to_type=data["shared_to_type"],
+        shared_to_id=data["shared_to_id"],
+        shared_to_name=data.get("shared_to_name"),
+        permission=data.get("permission", "view"),
+        shared_by_id=user["sub"],
+        shared_by_name=user.get("real_name") or user.get("username"),
+    )
+    db.add(share)
+    await db.commit()
+    await db.refresh(share)
+    return share
+
+
+async def delete_share(db: AsyncSession, tenant_id: str, share_id: str, user: dict):
+    share = (await db.execute(
+        select(AclShare).where(AclShare.id == share_id, AclShare.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not share:
+        raise BusinessException(code=NOT_FOUND, message="共享记录不存在")
+    await db.delete(share)
+    await db.commit()
