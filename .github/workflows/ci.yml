@@ -54,7 +54,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/spt_crm_test
       JWT_SECRET_KEY: ci-test-secret
       AI_PROVIDER: mock
     steps:
@@ -66,7 +65,11 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
       - run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/spt_crm_test
       - run: python -m pytest -x --tb=short
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/spt_crm_test
 
   build-and-push:
     name: Build & Push Images
