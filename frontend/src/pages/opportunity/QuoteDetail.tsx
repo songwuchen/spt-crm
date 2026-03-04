@@ -60,7 +60,11 @@ export default function QuoteDetail() {
   const [approvalSubmitting, setApprovalSubmitting] = useState(false)
 
   // AI analysis
-  const [aiResult, setAiResult] = useState<Record<string, unknown> | null>(null)
+  const [aiResult, setAiResult] = useState<{
+    risk_level?: string
+    review_items?: { item: string; status: string; detail: string }[]
+    overall_comment?: string
+  } | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
 
   const fetchQuote = async () => {
@@ -169,19 +173,26 @@ export default function QuoteDetail() {
   }
 
   const handleSubmitApproval = async () => {
-    if (selectedApprovers.length === 0) { message.warning('请选择审批人'); return }
     setApprovalSubmitting(true)
     try {
       const approverNames = selectedApprovers.map((id) => approverList.find((u) => u.id === id)?.real_name || '')
-      await approvalApi.submit({
+      const res = await approvalApi.submit({
         biz_type: 'quote_version',
         biz_id: selectedVersionId,
         title: `报价审批 - ${quote?.quote_no} V${currentVersion?.version_no || ''}`,
         assignee_ids: selectedApprovers,
-        assignee_names: approverNames,
+        assignee_names: approverNames.length > 0 ? approverNames : undefined,
       })
-      message.success('审批已提交')
+      if (res.data?.approval_mode && res.data.approval_mode !== 'sequential') {
+        message.success(`审批已自动发起（${res.data.approval_mode === 'parallel' ? '并行模式' : '任一通过模式'}）`)
+      } else {
+        message.success('审批已提交')
+      }
       setApprovalModal(false)
+    } catch (err: any) {
+      if (err?.response?.data?.message) {
+        message.error(err.response.data.message)
+      }
     } finally {
       setApprovalSubmitting(false)
     }
@@ -427,7 +438,7 @@ export default function QuoteDetail() {
                     <div>
                       <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">审核项目</h4>
                       <div className="space-y-2">
-                        {(aiResult.review_items as { item: string; status: string; detail: string }[]).map((ri, i) => (
+                        {aiResult.review_items.map((ri, i) => (
                           <div key={i} className={`p-3 rounded-lg border ${
                             ri.status === 'warning' ? 'bg-amber-50 border-amber-200' :
                             ri.status === 'fail' ? 'bg-red-50 border-red-200' :

@@ -13,11 +13,16 @@ class ApprovalFlow(TenantScopedBase):
     biz_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     title: Mapped[str | None] = mapped_column(String(300))
     status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
-    # pending / approved / rejected
+    # pending / approved / rejected / withdrawn
+    approval_mode: Mapped[str] = mapped_column(String(32), default="sequential")
+    # sequential / parallel / any_one
     current_node: Mapped[int] = mapped_column(Integer, default=1)
     total_nodes: Mapped[int] = mapped_column(Integer, default=1)
     submitted_by_id: Mapped[str | None] = mapped_column(String(36))
     submitted_by_name: Mapped[str | None] = mapped_column(String(100))
+    escalation_level: Mapped[int] = mapped_column(Integer, default=0)
+    parent_flow_id: Mapped[str | None] = mapped_column(String(36))
+    revision_no: Mapped[int] = mapped_column(Integer, default=1)
 
 
 class ApprovalTask(TenantScopedBase):
@@ -29,6 +34,6 @@ class ApprovalTask(TenantScopedBase):
     assignee_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     assignee_name: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(16), default="pending")
-    # pending / approved / rejected
+    # pending / approved / rejected / waiting / cancelled
     comment: Mapped[str | None] = mapped_column(Text)
     decided_at: Mapped[str | None] = mapped_column(String(30))

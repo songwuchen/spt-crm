@@ -95,6 +95,10 @@ export default function OpportunityDetail() {
 
   // AI analysis
   const [aiLoading, setAiLoading] = useState(false)
+  // Similar projects
+  const [similarProjects, setSimilarProjects] = useState<{ name: string; similarity_score: number; reason: string }[] | null>(null)
+  const [similarInsights, setSimilarInsights] = useState('')
+  const [similarLoading, setSimilarLoading] = useState(false)
 
   const fetchAll = async () => {
     if (!id) return
@@ -533,6 +537,47 @@ export default function OpportunityDetail() {
             </div>
           )}
 
+          {/* Similar Projects */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">相似商机</h3>
+              <Button size="small" loading={similarLoading} onClick={async () => {
+                setSimilarLoading(true)
+                try {
+                  const res = await aiApi.findSimilarProjects(id!)
+                  setSimilarProjects(res.data.similar_projects || [])
+                  setSimilarInsights(res.data.insights || '')
+                } catch { message.error('查询失败') }
+                finally { setSimilarLoading(false) }
+              }}>
+                <span className="material-symbols-outlined text-xs mr-1">auto_awesome</span>
+                AI 匹配
+              </Button>
+            </div>
+            {similarProjects === null ? (
+              <p className="text-xs text-slate-400 text-center py-2">点击"AI 匹配"查找相似商机</p>
+            ) : similarProjects.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-2">暂无匹配结果</p>
+            ) : (
+              <div className="space-y-2">
+                {similarProjects.map((p, i) => (
+                  <div key={i} className="bg-slate-50 rounded-lg px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700">{p.name}</span>
+                      <span className="text-[10px] font-extrabold text-primary">{p.similarity_score}%</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{p.reason}</div>
+                  </div>
+                ))}
+                {similarInsights && (
+                  <div className="bg-indigo-50 rounded-lg px-3 py-2 text-[11px] text-indigo-700 border border-indigo-100">
+                    <span className="font-bold">洞察: </span>{similarInsights}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Stage History */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mt-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">阶段历史</h3>
@@ -674,6 +719,53 @@ export default function OpportunityDetail() {
                 label: <span className="font-semibold">交付 ({milestones.length})</span>,
                 children: (
                   <div className="pb-6 space-y-6">
+                    {/* Progress Overview */}
+                    {milestones.length > 0 && (() => {
+                      const done = milestones.filter((m) => m.status === 'done' || m.status === 'completed').length
+                      const delayed = milestones.filter((m) => m.status === 'delayed').length
+                      const doing = milestones.filter((m) => m.status === 'doing' || m.status === 'in_progress').length
+                      const pct = Math.round((done / milestones.length) * 100)
+                      return (
+                        <div className="bg-white rounded-xl border border-slate-200 p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">交付进度</h4>
+                            <span className="text-sm font-extrabold text-slate-700">{pct}%</span>
+                          </div>
+                          <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden mb-3">
+                            <div className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${pct}%`,
+                                background: delayed > 0 ? 'linear-gradient(90deg, #10b981, #ef4444)' : '#10b981',
+                              }} />
+                          </div>
+                          <div className="grid grid-cols-4 gap-3 text-center">
+                            <div>
+                              <div className="text-xl font-extrabold text-slate-700">{milestones.length}</div>
+                              <div className="text-[10px] text-slate-400 font-bold">总里程碑</div>
+                            </div>
+                            <div>
+                              <div className="text-xl font-extrabold text-emerald-600">{done}</div>
+                              <div className="text-[10px] text-emerald-500 font-bold">已完成</div>
+                            </div>
+                            <div>
+                              <div className="text-xl font-extrabold text-blue-600">{doing}</div>
+                              <div className="text-[10px] text-blue-500 font-bold">进行中</div>
+                            </div>
+                            <div>
+                              <div className="text-xl font-extrabold text-red-600">{delayed}</div>
+                              <div className="text-[10px] text-red-500 font-bold">已延迟</div>
+                            </div>
+                          </div>
+                          {delayed > 0 && (
+                            <div className="mt-3 flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                              <span className="material-symbols-outlined text-sm">warning</span>
+                              {delayed} 个里程碑已延迟，请关注交付风险
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+
                     {/* Gantt Chart */}
                     {milestones.length > 0 && (
                       <div>
@@ -1087,14 +1179,69 @@ export default function OpportunityDetail() {
                 <Input.TextArea rows={3} placeholder="描述变更原因..." />
               </Form.Item>
             </Form>
-            {editingChange.impact_json && (
-              <div className="mt-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">影响评估</h4>
-                <pre className="bg-slate-50 p-3 rounded-lg text-xs text-slate-700 overflow-auto">
-                  {JSON.stringify(editingChange.impact_json, null, 2)}
-                </pre>
+            <div className="mt-2">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">影响评估</h4>
+                <Button size="small" type="primary" onClick={async () => {
+                  try {
+                    const res = await changeApi.estimateImpact(editingChange.id)
+                    setEditingChange({ ...editingChange, impact_json: res.data })
+                    message.success('影响评估已完成')
+                    changeApi.listByProject(id!).then((r) => setChangeRequests(r.data))
+                  } catch { message.error('评估失败') }
+                }}>自动评估影响</Button>
               </div>
-            )}
+              {editingChange.impact_json ? (
+                <div className="space-y-3">
+                  {/* Summary cards */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-blue-50 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-extrabold text-blue-600">{(editingChange.impact_json as Record<string, unknown>).affected_milestone_count as number ?? '-'}</div>
+                      <div className="text-[10px] text-blue-500 font-bold uppercase">受影响里程碑</div>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-extrabold text-slate-600">{(editingChange.impact_json as Record<string, unknown>).total_milestone_count as number ?? '-'}</div>
+                      <div className="text-[10px] text-slate-500 font-bold uppercase">总里程碑数</div>
+                    </div>
+                    <div className="bg-amber-50 rounded-lg p-3 text-center">
+                      <div className="text-lg font-extrabold text-amber-600">
+                        {((editingChange.impact_json as Record<string, unknown>).risk_summary as string[])?.length ?? 0}
+                      </div>
+                      <div className="text-[10px] text-amber-500 font-bold uppercase">风险提示</div>
+                    </div>
+                  </div>
+                  {/* Risk warnings */}
+                  {((editingChange.impact_json as Record<string, unknown>).risk_summary as string[])?.length > 0 && (
+                    <div className="space-y-1">
+                      {((editingChange.impact_json as Record<string, unknown>).risk_summary as string[]).map((r: string, i: number) => (
+                        <div key={i} className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                          <span className="material-symbols-outlined text-sm mt-px">warning</span>
+                          {r}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Affected milestones list */}
+                  {((editingChange.impact_json as Record<string, unknown>).affected_milestones as Array<Record<string, string>>)?.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-bold uppercase text-slate-400 mb-1">受影响里程碑</div>
+                      <div className="space-y-1">
+                        {((editingChange.impact_json as Record<string, unknown>).affected_milestones as Array<Record<string, string>>).map((m) => (
+                          <div key={m.id} className="flex items-center justify-between text-xs bg-slate-50 rounded px-3 py-1.5">
+                            <span className="font-semibold text-slate-700">{m.name || m.code}</span>
+                            <span className="text-slate-400">{m.plan_date || '未设定日期'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-sm text-slate-400">
+                  点击"自动评估影响"按钮生成影响分析
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Modal>

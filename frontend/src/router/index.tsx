@@ -22,6 +22,7 @@ const SolutionDetail = lazy(() => import('@/pages/opportunity/SolutionDetail'))
 const KanbanBoard = lazy(() => import('@/pages/opportunity/KanbanBoard'))
 const ServiceTicketList = lazy(() => import('@/pages/service/ServiceTicketList'))
 const ServiceTicketDetail = lazy(() => import('@/pages/service/ServiceTicketDetail'))
+const RenewalList = lazy(() => import('@/pages/service/RenewalList'))
 const DepartmentPage = lazy(() => import('@/pages/admin/department/DepartmentPage'))
 const UserList = lazy(() => import('@/pages/admin/user/UserList'))
 const RoleList = lazy(() => import('@/pages/admin/role/RoleList'))
@@ -39,6 +40,7 @@ const MobileApprovals = lazy(() => import('@/pages/mobile/MobileApprovals'))
 const MobileApprovalDetail = lazy(() => import('@/pages/mobile/MobileApprovalDetail'))
 const MobileFollowUp = lazy(() => import('@/pages/mobile/MobileFollowUp'))
 const MobileProjectRisk = lazy(() => import('@/pages/mobile/MobileProjectRisk'))
+const NotificationCenter = lazy(() => import('@/pages/notification/NotificationCenter'))
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
@@ -78,16 +80,18 @@ export const router = createBrowserRouter([
       { path: 'opportunities/:id/solutions/:sid', element: <Guard permission="solution:view"><SolutionDetail /></Guard> },
       { path: 'service-tickets', element: <Guard permission="service:view"><ServiceTicketList /></Guard> },
       { path: 'service-tickets/:id', element: <Guard permission="service:view"><ServiceTicketDetail /></Guard> },
+      { path: 'renewals', element: <Guard permission="service:view"><RenewalList /></Guard> },
       { path: 'analytics', element: <Guard permission="project:view"><AnalyticsPage /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },
       { path: 'ai-center', element: <Guard permission="project:view"><AiCenterPage /></Guard> },
+      { path: 'notifications', element: <Lazy><NotificationCenter /></Lazy> },
       { path: 'profile', element: <Lazy><ProfilePage /></Lazy> },
       { path: 'admin/departments', element: <Guard permission="dept:view"><DepartmentPage /></Guard> },
       { path: 'admin/users', element: <Guard permission="user:view"><UserList /></Guard> },
       { path: 'admin/roles', element: <Guard permission="role:view"><RoleList /></Guard> },
       { path: 'admin/audit', element: <Guard permission="audit:view"><AuditLogPage /></Guard> },
-      { path: 'admin/settings', element: <Guard permission="role:edit"><SettingsPage /></Guard> },
-      { path: 'platform/tenants', element: <Guard permission="role:edit"><PlatformTenants /></Guard> },
+      { path: 'admin/settings', element: <Guard permission="role:manage"><SettingsPage /></Guard> },
+      { path: 'platform/tenants', element: <Guard permission="role:manage"><PlatformTenants /></Guard> },
       { path: '*', element: <Lazy><NotFound /></Lazy> },
     ],
   },

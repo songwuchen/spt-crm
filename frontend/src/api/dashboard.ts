@@ -11,4 +11,6 @@ export const dashboardApi = {
   milestoneOverview: (params?: Record<string, unknown>) => client.get('/api/v1/dashboard/milestone_overview', { params }),
   monthlyRevenue: (params?: Record<string, unknown>) => client.get('/api/v1/dashboard/monthly_revenue', { params }),
   leaderboard: (params?: Record<string, unknown>) => client.get('/api/v1/dashboard/leaderboard', { params }),
+  trend: (params?: Record<string, unknown>) => client.get('/api/v1/dashboard/trend', { params }),
+  collection: (params?: Record<string, unknown>) => client.get('/api/v1/dashboard/collection', { params }),
 }

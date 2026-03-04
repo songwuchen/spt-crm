@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Button, Modal, Input, Select, message } from 'antd'
+import { Button, Modal, Input, Select, Spin, message } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { activityApi } from '@/api/activity'
+import { aiApi } from '@/api/ai'
 import type { ActivityItem } from '@/api/types'
 
 const { TextArea } = Input
@@ -25,6 +26,8 @@ export default function ActivityTimeline({ bizType, bizId }: Props) {
   const [items, setItems] = useState<ActivityItem[]>([])
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ activity_type: 'note', subject: '', content: '', contact_name: '' })
+  const [aiSummary, setAiSummary] = useState<{ summary: string; key_points: string[]; suggestion: string } | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
 
   const fetch = () => {
     activityApi.list(bizType, bizId).then((r) => setItems(r.data))
@@ -41,11 +44,52 @@ export default function ActivityTimeline({ bizType, bizId }: Props) {
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
+      <div className="flex items-center justify-between mb-4">
+        <Button size="small" onClick={async () => {
+          setSummaryLoading(true)
+          setAiSummary(null)
+          try {
+            const res = await aiApi.summarizeActivities(bizType, bizId)
+            setAiSummary(res.data)
+          } catch { message.error('AI 总结失败') }
+          finally { setSummaryLoading(false) }
+        }}>
+          <span className="material-symbols-outlined text-sm mr-1">auto_awesome</span>
+          AI 总结
+        </Button>
         <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setModal(true)}>
           添加记录
         </Button>
       </div>
+
+      {/* AI Summary Panel */}
+      {summaryLoading && <div className="flex justify-center py-4 mb-4"><Spin tip="AI 分析中..." /></div>}
+      {aiSummary && (
+        <div className="mb-6 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-indigo-100 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="material-symbols-outlined text-indigo-500" style={{ fontSize: 18 }}>auto_awesome</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-500">AI 智能总结</span>
+          </div>
+          <p className="text-sm text-slate-700 mb-3">{aiSummary.summary}</p>
+          {aiSummary.key_points?.length > 0 && (
+            <div className="mb-3">
+              <div className="text-[10px] font-bold uppercase text-indigo-400 mb-1">关键要点</div>
+              <ul className="space-y-1">
+                {aiSummary.key_points.map((p, i) => (
+                  <li key={i} className="text-xs text-slate-600 flex items-start gap-2">
+                    <span className="text-indigo-400 mt-0.5">•</span>{p}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {aiSummary.suggestion && (
+            <div className="bg-white/60 rounded-lg px-3 py-2 text-xs text-slate-600">
+              <span className="font-bold text-indigo-500">建议: </span>{aiSummary.suggestion}
+            </div>
+          )}
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="text-center py-12 text-slate-400 text-sm">暂无互动记录</div>

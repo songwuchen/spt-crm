@@ -6,11 +6,40 @@ class ApprovalSubmit(BaseModel):
     biz_type: str  # quote_version / contract_version / change_request
     biz_id: str
     title: Optional[str] = None
-    assignee_ids: list[str]  # 审批人 ID 列表 (按顺序)
+    assignee_ids: list[str] = []  # 审批人 ID 列表 (按顺序)
     assignee_names: Optional[list[str]] = None
+    approval_mode: Optional[str] = None  # sequential / parallel / any_one
+
+
+class ApprovalResubmit(BaseModel):
+    biz_type: Optional[str] = None
+    biz_id: Optional[str] = None
+    title: Optional[str] = None
+    assignee_ids: list[str] = []
+    assignee_names: Optional[list[str]] = None
+    approval_mode: Optional[str] = None
 
 
 class ApprovalDecide(BaseModel):
+    action: str  # approved / rejected
+    comment: Optional[str] = None
+
+    def model_post_init(self, __context) -> None:
+        if self.action not in ("approved", "rejected"):
+            raise ValueError("action 必须为 approved 或 rejected")
+
+
+class ApprovalWithdraw(BaseModel):
+    reason: Optional[str] = None
+
+
+class ApprovalDelegate(BaseModel):
+    target_user_id: str
+    reason: Optional[str] = None
+
+
+class ApprovalBulkDecide(BaseModel):
+    task_ids: list[str]
     action: str  # approved / rejected
     comment: Optional[str] = None
 

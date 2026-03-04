@@ -204,6 +204,11 @@ async def run_analysis(
     from app.common.exceptions import BusinessException
     from app.common.error_codes import NOT_FOUND
 
+    # Feature flag check: AI center must be enabled
+    from app.common.feature_flag import is_feature_enabled
+    if not await is_feature_enabled(db, tenant_id, "ai_center"):
+        raise BusinessException(code=42300, message="AI 中心功能未启用，请联系管理员在功能开关中开启。")
+
     # AI budget quota check
     try:
         from datetime import datetime, timezone
@@ -310,20 +315,25 @@ async def run_analysis(
         raise BusinessException(code=42200, message=f"不支持的业务类型: {body.biz_type}")
 
     # Run analysis
-    if body.analysis_type == "risk":
-        result = await analyze_project_risk(entity_data)
-    elif body.analysis_type == "profile":
-        result = await generate_customer_profile(entity_data)
-    elif body.analysis_type == "win_probability":
-        result = await predict_win_probability(entity_data)
-    elif body.analysis_type == "next_actions":
-        result = await suggest_next_actions(entity_data)
-    elif body.analysis_type == "quote_review":
-        result = await review_quote(entity_data)
-    elif body.analysis_type == "contract_review":
-        result = await review_contract(entity_data)
-    else:
-        raise BusinessException(code=42200, message=f"不支持的分析类型: {body.analysis_type}")
+    try:
+        if body.analysis_type == "risk":
+            result = await analyze_project_risk(entity_data)
+        elif body.analysis_type == "profile":
+            result = await generate_customer_profile(entity_data)
+        elif body.analysis_type == "win_probability":
+            result = await predict_win_probability(entity_data)
+        elif body.analysis_type == "next_actions":
+            result = await suggest_next_actions(entity_data)
+        elif body.analysis_type == "quote_review":
+            result = await review_quote(entity_data)
+        elif body.analysis_type == "contract_review":
+            result = await review_contract(entity_data)
+        else:
+            raise BusinessException(code=42200, message=f"不支持的分析类型: {body.analysis_type}")
+    except BusinessException:
+        raise
+    except Exception as e:
+        raise BusinessException(code=50000, message=f"AI 分析执行失败: {str(e)}")
 
     # Get token usage from the LLM call
     from app.common.ai_engine import get_last_usage
@@ -375,3 +385,65 @@ async def run_analysis(
         "result": result,
         "usage": usage,
     })
+
+
+class SimilarProjectRequest(BaseModel):
+    project_id: str
+
+
+@router.post("/api/v1/ai/similar-projects")
+async def find_similar(
+    body: SimilarProjectRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:view")),
+):
+    """Find projects similar to the given one based on AI analysis."""
+    from app.domains.project.models import OpportunityProject
+    from app.common.ai_engine import find_similar_projects
+    from app.common.feature_flag import is_feature_enabled
+
+    if not await is_feature_enabled(db, tenant_id, "ai_center"):
+        from app.common.exceptions import BusinessException
+        raise BusinessException(code=42300, message="AI 中心功能未启用，请联系管理员在功能开关中开启。")
+
+    proj = (await db.execute(
+        select(OpportunityProject).where(
+            OpportunityProject.id == body.project_id,
+            OpportunityProject.tenant_id == tenant_id,
+        )
+    )).scalar_one_or_none()
+    if not proj:
+        from app.common.exceptions import BusinessException
+        from app.common.error_codes import NOT_FOUND
+        raise BusinessException(code=NOT_FOUND, message="商机不存在")
+
+    # Fetch other projects as candidates
+    others = (await db.execute(
+        select(OpportunityProject).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.id != body.project_id,
+            OpportunityProject.is_deleted == False,
+        ).limit(50)
+    )).scalars().all()
+
+    project_data = {
+        "name": proj.name, "stage_code": proj.stage_code,
+        "amount_expect": float(proj.amount_expect) if proj.amount_expect else 0,
+        "industry": "",
+    }
+    candidates = [
+        {
+            "name": o.name, "stage_code": o.stage_code,
+            "amount_expect": float(o.amount_expect) if o.amount_expect else 0,
+            "status": o.status, "industry": "",
+        }
+        for o in others
+    ]
+
+    try:
+        result = await find_similar_projects(project_data, candidates)
+    except Exception as e:
+        from app.common.exceptions import BusinessException
+        raise BusinessException(code=50000, message=f"相似商机分析失败: {str(e)}")
+    return ok(result or {"similar_projects": [], "insights": ""})

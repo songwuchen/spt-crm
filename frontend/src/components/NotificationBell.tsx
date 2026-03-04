@@ -7,7 +7,10 @@ import { useWebSocket } from '@/hooks/useWebSocket'
 const typeIcons: Record<string, { icon: string; color: string }> = {
   approval_pending: { icon: 'pending_actions', color: '#f59e0b' },
   approval_decided: { icon: 'task_alt', color: '#10b981' },
+  stage_advance: { icon: 'swap_horiz', color: '#6366f1' },
   stage_change: { icon: 'swap_horiz', color: '#6366f1' },
+  contract_signed: { icon: 'verified', color: '#059669' },
+  ticket_assigned: { icon: 'support_agent', color: '#0ea5e9' },
   payment_overdue: { icon: 'warning', color: '#ef4444' },
   ai_task_complete: { icon: 'smart_toy', color: '#8b5cf6' },
   gate_blocked: { icon: 'block', color: '#f97316' },
@@ -81,12 +84,16 @@ export default function NotificationBell() {
     }
     setOpen(false)
 
-    if (item.biz_type === 'approval_flow') {
+    if (item.biz_type === 'approval_flow' || item.biz_type === 'approval') {
       navigate('/approvals')
     } else if (item.biz_type === 'service_ticket') {
       navigate(`/service-tickets/${item.biz_id}`)
     } else if (item.biz_type === 'project') {
       navigate(`/opportunities/${item.biz_id}`)
+    } else if (item.biz_type === 'contract' && item.biz_id) {
+      navigate(`/opportunities/contracts/${item.biz_id}`)
+    } else if (item.biz_type === 'customer' && item.biz_id) {
+      navigate(`/customers/${item.biz_id}`)
     }
   }
 
@@ -136,13 +143,13 @@ export default function NotificationBell() {
           </div>
 
           {/* List */}
-          <div className="overflow-y-auto" style={{ maxHeight: 400 }}>
+          <div className="overflow-y-auto" style={{ maxHeight: 360 }}>
             {loading ? (
               <div className="flex justify-center py-8"><Spin /></div>
             ) : items.length === 0 ? (
               <div className="text-center py-10 text-slate-400 text-sm">暂无通知</div>
             ) : (
-              items.map((item) => {
+              items.slice(0, 20).map((item) => {
                 const t = typeIcons[item.type] || typeIcons.system
                 return (
                   <div
@@ -175,6 +182,18 @@ export default function NotificationBell() {
               })
             )}
           </div>
+
+          {/* Footer */}
+          {items.length > 0 && (
+            <div className="border-t border-slate-100 px-4 py-2 text-center">
+              <button
+                onClick={() => { setOpen(false); navigate('/notifications') }}
+                className="text-xs font-semibold text-primary hover:underline bg-transparent border-none cursor-pointer"
+              >
+                查看全部通知
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

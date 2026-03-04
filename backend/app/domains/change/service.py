@@ -48,6 +48,15 @@ async def create(db: AsyncSession, tenant_id: str, project_id: str, data: Change
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="create", resource_type="change_request", resource_id=cr.id,
                      summary=f"创建变更单: {cr.change_no}")
+
+    # Auto-trigger approval if matching policy exists
+    try:
+        from app.domains.approval.service import auto_trigger_approval
+        title = f"变更审批: {cr.change_no}"
+        await auto_trigger_approval(db, tenant_id, "change_request", cr.id, title, user)
+    except Exception:
+        pass
+
     return cr
 
 
@@ -92,6 +101,88 @@ async def update(db: AsyncSession, tenant_id: str, cr_id: str, data: ChangeReque
             pass
 
     return cr
+
+
+async def estimate_impact(db: AsyncSession, tenant_id: str, cr_id: str, user: dict) -> dict:
+    """Estimate the impact of a change request based on scope: affected milestones + budget deviation."""
+    cr = await get(db, tenant_id, cr_id)
+
+    # Gather delivery milestones for this project
+    from app.domains.delivery.models import DeliveryMilestone
+    ms_result = await db.execute(
+        select(DeliveryMilestone).where(
+            DeliveryMilestone.tenant_id == tenant_id,
+            DeliveryMilestone.project_id == cr.project_id,
+        ).order_by(DeliveryMilestone.sort_order)
+    )
+    milestones = ms_result.scalars().all()
+
+    # Determine affected milestones based on change_type
+    affected_milestones = []
+    delivery_types = {"delivery", "requirement", "scope"}
+    if cr.change_type in delivery_types:
+        # All not-yet-completed milestones are potentially affected
+        affected_milestones = [
+            {"id": m.id, "code": m.milestone_code, "name": m.name, "status": m.status,
+             "plan_date": str(m.plan_date) if m.plan_date else None}
+            for m in milestones if m.status not in ("done", "completed")
+        ]
+    else:
+        # Quote / contract changes: only affect milestones after current doing milestone
+        found_doing = False
+        for m in milestones:
+            if m.status in ("doing", "in_progress"):
+                found_doing = True
+                continue
+            if found_doing and m.status not in ("done", "completed"):
+                affected_milestones.append({
+                    "id": m.id, "code": m.milestone_code, "name": m.name,
+                    "status": m.status, "plan_date": str(m.plan_date) if m.plan_date else None,
+                })
+
+    # Calculate budget deviation from project amount + quote totals
+    from app.domains.project.models import OpportunityProject
+    proj = (await db.execute(
+        select(OpportunityProject).where(
+            OpportunityProject.id == cr.project_id,
+            OpportunityProject.tenant_id == tenant_id,
+        )
+    )).scalar_one_or_none()
+
+    budget_info = {}
+    if proj:
+        budget_info["project_amount_expect"] = float(proj.amount_expect) if proj.amount_expect else None
+        budget_info["project_name"] = proj.name
+
+    # Build impact assessment
+    impact = {
+        "change_type": cr.change_type,
+        "affected_milestones": affected_milestones,
+        "affected_milestone_count": len(affected_milestones),
+        "total_milestone_count": len(milestones),
+        "budget": budget_info,
+        "risk_summary": [],
+    }
+
+    if len(affected_milestones) > 3:
+        impact["risk_summary"].append("影响超过3个里程碑，建议重新评估项目计划")
+    if cr.change_type in ("quote", "contract"):
+        impact["risk_summary"].append("涉及报价/合同变更，可能影响利润率")
+    delayed_count = sum(1 for m in milestones if m.status == "delayed")
+    if delayed_count > 0:
+        impact["risk_summary"].append(f"当前已有 {delayed_count} 个延迟里程碑，变更可能加剧延期风险")
+
+    # Store the impact back to the change request
+    cr.impact_json = impact
+    await db.commit()
+    await db.refresh(cr)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"],
+                     user_name=user.get("real_name") or user.get("username"),
+                     action="update", resource_type="change_request", resource_id=cr_id,
+                     summary=f"评估变更影响: {cr.change_no}, 影响 {len(affected_milestones)} 个里程碑")
+
+    return impact
 
 
 async def delete(db: AsyncSession, tenant_id: str, cr_id: str, user: dict):

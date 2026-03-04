@@ -15,6 +15,7 @@ DEFAULT_MASK_POLICIES = [
     {"resource": "cost_snapshot", "field": "cost_total", "required_permission": "quote:view_cost", "mask_type": "hidden"},
     {"resource": "cost_snapshot", "field": "breakdown_json", "required_permission": "quote:view_cost", "mask_type": "hidden"},
     {"resource": "quote_version", "field": "discount_total", "required_permission": "quote:view_discount", "mask_type": "hidden"},
+    {"resource": "contract", "field": "amount_total", "required_permission": "contract:view_amount", "mask_type": "hidden"},
 ]
 
 MASK_VALUE = "***"

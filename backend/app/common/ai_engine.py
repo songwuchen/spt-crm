@@ -187,12 +187,71 @@ def _mock_response(prompt: str) -> str:
             "overall_comment": "合同主要风险在交付周期和知识产权条款，建议在签署前补充完善。",
         }, ensure_ascii=False)
 
+    if "汇总" in prompt or "跟进记录" in prompt or "summarize" in prompt.lower():
+        return json.dumps({
+            "summary": "近期跟进活跃，客户方已完成内部需求评审，正等待我方正式报价方案。",
+            "key_points": [
+                "客户完成内部需求评审，需求范围已确定",
+                "技术方案获客户技术团队认可",
+                "竞品正在低价策略抢客户",
+                "客户Q2预算已到位，签约窗口期3-4月",
+            ],
+            "suggestion": "建议尽快提交正式报价，强调技术优势和服务价值，避免陷入价格战。",
+        }, ensure_ascii=False)
+
+    if "相似" in prompt or "similar" in prompt.lower():
+        return json.dumps({
+            "similar_projects": [
+                {"name": "XX公司数字化转型", "similarity_score": 85, "reason": "同行业、相近金额、已赢单"},
+                {"name": "YY集团MES项目", "similarity_score": 72, "reason": "相似技术栈、同阶段推进"},
+                {"name": "ZZ工厂智能制造", "similarity_score": 68, "reason": "同金额区间、类似决策流程"},
+            ],
+            "insights": "相似赢单项目的共同特征是在S3阶段快速推进技术验证，平均签约周期45天。建议参考XX公司项目的推进策略。",
+        }, ensure_ascii=False)
+
     return json.dumps({"message": "AI 分析完成", "result": "暂无特定分析结果"}, ensure_ascii=False)
 
 
-async def analyze_project_risk(project_data: dict) -> dict:
+async def _get_template_text(task_type: str, tenant_id: str | None = None) -> str | None:
+    """Try to load a prompt template from DB for the given task_type.
+
+    Returns template_text if found and active, otherwise None (fallback to hardcoded).
+    """
+    if not tenant_id:
+        return None
+    try:
+        from app.database import async_session_factory
+        from sqlalchemy import select
+        from app.domains.ai_center.models import AiPromptTemplate
+        async with async_session_factory() as db:
+            t = (await db.execute(
+                select(AiPromptTemplate).where(
+                    AiPromptTemplate.tenant_id == tenant_id,
+                    AiPromptTemplate.task_type == task_type,
+                    AiPromptTemplate.is_active == True,
+                ).order_by(AiPromptTemplate.created_at.desc()).limit(1)
+            )).scalar_one_or_none()
+            return t.template_text if t else None
+    except Exception:
+        return None
+
+
+def _render_template(template: str, variables: dict) -> str:
+    """Simple template rendering: replace {{key}} with value."""
+    result = template
+    for key, val in variables.items():
+        result = result.replace("{{" + key + "}}", str(val or ""))
+    return result
+
+
+async def analyze_project_risk(project_data: dict, tenant_id: str | None = None) -> dict:
     """Analyze project risk based on project data."""
-    prompt = f"""请对以下商机项目进行风险评估分析：
+    # Try to use a DB template first
+    template = await _get_template_text("quote_risk_analysis", tenant_id)
+    if template:
+        prompt = _render_template(template, project_data)
+    else:
+        prompt = f"""请对以下商机项目进行风险评估分析：
 项目名称: {project_data.get('name', '')}
 阶段: {project_data.get('stage_code', '')}
 预期金额: {project_data.get('amount_expect', 0)}
@@ -209,9 +268,13 @@ async def analyze_project_risk(project_data: dict) -> dict:
         return {"raw_response": result}
 
 
-async def generate_customer_profile(customer_data: dict) -> dict:
+async def generate_customer_profile(customer_data: dict, tenant_id: str | None = None) -> dict:
     """Generate AI customer profile/portrait."""
-    prompt = f"""请为以下客户生成智能画像分析：
+    template = await _get_template_text("customer_insight", tenant_id)
+    if template:
+        prompt = _render_template(template, customer_data)
+    else:
+        prompt = f"""请为以下客户生成智能画像分析：
 客户名称: {customer_data.get('name', '')}
 行业: {customer_data.get('industry', '')}
 等级: {customer_data.get('level', '')}
@@ -285,9 +348,13 @@ async def review_contract(contract_data: dict) -> dict:
         return {"raw_response": result}
 
 
-async def suggest_next_actions(project_data: dict) -> dict:
+async def suggest_next_actions(project_data: dict, tenant_id: str | None = None) -> dict:
     """Suggest next actions for a project."""
-    prompt = f"""请为以下商机推荐下一步行动计划：
+    template = await _get_template_text("next_action", tenant_id)
+    if template:
+        prompt = _render_template(template, project_data)
+    else:
+        prompt = f"""请为以下商机推荐下一步行动计划：
 项目: {project_data.get('name', '')}
 当前阶段: {project_data.get('stage_code', '')}
 客户: {project_data.get('customer_name', '')}
@@ -301,3 +368,61 @@ async def suggest_next_actions(project_data: dict) -> dict:
         return json.loads(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
+
+
+async def summarize_activity(activities: list[dict]) -> dict:
+    """Summarize a list of activity records into a concise AI summary."""
+    if not activities:
+        return {"summary": "暂无活动记录。", "key_points": [], "suggestion": ""}
+
+    activity_text = "\n".join([
+        f"- [{a.get('activity_type', 'note')}] {a.get('subject', '')} - {a.get('content', '')[:100]} ({a.get('created_at', '')})"
+        for a in activities[:30]
+    ])
+
+    prompt = f"""请对以下客户/商机的近期跟进记录进行汇总分析：
+
+{activity_text}
+
+请输出JSON格式，包含：
+1. summary: 一段简洁的总结（100字以内）
+2. key_points: 关键要点列表（3-5条）
+3. suggestion: 下一步建议"""
+
+    system = "你是一位CRM销售助理。请以JSON格式输出活动记录汇总分析。"
+    result = await _call_llm(system, prompt)
+    try:
+        return json.loads(result)
+    except json.JSONDecodeError:
+        return {"summary": result[:200], "key_points": [], "suggestion": ""}
+
+
+async def find_similar_projects(project_data: dict, candidates: list[dict]) -> dict:
+    """Find similar projects from a list of candidates based on industry/amount/stage."""
+    if not candidates:
+        return {"similar_projects": [], "insights": ""}
+
+    candidates_text = "\n".join([
+        f"- {c.get('name', '')} | 阶段: {c.get('stage_code', '')} | 金额: {c.get('amount_expect', 0)} | 状态: {c.get('status', '')} | 行业: {c.get('industry', '')}"
+        for c in candidates[:20]
+    ])
+
+    prompt = f"""当前商机：
+名称: {project_data.get('name', '')}
+阶段: {project_data.get('stage_code', '')}
+金额: {project_data.get('amount_expect', 0)}
+行业: {project_data.get('industry', '')}
+
+候选商机列表：
+{candidates_text}
+
+请从行业、金额、阶段等维度匹配最相似的商机（最多5个），并给出经验借鉴建议。
+输出JSON格式：
+{{"similar_projects": [{{"name": "...", "similarity_score": 85, "reason": "..."}}], "insights": "..."}}"""
+
+    system = "你是一位CRM销售分析专家。请以JSON格式输出相似商机匹配结果。"
+    result = await _call_llm(system, prompt)
+    try:
+        return json.loads(result)
+    except json.JSONDecodeError:
+        return {"similar_projects": [], "insights": result[:200]}

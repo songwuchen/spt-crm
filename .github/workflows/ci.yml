@@ -1,0 +1,137 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  HARBOR_REGISTRY: wmharbor.fourier.net.cn:39011
+  HARBOR_PROJECT: hengchao-dev
+  BACKEND_IMAGE: wmharbor.fourier.net.cn:39011/hengchao-dev/spt-crm-backend
+  FRONTEND_IMAGE: wmharbor.fourier.net.cn:39011/hengchao-dev/spt-crm-frontend
+  DEPLOY_HOST: 192.168.0.42
+  DEPLOY_USER: hengchao
+  DEPLOY_DIR: /home/hengchao/ai-crm
+
+jobs:
+  test-frontend:
+    name: Test Frontend
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+
+  test-backend:
+    name: Test Backend
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: spt_crm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/spt_crm_test
+      JWT_SECRET_KEY: ci-test-secret
+      AI_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: alembic upgrade head
+      - run: python -m pytest -x --tb=short
+
+  build-and-push:
+    name: Build & Push Images
+    runs-on: self-hosted
+    needs: [test-frontend, test-backend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Harbor
+        run: echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.HARBOR_REGISTRY }} -u ${{ secrets.HARBOR_USERNAME }} --password-stdin
+
+      - name: Build & push backend image
+        run: |
+          docker build -t ${{ env.BACKEND_IMAGE }}:latest -t ${{ env.BACKEND_IMAGE }}:${{ github.sha }} ./backend
+          docker push ${{ env.BACKEND_IMAGE }}:latest
+          docker push ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+
+      - name: Build & push frontend image
+        run: |
+          docker build -t ${{ env.FRONTEND_IMAGE }}:latest -t ${{ env.FRONTEND_IMAGE }}:${{ github.sha }} ./frontend
+          docker push ${{ env.FRONTEND_IMAGE }}:latest
+          docker push ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+
+  deploy:
+    name: Deploy to Production
+    runs-on: self-hosted
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create deploy directory
+        run: ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}"
+
+      - name: Copy deployment files
+        run: |
+          scp docker-compose.prod.yml ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_DIR }}/docker-compose.yml
+          scp nginx.prod.conf ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_DIR }}/nginx.prod.conf
+          scp .env.example ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_DIR }}/.env.example
+
+      - name: Initialize .env if missing
+        run: |
+          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "
+            cd ${{ env.DEPLOY_DIR }}
+            [ -f .env ] || cp .env.example .env
+          "
+
+      - name: Pull and deploy
+        run: |
+          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "
+            cd ${{ env.DEPLOY_DIR }}
+            echo '${{ secrets.HARBOR_PASSWORD }}' | docker login ${{ env.HARBOR_REGISTRY }} -u ${{ secrets.HARBOR_USERNAME }} --password-stdin
+            docker compose pull
+            docker compose up -d
+          "
+
+      - name: Run database migrations
+        run: |
+          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "
+            cd ${{ env.DEPLOY_DIR }}
+            echo 'Waiting for database...'
+            for i in \$(seq 1 30); do
+              docker compose exec -T db pg_isready -U postgres && break
+              sleep 2
+            done
+            docker compose exec -T backend alembic upgrade head
+          "

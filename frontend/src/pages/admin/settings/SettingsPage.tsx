@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Tabs, Table, Button, Modal, Input, InputNumber, Select, Switch, Space, Progress, message } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
 import { settingsApi } from '@/api/settings'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import ApprovalPolicyModal from './ApprovalPolicyModal'
 
 const { TextArea } = Input
 
@@ -12,6 +13,7 @@ interface AiPolicy { id: string; task_type: string; model_route_json?: Record<st
 interface Integration { id: string; system_code: string; name: string; base_url: string; auth_type: string; status: string }
 interface FeatureToggle { id: string; feature_code: string; enabled: boolean; config_json?: Record<string, unknown> }
 interface AiBudget { id: string; period: string; budget_cost?: number; used_cost?: number; budget_tokens?: number; used_tokens?: number; hard_limit: boolean }
+interface ApprovalPolicyItem { id: string; biz_type: string; name: string; condition_json?: Record<string, unknown>; approver_rules_json?: Record<string, unknown>; approval_mode: string; sla_hours?: number; escalation_json?: Record<string, unknown>[]; priority: number; enabled: boolean }
 
 function JsonCell({ value }: { value: unknown }) {
   if (!value) return <span className="text-slate-300">-</span>
@@ -28,6 +30,7 @@ export default function SettingsPage() {
   const [aiBudget, setAiBudget] = useState<AiBudget | null>(null)
   const [budgetForm, setBudgetForm] = useState({ budget_cost: 100, budget_tokens: 10000000, hard_limit: false })
   const [budgetModal, setBudgetModal] = useState(false)
+  const [approvalPolicies, setApprovalPolicies] = useState<ApprovalPolicyItem[]>([])
 
   // Stage edit
   const [stageModal, setStageModal] = useState(false)
@@ -41,6 +44,12 @@ export default function SettingsPage() {
   const [intModal, setIntModal] = useState(false)
   const [intForm, setIntForm] = useState({ system_code: '', name: '', base_url: '', auth_type: 'apikey' })
 
+  // Approval policy create/edit
+  const [apModal, setApModal] = useState(false)
+  const [apEditingId, setApEditingId] = useState<string | null>(null)
+  const defaultApForm = { biz_type: 'quote_version', name: '', condition_json: '', approver_rules_json: '', approval_mode: 'sequential', sla_hours: undefined as number | undefined, escalation_json: '' }
+  const [apForm, setApForm] = useState(defaultApForm)
+
   const currentPeriod = new Date().toISOString().slice(0, 7)
 
   const fetchAll = () => {
@@ -50,6 +59,7 @@ export default function SettingsPage() {
     settingsApi.listIntegrations().then((r: { data: Integration[] }) => r.data && setIntegrations(r.data)).catch(() => {})
     settingsApi.listFeatures().then((r: { data: FeatureToggle[] }) => r.data && setFeatures(r.data)).catch(() => {})
     settingsApi.getAiBudget(currentPeriod).then((r: { data: AiBudget | null }) => r.data && setAiBudget(r.data)).catch(() => {})
+    settingsApi.listApprovalPolicies().then((r: { data: ApprovalPolicyItem[] }) => r.data && setApprovalPolicies(r.data)).catch(() => {})
   }
 
   const handleSaveBudget = async () => {
@@ -103,11 +113,41 @@ export default function SettingsPage() {
     }
   }
 
+  const handleSaveAp = async (payload: Record<string, unknown>) => {
+    try {
+      if (apEditingId) {
+        await settingsApi.updateApprovalPolicy(apEditingId, payload)
+        message.success('审批策略已更新')
+      } else {
+        await settingsApi.createApprovalPolicy(payload)
+        message.success('审批策略已创建')
+      }
+      setApModal(false)
+      setApEditingId(null)
+      setApForm(defaultApForm)
+      fetchAll()
+    } catch { message.error(apEditingId ? '更新审批策略失败' : '创建审批策略失败') }
+  }
+
+  const openApEdit = (r: ApprovalPolicyItem) => {
+    setApEditingId(r.id)
+    setApForm({
+      biz_type: r.biz_type,
+      name: r.name || '',
+      condition_json: r.condition_json ? JSON.stringify(r.condition_json, null, 2) : '',
+      approver_rules_json: r.approver_rules_json ? JSON.stringify(r.approver_rules_json, null, 2) : '',
+      approval_mode: r.approval_mode || 'sequential',
+      sla_hours: r.sla_hours,
+      escalation_json: r.escalation_json ? JSON.stringify(r.escalation_json, null, 2) : '',
+    })
+    setApModal(true)
+  }
+
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">系统配置</h1>
-        <p className="text-sm text-slate-500 mt-1">管理阶段Gate、毛利红线、AI策略、集成端点和功能开关</p>
+        <p className="text-sm text-slate-500 mt-1">管理阶段Gate、毛利红线、审批策略、AI策略、集成端点和功能开关</p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -150,6 +190,50 @@ export default function SettingsPage() {
                   { title: '范围', dataIndex: 'scope_json', render: (v: unknown) => <JsonCell value={v} /> },
                   { title: '启用', dataIndex: 'enabled', width: 80, render: (v: boolean) => v ? '是' : '否' },
                 ]} />
+              </div>
+            ),
+          },
+          {
+            key: 'approval', label: '审批策略',
+            children: (
+              <div className="pb-6">
+                <div className="flex justify-end mb-3">
+                  <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => { setApEditingId(null); setApForm(defaultApForm); setApModal(true) }}>新增策略</Button>
+                </div>
+                <Table rowKey="id" dataSource={approvalPolicies} size="small" pagination={false} columns={[
+                  { title: '业务类型', dataIndex: 'biz_type', width: 130, render: (v: string) => ({
+                    quote_version: '报价审批', contract_version: '合同审批', change_request: '变更审批',
+                  }[v] || v) },
+                  { title: '策略名称', dataIndex: 'name', width: 150 },
+                  { title: '触发条件', dataIndex: 'condition_json', render: (v: unknown) => <JsonCell value={v} /> },
+                  { title: '审批人规则', dataIndex: 'approver_rules_json', render: (v: unknown) => <JsonCell value={v} /> },
+                  { title: '模式', dataIndex: 'approval_mode', width: 80, render: (v: string) => ({
+                    sequential: '依次', parallel: '并行', any_one: '任一',
+                  }[v] || v) },
+                  { title: 'SLA(时)', dataIndex: 'sla_hours', width: 70 },
+                  { title: '升级链', dataIndex: 'escalation_json', width: 100, render: (v: unknown) => v ? <JsonCell value={v} /> : <span className="text-slate-300">-</span> },
+                  { title: '启用', dataIndex: 'enabled', width: 60, render: (v: boolean, r: ApprovalPolicyItem) => (
+                    <Switch size="small" checked={v} onChange={async (checked) => {
+                      try {
+                        await settingsApi.updateApprovalPolicy(r.id, { enabled: checked })
+                        fetchAll()
+                      } catch { message.error('更新失败') }
+                    }} />
+                  )},
+                  { title: '', width: 100, render: (_: unknown, r: ApprovalPolicyItem) => (
+                    <Space size="middle">
+                      <a className="text-primary text-xs font-bold" onClick={() => openApEdit(r)}>编辑</a>
+                      <a className="text-rose-500 text-xs font-bold" onClick={async () => {
+                        try {
+                          await settingsApi.deleteApprovalPolicy(r.id)
+                          message.success('已删除')
+                          fetchAll()
+                        } catch { message.error('删除失败') }
+                      }}>删除</a>
+                    </Space>
+                  )},
+                ]} />
+                {approvalPolicies.length === 0 && <div className="text-center py-8 text-slate-400 text-sm">暂无审批策略，点击"新增策略"创建</div>}
               </div>
             ),
           },
@@ -346,6 +430,15 @@ export default function SettingsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Approval Policy Modal */}
+      <ApprovalPolicyModal
+        open={apModal}
+        editingId={apEditingId}
+        initialData={apForm}
+        onSave={handleSaveAp}
+        onCancel={() => { setApModal(false); setApEditingId(null) }}
+      />
 
       {/* Integration Modal */}
       <Modal title="新增集成端点" open={intModal} onOk={handleCreateInt} onCancel={() => setIntModal(false)}>

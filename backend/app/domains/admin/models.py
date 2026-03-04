@@ -101,6 +101,26 @@ class TenantAiBudget(TenantScopedBase):
     hard_limit: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class ApprovalPolicy(TenantScopedBase):
+    """审批策略配置"""
+    __tablename__ = "approval_policies"
+
+    biz_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # quote_version / contract_version / change_request
+    name: Mapped[str | None] = mapped_column(String(200))
+    condition_json: Mapped[dict | None] = mapped_column(JSON)
+    # {"margin_rate_lt": 0.25, "amount_gt": 100000}
+    approver_rules_json: Mapped[dict | None] = mapped_column(JSON)
+    # [{"type": "role", "value": "finance_manager"}, {"type": "user_field", "value": "owner.department.manager"}]
+    approval_mode: Mapped[str] = mapped_column(String(32), default="sequential")
+    # sequential | parallel | any_one
+    sla_hours: Mapped[int | None] = mapped_column(Integer)
+    escalation_json: Mapped[dict | None] = mapped_column(JSON)
+    # [{"after_hours": 24, "action": "remind"}, {"after_hours": 48, "action": "auto_approve"}]
+    priority: Mapped[int] = mapped_column(Integer, default=0)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class IntegrationEndpoint(TenantScopedBase):
     """集成端点配置"""
     __tablename__ = "integration_endpoints"

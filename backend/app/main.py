@@ -37,6 +37,13 @@ from app.domains.notification.router import router as notification_router
 from app.domains.outbox.router import router as outbox_router
 
 from app.config import settings
+from app.common.logging_config import setup_logging
+
+import os
+setup_logging(
+    json_format=os.getenv("LOG_FORMAT", "").lower() == "json",
+    level=os.getenv("LOG_LEVEL", "INFO"),
+)
 
 app = FastAPI(
     title="SPT-CRM API",

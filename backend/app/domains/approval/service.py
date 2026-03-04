@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
@@ -55,7 +55,6 @@ async def _check_margin_redline(db: AsyncSession, tenant_id: str, biz_type: str,
         if not ver or ver.margin_rate is None:
             return None
 
-        # Load active margin policies
         policies = (await db.execute(
             select(MarginPolicy).where(MarginPolicy.tenant_id == tenant_id, MarginPolicy.enabled == True)
         )).scalars().all()
@@ -78,10 +77,115 @@ async def _check_margin_redline(db: AsyncSession, tenant_id: str, biz_type: str,
                         "message": f"毛利率 {margin:.1%} 低于红线 {redline:.1%}（策略: {policy.policy_code}），需要额外审批。",
                         "policy_code": policy.policy_code,
                     }
-                # "warn" action just logs, doesn't block
     except Exception:
         pass
     return None
+
+
+async def _resolve_policy_approvers(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str) -> tuple[list[str], list[str], str] | None:
+    """Try to resolve approvers from approval_policies table. Returns (ids, names, mode) or None."""
+    try:
+        from app.domains.admin.service import match_approval_policy
+        context: dict = {}
+        if biz_type == "quote_version":
+            from app.domains.quote.models import QuoteVersion
+            ver = (await db.execute(
+                select(QuoteVersion).where(QuoteVersion.id == biz_id, QuoteVersion.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if ver:
+                context["margin_rate"] = float(ver.margin_rate) if ver.margin_rate is not None else None
+                context["amount"] = float(ver.price_total) if ver.price_total is not None else None
+        elif biz_type == "contract_version":
+            from app.domains.contract.models import ContractVersion, Contract
+            ver = (await db.execute(
+                select(ContractVersion).where(ContractVersion.id == biz_id, ContractVersion.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if ver:
+                c = (await db.execute(
+                    select(Contract).where(Contract.id == ver.contract_id, Contract.tenant_id == tenant_id)
+                )).scalar_one_or_none()
+                if c:
+                    context["amount"] = float(c.amount_total) if c.amount_total is not None else None
+
+        policy = await match_approval_policy(db, tenant_id, biz_type, context)
+        if not policy or not policy.approver_rules_json:
+            return None
+
+        from app.domains.auth.models import User, UserRole, Role
+        approver_ids = []
+        approver_names = []
+        rules = policy.approver_rules_json if isinstance(policy.approver_rules_json, list) else [policy.approver_rules_json]
+        for rule in rules:
+            rule_type = rule.get("type", "")
+            rule_value = rule.get("value", "")
+            if rule_type == "role":
+                users = (await db.execute(
+                    select(User)
+                    .join(UserRole, UserRole.user_id == User.id)
+                    .join(Role, Role.id == UserRole.role_id)
+                    .where(User.tenant_id == tenant_id, Role.code == rule_value, User.is_active == True)
+                )).scalars().all()
+                for u in users:
+                    if u.id not in approver_ids:
+                        approver_ids.append(u.id)
+                        approver_names.append(u.real_name or u.username)
+            elif rule_type == "user":
+                u = (await db.execute(
+                    select(User).where(User.id == rule_value, User.tenant_id == tenant_id)
+                )).scalar_one_or_none()
+                if u and u.id not in approver_ids:
+                    approver_ids.append(u.id)
+                    approver_names.append(u.real_name or u.username)
+            elif rule_type == "department_leader":
+                # Resolve submitter's department leader
+                try:
+                    from app.domains.auth.models import UserDepartment
+                    from app.domains.admin.models import Department
+                    # We don't have current user here, so skip in this context
+                except Exception:
+                    pass
+
+        if approver_ids:
+            return approver_ids, approver_names, policy.approval_mode or "sequential"
+    except Exception:
+        pass
+    return None
+
+
+async def _dispatch_msg_safe(db: AsyncSession, tenant_id: str, title: str, content: str, msg_type: str = "approval"):
+    """Dispatch external message notification (non-critical, never throws)."""
+    try:
+        from app.common.msg_integration import dispatch_message
+        await dispatch_message(db, tenant_id, title, content, msg_type=msg_type)
+    except Exception:
+        pass
+
+
+async def _enqueue_approval_event(db: AsyncSession, tenant_id: str, event_type: str, flow: ApprovalFlow, extra: dict | None = None):
+    """Enqueue an outbox event for the approval lifecycle (must be called before db.commit)."""
+    try:
+        from app.domains.outbox.service import enqueue_event
+        from app.domains.outbox.schemas import OutboxEventCreate
+        payload = {
+            "flow_id": flow.id,
+            "biz_type": flow.biz_type,
+            "biz_id": flow.biz_id,
+            "title": flow.title,
+            "status": flow.status,
+            "approval_mode": flow.approval_mode,
+            "submitted_by_id": flow.submitted_by_id,
+            "submitted_by_name": flow.submitted_by_name,
+        }
+        if extra:
+            payload.update(extra)
+        await enqueue_event(db, tenant_id, OutboxEventCreate(
+            event_type=event_type,
+            aggregate_type="approval_flow",
+            aggregate_id=flow.id,
+            payload_json=payload,
+        ))
+    except Exception:
+        pass
 
 
 async def submit_approval(db: AsyncSession, tenant_id: str, data: ApprovalSubmit, user: dict) -> ApprovalFlow:
@@ -102,14 +206,26 @@ async def submit_approval(db: AsyncSession, tenant_id: str, data: ApprovalSubmit
     if existing:
         raise BusinessException(code=BUSINESS_ERROR, message="该对象已有进行中的审批流")
 
+    # If no assignees provided, try to resolve from approval policies
+    if not data.assignee_ids:
+        resolved = await _resolve_policy_approvers(db, tenant_id, data.biz_type, data.biz_id)
+        if resolved:
+            data.assignee_ids = resolved[0]
+            data.assignee_names = resolved[1]
+            if not data.approval_mode:
+                data.approval_mode = resolved[2]
+
     if not data.assignee_ids:
         raise BusinessException(code=BUSINESS_ERROR, message="至少指定一个审批人")
+
+    mode = data.approval_mode or "sequential"
 
     flow = ApprovalFlow(
         id=generate_uuid(), tenant_id=tenant_id,
         biz_type=data.biz_type, biz_id=data.biz_id,
         title=data.title,
         status="pending",
+        approval_mode=mode,
         current_node=1,
         total_nodes=len(data.assignee_ids),
         submitted_by_id=user["sub"],
@@ -119,15 +235,23 @@ async def submit_approval(db: AsyncSession, tenant_id: str, data: ApprovalSubmit
 
     names = data.assignee_names or [None] * len(data.assignee_ids)
     for i, aid in enumerate(data.assignee_ids):
+        if mode == "sequential":
+            task_status = "pending" if i == 0 else "waiting"
+        else:
+            # parallel / any_one: all tasks start as pending
+            task_status = "pending"
         task = ApprovalTask(
             id=generate_uuid(), tenant_id=tenant_id,
             flow_id=flow.id,
             node_order=i + 1,
             assignee_id=aid,
             assignee_name=names[i] if i < len(names) else None,
-            status="pending" if i == 0 else "waiting",
+            status=task_status,
         )
         db.add(task)
+
+    # Outbox event (before commit)
+    await _enqueue_approval_event(db, tenant_id, "approval.submitted", flow)
 
     await db.commit()
     await db.refresh(flow)
@@ -139,15 +263,35 @@ async def submit_approval(db: AsyncSession, tenant_id: str, data: ApprovalSubmit
         summary=f"提交审批: {data.title or data.biz_type}"
     )
 
-    # Notify first approver
-    await send_notification(
-        db, tenant_id, data.assignee_ids[0],
-        type="approval_pending",
-        title=f"您有新的审批待处理: {data.title or data.biz_type}",
-        content=f"{flow.submitted_by_name} 提交了审批请求",
-        biz_type="approval_flow", biz_id=flow.id,
-        sender_name=flow.submitted_by_name,
-    )
+    # Notifications
+    if mode == "sequential":
+        # Notify first approver only
+        await send_notification(
+            db, tenant_id, data.assignee_ids[0],
+            type="approval_pending",
+            title=f"您有新的审批待处理: {data.title or data.biz_type}",
+            content=f"{flow.submitted_by_name} 提交了审批请求",
+            biz_type="approval_flow", biz_id=flow.id,
+            sender_name=flow.submitted_by_name,
+        )
+        await _dispatch_msg_safe(db, tenant_id,
+            "审批待处理通知",
+            f"**审批人**: {names[0] or data.assignee_ids[0]}\n\n**业务类型**: {data.biz_type}\n\n**审批对象**: {data.title or data.biz_type}\n\n请尽快登录系统处理审批。")
+    else:
+        # parallel / any_one: notify all approvers
+        for i, aid in enumerate(data.assignee_ids):
+            await send_notification(
+                db, tenant_id, aid,
+                type="approval_pending",
+                title=f"您有新的审批待处理: {data.title or data.biz_type}",
+                content=f"{flow.submitted_by_name} 提交了审批请求（{mode}模式）",
+                biz_type="approval_flow", biz_id=flow.id,
+                sender_name=flow.submitted_by_name,
+            )
+        await _dispatch_msg_safe(db, tenant_id,
+            "审批待处理通知",
+            f"**审批模式**: {mode}\n\n**业务类型**: {data.biz_type}\n\n**审批对象**: {data.title or data.biz_type}\n\n请相关审批人尽快处理。")
+
     return flow
 
 
@@ -169,27 +313,66 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
     if flow.status != "pending":
         raise BusinessException(code=BUSINESS_ERROR, message="审批流已结束")
 
-    # Enforce sequential node order
-    if task.node_order != flow.current_node:
-        raise BusinessException(code=BUSINESS_ERROR, message="请等待前序审批节点完成")
-
-    now = datetime.now(timezone.utc).isoformat()
+    mode = flow.approval_mode or "sequential"
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
     task.status = action
     task.comment = comment
     task.decided_at = now
 
-    if action == "rejected":
-        flow.status = "rejected"
-    elif action == "approved":
-        if task.node_order >= flow.total_nodes:
+    if mode == "sequential":
+        # Enforce sequential node order
+        if task.node_order != flow.current_node:
+            raise BusinessException(code=BUSINESS_ERROR, message="请等待前序审批节点完成")
+
+        if action == "rejected":
+            flow.status = "rejected"
+        elif action == "approved":
+            if task.node_order >= flow.total_nodes:
+                flow.status = "approved"
+            else:
+                flow.current_node = task.node_order + 1
+                tasks = await get_flow_tasks(db, tenant_id, flow.id)
+                next_task = next((t for t in tasks if t.node_order == flow.current_node), None)
+                if next_task and next_task.status == "waiting":
+                    next_task.status = "pending"
+
+    elif mode == "parallel":
+        # All must approve; any reject => flow rejected
+        if action == "rejected":
+            flow.status = "rejected"
+            # Cancel remaining pending tasks
+            all_tasks = await get_flow_tasks(db, tenant_id, flow.id)
+            for t in all_tasks:
+                if t.id != task.id and t.status == "pending":
+                    t.status = "cancelled"
+        elif action == "approved":
+            # Check if all other tasks are also approved
+            all_tasks = await get_flow_tasks(db, tenant_id, flow.id)
+            all_decided = all(t.status in ("approved", "cancelled") for t in all_tasks if t.id != task.id)
+            all_approved = all(t.status == "approved" for t in all_tasks)
+            if all_approved:
+                flow.status = "approved"
+
+    elif mode == "any_one":
+        # Any approve => flow approved; all reject => flow rejected
+        if action == "approved":
             flow.status = "approved"
-        else:
-            flow.current_node = task.node_order + 1
-            # Activate next node task: waiting → pending
-            tasks = await get_flow_tasks(db, tenant_id, flow.id)
-            next_task = next((t for t in tasks if t.node_order == flow.current_node), None)
-            if next_task and next_task.status == "waiting":
-                next_task.status = "pending"
+            # Cancel remaining pending tasks
+            all_tasks = await get_flow_tasks(db, tenant_id, flow.id)
+            for t in all_tasks:
+                if t.id != task.id and t.status == "pending":
+                    t.status = "cancelled"
+        elif action == "rejected":
+            # Check if all other tasks are also rejected
+            all_tasks = await get_flow_tasks(db, tenant_id, flow.id)
+            all_rejected = all(t.status in ("rejected", "cancelled") for t in all_tasks)
+            if all_rejected:
+                flow.status = "rejected"
+
+    # Outbox event (before commit)
+    if flow.status in ("approved", "rejected"):
+        event_type = "approval.approved" if flow.status == "approved" else "approval.rejected"
+        await _enqueue_approval_event(db, tenant_id, event_type, flow, {"decided_by": user["sub"]})
 
     await db.commit()
     await db.refresh(flow)
@@ -212,8 +395,8 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
         sender_name=user_name,
     )
 
-    # If approved and there's a next node, notify next approver
-    if action == "approved" and flow.status == "pending":
+    # If sequential, approved, and there's a next node, notify next approver
+    if mode == "sequential" and action == "approved" and flow.status == "pending":
         tasks = await get_flow_tasks(db, tenant_id, flow.id)
         next_task = next((t for t in tasks if t.node_order == flow.current_node), None)
         if next_task:
@@ -226,6 +409,13 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
                 sender_name=user_name,
             )
 
+    # External message on flow completion
+    if flow.status in ("approved", "rejected"):
+        result_label = "通过" if flow.status == "approved" else "驳回"
+        await _dispatch_msg_safe(db, tenant_id,
+            f"审批{result_label}通知",
+            f"**审批对象**: {flow.title or flow.biz_type}\n\n**结果**: {result_label}\n\n**审批人**: {user_name}")
+
     # Approval completion callback — auto-update biz object status
     if flow.status == "approved":
         await _on_approval_completed(db, tenant_id, flow)
@@ -233,13 +423,11 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
     # Auto-activity: record approval decision on the biz object timeline
     try:
         from app.common.auto_activity import record_activity
-        # Map biz_type to activity biz_type
         biz_type_map = {
             "quote_version": "project", "contract_version": "project",
             "change_request": "project", "solution": "project",
         }
         activity_biz_type = biz_type_map.get(flow.biz_type, flow.biz_type)
-        # For quote/contract versions, need to resolve project_id
         activity_biz_id = flow.biz_id
         if flow.biz_type in ("quote_version", "contract_version"):
             try:
@@ -309,6 +497,289 @@ async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: Approva
         pass
 
 
+async def withdraw_flow(db: AsyncSession, tenant_id: str, flow_id: str, reason: str | None, user: dict) -> ApprovalFlow:
+    """Withdraw a pending approval flow (only by the submitter)."""
+    flow = await get_flow(db, tenant_id, flow_id)
+    if flow.status != "pending":
+        raise BusinessException(code=BUSINESS_ERROR, message="只能撤回进行中的审批流")
+    if flow.submitted_by_id != user["sub"]:
+        raise BusinessException(code=BUSINESS_ERROR, message="只有发起人可以撤回审批")
+
+    flow.status = "withdrawn"
+
+    # Cancel all pending/waiting tasks
+    tasks = await get_flow_tasks(db, tenant_id, flow.id)
+    current_assignees = []
+    for t in tasks:
+        if t.status in ("pending", "waiting"):
+            if t.status == "pending":
+                current_assignees.append(t.assignee_id)
+            t.status = "cancelled"
+
+    # Outbox event (before commit)
+    await _enqueue_approval_event(db, tenant_id, "approval.withdrawn", flow, {"reason": reason})
+
+    await db.commit()
+    await db.refresh(flow)
+
+    user_name = user.get("real_name") or user.get("username")
+    await log_action(
+        db, tenant_id=tenant_id, user_id=user["sub"], user_name=user_name,
+        action="withdraw_approval", resource_type=flow.biz_type, resource_id=flow.biz_id,
+        summary=f"撤回审批: {flow.title or flow.biz_type}" + (f"（原因: {reason}）" if reason else ""),
+    )
+
+    # Notify current approvers
+    for assignee_id in current_assignees:
+        await send_notification(
+            db, tenant_id, assignee_id,
+            type="approval_withdrawn",
+            title=f"审批已撤回: {flow.title or flow.biz_type}",
+            content=f"发起人 {user_name} 撤回了审批" + (f"，原因: {reason}" if reason else ""),
+            biz_type="approval_flow", biz_id=flow.id,
+            sender_name=user_name,
+        )
+
+    await _dispatch_msg_safe(db, tenant_id,
+        "审批撤回通知",
+        f"**审批对象**: {flow.title or flow.biz_type}\n\n**发起人**: {user_name}\n\n**操作**: 已撤回" + (f"\n\n**原因**: {reason}" if reason else ""))
+
+    return flow
+
+
+async def delegate_task(db: AsyncSession, tenant_id: str, task_id: str, target_user_id: str, reason: str | None, user: dict) -> ApprovalTask:
+    """Delegate an approval task to another user."""
+    task = (await db.execute(
+        select(ApprovalTask).where(ApprovalTask.id == task_id, ApprovalTask.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not task:
+        raise BusinessException(code=NOT_FOUND, message="审批任务不存在")
+    if task.status != "pending":
+        raise BusinessException(code=BUSINESS_ERROR, message="只能转交待处理的审批任务")
+    if task.assignee_id != user["sub"]:
+        raise BusinessException(code=BUSINESS_ERROR, message="您不是该审批任务的审批人")
+
+    flow = await get_flow(db, tenant_id, task.flow_id)
+    if flow.status != "pending":
+        raise BusinessException(code=BUSINESS_ERROR, message="审批流已结束")
+
+    # Resolve target user
+    from app.domains.auth.models import User
+    target = (await db.execute(
+        select(User).where(User.id == target_user_id, User.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not target:
+        raise BusinessException(code=NOT_FOUND, message="目标用户不存在")
+
+    original_name = task.assignee_name
+    task.assignee_id = target_user_id
+    task.assignee_name = target.real_name or target.username
+
+    await db.commit()
+    await db.refresh(task)
+
+    user_name = user.get("real_name") or user.get("username")
+    await log_action(
+        db, tenant_id=tenant_id, user_id=user["sub"], user_name=user_name,
+        action="delegate_approval", resource_type=flow.biz_type, resource_id=flow.biz_id,
+        summary=f"转交审批: {flow.title or flow.biz_type} → {target.real_name or target.username}" + (f"（原因: {reason}）" if reason else ""),
+    )
+
+    # Notify new assignee
+    await send_notification(
+        db, tenant_id, target_user_id,
+        type="approval_pending",
+        title=f"您有新的审批待处理（转交）: {flow.title or flow.biz_type}",
+        content=f"{user_name} 将审批任务转交给您" + (f"，原因: {reason}" if reason else ""),
+        biz_type="approval_flow", biz_id=flow.id,
+        sender_name=user_name,
+    )
+
+    # Notify original assignee
+    await send_notification(
+        db, tenant_id, user["sub"],
+        type="approval_delegated",
+        title=f"审批已转交: {flow.title or flow.biz_type}",
+        content=f"已转交给 {target.real_name or target.username}",
+        biz_type="approval_flow", biz_id=flow.id,
+        sender_name="系统",
+    )
+
+    return task
+
+
+async def resubmit_approval(db: AsyncSession, tenant_id: str, flow_id: str, data, user: dict) -> ApprovalFlow:
+    """Resubmit a rejected approval flow, creating a new flow linked to the original."""
+    original = await get_flow(db, tenant_id, flow_id)
+    if original.status != "rejected":
+        raise BusinessException(code=BUSINESS_ERROR, message="只能重新提交已驳回的审批流")
+    if original.submitted_by_id != user["sub"]:
+        raise BusinessException(code=BUSINESS_ERROR, message="只有原发起人可以重新提交")
+
+    # Build submit data using original flow as defaults
+    assignee_ids = data.assignee_ids if data.assignee_ids else []
+    assignee_names = data.assignee_names
+
+    # If no new approvers provided, reuse original flow's approvers
+    if not assignee_ids:
+        original_tasks = await get_flow_tasks(db, tenant_id, original.id)
+        assignee_ids = [t.assignee_id for t in original_tasks]
+        assignee_names = [t.assignee_name for t in original_tasks]
+
+    submit_data = ApprovalSubmit(
+        biz_type=data.biz_type or original.biz_type,
+        biz_id=data.biz_id or original.biz_id,
+        title=data.title or original.title,
+        assignee_ids=assignee_ids,
+        assignee_names=assignee_names,
+        approval_mode=data.approval_mode or original.approval_mode,
+    )
+
+    new_flow = await submit_approval(db, tenant_id, submit_data, user)
+    # Link to original
+    new_flow.parent_flow_id = original.id
+    new_flow.revision_no = original.revision_no + 1
+    await db.commit()
+    await db.refresh(new_flow)
+
+    return new_flow
+
+
+async def auto_trigger_approval(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str, title: str, user: dict) -> ApprovalFlow | None:
+    """Auto-trigger approval if a matching policy exists. Returns the flow or None."""
+    resolved = await _resolve_policy_approvers(db, tenant_id, biz_type, biz_id)
+    if not resolved:
+        return None
+    ids, names, mode = resolved
+    data = ApprovalSubmit(
+        biz_type=biz_type, biz_id=biz_id, title=title,
+        assignee_ids=ids, assignee_names=names, approval_mode=mode,
+    )
+    return await submit_approval(db, tenant_id, data, user)
+
+
+async def bulk_decide(db: AsyncSession, tenant_id: str, task_ids: list[str], action: str, comment: str | None, user: dict) -> list[dict]:
+    """Bulk approve/reject multiple tasks. Returns list of results."""
+    results = []
+    for tid in task_ids:
+        try:
+            flow = await decide(db, tenant_id, tid, action, comment, user)
+            results.append({"task_id": tid, "success": True, "flow_status": flow.status})
+        except BusinessException as e:
+            results.append({"task_id": tid, "success": False, "error": e.message})
+        except Exception as e:
+            results.append({"task_id": tid, "success": False, "error": str(e)})
+    return results
+
+
+async def get_statistics(db: AsyncSession, tenant_id: str, date_from: str | None = None, date_to: str | None = None) -> dict:
+    """Get approval statistics for the tenant."""
+    base = select(ApprovalFlow).where(ApprovalFlow.tenant_id == tenant_id)
+    if date_from:
+        base = base.where(ApprovalFlow.created_at >= date_from)
+    if date_to:
+        base = base.where(ApprovalFlow.created_at <= date_to)
+
+    flows = (await db.execute(base)).scalars().all()
+    total = len(flows)
+
+    status_breakdown = {}
+    by_biz_type = {}
+    approved_hours = []
+
+    for f in flows:
+        status_breakdown[f.status] = status_breakdown.get(f.status, 0) + 1
+        by_biz_type[f.biz_type] = by_biz_type.get(f.biz_type, 0) + 1
+        if f.status == "approved" and f.created_at and f.updated_at:
+            hours = (f.updated_at - f.created_at).total_seconds() / 3600
+            approved_hours.append(hours)
+
+    avg_hours = round(sum(approved_hours) / len(approved_hours), 1) if approved_hours else 0
+    approved_count = status_breakdown.get("approved", 0)
+    rejected_count = status_breakdown.get("rejected", 0)
+    decided_total = approved_count + rejected_count
+    approval_rate = round(approved_count / decided_total, 2) if decided_total > 0 else 0
+
+    # SLA compliance
+    from app.domains.admin.models import ApprovalPolicy
+    policies = (await db.execute(
+        select(ApprovalPolicy).where(ApprovalPolicy.tenant_id == tenant_id, ApprovalPolicy.enabled == True)
+    )).scalars().all()
+    sla_map = {p.biz_type: p.sla_hours for p in policies if p.sla_hours}
+
+    sla_total = 0
+    sla_compliant = 0
+    for f in flows:
+        if f.status in ("approved", "rejected") and f.biz_type in sla_map and f.created_at and f.updated_at:
+            sla_total += 1
+            hours = (f.updated_at - f.created_at).total_seconds() / 3600
+            if hours <= sla_map[f.biz_type]:
+                sla_compliant += 1
+    sla_rate = round(sla_compliant / sla_total, 2) if sla_total > 0 else 1.0
+
+    # Top approvers
+    task_base = select(
+        ApprovalTask.assignee_name,
+        func.count(ApprovalTask.id).label("cnt"),
+    ).where(
+        ApprovalTask.tenant_id == tenant_id,
+        ApprovalTask.status.in_(["approved", "rejected"]),
+    ).group_by(ApprovalTask.assignee_name).order_by(func.count(ApprovalTask.id).desc()).limit(10)
+    top_rows = (await db.execute(task_base)).all()
+    top_approvers = [{"name": r[0] or "未知", "count": r[1]} for r in top_rows]
+
+    return {
+        "total_flows": total,
+        "status_breakdown": status_breakdown,
+        "avg_approval_hours": avg_hours,
+        "approval_rate": approval_rate,
+        "sla_compliance_rate": sla_rate,
+        "by_biz_type": by_biz_type,
+        "top_approvers": top_approvers,
+    }
+
+
+async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str) -> dict:
+    """Resolve business object key information for approval detail display."""
+    detail = {}
+    try:
+        if biz_type == "quote_version":
+            from app.domains.quote.models import QuoteVersion, Quote
+            ver = (await db.execute(
+                select(QuoteVersion).where(QuoteVersion.id == biz_id, QuoteVersion.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if ver:
+                detail["margin_rate"] = f"{float(ver.margin_rate) * 100:.1f}%" if ver.margin_rate is not None else "-"
+                detail["price_total"] = f"¥{float(ver.price_total):,.2f}" if ver.price_total is not None else "-"
+                detail["version_no"] = ver.version_no
+                q = (await db.execute(select(Quote).where(Quote.id == ver.quote_id))).scalar_one_or_none()
+                if q:
+                    detail["quote_no"] = q.quote_no
+        elif biz_type == "contract_version":
+            from app.domains.contract.models import ContractVersion, Contract
+            ver = (await db.execute(
+                select(ContractVersion).where(ContractVersion.id == biz_id, ContractVersion.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if ver:
+                detail["version_no"] = ver.version_no
+                c = (await db.execute(select(Contract).where(Contract.id == ver.contract_id))).scalar_one_or_none()
+                if c:
+                    detail["contract_no"] = c.contract_no
+                    detail["amount_total"] = f"¥{float(c.amount_total):,.2f}" if c.amount_total is not None else "-"
+        elif biz_type == "change_request":
+            from app.domains.change.models import ChangeRequest
+            cr = (await db.execute(
+                select(ChangeRequest).where(ChangeRequest.id == biz_id, ChangeRequest.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if cr:
+                detail["change_no"] = cr.change_no
+                detail["change_type"] = cr.change_type
+                detail["scope_description"] = cr.scope_description
+    except Exception:
+        pass
+    return detail
+
+
 async def list_my_pending(db: AsyncSession, tenant_id: str, user_id: str):
     """List pending approval tasks assigned to a user."""
     result = await db.execute(
@@ -322,3 +793,113 @@ async def list_my_pending(db: AsyncSession, tenant_id: str, user_id: str):
         ).order_by(ApprovalTask.created_at.desc())
     )
     return result.all()
+
+
+async def check_sla_overdue(db: AsyncSession, tenant_id: str) -> int:
+    """Check for approval tasks that have exceeded SLA hours and send reminder notifications."""
+    from app.domains.admin.models import ApprovalPolicy
+
+    policies_result = await db.execute(
+        select(ApprovalPolicy).where(
+            ApprovalPolicy.tenant_id == tenant_id,
+            ApprovalPolicy.enabled == True,
+            ApprovalPolicy.sla_hours.isnot(None),
+        )
+    )
+    policies = {p.biz_type: p for p in policies_result.scalars().all()}
+    if not policies:
+        return 0
+
+    pending_flows = await db.execute(
+        select(ApprovalFlow).where(
+            ApprovalFlow.tenant_id == tenant_id,
+            ApprovalFlow.status == "pending",
+        )
+    )
+    flows = pending_flows.scalars().all()
+
+    notified = 0
+    now = datetime.now(timezone.utc)
+    for flow in flows:
+        policy = policies.get(flow.biz_type)
+        if not policy or not policy.sla_hours:
+            continue
+
+        if not flow.created_at:
+            continue
+        created = flow.created_at if flow.created_at.tzinfo else flow.created_at.replace(tzinfo=timezone.utc)
+        elapsed_hours = (now - created).total_seconds() / 3600
+        if elapsed_hours <= policy.sla_hours:
+            continue
+
+        tasks = await get_flow_tasks(db, tenant_id, flow.id)
+        pending_task = next((t for t in tasks if t.status == "pending"), None)
+        if not pending_task:
+            continue
+
+        # Escalation chain handling
+        escalation = policy.escalation_json if hasattr(policy, 'escalation_json') and policy.escalation_json else None
+        if escalation and isinstance(escalation, list):
+            for i, step in enumerate(escalation):
+                if i < flow.escalation_level:
+                    continue  # Already handled
+                after_hours = step.get("after_hours", 0)
+                if elapsed_hours < after_hours:
+                    break
+                action_type = step.get("action", "remind")
+                if action_type == "remind":
+                    try:
+                        await send_notification(
+                            db, tenant_id, pending_task.assignee_id,
+                            type="approval_sla_overdue",
+                            title=f"审批超时提醒（第{i+1}级）: {flow.title or flow.biz_type}",
+                            content=f"审批已等待 {int(elapsed_hours)} 小时，超过 SLA 要求的 {policy.sla_hours} 小时。",
+                            biz_type="approval_flow", biz_id=flow.id,
+                            sender_name="系统",
+                        )
+                        await _dispatch_msg_safe(db, tenant_id,
+                            "审批超时升级通知",
+                            f"**审批对象**: {flow.title or flow.biz_type}\n\n**已等待**: {int(elapsed_hours)}小时\n\n**SLA**: {policy.sla_hours}小时\n\n请尽快处理。")
+                        notified += 1
+                    except Exception:
+                        pass
+                elif action_type == "auto_approve":
+                    # Auto-approve with system user
+                    try:
+                        sys_user = {"sub": "system", "real_name": "系统自动审批", "username": "system"}
+                        # Temporarily allow system to decide
+                        pending_task.assignee_id_backup = pending_task.assignee_id
+                        original_assignee = pending_task.assignee_id
+                        pending_task.status = "approved"
+                        pending_task.comment = f"SLA超时自动通过（{int(elapsed_hours)}小时）"
+                        pending_task.decided_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+                        # Check if all tasks done
+                        all_tasks = await get_flow_tasks(db, tenant_id, flow.id)
+                        all_approved = all(t.status == "approved" for t in all_tasks)
+                        if all_approved:
+                            flow.status = "approved"
+                            await _on_approval_completed(db, tenant_id, flow)
+                        notified += 1
+                    except Exception:
+                        pass
+                flow.escalation_level = i + 1
+            await db.commit()
+        else:
+            # Simple SLA notification (no escalation chain)
+            try:
+                await send_notification(
+                    db, tenant_id, pending_task.assignee_id,
+                    type="approval_sla_overdue",
+                    title=f"审批超时提醒: {flow.title or flow.biz_type}",
+                    content=f"审批已等待 {int(elapsed_hours)} 小时，超过 SLA 要求的 {policy.sla_hours} 小时，请尽快处理。",
+                    biz_type="approval_flow", biz_id=flow.id,
+                    sender_name="系统",
+                )
+                await _dispatch_msg_safe(db, tenant_id,
+                    "审批超时提醒",
+                    f"**审批对象**: {flow.title or flow.biz_type}\n\n**已等待**: {int(elapsed_hours)}小时\n\n请尽快处理。")
+                notified += 1
+            except Exception:
+                pass
+
+    return notified

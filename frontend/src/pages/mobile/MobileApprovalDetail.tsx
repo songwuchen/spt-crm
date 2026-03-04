@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { message, Modal, Input } from 'antd'
+import { message, Modal, Input, Select } from 'antd'
 import { approvalApi } from '@/api/approval'
 import { aiApi } from '@/api/ai'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import type { ApprovalFlowItem, AiResultItem } from '@/api/types'
+import client from '@/api/client'
 
 const bizTypeLabels: Record<string, string> = {
   quote_version: '报价审批',
@@ -18,6 +19,17 @@ const bizTypeIcons: Record<string, string> = {
   contract_version: 'handshake',
   change_request: 'swap_horiz',
   solution: 'lightbulb',
+}
+
+const modeLabels: Record<string, string> = {
+  sequential: '顺序审批',
+  parallel: '并行审批',
+  any_one: '任一审批',
+}
+
+const taskStatusLabels: Record<string, string> = {
+  pending: '待审批', approved: '已通过', rejected: '已拒绝',
+  waiting: '等待中', cancelled: '已取消',
 }
 
 interface RiskItem {
@@ -42,6 +54,11 @@ export default function MobileApprovalDetail() {
   const [deciding, setDeciding] = useState(false)
   const [rejectModalOpen, setRejectModalOpen] = useState(false)
   const [rejectComment, setRejectComment] = useState('')
+  // Delegate
+  const [delegateModalOpen, setDelegateModalOpen] = useState(false)
+  const [delegateUserId, setDelegateUserId] = useState('')
+  const [delegateReason, setDelegateReason] = useState('')
+  const [users, setUsers] = useState<Array<{ id: string; real_name: string }>>([])
 
   useEffect(() => {
     if (!id) return
@@ -51,7 +68,6 @@ export default function MobileApprovalDetail() {
     }).catch(() => message.error('加载审批详情失败'))
       .finally(() => setLoading(false))
 
-    // Try to load AI risk analysis for the biz object
     aiApi.listTasks({ biz_id: id }).then((res) => {
       const tasks = res.data || []
       const riskTask = tasks.find((t: any) => t.task_type === 'quote_risk' || t.task_type === 'contract_risk')
@@ -80,6 +96,33 @@ export default function MobileApprovalDetail() {
     setRejectComment('')
   }
 
+  const openDelegate = async () => {
+    setDelegateUserId('')
+    setDelegateReason('')
+    setDelegateModalOpen(true)
+    try {
+      const res = await client.get('/api/admin/v1/tenant/users') as any
+      const list = res.data?.items || res.data || []
+      setUsers(list.map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
+    } catch { setUsers([]) }
+  }
+
+  const handleDelegate = async () => {
+    if (!currentTask || !delegateUserId) { message.warning('请选择审批人'); return }
+    setDeciding(true)
+    try {
+      await approvalApi.delegate(currentTask.id, { target_user_id: delegateUserId, reason: delegateReason || undefined })
+      message.success('已转交')
+      setDelegateModalOpen(false)
+      // Reload
+      if (id) {
+        const res = await approvalApi.get(id)
+        if (res.data) setFlow(res.data)
+      }
+    } catch { message.error('转交失败') }
+    finally { setDeciding(false) }
+  }
+
   const risks: RiskItem[] = aiResult?.result_json
     ? ((aiResult.result_json as any).risks || []).map((r: any) => ({
         title: r.title || r.name || '风险项',
@@ -88,12 +131,21 @@ export default function MobileApprovalDetail() {
       }))
     : []
 
-  const keyInfo = flow ? [
-    { label: '毛利率', value: '-' },
-    { label: '付款条件', value: '-' },
-    { label: '客户', value: '-' },
-    { label: '优先级', value: '普通', dot: 'bg-blue-500' },
-  ] : []
+  // Build key info from biz_detail
+  const keyInfo = flow ? (() => {
+    const detail = flow.biz_detail || {}
+    const items: Array<{ label: string; value: string; dot?: string }> = []
+    if (detail.margin_rate) items.push({ label: '毛利率', value: detail.margin_rate })
+    if (detail.price_total) items.push({ label: '报价金额', value: detail.price_total })
+    if (detail.amount_total) items.push({ label: '合同金额', value: detail.amount_total })
+    if (detail.quote_no) items.push({ label: '报价编号', value: detail.quote_no })
+    if (detail.contract_no) items.push({ label: '合同编号', value: detail.contract_no })
+    if (detail.change_no) items.push({ label: '变更编号', value: detail.change_no })
+    if (detail.change_type) items.push({ label: '变更类型', value: detail.change_type })
+    if (detail.version_no) items.push({ label: '版本号', value: `V${detail.version_no}` })
+    if (items.length === 0) items.push({ label: '类型', value: bizTypeLabels[flow.biz_type] || flow.biz_type })
+    return items
+  })() : []
 
   if (loading) {
     return (
@@ -106,6 +158,8 @@ export default function MobileApprovalDetail() {
   if (!flow) {
     return <div className="text-center py-20 text-slate-400">审批不存在</div>
   }
+
+  const statusText = flow.status === 'pending' ? '审批中' : flow.status === 'approved' ? '已通过' : flow.status === 'withdrawn' ? '已撤回' : '已拒绝'
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-7rem)]">
@@ -129,11 +183,17 @@ export default function MobileApprovalDetail() {
           <p className="text-lg font-bold text-slate-900 leading-tight truncate">
             {flow.title || bizTypeLabels[flow.biz_type] || '审批'}
           </p>
-          <p className="text-primary text-base font-bold mt-0.5">
-            {flow.status === 'pending' ? '审批中' : flow.status === 'approved' ? '已通过' : '已拒绝'}
-          </p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-primary text-base font-bold">{statusText}</p>
+            {flow.approval_mode && flow.approval_mode !== 'sequential' && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-bold">
+                {modeLabels[flow.approval_mode] || flow.approval_mode}
+              </span>
+            )}
+          </div>
           <p className="text-slate-500 text-xs mt-0.5">
             {flow.submitted_by_name || '未知'} 发起 · 节点 {flow.current_node}/{flow.total_nodes}
+            {flow.revision_no && flow.revision_no > 1 && ` · 第${flow.revision_no}次提交`}
           </p>
         </div>
       </div>
@@ -163,11 +223,13 @@ export default function MobileApprovalDetail() {
               <span className={`material-symbols-outlined ${
                 task.status === 'approved' ? 'text-green-500' :
                 task.status === 'rejected' ? 'text-red-500' :
-                task.status === 'pending' ? 'text-amber-500' : 'text-slate-300'
+                task.status === 'pending' ? 'text-amber-500' :
+                task.status === 'cancelled' ? 'text-slate-300' : 'text-slate-300'
               }`} style={{ fontSize: 18 }}>
                 {task.status === 'approved' ? 'check_circle' :
                  task.status === 'rejected' ? 'cancel' :
-                 task.status === 'pending' ? 'schedule' : 'hourglass_empty'}
+                 task.status === 'pending' ? 'schedule' :
+                 task.status === 'cancelled' ? 'block' : 'hourglass_empty'}
               </span>
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-medium text-slate-800">{task.assignee_name || '审批人'}</span>
@@ -176,11 +238,10 @@ export default function MobileApprovalDetail() {
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                 task.status === 'approved' ? 'bg-green-50 text-green-600' :
                 task.status === 'rejected' ? 'bg-red-50 text-red-600' :
-                task.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-400'
+                task.status === 'pending' ? 'bg-amber-50 text-amber-600' :
+                task.status === 'cancelled' ? 'bg-slate-50 text-slate-400' : 'bg-slate-50 text-slate-400'
               }`}>
-                {task.status === 'approved' ? '已通过' :
-                 task.status === 'rejected' ? '已拒绝' :
-                 task.status === 'pending' ? '待审批' : '等待中'}
+                {taskStatusLabels[task.status] || task.status}
               </span>
             </div>
           ))}
@@ -229,6 +290,13 @@ export default function MobileApprovalDetail() {
           </button>
           <button
             disabled={deciding}
+            onClick={() => openDelegate()}
+            className="flex-[0.8] h-11 rounded-xl bg-slate-100 text-slate-900 font-bold text-sm transition-colors active:bg-slate-200 border-0 cursor-pointer disabled:opacity-50"
+          >
+            转交
+          </button>
+          <button
+            disabled={deciding}
             onClick={() => handleDecide('approved')}
             className="flex-[1.5] h-11 rounded-xl bg-primary text-white font-bold text-sm shadow-lg shadow-primary/30 transition-colors active:scale-95 border-0 cursor-pointer disabled:opacity-50"
           >
@@ -252,6 +320,40 @@ export default function MobileApprovalDetail() {
           placeholder="请输入拒绝原因"
           rows={3}
         />
+      </Modal>
+
+      {/* Delegate Modal */}
+      <Modal
+        title="转交审批"
+        open={delegateModalOpen}
+        onOk={handleDelegate}
+        onCancel={() => setDelegateModalOpen(false)}
+        okText="确认转交"
+        cancelText="取消"
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">选择审批人</label>
+            <Select
+              className="w-full"
+              placeholder="选择用户"
+              value={delegateUserId || undefined}
+              onChange={setDelegateUserId}
+              showSearch
+              optionFilterProp="label"
+              options={users.map((u) => ({ value: u.id, label: u.real_name }))}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">转交原因（选填）</label>
+            <Input.TextArea
+              value={delegateReason}
+              onChange={(e) => setDelegateReason(e.target.value)}
+              placeholder="转交原因"
+              rows={2}
+            />
+          </div>
+        </div>
       </Modal>
     </div>
   )

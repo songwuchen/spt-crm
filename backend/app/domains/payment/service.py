@@ -24,6 +24,67 @@ async def mark_overdue_plans(db: AsyncSession, tenant_id: str):
     await db.commit()
 
 
+async def check_overdue_and_notify(db: AsyncSession, tenant_id: str):
+    """Check overdue payment plans and create notifications for project owners."""
+    await mark_overdue_plans(db, tenant_id)
+
+    # Find all overdue plans
+    overdue_result = await db.execute(
+        select(PaymentPlan).where(
+            PaymentPlan.tenant_id == tenant_id,
+            PaymentPlan.status == "overdue",
+        )
+    )
+    overdue_plans = overdue_result.scalars().all()
+    if not overdue_plans:
+        return 0
+
+    # Group by project
+    from collections import defaultdict
+    project_plans: dict[str, list] = defaultdict(list)
+    for p in overdue_plans:
+        project_plans[p.project_id].append(p)
+
+    # Get project owners
+    from app.domains.project.models import OpportunityProject
+    project_ids = list(project_plans.keys())
+    proj_result = await db.execute(
+        select(OpportunityProject).where(
+            OpportunityProject.id.in_(project_ids),
+            OpportunityProject.tenant_id == tenant_id,
+        )
+    )
+    projects = {p.id: p for p in proj_result.scalars().all()}
+
+    # Send notifications
+    from app.domains.notification.service import send_notification
+    notified = 0
+    for project_id, plans in project_plans.items():
+        if not project_id:
+            continue
+        proj = projects.get(project_id)
+        if not proj or not proj.owner_id:
+            continue
+        total_overdue = sum(float(p.amount) for p in plans if p.amount)
+        plan_count = len(plans)
+        try:
+            await send_notification(
+                db, tenant_id,
+                recipient_id=proj.owner_id,
+                type="payment_overdue",
+                title=f"回款逾期提醒: {proj.name}",
+                content=f"商机「{proj.name}」有 {plan_count} 笔回款计划已逾期，逾期总额 ¥{total_overdue:,.2f}",
+                biz_type="project",
+                biz_id=project_id,
+                sender_name="系统",
+            )
+            notified += 1
+        except Exception:
+            pass  # Non-critical: continue processing remaining projects
+
+    return notified
+
+
 # ==================== Invoice ====================
 
 async def list_invoices(db: AsyncSession, tenant_id: str, project_id: str):

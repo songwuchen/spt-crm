@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
+from app.common.field_mask import load_mask_policies, apply_field_mask
 from app.domains.quote import service
 from app.domains.quote.schemas import QuoteCreate, QuoteUpdate, QuoteVersionUpdate, QuoteLineCreate, QuoteLineUpdate, CostSnapshotCreate, QuoteSendLogCreate
 
@@ -83,7 +84,7 @@ async def get_quote(
     quote_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("quote:view")),
+    current_user: dict = Depends(require_permissions("quote:view")),
 ):
     quote = await service.get_quote(db, tenant_id, quote_id)
     versions = await service.get_versions_by_quote(db, tenant_id, quote_id)
@@ -94,11 +95,18 @@ async def get_quote(
     if current_ver:
         lines = await service.list_lines(db, tenant_id, current_ver.id)
 
+    # Apply field masking
+    perms = current_user.get("permissions", [])
+    policies = await load_mask_policies(db, tenant_id)
+    version_dicts = apply_field_mask([_version_dict(v) for v in versions], "quote_version", perms, policies)
+    cur_ver_dict = apply_field_mask(_version_dict(current_ver), "quote_version", perms, policies) if current_ver else None
+    line_dicts = apply_field_mask([_line_dict(l) for l in lines], "quote_line", perms, policies)
+
     return ok({
         **_quote_dict(quote),
-        "versions": [_version_dict(v) for v in versions],
-        "current_version": _version_dict(current_ver) if current_ver else None,
-        "lines": [_line_dict(l) for l in lines],
+        "versions": version_dicts,
+        "current_version": cur_ver_dict,
+        "lines": line_dicts,
     })
 
 
@@ -142,11 +150,15 @@ async def get_version(
     version_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("quote:view")),
+    current_user: dict = Depends(require_permissions("quote:view")),
 ):
     version = await service.get_version(db, tenant_id, version_id)
     lines = await service.list_lines(db, tenant_id, version_id)
-    return ok({**_version_dict(version), "lines": [_line_dict(l) for l in lines]})
+    perms = current_user.get("permissions", [])
+    policies = await load_mask_policies(db, tenant_id)
+    ver_dict = apply_field_mask(_version_dict(version), "quote_version", perms, policies)
+    line_dicts = apply_field_mask([_line_dict(l) for l in lines], "quote_line", perms, policies)
+    return ok({**ver_dict, "lines": line_dicts})
 
 
 @router.put("/api/v1/quote_versions/{version_id}")
@@ -243,10 +255,12 @@ async def list_cost_snapshots(
     version_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("quote:view")),
+    current_user: dict = Depends(require_permissions("quote:view")),
 ):
     items = await service.list_cost_snapshots(db, tenant_id, version_id)
-    return ok([_snapshot_dict(s) for s in items])
+    perms = current_user.get("permissions", [])
+    policies = await load_mask_policies(db, tenant_id)
+    return ok(apply_field_mask([_snapshot_dict(s) for s in items], "cost_snapshot", perms, policies))
 
 
 @router.post("/api/v1/quote_versions/{version_id}/cost_snapshots")

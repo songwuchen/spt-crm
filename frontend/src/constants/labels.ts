@@ -5,10 +5,22 @@
 
 // --- Approval ---
 export const approvalStatusLabels: Record<string, string> = {
-  pending: '审批中', approved: '已通过', rejected: '已驳回',
+  pending: '审批中', approved: '已通过', rejected: '已驳回', withdrawn: '已撤回',
 }
 export const approvalStatusColors: Record<string, string> = {
-  pending: 'processing', approved: 'success', rejected: 'error',
+  pending: 'processing', approved: 'success', rejected: 'error', withdrawn: 'default',
+}
+export const approvalModeLabels: Record<string, string> = {
+  sequential: '顺序审批', parallel: '并行审批', any_one: '任一审批',
+}
+export const approvalModeColors: Record<string, string> = {
+  sequential: 'blue', parallel: 'purple', any_one: 'cyan',
+}
+export const taskStatusLabelsApproval: Record<string, string> = {
+  pending: '待审批', approved: '已通过', rejected: '已驳回', waiting: '等待中', cancelled: '已取消',
+}
+export const taskStatusColorsApproval: Record<string, string> = {
+  pending: 'warning', approved: 'success', rejected: 'error', waiting: 'default', cancelled: 'default',
 }
 export const approvalBizTypeLabels: Record<string, string> = {
   quote_version: '报价审批', contract_version: '合同审批', change_request: '变更审批', solution: '方案审批',

@@ -32,7 +32,11 @@ export default function ContractDetail() {
   const [approvalSubmitting, setApprovalSubmitting] = useState(false)
 
   // AI analysis
-  const [aiResult, setAiResult] = useState<Record<string, unknown> | null>(null)
+  const [aiResult, setAiResult] = useState<{
+    risk_level?: string
+    clauses?: { clause: string; risk: string; detail: string }[]
+    overall_comment?: string
+  } | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
 
   const handleAiAnalyze = async () => {
@@ -90,19 +94,26 @@ export default function ContractDetail() {
   }
 
   const handleSubmitApproval = async () => {
-    if (selectedApprovers.length === 0) { message.warning('请选择审批人'); return }
     setApprovalSubmitting(true)
     try {
       const approverNames = selectedApprovers.map((id) => approverList.find((u) => u.id === id)?.real_name || '')
-      await approvalApi.submit({
+      const res = await approvalApi.submit({
         biz_type: 'contract_version',
         biz_id: selectedVersionId,
         title: `合同审批 - ${contract?.contract_no} V${currentVersion?.version_no || ''}`,
         assignee_ids: selectedApprovers,
-        assignee_names: approverNames,
+        assignee_names: approverNames.length > 0 ? approverNames : undefined,
       })
-      message.success('审批已提交')
+      if (res.data?.approval_mode && res.data.approval_mode !== 'sequential') {
+        message.success(`审批已自动发起（${res.data.approval_mode === 'parallel' ? '并行模式' : '任一通过模式'}）`)
+      } else {
+        message.success('审批已提交')
+      }
       setApprovalModal(false)
+    } catch (err: any) {
+      if (err?.response?.data?.message) {
+        message.error(err.response.data.message)
+      }
     } finally {
       setApprovalSubmitting(false)
     }
@@ -267,7 +278,7 @@ export default function ContractDetail() {
                       <div>
                         <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">条款风险清单</h4>
                         <div className="space-y-2">
-                          {(aiResult.clauses as { clause: string; risk: string; detail: string }[]).map((c, i) => {
+                          {aiResult.clauses.map((c, i) => {
                             const riskConfig: Record<string, { bg: string; border: string; icon: string; label: string; iconColor: string }> = {
                               H: { bg: 'bg-red-50', border: 'border-red-200', icon: 'error', label: '高', iconColor: 'text-red-500' },
                               M: { bg: 'bg-amber-50', border: 'border-amber-200', icon: 'warning', label: '中', iconColor: 'text-amber-500' },

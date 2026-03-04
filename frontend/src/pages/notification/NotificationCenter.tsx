@@ -1,0 +1,158 @@
+import { useState, useEffect } from 'react'
+import { Table, Tag, Button, Space, message, Select } from 'antd'
+import { CheckOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
+import { notificationApi, type NotificationItem } from '@/api/notification'
+import { usePageTitle } from '@/hooks/usePageTitle'
+
+const typeLabels: Record<string, { label: string; color: string }> = {
+  approval_pending: { label: '审批待处理', color: 'orange' },
+  approval_decided: { label: '审批已决定', color: 'green' },
+  approval_sla_overdue: { label: '审批超时', color: 'red' },
+  stage_advance: { label: '阶段推进', color: 'blue' },
+  stage_change: { label: '阶段变化', color: 'blue' },
+  contract_signed: { label: '合同签署', color: 'green' },
+  ticket_assigned: { label: '工单分配', color: 'cyan' },
+  payment_overdue: { label: '回款逾期', color: 'red' },
+  payment_received: { label: '收到回款', color: 'green' },
+  ai_task_complete: { label: 'AI完成', color: 'purple' },
+  gate_blocked: { label: '门禁拦截', color: 'orange' },
+  system: { label: '系统', color: 'default' },
+}
+
+export default function NotificationCenter() {
+  usePageTitle('通知中心')
+  const navigate = useNavigate()
+  const [items, setItems] = useState<NotificationItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [filter, setFilter] = useState<string | undefined>(undefined)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const res = await notificationApi.list()
+      setItems(res.data || [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchData() }, [])
+
+  const filteredItems = filter ? items.filter(n => n.type === filter) : items
+
+  const handleMarkRead = async () => {
+    if (selectedIds.length === 0) return
+    await notificationApi.markRead(selectedIds)
+    setItems(prev => prev.map(n => selectedIds.includes(n.id) ? { ...n, is_read: true } : n))
+    setSelectedIds([])
+    message.success('已标记为已读')
+  }
+
+  const handleMarkAllRead = async () => {
+    await notificationApi.markAllRead()
+    setItems(prev => prev.map(n => ({ ...n, is_read: true })))
+    message.success('已全部标记为已读')
+  }
+
+  const handleRowClick = (item: NotificationItem) => {
+    if (!item.is_read) {
+      notificationApi.markRead([item.id])
+      setItems(prev => prev.map(n => n.id === item.id ? { ...n, is_read: true } : n))
+    }
+    if (item.biz_type === 'approval_flow' || item.biz_type === 'approval') {
+      navigate('/approvals')
+    } else if (item.biz_type === 'service_ticket') {
+      navigate(`/service-tickets/${item.biz_id}`)
+    } else if (item.biz_type === 'project') {
+      navigate(`/opportunities/${item.biz_id}`)
+    } else if (item.biz_type === 'customer' && item.biz_id) {
+      navigate(`/customers/${item.biz_id}`)
+    }
+  }
+
+  const columns = [
+    {
+      title: '类型',
+      dataIndex: 'type',
+      width: 120,
+      render: (type: string) => {
+        const t = typeLabels[type] || typeLabels.system
+        return <Tag color={t.color}>{t.label}</Tag>
+      },
+    },
+    {
+      title: '标题',
+      dataIndex: 'title',
+      render: (title: string, record: NotificationItem) => (
+        <span className={!record.is_read ? 'font-bold' : ''}>{title}</span>
+      ),
+    },
+    {
+      title: '内容',
+      dataIndex: 'content',
+      ellipsis: true,
+    },
+    {
+      title: '时间',
+      dataIndex: 'created_at',
+      width: 160,
+      render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '',
+    },
+    {
+      title: '状态',
+      dataIndex: 'is_read',
+      width: 80,
+      render: (v: boolean) => v ? <Tag color="default">已读</Tag> : <Tag color="blue">未读</Tag>,
+    },
+  ]
+
+  const unreadCount = items.filter(n => !n.is_read).length
+
+  return (
+    <div>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">通知中心</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            共 {items.length} 条通知，{unreadCount} 条未读
+          </p>
+        </div>
+        <Space>
+          <Select
+            allowClear
+            placeholder="筛选类型"
+            style={{ width: 140 }}
+            value={filter}
+            onChange={setFilter}
+            options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v.label }))}
+          />
+          <Button icon={<CheckOutlined />} disabled={selectedIds.length === 0} onClick={handleMarkRead}>
+            标记已读 ({selectedIds.length})
+          </Button>
+          <Button onClick={handleMarkAllRead} disabled={unreadCount === 0}>全部已读</Button>
+        </Space>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={filteredItems}
+          loading={loading}
+          pagination={{ pageSize: 20, showSizeChanger: false }}
+          size="small"
+          rowSelection={{
+            selectedRowKeys: selectedIds,
+            onChange: (keys) => setSelectedIds(keys as string[]),
+          }}
+          onRow={(record) => ({
+            onClick: () => handleRowClick(record),
+            style: { cursor: 'pointer' },
+          })}
+        />
+      </div>
+    </div>
+  )
+}

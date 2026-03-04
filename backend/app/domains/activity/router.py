@@ -64,3 +64,17 @@ async def delete_activity(
 ):
     await service.delete_activity(db, tenant_id, activity_id)
     return ok(None)
+
+
+@router.post("/api/v1/activities/ai-summary")
+async def ai_summarize_activities(
+    biz_type: str = Query(...), biz_id: str = Query(...),
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    """Generate an AI summary of recent activities for a business entity."""
+    items = await service.list_activities(db, tenant_id, biz_type, biz_id)
+    activities = [_activity_dict(a) for a in items[:30]]
+    from app.common.ai_engine import summarize_activity
+    result = await summarize_activity(activities)
+    return ok(result)

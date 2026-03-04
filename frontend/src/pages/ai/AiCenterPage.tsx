@@ -32,6 +32,7 @@ export default function AiCenterPage() {
   const [templates, setTemplates] = useState<AiPromptTemplateItem[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined)
+  const [bizTypeFilter, setBizTypeFilter] = useState<string | undefined>(undefined)
 
   // Task detail/result modal
   const [resultModal, setResultModal] = useState(false)
@@ -47,7 +48,7 @@ export default function AiCenterPage() {
   const fetchTasks = async () => {
     setLoading(true)
     try {
-      const res = await aiApi.listTasks({ status: statusFilter })
+      const res = await aiApi.listTasks({ status: statusFilter, biz_type: bizTypeFilter })
       setTasks(res.data || [])
     } finally {
       setLoading(false)
@@ -59,7 +60,7 @@ export default function AiCenterPage() {
     setTemplates(res.data || [])
   }
 
-  useEffect(() => { fetchTasks() }, [statusFilter])
+  useEffect(() => { fetchTasks() }, [statusFilter, bizTypeFilter])
   useEffect(() => { fetchTemplates() }, [])
 
   const viewResult = async (task: AiTaskItem) => {
@@ -214,9 +215,14 @@ export default function AiCenterPage() {
               children: (
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <Select allowClear placeholder="状态筛选" value={statusFilter} onChange={setStatusFilter}
-                      style={{ width: 160 }}
-                      options={Object.entries(statusLabels).map(([k, v]) => ({ value: k, label: v }))} />
+                    <Space>
+                      <Select allowClear placeholder="状态筛选" value={statusFilter} onChange={setStatusFilter}
+                        style={{ width: 140 }}
+                        options={Object.entries(statusLabels).map(([k, v]) => ({ value: k, label: v }))} />
+                      <Select allowClear placeholder="业务类型" value={bizTypeFilter} onChange={setBizTypeFilter}
+                        style={{ width: 140 }}
+                        options={Object.entries(bizTypeLabels).map(([k, v]) => ({ value: k, label: v }))} />
+                    </Space>
                     <Button icon={<ReloadOutlined />} onClick={fetchTasks}>刷新</Button>
                   </div>
                   <Table rowKey="id" columns={taskColumns} dataSource={tasks} loading={loading}

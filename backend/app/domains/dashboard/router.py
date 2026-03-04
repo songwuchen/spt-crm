@@ -558,6 +558,130 @@ async def leaderboard(
     return ok(board)
 
 
+@router.get("/trend")
+async def trend(
+    period: str = Query("month"),
+    months: int = Query(6, ge=1, le=24),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Monthly trend: new opportunities, won, lost, and pipeline amount."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    result = []
+    for i in range(months - 1, -1, -1):
+        m = now.month - i
+        y = now.year
+        while m <= 0:
+            m += 12
+            y -= 1
+
+        new_count = (await db.execute(
+            select(func.count(OpportunityProject.id)).where(
+                OpportunityProject.tenant_id == tenant_id,
+                extract("year", OpportunityProject.created_at) == y,
+                extract("month", OpportunityProject.created_at) == m,
+            )
+        )).scalar() or 0
+
+        won_count = (await db.execute(
+            select(func.count(OpportunityProject.id)).where(
+                OpportunityProject.tenant_id == tenant_id,
+                OpportunityProject.status == "won",
+                extract("year", OpportunityProject.updated_at) == y,
+                extract("month", OpportunityProject.updated_at) == m,
+            )
+        )).scalar() or 0
+
+        lost_count = (await db.execute(
+            select(func.count(OpportunityProject.id)).where(
+                OpportunityProject.tenant_id == tenant_id,
+                OpportunityProject.status == "lost",
+                extract("year", OpportunityProject.updated_at) == y,
+                extract("month", OpportunityProject.updated_at) == m,
+            )
+        )).scalar() or 0
+
+        won_amount = (await db.execute(
+            select(func.coalesce(func.sum(OpportunityProject.amount_expect), 0)).where(
+                OpportunityProject.tenant_id == tenant_id,
+                OpportunityProject.status == "won",
+                extract("year", OpportunityProject.updated_at) == y,
+                extract("month", OpportunityProject.updated_at) == m,
+            )
+        )).scalar() or 0
+
+        result.append({
+            "label": f"{y}-{str(m).zfill(2)}",
+            "year": y, "month": m,
+            "new": new_count, "won": won_count, "lost": lost_count,
+            "won_amount": float(won_amount),
+        })
+    return ok(result)
+
+
+@router.get("/collection")
+async def collection(
+    months: int = Query(6, ge=1, le=24),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Monthly collection analysis: receivable, received, overdue."""
+    now = datetime.now(timezone.utc)
+    result = []
+    for i in range(months - 1, -1, -1):
+        m = now.month - i
+        y = now.year
+        while m <= 0:
+            m += 12
+            y -= 1
+
+        # Planned (due in this month)
+        receivable = (await db.execute(
+            select(func.coalesce(func.sum(PaymentPlan.amount), 0)).where(
+                PaymentPlan.tenant_id == tenant_id,
+                extract("year", PaymentPlan.due_date) == y,
+                extract("month", PaymentPlan.due_date) == m,
+            )
+        )).scalar() or 0
+
+        # Received in this month
+        received = (await db.execute(
+            select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
+                PaymentRecord.tenant_id == tenant_id,
+                extract("year", PaymentRecord.received_date) == y,
+                extract("month", PaymentRecord.received_date) == m,
+            )
+        )).scalar() or 0
+
+        # Overdue plans in this month (due in this month, status overdue or pending past due)
+        import calendar
+        last_day = calendar.monthrange(y, m)[1]
+        from datetime import date as date_type
+        month_end = date_type(y, m, last_day)
+        today = now.date()
+        overdue = 0
+        if month_end <= today:
+            overdue = (await db.execute(
+                select(func.coalesce(func.sum(PaymentPlan.amount), 0)).where(
+                    PaymentPlan.tenant_id == tenant_id,
+                    PaymentPlan.status.in_(["pending", "overdue"]),
+                    extract("year", PaymentPlan.due_date) == y,
+                    extract("month", PaymentPlan.due_date) == m,
+                )
+            )).scalar() or 0
+
+        result.append({
+            "label": f"{y}-{str(m).zfill(2)}",
+            "receivable": float(receivable),
+            "received": float(received),
+            "overdue": float(overdue),
+        })
+    return ok(result)
+
+
 @router.get("/search")
 async def global_search(
     q: str = Query(..., min_length=1, max_length=100),

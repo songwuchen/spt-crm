@@ -25,11 +25,39 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/spt_crm
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:80}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      AI_API_KEY: ${AI_API_KEY:-}
+      LOG_FORMAT: json
+      LOG_LEVEL: INFO
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - uploads:/app/uploads
+
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.workers.outbox_worker"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/spt_crm
+      LOG_FORMAT: json
+      LOG_LEVEL: INFO
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  reminder:
+    build: ./backend
+    command: ["python", "-m", "app.workers.reminder_worker"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/spt_crm
+      LOG_FORMAT: json
+      LOG_LEVEL: INFO
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
   frontend:
     build: ./frontend

@@ -29,7 +29,7 @@ const menuGroups: { title: string; items: MenuItem[] }[] = [
       { key: '/admin/users', icon: 'group', label: '用户管理', permission: 'user:view' },
       { key: '/admin/roles', icon: 'admin_panel_settings', label: '角色权限', permission: 'role:view' },
       { key: '/admin/audit', icon: 'history', label: '审计日志', permission: 'audit:view' },
-      { key: '/admin/settings', icon: 'settings', label: '系统配置', permission: 'role:edit' },
+      { key: '/admin/settings', icon: 'settings', label: '系统配置', permission: 'role:manage' },
     ],
   },
 ]

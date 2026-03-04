@@ -7,7 +7,7 @@ from app.common.error_codes import NOT_FOUND
 from app.domains.admin.models import (
     TenantPlan, TenantUsageMeter, TenantProfile, TenantFeatureToggle,
     StageDefinition, MarginPolicy, TenantAiPolicy, TenantAiBudget,
-    IntegrationEndpoint, WebhookSubscription,
+    IntegrationEndpoint, WebhookSubscription, ApprovalPolicy,
 )
 from app.domains.tenant.models import PlatformTenant
 from app.domains.audit.service import log_action
@@ -214,6 +214,87 @@ async def upsert_ai_budget(db: AsyncSession, tenant_id: str, data: dict) -> Tena
     return budget
 
 
+# ==================== Tenant: Approval Policies ====================
+
+async def list_approval_policies(db: AsyncSession, tenant_id: str, biz_type: str | None = None):
+    q = select(ApprovalPolicy).where(ApprovalPolicy.tenant_id == tenant_id)
+    if biz_type:
+        q = q.where(ApprovalPolicy.biz_type == biz_type)
+    result = await db.execute(q.order_by(ApprovalPolicy.priority.desc()))
+    return result.scalars().all()
+
+
+async def create_approval_policy(db: AsyncSession, tenant_id: str, data: dict) -> ApprovalPolicy:
+    ap = ApprovalPolicy(id=generate_uuid(), tenant_id=tenant_id, **data)
+    db.add(ap)
+    await db.commit()
+    await db.refresh(ap)
+    return ap
+
+
+async def update_approval_policy(db: AsyncSession, tenant_id: str, policy_id: str, data: dict) -> ApprovalPolicy:
+    ap = (await db.execute(
+        select(ApprovalPolicy).where(ApprovalPolicy.id == policy_id, ApprovalPolicy.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not ap:
+        raise BusinessException(code=NOT_FOUND, message="审批策略不存在")
+    for k, v in data.items():
+        setattr(ap, k, v)
+    await db.commit()
+    await db.refresh(ap)
+    return ap
+
+
+async def delete_approval_policy(db: AsyncSession, tenant_id: str, policy_id: str):
+    ap = (await db.execute(
+        select(ApprovalPolicy).where(ApprovalPolicy.id == policy_id, ApprovalPolicy.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if ap:
+        await db.delete(ap)
+        await db.commit()
+
+
+async def match_approval_policy(db: AsyncSession, tenant_id: str, biz_type: str, context: dict) -> ApprovalPolicy | None:
+    """Find the first matching approval policy based on biz_type and conditions."""
+    policies = await list_approval_policies(db, tenant_id, biz_type)
+    for policy in policies:
+        if not policy.enabled:
+            continue
+        if _match_conditions(policy.condition_json, context):
+            return policy
+    return None
+
+
+def _match_conditions(condition_json: dict | None, context: dict) -> bool:
+    """Check if context matches the policy conditions."""
+    if not condition_json:
+        return True  # No conditions = always match
+    for key, value in condition_json.items():
+        if key.endswith("_lt"):
+            field = key[:-3]
+            if field in context and context[field] is not None:
+                if float(context[field]) >= float(value):
+                    return False
+            else:
+                return False
+        elif key.endswith("_gt"):
+            field = key[:-3]
+            if field in context and context[field] is not None:
+                if float(context[field]) <= float(value):
+                    return False
+            else:
+                return False
+        elif key.endswith("_eq"):
+            field = key[:-3]
+            if field in context and str(context[field]) != str(value):
+                return False
+        else:
+            # Exact match
+            if key in context and str(context[key]) != str(value):
+                return False
+    return True
+
+
 # ==================== Tenant: Integrations ====================
 
 async def list_integrations(db: AsyncSession, tenant_id: str):
@@ -224,6 +305,9 @@ async def list_integrations(db: AsyncSession, tenant_id: str):
 
 
 async def create_integration(db: AsyncSession, tenant_id: str, data: dict) -> IntegrationEndpoint:
+    from app.common.crypto import encrypt_config_json
+    if "auth_config_json" in data:
+        data["auth_config_json"] = encrypt_config_json(data["auth_config_json"])
     ep = IntegrationEndpoint(id=generate_uuid(), tenant_id=tenant_id, **data)
     db.add(ep)
     await db.commit()
@@ -232,11 +316,14 @@ async def create_integration(db: AsyncSession, tenant_id: str, data: dict) -> In
 
 
 async def update_integration(db: AsyncSession, tenant_id: str, ep_id: str, data: dict) -> IntegrationEndpoint:
+    from app.common.crypto import encrypt_config_json
     ep = (await db.execute(
         select(IntegrationEndpoint).where(IntegrationEndpoint.id == ep_id, IntegrationEndpoint.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not ep:
         raise BusinessException(code=NOT_FOUND, message="集成端点不存在")
+    if "auth_config_json" in data:
+        data["auth_config_json"] = encrypt_config_json(data["auth_config_json"])
     for k, v in data.items():
         setattr(ep, k, v)
     await db.commit()

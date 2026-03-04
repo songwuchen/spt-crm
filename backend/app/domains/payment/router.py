@@ -128,3 +128,14 @@ async def create_record(
 ):
     rec = await service.create_record(db, tenant_id, project_id, body, current_user)
     return ok(_rec_dict(rec))
+
+
+@router.post("/api/v1/payment/check_overdue")
+async def check_overdue(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("payment:view")),
+):
+    """Manually trigger overdue check and notifications. Can also be called by cron/worker."""
+    notified = await service.check_overdue_and_notify(db, tenant_id)
+    return ok({"notified_projects": notified})

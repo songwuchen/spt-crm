@@ -17,3 +17,4 @@ class AuditLog(TenantScopedBase):
     ip: Mapped[str | None] = mapped_column(String(50))
     user_agent: Mapped[str | None] = mapped_column(String(500))
     trace_id: Mapped[str | None] = mapped_column(String(36))
+    content_hash: Mapped[str | None] = mapped_column(String(64))  # SHA-256 for tamper detection

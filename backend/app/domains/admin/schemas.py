@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union
 
 
 # ---- Platform ----
@@ -69,6 +69,27 @@ class AiBudgetUpdate(BaseModel):
     budget_cost: Optional[float] = None
     budget_tokens: Optional[int] = None
     hard_limit: Optional[bool] = None
+
+# ---- Approval Policy ----
+class ApprovalPolicyCreate(BaseModel):
+    biz_type: str
+    name: Optional[str] = None
+    condition_json: Optional[Union[dict, list]] = None
+    approver_rules_json: Optional[Union[dict, list]] = None
+    approval_mode: Optional[str] = "sequential"
+    sla_hours: Optional[int] = None
+    escalation_json: Optional[list] = None
+    priority: Optional[int] = 0
+
+class ApprovalPolicyUpdate(BaseModel):
+    name: Optional[str] = None
+    condition_json: Optional[Union[dict, list]] = None
+    approver_rules_json: Optional[Union[dict, list]] = None
+    approval_mode: Optional[str] = None
+    sla_hours: Optional[int] = None
+    escalation_json: Optional[list] = None
+    priority: Optional[int] = None
+    enabled: Optional[bool] = None
 
 # ---- Integration ----
 class IntegrationCreate(BaseModel):

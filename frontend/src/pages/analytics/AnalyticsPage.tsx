@@ -3,7 +3,7 @@ import { Spin, DatePicker, Space, Button, message } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs, { type Dayjs } from 'dayjs'
-import { Column, Pie, Funnel, Bar } from '@ant-design/charts'
+import { Column, Pie, Funnel, Bar, Line } from '@ant-design/charts'
 import { downloadFile } from '@/utils/download'
 import { dashboardApi } from '@/api/dashboard'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -65,6 +65,21 @@ interface LeaderboardItem {
   pipeline_amount: number
 }
 
+interface TrendItem {
+  label: string
+  new: number
+  won: number
+  lost: number
+  won_amount: number
+}
+
+interface CollectionItem {
+  label: string
+  receivable: number
+  received: number
+  overdue: number
+}
+
 export default function AnalyticsPage() {
   usePageTitle('数据分析')
   const navigate = useNavigate()
@@ -75,6 +90,8 @@ export default function AnalyticsPage() {
   const [milestones, setMilestones] = useState<MilestoneOverview | null>(null)
   const [monthlyRevenue, setMonthlyRevenue] = useState<MonthlyRevenue[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
+  const [trendData, setTrendData] = useState<TrendItem[]>([])
+  const [collectionData, setCollectionData] = useState<CollectionItem[]>([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [periodLabel, setPeriodLabel] = useState('全部')
@@ -87,7 +104,7 @@ export default function AnalyticsPage() {
       params.end_date = dateRange[1].format('YYYY-MM-DD')
     }
     try {
-      const [fRes, wRes, tRes, pRes, mRes, rRes, lRes] = await Promise.all([
+      const [fRes, wRes, tRes, pRes, mRes, rRes, lRes, trRes, cRes] = await Promise.all([
         dashboardApi.funnel(params),
         dashboardApi.winLoss(params),
         dashboardApi.topCustomers(params),
@@ -95,6 +112,8 @@ export default function AnalyticsPage() {
         dashboardApi.milestoneOverview(params),
         dashboardApi.monthlyRevenue(params),
         dashboardApi.leaderboard(params),
+        dashboardApi.trend(params),
+        dashboardApi.collection(params),
       ]) as { data: unknown }[]
       setFunnel((fRes.data as FunnelItem[]) || [])
       setWinLoss((wRes.data as WinLoss) || null)
@@ -103,6 +122,8 @@ export default function AnalyticsPage() {
       setMilestones((mRes.data as MilestoneOverview) || null)
       setMonthlyRevenue((rRes.data as MonthlyRevenue[]) || [])
       setLeaderboard((lRes.data as LeaderboardItem[]) || [])
+      setTrendData((trRes.data as TrendItem[]) || [])
+      setCollectionData((cRes.data as CollectionItem[]) || [])
     } finally {
       setLoading(false)
     }
@@ -450,6 +471,60 @@ export default function AnalyticsPage() {
           </div>
         </div>
       )}
+
+      {/* Trend Analysis + Collection */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Opportunity Trend */}
+        {trendData.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <span className="material-symbols-outlined text-indigo-500">show_chart</span>
+              商机趋势 (新增/赢单/丢单)
+            </h3>
+            <Line
+              data={trendData.flatMap((d) => [
+                { month: d.label.slice(5) + '月', type: '新增', value: d.new },
+                { month: d.label.slice(5) + '月', type: '赢单', value: d.won },
+                { month: d.label.slice(5) + '月', type: '丢单', value: d.lost },
+              ])}
+              xField="month"
+              yField="value"
+              colorField="type"
+              height={220}
+              scale={{ color: { range: ['#6366f1', '#10b981', '#ef4444'] } }}
+              point={{ shapeField: 'circle', sizeField: 3 }}
+              legend={{ position: 'top' }}
+              axis={{ y: { title: '数量' } }}
+            />
+          </div>
+        )}
+
+        {/* Collection Analysis */}
+        {collectionData.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <span className="material-symbols-outlined text-emerald-500">account_balance_wallet</span>
+              回款分析 (应收/已收/逾期, 万元)
+            </h3>
+            <Column
+              data={collectionData.flatMap((d) => [
+                { month: d.label.slice(5) + '月', type: '应收', value: Math.round(d.receivable / 10000) },
+                { month: d.label.slice(5) + '月', type: '已收', value: Math.round(d.received / 10000) },
+                { month: d.label.slice(5) + '月', type: '逾期', value: Math.round(d.overdue / 10000) },
+              ])}
+              xField="month"
+              yField="value"
+              colorField="type"
+              height={220}
+              group={true}
+              scale={{ color: { range: ['#6366f1', '#10b981', '#ef4444'] } }}
+              legend={{ position: 'top' }}
+              axis={{ y: { title: '万元' } }}
+              style={{ radiusTopLeft: 3, radiusTopRight: 3 }}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Sales Leaderboard */}
       {leaderboard.length > 0 && (

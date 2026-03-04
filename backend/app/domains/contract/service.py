@@ -242,8 +242,23 @@ async def get_versions_by_contract(db: AsyncSession, tenant_id: str, contract_id
 
 async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data: ContractVersionUpdate, user: dict) -> ContractVersion:
     version = await get_version(db, tenant_id, version_id)
+    old_status = version.status if hasattr(version, 'status') else None
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(version, field, val)
     await db.commit()
     await db.refresh(version)
+
+    # Auto-trigger approval when version is submitted
+    new_status = version.status if hasattr(version, 'status') else None
+    if new_status == "submitted" and old_status != "submitted":
+        try:
+            from app.domains.approval.service import auto_trigger_approval
+            c = (await db.execute(
+                select(Contract).where(Contract.id == version.contract_id)
+            )).scalar_one_or_none()
+            title = f"合同审批: {c.contract_no if c else ''} V{version.version_no}"
+            await auto_trigger_approval(db, tenant_id, "contract_version", version_id, title, user)
+        except Exception:
+            pass
+
     return version

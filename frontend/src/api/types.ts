@@ -512,13 +512,17 @@ export interface ApprovalFlowItem {
   biz_id: string
   title?: string
   status: string
+  approval_mode?: string
   current_node: number
   total_nodes: number
   submitted_by_id?: string
   submitted_by_name?: string
+  parent_flow_id?: string
+  revision_no?: number
   created_at: string
   updated_at: string
   tasks?: ApprovalTaskItem[]
+  biz_detail?: Record<string, string>
 }
 
 export interface ApprovalTaskItem {

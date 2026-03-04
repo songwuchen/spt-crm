@@ -212,12 +212,25 @@ async def get_versions_by_quote(db: AsyncSession, tenant_id: str, quote_id: str)
 
 async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data: QuoteVersionUpdate, user: dict) -> QuoteVersion:
     version = await get_version(db, tenant_id, version_id)
+    old_status = version.status if hasattr(version, 'status') else None
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(version, field, val)
 
     await _recalc_totals(db, version_id)
     await db.commit()
     await db.refresh(version)
+
+    # Auto-trigger approval when version is submitted
+    new_status = version.status if hasattr(version, 'status') else None
+    if new_status == "submitted" and old_status != "submitted":
+        try:
+            from app.domains.approval.service import auto_trigger_approval
+            q = (await db.execute(select(Quote).where(Quote.id == version.quote_id))).scalar_one_or_none()
+            title = f"报价审批: {q.quote_no if q else ''} V{version.version_no}"
+            await auto_trigger_approval(db, tenant_id, "quote_version", version_id, title, user)
+        except Exception:
+            pass
+
     return version
 
 

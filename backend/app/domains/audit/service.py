@@ -1,3 +1,5 @@
+import hashlib
+import json
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import select, func
@@ -8,11 +10,23 @@ from app.domains.audit.models import AuditLog
 from app.common.context import request_ip, request_trace_id, request_user_agent
 
 
+def _compute_content_hash(
+    tenant_id: str, user_id: str, action: str, resource_type: str,
+    resource_id: str | None, summary: str | None, detail: dict | None,
+) -> str:
+    """Compute SHA-256 hash of audit log content for tamper detection."""
+    payload = f"{tenant_id}|{user_id}|{action}|{resource_type}|{resource_id or ''}|{summary or ''}"
+    if detail:
+        payload += "|" + json.dumps(detail, sort_keys=True, default=str)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 async def log_action(
     db: AsyncSession, *, tenant_id: str, user_id: str, user_name: str | None,
     action: str, resource_type: str, resource_id: str | None = None,
     summary: str | None = None, detail: dict | None = None, ip: str | None = None,
 ):
+    content_hash = _compute_content_hash(tenant_id, user_id, action, resource_type, resource_id, summary, detail)
     log = AuditLog(
         id=generate_uuid(), tenant_id=tenant_id,
         user_id=user_id, user_name=user_name,
@@ -22,6 +36,7 @@ async def log_action(
         ip=ip or request_ip.get(),
         user_agent=request_user_agent.get(),
         trace_id=request_trace_id.get(),
+        content_hash=content_hash,
     )
     db.add(log)
     await db.commit()

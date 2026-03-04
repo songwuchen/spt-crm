@@ -61,6 +61,16 @@ async def update_change_request(
     return ok(_cr_dict(cr))
 
 
+@router.post("/api/v1/change_requests/{cr_id}/estimate_impact")
+async def estimate_impact(
+    cr_id: str, tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("change:edit")),
+):
+    impact = await service.estimate_impact(db, tenant_id, cr_id, current_user)
+    return ok(impact)
+
+
 @router.delete("/api/v1/change_requests/{cr_id}")
 async def delete_change_request(
     cr_id: str, tenant_id: str = Depends(get_tenant_id),

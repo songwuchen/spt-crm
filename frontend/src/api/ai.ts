@@ -31,4 +31,16 @@ export const aiApi = {
   // AI Analysis
   analyze: (data: { biz_type: string; biz_id: string; analysis_type: string }) =>
     client.post<unknown, ApiResponse<{ task_id: string; analysis_type: string; result: Record<string, unknown> }>>('/api/v1/ai/analyze', data),
+
+  // Activity AI summary
+  summarizeActivities: (bizType: string, bizId: string) =>
+    client.post<unknown, ApiResponse<{ summary: string; key_points: string[]; suggestion: string }>>(
+      `/api/v1/activities/ai-summary?biz_type=${bizType}&biz_id=${bizId}`
+    ),
+
+  // Similar projects
+  findSimilarProjects: (projectId: string) =>
+    client.post<unknown, ApiResponse<{ similar_projects: Array<{ name: string; similarity_score: number; reason: string }>; insights: string }>>(
+      '/api/v1/ai/similar-projects', { project_id: projectId }
+    ),
 }

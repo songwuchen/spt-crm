@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
+from app.common.field_mask import load_mask_policies, apply_field_mask
 from app.domains.contract import service
 from app.domains.contract.schemas import ContractCreate, ContractUpdate, ContractVersionUpdate, ContractSign, ContractFromQuote
 
@@ -81,12 +82,15 @@ async def get_contract(
     contract_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("contract:view")),
+    current_user: dict = Depends(require_permissions("contract:view")),
 ):
     contract = await service.get_contract(db, tenant_id, contract_id)
     versions = await service.get_versions_by_contract(db, tenant_id, contract_id)
+    perms = current_user.get("permissions", [])
+    policies = await load_mask_policies(db, tenant_id)
+    contract_dict = apply_field_mask(_contract_dict(contract), "contract", perms, policies)
     return ok({
-        **_contract_dict(contract),
+        **contract_dict,
         "versions": [_version_dict(v) for v in versions],
     })
 

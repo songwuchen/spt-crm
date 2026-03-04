@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Table, Select, DatePicker, Input, Button } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import { Table, Select, DatePicker, Input, Button, message } from 'antd'
+import { SearchOutlined, DownloadOutlined } from '@ant-design/icons'
+import { downloadFile } from '@/utils/download'
 import client from '@/api/client'
 import type { AuditLog, PageData, ApiResponse } from '@/api/types'
 import type { Dayjs } from 'dayjs'
@@ -76,6 +77,17 @@ export default function AuditLogPage() {
   useEffect(() => { fetchData() }, [])
 
   const doSearch = () => { setPageNo(1); fetchData(1) }
+
+  const handleExport = () => {
+    const params: string[] = []
+    if (dateRange?.[0]) params.push(`start_date=${dateRange[0].format('YYYY-MM-DD')}`)
+    if (dateRange?.[1]) params.push(`end_date=${dateRange[1].format('YYYY-MM-DD')}`)
+    if (resourceType) params.push(`resource_type=${resourceType}`)
+    if (action) params.push(`action=${action}`)
+    const qs = params.length > 0 ? `?${params.join('&')}` : ''
+    downloadFile(`/api/v1/audit_logs/export${qs}`, `审计日志_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    message.success('正在导出...')
+  }
 
   const columns = [
     { title: '时间', dataIndex: 'created_at', width: 170,
@@ -171,6 +183,7 @@ export default function AuditLogPage() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             筛选
           </Button>
+          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
         </div>
       </div>
 

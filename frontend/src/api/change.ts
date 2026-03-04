@@ -12,4 +12,6 @@ export const changeApi = {
     client.put<unknown, ApiResponse<ChangeRequestItem>>(`/api/v1/change_requests/${id}`, data),
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/change_requests/${id}`),
+  estimateImpact: (id: string) =>
+    client.post<unknown, ApiResponse<Record<string, unknown>>>(`/api/v1/change_requests/${id}/estimate_impact`),
 }

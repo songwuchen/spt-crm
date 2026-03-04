@@ -31,4 +31,14 @@ export const settingsApi = {
   listFeatures: () => client.get('/api/admin/v1/tenant/features'),
   updateFeature: (code: string, data: { enabled: boolean }) =>
     client.put(`/api/admin/v1/tenant/features/${code}`, data),
+
+  // Approval policies
+  listApprovalPolicies: (bizType?: string) =>
+    client.get('/api/admin/v1/tenant/approval-policies', { params: bizType ? { biz_type: bizType } : {} }),
+  createApprovalPolicy: (data: Record<string, unknown>) =>
+    client.post('/api/admin/v1/tenant/approval-policies', data),
+  updateApprovalPolicy: (id: string, data: Record<string, unknown>) =>
+    client.put(`/api/admin/v1/tenant/approval-policies/${id}`, data),
+  deleteApprovalPolicy: (id: string) =>
+    client.delete(`/api/admin/v1/tenant/approval-policies/${id}`),
 }
