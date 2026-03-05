@@ -78,7 +78,7 @@ async def test_submit_approval_with_assignee(client: AsyncClient, auth_headers: 
 
     # Decide: approve
     task_id = tasks[0]["id"]
-    dec = await client.post(f"/api/v1/approvals/tasks/{task_id}/decide", json={
+    dec = await client.post(f"/api/v1/approval_tasks/{task_id}/decide", json={
         "action": "approved",
         "comment": "LGTM",
     }, headers=h)
