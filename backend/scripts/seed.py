@@ -33,7 +33,71 @@ async def seed():
             print("Database already has data — skipping seed.")
             return
 
-        # ---- Users (handled by auth seed in conftest, skip here) ----
+        # ---- Admin User + Role + Permissions ----
+        import bcrypt
+        from app.domains.auth.models import User, Role, Permission, UserRole, RolePermission
+
+        admin_user_id = "00000000-0000-0000-0000-000000000010"
+        admin_role_id = generate_uuid()
+
+        # Permissions
+        perm_codes = [
+            ("customer:view", "查看客户", "客户"),
+            ("customer:edit", "编辑客户", "客户"),
+            ("lead:view", "查看线索", "线索"),
+            ("lead:edit", "编辑线索", "线索"),
+            ("project:view", "查看商机", "商机"),
+            ("project:edit", "编辑商机", "商机"),
+            ("quote:view", "查看报价", "报价"),
+            ("quote:edit", "编辑报价", "报价"),
+            ("contract:view", "查看合同", "合同"),
+            ("contract:edit", "编辑合同", "合同"),
+            ("payment:view", "查看回款", "回款"),
+            ("payment:edit", "编辑回款", "回款"),
+            ("change:view", "查看变更", "变更"),
+            ("change:edit", "编辑变更", "变更"),
+            ("approval:view", "查看审批", "审批"),
+            ("approval:manage", "管理审批", "审批"),
+            ("audit:view", "查看审计", "审计"),
+            ("audit:export", "导出审计", "审计"),
+            ("role:manage", "管理角色", "系统"),
+            ("dashboard:view", "查看工作台", "工作台"),
+            ("ai:use", "使用AI", "AI"),
+            ("notification:view", "查看通知", "通知"),
+        ]
+        perm_ids = {}
+        for code, name, group in perm_codes:
+            pid = generate_uuid()
+            db.add(Permission(id=pid, code=code, name=name, group_name=group))
+            perm_ids[code] = pid
+
+        # Admin role with all permissions
+        db.add(Role(
+            id=admin_role_id, tenant_id=TENANT_ID,
+            code="admin", name="系统管理员", description="拥有全部权限", is_system=True,
+        ))
+        await db.flush()
+
+        for code, pid in perm_ids.items():
+            db.add(RolePermission(
+                id=generate_uuid(), tenant_id=TENANT_ID,
+                role_id=admin_role_id, permission_id=pid,
+            ))
+
+        # Admin user
+        hashed = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode()
+        db.add(User(
+            id=admin_user_id, tenant_id=TENANT_ID,
+            username="admin", password_hash=hashed,
+            real_name="管理员", is_active=True,
+        ))
+        await db.flush()
+
+        db.add(UserRole(
+            id=generate_uuid(), tenant_id=TENANT_ID,
+            user_id=admin_user_id, role_id=admin_role_id,
+        ))
+        await db.flush()
 
         # ---- Customers ----
         customers = []

@@ -67,6 +67,9 @@ jobs:
       - run: alembic upgrade head
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/spt_crm_test
+      - run: python -m scripts.seed
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/spt_crm_test
       - run: python -m pytest -x --tb=short
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/spt_crm_test
