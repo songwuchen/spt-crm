@@ -140,4 +140,5 @@ jobs:
               sleep 2
             done
             docker compose exec -T backend alembic upgrade head
+            docker compose exec -T backend python -m scripts.seed
           "
