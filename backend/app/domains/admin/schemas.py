@@ -108,6 +108,6 @@ class IntegrationUpdate(BaseModel):
 
 # ---- Webhook ----
 class WebhookCreate(BaseModel):
-    event_types_json: Optional[dict] = None
+    event_types_json: Optional[Union[dict, list]] = None
     target_url: str
     secret_token: Optional[str] = None
