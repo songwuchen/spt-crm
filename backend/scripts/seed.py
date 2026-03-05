@@ -13,6 +13,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.database import async_session_factory, engine, Base, generate_uuid, utcnow
 from app.config import settings
 
+# Import all models so SQLAlchemy relationship registry is complete
+import app.domains.auth.models  # noqa: F401
+import app.domains.organization.models  # noqa: F401
+import app.domains.customer.models  # noqa: F401
+import app.domains.project.models  # noqa: F401
+import app.domains.admin.models  # noqa: F401
+
 
 TENANT_ID = "00000000-0000-0000-0000-000000000001"
 
