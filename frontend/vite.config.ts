@@ -15,9 +15,8 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('node_modules')) {
             if (id.includes('@ant-design/charts') || id.includes('@antv')) return 'vendor-charts'
-            if (id.includes('@ant-design/icons')) return 'vendor-antd-icons'
             if (id.includes('antd') || id.includes('rc-') || id.includes('@ant-design')) return 'vendor-antd'
-            if (id.includes('react-dom') || id.includes('react-router')) return 'vendor-react'
+            if (id.includes('react')) return 'vendor-react'
           }
         },
       },
