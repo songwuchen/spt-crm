@@ -146,13 +146,13 @@ async def seed():
 
         await db.flush()
 
-        # ---- Stage Gate Config ----
-        from app.domains.admin.models import StageGateConfig
+        # ---- Stage Definitions ----
+        from app.domains.admin.models import StageDefinition
         for code, name in [
             ("S1", "线索确认"), ("S2", "需求分析"), ("S3", "方案制定"),
             ("S4", "商务谈判"), ("S5", "合同签订"), ("S6", "交付执行"),
         ]:
-            db.add(StageGateConfig(
+            db.add(StageDefinition(
                 id=generate_uuid(), tenant_id=TENANT_ID,
                 stage_code=code, name=name, sort_order=int(code[1]),
                 gate_rules_json={},
