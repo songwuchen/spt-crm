@@ -58,7 +58,7 @@ async def test_submit_approval_with_assignee(client: AsyncClient, auth_headers: 
     cust_id = cust.json()["data"]["id"]
 
     # Submit approval
-    resp = await client.post("/api/v1/approvals/submit", json={
+    resp = await client.post("/api/v1/approvals", json={
         "biz_type": "change_request",
         "biz_id": cust_id,  # using cust_id as fake biz_id
         "title": "Test Approval",
