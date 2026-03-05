@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { message } from 'antd'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 const client = axios.create({
   baseURL: '',
@@ -41,8 +42,7 @@ client.interceptors.response.use(
               throw new Error('refresh failed')
             })
             .catch(() => {
-              localStorage.removeItem('access_token')
-              localStorage.removeItem('refresh_token')
+              useAuthStore.getState().logout()
               window.location.href = '/login'
               return Promise.reject(new Error('登录已过期'))
             })
@@ -59,8 +59,7 @@ client.interceptors.response.use(
       }
 
       if (data.code === 40100) {
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
+        useAuthStore.getState().logout()
         window.location.href = '/login'
       }
 
@@ -78,8 +77,7 @@ client.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
+      useAuthStore.getState().logout()
       window.location.href = '/login'
     }
     message.error(error.response?.data?.message || '网络异常')

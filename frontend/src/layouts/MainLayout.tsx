@@ -92,18 +92,20 @@ export default function MainLayout() {
     }
   }, [location.pathname, setSidebarCollapsed])
 
+  const logout = useAuthStore((s) => s.logout)
+
   useEffect(() => {
     if (!token) {
       setUserLoading(false)
-      navigate('/login')
+      navigate('/login', { replace: true })
       return
     }
     setUserLoading(true)
     authApi.me().then((res) => {
       if (res.data) setUser(res.data)
     }).catch(() => {
-      setUserLoading(false)
-      navigate('/login')
+      logout()
+      navigate('/login', { replace: true })
     })
   }, [token])
 
