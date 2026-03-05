@@ -1,6 +1,15 @@
 import axios from 'axios'
 import { message } from 'antd'
-import { useAuthStore } from '@/stores/useAuthStore'
+
+function clearAuthAndRedirect() {
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
+  // Lazy import to avoid circular dependency in tests
+  import('@/stores/useAuthStore').then(({ useAuthStore }) => {
+    useAuthStore.getState().logout()
+  })
+  window.location.href = '/login'
+}
 
 const client = axios.create({
   baseURL: '',
@@ -42,8 +51,7 @@ client.interceptors.response.use(
               throw new Error('refresh failed')
             })
             .catch(() => {
-              useAuthStore.getState().logout()
-              window.location.href = '/login'
+              clearAuthAndRedirect()
               return Promise.reject(new Error('登录已过期'))
             })
             .finally(() => { isRefreshing = false })
@@ -59,8 +67,7 @@ client.interceptors.response.use(
       }
 
       if (data.code === 40100) {
-        useAuthStore.getState().logout()
-        window.location.href = '/login'
+        clearAuthAndRedirect()
       }
 
       // Pass through gate_check_failed with data for custom handling
@@ -77,8 +84,7 @@ client.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      useAuthStore.getState().logout()
-      window.location.href = '/login'
+      clearAuthAndRedirect()
     }
     message.error(error.response?.data?.message || '网络异常')
     return Promise.reject(error)
