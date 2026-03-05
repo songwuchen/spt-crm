@@ -133,6 +133,7 @@ async def seed():
         for i, cust in enumerate(customers):
             p = OpportunityProject(
                 id=generate_uuid(), tenant_id=TENANT_ID,
+                project_code=f"PRJ-SEED-{i+1:04d}",
                 name=f"{cust.name}-CRM升级项目",
                 customer_id=cust.id,
                 stage_code=stages[i % len(stages)],
