@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
 import { userApi } from '@/api/user'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 
 const industries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他']
 const levels = ['A', 'B', 'C', 'D']
@@ -14,14 +15,15 @@ export default function CustomerForm() {
   const navigate = useNavigate()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
-  const [users, setUsers] = useState<{ id: string; real_name: string }[]>([])
   const isEdit = !!id
   usePageTitle(isEdit ? '编辑客户' : '新建客户')
 
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
+
   useEffect(() => {
-    userApi.list({ pageNo: 1, pageSize: 100 }).then((res) =>
-      setUsers((res.data?.items || []).map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
-    ).catch(() => {})
     if (id) {
       customerApi.get(id).then((res) => form.setFieldsValue(res.data)).catch(() => message.error('加载客户数据失败'))
     }
@@ -90,8 +92,11 @@ export default function CustomerForm() {
             <Select placeholder="请选择级别" allowClear options={levels.map((l) => ({ label: l, value: l }))} />
           </Form.Item>
           <Form.Item name="owner_id" label="负责人">
-            <Select placeholder="请选择负责人" allowClear showSearch optionFilterProp="label"
-              options={users.map((u) => ({ label: u.real_name, value: u.id }))} />
+            <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
+              loading={userSelect.loading}
+              options={userSelect.options}
+              onSearch={userSelect.onSearch}
+              onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
           </Form.Item>
           {isEdit && (
             <Form.Item name="status" label="状态">

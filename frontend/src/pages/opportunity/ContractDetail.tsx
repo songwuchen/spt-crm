@@ -12,6 +12,7 @@ import { riskLabels, riskColors } from '@/api/types'
 import { contractStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import dayjs from 'dayjs'
 
 export default function ContractDetail() {
@@ -27,9 +28,13 @@ export default function ContractDetail() {
 
   // Approval
   const [approvalModal, setApprovalModal] = useState(false)
-  const [approverList, setApproverList] = useState<{ id: string; real_name: string }[]>([])
   const [selectedApprovers, setSelectedApprovers] = useState<string[]>([])
   const [approvalSubmitting, setApprovalSubmitting] = useState(false)
+
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
 
   // AI analysis
   const [aiResult, setAiResult] = useState<{
@@ -84,11 +89,7 @@ export default function ContractDetail() {
     fetchContract()
   }
 
-  const openApprovalModal = async () => {
-    try {
-      const res = await userApi.list({ pageNo: 1, pageSize: 100 })
-      setApproverList((res.data?.items || []).map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
-    } catch { /* ignore */ }
+  const openApprovalModal = () => {
     setSelectedApprovers([])
     setApprovalModal(true)
   }
@@ -96,7 +97,7 @@ export default function ContractDetail() {
   const handleSubmitApproval = async () => {
     setApprovalSubmitting(true)
     try {
-      const approverNames = selectedApprovers.map((id) => approverList.find((u) => u.id === id)?.real_name || '')
+      const approverNames = selectedApprovers.map((id) => userSelect.options.find((o) => o.value === id)?.label || '')
       const res = await approvalApi.submit({
         biz_type: 'contract_version',
         biz_id: selectedVersionId,
@@ -342,9 +343,12 @@ export default function ContractDetail() {
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">选择审批人（按顺序）</label>
-            <Select mode="multiple" className="w-full" placeholder="请选择审批人"
+            <Select mode="multiple" className="w-full" placeholder="请选择审批人" showSearch filterOption={false}
               value={selectedApprovers} onChange={setSelectedApprovers}
-              options={approverList.map((u) => ({ label: u.real_name, value: u.id }))} />
+              loading={userSelect.loading}
+              options={userSelect.options}
+              onSearch={userSelect.onSearch}
+              onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
             <div className="text-xs text-slate-400 mt-1">多选时将按选择顺序依次审批</div>
           </div>
         </div>

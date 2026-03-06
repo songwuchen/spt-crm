@@ -6,10 +6,11 @@ import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { serviceTicketApi } from '@/api/serviceTicket'
 import { customerApi } from '@/api/customer'
-import type { ServiceTicketItem, RenewalItem, Customer } from '@/api/types'
+import type { ServiceTicketItem, RenewalItem } from '@/api/types'
 
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels, renewalStatusLabels, renewalStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 
 const { TextArea } = Input
 
@@ -22,7 +23,10 @@ export default function ServiceTicketList() {
   const [loading, setLoading] = useState(false)
   const [createModal, setCreateModal] = useState(false)
   const [form, setForm] = useState<Record<string, any>>({ type: 'fault', priority: 'medium', description: '' })
-  const [customers, setCustomers] = useState<Customer[]>([])
+  const customerSelect = useRemoteSelect(async (kw) => {
+    const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((c: any) => ({ label: c.name, value: c.id }))
+  })
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined)
@@ -55,13 +59,6 @@ export default function ServiceTicketList() {
 
   useEffect(() => { fetchTickets(); fetchRenewals() }, [])
 
-  const fetchCustomers = async () => {
-    try {
-      const r = await customerApi.list({ pageNo: 1, pageSize: 100 })
-      setCustomers(r.data?.items || [])
-    } catch {}
-  }
-
   const handleCreate = async () => {
     if (!form.description?.trim()) {
       message.warning('请填写问题描述')
@@ -81,20 +78,17 @@ export default function ServiceTicketList() {
   }
 
   const openCreate = () => {
-    fetchCustomers()
     setForm({ type: 'fault', priority: 'medium', description: '' })
     setCreateModal(true)
   }
 
   const openRenewalCreate = () => {
-    fetchCustomers()
     setEditingRenewal(null)
     setRenewalForm({ status: 'open' })
     setRenewalModal(true)
   }
 
   const openRenewalEdit = (r: RenewalItem) => {
-    fetchCustomers()
     setEditingRenewal(r)
     setRenewalForm({
       customer_id: r.customer_id,
@@ -225,9 +219,12 @@ export default function ServiceTicketList() {
         <div className="space-y-4 py-2">
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">关联客户</label>
-            <Select className="w-full" allowClear showSearch optionFilterProp="label" placeholder="选择关联客户（可选）"
+            <Select className="w-full" allowClear showSearch filterOption={false} placeholder="选择关联客户（可选）"
               value={form.customer_id} onChange={(v) => setForm({ ...form, customer_id: v })}
-              options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+              loading={customerSelect.loading}
+              options={customerSelect.options}
+              onSearch={customerSelect.onSearch}
+              onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -254,9 +251,12 @@ export default function ServiceTicketList() {
         <div className="space-y-4 py-2">
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">关联客户 <span className="text-red-500">*</span></label>
-            <Select className="w-full" showSearch optionFilterProp="label" placeholder="选择客户"
+            <Select className="w-full" showSearch filterOption={false} placeholder="选择客户"
               value={renewalForm.customer_id} onChange={(v) => setRenewalForm({ ...renewalForm, customer_id: v })}
-              options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+              loading={customerSelect.loading}
+              options={customerSelect.options}
+              onSearch={customerSelect.onSearch}
+              onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">名称 <span className="text-red-500">*</span></label>

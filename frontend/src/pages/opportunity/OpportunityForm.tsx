@@ -4,8 +4,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
 import { userApi } from '@/api/user'
-import type { Customer } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import dayjs from 'dayjs'
 
 const riskOptions = [
@@ -26,16 +26,20 @@ export default function OpportunityForm() {
   const navigate = useNavigate()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [users, setUsers] = useState<{ id: string; real_name: string }[]>([])
   const isEdit = !!id
   usePageTitle(isEdit ? '编辑商机' : '新建商机')
 
+  const customerSelect = useRemoteSelect(async (kw) => {
+    const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((c: any) => ({ label: c.name, value: c.id }))
+  })
+
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
+
   useEffect(() => {
-    customerApi.list({ pageNo: 1, pageSize: 100 }).then((res) => setCustomers(res.data.items)).catch(() => {})
-    userApi.list({ pageNo: 1, pageSize: 100 }).then((res) =>
-      setUsers((res.data?.items || []).map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
-    ).catch(() => {})
     if (id) {
       projectApi.get(id).then((res) => {
         const d = res.data
@@ -78,9 +82,11 @@ export default function OpportunityForm() {
             <Input placeholder="请输入项目名称" />
           </Form.Item>
           <Form.Item name="customer_id" label="关联客户" rules={[{ required: true, message: '请选择关联客户' }]}>
-            <Select placeholder="请选择客户" showSearch
-              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-              options={customers.map((c) => ({ label: c.name, value: c.id }))} />
+            <Select placeholder="请选择客户" showSearch filterOption={false}
+              loading={customerSelect.loading}
+              options={customerSelect.options}
+              onSearch={customerSelect.onSearch}
+              onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
           </Form.Item>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Form.Item name="amount_expect" label="预期金额" rules={[{ required: true, message: '请输入预期金额' }]}>
@@ -97,8 +103,11 @@ export default function OpportunityForm() {
             <Select placeholder="请选择风险等级" allowClear options={riskOptions} />
           </Form.Item>
           <Form.Item name="owner_id" label="负责人">
-            <Select placeholder="请选择负责人" allowClear showSearch optionFilterProp="label"
-              options={users.map((u) => ({ label: u.real_name, value: u.id }))} />
+            <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
+              loading={userSelect.loading}
+              options={userSelect.options}
+              onSearch={userSelect.onSearch}
+              onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
           </Form.Item>
           {isEdit && (
             <Form.Item name="status" label="状态">

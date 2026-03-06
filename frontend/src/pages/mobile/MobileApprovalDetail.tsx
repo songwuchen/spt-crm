@@ -4,7 +4,9 @@ import { message, Modal, Input, Select } from 'antd'
 import { approvalApi } from '@/api/approval'
 import { aiApi } from '@/api/ai'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import type { ApprovalFlowItem, AiResultItem } from '@/api/types'
+import { userApi } from '@/api/user'
 import client from '@/api/client'
 
 const bizTypeLabels: Record<string, string> = {
@@ -58,7 +60,11 @@ export default function MobileApprovalDetail() {
   const [delegateModalOpen, setDelegateModalOpen] = useState(false)
   const [delegateUserId, setDelegateUserId] = useState('')
   const [delegateReason, setDelegateReason] = useState('')
-  const [users, setUsers] = useState<Array<{ id: string; real_name: string }>>([])
+
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
 
   useEffect(() => {
     if (!id) return
@@ -96,15 +102,10 @@ export default function MobileApprovalDetail() {
     setRejectComment('')
   }
 
-  const openDelegate = async () => {
+  const openDelegate = () => {
     setDelegateUserId('')
     setDelegateReason('')
     setDelegateModalOpen(true)
-    try {
-      const res = await client.get('/api/admin/v1/tenant/users') as any
-      const list = res.data?.items || res.data || []
-      setUsers(list.map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
-    } catch { setUsers([]) }
   }
 
   const handleDelegate = async () => {
@@ -340,8 +341,11 @@ export default function MobileApprovalDetail() {
               value={delegateUserId || undefined}
               onChange={setDelegateUserId}
               showSearch
-              optionFilterProp="label"
-              options={users.map((u) => ({ value: u.id, label: u.real_name }))}
+              filterOption={false}
+              loading={userSelect.loading}
+              options={userSelect.options}
+              onSearch={userSelect.onSearch}
+              onDropdownVisibleChange={userSelect.onDropdownVisibleChange}
             />
           </div>
           <div>

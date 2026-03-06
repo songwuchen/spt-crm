@@ -10,6 +10,7 @@ import type { ServiceTicketItem, ActivityItem } from '@/api/types'
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 
 const { TextArea } = Input
 const statusFlow: Record<string, string[]> = {
@@ -36,8 +37,12 @@ export default function ServiceTicketDetail() {
 
   // Assign modal
   const [assignModal, setAssignModal] = useState(false)
-  const [users, setUsers] = useState<{ id: string; real_name: string }[]>([])
   const [assigneeId, setAssigneeId] = useState('')
+
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
 
   const fetchTicket = async () => {
     setLoading(true)
@@ -86,20 +91,16 @@ export default function ServiceTicketDetail() {
     setEditModal(true)
   }
 
-  const openAssignModal = async () => {
-    try {
-      const res = await userApi.list({ pageNo: 1, pageSize: 100 })
-      setUsers((res.data?.items || []).map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
-    } catch { /* ignore */ }
+  const openAssignModal = () => {
     setAssigneeId(ticket?.assigned_to_id || '')
     setAssignModal(true)
   }
 
   const handleAssign = async () => {
-    const user = users.find((u) => u.id === assigneeId)
+    const userOpt = userSelect.options.find((o) => o.value === assigneeId)
     await serviceTicketApi.update(id!, {
       assigned_to_id: assigneeId,
-      assigned_to_name: user?.real_name || '',
+      assigned_to_name: userOpt?.label || '',
       status: ticket?.status === 'open' ? 'assigned' : undefined,
     })
     message.success('已分配')
@@ -240,8 +241,11 @@ export default function ServiceTicketDetail() {
         <div className="py-2">
           <label className="text-sm font-medium text-slate-700 mb-1 block">选择负责人</label>
           <Select className="w-full" value={assigneeId} onChange={setAssigneeId} showSearch
-            optionFilterProp="label"
-            options={users.map((u) => ({ label: u.real_name, value: u.id }))} />
+            filterOption={false}
+            loading={userSelect.loading}
+            options={userSelect.options}
+            onSearch={userSelect.onSearch}
+            onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
         </div>
       </Modal>
     </div>

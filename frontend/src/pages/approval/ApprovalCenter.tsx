@@ -16,8 +16,10 @@ import {
   taskStatusLabelsApproval,
   taskStatusColorsApproval,
 } from '@/constants/labels'
+import { userApi } from '@/api/user'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 
 export default function ApprovalCenter() {
   usePageTitle('审批中心')
@@ -40,13 +42,17 @@ export default function ApprovalCenter() {
   const [delegateTaskId, setDelegateTaskId] = useState('')
   const [delegateUserId, setDelegateUserId] = useState('')
   const [delegateReason, setDelegateReason] = useState('')
-  const [users, setUsers] = useState<Array<{ id: string; real_name: string }>>([])
   // Withdraw modal
   const [withdrawModal, setWithdrawModal] = useState(false)
   const [withdrawFlowId, setWithdrawFlowId] = useState('')
   const [withdrawReason, setWithdrawReason] = useState('')
   // Bulk actions
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
+
   // Statistics
   const [stats, setStats] = useState<Record<string, unknown> | null>(null)
   const [statsLoading, setStatsLoading] = useState(false)
@@ -155,17 +161,11 @@ export default function ApprovalCenter() {
   }
 
   // Delegate
-  const openDelegate = async (taskId: string) => {
+  const openDelegate = (taskId: string) => {
     setDelegateTaskId(taskId)
     setDelegateUserId('')
     setDelegateReason('')
     setDelegateModal(true)
-    // Load users
-    try {
-      const res = await client.get('/api/admin/v1/tenant/users') as any
-      const list = res.data?.items || res.data || []
-      setUsers(list.map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
-    } catch { setUsers([]) }
   }
 
   const handleDelegate = async () => {
@@ -606,8 +606,11 @@ export default function ApprovalCenter() {
               value={delegateUserId || undefined}
               onChange={setDelegateUserId}
               showSearch
-              optionFilterProp="label"
-              options={users.map((u) => ({ value: u.id, label: u.real_name }))}
+              filterOption={false}
+              loading={userSelect.loading}
+              options={userSelect.options}
+              onSearch={userSelect.onSearch}
+              onDropdownVisibleChange={userSelect.onDropdownVisibleChange}
             />
           </div>
           <div>

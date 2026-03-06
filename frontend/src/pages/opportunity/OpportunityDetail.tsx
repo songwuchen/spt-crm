@@ -21,6 +21,7 @@ import { userApi, roleApi } from '@/api/user'
 import type { OpportunityProject, ProjectStageHistory, QuoteItem, ContractItem, SolutionItem, DeliveryMilestone, ErpOrderLink, PaymentPlanItem, PaymentRecordItem, InvoiceItem, ChangeRequestItem, Customer, AclShareItem } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 
@@ -50,8 +51,13 @@ export default function OpportunityDetail() {
   const [shares, setShares] = useState<AclShareItem[]>([])
   const [shareModal, setShareModal] = useState(false)
   const [shareForm] = Form.useForm()
-  const [shareUserList, setShareUserList] = useState<{ id: string; real_name: string }[]>([])
   const [shareRoleList, setShareRoleList] = useState<{ id: string; name: string }[]>([])
+
+  const shareUserSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
+
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [advanceModal, setAdvanceModal] = useState(false)
   const [advanceTarget, setAdvanceTarget] = useState('')
@@ -987,11 +993,6 @@ export default function OpportunityDetail() {
                         shareForm.resetFields()
                         shareForm.setFieldsValue({ shared_to_type: 'user', permission: 'view' })
                         setShareModal(true)
-                        if (!shareUserList.length) {
-                          userApi.list({ pageNo: 1, pageSize: 100 }).then((r) =>
-                            setShareUserList((r.data.items || []).map((u) => ({ id: u.id, real_name: u.real_name })))
-                          ).catch(() => {})
-                        }
                         if (!shareRoleList.length) {
                           roleApi.list().then((r) =>
                             setShareRoleList((r.data || []).map((role) => ({ id: role.id, name: role.name })))
@@ -1285,7 +1286,7 @@ export default function OpportunityDetail() {
           const sharedToType = vals.shared_to_type
           let sharedToName = ''
           if (sharedToType === 'user') {
-            sharedToName = shareUserList.find((u) => u.id === vals.shared_to_id)?.real_name || ''
+            sharedToName = shareUserSelect.options.find((o) => o.value === vals.shared_to_id)?.label || ''
           } else {
             sharedToName = shareRoleList.find((r) => r.id === vals.shared_to_id)?.name || ''
           }
@@ -1303,11 +1304,16 @@ export default function OpportunityDetail() {
           <Form.Item noStyle shouldUpdate={(prev, cur) => prev.shared_to_type !== cur.shared_to_type}>
             {({ getFieldValue }) => (
               <Form.Item name="shared_to_id" label="共享对象" rules={[{ required: true, message: '请选择' }]}>
-                <Select showSearch optionFilterProp="label" placeholder="选择用户或角色"
-                  options={getFieldValue('shared_to_type') === 'user'
-                    ? shareUserList.map((u) => ({ value: u.id, label: u.real_name }))
-                    : shareRoleList.map((r) => ({ value: r.id, label: r.name }))
-                  } />
+                {getFieldValue('shared_to_type') === 'user' ? (
+                  <Select showSearch filterOption={false} placeholder="选择用户"
+                    loading={shareUserSelect.loading}
+                    options={shareUserSelect.options}
+                    onSearch={shareUserSelect.onSearch}
+                    onDropdownVisibleChange={shareUserSelect.onDropdownVisibleChange} />
+                ) : (
+                  <Select showSearch optionFilterProp="label" placeholder="选择角色"
+                    options={shareRoleList.map((r) => ({ value: r.id, label: r.name }))} />
+                )}
               </Form.Item>
             )}
           </Form.Item>

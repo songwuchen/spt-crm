@@ -15,6 +15,7 @@ import client from '@/api/client'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import CustomerRelationGraph from '@/components/CustomerRelationGraph'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 
 const roleTypeMap: Record<string, { label: string; color: string }> = {
   decision_maker: { label: '决策者', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
@@ -49,12 +50,21 @@ export default function CustomerDetail() {
   const [relForm] = Form.useForm()
   const [shareForm] = Form.useForm()
   const [allCustomers, setAllCustomers] = useState<Customer[]>([])
-  const [userList, setUserList] = useState<{ id: string; real_name: string }[]>([])
   const [roleList, setRoleList] = useState<{ id: string; name: string }[]>([])
   const [stats, setStats] = useState<Record<string, number>>({})
   const [projects, setProjects] = useState<OpportunityProject[]>([])
   const [tickets, setTickets] = useState<{ id: string; ticket_no: string; type: string; status: string; priority: string; description?: string; created_at?: string }[]>([])
   const [contracts, setContracts] = useState<{ id: string; contract_no: string; status: string; amount?: number; created_at?: string }[]>([])
+
+  const customerSelect = useRemoteSelect(async (kw) => {
+    const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).filter((c) => c.id !== id).map((c) => ({ label: c.name, value: c.id }))
+  })
+
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
 
   const fetchCustomer = async () => { const res = await customerApi.get(id!); setCustomer(res.data) }
   const fetchContacts = async () => { const res = await contactApi.list(id!); setContacts(res.data) }
@@ -350,7 +360,6 @@ export default function CustomerDetail() {
                         <Button type="primary" size="small" icon={<PlusOutlined />}
                           onClick={() => {
                             shareForm.resetFields()
-                            userApi.list({ pageNo: 1, pageSize: 100 }).then((r) => setUserList(r.data?.items || [])).catch(() => {})
                             roleApi.list().then((r) => setRoleList(r.data || [])).catch(() => {})
                             setShareModal(true)
                           }}>
@@ -502,8 +511,11 @@ export default function CustomerDetail() {
         }}>
         <Form form={relForm} layout="vertical">
           <Form.Item name="to_customer_id" label="关联客户" rules={[{ required: true, message: '请选择客户' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="请选择客户"
-              options={allCustomers.filter((c) => c.id !== id).map((c) => ({ label: c.name, value: c.id }))} />
+            <Select showSearch filterOption={false} placeholder="请选择客户"
+              loading={customerSelect.loading}
+              options={customerSelect.options}
+              onSearch={customerSelect.onSearch}
+              onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
           </Form.Item>
           <Form.Item name="relation_type" label="关系类型" rules={[{ required: true, message: '请选择类型' }]}>
             <Select options={[
@@ -540,11 +552,13 @@ export default function CustomerDetail() {
               if (type === 'user') {
                 return (
                   <Form.Item name="shared_to_id" label="选择用户" rules={[{ required: true, message: '请选择用户' }]}>
-                    <Select showSearch optionFilterProp="label" placeholder="搜索并选择用户"
-                      options={userList.map((u) => ({ label: u.real_name, value: u.id }))}
-                      onChange={(v) => {
-                        const u = userList.find((x) => x.id === v)
-                        shareForm.setFieldValue('shared_to_name', u?.real_name || '')
+                    <Select showSearch filterOption={false} placeholder="搜索并选择用户"
+                      loading={userSelect.loading}
+                      options={userSelect.options}
+                      onSearch={userSelect.onSearch}
+                      onDropdownVisibleChange={userSelect.onDropdownVisibleChange}
+                      onChange={(_v, option) => {
+                        shareForm.setFieldValue('shared_to_name', (option as { label: string })?.label || '')
                       }} />
                   </Form.Item>
                 )

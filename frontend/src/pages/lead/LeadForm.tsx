@@ -4,20 +4,22 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
 import { userApi } from '@/api/user'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 
 export default function LeadForm() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
-  const [users, setUsers] = useState<{ id: string; real_name: string }[]>([])
   const isEdit = !!id
   usePageTitle(isEdit ? '编辑线索' : '新建线索')
 
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
+
   useEffect(() => {
-    userApi.list({ pageNo: 1, pageSize: 100 }).then((res) =>
-      setUsers((res.data?.items || []).map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
-    ).catch(() => {})
     if (id) {
       leadApi.get(id).then((res) => form.setFieldsValue(res.data)).catch(() => message.error('加载线索数据失败'))
     }
@@ -88,8 +90,11 @@ export default function LeadForm() {
                   options={['10万以下', '10-50万', '50-100万', '100-500万', '500万以上'].map((b) => ({ label: b, value: b }))} />
               </Form.Item>
               <Form.Item name="owner_id" label="负责人">
-                <Select placeholder="请选择负责人" allowClear showSearch optionFilterProp="label"
-                  options={users.map((u) => ({ label: u.real_name, value: u.id }))} />
+                <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
+                  loading={userSelect.loading}
+                  options={userSelect.options}
+                  onSearch={userSelect.onSearch}
+                  onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
               </Form.Item>
             </div>
           </div>
