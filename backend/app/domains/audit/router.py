@@ -120,6 +120,40 @@ async def statistics(
     })
 
 
+@router.get("/by_resource")
+async def logs_by_resource(
+    resource_type: str = Query(...),
+    resource_id: str = Query(...),
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("audit:view")),
+):
+    """Get audit logs for a specific business object."""
+    q = select(AuditLog).where(
+        AuditLog.tenant_id == tenant_id,
+        AuditLog.resource_type == resource_type,
+        AuditLog.resource_id == resource_id,
+    ).order_by(AuditLog.created_at.desc())
+    count_q = select(func.count(AuditLog.id)).where(
+        AuditLog.tenant_id == tenant_id,
+        AuditLog.resource_type == resource_type,
+        AuditLog.resource_id == resource_id,
+    )
+    total = (await db.execute(count_q)).scalar() or 0
+    items = (await db.execute(q.offset((pageNo - 1) * pageSize).limit(pageSize))).scalars().all()
+    logs = []
+    for log in items:
+        logs.append({
+            "id": log.id, "user_name": log.user_name,
+            "action": log.action, "summary": log.summary,
+            "detail": log.detail,
+            "created_at": log.created_at.isoformat() if log.created_at else "",
+        })
+    return ok({"items": logs, "total": total})
+
+
 @router.get("/export")
 async def export_logs(
     start_date: date = Query(None),

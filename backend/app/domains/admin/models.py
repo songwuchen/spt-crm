@@ -121,6 +121,36 @@ class ApprovalPolicy(TenantScopedBase):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class DocTemplate(TenantScopedBase):
+    """文档模板（报价/合同）"""
+    __tablename__ = "doc_templates"
+
+    doc_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    # quote / contract
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(500))
+    content_json: Mapped[dict | None] = mapped_column(JSON)
+    # For quote: {title, terms_summary_json, tax_rate, validity_days, lines: [{item_name,spec,qty,unit,unit_price,...}]}
+    # For contract: {title, payment_terms_json, delivery_terms_json, key_clauses_json}
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by_id: Mapped[str | None] = mapped_column(String(36))
+    created_by_name: Mapped[str | None] = mapped_column(String(100))
+
+
+class EmailTemplate(TenantScopedBase):
+    """邮件模板"""
+    __tablename__ = "email_templates"
+
+    code: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # follow_up_reminder / contract_expiry / approval_notify / payment_overdue / quote_sent
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    subject: Mapped[str | None] = mapped_column(String(500))
+    body_html: Mapped[str | None] = mapped_column(Text)
+    variables_json: Mapped[dict | None] = mapped_column(JSON)
+    # [{name: "customer_name", label: "客户名称"}, ...]
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class IntegrationEndpoint(TenantScopedBase):
     """集成端点配置"""
     __tablename__ = "integration_endpoints"

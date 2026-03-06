@@ -84,7 +84,7 @@ describe('Dashboard', () => {
 
   it('renders refresh button', () => {
     render(<Dashboard />)
-    expect(screen.getByText('刷新数据')).toBeInTheDocument()
+    expect(screen.getByText('刷新')).toBeInTheDocument()
   })
 
   it('loads and displays stats', async () => {

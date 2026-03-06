@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Button, Table, Tag, Space, Modal, Input, Select, Tabs, InputNumber, DatePicker, message } from 'antd'
+import { Button, Table, Tag, Space, Modal, Form, Input, Select, Tabs, InputNumber, DatePicker, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { serviceTicketApi } from '@/api/serviceTicket'
 import { customerApi } from '@/api/customer'
+import { userApi } from '@/api/user'
 import type { ServiceTicketItem, RenewalItem } from '@/api/types'
 
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels, renewalStatusLabels, renewalStatusColors } from '@/constants/labels'
@@ -31,6 +32,27 @@ export default function ServiceTicketList() {
   // Filters
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined)
   const [searchText, setSearchText] = useState('')
+  const [selectedTicketKeys, setSelectedTicketKeys] = useState<React.Key[]>([])
+  const [batchAssignModal, setBatchAssignModal] = useState(false)
+  const [assignForm] = Form.useForm()
+  const assignUserSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
+
+  const handleBatchAssign = async () => {
+    const values = await assignForm.validateFields()
+    const userName = assignUserSelect.options.find(o => o.value === values.assigned_to_id)?.label || ''
+    const results = await Promise.allSettled(
+      selectedTicketKeys.map((id) => serviceTicketApi.update(id as string, { assigned_to_id: values.assigned_to_id, assigned_to_name: userName }))
+    )
+    const ok = results.filter(r => r.status === 'fulfilled').length
+    message.success(`已指派 ${ok} 个工单`)
+    setBatchAssignModal(false)
+    assignForm.resetFields()
+    setSelectedTicketKeys([])
+    fetchTickets()
+  }
 
   // Renewals
   const [renewals, setRenewals] = useState<RenewalItem[]>([])
@@ -146,12 +168,18 @@ export default function ServiceTicketList() {
                       onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchTickets(1, searchText, v) }}
                       style={{ width: 130 }} options={Object.entries(statusLabels).map(([k, v]) => ({ value: k, label: v }))} />
                   </div>
-                  <Space>
+                  <Space wrap>
+                    {selectedTicketKeys.length > 0 && (
+                      <Button onClick={() => { assignForm.resetFields(); setBatchAssignModal(true) }}>
+                        批量指派 ({selectedTicketKeys.length})
+                      </Button>
+                    )}
                     <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/service_tickets/export/excel', 'service_tickets.xlsx')}>导出</Button>
                     <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建工单</Button>
                   </Space>
                 </div>
                 <Table rowKey="id" dataSource={tickets} loading={loading} size="small" scroll={{ x: 900 }}
+                  rowSelection={{ selectedRowKeys: selectedTicketKeys, onChange: setSelectedTicketKeys }}
                   pagination={{
                     current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
                     onChange: (p) => { setPageNo(p); fetchTickets(p) },
@@ -290,6 +318,23 @@ export default function ServiceTicketList() {
             <label className="text-sm font-medium text-slate-700 mb-1 block">备注</label>
             <TextArea rows={2} value={renewalForm.remark} onChange={(e) => setRenewalForm({ ...renewalForm, remark: e.target.value })} placeholder="备注信息..." />
           </div>
+        </div>
+      </Modal>
+
+      {/* Batch Assign Modal */}
+      <Modal title="批量指派工单" open={batchAssignModal} onOk={handleBatchAssign}
+        onCancel={() => setBatchAssignModal(false)} okText="确认指派">
+        <div className="py-2">
+          <div className="mb-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+            将选中的 <b>{selectedTicketKeys.length}</b> 个工单指派给
+          </div>
+          <Form form={assignForm} layout="vertical">
+            <Form.Item name="assigned_to_id" label="负责人" rules={[{ required: true, message: '请选择' }]}>
+              <Select showSearch filterOption={false} placeholder="搜索用户"
+                loading={assignUserSelect.loading} options={assignUserSelect.options}
+                onSearch={assignUserSelect.onSearch} onDropdownVisibleChange={assignUserSelect.onDropdownVisibleChange} />
+            </Form.Item>
+          </Form>
         </div>
       </Modal>
     </div>

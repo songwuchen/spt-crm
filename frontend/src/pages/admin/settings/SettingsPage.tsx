@@ -14,6 +14,8 @@ interface Integration { id: string; system_code: string; name: string; base_url:
 interface FeatureToggle { id: string; feature_code: string; enabled: boolean; config_json?: Record<string, unknown> }
 interface AiBudget { id: string; period: string; budget_cost?: number; used_cost?: number; budget_tokens?: number; used_tokens?: number; hard_limit: boolean }
 interface ApprovalPolicyItem { id: string; biz_type: string; name: string; condition_json?: Record<string, unknown>; approver_rules_json?: Record<string, unknown>; approval_mode: string; sla_hours?: number; escalation_json?: Record<string, unknown>[]; priority: number; enabled: boolean }
+interface DocTemplateItem { id: string; doc_type: string; name: string; description?: string; content_json?: Record<string, unknown>; is_default: boolean; created_by_name?: string; created_at: string }
+interface EmailTemplateItem { id: string; code: string; name: string; subject?: string; body_html?: string; variables_json?: unknown; enabled: boolean; created_at: string }
 
 function JsonCell({ value }: { value: unknown }) {
   if (!value) return <span className="text-slate-300">-</span>
@@ -31,6 +33,20 @@ export default function SettingsPage() {
   const [budgetForm, setBudgetForm] = useState({ budget_cost: 100, budget_tokens: 10000000, hard_limit: false })
   const [budgetModal, setBudgetModal] = useState(false)
   const [approvalPolicies, setApprovalPolicies] = useState<ApprovalPolicyItem[]>([])
+  const [docTemplates, setDocTemplates] = useState<DocTemplateItem[]>([])
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplateItem[]>([])
+
+  // Doc template
+  const [dtModal, setDtModal] = useState(false)
+  const [dtEditingId, setDtEditingId] = useState<string | null>(null)
+  const defaultDtForm = { doc_type: 'quote' as string, name: '', description: '', content_json: '', is_default: false }
+  const [dtForm, setDtForm] = useState(defaultDtForm)
+
+  // Email template
+  const [etModal, setEtModal] = useState(false)
+  const [etEditingId, setEtEditingId] = useState<string | null>(null)
+  const defaultEtForm = { code: '', name: '', subject: '', body_html: '', variables_json: '', enabled: true }
+  const [etForm, setEtForm] = useState(defaultEtForm)
 
   // Stage edit
   const [stageModal, setStageModal] = useState(false)
@@ -60,6 +76,8 @@ export default function SettingsPage() {
     settingsApi.listFeatures().then((r: { data: FeatureToggle[] }) => r.data && setFeatures(r.data)).catch(() => {})
     settingsApi.getAiBudget(currentPeriod).then((r: { data: AiBudget | null }) => r.data && setAiBudget(r.data)).catch(() => {})
     settingsApi.listApprovalPolicies().then((r: { data: ApprovalPolicyItem[] }) => r.data && setApprovalPolicies(r.data)).catch(() => {})
+    settingsApi.listDocTemplates().then((r: { data: DocTemplateItem[] }) => r.data && setDocTemplates(r.data)).catch(() => {})
+    settingsApi.listEmailTemplates().then((r: { data: EmailTemplateItem[] }) => r.data && setEmailTemplates(r.data)).catch(() => {})
   }
 
   const handleSaveBudget = async () => {
@@ -127,6 +145,42 @@ export default function SettingsPage() {
       setApForm(defaultApForm)
       fetchAll()
     } catch { message.error(apEditingId ? '更新审批策略失败' : '创建审批策略失败') }
+  }
+
+  const handleSaveDt = async () => {
+    let contentJson = null
+    if (dtForm.content_json) {
+      try { contentJson = JSON.parse(dtForm.content_json) } catch { message.error('内容JSON格式错误'); return }
+    }
+    try {
+      const payload = { doc_type: dtForm.doc_type, name: dtForm.name, description: dtForm.description || undefined, content_json: contentJson, is_default: dtForm.is_default }
+      if (dtEditingId) {
+        await settingsApi.updateDocTemplate(dtEditingId, payload)
+        message.success('模板已更新')
+      } else {
+        await settingsApi.createDocTemplate(payload)
+        message.success('模板已创建')
+      }
+      setDtModal(false); setDtEditingId(null); setDtForm(defaultDtForm); fetchAll()
+    } catch { message.error('保存模板失败') }
+  }
+
+  const handleSaveEt = async () => {
+    let varsJson = null
+    if (etForm.variables_json) {
+      try { varsJson = JSON.parse(etForm.variables_json) } catch { message.error('变量JSON格式错误'); return }
+    }
+    try {
+      const payload = { code: etForm.code, name: etForm.name, subject: etForm.subject || undefined, body_html: etForm.body_html || undefined, variables_json: varsJson, enabled: etForm.enabled }
+      if (etEditingId) {
+        await settingsApi.updateEmailTemplate(etEditingId, payload)
+        message.success('邮件模板已更新')
+      } else {
+        await settingsApi.createEmailTemplate(payload)
+        message.success('邮件模板已创建')
+      }
+      setEtModal(false); setEtEditingId(null); setEtForm(defaultEtForm); fetchAll()
+    } catch { message.error('保存邮件模板失败') }
   }
 
   const openApEdit = (r: ApprovalPolicyItem) => {
@@ -234,6 +288,76 @@ export default function SettingsPage() {
                   )},
                 ]} />
                 {approvalPolicies.length === 0 && <div className="text-center py-8 text-slate-400 text-sm">暂无审批策略，点击"新增策略"创建</div>}
+              </div>
+            ),
+          },
+          {
+            key: 'doc_templates', label: '文档模板',
+            children: (
+              <div className="pb-6">
+                <div className="flex justify-end mb-3">
+                  <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
+                    setDtEditingId(null); setDtForm(defaultDtForm); setDtModal(true)
+                  }}>新增模板</Button>
+                </div>
+                <Table rowKey="id" dataSource={docTemplates} size="small" pagination={false} columns={[
+                  { title: '类型', dataIndex: 'doc_type', width: 80, render: (v: string) => v === 'quote' ? '报价' : '合同' },
+                  { title: '名称', dataIndex: 'name', width: 180 },
+                  { title: '说明', dataIndex: 'description', ellipsis: true },
+                  { title: '默认', dataIndex: 'is_default', width: 60, render: (v: boolean) => v ? <span className="text-emerald-600 font-bold">是</span> : '-' },
+                  { title: '创建人', dataIndex: 'created_by_name', width: 100 },
+                  { title: '', width: 100, render: (_: unknown, r: DocTemplateItem) => (
+                    <Space size="middle">
+                      <a className="text-primary text-xs font-bold" onClick={() => {
+                        setDtEditingId(r.id)
+                        setDtForm({ doc_type: r.doc_type, name: r.name, description: r.description || '',
+                          content_json: r.content_json ? JSON.stringify(r.content_json, null, 2) : '', is_default: r.is_default })
+                        setDtModal(true)
+                      }}>编辑</a>
+                      <a className="text-rose-500 text-xs font-bold" onClick={async () => {
+                        try { await settingsApi.deleteDocTemplate(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') }
+                      }}>删除</a>
+                    </Space>
+                  )},
+                ]} />
+                {docTemplates.length === 0 && <div className="text-center py-8 text-slate-400 text-sm">暂无文档模板</div>}
+              </div>
+            ),
+          },
+          {
+            key: 'email_templates', label: '邮件模板',
+            children: (
+              <div className="pb-6">
+                <div className="flex justify-end mb-3">
+                  <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
+                    setEtEditingId(null); setEtForm(defaultEtForm); setEtModal(true)
+                  }}>新增模板</Button>
+                </div>
+                <Table rowKey="id" dataSource={emailTemplates} size="small" pagination={false} columns={[
+                  { title: '编码', dataIndex: 'code', width: 140, render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+                  { title: '名称', dataIndex: 'name', width: 160 },
+                  { title: '主题', dataIndex: 'subject', ellipsis: true },
+                  { title: '启用', dataIndex: 'enabled', width: 60, render: (v: boolean, r: EmailTemplateItem) => (
+                    <Switch size="small" checked={v} onChange={async (checked) => {
+                      try { await settingsApi.updateEmailTemplate(r.id, { code: r.code, name: r.name, enabled: checked }); fetchAll() } catch { message.error('更新失败') }
+                    }} />
+                  )},
+                  { title: '', width: 100, render: (_: unknown, r: EmailTemplateItem) => (
+                    <Space size="middle">
+                      <a className="text-primary text-xs font-bold" onClick={() => {
+                        setEtEditingId(r.id)
+                        setEtForm({ code: r.code, name: r.name, subject: r.subject || '',
+                          body_html: r.body_html || '', variables_json: r.variables_json ? JSON.stringify(r.variables_json, null, 2) : '',
+                          enabled: r.enabled })
+                        setEtModal(true)
+                      }}>编辑</a>
+                      <a className="text-rose-500 text-xs font-bold" onClick={async () => {
+                        try { await settingsApi.deleteEmailTemplate(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') }
+                      }}>删除</a>
+                    </Space>
+                  )},
+                ]} />
+                {emailTemplates.length === 0 && <div className="text-center py-8 text-slate-400 text-sm">暂无邮件模板</div>}
               </div>
             ),
           },
@@ -439,6 +563,73 @@ export default function SettingsPage() {
         onSave={handleSaveAp}
         onCancel={() => { setApModal(false); setApEditingId(null) }}
       />
+
+      {/* Doc Template Modal */}
+      <Modal title={dtEditingId ? '编辑文档模板' : '新增文档模板'} open={dtModal} onOk={handleSaveDt} onCancel={() => { setDtModal(false); setDtEditingId(null) }} width={600}>
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">类型</label>
+              <Select className="w-full" value={dtForm.doc_type} onChange={(v) => setDtForm({ ...dtForm, doc_type: v })}
+                options={[{ value: 'quote', label: '报价模板' }, { value: 'contract', label: '合同模板' }]} />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">名称</label>
+              <Input value={dtForm.name} onChange={(e) => setDtForm({ ...dtForm, name: e.target.value })} placeholder="标准报价模板" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">说明</label>
+            <Input value={dtForm.description} onChange={(e) => setDtForm({ ...dtForm, description: e.target.value })} placeholder="模板说明（可选）" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">内容 (JSON)</label>
+            <TextArea rows={8} value={dtForm.content_json} onChange={(e) => setDtForm({ ...dtForm, content_json: e.target.value })}
+              placeholder={dtForm.doc_type === 'quote'
+                ? '{"title":"标准报价","tax_rate":0.13,"validity_days":30,"terms_summary_json":{"payment":"预付30%"},"lines":[{"item_name":"示例","qty":1,"unit":"台","unit_price":10000}]}'
+                : '{"title":"标准合同","payment_terms_json":{"method":"分期"},"delivery_terms_json":{"address":"客户指定"},"key_clauses_json":["验收条款","质保条款"]}'} />
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch checked={dtForm.is_default} onChange={(v) => setDtForm({ ...dtForm, is_default: v })} />
+            <span className="text-sm text-slate-700">设为默认模板</span>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Email Template Modal */}
+      <Modal title={etEditingId ? '编辑邮件模板' : '新增邮件模板'} open={etModal} onOk={handleSaveEt} onCancel={() => { setEtModal(false); setEtEditingId(null) }} width={600}>
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">编码</label>
+              <Input value={etForm.code} onChange={(e) => setEtForm({ ...etForm, code: e.target.value })} placeholder="follow_up_reminder" disabled={!!etEditingId} />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">名称</label>
+              <Input value={etForm.name} onChange={(e) => setEtForm({ ...etForm, name: e.target.value })} placeholder="跟进提醒" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">邮件主题</label>
+            <Input value={etForm.subject} onChange={(e) => setEtForm({ ...etForm, subject: e.target.value })}
+              placeholder="【提醒】{{customer_name}} 需要跟进" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">邮件内容 (HTML)</label>
+            <TextArea rows={8} value={etForm.body_html} onChange={(e) => setEtForm({ ...etForm, body_html: e.target.value })}
+              placeholder="<p>{{user_name}} 你好，</p><p>客户 {{customer_name}} 已 {{days}} 天未跟进。</p>" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">变量定义 (JSON)</label>
+            <TextArea rows={3} value={etForm.variables_json} onChange={(e) => setEtForm({ ...etForm, variables_json: e.target.value })}
+              placeholder='[{"name":"customer_name","label":"客户名称"},{"name":"days","label":"天数"}]' />
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch checked={etForm.enabled} onChange={(v) => setEtForm({ ...etForm, enabled: v })} />
+            <span className="text-sm text-slate-700">启用</span>
+          </div>
+        </div>
+      </Modal>
 
       {/* Integration Modal */}
       <Modal title="新增集成端点" open={intModal} onOk={handleCreateInt} onCancel={() => setIntModal(false)}>

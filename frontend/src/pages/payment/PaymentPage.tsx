@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Table, Tabs, Tag, Select, Input } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import { Table, Tabs, Tag, Select, Input, Button } from 'antd'
+import { SearchOutlined, DownloadOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
+import { downloadFile } from '@/utils/download'
 import { paymentApi } from '@/api/payment'
 import { dashboardApi } from '@/api/dashboard'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -107,6 +108,7 @@ export default function PaymentPage() {
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">回款管理</h1>
           <p className="text-sm text-slate-500 mt-1">跨项目的回款计划、到账记录和发票管理</p>
         </div>
+        <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/payment/export/excel', 'payments.xlsx')}>导出</Button>
       </div>
 
       {/* Overview Cards */}

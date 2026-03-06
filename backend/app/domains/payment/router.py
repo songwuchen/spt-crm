@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
+from app.common.export import build_excel, excel_response
 from app.domains.payment import service
 from app.domains.payment.models import PaymentPlan, PaymentRecord, Invoice
 from app.domains.payment.schemas import (
@@ -264,6 +265,84 @@ async def list_all_invoices(
         items.append(d)
 
     return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
+
+
+@router.get("/api/v1/payment/export/excel")
+async def export_payments_excel(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("payment:view")),
+):
+    """Export payment plans + records to Excel."""
+    # Plans
+    plan_rows = (await db.execute(
+        select(PaymentPlan, OpportunityProject.name.label("project_name"))
+        .outerjoin(OpportunityProject, OpportunityProject.id == PaymentPlan.project_id)
+        .where(PaymentPlan.tenant_id == tenant_id)
+        .order_by(PaymentPlan.due_date.asc())
+        .limit(5000)
+    )).all()
+    # Records
+    rec_rows = (await db.execute(
+        select(PaymentRecord, OpportunityProject.name.label("project_name"))
+        .outerjoin(OpportunityProject, OpportunityProject.id == PaymentRecord.project_id)
+        .where(PaymentRecord.tenant_id == tenant_id)
+        .order_by(PaymentRecord.received_date.desc())
+        .limit(5000)
+    )).all()
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    import io
+
+    wb = Workbook()
+    # Sheet 1: Plans
+    ws1 = wb.active
+    ws1.title = "回款计划"
+    h1 = ["计划编号", "项目名称", "到期日", "金额", "状态", "里程碑", "备注"]
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    thin_border = Border(
+        left=Side(style="thin", color="D9D9D9"), right=Side(style="thin", color="D9D9D9"),
+        top=Side(style="thin", color="D9D9D9"), bottom=Side(style="thin", color="D9D9D9"),
+    )
+    for ci, h in enumerate(h1, 1):
+        cell = ws1.cell(row=1, column=ci, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = thin_border
+    for ri, row in enumerate(plan_rows, 2):
+        p = row[0]
+        vals = [p.plan_no, row.project_name or "", str(p.due_date) if p.due_date else "",
+                float(p.amount) if p.amount else 0, p.status or "",
+                p.trigger_milestone_code or "", p.remark or ""]
+        for ci, v in enumerate(vals, 1):
+            cell = ws1.cell(row=ri, column=ci, value=v)
+            cell.border = thin_border
+
+    # Sheet 2: Records
+    ws2 = wb.create_sheet("回款记录")
+    h2 = ["项目名称", "到账日", "金额", "渠道", "参考号", "备注"]
+    for ci, h in enumerate(h2, 1):
+        cell = ws2.cell(row=1, column=ci, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = thin_border
+    for ri, row in enumerate(rec_rows, 2):
+        r = row[0]
+        vals = [row.project_name or "", str(r.received_date) if r.received_date else "",
+                float(r.amount) if r.amount else 0, r.channel or "",
+                r.reference_no or "", r.remark or ""]
+        for ci, v in enumerate(vals, 1):
+            cell = ws2.cell(row=ri, column=ci, value=v)
+            cell.border = thin_border
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return excel_response(buf, "payments.xlsx")
 
 
 @router.post("/api/v1/payment/check_overdue")

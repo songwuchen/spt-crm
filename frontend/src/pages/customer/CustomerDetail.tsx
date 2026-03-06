@@ -8,6 +8,7 @@ import { projectApi } from '@/api/project'
 import { userApi, roleApi } from '@/api/user'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
+import ChangeHistory from '@/components/ChangeHistory'
 import type { Customer, Contact, OpportunityProject } from '@/api/types'
 import { sourceLabels, stageLabels, stageColors } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
@@ -482,6 +483,15 @@ export default function CustomerDetail() {
                   children: (
                     <div className="py-4">
                       <AttachmentPanel bizType="customer" bizId={id!} />
+                    </div>
+                  ),
+                },
+                {
+                  key: 'history',
+                  label: <span className="font-semibold">变更历史</span>,
+                  children: (
+                    <div className="py-4">
+                      <ChangeHistory resourceType="customer" resourceId={id!} />
                     </div>
                   ),
                 },

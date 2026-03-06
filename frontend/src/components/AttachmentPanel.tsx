@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Upload, Button, Table, message } from 'antd'
-import { UploadOutlined, DownloadOutlined } from '@ant-design/icons'
+import { Upload, Button, Table, Modal, message } from 'antd'
+import { UploadOutlined, DownloadOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons'
 import { attachmentApi } from '@/api/attachment'
 import client from '@/api/client'
 import type { ApiResponse } from '@/api/types'
@@ -19,9 +19,19 @@ interface Props {
   bizId: string
 }
 
+function isPreviewable(contentType?: string, name?: string): 'image' | 'pdf' | false {
+  if (!contentType && !name) return false
+  const ct = (contentType || '').toLowerCase()
+  const ext = (name || '').split('.').pop()?.toLowerCase()
+  if (ct.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext || '')) return 'image'
+  if (ct === 'application/pdf' || ext === 'pdf') return 'pdf'
+  return false
+}
+
 export default function AttachmentPanel({ bizType, bizId }: Props) {
   const [list, setList] = useState<AttachmentItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [previewItem, setPreviewItem] = useState<AttachmentItem | null>(null)
 
   const fetchList = async () => {
     setLoading(true)
@@ -44,22 +54,53 @@ export default function AttachmentPanel({ bizType, bizId }: Props) {
     return false
   }
 
+  const handleDelete = async (item: AttachmentItem) => {
+    Modal.confirm({
+      title: '确认删除', content: `确定要删除附件「${item.original_name}」？`, okType: 'danger',
+      onOk: async () => {
+        await attachmentApi.delete(item.id)
+        message.success('已删除')
+        fetchList()
+      },
+    })
+  }
+
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   }
 
+  const previewType = previewItem ? isPreviewable(previewItem.content_type, previewItem.original_name) : false
+  const previewUrl = previewItem ? `${attachmentApi.downloadUrl(previewItem.id)}?token=${localStorage.getItem('access_token') || ''}` : ''
+
   const columns = [
-    { title: '文件名', dataIndex: 'original_name' },
+    { title: '文件名', dataIndex: 'original_name', render: (v: string, record: AttachmentItem) => {
+      const pType = isPreviewable(record.content_type, record.original_name)
+      return (
+        <span className={pType ? 'cursor-pointer text-primary hover:underline' : ''} onClick={() => pType && setPreviewItem(record)}>
+          {v}
+        </span>
+      )
+    }},
     { title: '大小', dataIndex: 'file_size', width: 100, render: (v: number) => formatSize(v) },
     { title: '上传人', dataIndex: 'uploader_name', width: 100 },
     { title: '上传时间', dataIndex: 'created_at', width: 170,
       render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-' },
-    { title: '操作', width: 80, render: (_: unknown, record: AttachmentItem) => (
-      <a href={attachmentApi.downloadUrl(record.id)} target="_blank" rel="noreferrer">
-        <DownloadOutlined /> 下载
-      </a>
+    { title: '操作', width: 140, render: (_: unknown, record: AttachmentItem) => (
+      <div className="flex gap-3">
+        {isPreviewable(record.content_type, record.original_name) && (
+          <a onClick={() => setPreviewItem(record)} className="text-primary text-xs">
+            <EyeOutlined /> 预览
+          </a>
+        )}
+        <a href={attachmentApi.downloadUrl(record.id)} target="_blank" rel="noreferrer" className="text-xs">
+          <DownloadOutlined /> 下载
+        </a>
+        <a onClick={() => handleDelete(record)} className="text-rose-500 text-xs">
+          <DeleteOutlined />
+        </a>
+      </div>
     ) },
   ]
 
@@ -72,6 +113,25 @@ export default function AttachmentPanel({ bizType, bizId }: Props) {
         </Upload>
       </div>
       <Table rowKey="id" columns={columns} dataSource={list} loading={loading} pagination={false} size="small" />
+
+      <Modal
+        title={previewItem?.original_name || '预览'}
+        open={!!previewItem}
+        onCancel={() => setPreviewItem(null)}
+        footer={null}
+        width={previewType === 'pdf' ? 900 : 700}
+        centered
+      >
+        {previewItem && previewType === 'image' && (
+          <div className="flex justify-center">
+            <img src={previewUrl} alt={previewItem.original_name} className="max-w-full max-h-[70vh] object-contain" />
+          </div>
+        )}
+        {previewItem && previewType === 'pdf' && (
+          <iframe src={previewUrl} title={previewItem.original_name}
+            className="w-full border-0 rounded" style={{ height: '70vh' }} />
+        )}
+      </Modal>
     </div>
   )
 }

@@ -13,6 +13,7 @@ import { changeApi } from '@/api/change'
 import { aiApi } from '@/api/ai'
 import { customerApi } from '@/api/customer'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import ChangeHistory from '@/components/ChangeHistory'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import MilestoneGantt from '@/components/MilestoneGantt'
@@ -1013,6 +1014,15 @@ export default function OpportunityDetail() {
                         }}>删除</a>
                       ) },
                     ]} />
+                  </div>
+                ),
+              },
+              {
+                key: 'history',
+                label: <span className="font-semibold">变更历史</span>,
+                children: (
+                  <div className="py-4">
+                    <ChangeHistory resourceType="project" resourceId={id!} />
                   </div>
                 ),
               },

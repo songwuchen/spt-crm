@@ -41,4 +41,24 @@ export const settingsApi = {
     client.put(`/api/admin/v1/tenant/approval-policies/${id}`, data),
   deleteApprovalPolicy: (id: string) =>
     client.delete(`/api/admin/v1/tenant/approval-policies/${id}`),
+
+  // Doc templates
+  listDocTemplates: (docType?: string) =>
+    client.get('/api/v1/doc-templates', { params: docType ? { doc_type: docType } : {} }),
+  getDocTemplate: (id: string) => client.get(`/api/v1/doc-templates/${id}`),
+  createDocTemplate: (data: Record<string, unknown>) =>
+    client.post('/api/v1/doc-templates', data),
+  updateDocTemplate: (id: string, data: Record<string, unknown>) =>
+    client.put(`/api/v1/doc-templates/${id}`, data),
+  deleteDocTemplate: (id: string) =>
+    client.delete(`/api/v1/doc-templates/${id}`),
+
+  // Email templates
+  listEmailTemplates: () => client.get('/api/v1/email-templates'),
+  createEmailTemplate: (data: Record<string, unknown>) =>
+    client.post('/api/v1/email-templates', data),
+  updateEmailTemplate: (id: string, data: Record<string, unknown>) =>
+    client.put(`/api/v1/email-templates/${id}`, data),
+  deleteEmailTemplate: (id: string) =>
+    client.delete(`/api/v1/email-templates/${id}`),
 }

@@ -75,7 +75,7 @@ export default function MobileOpportunities() {
           {filtered.map((p) => (
             <div
               key={p.id}
-              onClick={() => navigate(`/opportunities/${p.id}`)}
+              onClick={() => navigate(`/m/opportunities/${p.id}`)}
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 active:bg-slate-50 cursor-pointer"
             >
               <div className="flex items-center justify-between mb-1">
@@ -106,7 +106,7 @@ export default function MobileOpportunities() {
                 {g.items.map((p) => (
                   <div
                     key={p.id}
-                    onClick={() => navigate(`/opportunities/${p.id}`)}
+                    onClick={() => navigate(`/m/opportunities/${p.id}`)}
                     className="bg-white rounded-lg border border-slate-100 p-2.5 shadow-sm active:bg-slate-50 cursor-pointer"
                   >
                     <div className="text-xs font-bold text-slate-800 truncate mb-1">{p.name}</div>

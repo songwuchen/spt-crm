@@ -27,6 +27,15 @@ vi.mock('@/api/settings', () => ({
     createApprovalPolicy: vi.fn(),
     updateApprovalPolicy: vi.fn(),
     deleteApprovalPolicy: vi.fn(),
+    listDocTemplates: vi.fn(),
+    listEmailTemplates: vi.fn(),
+    createDocTemplate: vi.fn(),
+    updateDocTemplate: vi.fn(),
+    deleteDocTemplate: vi.fn(),
+    createEmailTemplate: vi.fn(),
+    updateEmailTemplate: vi.fn(),
+    deleteEmailTemplate: vi.fn(),
+    getDocTemplate: vi.fn(),
   },
 }))
 
@@ -80,6 +89,8 @@ describe('SettingsPage', () => {
       data: { budget_cost: 1000, used_cost: 250, budget_tokens: 500000, used_tokens: 125000, hard_limit: false },
     })
     ;(settingsApi.listApprovalPolicies as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
+    ;(settingsApi.listDocTemplates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
+    ;(settingsApi.listEmailTemplates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(roleApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [{ id: 'r-1', code: 'admin', name: '管理员' }] })
     ;(client.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [{ id: 'u-1', real_name: 'Admin', username: 'admin' }] } })
   })

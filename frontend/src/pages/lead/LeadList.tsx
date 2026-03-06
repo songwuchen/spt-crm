@@ -57,6 +57,28 @@ export default function LeadList() {
     })
   }
 
+  const handleBatchConvert = () => {
+    if (!selectedRowKeys.length) return
+    Modal.confirm({
+      title: '批量转化', content: `确定要将选中的 ${selectedRowKeys.length} 条线索转化为客户？`,
+      okText: '确认转化',
+      onOk: async () => {
+        const results = await Promise.allSettled(
+          selectedRowKeys.map((id) => leadApi.qualify(id as string))
+        )
+        const ok = results.filter(r => r.status === 'fulfilled').length
+        const fail = results.filter(r => r.status === 'rejected').length
+        if (fail > 0) {
+          message.warning(`${ok} 条已转化，${fail} 条转化失败（可能已转化或已废弃）`)
+        } else {
+          message.success(`已转化 ${ok} 条线索为客户`)
+        }
+        setSelectedRowKeys([])
+        fetchData()
+      },
+    })
+  }
+
   const fetchData = async (page = pageNo, kw = keyword, st = status) => {
     setLoading(true)
     try {
@@ -189,6 +211,7 @@ export default function LeadList() {
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between">
           <span className="text-sm text-blue-700">已选中 {selectedRowKeys.length} 项</span>
           <Space>
+            <Button size="small" onClick={handleBatchConvert}>批量转化</Button>
             <Button size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>批量删除</Button>
             <Button size="small" onClick={() => setSelectedRowKeys([])}>取消选择</Button>
           </Space>

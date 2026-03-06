@@ -1,9 +1,14 @@
+from typing import Optional, Union
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
+from app.database import gen_id
 from app.domains.admin import service
+from app.domains.admin.models import DocTemplate, EmailTemplate
 from app.domains.admin.schemas import (
     TenantPlanCreate, TenantPlanUpdate, PlatformTenantUpdate,
     TenantProfileUpdate, FeatureToggleUpdate, StageDefinitionUpdate,
@@ -11,6 +16,23 @@ from app.domains.admin.schemas import (
     IntegrationCreate, IntegrationUpdate, WebhookCreate,
     ApprovalPolicyCreate, ApprovalPolicyUpdate,
 )
+
+
+class DocTemplateBody(BaseModel):
+    doc_type: str = Field(..., pattern=r"^(quote|contract)$")
+    name: str = Field(..., max_length=200)
+    description: Optional[str] = None
+    content_json: Optional[dict] = None
+    is_default: bool = False
+
+
+class EmailTemplateBody(BaseModel):
+    code: str = Field(..., max_length=64)
+    name: str = Field(..., max_length=200)
+    subject: Optional[str] = None
+    body_html: Optional[str] = None
+    variables_json: Optional[Union[dict, list]] = None
+    enabled: bool = True
 
 router = APIRouter(tags=["管理端"])
 
@@ -256,4 +278,161 @@ async def create_webhook(body: WebhookCreate, tenant_id: str = Depends(get_tenan
 @router.delete("/api/admin/v1/tenant/webhooks/{ws_id}")
 async def delete_webhook(ws_id: str, tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
     await service.delete_webhook(db, tenant_id, ws_id)
+    return ok(None)
+
+
+# ==================== Tenant: Doc Templates ====================
+
+def _doc_tpl_dict(t: DocTemplate) -> dict:
+    return {"id": t.id, "doc_type": t.doc_type, "name": t.name, "description": t.description,
+            "content_json": t.content_json, "is_default": t.is_default,
+            "created_by_name": t.created_by_name,
+            "created_at": t.created_at.isoformat() if t.created_at else ""}
+
+
+@router.get("/api/v1/doc-templates")
+async def list_doc_templates(
+    doc_type: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:view")),
+):
+    q = select(DocTemplate).where(DocTemplate.tenant_id == tenant_id)
+    if doc_type:
+        q = q.where(DocTemplate.doc_type == doc_type)
+    q = q.order_by(DocTemplate.is_default.desc(), DocTemplate.created_at.desc())
+    items = (await db.execute(q)).scalars().all()
+    return ok([_doc_tpl_dict(t) for t in items])
+
+
+@router.get("/api/v1/doc-templates/{template_id}")
+async def get_doc_template(
+    template_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:view")),
+):
+    t = await db.get(DocTemplate, template_id)
+    if not t or t.tenant_id != tenant_id:
+        from app.common.schemas import fail
+        return fail(40400, "模板不存在")
+    return ok(_doc_tpl_dict(t))
+
+
+@router.post("/api/v1/doc-templates")
+async def create_doc_template(
+    body: DocTemplateBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("role:manage")),
+):
+    t = DocTemplate(id=gen_id(), tenant_id=tenant_id, doc_type=body.doc_type,
+                    name=body.name, description=body.description,
+                    content_json=body.content_json, is_default=body.is_default,
+                    created_by_id=current_user["user_id"],
+                    created_by_name=current_user.get("real_name", ""))
+    db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    return ok(_doc_tpl_dict(t))
+
+
+@router.put("/api/v1/doc-templates/{template_id}")
+async def update_doc_template(
+    template_id: str, body: DocTemplateBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    t = await db.get(DocTemplate, template_id)
+    if not t or t.tenant_id != tenant_id:
+        from app.common.schemas import fail
+        return fail(40400, "模板不存在")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(t, k, v)
+    await db.commit()
+    await db.refresh(t)
+    return ok(_doc_tpl_dict(t))
+
+
+@router.delete("/api/v1/doc-templates/{template_id}")
+async def delete_doc_template(
+    template_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    t = await db.get(DocTemplate, template_id)
+    if t and t.tenant_id == tenant_id:
+        await db.delete(t)
+        await db.commit()
+    return ok(None)
+
+
+# ==================== Tenant: Email Templates ====================
+
+def _email_tpl_dict(t: EmailTemplate) -> dict:
+    return {"id": t.id, "code": t.code, "name": t.name, "subject": t.subject,
+            "body_html": t.body_html, "variables_json": t.variables_json,
+            "enabled": t.enabled,
+            "created_at": t.created_at.isoformat() if t.created_at else ""}
+
+
+@router.get("/api/v1/email-templates")
+async def list_email_templates(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    q = select(EmailTemplate).where(EmailTemplate.tenant_id == tenant_id).order_by(EmailTemplate.code)
+    items = (await db.execute(q)).scalars().all()
+    return ok([_email_tpl_dict(t) for t in items])
+
+
+@router.post("/api/v1/email-templates")
+async def create_email_template(
+    body: EmailTemplateBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    t = EmailTemplate(id=gen_id(), tenant_id=tenant_id, code=body.code,
+                      name=body.name, subject=body.subject,
+                      body_html=body.body_html, variables_json=body.variables_json,
+                      enabled=body.enabled)
+    db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    return ok(_email_tpl_dict(t))
+
+
+@router.put("/api/v1/email-templates/{template_id}")
+async def update_email_template(
+    template_id: str, body: EmailTemplateBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    t = await db.get(EmailTemplate, template_id)
+    if not t or t.tenant_id != tenant_id:
+        from app.common.schemas import fail
+        return fail(40400, "模板不存在")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(t, k, v)
+    await db.commit()
+    await db.refresh(t)
+    return ok(_email_tpl_dict(t))
+
+
+@router.delete("/api/v1/email-templates/{template_id}")
+async def delete_email_template(
+    template_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    t = await db.get(EmailTemplate, template_id)
+    if t and t.tenant_id == tenant_id:
+        await db.delete(t)
+        await db.commit()
     return ok(None)

@@ -47,6 +47,7 @@ const MobileProjectRisk = lazy(() => import('@/pages/mobile/MobileProjectRisk'))
 const MobileCustomerForm = lazy(() => import('@/pages/mobile/MobileCustomerForm'))
 const MobileLeadDetail = lazy(() => import('@/pages/mobile/MobileLeadDetail'))
 const MobileTasks = lazy(() => import('@/pages/mobile/MobileTasks'))
+const MobileOpportunityDetail = lazy(() => import('@/pages/mobile/MobileOpportunityDetail'))
 const NotificationCenter = lazy(() => import('@/pages/notification/NotificationCenter'))
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
 const ProductList = lazy(() => import('@/pages/product/ProductList'))
@@ -117,6 +118,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Lazy><MobileWorkbench /></Lazy> },
       { path: 'customers', element: <Lazy><MobileCustomers /></Lazy> },
       { path: 'opportunities', element: <Lazy><MobileOpportunities /></Lazy> },
+      { path: 'opportunities/:id', element: <Lazy><MobileOpportunityDetail /></Lazy> },
       { path: 'opportunities/:id/risk', element: <Lazy><MobileProjectRisk /></Lazy> },
       { path: 'approvals', element: <Lazy><MobileApprovals /></Lazy> },
       { path: 'approvals/:id', element: <Lazy><MobileApprovalDetail /></Lazy> },

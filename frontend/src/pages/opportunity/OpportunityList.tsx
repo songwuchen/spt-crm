@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Input, Select, Space, Modal, Progress, message } from 'antd'
+import { Table, Button, Input, Select, Space, Modal, Form, Progress, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -7,9 +7,11 @@ import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
 import type { OpportunityProject, Customer } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
+import { userApi } from '@/api/user'
 import type { ColumnsType } from 'antd/es/table'
 import { opportunityStatusMap as statusMap } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 
@@ -26,6 +28,39 @@ export default function OpportunityList() {
   const [status, setStatus] = useState<string | undefined>(searchParams.get('status') || undefined)
   const [customerMap, setCustomerMap] = useState<Record<string, string>>({})
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [batchStageModal, setBatchStageModal] = useState(false)
+  const [batchStage, setBatchStage] = useState<string>('S1')
+  const [batchTransferModal, setBatchTransferModal] = useState(false)
+  const [transferForm] = Form.useForm()
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
+
+  const handleBatchStageChange = async () => {
+    const results = await Promise.allSettled(
+      selectedRowKeys.map((id) => projectApi.update(id as string, { stage_code: batchStage }))
+    )
+    const ok = results.filter(r => r.status === 'fulfilled').length
+    message.success(`已更新 ${ok} 个商机阶段`)
+    setBatchStageModal(false)
+    setSelectedRowKeys([])
+    fetchData()
+  }
+
+  const handleBatchTransfer = async () => {
+    const values = await transferForm.validateFields()
+    const ownerName = userSelect.options.find(o => o.value === values.owner_id)?.label || ''
+    const results = await Promise.allSettled(
+      selectedRowKeys.map((id) => projectApi.update(id as string, { owner_id: values.owner_id, owner_name: ownerName }))
+    )
+    const ok = results.filter(r => r.status === 'fulfilled').length
+    message.success(`已转让 ${ok} 个商机`)
+    setBatchTransferModal(false)
+    transferForm.resetFields()
+    setSelectedRowKeys([])
+    fetchData()
+  }
 
   const handleBatchDelete = () => {
     Modal.confirm({
@@ -157,9 +192,13 @@ export default function OpportunityList() {
         </div>
         <div className="flex gap-2 flex-wrap">
           {selectedRowKeys.length > 0 && (
-            <Button danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>
-              删除 {selectedRowKeys.length} 项
-            </Button>
+            <>
+              <Button onClick={() => setBatchStageModal(true)}>批量变更阶段</Button>
+              <Button onClick={() => { transferForm.resetFields(); setBatchTransferModal(true) }}>批量转让</Button>
+              <Button danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>
+                删除 {selectedRowKeys.length} 项
+              </Button>
+            </>
           )}
           <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/projects/export/excel', 'projects.xlsx')}>导出</Button>
           <button onClick={() => navigate('/opportunities/kanban')}
@@ -202,6 +241,35 @@ export default function OpportunityList() {
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
         />
       </div>
+
+      {/* Batch Stage Modal */}
+      <Modal title="批量变更阶段" open={batchStageModal} onOk={handleBatchStageChange}
+        onCancel={() => setBatchStageModal(false)} okText="确认变更">
+        <div className="py-2">
+          <div className="mb-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+            将选中的 <b>{selectedRowKeys.length}</b> 个商机变更到新阶段
+          </div>
+          <Select className="w-full" value={batchStage} onChange={setBatchStage}
+            options={STAGES.map((s) => ({ label: `${s} ${stageLabels[s]}`, value: s }))} />
+        </div>
+      </Modal>
+
+      {/* Batch Transfer Modal */}
+      <Modal title="批量转让商机" open={batchTransferModal} onOk={handleBatchTransfer}
+        onCancel={() => setBatchTransferModal(false)} okText="确认转让">
+        <div className="py-2">
+          <div className="mb-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+            将选中的 <b>{selectedRowKeys.length}</b> 个商机转让给新的负责人
+          </div>
+          <Form form={transferForm} layout="vertical">
+            <Form.Item name="owner_id" label="新负责人" rules={[{ required: true, message: '请选择' }]}>
+              <Select showSearch filterOption={false} placeholder="搜索用户"
+                loading={userSelect.loading} options={userSelect.options}
+                onSearch={userSelect.onSearch} onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
+            </Form.Item>
+          </Form>
+        </div>
+      </Modal>
     </div>
   )
 }

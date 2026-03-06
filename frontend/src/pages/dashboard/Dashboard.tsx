@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Modal, Input, message } from 'antd'
+import { Button, Modal, Input, Select, message } from 'antd'
 import { dashboardApi } from '@/api/dashboard'
 import { approvalApi } from '@/api/approval'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -120,6 +120,13 @@ function TaskRow({ icon, iconColor, label, count, urgent }: {
 
 const stageColors = ['bg-blue-500', 'bg-cyan-500', 'bg-teal-500', 'bg-emerald-500', 'bg-green-500', 'bg-lime-500']
 
+const REFRESH_INTERVALS = [
+  { value: 0, label: '不刷新' },
+  { value: 30, label: '30秒' },
+  { value: 60, label: '1分钟' },
+  { value: 300, label: '5分钟' },
+]
+
 export default function Dashboard() {
   usePageTitle('工作台')
   const [stats, setStats] = useState<Stats>({ customer_total: 0, lead_total: 0, monthly_new_customers: 0, pending_leads: 0, project_total: 0, active_projects: 0, quote_total: 0, solution_total: 0, milestone_total: 0, milestone_delayed: 0, invoice_total: 0, payment_received: 0, change_total: 0, ticket_total: 0, ticket_open: 0, pipeline_value: 0, contract_total: 0 })
@@ -130,10 +137,13 @@ export default function Dashboard() {
   const [funnel, setFunnel] = useState<FunnelItem[]>([])
   const [paymentOv, setPaymentOv] = useState<PaymentOv | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderItem[]>([])
+  const [refreshInterval, setRefreshInterval] = useState(0)
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
 
-  const fetchData = () => {
+  const fetchData = useCallback(() => {
     dashboardApi.stats().then((res: any) => {
       if (res.data) setStats(res.data)
     }).catch(() => { message.error('加载统计数据失败') })
@@ -156,9 +166,21 @@ export default function Dashboard() {
     dashboardApi.leaderboard().then((res: any) => {
       if (res.data) setLeaderboard(res.data)
     }).catch(() => {})
-  }
+  }, [])
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData(); setLastRefresh(new Date()) }, [fetchData])
+
+  // Auto-refresh
+  useEffect(() => {
+    if (refreshTimerRef.current) clearInterval(refreshTimerRef.current)
+    if (refreshInterval > 0) {
+      refreshTimerRef.current = setInterval(() => {
+        fetchData()
+        setLastRefresh(new Date())
+      }, refreshInterval * 1000)
+    }
+    return () => { if (refreshTimerRef.current) clearInterval(refreshTimerRef.current) }
+  }, [refreshInterval, fetchData])
 
   const handleApprove = async (taskId: string) => {
     try {
@@ -198,13 +220,19 @@ export default function Dashboard() {
             )}
           </p>
         </div>
-        <button
-          onClick={() => window.location.reload()}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors"
-        >
-          <span className="material-symbols-outlined text-lg">refresh</span>
-          刷新数据
-        </button>
+        <div className="flex items-center gap-3">
+          <Select size="small" value={refreshInterval} onChange={setRefreshInterval}
+            options={REFRESH_INTERVALS} style={{ width: 100 }}
+            suffixIcon={<span className="material-symbols-outlined text-sm">timer</span>} />
+          <span className="text-[10px] text-slate-400 hidden sm:inline">
+            {lastRefresh.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 更新
+          </span>
+          <button onClick={() => { fetchData(); setLastRefresh(new Date()) }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors">
+            <span className="material-symbols-outlined text-lg">refresh</span>
+            刷新
+          </button>
+        </div>
       </div>
 
       {/* Personal Overview */}
