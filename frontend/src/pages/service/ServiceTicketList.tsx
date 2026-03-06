@@ -57,7 +57,7 @@ export default function ServiceTicketList() {
 
   const fetchCustomers = async () => {
     try {
-      const r = await customerApi.list({ pageNo: 1, pageSize: 200 })
+      const r = await customerApi.list({ pageNo: 1, pageSize: 100 })
       setCustomers(r.data?.items || [])
     } catch {}
   }

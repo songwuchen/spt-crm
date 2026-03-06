@@ -32,8 +32,8 @@ export default function OpportunityForm() {
   usePageTitle(isEdit ? '编辑商机' : '新建商机')
 
   useEffect(() => {
-    customerApi.list({ pageNo: 1, pageSize: 200 }).then((res) => setCustomers(res.data.items)).catch(() => {})
-    userApi.list({ pageNo: 1, pageSize: 200 }).then((res) =>
+    customerApi.list({ pageNo: 1, pageSize: 100 }).then((res) => setCustomers(res.data.items)).catch(() => {})
+    userApi.list({ pageNo: 1, pageSize: 100 }).then((res) =>
       setUsers((res.data?.items || []).map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
     ).catch(() => {})
     if (id) {

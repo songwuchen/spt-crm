@@ -39,11 +39,11 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const res = await projectApi.list({ pageNo: 1, pageSize: 500, status: 'active' })
+      const res = await projectApi.list({ pageNo: 1, pageSize: 100, status: 'active' })
       setCards(res.data.items)
       const ids = [...new Set(res.data.items.map((p) => p.customer_id).filter(Boolean))] as string[]
       if (ids.length > 0) {
-        const custRes = await customerApi.list({ pageNo: 1, pageSize: 200 })
+        const custRes = await customerApi.list({ pageNo: 1, pageSize: 100 })
         const map: Record<string, string> = {}
         custRes.data.items.forEach((c: Customer) => { map[c.id] = c.name })
         setCustomerMap(map)

@@ -988,7 +988,7 @@ export default function OpportunityDetail() {
                         shareForm.setFieldsValue({ shared_to_type: 'user', permission: 'view' })
                         setShareModal(true)
                         if (!shareUserList.length) {
-                          userApi.list({ pageNo: 1, pageSize: 200 }).then((r) =>
+                          userApi.list({ pageNo: 1, pageSize: 100 }).then((r) =>
                             setShareUserList((r.data.items || []).map((u) => ({ id: u.id, real_name: u.real_name })))
                           ).catch(() => {})
                         }

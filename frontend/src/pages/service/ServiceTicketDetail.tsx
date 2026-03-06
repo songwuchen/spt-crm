@@ -88,7 +88,7 @@ export default function ServiceTicketDetail() {
 
   const openAssignModal = async () => {
     try {
-      const res = await userApi.list({ pageNo: 1, pageSize: 200 })
+      const res = await userApi.list({ pageNo: 1, pageSize: 100 })
       setUsers((res.data?.items || []).map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
     } catch { /* ignore */ }
     setAssigneeId(ticket?.assigned_to_id || '')

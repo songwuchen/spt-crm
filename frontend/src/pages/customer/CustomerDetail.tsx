@@ -74,7 +74,7 @@ export default function CustomerDetail() {
   useEffect(() => {
     if (id) {
       fetchCustomer(); fetchContacts(); fetchRelations(); fetchShares(); fetchStats(); fetchProjects(); fetchTickets()
-      customerApi.list({ pageNo: 1, pageSize: 200 }).then((r) => setAllCustomers(r.data.items)).catch(() => {})
+      customerApi.list({ pageNo: 1, pageSize: 100 }).then((r) => setAllCustomers(r.data.items)).catch(() => {})
     }
   }, [id])
 
@@ -350,7 +350,7 @@ export default function CustomerDetail() {
                         <Button type="primary" size="small" icon={<PlusOutlined />}
                           onClick={() => {
                             shareForm.resetFields()
-                            userApi.list({ pageNo: 1, pageSize: 200 }).then((r) => setUserList(r.data?.items || [])).catch(() => {})
+                            userApi.list({ pageNo: 1, pageSize: 100 }).then((r) => setUserList(r.data?.items || [])).catch(() => {})
                             roleApi.list().then((r) => setRoleList(r.data || [])).catch(() => {})
                             setShareModal(true)
                           }}>

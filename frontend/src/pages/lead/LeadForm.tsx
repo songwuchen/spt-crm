@@ -15,7 +15,7 @@ export default function LeadForm() {
   usePageTitle(isEdit ? '编辑线索' : '新建线索')
 
   useEffect(() => {
-    userApi.list({ pageNo: 1, pageSize: 200 }).then((res) =>
+    userApi.list({ pageNo: 1, pageSize: 100 }).then((res) =>
       setUsers((res.data?.items || []).map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
     ).catch(() => {})
     if (id) {
