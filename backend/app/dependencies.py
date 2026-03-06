@@ -59,3 +59,15 @@ def require_permissions(*perms: str):
         return current_user
 
     return _checker
+
+
+async def get_data_scope(current_user: dict = Depends(get_current_user)) -> str | None:
+    """Return owner_id for data filtering, or None if user has data:view_all.
+
+    When result is None: user can see all tenant data.
+    When result is a user ID: user can only see records they own.
+    """
+    user_perms: List[str] = current_user.get("permissions", [])
+    if "data:view_all" in user_perms:
+        return None
+    return current_user.get("sub")

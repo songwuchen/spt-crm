@@ -98,6 +98,8 @@ PERMISSIONS = [
     ("service:edit", "编辑售后工单", "售后管理"),
     # Audit
     ("audit:view", "查看审计日志", "审计管理"),
+    # Data scope
+    ("data:view_all", "查看全部数据", "数据权限"),
     # Tenant (platform level)
     ("tenant:view", "查看租户", "平台管理"),
     ("tenant:manage", "管理租户", "平台管理"),
@@ -128,6 +130,7 @@ ROLES = {
             "change:view", "change:create", "change:edit", "change:delete",
             "service:view", "service:create", "service:edit",
             "attachment:upload", "attachment:download",
+            "data:view_all",
         ],
     },
     "sales_rep": {

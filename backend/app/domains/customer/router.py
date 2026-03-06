@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from openpyxl import load_workbook
 import io
 
-from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions
+from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions, get_data_scope
 from app.common.schemas import ok
 from app.common.export import build_excel, excel_response
 from app.domains.customer.schemas import (
@@ -40,8 +40,10 @@ async def list_customers(
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
+    data_scope: str | None = Depends(get_data_scope),
 ):
-    items, total = await service.list_customers(db, tenant_id, pageNo, pageSize, keyword, industry, region, owner_id)
+    effective_owner = owner_id or data_scope
+    items, total = await service.list_customers(db, tenant_id, pageNo, pageSize, keyword, industry, region, effective_owner)
     return ok({"items": [_customer_dict(c) for c in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 

@@ -19,7 +19,7 @@ const menuGroups: { title: string; items: MenuItem[] }[] = [
       { key: '/follow-ups', icon: 'contact_phone', label: '跟进记录', permission: 'customer:view' },
       { key: '/payments', icon: 'account_balance', label: '回款管理', permission: 'payment:view' },
       { key: '/service-tickets', icon: 'confirmation_number', label: '售后工单', permission: 'service:view' },
-      { key: '/analytics', icon: 'analytics', label: '销售分析', permission: 'project:view' },
+      { key: '/analytics', icon: 'analytics', label: '报表中心', permission: 'project:view' },
       { key: '/approvals', icon: 'task_alt', label: '审批中心' },
       { key: '/ai-center', icon: 'smart_toy', label: 'AI 任务中心', permission: 'project:view' },
     ],

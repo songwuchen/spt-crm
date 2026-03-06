@@ -5,7 +5,7 @@ from typing import Optional
 from openpyxl import load_workbook
 import io
 
-from app.dependencies import get_db, get_tenant_id, require_permissions
+from app.dependencies import get_db, get_tenant_id, require_permissions, get_data_scope
 from app.common.schemas import ok
 from app.common.export import build_excel, excel_response
 from app.domains.lead import service
@@ -41,8 +41,10 @@ async def list_leads(
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("lead:view")),
+    data_scope: str | None = Depends(get_data_scope),
 ):
-    items, total = await service.list_leads(db, tenant_id, pageNo, pageSize, keyword, status, owner_id)
+    effective_owner = owner_id or data_scope
+    items, total = await service.list_leads(db, tenant_id, pageNo, pageSize, keyword, status, effective_owner)
     return ok({"items": [_lead_dict(l) for l in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 

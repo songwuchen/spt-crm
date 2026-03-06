@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_tenant_id, require_permissions
+from app.dependencies import get_db, get_tenant_id, require_permissions, get_data_scope
 from app.common.schemas import ok
 from app.common.export import build_excel, excel_response
 from app.domains.project import service
@@ -50,8 +50,10 @@ async def list_projects(
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("project:view")),
+    data_scope: str | None = Depends(get_data_scope),
 ):
-    items, total = await service.list_projects(db, tenant_id, pageNo, pageSize, keyword, stage_code, customer_id, status, owner_id)
+    effective_owner = owner_id or data_scope
+    items, total = await service.list_projects(db, tenant_id, pageNo, pageSize, keyword, stage_code, customer_id, status, effective_owner)
     return ok({"items": [_project_dict(p) for p in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 

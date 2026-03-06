@@ -81,7 +81,7 @@ interface CollectionItem {
 }
 
 export default function AnalyticsPage() {
-  usePageTitle('数据分析')
+  usePageTitle('报表中心')
   const navigate = useNavigate()
   const [funnel, setFunnel] = useState<FunnelItem[]>([])
   const [winLoss, setWinLoss] = useState<WinLoss | null>(null)
@@ -176,8 +176,8 @@ export default function AnalyticsPage() {
     <div>
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">销售分析</h1>
-          <p className="text-sm text-slate-500 mt-1">销售漏斗、赢单分析、回款跟踪、交付里程碑</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">报表中心</h1>
+          <p className="text-sm text-slate-500 mt-1">销售漏斗、赢单分析、回款跟踪、交付里程碑、业绩排行</p>
         </div>
         <Space>
           <Button icon={<DownloadOutlined />} size="small" onClick={handleExportExcel}>导出报表</Button>
