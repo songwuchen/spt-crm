@@ -23,6 +23,7 @@ from app.domains.delivery.models import ErpOrderLink, DeliveryMilestone
 from app.domains.payment.models import Invoice, PaymentPlan, PaymentRecord
 from app.domains.change.models import ChangeRequest
 from app.domains.service_ticket.models import ServiceTicket, RenewalOpportunity
+from app.domains.product.models import Product, ProductCategory
 
 
 def _id():
@@ -96,6 +97,11 @@ PERMISSIONS = [
     ("service:view", "查看售后工单", "售后管理"),
     ("service:create", "创建售后工单", "售后管理"),
     ("service:edit", "编辑售后工单", "售后管理"),
+    # Product
+    ("product:view", "查看产品目录", "产品管理"),
+    ("product:create", "创建产品", "产品管理"),
+    ("product:edit", "编辑产品", "产品管理"),
+    ("product:delete", "删除产品", "产品管理"),
     # Audit
     ("audit:view", "查看审计日志", "审计管理"),
     # Data scope
@@ -129,6 +135,7 @@ ROLES = {
             "payment:view", "payment:edit",
             "change:view", "change:create", "change:edit", "change:delete",
             "service:view", "service:create", "service:edit",
+            "product:view", "product:create", "product:edit", "product:delete",
             "attachment:upload", "attachment:download",
             "data:view_all",
         ],
@@ -149,6 +156,7 @@ ROLES = {
             "change:view", "change:create",
             "service:view", "service:create",
             "contract:view",
+            "product:view",
             "attachment:upload", "attachment:download",
         ],
     },

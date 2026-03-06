@@ -90,6 +90,77 @@ async def delete_customer(db: AsyncSession, tenant_id: str, customer_id: str, us
                      summary=f"删除客户: {customer_name}")
 
 
+# ==================== Customer Pool (公海池) ====================
+
+async def list_pool_customers(
+    db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20,
+    keyword: str | None = None, industry: str | None = None, region: str | None = None,
+):
+    """List customers in the pool (no owner)."""
+    base = select(Customer).where(
+        Customer.tenant_id == tenant_id,
+        Customer.is_deleted == False,
+        Customer.status == "pool",
+    )
+    if keyword:
+        base = base.where(Customer.name.ilike(f"%{keyword}%"))
+    if industry:
+        base = base.where(Customer.industry == industry)
+    if region:
+        base = base.where(Customer.region.ilike(f"%{region}%"))
+
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
+    items = (await db.execute(
+        base.order_by(Customer.updated_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+    )).scalars().all()
+    return items, total
+
+
+async def release_to_pool(db: AsyncSession, tenant_id: str, customer_id: str, user: dict):
+    """Release a customer to the pool."""
+    customer = await get_customer(db, tenant_id, customer_id)
+    if customer.status == "pool":
+        raise BusinessException("客户已在公海池中")
+    old_owner = customer.owner_name or customer.owner_id
+    customer.status = "pool"
+    customer.owner_id = None
+    customer.owner_name = None
+    await db.commit()
+    await db.refresh(customer)
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="release_to_pool", resource_type="customer", resource_id=customer.id,
+                     summary=f"释放客户到公海: {customer.name} (原负责人: {old_owner})")
+    return customer
+
+
+async def claim_from_pool(db: AsyncSession, tenant_id: str, customer_id: str, user: dict):
+    """Claim a customer from the pool."""
+    customer = await get_customer(db, tenant_id, customer_id)
+    if customer.status != "pool":
+        raise BusinessException("客户不在公海池中")
+    customer.status = "active"
+    customer.owner_id = user["sub"]
+    customer.owner_name = user.get("real_name") or user.get("username")
+    await db.commit()
+    await db.refresh(customer)
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="claim_from_pool", resource_type="customer", resource_id=customer.id,
+                     summary=f"从公海领取客户: {customer.name}")
+    return customer
+
+
+async def batch_release_to_pool(db: AsyncSession, tenant_id: str, customer_ids: list[str], user: dict):
+    """Batch release customers to pool."""
+    released = 0
+    for cid in customer_ids:
+        try:
+            await release_to_pool(db, tenant_id, cid, user)
+            released += 1
+        except BusinessException:
+            pass
+    return released
+
+
 # ==================== Contact ====================
 
 async def list_contacts(db: AsyncSession, tenant_id: str, customer_id: str):

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Table, Tag, Button, Space, message, Select } from 'antd'
+import { Table, Tag, Button, Space, Switch, Tabs, message, Select } from 'antd'
 import { CheckOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { notificationApi, type NotificationItem } from '@/api/notification'
@@ -27,6 +27,9 @@ export default function NotificationCenter() {
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<string | undefined>(undefined)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [prefTypes, setPrefTypes] = useState<{ key: string; label: string }[]>([])
+  const [prefs, setPrefs] = useState<Record<string, boolean>>({})
+  const [prefLoading, setPrefLoading] = useState(false)
 
   const fetchData = async () => {
     setLoading(true)
@@ -36,6 +39,22 @@ export default function NotificationCenter() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchPrefs = async () => {
+    setPrefLoading(true)
+    try {
+      const res = await notificationApi.getPreferences()
+      setPrefTypes(res.data?.types || [])
+      setPrefs(res.data?.preferences || {})
+    } finally { setPrefLoading(false) }
+  }
+
+  const togglePref = async (key: string, enabled: boolean) => {
+    const newPrefs = { ...prefs, [key]: enabled }
+    setPrefs(newPrefs)
+    await notificationApi.updatePreferences(newPrefs)
+    message.success(enabled ? '已开启' : '已关闭')
   }
 
   useEffect(() => { fetchData() }, [])
@@ -119,40 +138,51 @@ export default function NotificationCenter() {
             共 {items.length} 条通知，{unreadCount} 条未读
           </p>
         </div>
-        <Space>
-          <Select
-            allowClear
-            placeholder="筛选类型"
-            style={{ width: 140 }}
-            value={filter}
-            onChange={setFilter}
-            options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v.label }))}
-          />
-          <Button icon={<CheckOutlined />} disabled={selectedIds.length === 0} onClick={handleMarkRead}>
-            标记已读 ({selectedIds.length})
-          </Button>
-          <Button onClick={handleMarkAllRead} disabled={unreadCount === 0}>全部已读</Button>
-        </Space>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={filteredItems}
-          loading={loading}
-          pagination={{ pageSize: 20, showSizeChanger: false }}
-          size="small"
-          rowSelection={{
-            selectedRowKeys: selectedIds,
-            onChange: (keys) => setSelectedIds(keys as string[]),
-          }}
-          onRow={(record) => ({
-            onClick: () => handleRowClick(record),
-            style: { cursor: 'pointer' },
-          })}
-        />
-      </div>
+      <Tabs defaultActiveKey="list" onChange={(key) => { if (key === 'settings') fetchPrefs() }} items={[
+        {
+          key: 'list',
+          label: '全部通知',
+          children: (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <Select allowClear placeholder="筛选类型" style={{ width: 140 }} value={filter} onChange={setFilter}
+                  options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v.label }))} />
+                <div className="flex-1" />
+                <Button icon={<CheckOutlined />} disabled={selectedIds.length === 0} onClick={handleMarkRead}>
+                  标记已读 ({selectedIds.length})
+                </Button>
+                <Button onClick={handleMarkAllRead} disabled={unreadCount === 0}>全部已读</Button>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+                <Table rowKey="id" columns={columns} dataSource={filteredItems} loading={loading}
+                  pagination={{ pageSize: 20, showSizeChanger: false }} size="small"
+                  rowSelection={{ selectedRowKeys: selectedIds, onChange: (keys) => setSelectedIds(keys as string[]) }}
+                  onRow={(record) => ({ onClick: () => handleRowClick(record), style: { cursor: 'pointer' } })} />
+              </div>
+            </>
+          ),
+        },
+        {
+          key: 'settings',
+          label: '通知设置',
+          children: (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 max-w-lg">
+              <h3 className="text-sm font-bold text-slate-900 mb-4">通知订阅设置</h3>
+              <p className="text-xs text-slate-500 mb-4">选择您希望接收的通知类型，关闭后将不再推送对应消息。</p>
+              <div className="space-y-3">
+                {prefTypes.map((t) => (
+                  <div key={t.key} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                    <span className="text-sm text-slate-700">{t.label}</span>
+                    <Switch checked={prefs[t.key] !== false} onChange={(v) => togglePref(t.key, v)} loading={prefLoading} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ),
+        },
+      ]} />
     </div>
   )
 }

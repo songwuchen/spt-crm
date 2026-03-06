@@ -3,6 +3,7 @@ import { Button, Select, Table, Modal, Form, Input, InputNumber, Tag, Space, Des
 import { PlusOutlined, CopyOutlined, SwapOutlined, CameraOutlined, HistoryOutlined, AuditOutlined, FileProtectOutlined, SendOutlined, RobotOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { quoteApi } from '@/api/quote'
+import { productApi } from '@/api/product'
 import { contractApi } from '@/api/contract'
 import { approvalApi } from '@/api/approval'
 import { userApi } from '@/api/user'
@@ -63,6 +64,35 @@ export default function QuoteDetail() {
     const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
     return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
   })
+
+  // Product picker
+  const [productPickerOpen, setProductPickerOpen] = useState(false)
+  const [productSearch, setProductSearch] = useState('')
+  const [productResults, setProductResults] = useState<{ id: string; product_code: string; name: string; item_type: string | null; spec: string | null; unit: string | null; unit_price: number | null; cost_price: number | null; leadtime_days: number | null }[]>([])
+  const [productLoading, setProductLoading] = useState(false)
+
+  const searchProducts = async (kw: string) => {
+    setProductLoading(true)
+    try {
+      const res = await productApi.list({ pageNo: 1, pageSize: 20, keyword: kw || undefined, is_active: true })
+      setProductResults(res.data?.items || [])
+    } finally { setProductLoading(false) }
+  }
+
+  const handlePickProduct = (p: typeof productResults[0]) => {
+    form.setFieldsValue({
+      item_type: p.item_type || undefined,
+      item_code: p.product_code,
+      item_name: p.name,
+      spec: p.spec || undefined,
+      unit: p.unit || undefined,
+      unit_price: p.unit_price,
+      cost_est: p.cost_price,
+      leadtime_days: p.leadtime_days,
+    })
+    setProductPickerOpen(false)
+    message.success(`已选择: ${p.name}`)
+  }
 
   // AI analysis
   const [aiResult, setAiResult] = useState<{
@@ -488,6 +518,14 @@ export default function QuoteDetail() {
         onOk={handleLineSubmit} onCancel={() => { setLineModal(false); setEditingLine(null); form.resetFields() }}
         width={600}>
         <Form form={form} layout="vertical">
+          {!editingLine && (
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-center justify-between">
+              <span className="text-sm text-blue-700">从产品目录快速选择，自动填充编码、价格等信息</span>
+              <Button size="small" type="primary" onClick={() => { setProductSearch(''); searchProducts(''); setProductPickerOpen(true) }}>
+                从目录选择
+              </Button>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <Form.Item name="item_type" label="类型">
               <Select placeholder="请选择类型" allowClear
@@ -709,6 +747,30 @@ export default function QuoteDetail() {
             ))}
           </div>
         </Form>
+      </Modal>
+
+      {/* Product Picker Modal */}
+      <Modal title="从产品目录选择" open={productPickerOpen} onCancel={() => setProductPickerOpen(false)} footer={null} width={700}>
+        <Input.Search placeholder="搜索产品编码/名称/规格" value={productSearch}
+          onChange={(e) => setProductSearch(e.target.value)}
+          onSearch={(v) => searchProducts(v)} enterButton allowClear className="mb-3" />
+        <Table rowKey="id" dataSource={productResults} loading={productLoading} size="small" pagination={false}
+          scroll={{ y: 320 }}
+          columns={[
+            { title: '编码', dataIndex: 'product_code', width: 100,
+              render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+            { title: '名称', dataIndex: 'name', width: 160,
+              render: (v: string) => <span className="font-semibold">{v}</span> },
+            { title: '规格', dataIndex: 'spec', width: 120, ellipsis: true },
+            { title: '单价', dataIndex: 'unit_price', width: 100, align: 'right' as const,
+              render: (v: number | null) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
+            { title: '', key: 'pick', width: 70,
+              render: (_: unknown, r: typeof productResults[0]) => (
+                <Button size="small" type="link" onClick={() => handlePickProduct(r)}>选择</Button>
+              ),
+            },
+          ]}
+        />
       </Modal>
 
       {/* Send Quote Modal */}

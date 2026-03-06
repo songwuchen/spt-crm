@@ -105,6 +105,57 @@ async def export_customers_excel(
     return excel_response(buf, "customers.xlsx")
 
 
+# ---- Customer Pool (公海池) ----
+
+@router.get("/pool")
+async def list_pool_customers(
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    keyword: str = Query(None),
+    industry: str = Query(None),
+    region: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    items, total = await service.list_pool_customers(db, tenant_id, pageNo, pageSize, keyword, industry, region)
+    return ok({"items": [_customer_dict(c) for c in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+
+
+@router.post("/{customer_id}/release")
+async def release_to_pool(
+    customer_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("customer:edit")),
+):
+    c = await service.release_to_pool(db, tenant_id, customer_id, current_user)
+    return ok(_customer_dict(c))
+
+
+@router.post("/{customer_id}/claim")
+async def claim_from_pool(
+    customer_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("customer:edit")),
+):
+    c = await service.claim_from_pool(db, tenant_id, customer_id, current_user)
+    return ok(_customer_dict(c))
+
+
+@router.post("/batch_release")
+async def batch_release(
+    body: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("customer:edit")),
+):
+    ids = body.get("customer_ids", [])
+    released = await service.batch_release_to_pool(db, tenant_id, ids, current_user)
+    return ok({"released": released})
+
+
 @router.post("/import/excel")
 async def import_customers_excel(
     file: UploadFile = File(...),

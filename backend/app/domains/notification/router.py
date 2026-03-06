@@ -65,6 +65,66 @@ async def mark_all_read(
     return ok(None)
 
 
+# ---- Notification Preferences ----
+
+NOTIFICATION_TYPES = [
+    {"key": "approval_pending", "label": "待审批通知"},
+    {"key": "approval_decided", "label": "审批结果通知"},
+    {"key": "stage_change", "label": "阶段变更通知"},
+    {"key": "payment_overdue", "label": "回款逾期提醒"},
+    {"key": "ai_task_complete", "label": "AI任务完成"},
+    {"key": "gate_blocked", "label": "关卡阻断提醒"},
+    {"key": "contract_expiry", "label": "合同到期提醒"},
+    {"key": "system", "label": "系统通知"},
+]
+
+
+@router.get("/api/v1/notifications/preferences")
+async def get_preferences(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions()),
+):
+    from sqlalchemy import select
+    from app.domains.notification.models import NotificationPreference
+    pref = (await db.execute(
+        select(NotificationPreference).where(
+            NotificationPreference.tenant_id == tenant_id,
+            NotificationPreference.user_id == current_user["sub"],
+        )
+    )).scalar()
+    prefs = pref.preferences_json if pref else {}
+    return ok({"types": NOTIFICATION_TYPES, "preferences": prefs})
+
+
+@router.put("/api/v1/notifications/preferences")
+async def update_preferences(
+    body: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions()),
+):
+    from sqlalchemy import select
+    from app.domains.notification.models import NotificationPreference
+    pref = (await db.execute(
+        select(NotificationPreference).where(
+            NotificationPreference.tenant_id == tenant_id,
+            NotificationPreference.user_id == current_user["sub"],
+        )
+    )).scalar()
+    prefs = body.get("preferences", {})
+    if pref:
+        pref.preferences_json = prefs
+    else:
+        pref = NotificationPreference(
+            tenant_id=tenant_id, user_id=current_user["sub"],
+            preferences_json=prefs,
+        )
+        db.add(pref)
+    await db.commit()
+    return ok({"preferences": prefs})
+
+
 @router.websocket("/ws/notifications")
 async def ws_notifications(ws: WebSocket):
     """WebSocket endpoint for real-time notifications.

@@ -187,6 +187,19 @@ export default function CustomerDetail() {
           </div>
           <Space>
             <Button icon={<EditOutlined />} onClick={() => navigate(`/customers/${id}/edit`)}>编辑</Button>
+            {customer.status !== 'pool' && (
+              <Button onClick={() => {
+                Modal.confirm({
+                  title: '释放到公海', content: `确定要将客户「${customer.name}」释放到公海池？`,
+                  onOk: async () => { await customerApi.release(id!); message.success('已释放到公海'); navigate('/customer-pool') },
+                })
+              }}>释放到公海</Button>
+            )}
+            {customer.status === 'pool' && (
+              <Button type="primary" onClick={async () => { await customerApi.claim(id!); message.success('已领取'); window.location.reload() }}>
+                领取客户
+              </Button>
+            )}
             <Button danger icon={<DeleteOutlined />} onClick={() => {
               Modal.confirm({
                 title: '确认删除', content: `确定要删除客户「${customer.name}」及其所有联系人？`, okType: 'danger',

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Input, Space, Tag, Select, Modal, Upload, message } from 'antd'
+import { Table, Button, Input, Space, Tag, Select, Modal, Upload, Form, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -8,6 +8,8 @@ import type { Customer } from '@/api/types'
 import { sourceLabels } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { userApi } from '@/api/user'
 
 const industries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他']
 
@@ -32,6 +34,39 @@ export default function CustomerList() {
   const [industry, setIndustry] = useState<string | undefined>(searchParams.get('industry') || undefined)
   const [region, setRegion] = useState(searchParams.get('region') || '')
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [transferModal, setTransferModal] = useState(false)
+  const [transferForm] = Form.useForm()
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
+
+  const handleBatchRelease = () => {
+    if (!selectedRowKeys.length) return
+    Modal.confirm({
+      title: '批量释放到公海', content: `确定要将选中的 ${selectedRowKeys.length} 个客户释放到公海池？`,
+      onOk: async () => {
+        const res = await customerApi.batchRelease(selectedRowKeys as string[])
+        message.success(`已释放 ${res.data?.released || 0} 个客户到公海`)
+        setSelectedRowKeys([])
+        fetchData()
+      },
+    })
+  }
+
+  const handleBatchTransfer = async () => {
+    const values = await transferForm.validateFields()
+    const ownerName = userSelect.options.find(o => o.value === values.owner_id)?.label || ''
+    const results = await Promise.allSettled(
+      selectedRowKeys.map((id) => customerApi.update(id as string, { owner_id: values.owner_id, owner_name: ownerName }))
+    )
+    const ok = results.filter(r => r.status === 'fulfilled').length
+    message.success(`已转让 ${ok} 个客户`)
+    setTransferModal(false)
+    transferForm.resetFields()
+    setSelectedRowKeys([])
+    fetchData()
+  }
 
   const handleBatchDelete = () => {
     if (!selectedRowKeys.length) return
@@ -189,6 +224,8 @@ export default function CustomerList() {
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between">
           <span className="text-sm text-blue-700">已选中 {selectedRowKeys.length} 项</span>
           <Space>
+            <Button size="small" onClick={() => { transferForm.resetFields(); setTransferModal(true) }}>批量转让</Button>
+            <Button size="small" onClick={handleBatchRelease}>释放到公海</Button>
             <Button size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>批量删除</Button>
             <Button size="small" onClick={() => setSelectedRowKeys([])}>取消选择</Button>
           </Space>
@@ -247,6 +284,23 @@ export default function CustomerList() {
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
         />
       </div>
+
+      {/* Batch Transfer Modal */}
+      <Modal title="批量转让客户" open={transferModal} onOk={handleBatchTransfer}
+        onCancel={() => setTransferModal(false)} okText="确认转让">
+        <div className="py-2">
+          <div className="mb-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+            将选中的 <b>{selectedRowKeys.length}</b> 个客户转让给新的负责人
+          </div>
+          <Form form={transferForm} layout="vertical">
+            <Form.Item name="owner_id" label="新负责人" rules={[{ required: true, message: '请选择' }]}>
+              <Select showSearch filterOption={false} placeholder="搜索用户"
+                loading={userSelect.loading} options={userSelect.options}
+                onSearch={userSelect.onSearch} onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
+            </Form.Item>
+          </Form>
+        </div>
+      </Modal>
     </div>
   )
 }

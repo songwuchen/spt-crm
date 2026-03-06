@@ -99,9 +99,9 @@ export default function MobileWorkbench() {
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">快捷操作</h3>
         <div className="grid grid-cols-4 gap-2">
           {[
-            { icon: 'add_business', label: '新客户', path: '/customers/new', color: 'text-blue-600 bg-blue-50' },
-            { icon: 'add_circle', label: '新线索', path: '/leads/new', color: 'text-emerald-600 bg-emerald-50' },
+            { icon: 'add_business', label: '新客户', path: '/m/customers/new', color: 'text-blue-600 bg-blue-50' },
             { icon: 'contact_phone', label: '写跟进', path: '/m/follow-up/new', color: 'text-purple-600 bg-purple-50' },
+            { icon: 'checklist', label: '待办', path: '/m/tasks', color: 'text-emerald-600 bg-emerald-50' },
             { icon: 'task_alt', label: '审批', path: '/m/approvals', color: 'text-amber-600 bg-amber-50' },
           ].map((a) => (
             <button key={a.label} onClick={() => navigate(a.path)}

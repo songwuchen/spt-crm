@@ -23,4 +23,8 @@ export const notificationApi = {
     client.post<unknown, ApiResponse<void>>('/api/v1/notifications/mark_read', { ids }),
   markAllRead: () =>
     client.post<unknown, ApiResponse<void>>('/api/v1/notifications/mark_all_read'),
+  getPreferences: () =>
+    client.get('/api/v1/notifications/preferences'),
+  updatePreferences: (preferences: Record<string, boolean>) =>
+    client.put('/api/v1/notifications/preferences', { preferences }),
 }

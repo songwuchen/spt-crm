@@ -35,6 +35,8 @@ from app.domains.approval.router import router as approval_router
 from app.domains.admin.router import router as admin_console_router
 from app.domains.notification.router import router as notification_router
 from app.domains.outbox.router import router as outbox_router
+from app.domains.product.router import router as product_router
+from app.domains.task.router import router as task_router
 
 from app.config import settings
 from app.common.logging_config import setup_logging
@@ -118,6 +120,8 @@ app.include_router(approval_router)
 app.include_router(admin_console_router)
 app.include_router(notification_router)
 app.include_router(outbox_router)
+app.include_router(product_router)
+app.include_router(task_router)
 app.include_router(lead_public_router)
 
 

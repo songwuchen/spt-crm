@@ -10,6 +10,7 @@ const Dashboard = lazy(() => import('@/pages/dashboard/Dashboard'))
 const CustomerList = lazy(() => import('@/pages/customer/CustomerList'))
 const CustomerDetail = lazy(() => import('@/pages/customer/CustomerDetail'))
 const CustomerForm = lazy(() => import('@/pages/customer/CustomerForm'))
+const CustomerPool = lazy(() => import('@/pages/customer/CustomerPool'))
 const LeadList = lazy(() => import('@/pages/lead/LeadList'))
 const LeadDetail = lazy(() => import('@/pages/lead/LeadDetail'))
 const LeadForm = lazy(() => import('@/pages/lead/LeadForm'))
@@ -31,6 +32,7 @@ const RoleList = lazy(() => import('@/pages/admin/role/RoleList'))
 const AuditLogPage = lazy(() => import('@/pages/admin/audit/AuditLogPage'))
 const SettingsPage = lazy(() => import('@/pages/admin/settings/SettingsPage'))
 const AnalyticsPage = lazy(() => import('@/pages/analytics/AnalyticsPage'))
+const SalesTargetPage = lazy(() => import('@/pages/analytics/SalesTargetPage'))
 const ApprovalCenter = lazy(() => import('@/pages/approval/ApprovalCenter'))
 const AiCenterPage = lazy(() => import('@/pages/ai/AiCenterPage'))
 const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'))
@@ -42,8 +44,13 @@ const MobileApprovals = lazy(() => import('@/pages/mobile/MobileApprovals'))
 const MobileApprovalDetail = lazy(() => import('@/pages/mobile/MobileApprovalDetail'))
 const MobileFollowUp = lazy(() => import('@/pages/mobile/MobileFollowUp'))
 const MobileProjectRisk = lazy(() => import('@/pages/mobile/MobileProjectRisk'))
+const MobileCustomerForm = lazy(() => import('@/pages/mobile/MobileCustomerForm'))
+const MobileLeadDetail = lazy(() => import('@/pages/mobile/MobileLeadDetail'))
+const MobileTasks = lazy(() => import('@/pages/mobile/MobileTasks'))
 const NotificationCenter = lazy(() => import('@/pages/notification/NotificationCenter'))
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
+const ProductList = lazy(() => import('@/pages/product/ProductList'))
+const TaskPage = lazy(() => import('@/pages/task/TaskPage'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
 function Lazy({ children }: { children: React.ReactNode }) {
@@ -68,6 +75,7 @@ export const router = createBrowserRouter([
       { path: 'customers/new', element: <Guard permission="customer:create"><CustomerForm /></Guard> },
       { path: 'customers/:id', element: <Guard permission="customer:view"><CustomerDetail /></Guard> },
       { path: 'customers/:id/edit', element: <Guard permission="customer:edit"><CustomerForm /></Guard> },
+      { path: 'customer-pool', element: <Guard permission="customer:view"><CustomerPool /></Guard> },
       { path: 'leads', element: <Guard permission="lead:view"><LeadList /></Guard> },
       { path: 'leads/new', element: <Guard permission="lead:create"><LeadForm /></Guard> },
       { path: 'leads/:id', element: <Guard permission="lead:view"><LeadDetail /></Guard> },
@@ -85,7 +93,10 @@ export const router = createBrowserRouter([
       { path: 'renewals', element: <Guard permission="service:view"><RenewalList /></Guard> },
       { path: 'follow-ups', element: <Guard permission="customer:view"><FollowUpPage /></Guard> },
       { path: 'payments', element: <Guard permission="payment:view"><PaymentPage /></Guard> },
+      { path: 'products', element: <Guard permission="product:view"><ProductList /></Guard> },
+      { path: 'tasks', element: <Lazy><TaskPage /></Lazy> },
       { path: 'analytics', element: <Guard permission="project:view"><AnalyticsPage /></Guard> },
+      { path: 'sales-targets', element: <Guard permission="project:view"><SalesTargetPage /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },
       { path: 'ai-center', element: <Guard permission="project:view"><AiCenterPage /></Guard> },
       { path: 'notifications', element: <Lazy><NotificationCenter /></Lazy> },
@@ -109,6 +120,9 @@ export const router = createBrowserRouter([
       { path: 'opportunities/:id/risk', element: <Lazy><MobileProjectRisk /></Lazy> },
       { path: 'approvals', element: <Lazy><MobileApprovals /></Lazy> },
       { path: 'approvals/:id', element: <Lazy><MobileApprovalDetail /></Lazy> },
+      { path: 'customers/new', element: <Lazy><MobileCustomerForm /></Lazy> },
+      { path: 'leads/:id', element: <Lazy><MobileLeadDetail /></Lazy> },
+      { path: 'tasks', element: <Lazy><MobileTasks /></Lazy> },
       { path: 'follow-up/new', element: <Lazy><MobileFollowUp /></Lazy> },
       { path: 'profile', element: <Lazy><MobileProfile /></Lazy> },
     ],

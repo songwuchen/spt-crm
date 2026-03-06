@@ -18,3 +18,11 @@ class Notification(TenantScopedBase):
     sender_name: Mapped[str | None] = mapped_column(String(100))
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     extra_json: Mapped[dict | None] = mapped_column(JSON)
+
+
+class NotificationPreference(TenantScopedBase):
+    __tablename__ = "notification_preferences"
+
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    # JSON map of type -> enabled, e.g. {"approval_pending": true, "payment_overdue": false}
+    preferences_json: Mapped[dict | None] = mapped_column(JSON)

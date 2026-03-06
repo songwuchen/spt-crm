@@ -14,12 +14,16 @@ const menuGroups: { title: string; items: MenuItem[] }[] = [
     items: [
       { key: '/', icon: 'dashboard', label: '工作台' },
       { key: '/customers', icon: 'business', label: '客户管理', permission: 'customer:view' },
+      { key: '/customer-pool', icon: 'waves', label: '客户公海', permission: 'customer:view' },
       { key: '/leads', icon: 'trending_up', label: '线索管理', permission: 'lead:view' },
       { key: '/opportunities', icon: 'rocket_launch', label: '商机管理', permission: 'project:view' },
+      { key: '/products', icon: 'inventory_2', label: '产品目录', permission: 'product:view' },
       { key: '/follow-ups', icon: 'contact_phone', label: '跟进记录', permission: 'customer:view' },
       { key: '/payments', icon: 'account_balance', label: '回款管理', permission: 'payment:view' },
       { key: '/service-tickets', icon: 'confirmation_number', label: '售后工单', permission: 'service:view' },
+      { key: '/sales-targets', icon: 'flag', label: '销售目标', permission: 'project:view' },
       { key: '/analytics', icon: 'analytics', label: '报表中心', permission: 'project:view' },
+      { key: '/tasks', icon: 'checklist', label: '待办任务' },
       { key: '/approvals', icon: 'task_alt', label: '审批中心' },
       { key: '/ai-center', icon: 'smart_toy', label: 'AI 任务中心', permission: 'project:view' },
     ],
@@ -38,12 +42,16 @@ const menuGroups: { title: string; items: MenuItem[] }[] = [
 
 function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/customers/)) return '/customers'
+  if (pathname.match(/^\/customer-pool/)) return '/customer-pool'
   if (pathname.match(/^\/leads/)) return '/leads'
   if (pathname.match(/^\/opportunities/)) return '/opportunities'
+  if (pathname.match(/^\/products/)) return '/products'
   if (pathname.match(/^\/follow-ups/)) return '/follow-ups'
   if (pathname.match(/^\/payments/)) return '/payments'
   if (pathname.match(/^\/service-tickets/)) return '/service-tickets'
+  if (pathname.match(/^\/sales-targets/)) return '/sales-targets'
   if (pathname.match(/^\/analytics/)) return '/analytics'
+  if (pathname.match(/^\/tasks/)) return '/tasks'
   if (pathname.match(/^\/approvals/)) return '/approvals'
   if (pathname.match(/^\/ai-center/)) return '/ai-center'
   if (pathname.match(/^\/admin\/departments/)) return '/admin/departments'

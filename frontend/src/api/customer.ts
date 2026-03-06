@@ -13,6 +13,16 @@ export const customerApi = {
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/customers/${id}`),
 
+  // Pool
+  listPool: (params: Record<string, unknown>) =>
+    client.get<unknown, ApiResponse<PageData<Customer>>>('/api/v1/customers/pool', { params }),
+  release: (id: string) =>
+    client.post<unknown, ApiResponse<Customer>>(`/api/v1/customers/${id}/release`),
+  claim: (id: string) =>
+    client.post<unknown, ApiResponse<Customer>>(`/api/v1/customers/${id}/claim`),
+  batchRelease: (customerIds: string[]) =>
+    client.post<unknown, ApiResponse<{ released: number }>>('/api/v1/customers/batch_release', { customer_ids: customerIds }),
+
   // Stats
   stats: (id: string) =>
     client.get<unknown, ApiResponse<Record<string, number>>>(`/api/v1/customers/${id}/stats`),

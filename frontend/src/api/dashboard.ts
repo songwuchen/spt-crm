@@ -14,4 +14,11 @@ export const dashboardApi = {
   trend: (params?: Record<string, unknown>) => client.get('/api/v1/dashboard/trend', { params }),
   collection: (params?: Record<string, unknown>) => client.get('/api/v1/dashboard/collection', { params }),
   myOverview: () => client.get('/api/v1/dashboard/my_overview'),
+  search: (params: Record<string, unknown>) => client.get('/api/v1/dashboard/search', { params }),
+
+  // Sales targets
+  listTargets: (params: Record<string, unknown>) => client.get('/api/v1/dashboard/targets', { params }),
+  upsertTarget: (data: Record<string, unknown>) => client.post('/api/v1/dashboard/targets', data),
+  deleteTarget: (id: string) => client.delete(`/api/v1/dashboard/targets/${id}`),
+  targetAchievement: (params: Record<string, unknown>) => client.get('/api/v1/dashboard/target_achievement', { params }),
 }

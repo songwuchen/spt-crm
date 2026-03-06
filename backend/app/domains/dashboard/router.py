@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, extract, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_tenant_id, get_current_user
+from pydantic import BaseModel, Field
+from typing import Optional
+from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions
 from app.common.schemas import ok
 from app.domains.customer.models import Customer
 from app.domains.lead.models import Lead
@@ -19,6 +21,7 @@ from app.domains.activity.models import Activity
 from app.domains.ai_center.models import AiTask
 from app.domains.contract.models import Contract
 from app.domains.payment.models import PaymentPlan
+from app.domains.dashboard.models import SalesTarget
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["工作台"])
 
@@ -861,3 +864,152 @@ async def global_search(
         results.append({"type": "ticket", "id": r.id, "title": r.ticket_no, "subtitle": (r.description or "")[:50], "url": f"/service-tickets/{r.id}"})
 
     return ok(results)
+
+
+# ---- Sales Targets ----
+
+class SalesTargetBody(BaseModel):
+    user_id: str
+    user_name: Optional[str] = None
+    year: int = Field(..., ge=2020, le=2100)
+    month: int = Field(..., ge=1, le=12)
+    target_amount: float = Field(..., ge=0)
+    target_count: Optional[int] = Field(None, ge=0)
+
+
+@router.get("/targets")
+async def list_targets(
+    year: int = Query(...),
+    month: int = Query(None),
+    user_id: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    q = select(SalesTarget).where(SalesTarget.tenant_id == tenant_id, SalesTarget.year == year)
+    if month:
+        q = q.where(SalesTarget.month == month)
+    if user_id:
+        q = q.where(SalesTarget.user_id == user_id)
+    items = (await db.execute(q.order_by(SalesTarget.month, SalesTarget.user_name))).scalars().all()
+    return ok([{
+        "id": t.id, "user_id": t.user_id, "user_name": t.user_name,
+        "year": t.year, "month": t.month,
+        "target_amount": float(t.target_amount), "target_count": t.target_count,
+    } for t in items])
+
+
+@router.post("/targets")
+async def upsert_target(
+    body: SalesTargetBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """Create or update a sales target (upsert by user+year+month)."""
+    existing = (await db.execute(
+        select(SalesTarget).where(
+            SalesTarget.tenant_id == tenant_id,
+            SalesTarget.user_id == body.user_id,
+            SalesTarget.year == body.year,
+            SalesTarget.month == body.month,
+        )
+    )).scalar()
+    if existing:
+        existing.target_amount = body.target_amount
+        existing.target_count = body.target_count
+        existing.user_name = body.user_name or existing.user_name
+        await db.commit()
+        await db.refresh(existing)
+        t = existing
+    else:
+        t = SalesTarget(
+            tenant_id=tenant_id,
+            user_id=body.user_id, user_name=body.user_name,
+            year=body.year, month=body.month,
+            target_amount=body.target_amount, target_count=body.target_count,
+        )
+        db.add(t)
+        await db.commit()
+        await db.refresh(t)
+    return ok({"id": t.id, "user_id": t.user_id, "year": t.year, "month": t.month, "target_amount": float(t.target_amount)})
+
+
+@router.delete("/targets/{target_id}")
+async def delete_target(
+    target_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    t = (await db.execute(
+        select(SalesTarget).where(SalesTarget.tenant_id == tenant_id, SalesTarget.id == target_id)
+    )).scalar()
+    if not t:
+        from app.common.exceptions import BusinessException
+        raise BusinessException("目标不存在")
+    await db.delete(t)
+    await db.commit()
+    return ok()
+
+
+@router.get("/target_achievement")
+async def target_achievement(
+    year: int = Query(...),
+    month: int = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Get target vs actual achievement for all users."""
+    # Get targets
+    tq = select(SalesTarget).where(SalesTarget.tenant_id == tenant_id, SalesTarget.year == year)
+    if month:
+        tq = tq.where(SalesTarget.month == month)
+    targets = (await db.execute(tq)).scalars().all()
+
+    # Get actual won amounts by owner
+    aq = select(
+        OpportunityProject.owner_id,
+        OpportunityProject.owner_name,
+        func.coalesce(func.sum(OpportunityProject.amount_expect), 0).label("actual_amount"),
+        func.count(OpportunityProject.id).label("actual_count"),
+    ).where(
+        OpportunityProject.tenant_id == tenant_id,
+        OpportunityProject.status == "won",
+        extract("year", OpportunityProject.updated_at) == year,
+    )
+    if month:
+        aq = aq.where(extract("month", OpportunityProject.updated_at) == month)
+    aq = aq.group_by(OpportunityProject.owner_id, OpportunityProject.owner_name)
+    actuals = {r.owner_id: {"actual_amount": float(r.actual_amount), "actual_count": r.actual_count, "owner_name": r.owner_name}
+               for r in (await db.execute(aq)).all()}
+
+    # Merge
+    user_targets: dict = {}
+    for t in targets:
+        key = t.user_id
+        if key not in user_targets:
+            user_targets[key] = {"user_id": t.user_id, "user_name": t.user_name, "target_amount": 0, "target_count": 0}
+        user_targets[key]["target_amount"] += float(t.target_amount)
+        user_targets[key]["target_count"] += (t.target_count or 0)
+
+    result = []
+    all_users = set(list(user_targets.keys()) + list(actuals.keys()))
+    for uid in all_users:
+        t = user_targets.get(uid, {"user_id": uid, "user_name": actuals.get(uid, {}).get("owner_name", ""), "target_amount": 0, "target_count": 0})
+        a = actuals.get(uid, {"actual_amount": 0, "actual_count": 0})
+        target_amt = t["target_amount"]
+        actual_amt = a["actual_amount"]
+        rate = round(actual_amt / target_amt * 100, 1) if target_amt > 0 else 0
+        result.append({
+            "user_id": uid,
+            "user_name": t["user_name"],
+            "target_amount": target_amt,
+            "target_count": t["target_count"],
+            "actual_amount": actual_amt,
+            "actual_count": a["actual_count"],
+            "achievement_rate": rate,
+        })
+    result.sort(key=lambda x: x["achievement_rate"], reverse=True)
+    return ok(result)
