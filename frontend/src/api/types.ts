@@ -450,6 +450,8 @@ export interface ActivityItem {
   content?: string
   contact_name?: string
   result_json?: Record<string, unknown>
+  next_follow_date?: string | null
+  biz_name?: string | null
   created_by_id?: string
   created_by_name?: string
   created_at: string

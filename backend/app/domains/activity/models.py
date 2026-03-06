@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, JSON, DateTime
+from sqlalchemy import String, Text, JSON, DateTime, Date
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import TenantScopedBase
@@ -17,5 +17,7 @@ class Activity(TenantScopedBase):
     contact_name: Mapped[str | None] = mapped_column(String(100))
     result_json: Mapped[dict | None] = mapped_column(JSON)
     # e.g. {"action_items": [...], "next_step": "..."}
+    next_follow_date: Mapped[str | None] = mapped_column(Date)
+    biz_name: Mapped[str | None] = mapped_column(String(200))
     created_by_id: Mapped[str | None] = mapped_column(String(36))
     created_by_name: Mapped[str | None] = mapped_column(String(100))

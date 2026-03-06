@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.domains.activity import service
+from app.domains.activity.models import Activity
 from app.domains.activity.schemas import ActivityCreate, ActivityUpdate
 
 router = APIRouter(tags=["互动记录"])
@@ -19,11 +21,62 @@ def _activity_dict(a) -> dict:
         "content": a.content,
         "contact_name": a.contact_name,
         "result_json": a.result_json,
+        "next_follow_date": str(a.next_follow_date) if a.next_follow_date else None,
+        "biz_name": a.biz_name,
         "created_by_id": a.created_by_id,
         "created_by_name": a.created_by_name,
         "created_at": a.created_at.isoformat() if a.created_at else "",
         "updated_at": a.updated_at.isoformat() if a.updated_at else "",
     }
+
+
+@router.get("/api/v1/activities/all")
+async def list_all_activities(
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    biz_type: str = Query(None),
+    activity_type: str = Query(None),
+    keyword: str = Query(None),
+    created_by_id: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    """List all activities across biz types with pagination and filters."""
+    q = select(Activity).where(Activity.tenant_id == tenant_id)
+    count_q = select(func.count(Activity.id)).where(Activity.tenant_id == tenant_id)
+
+    if biz_type:
+        q = q.where(Activity.biz_type == biz_type)
+        count_q = count_q.where(Activity.biz_type == biz_type)
+    if activity_type:
+        q = q.where(Activity.activity_type == activity_type)
+        count_q = count_q.where(Activity.activity_type == activity_type)
+    if created_by_id:
+        q = q.where(Activity.created_by_id == created_by_id)
+        count_q = count_q.where(Activity.created_by_id == created_by_id)
+    if keyword:
+        kw = f"%{keyword}%"
+        flt = or_(
+            Activity.subject.ilike(kw), Activity.content.ilike(kw),
+            Activity.contact_name.ilike(kw), Activity.biz_name.ilike(kw),
+            Activity.created_by_name.ilike(kw),
+        )
+        q = q.where(flt)
+        count_q = count_q.where(flt)
+
+    total = (await db.execute(count_q)).scalar() or 0
+    items = (await db.execute(
+        q.order_by(Activity.created_at.desc())
+        .offset((pageNo - 1) * pageSize).limit(pageSize)
+    )).scalars().all()
+
+    return ok({
+        "items": [_activity_dict(a) for a in items],
+        "total": total,
+        "pageNo": pageNo,
+        "pageSize": pageSize,
+    })
 
 
 @router.get("/api/v1/activities")

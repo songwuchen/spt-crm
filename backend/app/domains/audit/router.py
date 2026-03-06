@@ -1,12 +1,14 @@
-from datetime import date
+from datetime import date, datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select, func, extract
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.common.export import build_excel, excel_response
 from app.domains.audit.service import list_audit_logs
+from app.domains.audit.models import AuditLog
 
 router = APIRouter(prefix="/api/v1/audit_logs", tags=["审计日志"])
 
@@ -39,6 +41,83 @@ async def list_logs(
             "created_at": log.created_at.isoformat() if log.created_at else "",
         })
     return ok({"items": logs, "total": total, "pageNo": pageNo, "pageSize": pageSize})
+
+
+@router.get("/statistics")
+async def statistics(
+    days: int = Query(30, ge=1, le=365),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("audit:view")),
+):
+    """Audit log statistics: action/resource distribution, daily activity, top operators."""
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    base = select(AuditLog).where(
+        AuditLog.tenant_id == tenant_id,
+        AuditLog.created_at >= since,
+    )
+
+    # Total count
+    total = (await db.execute(
+        select(func.count(AuditLog.id)).where(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.created_at >= since,
+        )
+    )).scalar() or 0
+
+    # By action
+    action_rows = (await db.execute(
+        select(AuditLog.action, func.count(AuditLog.id).label("cnt")).where(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.created_at >= since,
+        ).group_by(AuditLog.action).order_by(func.count(AuditLog.id).desc())
+    )).all()
+    by_action = [{"action": r.action, "count": r.cnt} for r in action_rows]
+
+    # By resource type
+    resource_rows = (await db.execute(
+        select(AuditLog.resource_type, func.count(AuditLog.id).label("cnt")).where(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.created_at >= since,
+        ).group_by(AuditLog.resource_type).order_by(func.count(AuditLog.id).desc())
+    )).all()
+    by_resource = [{"resource_type": r.resource_type, "count": r.cnt} for r in resource_rows]
+
+    # Daily activity (last N days)
+    daily_rows = (await db.execute(
+        select(
+            func.date(AuditLog.created_at).label("day"),
+            func.count(AuditLog.id).label("cnt"),
+        ).where(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.created_at >= since,
+        ).group_by(func.date(AuditLog.created_at))
+        .order_by(func.date(AuditLog.created_at))
+    )).all()
+    daily = [{"date": str(r.day), "count": r.cnt} for r in daily_rows]
+
+    # Top operators
+    operator_rows = (await db.execute(
+        select(
+            AuditLog.user_id, AuditLog.user_name,
+            func.count(AuditLog.id).label("cnt"),
+        ).where(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.created_at >= since,
+        ).group_by(AuditLog.user_id, AuditLog.user_name)
+        .order_by(func.count(AuditLog.id).desc()).limit(10)
+    )).all()
+    top_operators = [{"user_id": r.user_id, "user_name": r.user_name or "未知", "count": r.cnt} for r in operator_rows]
+
+    return ok({
+        "total": total,
+        "days": days,
+        "by_action": by_action,
+        "by_resource": by_resource,
+        "daily": daily,
+        "top_operators": top_operators,
+    })
 
 
 @router.get("/export")

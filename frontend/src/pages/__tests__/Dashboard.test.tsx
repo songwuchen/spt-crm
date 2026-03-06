@@ -37,6 +37,14 @@ vi.mock('@/api/dashboard', () => ({
         tickets: { current: 7, previous: 5, diff: 2, pct: 40 },
       },
     }),
+    myOverview: vi.fn().mockResolvedValue({ data: {
+      my_customer_count: 10, my_active_projects: 3, my_pipeline: 100000,
+      my_won_month: 1, my_pending_leads: 2, my_open_tickets: 1,
+      expiring_contracts: [], stalled_projects: [],
+    }}),
+    funnel: vi.fn().mockResolvedValue({ data: [] }),
+    paymentOverview: vi.fn().mockResolvedValue({ data: null }),
+    leaderboard: vi.fn().mockResolvedValue({ data: [] }),
   },
 }))
 
@@ -106,8 +114,8 @@ describe('Dashboard', () => {
     expect(screen.getByText('今日任务')).toBeInTheDocument()
   })
 
-  it('renders AI suggestions section', () => {
+  it('renders leaderboard section', () => {
     render(<Dashboard />)
-    expect(screen.getByText('AI 智能建议')).toBeInTheDocument()
+    expect(screen.getByText('业绩排行')).toBeInTheDocument()
   })
 })

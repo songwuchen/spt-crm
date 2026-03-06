@@ -16,6 +16,8 @@ const menuGroups: { title: string; items: MenuItem[] }[] = [
       { key: '/customers', icon: 'business', label: '客户管理', permission: 'customer:view' },
       { key: '/leads', icon: 'trending_up', label: '线索管理', permission: 'lead:view' },
       { key: '/opportunities', icon: 'rocket_launch', label: '商机管理', permission: 'project:view' },
+      { key: '/follow-ups', icon: 'contact_phone', label: '跟进记录', permission: 'customer:view' },
+      { key: '/payments', icon: 'account_balance', label: '回款管理', permission: 'payment:view' },
       { key: '/service-tickets', icon: 'confirmation_number', label: '售后工单', permission: 'service:view' },
       { key: '/analytics', icon: 'analytics', label: '销售分析', permission: 'project:view' },
       { key: '/approvals', icon: 'task_alt', label: '审批中心' },
@@ -38,6 +40,8 @@ function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/customers/)) return '/customers'
   if (pathname.match(/^\/leads/)) return '/leads'
   if (pathname.match(/^\/opportunities/)) return '/opportunities'
+  if (pathname.match(/^\/follow-ups/)) return '/follow-ups'
+  if (pathname.match(/^\/payments/)) return '/payments'
   if (pathname.match(/^\/service-tickets/)) return '/service-tickets'
   if (pathname.match(/^\/analytics/)) return '/analytics'
   if (pathname.match(/^\/approvals/)) return '/approvals'

@@ -682,6 +682,121 @@ async def collection(
     return ok(result)
 
 
+@router.get("/my_overview")
+async def my_overview(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Personal dashboard: my customers, projects, expiring contracts, pending items."""
+    from datetime import timedelta
+    uid = user.id
+    now = datetime.now(timezone.utc)
+
+    # My customers
+    my_customer_count = (await db.execute(
+        select(func.count(Customer.id)).where(
+            Customer.tenant_id == tenant_id, Customer.owner_id == uid,
+        )
+    )).scalar() or 0
+
+    # My active projects
+    my_active_projects = (await db.execute(
+        select(func.count(OpportunityProject.id)).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.owner_id == uid,
+            OpportunityProject.status == "active",
+        )
+    )).scalar() or 0
+
+    # My pipeline value
+    my_pipeline = (await db.execute(
+        select(func.coalesce(func.sum(OpportunityProject.amount_expect), 0)).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.owner_id == uid,
+            OpportunityProject.status == "active",
+        )
+    )).scalar() or 0
+
+    # My won deals this month
+    my_won_month = (await db.execute(
+        select(func.count(OpportunityProject.id)).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.owner_id == uid,
+            OpportunityProject.status == "won",
+            extract("year", OpportunityProject.updated_at) == now.year,
+            extract("month", OpportunityProject.updated_at) == now.month,
+        )
+    )).scalar() or 0
+
+    # My pending leads
+    my_pending_leads = (await db.execute(
+        select(func.count(Lead.id)).where(
+            Lead.tenant_id == tenant_id,
+            Lead.owner_id == uid,
+            Lead.status.in_(["new", "following"]),
+        )
+    )).scalar() or 0
+
+    # My open tickets
+    my_open_tickets = (await db.execute(
+        select(func.count(ServiceTicket.id)).where(
+            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.owner_id == uid,
+            ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
+        )
+    )).scalar() or 0
+
+    # Expiring contracts (next 30 days) — contracts linked to my projects
+    from sqlalchemy import text as sa_text
+    expiring_rows = (await db.execute(
+        select(
+            Contract.id, Contract.contract_no, Contract.amount_total,
+            Contract.signed_date, OpportunityProject.name.label("project_name"),
+        ).join(
+            OpportunityProject, OpportunityProject.id == Contract.project_id
+        ).where(
+            Contract.tenant_id == tenant_id,
+            OpportunityProject.owner_id == uid,
+            Contract.status == "signed",
+        ).order_by(Contract.signed_date.desc()).limit(5)
+    )).all()
+    expiring_contracts = [{
+        "id": r.id, "contract_no": r.contract_no,
+        "amount_total": float(r.amount_total) if r.amount_total else 0,
+        "project_name": r.project_name,
+        "signed_date": str(r.signed_date) if r.signed_date else None,
+    } for r in expiring_rows]
+
+    # My stalled projects (no update in 7+ days)
+    stalled_rows = (await db.execute(
+        select(
+            OpportunityProject.id, OpportunityProject.name,
+            OpportunityProject.stage_code, OpportunityProject.updated_at,
+        ).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.owner_id == uid,
+            OpportunityProject.status == "active",
+            OpportunityProject.updated_at < func.now() - sa_text("interval '7 days'"),
+        ).order_by(OpportunityProject.updated_at.asc()).limit(5)
+    )).all()
+    stalled_projects = [{
+        "id": r.id, "name": r.name, "stage_code": r.stage_code,
+        "days_stalled": (now - r.updated_at.replace(tzinfo=timezone.utc)).days if r.updated_at else 0,
+    } for r in stalled_rows]
+
+    return ok({
+        "my_customer_count": my_customer_count,
+        "my_active_projects": my_active_projects,
+        "my_pipeline": float(my_pipeline),
+        "my_won_month": my_won_month,
+        "my_pending_leads": my_pending_leads,
+        "my_open_tickets": my_open_tickets,
+        "expiring_contracts": expiring_contracts,
+        "stalled_projects": stalled_projects,
+    })
+
+
 @router.get("/search")
 async def global_search(
     q: str = Query(..., min_length=1, max_length=100),

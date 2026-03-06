@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import date
 
 
 class ActivityCreate(BaseModel):
@@ -10,6 +11,8 @@ class ActivityCreate(BaseModel):
     content: Optional[str] = None
     contact_name: Optional[str] = None
     result_json: Optional[dict] = None
+    next_follow_date: Optional[date] = None
+    biz_name: Optional[str] = None
 
 
 class ActivityUpdate(BaseModel):
@@ -17,3 +20,4 @@ class ActivityUpdate(BaseModel):
     content: Optional[str] = None
     contact_name: Optional[str] = None
     result_json: Optional[dict] = None
+    next_follow_date: Optional[date] = None

@@ -23,6 +23,8 @@ const KanbanBoard = lazy(() => import('@/pages/opportunity/KanbanBoard'))
 const ServiceTicketList = lazy(() => import('@/pages/service/ServiceTicketList'))
 const ServiceTicketDetail = lazy(() => import('@/pages/service/ServiceTicketDetail'))
 const RenewalList = lazy(() => import('@/pages/service/RenewalList'))
+const FollowUpPage = lazy(() => import('@/pages/activity/FollowUpPage'))
+const PaymentPage = lazy(() => import('@/pages/payment/PaymentPage'))
 const DepartmentPage = lazy(() => import('@/pages/admin/department/DepartmentPage'))
 const UserList = lazy(() => import('@/pages/admin/user/UserList'))
 const RoleList = lazy(() => import('@/pages/admin/role/RoleList'))
@@ -81,6 +83,8 @@ export const router = createBrowserRouter([
       { path: 'service-tickets', element: <Guard permission="service:view"><ServiceTicketList /></Guard> },
       { path: 'service-tickets/:id', element: <Guard permission="service:view"><ServiceTicketDetail /></Guard> },
       { path: 'renewals', element: <Guard permission="service:view"><RenewalList /></Guard> },
+      { path: 'follow-ups', element: <Guard permission="customer:view"><FollowUpPage /></Guard> },
+      { path: 'payments', element: <Guard permission="payment:view"><PaymentPage /></Guard> },
       { path: 'analytics', element: <Guard permission="project:view"><AnalyticsPage /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },
       { path: 'ai-center', element: <Guard permission="project:view"><AiCenterPage /></Guard> },

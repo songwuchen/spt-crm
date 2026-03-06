@@ -43,6 +43,38 @@ interface Trends {
   customers: TrendItem; leads: TrendItem; projects: TrendItem; tickets: TrendItem
 }
 
+interface MyOverview {
+  my_customer_count: number
+  my_active_projects: number
+  my_pipeline: number
+  my_won_month: number
+  my_pending_leads: number
+  my_open_tickets: number
+  expiring_contracts: Array<{
+    id: string; contract_no: string; amount_total: number
+    project_name: string; signed_date: string | null
+  }>
+  stalled_projects: Array<{
+    id: string; name: string; stage_code: string; days_stalled: number
+  }>
+}
+
+interface FunnelItem {
+  stage: string; label: string; count: number; amount: number
+}
+
+interface PaymentOv {
+  total_planned: number; total_received: number
+  overdue_count: number; overdue_amount: number
+  upcoming_30d_amount: number; collection_rate: number
+}
+
+interface LeaderItem {
+  owner_id: string; owner_name: string
+  won_count: number; won_amount: number
+  active_count: number; pipeline_amount: number
+}
+
 function KpiCard({ icon, label, value, trend, trendType }: {
   icon: string; label: string; value: number | string
   trend?: string; trendType?: 'up' | 'down' | 'stable'
@@ -86,12 +118,18 @@ function TaskRow({ icon, iconColor, label, count, urgent }: {
   )
 }
 
+const stageColors = ['bg-blue-500', 'bg-cyan-500', 'bg-teal-500', 'bg-emerald-500', 'bg-green-500', 'bg-lime-500']
+
 export default function Dashboard() {
   usePageTitle('工作台')
   const [stats, setStats] = useState<Stats>({ customer_total: 0, lead_total: 0, monthly_new_customers: 0, pending_leads: 0, project_total: 0, active_projects: 0, quote_total: 0, solution_total: 0, milestone_total: 0, milestone_delayed: 0, invoice_total: 0, payment_received: 0, change_total: 0, ticket_total: 0, ticket_open: 0, pipeline_value: 0, contract_total: 0 })
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalPendingItem[]>([])
   const [alerts, setAlerts] = useState<AlertItem[]>([])
   const [trends, setTrends] = useState<Trends | null>(null)
+  const [myOv, setMyOv] = useState<MyOverview | null>(null)
+  const [funnel, setFunnel] = useState<FunnelItem[]>([])
+  const [paymentOv, setPaymentOv] = useState<PaymentOv | null>(null)
+  const [leaderboard, setLeaderboard] = useState<LeaderItem[]>([])
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
 
@@ -106,6 +144,18 @@ export default function Dashboard() {
       if (res.data) setTrends(res.data)
     }).catch(() => {})
     approvalApi.myPending().then((r) => setPendingApprovals(r.data)).catch(() => {})
+    dashboardApi.myOverview().then((res: any) => {
+      if (res.data) setMyOv(res.data)
+    }).catch(() => {})
+    dashboardApi.funnel().then((res: any) => {
+      if (res.data) setFunnel(res.data)
+    }).catch(() => {})
+    dashboardApi.paymentOverview().then((res: any) => {
+      if (res.data) setPaymentOv(res.data)
+    }).catch(() => {})
+    dashboardApi.leaderboard().then((res: any) => {
+      if (res.data) setLeaderboard(res.data)
+    }).catch(() => {})
   }
 
   useEffect(() => { fetchData() }, [])
@@ -131,6 +181,8 @@ export default function Dashboard() {
     })
   }
 
+  const funnelMax = Math.max(...funnel.map((f) => f.count), 1)
+
   return (
     <div>
       {/* Page Title */}
@@ -154,6 +206,77 @@ export default function Dashboard() {
           刷新数据
         </button>
       </div>
+
+      {/* Personal Overview */}
+      {myOv && (
+        <div className="bg-gradient-to-r from-primary/5 to-blue-50 rounded-xl border border-primary/10 p-6 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="material-symbols-outlined text-primary">person</span>
+            <h3 className="text-sm font-bold text-slate-900">我的概览</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-black text-slate-900">{myOv.my_customer_count}</div>
+              <div className="text-xs text-slate-500 mt-1">我的客户</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-black text-slate-900">{myOv.my_active_projects}</div>
+              <div className="text-xs text-slate-500 mt-1">进行中商机</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-black text-primary">{myOv.my_pipeline > 0 ? `¥${(myOv.my_pipeline / 10000).toFixed(1)}万` : '¥0'}</div>
+              <div className="text-xs text-slate-500 mt-1">我的管线</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-black text-emerald-600">{myOv.my_won_month}</div>
+              <div className="text-xs text-slate-500 mt-1">本月赢单</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-black text-amber-600">{myOv.my_pending_leads}</div>
+              <div className="text-xs text-slate-500 mt-1">待跟进线索</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-black text-red-500">{myOv.my_open_tickets}</div>
+              <div className="text-xs text-slate-500 mt-1">处理中工单</div>
+            </div>
+          </div>
+
+          {/* Stalled projects & contracts */}
+          {(myOv.stalled_projects.length > 0 || myOv.expiring_contracts.length > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-primary/10">
+              {myOv.stalled_projects.length > 0 && (
+                <div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">待跟进商机</div>
+                  <div className="space-y-1.5">
+                    {myOv.stalled_projects.map((p) => (
+                      <div key={p.id} onClick={() => navigate(`/opportunities/${p.id}`)}
+                        className="flex items-center gap-2 p-2 rounded-lg bg-white/70 border border-amber-100 cursor-pointer hover:shadow-sm transition-shadow">
+                        <span className="material-symbols-outlined text-amber-500 text-base">schedule</span>
+                        <span className="text-sm font-medium text-slate-800 flex-1 truncate">{p.name}</span>
+                        <span className="text-xs font-bold text-amber-600">{p.days_stalled}天未更新</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {myOv.expiring_contracts.length > 0 && (
+                <div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">我的合同</div>
+                  <div className="space-y-1.5">
+                    {myOv.expiring_contracts.map((c) => (
+                      <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/70 border border-slate-100">
+                        <span className="material-symbols-outlined text-blue-500 text-base">description</span>
+                        <span className="text-sm font-medium text-slate-800 flex-1 truncate">{c.contract_no}</span>
+                        <span className="text-xs text-slate-500">¥{c.amount_total?.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -256,7 +379,90 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Three Column Grid */}
+      {/* Sales Funnel + Payment Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Sales Funnel */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="material-symbols-outlined text-blue-500">filter_alt</span>
+            <h3 className="text-sm font-bold text-slate-900">销售漏斗</h3>
+          </div>
+          {funnel.length > 0 ? (
+            <div className="space-y-3">
+              {funnel.map((f, i) => {
+                const pct = funnelMax > 0 ? Math.max((f.count / funnelMax) * 100, 8) : 8
+                return (
+                  <div key={f.stage}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-slate-700">{f.label}</span>
+                      <span className="text-xs text-slate-500">{f.count} 个 · ¥{(f.amount / 10000).toFixed(1)}万</span>
+                    </div>
+                    <div className="h-6 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${stageColors[i] || 'bg-blue-500'} rounded-full flex items-center justify-end pr-2 transition-all`}
+                        style={{ width: `${pct}%` }}>
+                        {f.count > 0 && <span className="text-[10px] font-bold text-white">{f.count}</span>}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-center text-slate-400 text-sm py-8">暂无漏斗数据</div>
+          )}
+        </div>
+
+        {/* Payment Overview */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="material-symbols-outlined text-emerald-500">account_balance</span>
+            <h3 className="text-sm font-bold text-slate-900">回款概览</h3>
+          </div>
+          {paymentOv ? (
+            <div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+                  <div className="text-xs text-emerald-600 font-bold mb-1">已回款</div>
+                  <div className="text-xl font-black text-emerald-700">¥{(paymentOv.total_received / 10000).toFixed(1)}万</div>
+                </div>
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+                  <div className="text-xs text-blue-600 font-bold mb-1">计划总额</div>
+                  <div className="text-xl font-black text-blue-700">¥{(paymentOv.total_planned / 10000).toFixed(1)}万</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center p-2 rounded-lg bg-slate-50">
+                  <div className="text-lg font-black text-slate-900">{paymentOv.collection_rate}%</div>
+                  <div className="text-[10px] text-slate-500">回款率</div>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-red-50">
+                  <div className="text-lg font-black text-red-600">{paymentOv.overdue_count}</div>
+                  <div className="text-[10px] text-slate-500">逾期笔数</div>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-amber-50">
+                  <div className="text-lg font-black text-amber-600">¥{(paymentOv.upcoming_30d_amount / 10000).toFixed(1)}万</div>
+                  <div className="text-[10px] text-slate-500">30天内到期</div>
+                </div>
+              </div>
+              {/* Collection rate bar */}
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-500">回款进度</span>
+                  <span className="text-xs font-bold text-emerald-600">{paymentOv.collection_rate}%</span>
+                </div>
+                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(paymentOv.collection_rate, 100)}%` }} />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-slate-400 text-sm py-8">暂无回款数据</div>
+          )}
+        </div>
+      </div>
+
+      {/* Three Column Grid: Tasks + Quick Actions + Leaderboard */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* Today's Tasks */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
@@ -272,7 +478,7 @@ export default function Dashboard() {
           <div className="space-y-2">
             <TaskRow icon="chat" iconColor="text-blue-600" label="客户跟进" count={stats.pending_leads} />
             <TaskRow icon="person_add" iconColor="text-emerald-600" label="新客户建档" count={stats.monthly_new_customers} />
-            <TaskRow icon="warning" iconColor="text-red-600" label="逾期待办" count={0} urgent />
+            <TaskRow icon="warning" iconColor="text-red-600" label="逾期待办" count={paymentOv?.overdue_count || 0} urgent={!!(paymentOv?.overdue_count)} />
           </div>
         </div>
 
@@ -316,42 +522,33 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* AI Copilot Suggestions */}
-        <div className="bg-blue-50/50 rounded-xl border border-blue-100 shadow-sm p-6">
+        {/* Leaderboard */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-primary">auto_awesome</span>
-            <h3 className="text-sm font-bold text-slate-900">AI 智能建议</h3>
+            <span className="material-symbols-outlined text-amber-500">emoji_events</span>
+            <h3 className="text-sm font-bold text-slate-900">业绩排行</h3>
           </div>
-          <div className="space-y-3">
-            <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
-              <div className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">建议跟进</div>
-              <div className="text-sm font-bold text-slate-800 mb-1">高分线索待转化</div>
-              <div className="text-xs text-slate-500">
-                {stats.pending_leads > 0
-                  ? `有 ${stats.pending_leads} 条线索评分较高，建议优先跟进转化。`
-                  : '暂无高分线索需要跟进。'}
-              </div>
-              <button
-                onClick={() => navigate('/leads')}
-                className="w-full mt-3 py-2 bg-white border border-primary text-primary rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-colors"
-              >
-                查看线索列表
-              </button>
+          {leaderboard.length > 0 ? (
+            <div className="space-y-2">
+              {leaderboard.slice(0, 5).map((item, i) => (
+                <div key={item.owner_id} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                  <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-black ${
+                    i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-white' : i === 2 ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}>{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-slate-800 truncate">{item.owner_name}</div>
+                    <div className="text-[10px] text-slate-500">赢单 {item.won_count} · 进行 {item.active_count}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-black text-slate-900">¥{(item.won_amount / 10000).toFixed(1)}万</div>
+                    <div className="text-[10px] text-slate-400">管线 ¥{(item.pipeline_amount / 10000).toFixed(1)}万</div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
-              <div className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">数据洞察</div>
-              <div className="text-sm font-bold text-slate-800 mb-1">客户健康度分析</div>
-              <div className="text-xs text-slate-500">
-                当前共 {stats.customer_total} 个客户，本月新增 {stats.monthly_new_customers} 个。
-              </div>
-              <button
-                onClick={() => navigate('/customers')}
-                className="w-full mt-3 py-2 bg-white border border-primary text-primary rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-colors"
-              >
-                查看客户列表
-              </button>
-            </div>
-          </div>
+          ) : (
+            <div className="text-center text-slate-400 text-sm py-8">暂无排行数据</div>
+          )}
         </div>
       </div>
     </div>

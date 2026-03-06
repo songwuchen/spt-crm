@@ -41,6 +41,38 @@ const resourceLabels: Record<string, string> = {
   share: '共享',
 }
 
+interface AuditStats {
+  total: number
+  days: number
+  by_action: Array<{ action: string; count: number }>
+  by_resource: Array<{ resource_type: string; count: number }>
+  daily: Array<{ date: string; count: number }>
+  top_operators: Array<{ user_id: string; user_name: string; count: number }>
+}
+
+function DiffView({ detail }: { detail: Record<string, unknown> }) {
+  const changes = detail.changes as Array<{ field: string; old: unknown; new: unknown }> | undefined
+  if (changes && Array.isArray(changes)) {
+    return (
+      <div className="space-y-1.5">
+        {changes.map((c, i) => (
+          <div key={i} className="flex items-start gap-2 text-xs">
+            <span className="font-bold text-slate-600 min-w-[80px]">{c.field}</span>
+            <span className="text-red-500 line-through">{String(c.old ?? '-')}</span>
+            <span className="material-symbols-outlined text-xs text-slate-400">arrow_forward</span>
+            <span className="text-emerald-600 font-medium">{String(c.new ?? '-')}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  return (
+    <pre className="text-xs text-slate-600 bg-slate-50 p-3 rounded-lg overflow-auto max-h-40">
+      {JSON.stringify(detail, null, 2)}
+    </pre>
+  )
+}
+
 export default function AuditLogPage() {
   usePageTitle('操作日志')
   const [data, setData] = useState<AuditLog[]>([])
@@ -51,6 +83,8 @@ export default function AuditLogPage() {
   const [action, setAction] = useState<string | undefined>()
   const [keyword, setKeyword] = useState('')
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
+  const [stats, setStats] = useState<AuditStats | null>(null)
+  const [showStats, setShowStats] = useState(true)
 
   const fetchData = async (
     page = pageNo, rt = resourceType, act = action,
@@ -74,7 +108,14 @@ export default function AuditLogPage() {
     }
   }
 
-  useEffect(() => { fetchData() }, [])
+  const fetchStats = async () => {
+    try {
+      const res = await client.get<unknown, ApiResponse<AuditStats>>('/api/v1/audit_logs/statistics', { params: { days: 30 } })
+      setStats(res.data)
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => { fetchData(); fetchStats() }, [])
 
   const doSearch = () => { setPageNo(1); fetchData(1) }
 
@@ -88,6 +129,10 @@ export default function AuditLogPage() {
     downloadFile(`/api/v1/audit_logs/export${qs}`, `审计日志_${new Date().toISOString().slice(0, 10)}.xlsx`)
     message.success('正在导出...')
   }
+
+  const dailyMax = stats ? Math.max(...stats.daily.map((d) => d.count), 1) : 1
+  const actionMax = stats ? Math.max(...stats.by_action.map((a) => a.count), 1) : 1
+  const resourceMax = stats ? Math.max(...stats.by_resource.map((r) => r.count), 1) : 1
 
   const columns = [
     { title: '时间', dataIndex: 'created_at', width: 170,
@@ -141,7 +186,128 @@ export default function AuditLogPage() {
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">审计日志</h1>
           <p className="text-sm text-slate-500 mt-0.5">查看系统操作记录和变更历史</p>
         </div>
+        <button onClick={() => setShowStats(!showStats)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold hover:bg-slate-200 transition-colors border-0 cursor-pointer">
+          <span className="material-symbols-outlined text-base">{showStats ? 'visibility_off' : 'bar_chart'}</span>
+          {showStats ? '隐藏统计' : '显示统计'}
+        </button>
       </div>
+
+      {/* Statistics Panel */}
+      {showStats && stats && (
+        <div className="mb-6 space-y-4">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">总操作数</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">{stats.total.toLocaleString()}</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">近 {stats.days} 天</div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">日均操作</div>
+              <div className="text-2xl font-black text-primary mt-1">
+                {stats.daily.length > 0 ? Math.round(stats.total / stats.daily.length) : 0}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">活跃 {stats.daily.length} 天</div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">操作类型</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">{stats.by_action.length}</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">种操作</div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">活跃用户</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">{stats.top_operators.length}</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">位操作员</div>
+            </div>
+          </div>
+
+          {/* Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Daily Activity */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">每日活动</h4>
+              {stats.daily.length > 0 ? (
+                <div className="flex items-end gap-[2px] h-24">
+                  {stats.daily.slice(-30).map((d) => {
+                    const h = Math.max((d.count / dailyMax) * 100, 4)
+                    return (
+                      <div key={d.date} className="flex-1 min-w-0 group relative">
+                        <div className="bg-primary/80 hover:bg-primary rounded-t transition-colors"
+                          style={{ height: `${h}%` }} />
+                        <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-800 text-white text-[10px] rounded whitespace-nowrap z-10">
+                          {d.date.slice(5)}: {d.count}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center text-slate-400 text-xs py-8">暂无数据</div>
+              )}
+            </div>
+
+            {/* Action Distribution */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">操作类型分布</h4>
+              <div className="space-y-2">
+                {stats.by_action.slice(0, 6).map((a) => {
+                  const cfg = actionConfig[a.action]
+                  const pct = (a.count / actionMax) * 100
+                  return (
+                    <div key={a.action} className="flex items-center gap-2">
+                      <span className={`text-[10px] font-bold w-10 ${cfg?.text || 'text-slate-500'}`}>
+                        {cfg?.label || a.action}
+                      </span>
+                      <div className="flex-1 h-4 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${cfg?.bg || 'bg-slate-200'}`}
+                          style={{ width: `${Math.max(pct, 4)}%` }} />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 w-8 text-right">{a.count}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Top Operators */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">活跃用户</h4>
+              <div className="space-y-2">
+                {stats.top_operators.slice(0, 5).map((op, i) => (
+                  <div key={op.user_id} className="flex items-center gap-2">
+                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-black ${
+                      i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-white' : i === 2 ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-500'
+                    }`}>{i + 1}</span>
+                    <span className="text-sm font-medium text-slate-700 flex-1 truncate">{op.user_name}</span>
+                    <span className="text-xs font-bold text-slate-500">{op.count} 次</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Resource Type Distribution */}
+          {stats.by_resource.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">资源类型分布</h4>
+              <div className="flex flex-wrap gap-2">
+                {stats.by_resource.map((r) => {
+                  const pct = Math.round((r.count / stats.total) * 100)
+                  return (
+                    <div key={r.resource_type}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
+                      <span className="text-xs font-bold text-slate-700">{resourceLabels[r.resource_type] || r.resource_type}</span>
+                      <span className="text-[10px] font-bold text-primary">{r.count}</span>
+                      <span className="text-[10px] text-slate-400">({pct}%)</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
@@ -197,9 +363,7 @@ export default function AuditLogPage() {
           scroll={{ x: 900 }}
           expandable={{
             expandedRowRender: (record: AuditLog) => record.detail ? (
-              <pre className="text-xs text-slate-600 bg-slate-50 p-3 rounded-lg overflow-auto max-h-40">
-                {JSON.stringify(record.detail, null, 2)}
-              </pre>
+              <DiffView detail={record.detail} />
             ) : <span className="text-slate-400 text-xs">无详细信息</span>,
             rowExpandable: () => true,
           }}

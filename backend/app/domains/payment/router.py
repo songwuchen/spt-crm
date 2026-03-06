@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.domains.payment import service
+from app.domains.payment.models import PaymentPlan, PaymentRecord, Invoice
 from app.domains.payment.schemas import (
     InvoiceCreate, InvoiceUpdate, PaymentPlanCreate, PaymentPlanUpdate, PaymentRecordCreate,
 )
+from app.domains.project.models import OpportunityProject
 
 router = APIRouter(tags=["回款管理"])
 
@@ -128,6 +131,139 @@ async def create_record(
 ):
     rec = await service.create_record(db, tenant_id, project_id, body, current_user)
     return ok(_rec_dict(rec))
+
+
+# --- Cross-project listing ---
+
+@router.get("/api/v1/payment/plans")
+async def list_all_plans(
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    status: str = Query(None),
+    keyword: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("payment:view")),
+):
+    """List all payment plans across projects with pagination."""
+    q = select(
+        PaymentPlan, OpportunityProject.name.label("project_name"),
+        OpportunityProject.project_code.label("project_code"),
+    ).outerjoin(OpportunityProject, OpportunityProject.id == PaymentPlan.project_id).where(
+        PaymentPlan.tenant_id == tenant_id
+    )
+    count_q = select(func.count(PaymentPlan.id)).where(PaymentPlan.tenant_id == tenant_id)
+
+    if status:
+        q = q.where(PaymentPlan.status == status)
+        count_q = count_q.where(PaymentPlan.status == status)
+    if keyword:
+        kw = f"%{keyword}%"
+        flt = or_(PaymentPlan.plan_no.ilike(kw), PaymentPlan.remark.ilike(kw))
+        q = q.where(flt)
+        count_q = count_q.where(flt)
+
+    total = (await db.execute(count_q)).scalar() or 0
+    rows = (await db.execute(
+        q.order_by(PaymentPlan.due_date.asc())
+        .offset((pageNo - 1) * pageSize).limit(pageSize)
+    )).all()
+
+    items = []
+    for row in rows:
+        plan = row[0]
+        d = _plan_dict(plan)
+        d["project_name"] = row.project_name
+        d["project_code"] = row.project_code
+        items.append(d)
+
+    return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
+
+
+@router.get("/api/v1/payment/records")
+async def list_all_records(
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    keyword: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("payment:view")),
+):
+    """List all payment records across projects with pagination."""
+    q = select(
+        PaymentRecord, OpportunityProject.name.label("project_name"),
+        OpportunityProject.project_code.label("project_code"),
+    ).outerjoin(OpportunityProject, OpportunityProject.id == PaymentRecord.project_id).where(
+        PaymentRecord.tenant_id == tenant_id
+    )
+    count_q = select(func.count(PaymentRecord.id)).where(PaymentRecord.tenant_id == tenant_id)
+
+    if keyword:
+        kw = f"%{keyword}%"
+        flt = or_(PaymentRecord.reference_no.ilike(kw), PaymentRecord.channel.ilike(kw), PaymentRecord.remark.ilike(kw))
+        q = q.where(flt)
+        count_q = count_q.where(flt)
+
+    total = (await db.execute(count_q)).scalar() or 0
+    rows = (await db.execute(
+        q.order_by(PaymentRecord.received_date.desc())
+        .offset((pageNo - 1) * pageSize).limit(pageSize)
+    )).all()
+
+    items = []
+    for row in rows:
+        rec = row[0]
+        d = _rec_dict(rec)
+        d["project_name"] = row.project_name
+        d["project_code"] = row.project_code
+        items.append(d)
+
+    return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
+
+
+@router.get("/api/v1/payment/invoices")
+async def list_all_invoices(
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    status: str = Query(None),
+    keyword: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("payment:view")),
+):
+    """List all invoices across projects with pagination."""
+    q = select(
+        Invoice, OpportunityProject.name.label("project_name"),
+        OpportunityProject.project_code.label("project_code"),
+    ).outerjoin(OpportunityProject, OpportunityProject.id == Invoice.project_id).where(
+        Invoice.tenant_id == tenant_id
+    )
+    count_q = select(func.count(Invoice.id)).where(Invoice.tenant_id == tenant_id)
+
+    if status:
+        q = q.where(Invoice.status == status)
+        count_q = count_q.where(Invoice.status == status)
+    if keyword:
+        kw = f"%{keyword}%"
+        flt = or_(Invoice.invoice_no.ilike(kw), Invoice.remark.ilike(kw))
+        q = q.where(flt)
+        count_q = count_q.where(flt)
+
+    total = (await db.execute(count_q)).scalar() or 0
+    rows = (await db.execute(
+        q.order_by(Invoice.created_at.desc())
+        .offset((pageNo - 1) * pageSize).limit(pageSize)
+    )).all()
+
+    items = []
+    for row in rows:
+        inv = row[0]
+        d = _inv_dict(inv)
+        d["project_name"] = row.project_name
+        d["project_code"] = row.project_code
+        items.append(d)
+
+    return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.post("/api/v1/payment/check_overdue")

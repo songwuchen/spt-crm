@@ -23,4 +23,12 @@ export const paymentApi = {
     client.get<unknown, ApiResponse<PaymentRecordItem[]>>(`/api/v1/projects/${projectId}/payment_records`),
   createRecord: (projectId: string, data: Record<string, unknown>) =>
     client.post<unknown, ApiResponse<PaymentRecordItem>>(`/api/v1/projects/${projectId}/payment_records`, data),
+
+  // Cross-project listing
+  listAllPlans: (params: Record<string, unknown>) =>
+    client.get('/api/v1/payment/plans', { params }),
+  listAllRecords: (params: Record<string, unknown>) =>
+    client.get('/api/v1/payment/records', { params }),
+  listAllInvoices: (params: Record<string, unknown>) =>
+    client.get('/api/v1/payment/invoices', { params }),
 }
