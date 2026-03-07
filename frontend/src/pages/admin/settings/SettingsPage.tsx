@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Tabs, Table, Button, Modal, Input, InputNumber, Select, Switch, Space, Progress, message } from 'antd'
-import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined } from '@ant-design/icons'
 import { settingsApi } from '@/api/settings'
+import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import ApprovalPolicyModal from './ApprovalPolicyModal'
 
@@ -37,6 +38,8 @@ export default function SettingsPage() {
   const [docTemplates, setDocTemplates] = useState<DocTemplateItem[]>([])
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplateItem[]>([])
   const [customFields, setCustomFields] = useState<CustomFieldItem[]>([])
+  const [backupStats, setBackupStats] = useState<Record<string, number>>({})
+  const [backupLoading, setBackupLoading] = useState(false)
 
   // Custom field
   const [cfModal, setCfModal] = useState(false)
@@ -87,6 +90,7 @@ export default function SettingsPage() {
     settingsApi.listDocTemplates().then((r: { data: DocTemplateItem[] }) => r.data && setDocTemplates(r.data)).catch(() => {})
     settingsApi.listEmailTemplates().then((r: { data: EmailTemplateItem[] }) => r.data && setEmailTemplates(r.data)).catch(() => {})
     settingsApi.listCustomFields().then((r: { data: CustomFieldItem[] }) => r.data && setCustomFields(r.data)).catch(() => {})
+    settingsApi.backupStats().then((r: { data: Record<string, number> }) => r.data && setBackupStats(r.data)).catch(() => {})
   }
 
   const handleSaveBudget = async () => {
@@ -557,6 +561,45 @@ export default function SettingsPage() {
                   )},
                 ]} />
                 {customFields.length === 0 && <div className="text-center py-8 text-slate-400 text-sm">暂无自定义字段</div>}
+              </div>
+            ),
+          },
+          {
+            key: 'backup', label: '数据备份',
+            children: (
+              <div className="pb-6">
+                <div className="mb-4">
+                  <p className="text-sm text-slate-500 mb-4">导出当前租户的全部业务数据为 JSON 文件，可用于数据备份或迁移。</p>
+                  <Button type="primary" icon={<CloudDownloadOutlined />} loading={backupLoading} onClick={() => {
+                    setBackupLoading(true)
+                    downloadFile(settingsApi.backupDownloadUrl(), `backup_${new Date().toISOString().slice(0, 10)}.json`)
+                    setTimeout(() => setBackupLoading(false), 3000)
+                  }}>下载备份</Button>
+                </div>
+                <h3 className="text-sm font-bold text-slate-700 mb-3">数据统计</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {Object.entries(backupStats).map(([table, count]) => {
+                    const labelMap: Record<string, string> = {
+                      customers: '客户', contacts: '联系人', leads: '线索',
+                      opportunities: '商机', quotes: '报价', quote_lines: '报价行',
+                      contracts: '合同', solutions: '方案', delivery_milestones: '里程碑',
+                      payment_plans: '回款计划', invoices: '发票', payment_records: '收款记录',
+                      change_requests: '变更', service_tickets: '工单',
+                      renewal_opportunities: '续约', activities: '动态', products: '产品',
+                      approval_flows: '审批流', approval_tasks: '审批任务',
+                      notifications: '通知', sales_targets: '销售目标',
+                    }
+                    return (
+                      <div key={table} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg border border-slate-100">
+                        <span className="text-xs text-slate-500">{labelMap[table] || table}</span>
+                        <span className="text-sm font-black text-slate-800">{count.toLocaleString()}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+                {Object.keys(backupStats).length === 0 && (
+                  <div className="text-center py-8 text-slate-400 text-sm">暂无统计数据</div>
+                )}
               </div>
             ),
           },

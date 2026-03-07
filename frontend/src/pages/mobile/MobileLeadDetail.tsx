@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { message } from 'antd'
+import { message, Modal, Input, Select } from 'antd'
 import { leadApi } from '@/api/lead'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
@@ -19,16 +19,66 @@ const statusMap: Record<string, { label: string; color: string }> = {
   discarded: { label: '已废弃', color: 'bg-slate-100 text-slate-500' },
 }
 
+const statusOptions = [
+  { value: 'new', label: '新建' },
+  { value: 'following', label: '跟进中' },
+  { value: 'qualified', label: '已转化' },
+  { value: 'discarded', label: '已废弃' },
+]
+
 export default function MobileLeadDetail() {
   usePageTitle('线索详情')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [lead, setLead] = useState<LeadItem | null>(null)
+  const [editModal, setEditModal] = useState(false)
+  const [editForm, setEditForm] = useState<Record<string, string | null>>({})
 
-  useEffect(() => {
+  const loadLead = () => {
     if (!id) return
     leadApi.get(id).then((r: any) => setLead(r.data)).catch(() => message.error('加载失败'))
-  }, [id])
+  }
+
+  useEffect(() => { loadLead() }, [id])
+
+  const openEdit = () => {
+    if (!lead) return
+    setEditForm({
+      title: lead.title,
+      company_name: lead.company_name,
+      contact_name: lead.contact_name,
+      contact_phone: lead.contact_phone,
+      contact_email: lead.contact_email,
+      demand_summary: lead.demand_summary,
+      status: lead.status,
+    })
+    setEditModal(true)
+  }
+
+  const handleSave = async () => {
+    if (!id) return
+    try {
+      await leadApi.update(id, editForm)
+      message.success('已更新')
+      setEditModal(false)
+      loadLead()
+    } catch {
+      message.error('更新失败')
+    }
+  }
+
+  const handleStatusChange = (newStatus: string) => {
+    if (!id || !lead) return
+    Modal.confirm({
+      title: '确认变更状态',
+      content: `将线索状态改为「${statusMap[newStatus]?.label || newStatus}」？`,
+      onOk: async () => {
+        await leadApi.update(id, { status: newStatus })
+        message.success('状态已更新')
+        loadLead()
+      },
+    })
+  }
 
   if (!lead) return <div className="text-center py-12 text-slate-400">加载中...</div>
 
@@ -113,6 +163,71 @@ export default function MobileLeadDetail() {
           <p className="text-sm text-slate-700 whitespace-pre-wrap">{lead.demand_summary}</p>
         </div>
       )}
+
+      {/* Action Buttons */}
+      <div className="mt-4 flex gap-2">
+        <button onClick={openEdit}
+          className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1">
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+          编辑
+        </button>
+        {lead.status === 'new' && (
+          <button onClick={() => handleStatusChange('following')}
+            className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold">
+            开始跟进
+          </button>
+        )}
+        {lead.status === 'following' && (
+          <button onClick={() => handleStatusChange('qualified')}
+            className="flex-1 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold">
+            转化线索
+          </button>
+        )}
+        {lead.status !== 'discarded' && lead.status !== 'qualified' && (
+          <button onClick={() => handleStatusChange('discarded')}
+            className="py-2.5 px-4 bg-slate-100 text-slate-500 rounded-xl text-sm font-bold">
+            废弃
+          </button>
+        )}
+      </div>
+
+      {/* Edit Modal */}
+      <Modal title="编辑线索" open={editModal} onOk={handleSave} onCancel={() => setEditModal(false)} width="90%">
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">标题</label>
+            <Input value={editForm.title || ''} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">公司</label>
+            <Input value={editForm.company_name || ''} onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-500 mb-1 block">联系人</label>
+              <Input value={editForm.contact_name || ''} onChange={(e) => setEditForm({ ...editForm, contact_name: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 mb-1 block">电话</label>
+              <Input value={editForm.contact_phone || ''} onChange={(e) => setEditForm({ ...editForm, contact_phone: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">邮箱</label>
+            <Input value={editForm.contact_email || ''} onChange={(e) => setEditForm({ ...editForm, contact_email: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">状态</label>
+            <Select className="w-full" value={editForm.status || 'new'} onChange={(v) => setEditForm({ ...editForm, status: v })}
+              options={statusOptions} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">需求摘要</label>
+            <Input.TextArea rows={3} value={editForm.demand_summary || ''}
+              onChange={(e) => setEditForm({ ...editForm, demand_summary: e.target.value })} />
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -159,6 +159,10 @@ async def delete_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict
     lead = await get_lead(db, tenant_id, lead_id)
     lead_title = lead.title
 
+    if lead.status == "qualified":
+        from app.common.error_codes import VALIDATION_ERROR
+        raise BusinessException(code=VALIDATION_ERROR, message="已转化的线索不可删除")
+
     # Soft delete
     lead.is_deleted = True
     await db.commit()

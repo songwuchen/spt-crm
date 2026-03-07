@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
@@ -8,6 +9,7 @@ from app.domains.service_ticket import service
 from app.domains.service_ticket.schemas import (
     ServiceTicketCreate, ServiceTicketUpdate, RenewalCreate, RenewalUpdate,
 )
+from app.domains.customer.models import Customer
 
 router = APIRouter(tags=["售后管理"])
 
@@ -124,11 +126,25 @@ async def delete_ticket(
 @router.get("/api/v1/renewal_opportunities")
 async def list_renewals(
     customer_id: str | None = Query(None),
+    status: str | None = Query(None),
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("service:view")),
 ):
-    items = await service.list_renewals(db, tenant_id, customer_id=customer_id)
-    return ok([_renewal_dict(r) for r in items])
+    items = await service.list_renewals(db, tenant_id, customer_id=customer_id, status=status)
+    # Batch lookup customer names
+    cust_ids = list({r.customer_id for r in items if r.customer_id})
+    cust_names: dict[str, str] = {}
+    if cust_ids:
+        rows = (await db.execute(
+            select(Customer.id, Customer.name).where(Customer.id.in_(cust_ids))
+        )).all()
+        cust_names = {r.id: r.name for r in rows}
+    result = []
+    for r in items:
+        d = _renewal_dict(r)
+        d["customer_name"] = cust_names.get(r.customer_id, "")
+        result.append(d)
+    return ok(result)
 
 
 @router.post("/api/v1/renewal_opportunities")

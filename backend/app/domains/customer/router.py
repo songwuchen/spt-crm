@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, UploadFile, File
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from openpyxl import load_workbook
 import io
@@ -6,6 +7,7 @@ import io
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions, get_data_scope
 from app.common.schemas import ok
 from app.common.export import build_excel, excel_response
+from app.domains.customer.models import Customer
 from app.domains.customer.schemas import (
     CustomerCreate, CustomerUpdate, CustomerOut,
     ContactCreate, ContactUpdate, ContactOut,
@@ -522,3 +524,25 @@ async def delete_share(
 ):
     await service.delete_share(db, tenant_id, share_id, current_user)
     return ok()
+
+
+@router.get("/check-unique")
+async def check_unique(
+    field: str = Query(..., pattern=r"^(name|customer_code)$"),
+    value: str = Query(..., min_length=1),
+    exclude_id: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Check if a customer field value is unique within the tenant."""
+    col = Customer.name if field == "name" else Customer.customer_code
+    q = select(Customer.id).where(
+        Customer.tenant_id == tenant_id,
+        Customer.is_deleted == False,
+        col == value,
+    )
+    if exclude_id:
+        q = q.where(Customer.id != exclude_id)
+    exists = (await db.execute(q)).scalar() is not None
+    return ok({"unique": not exists})

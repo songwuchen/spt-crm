@@ -11,4 +11,8 @@ export const productApi = {
   createCategory: (data: Record<string, unknown>) => client.post('/api/v1/products/categories', data),
   updateCategory: (id: string, data: Record<string, unknown>) => client.put(`/api/v1/products/categories/${id}`, data),
   deleteCategory: (id: string) => client.delete(`/api/v1/products/categories/${id}`),
+  checkUnique: (productCode: string, excludeId?: string) =>
+    client.get('/api/v1/products/check-unique', {
+      params: { product_code: productCode, ...(excludeId ? { exclude_id: excludeId } : {}) },
+    }),
 }

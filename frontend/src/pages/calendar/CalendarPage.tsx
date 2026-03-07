@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Calendar, Badge, Select, Tag } from 'antd'
+import { Calendar, Badge, Select, Drawer, Tag } from 'antd'
+import { useNavigate } from 'react-router-dom'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import { dashboardApi } from '@/api/dashboard'
@@ -13,11 +14,11 @@ interface CalendarEvent {
   color: string
 }
 
-const typeLabels: Record<string, { label: string; icon: string }> = {
-  follow_up: { label: '跟进计划', icon: 'event' },
-  payment_due: { label: '回款到期', icon: 'payments' },
-  contract_expiry: { label: '合同到期', icon: 'description' },
-  milestone: { label: '里程碑', icon: 'flag' },
+const typeLabels: Record<string, { label: string; icon: string; color: string }> = {
+  follow_up: { label: '跟进计划', icon: 'event', color: '#3b82f6' },
+  payment_due: { label: '回款到期', icon: 'payments', color: '#f59e0b' },
+  contract_expiry: { label: '合同到期', icon: 'description', color: '#ef4444' },
+  milestone: { label: '里程碑', icon: 'flag', color: '#8b5cf6' },
 }
 
 const typeFilters = [
@@ -28,11 +29,24 @@ const typeFilters = [
   { value: 'milestone', label: '里程碑' },
 ]
 
+function getEventLink(e: CalendarEvent): string | null {
+  switch (e.type) {
+    case 'follow_up': return '/follow-ups'
+    case 'payment_due': return '/payments'
+    case 'contract_expiry': return '/renewals'
+    case 'milestone': return '/opportunities'
+    default: return null
+  }
+}
+
 export default function CalendarPage() {
   usePageTitle('日程日历')
+  const navigate = useNavigate()
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [currentDate, setCurrentDate] = useState(dayjs())
   const [typeFilter, setTypeFilter] = useState('')
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const fetchEvents = (d: Dayjs) => {
     dashboardApi.calendarEvents({ year: d.year(), month: d.month() + 1 })
@@ -49,6 +63,15 @@ export default function CalendarPage() {
     if (!eventsByDate[e.date]) eventsByDate[e.date] = []
     eventsByDate[e.date].push(e)
   })
+
+  const handleDateSelect = (value: Dayjs) => {
+    const dateStr = value.format('YYYY-MM-DD')
+    const dayEvents = eventsByDate[dateStr]
+    if (dayEvents && dayEvents.length > 0) {
+      setSelectedDate(dateStr)
+      setDrawerOpen(true)
+    }
+  }
 
   const dateCellRender = (value: Dayjs) => {
     const dateStr = value.format('YYYY-MM-DD')
@@ -69,6 +92,8 @@ export default function CalendarPage() {
       </ul>
     )
   }
+
+  const selectedEvents = selectedDate ? (eventsByDate[selectedDate] || []) : []
 
   // Summary stats
   const totalByType: Record<string, number> = {}
@@ -91,7 +116,8 @@ export default function CalendarPage() {
         {Object.entries(totalByType).map(([type, count]) => {
           const tl = typeLabels[type]
           return tl ? (
-            <div key={type} className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200 shadow-sm">
+            <div key={type} className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:border-primary/40 transition-colors"
+              onClick={() => setTypeFilter(typeFilter === type ? '' : type)}>
               <span className="material-symbols-outlined text-base text-slate-400">{tl.icon}</span>
               <span className="text-xs font-bold text-slate-700">{tl.label}</span>
               <span className="text-xs font-black text-primary">{count}</span>
@@ -108,6 +134,7 @@ export default function CalendarPage() {
         <Calendar
           value={currentDate}
           onPanelChange={(d) => setCurrentDate(d)}
+          onSelect={handleDateSelect}
           cellRender={(current, info) => {
             if (info.type === 'date') return dateCellRender(current)
             return null
@@ -122,6 +149,43 @@ export default function CalendarPage() {
         <div className="flex items-center gap-1.5"><Badge color="#ef4444" /><span className="text-xs text-slate-500">合同到期</span></div>
         <div className="flex items-center gap-1.5"><Badge color="#8b5cf6" /><span className="text-xs text-slate-500">里程碑</span></div>
       </div>
+
+      {/* Event Detail Drawer */}
+      <Drawer
+        title={selectedDate ? `${selectedDate} 日程 (${selectedEvents.length})` : '日程详情'}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        width={380}
+      >
+        {selectedEvents.length === 0 ? (
+          <div className="text-center py-8 text-slate-400 text-sm">该日无日程</div>
+        ) : (
+          <div className="space-y-3">
+            {selectedEvents.map((e) => {
+              const tl = typeLabels[e.type]
+              const link = getEventLink(e)
+              return (
+                <div key={e.id}
+                  className={`p-3 rounded-lg border border-slate-200 hover:border-primary/40 transition-colors ${link ? 'cursor-pointer' : ''}`}
+                  onClick={() => link && navigate(link)}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: e.color }} />
+                    {tl && <Tag color={tl.color} className="text-[10px] leading-tight">{tl.label}</Tag>}
+                  </div>
+                  <div className="text-sm font-semibold text-slate-800 mt-1">{e.title}</div>
+                  {link && (
+                    <div className="text-[11px] text-primary mt-1 flex items-center gap-0.5">
+                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>open_in_new</span>
+                      查看详情
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Drawer>
     </div>
   )
 }

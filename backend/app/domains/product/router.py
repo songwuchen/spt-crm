@@ -1,13 +1,17 @@
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.domains.product import service
+from app.dependencies import get_current_user
+from app.domains.product.models import Product
 from app.domains.product.schemas import (
     ProductCreate, ProductUpdate,
     ProductCategoryCreate, ProductCategoryUpdate,
 )
+from app.domains.quote.models import QuoteLine
 
 router = APIRouter(prefix="/api/v1/products", tags=["产品目录"])
 
@@ -96,7 +100,22 @@ async def list_products(
     _user=Depends(require_permissions("product:view")),
 ):
     items, total = await service.list_products(db, tenant_id, pageNo, pageSize, keyword, category_id, item_type, is_active)
-    return ok({"items": [_product_dict(p) for p in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+    # Batch usage count by matching item_code to product_code
+    codes = [p.product_code for p in items if p.product_code]
+    usage_map: dict[str, int] = {}
+    if codes:
+        rows = (await db.execute(
+            select(QuoteLine.item_code, func.count(QuoteLine.id).label("cnt"))
+            .where(QuoteLine.item_code.in_(codes))
+            .group_by(QuoteLine.item_code)
+        )).all()
+        usage_map = {r.item_code: r.cnt for r in rows}
+    result_items = []
+    for p in items:
+        d = _product_dict(p)
+        d["usage_count"] = usage_map.get(p.product_code, 0)
+        result_items.append(d)
+    return ok({"items": result_items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.get("/{product_id}")
@@ -142,3 +161,22 @@ async def delete_product(
 ):
     await service.delete_product(db, tenant_id, product_id, current_user)
     return ok()
+
+
+@router.get("/check-unique")
+async def check_unique_product(
+    product_code: str = Query(..., min_length=1),
+    exclude_id: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Check if a product code is unique within the tenant."""
+    q = select(Product.id).where(
+        Product.tenant_id == tenant_id,
+        Product.product_code == product_code,
+    )
+    if exclude_id:
+        q = q.where(Product.id != exclude_id)
+    exists = (await db.execute(q)).scalar() is not None
+    return ok({"unique": not exists})

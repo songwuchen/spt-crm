@@ -42,4 +42,8 @@ export const customerApi = {
     client.post<unknown, ApiResponse<any>>(`/api/v1/customers/${id}/shares`, data),
   deleteShare: (id: string, shareId: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/customers/${id}/shares/${shareId}`),
+  checkUnique: (field: string, value: string, excludeId?: string) =>
+    client.get<unknown, ApiResponse<{ unique: boolean }>>('/api/v1/customers/check-unique', {
+      params: { field, value, ...(excludeId ? { exclude_id: excludeId } : {}) },
+    }),
 }

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
-from app.common.error_codes import NOT_FOUND
+from app.common.error_codes import NOT_FOUND, VALIDATION_ERROR
 from app.domains.customer.models import Customer, Contact, CustomerRelation, AclShare
 from app.domains.customer.schemas import CustomerCreate, CustomerUpdate, ContactCreate, ContactUpdate
 from app.domains.audit.service import log_action
@@ -78,8 +78,38 @@ async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, da
 
 
 async def delete_customer(db: AsyncSession, tenant_id: str, customer_id: str, user: dict):
+    from app.domains.project.models import OpportunityProject
+    from app.domains.contract.models import Contract
+
     customer = await get_customer(db, tenant_id, customer_id)
     customer_name = customer.name
+
+    # Check for active projects
+    active_projects = (await db.execute(
+        select(func.count(OpportunityProject.id)).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.customer_id == customer_id,
+            OpportunityProject.status.in_(["active", "won"]),
+        )
+    )).scalar() or 0
+    if active_projects > 0:
+        raise BusinessException(code=VALIDATION_ERROR, message=f"该客户有 {active_projects} 个进行中/赢单商机，无法删除")
+
+    # Check for signed contracts
+    signed_contracts = (await db.execute(
+        select(func.count(Contract.id)).where(
+            Contract.tenant_id == tenant_id,
+            Contract.project_id.in_(
+                select(OpportunityProject.id).where(
+                    OpportunityProject.customer_id == customer_id,
+                    OpportunityProject.tenant_id == tenant_id,
+                )
+            ),
+            Contract.status == "signed",
+        )
+    )).scalar() or 0
+    if signed_contracts > 0:
+        raise BusinessException(code=VALIDATION_ERROR, message=f"该客户有 {signed_contracts} 份已签合同，无法删除")
 
     # Soft delete
     customer.is_deleted = True

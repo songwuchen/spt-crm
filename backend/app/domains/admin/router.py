@@ -1,12 +1,16 @@
+import io
+import json
+from datetime import date, datetime
 from typing import Optional, Union
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
-from app.database import gen_id
+from app.database import generate_uuid as gen_id
 from app.domains.admin import service
 from app.domains.admin.models import DocTemplate, EmailTemplate, CustomFieldDef
 from app.domains.admin.schemas import (
@@ -520,3 +524,111 @@ async def delete_custom_field(
         await db.delete(f)
         await db.commit()
     return ok(None)
+
+
+# ==================== Data Backup / Restore ====================
+
+def _model_to_dict(obj) -> dict:
+    """Convert SQLAlchemy model instance to JSON-serializable dict."""
+    mapper = sa_inspect(type(obj))
+    d = {}
+    for col in mapper.columns:
+        val = getattr(obj, col.key, None)
+        if isinstance(val, (datetime,)):
+            val = val.isoformat()
+        elif isinstance(val, (date,)):
+            val = str(val)
+        elif hasattr(val, '__json__'):
+            val = val.__json__()
+        d[col.key] = val
+    return d
+
+
+_BACKUP_TABLES: list[tuple[str, type]] = []
+
+
+def _init_backup_tables():
+    if _BACKUP_TABLES:
+        return
+    from app.domains.customer.models import Customer, Contact
+    from app.domains.lead.models import Lead
+    from app.domains.project.models import OpportunityProject
+    from app.domains.quote.models import Quote, QuoteLine
+    from app.domains.contract.models import Contract
+    from app.domains.solution.models import Solution
+    from app.domains.delivery.models import DeliveryMilestone
+    from app.domains.payment.models import PaymentPlan, Invoice, PaymentRecord
+    from app.domains.change.models import ChangeRequest
+    from app.domains.service_ticket.models import ServiceTicket, RenewalOpportunity
+    from app.domains.activity.models import Activity
+    from app.domains.product.models import Product
+    from app.domains.approval.models import ApprovalFlow, ApprovalTask
+    from app.domains.notification.models import Notification
+    from app.domains.dashboard.models import SalesTarget
+    _BACKUP_TABLES.extend([
+        ("customers", Customer),
+        ("contacts", Contact),
+        ("leads", Lead),
+        ("opportunities", OpportunityProject),
+        ("quotes", Quote),
+        ("quote_lines", QuoteLine),
+        ("contracts", Contract),
+        ("solutions", Solution),
+        ("delivery_milestones", DeliveryMilestone),
+        ("payment_plans", PaymentPlan),
+        ("invoices", Invoice),
+        ("payment_records", PaymentRecord),
+        ("change_requests", ChangeRequest),
+        ("service_tickets", ServiceTicket),
+        ("renewal_opportunities", RenewalOpportunity),
+        ("activities", Activity),
+        ("products", Product),
+        ("approval_flows", ApprovalFlow),
+        ("approval_tasks", ApprovalTask),
+        ("notifications", Notification),
+        ("sales_targets", SalesTarget),
+    ])
+
+
+@router.get("/api/v1/admin/backup")
+async def backup_data(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    _init_backup_tables()
+    result: dict = {"_meta": {
+        "version": "1.0",
+        "tenant_id": tenant_id,
+        "exported_at": datetime.utcnow().isoformat(),
+    }}
+    for table_name, model_cls in _BACKUP_TABLES:
+        rows = (await db.execute(
+            select(model_cls).where(model_cls.tenant_id == tenant_id)
+        )).scalars().all()
+        result[table_name] = [_model_to_dict(r) for r in rows]
+
+    buf = io.BytesIO(json.dumps(result, ensure_ascii=False, default=str).encode("utf-8"))
+    filename = f"backup_{tenant_id[:8]}_{date.today().isoformat()}.json"
+    return StreamingResponse(
+        buf,
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/api/v1/admin/backup/stats")
+async def backup_stats(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    from sqlalchemy import func
+    _init_backup_tables()
+    stats = {}
+    for table_name, model_cls in _BACKUP_TABLES:
+        cnt = (await db.execute(
+            select(func.count(model_cls.id)).where(model_cls.tenant_id == tenant_id)
+        )).scalar() or 0
+        stats[table_name] = cnt
+    return ok(stats)

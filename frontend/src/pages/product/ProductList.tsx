@@ -11,6 +11,7 @@ interface ProductItem {
   item_type: string | null; spec: string | null; unit: string | null
   unit_price: number | null; cost_price: number | null; leadtime_days: number | null
   is_active: boolean; remark: string | null; created_at: string
+  usage_count?: number
 }
 
 interface Category {
@@ -56,6 +57,18 @@ export default function ProductList() {
   const handleSearch = () => { setPage(1); fetchProducts(1) }
 
   const catMap = Object.fromEntries(categories.map(c => [c.id, c.name]))
+
+  // Build category tree for display
+  const getCatPath = (catId: string | null): string => {
+    if (!catId) return '-'
+    const cat = categories.find(c => c.id === catId)
+    if (!cat) return catMap[catId] || catId
+    if (cat.parent_id) {
+      const parent = categories.find(c => c.id === cat.parent_id)
+      return parent ? `${parent.name} / ${cat.name}` : cat.name
+    }
+    return cat.name
+  }
 
   const handleProductSubmit = async () => {
     const values = await form.validateFields()
@@ -106,8 +119,8 @@ export default function ProductList() {
       render: (v) => <span className="font-mono text-xs font-bold text-primary">{v}</span> },
     { title: '名称', dataIndex: 'name', width: 200,
       render: (v) => <span className="font-semibold text-slate-800">{v}</span> },
-    { title: '分类', dataIndex: 'category_id', width: 100,
-      render: (v) => v ? <Tag>{catMap[v] || v}</Tag> : '-' },
+    { title: '分类', dataIndex: 'category_id', width: 140,
+      render: (v) => v ? <span className="text-xs text-slate-600">{getCatPath(v)}</span> : '-' },
     { title: '类型', dataIndex: 'item_type', width: 80,
       render: (v) => v ? <Tag color="blue">{itemTypeLabels[v] || v}</Tag> : '-' },
     { title: '规格', dataIndex: 'spec', width: 150, ellipsis: true },
@@ -117,6 +130,8 @@ export default function ProductList() {
     { title: '成本价', dataIndex: 'cost_price', width: 100, align: 'right',
       render: (v) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
     { title: '交期(天)', dataIndex: 'leadtime_days', width: 80 },
+    { title: '引用', dataIndex: 'usage_count', width: 60, align: 'center',
+      render: (v) => v ? <span className="text-xs font-bold text-amber-600">{v}次</span> : <span className="text-slate-300">-</span> },
     { title: '状态', dataIndex: 'is_active', width: 70,
       render: (v) => v ? <Tag color="success">启用</Tag> : <Tag>停用</Tag> },
     { title: '', key: 'actions', width: 100,
@@ -179,6 +194,8 @@ export default function ProductList() {
                   columns={[
                     { title: '分类名称', dataIndex: 'name', width: 200,
                       render: (v: string) => <span className="font-semibold text-slate-800">{v}</span> },
+                    { title: '上级分类', dataIndex: 'parent_id', width: 140,
+                      render: (v: string | null) => v ? <span className="text-xs text-slate-600">{catMap[v] || '-'}</span> : <span className="text-slate-300">顶级</span> },
                     { title: '描述', dataIndex: 'description', width: 300 },
                     { title: '排序', dataIndex: 'sort_order', width: 80 },
                     { title: '', key: 'actions', width: 100,
@@ -256,6 +273,10 @@ export default function ProductList() {
         <Form form={catForm} layout="vertical">
           <Form.Item name="name" label="分类名称" rules={[{ required: true, message: '请输入分类名称' }]}>
             <Input placeholder="请输入分类名称" />
+          </Form.Item>
+          <Form.Item name="parent_id" label="上级分类">
+            <Select placeholder="无（顶级分类）" allowClear
+              options={categories.filter(c => c.id !== editingCat?.id).map(c => ({ label: c.name, value: c.id }))} />
           </Form.Item>
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={2} placeholder="分类描述" />

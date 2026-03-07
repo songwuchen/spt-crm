@@ -40,6 +40,8 @@ vi.mock('@/api/settings', () => ({
     createCustomField: vi.fn(),
     updateCustomField: vi.fn(),
     deleteCustomField: vi.fn(),
+    backupStats: vi.fn(),
+    backupDownloadUrl: vi.fn(),
   },
 }))
 
@@ -50,6 +52,10 @@ vi.mock('@/api/user', () => ({
 
 vi.mock('@/api/client', () => ({
   default: { get: vi.fn() },
+}))
+
+vi.mock('@/utils/download', () => ({
+  downloadFile: vi.fn(),
 }))
 
 import SettingsPage from '../admin/settings/SettingsPage'
@@ -96,6 +102,8 @@ describe('SettingsPage', () => {
     ;(settingsApi.listDocTemplates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(settingsApi.listEmailTemplates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(settingsApi.listCustomFields as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
+    ;(settingsApi.backupStats as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} })
+    ;(settingsApi.backupDownloadUrl as ReturnType<typeof vi.fn>).mockReturnValue('/api/v1/admin/backup')
     ;(roleApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [{ id: 'r-1', code: 'admin', name: '管理员' }] })
     ;(client.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [{ id: 'u-1', real_name: 'Admin', username: 'admin' }] } })
   })

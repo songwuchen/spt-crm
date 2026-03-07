@@ -124,10 +124,12 @@ async def delete_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, user: 
 
 # ==================== RenewalOpportunity ====================
 
-async def list_renewals(db: AsyncSession, tenant_id: str, customer_id: str | None = None):
+async def list_renewals(db: AsyncSession, tenant_id: str, customer_id: str | None = None, status: str | None = None):
     q = select(RenewalOpportunity).where(RenewalOpportunity.tenant_id == tenant_id)
     if customer_id:
         q = q.where(RenewalOpportunity.customer_id == customer_id)
+    if status:
+        q = q.where(RenewalOpportunity.status == status)
     result = await db.execute(q.order_by(RenewalOpportunity.created_at.desc()))
     return result.scalars().all()
 
@@ -142,10 +144,14 @@ async def get_renewal(db: AsyncSession, tenant_id: str, renewal_id: str) -> Rene
 
 
 async def create_renewal(db: AsyncSession, tenant_id: str, data: RenewalCreate, user: dict) -> RenewalOpportunity:
+    dump = data.model_dump(exclude_unset=True)
+    if "owner_id" not in dump:
+        dump["owner_id"] = user["sub"]
+    if "owner_name" not in dump:
+        dump["owner_name"] = user.get("real_name") or user.get("username")
     renewal = RenewalOpportunity(
         id=generate_uuid(), tenant_id=tenant_id,
-        owner_id=user["sub"], owner_name=user.get("real_name") or user.get("username"),
-        **data.model_dump(exclude_unset=True),
+        **dump,
     )
     db.add(renewal)
     await db.commit()

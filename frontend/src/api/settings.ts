@@ -71,4 +71,8 @@ export const settingsApi = {
     client.put(`/api/v1/custom-fields/${id}`, data),
   deleteCustomField: (id: string) =>
     client.delete(`/api/v1/custom-fields/${id}`),
+
+  // Backup
+  backupStats: () => client.get('/api/v1/admin/backup/stats'),
+  backupDownloadUrl: () => '/api/v1/admin/backup',
 }

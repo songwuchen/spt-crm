@@ -29,6 +29,8 @@ class RenewalCreate(BaseModel):
     close_date_expect: Optional[str] = None
     probability: Optional[int] = None
     related_asset_json: Optional[dict] = None
+    owner_id: Optional[str] = None
+    owner_name: Optional[str] = None
     remark: Optional[str] = None
 
 
