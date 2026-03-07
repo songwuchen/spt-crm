@@ -61,6 +61,8 @@ const MobileQuoteDetail = lazy(() => import('@/pages/mobile/MobileQuoteDetail'))
 const MobileReports = lazy(() => import('@/pages/mobile/MobileReports'))
 const MobileKanban = lazy(() => import('@/pages/mobile/MobileKanban'))
 const MobileProducts = lazy(() => import('@/pages/mobile/MobileProducts'))
+const MobileSearch = lazy(() => import('@/pages/mobile/MobileSearch'))
+const MobileLeads = lazy(() => import('@/pages/mobile/MobileLeads'))
 const NotificationCenter = lazy(() => import('@/pages/notification/NotificationCenter'))
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
 const ProductList = lazy(() => import('@/pages/product/ProductList'))
@@ -159,6 +161,7 @@ export const router = createBrowserRouter([
       { path: 'service-tickets/:id', element: <Lazy><MobileServiceTicketDetail /></Lazy> },
       { path: 'notifications', element: <Lazy><MobileNotifications /></Lazy> },
       { path: 'calendar', element: <Lazy><MobileCalendar /></Lazy> },
+      { path: 'leads', element: <Lazy><MobileLeads /></Lazy> },
       { path: 'leads/new', element: <Lazy><MobileLeadForm /></Lazy> },
       { path: 'leads/:id', element: <Lazy><MobileLeadDetail /></Lazy> },
       { path: 'tasks', element: <Lazy><MobileTasks /></Lazy> },
@@ -166,6 +169,7 @@ export const router = createBrowserRouter([
       { path: 'reports', element: <Lazy><MobileReports /></Lazy> },
       { path: 'kanban', element: <Lazy><MobileKanban /></Lazy> },
       { path: 'products', element: <Lazy><MobileProducts /></Lazy> },
+      { path: 'search', element: <Lazy><MobileSearch /></Lazy> },
       { path: 'profile', element: <Lazy><MobileProfile /></Lazy> },
     ],
   },

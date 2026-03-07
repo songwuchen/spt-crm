@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import NotificationBell from '@/components/NotificationBell'
 import client from '@/api/client'
 import { t, useLocale, localeLabels, type LocaleCode } from '@/locales'
+import { useThemeStore } from '@/stores/useThemeStore'
 
 interface SearchResult {
   type: string
@@ -28,6 +29,7 @@ export default function Header() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore()
   const { user, logout } = useAuthStore()
   const { locale, setLocale } = useLocale()
+  const { theme, setTheme } = useThemeStore()
   const navigate = useNavigate()
   const [searchText, setSearchText] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -66,10 +68,43 @@ export default function Header() {
     }
   }
 
+  const [activeIdx, setActiveIdx] = useState(-1)
+
   const handleResultClick = (r: SearchResult) => {
     navigate(r.url)
     setShowResults(false)
     setSearchText('')
+    setActiveIdx(-1)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showResults || results.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIdx((prev) => (prev + 1) % results.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIdx((prev) => (prev <= 0 ? results.length - 1 : prev - 1))
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault()
+      handleResultClick(results[activeIdx])
+    } else if (e.key === 'Escape') {
+      setShowResults(false)
+      setActiveIdx(-1)
+    }
+  }
+
+  const highlightMatch = (text: string, query: string) => {
+    if (!query.trim()) return text
+    const idx = text.toLowerCase().indexOf(query.toLowerCase())
+    if (idx === -1) return text
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark className="bg-yellow-200 text-inherit rounded-sm px-0.5">{text.slice(idx, idx + query.length)}</mark>
+        {text.slice(idx + query.length)}
+      </>
+    )
   }
 
   // Close on outside click
@@ -104,29 +139,46 @@ export default function Header() {
             value={searchText}
             onChange={(e) => handleSearchChange(e.target.value)}
             onFocus={() => { if (results.length > 0) setShowResults(true) }}
+            onKeyDown={handleKeyDown}
           />
           {showResults && results.length > 0 && (
             <div
               className="absolute left-0 top-full mt-1 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden"
               style={{ width: 'min(400px, calc(100vw - 2rem))', maxHeight: 400, zIndex: 1000 }}
             >
-              {results.map((r) => {
-                const t = typeIcons[r.type] || typeIcons.customer
+              {/* Group by type */}
+              {Object.entries(
+                results.reduce<Record<string, SearchResult[]>>((acc, r) => {
+                  (acc[r.type] ||= []).push(r); return acc
+                }, {})
+              ).map(([type, items]) => {
+                const ti = typeIcons[type] || typeIcons.customer
                 return (
-                  <div
-                    key={`${r.type}-${r.id}`}
-                    onClick={() => handleResultClick(r)}
-                    className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: `${t.color}15` }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: t.color }}>{t.icon}</span>
+                  <div key={type}>
+                    <div className="px-4 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                      {ti.label}（{items.length}）
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-slate-800 truncate">{r.title}</div>
-                      {r.subtitle && <div className="text-[11px] text-slate-400 truncate">{r.subtitle}</div>}
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{t.label}</span>
+                    {items.map((r) => {
+                      const globalIdx = results.indexOf(r)
+                      return (
+                        <div
+                          key={`${r.type}-${r.id}`}
+                          onClick={() => handleResultClick(r)}
+                          className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors ${
+                            globalIdx === activeIdx ? 'bg-primary/5' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                            style={{ background: `${ti.color}15` }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 18, color: ti.color }}>{ti.icon}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-slate-800 truncate">{highlightMatch(r.title, searchText)}</div>
+                            {r.subtitle && <div className="text-[11px] text-slate-400 truncate">{highlightMatch(r.subtitle, searchText)}</div>}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )
               })}
@@ -161,6 +213,16 @@ export default function Header() {
             <span className="hidden sm:inline">{locale === 'zh-CN' ? '中文' : 'EN'}</span>
           </button>
         </Dropdown>
+
+        <button
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+          title={theme === 'dark' ? '浅色模式' : '深色模式'}
+        >
+          <span className="material-symbols-outlined text-lg">
+            {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+          </span>
+        </button>
 
         <NotificationBell />
 

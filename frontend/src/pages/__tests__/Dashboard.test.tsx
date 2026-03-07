@@ -65,6 +65,7 @@ vi.mock('@/api/approval', () => ({
   approvalApi: {
     myPending: vi.fn().mockResolvedValue({ data: [] }),
     decide: vi.fn(),
+    statistics: vi.fn().mockResolvedValue({ data: null }),
   },
 }))
 

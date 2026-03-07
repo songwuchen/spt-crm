@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, Tabs, message } from 'antd'
-import { CopyOutlined, CheckCircleOutlined, AuditOutlined, RobotOutlined } from '@ant-design/icons'
+import { CopyOutlined, CheckCircleOutlined, AuditOutlined, RobotOutlined, PrinterOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { contractApi } from '@/api/contract'
 import { approvalApi } from '@/api/approval'
@@ -152,6 +152,7 @@ export default function ContractDetail() {
               } catch { message.error('创建续约失败') }
             }}>发起续约</Button>
           )}
+          <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
           <Button onClick={() => navigate(`/opportunities/${projectId}`)}>返回商机</Button>
         </Space>
       </div>

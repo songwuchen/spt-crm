@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Button, Table, Input, Select, Tag, Modal, Form, InputNumber, Space, Switch, message, Tabs } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons'
 import { productApi } from '@/api/product'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { quoteLineItemTypeLabels as itemTypeLabels } from '@/constants/labels'
 import type { ColumnsType } from 'antd/es/table'
+import ImportExcelModal from '@/components/ImportExcelModal'
 
 interface ProductItem {
   id: string; product_code: string; name: string; category_id: string | null
@@ -33,6 +34,7 @@ export default function ProductList() {
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null)
   const [form] = Form.useForm()
 
+  const [importModal, setImportModal] = useState(false)
   const [catModal, setCatModal] = useState(false)
   const [editingCat, setEditingCat] = useState<Category | null>(null)
   const [catForm] = Form.useForm()
@@ -166,6 +168,7 @@ export default function ProductList() {
                 <Select placeholder="分类" allowClear style={{ width: 140 }} value={filterCat} onChange={setFilterCat}
                   options={categories.map(c => ({ label: c.name, value: c.id }))} />
                 <div className="flex-1" />
+                <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>导入</Button>
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => {
                   setEditingProduct(null); form.resetFields(); form.setFieldsValue({ is_active: true }); setProductModal(true)
                 }}>新建产品</Button>
@@ -286,6 +289,15 @@ export default function ProductList() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <ImportExcelModal
+        open={importModal}
+        onClose={() => setImportModal(false)}
+        onSuccess={() => fetchProducts()}
+        apiUrl="/api/v1/products/import/excel"
+        title="导入产品"
+        templateColumns={['产品编码', '名称', '类型', '规格', '单位', '单价', '成本价', '交期(天)']}
+      />
     </div>
   )
 }

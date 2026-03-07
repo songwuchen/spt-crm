@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Modal, Input, Select, message } from 'antd'
 import { dashboardApi } from '@/api/dashboard'
@@ -76,7 +76,7 @@ interface LeaderItem {
   active_count: number; pipeline_amount: number
 }
 
-function KpiCard({ icon, label, value, trend, trendType }: {
+const KpiCard = memo(function KpiCard({ icon, label, value, trend, trendType }: {
   icon: string; label: string; value: number | string
   trend?: string; trendType?: 'up' | 'down' | 'stable'
 }) {
@@ -103,9 +103,9 @@ function KpiCard({ icon, label, value, trend, trendType }: {
       </div>
     </div>
   )
-}
+})
 
-function TaskRow({ icon, iconColor, label, count, urgent }: {
+const TaskRow = memo(function TaskRow({ icon, iconColor, label, count, urgent }: {
   icon: string; iconColor: string; label: string; count: number; urgent?: boolean
 }) {
   return (
@@ -117,7 +117,7 @@ function TaskRow({ icon, iconColor, label, count, urgent }: {
       <span className={`text-sm font-bold ${urgent ? 'text-red-600' : 'text-slate-900'}`}>{count}</span>
     </div>
   )
-}
+})
 
 const stageColors = ['bg-blue-500', 'bg-cyan-500', 'bg-teal-500', 'bg-emerald-500', 'bg-green-500', 'bg-lime-500']
 
@@ -148,6 +148,7 @@ const DASHBOARD_CARDS: DashboardCard[] = [
 ]
 
 const STORAGE_KEY = 'dashboard_card_visibility'
+const ORDER_STORAGE_KEY = 'dashboard_card_order'
 
 function loadCardVisibility(): Record<string, boolean> {
   try {
@@ -161,6 +162,24 @@ function loadCardVisibility(): Record<string, boolean> {
 
 function saveCardVisibility(v: Record<string, boolean>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(v))
+}
+
+function loadCardOrder(): string[] {
+  try {
+    const saved = localStorage.getItem(ORDER_STORAGE_KEY)
+    if (saved) {
+      const order = JSON.parse(saved) as string[]
+      const allKeys = DASHBOARD_CARDS.map((c) => c.key)
+      // Ensure all keys are present (handle new cards)
+      const missing = allKeys.filter((k) => !order.includes(k))
+      return [...order.filter((k) => allKeys.includes(k)), ...missing]
+    }
+  } catch {}
+  return DASHBOARD_CARDS.map((c) => c.key)
+}
+
+function saveCardOrder(order: string[]) {
+  localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(order))
 }
 
 export default function Dashboard() {
@@ -181,7 +200,9 @@ export default function Dashboard() {
   const [refreshInterval, setRefreshInterval] = useState(0)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [cardVisibility, setCardVisibility] = useState<Record<string, boolean>>(loadCardVisibility)
+  const [cardOrder, setCardOrder] = useState<string[]>(loadCardOrder)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [dragKey, setDragKey] = useState<string | null>(null)
   const isVisible = (key: string) => cardVisibility[key] !== false
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const user = useAuthStore((s) => s.user)
@@ -287,405 +308,469 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Personal Overview */}
-      {isVisible('myOverview') && myOv && (
-        <div className="bg-gradient-to-r from-primary/5 to-blue-50 rounded-xl border border-primary/10 p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-primary">person</span>
-            <h3 className="text-sm font-bold text-slate-900">我的概览</h3>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-black text-slate-900">{myOv.my_customer_count}</div>
-              <div className="text-xs text-slate-500 mt-1">我的客户</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-black text-slate-900">{myOv.my_active_projects}</div>
-              <div className="text-xs text-slate-500 mt-1">进行中商机</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-black text-primary">{myOv.my_pipeline > 0 ? `¥${(myOv.my_pipeline / 10000).toFixed(1)}万` : '¥0'}</div>
-              <div className="text-xs text-slate-500 mt-1">我的管线</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-black text-emerald-600">{myOv.my_won_month}</div>
-              <div className="text-xs text-slate-500 mt-1">本月赢单</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-black text-amber-600">{myOv.my_pending_leads}</div>
-              <div className="text-xs text-slate-500 mt-1">待跟进线索</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-black text-red-500">{myOv.my_open_tickets}</div>
-              <div className="text-xs text-slate-500 mt-1">处理中工单</div>
-            </div>
-          </div>
+      {/* Ordered Dashboard Cards */}
+      {cardOrder.map((cardKey) => {
+        if (!isVisible(cardKey)) return null
 
-          {/* Stalled projects & contracts */}
-          {(myOv.stalled_projects.length > 0 || myOv.expiring_contracts.length > 0) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-primary/10">
-              {myOv.stalled_projects.length > 0 && (
-                <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">待跟进商机</div>
-                  <div className="space-y-1.5">
-                    {myOv.stalled_projects.map((p) => (
-                      <div key={p.id} onClick={() => navigate(`/opportunities/${p.id}`)}
-                        className="flex items-center gap-2 p-2 rounded-lg bg-white/70 border border-amber-100 cursor-pointer hover:shadow-sm transition-shadow">
-                        <span className="material-symbols-outlined text-amber-500 text-base">schedule</span>
-                        <span className="text-sm font-medium text-slate-800 flex-1 truncate">{p.name}</span>
-                        <span className="text-xs font-bold text-amber-600">{p.days_stalled}天未更新</span>
+        const dragProps = {
+          draggable: true,
+          onDragStart: (e: React.DragEvent) => { setDragKey(cardKey); e.dataTransfer.effectAllowed = 'move' },
+          onDragOver: (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' },
+          onDrop: (e: React.DragEvent) => {
+            e.preventDefault()
+            if (!dragKey || dragKey === cardKey) return
+            const newOrder = [...cardOrder]
+            const fromIdx = newOrder.indexOf(dragKey)
+            const toIdx = newOrder.indexOf(cardKey)
+            newOrder.splice(fromIdx, 1)
+            newOrder.splice(toIdx, 0, dragKey)
+            setCardOrder(newOrder)
+            saveCardOrder(newOrder)
+            setDragKey(null)
+          },
+          onDragEnd: () => setDragKey(null),
+        }
+
+        switch (cardKey) {
+          case 'myOverview':
+            if (!myOv) return null
+            return (
+              <div key={cardKey} {...dragProps} className={`mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
+                <div className="bg-gradient-to-r from-primary/5 to-blue-50 rounded-xl border border-primary/10 p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="material-symbols-outlined text-primary">person</span>
+                    <h3 className="text-sm font-bold text-slate-900">我的概览</h3>
+                    <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-slate-900">{myOv.my_customer_count}</div>
+                      <div className="text-xs text-slate-500 mt-1">我的客户</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-slate-900">{myOv.my_active_projects}</div>
+                      <div className="text-xs text-slate-500 mt-1">进行中商机</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-primary">{myOv.my_pipeline > 0 ? `¥${(myOv.my_pipeline / 10000).toFixed(1)}万` : '¥0'}</div>
+                      <div className="text-xs text-slate-500 mt-1">我的管线</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-emerald-600">{myOv.my_won_month}</div>
+                      <div className="text-xs text-slate-500 mt-1">本月赢单</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-amber-600">{myOv.my_pending_leads}</div>
+                      <div className="text-xs text-slate-500 mt-1">待跟进线索</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-red-500">{myOv.my_open_tickets}</div>
+                      <div className="text-xs text-slate-500 mt-1">处理中工单</div>
+                    </div>
+                  </div>
+                  {(myOv.stalled_projects.length > 0 || myOv.expiring_contracts.length > 0) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-primary/10">
+                      {myOv.stalled_projects.length > 0 && (
+                        <div>
+                          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">待跟进商机</div>
+                          <div className="space-y-1.5">
+                            {myOv.stalled_projects.map((p) => (
+                              <div key={p.id} onClick={() => navigate(`/opportunities/${p.id}`)}
+                                className="flex items-center gap-2 p-2 rounded-lg bg-white/70 border border-amber-100 cursor-pointer hover:shadow-sm transition-shadow">
+                                <span className="material-symbols-outlined text-amber-500 text-base">schedule</span>
+                                <span className="text-sm font-medium text-slate-800 flex-1 truncate">{p.name}</span>
+                                <span className="text-xs font-bold text-amber-600">{p.days_stalled}天未更新</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {myOv.expiring_contracts.length > 0 && (
+                        <div>
+                          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">我的合同</div>
+                          <div className="space-y-1.5">
+                            {myOv.expiring_contracts.map((c) => (
+                              <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/70 border border-slate-100">
+                                <span className="material-symbols-outlined text-blue-500 text-base">description</span>
+                                <span className="text-sm font-medium text-slate-800 flex-1 truncate">{c.contract_no}</span>
+                                <span className="text-xs text-slate-500">¥{c.amount_total?.toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+
+          case 'kpiCards':
+            return (
+              <div key={cardKey} {...dragProps} className={`mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                  <KpiCard icon="business" label="客户总数" value={stats.customer_total}
+                    trend={trends ? (trends.customers.diff >= 0 ? `+${trends.customers.diff}` : `${trends.customers.diff}`) : undefined}
+                    trendType={trends ? (trends.customers.diff > 0 ? 'up' : trends.customers.diff < 0 ? 'down' : 'stable') : undefined} />
+                  <KpiCard icon="trending_up" label="线索总数" value={stats.lead_total}
+                    trend={trends ? (trends.leads.diff >= 0 ? `+${trends.leads.diff}` : `${trends.leads.diff}`) : undefined}
+                    trendType={trends ? (trends.leads.diff > 0 ? 'up' : trends.leads.diff < 0 ? 'down' : 'stable') : undefined} />
+                  <KpiCard icon="person_add" label="本月新增客户" value={stats.monthly_new_customers}
+                    trend={trends ? `环比${trends.customers.pct >= 0 ? '+' : ''}${trends.customers.pct}%` : undefined}
+                    trendType={trends ? (trends.customers.pct > 0 ? 'up' : trends.customers.pct < 0 ? 'down' : 'stable') : undefined} />
+                  <KpiCard icon="schedule" label="待跟进线索" value={stats.pending_leads}
+                    trend={stats.pending_leads > 5 ? '需关注' : '正常'} trendType={stats.pending_leads > 5 ? 'down' : 'stable'} />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
+                  <KpiCard icon="rocket_launch" label="商机总数" value={stats.project_total} />
+                  <KpiCard icon="play_circle" label="进行中商机" value={stats.active_projects}
+                    trend={stats.active_projects > 0 ? '活跃' : ''} trendType="up" />
+                  <KpiCard icon="payments" label="管线总额" value={stats.pipeline_value > 0 ? `¥${(stats.pipeline_value / 10000).toFixed(0)}万` : '¥0'} />
+                  <KpiCard icon="handshake" label="合同/报价" value={`${stats.contract_total}/${stats.quote_total}`} />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <KpiCard icon="flag" label="交付里程碑" value={stats.milestone_total}
+                    trend={stats.milestone_delayed > 0 ? `${stats.milestone_delayed} 延期` : ''} trendType={stats.milestone_delayed > 0 ? 'down' : 'stable'} />
+                  <KpiCard icon="receipt_long" label="发票总数" value={stats.invoice_total} />
+                  <KpiCard icon="swap_horiz" label="变更单" value={stats.change_total} />
+                  <KpiCard icon="confirmation_number" label="售后工单" value={stats.ticket_total}
+                    trend={stats.ticket_open > 0 ? `${stats.ticket_open} 待处理` : '全部完结'} trendType={stats.ticket_open > 0 ? 'down' : 'stable'} />
+                </div>
+              </div>
+            )
+
+          case 'approvals':
+            if (pendingApprovals.length === 0) return null
+            return (
+              <div key={cardKey} {...dragProps} className={`mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="material-symbols-outlined text-amber-500">pending_actions</span>
+                    <h3 className="text-sm font-bold text-slate-900">待我审批</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">{pendingApprovals.length}</span>
+                    <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
+                  </div>
+                  <div className="space-y-2">
+                    {pendingApprovals.map((item) => (
+                      <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                        <span className="material-symbols-outlined text-amber-500">task_alt</span>
+                        <div className="flex-1">
+                          <div className="text-sm font-bold text-slate-800">{item.flow?.title || item.flow?.biz_type}</div>
+                          <div className="text-xs text-slate-500">
+                            提交人: {item.flow?.submitted_by_name} · 节点 {item.node_order}/{item.flow?.total_nodes}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleApprove(item.id)}
+                            className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors">
+                            通过
+                          </button>
+                          <button onClick={() => handleReject(item.id)}
+                            className="px-3 py-1.5 bg-white text-red-500 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">
+                            驳回
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              )}
-              {myOv.expiring_contracts.length > 0 && (
-                <div>
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">我的合同</div>
-                  <div className="space-y-1.5">
-                    {myOv.expiring_contracts.map((c) => (
-                      <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/70 border border-slate-100">
-                        <span className="material-symbols-outlined text-blue-500 text-base">description</span>
-                        <span className="text-sm font-medium text-slate-800 flex-1 truncate">{c.contract_no}</span>
-                        <span className="text-xs text-slate-500">¥{c.amount_total?.toLocaleString()}</span>
+              </div>
+            )
+
+          case 'alerts':
+            if (alerts.length === 0) return null
+            return (
+              <div key={cardKey} {...dragProps} className={`mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="material-symbols-outlined text-red-500">notifications_active</span>
+                    <h3 className="text-sm font-bold text-slate-900">风险预警</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-bold">{alerts.length}</span>
+                    <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {alerts.slice(0, 6).map((a, i) => {
+                      const iconMap: Record<string, { icon: string; color: string }> = {
+                        stalled: { icon: 'pause_circle', color: 'text-amber-500' },
+                        milestone_delayed: { icon: 'event_busy', color: 'text-red-500' },
+                        high_risk: { icon: 'warning', color: 'text-red-600' },
+                        urgent_ticket: { icon: 'support_agent', color: 'text-orange-500' },
+                      }
+                      const t = iconMap[a.type] || iconMap.stalled
+                      return (
+                        <div key={i} onClick={() => {
+                          if (a.biz_type === 'project') navigate(`/opportunities/${a.biz_id}`)
+                          else if (a.biz_type === 'service_ticket') navigate(`/service-tickets/${a.biz_id}`)
+                          else if (a.biz_type === 'approval_flow') navigate('/approvals')
+                        }} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:shadow-sm transition-shadow ${
+                          a.severity === 'critical' ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'
+                        }`}>
+                          <span className={`material-symbols-outlined ${t.color} mt-0.5`}>{t.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-bold text-slate-800 truncate">{a.title}</div>
+                            <div className="text-[11px] text-slate-500 truncate">{a.content}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )
+
+          case 'funnelPayment':
+            return (
+              <div key={cardKey} {...dragProps} className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="material-symbols-outlined text-blue-500">filter_alt</span>
+                    <h3 className="text-sm font-bold text-slate-900">销售漏斗</h3>
+                    <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
+                  </div>
+                  {funnel.length > 0 ? (
+                    <FunnelChartPanel funnel={funnel} />
+                  ) : (
+                    <div className="text-center text-slate-400 text-sm py-8">暂无漏斗数据</div>
+                  )}
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="material-symbols-outlined text-emerald-500">account_balance</span>
+                    <h3 className="text-sm font-bold text-slate-900">回款概览</h3>
+                  </div>
+                  {paymentOv ? (
+                    <div>
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+                          <div className="text-xs text-emerald-600 font-bold mb-1">已回款</div>
+                          <div className="text-xl font-black text-emerald-700">¥{(paymentOv.total_received / 10000).toFixed(1)}万</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+                          <div className="text-xs text-blue-600 font-bold mb-1">计划总额</div>
+                          <div className="text-xl font-black text-blue-700">¥{(paymentOv.total_planned / 10000).toFixed(1)}万</div>
+                        </div>
                       </div>
-                    ))}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="text-center p-2 rounded-lg bg-slate-50">
+                          <div className="text-lg font-black text-slate-900">{paymentOv.collection_rate}%</div>
+                          <div className="text-[10px] text-slate-500">回款率</div>
+                        </div>
+                        <div className="text-center p-2 rounded-lg bg-red-50">
+                          <div className="text-lg font-black text-red-600">{paymentOv.overdue_count}</div>
+                          <div className="text-[10px] text-slate-500">逾期笔数</div>
+                        </div>
+                        <div className="text-center p-2 rounded-lg bg-amber-50">
+                          <div className="text-lg font-black text-amber-600">¥{(paymentOv.upcoming_30d_amount / 10000).toFixed(1)}万</div>
+                          <div className="text-[10px] text-slate-500">30天内到期</div>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-slate-500">回款进度</span>
+                          <span className="text-xs font-bold text-emerald-600">{paymentOv.collection_rate}%</span>
+                        </div>
+                        <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full transition-all"
+                            style={{ width: `${Math.min(paymentOv.collection_rate, 100)}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center text-slate-400 text-sm py-8">暂无回款数据</div>
+                  )}
+                </div>
+              </div>
+            )
+
+          case 'trendWinLoss':
+            return (
+              <div key={cardKey} {...dragProps} className={`grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
+                <div className="lg:col-span-2">
+                  <TrendChart />
+                </div>
+                <WinLossChart />
+              </div>
+            )
+
+          case 'collectionRevenue':
+            return (
+              <div key={cardKey} {...dragProps} className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
+                <CollectionChart />
+                <RevenueChart />
+              </div>
+            )
+
+          case 'approvalSla':
+            if (!approvalStats) return null
+            return (
+              <div key={cardKey} {...dragProps} className={`mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="material-symbols-outlined text-indigo-500">verified</span>
+                    <h3 className="text-sm font-bold text-slate-900">审批SLA概览</h3>
+                    <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                    <div className="text-center p-3 rounded-lg bg-slate-50">
+                      <div className="text-2xl font-black text-slate-900">{approvalStats.total_flows}</div>
+                      <div className="text-[10px] text-slate-500 font-bold">审批总数</div>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-emerald-50">
+                      <div className="text-2xl font-black text-emerald-600">{Math.round(approvalStats.approval_rate * 100)}%</div>
+                      <div className="text-[10px] text-slate-500 font-bold">通过率</div>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-blue-50">
+                      <div className="text-2xl font-black text-blue-600">{approvalStats.avg_approval_hours}h</div>
+                      <div className="text-[10px] text-slate-500 font-bold">平均审批时长</div>
+                    </div>
+                    <div className={`text-center p-3 rounded-lg ${approvalStats.sla_compliance_rate >= 0.9 ? 'bg-emerald-50' : approvalStats.sla_compliance_rate >= 0.7 ? 'bg-amber-50' : 'bg-red-50'}`}>
+                      <div className={`text-2xl font-black ${approvalStats.sla_compliance_rate >= 0.9 ? 'text-emerald-600' : approvalStats.sla_compliance_rate >= 0.7 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {Math.round(approvalStats.sla_compliance_rate * 100)}%
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-bold">SLA达标率</div>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-amber-50">
+                      <div className="text-2xl font-black text-amber-600">{approvalStats.status_breakdown.pending || 0}</div>
+                      <div className="text-[10px] text-slate-500 font-bold">待处理</div>
+                    </div>
+                  </div>
+                  {approvalStats.top_approvers.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">审批人排行</div>
+                      <div className="flex flex-wrap gap-2">
+                        {approvalStats.top_approvers.slice(0, 5).map((a, i) => (
+                          <span key={i} className="px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-lg text-xs">
+                            <span className="font-bold text-slate-700">{a.name}</span>
+                            <span className="text-slate-400 ml-1">{a.count}次</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+
+          case 'contractExpiry':
+            return (
+              <div key={cardKey} {...dragProps} className={`mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
+                <ContractExpiryPanel />
+              </div>
+            )
+
+          case 'tasksActionsLeaderboard':
+            return (
+              <div key={cardKey} {...dragProps} className={`grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary">calendar_today</span>
+                      <h3 className="text-sm font-bold text-slate-900">今日任务</h3>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">
+                      {stats.pending_leads + stats.monthly_new_customers} 项
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    <TaskRow icon="chat" iconColor="text-blue-600" label="客户跟进" count={stats.pending_leads} />
+                    <TaskRow icon="person_add" iconColor="text-emerald-600" label="新客户建档" count={stats.monthly_new_customers} />
+                    <TaskRow icon="warning" iconColor="text-red-600" label="逾期待办" count={paymentOv?.overdue_count || 0} urgent={!!(paymentOv?.overdue_count)} />
                   </div>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* KPI Cards */}
-      {isVisible('kpiCards') && <><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <KpiCard icon="business" label="客户总数" value={stats.customer_total}
-          trend={trends ? (trends.customers.diff >= 0 ? `+${trends.customers.diff}` : `${trends.customers.diff}`) : undefined}
-          trendType={trends ? (trends.customers.diff > 0 ? 'up' : trends.customers.diff < 0 ? 'down' : 'stable') : undefined} />
-        <KpiCard icon="trending_up" label="线索总数" value={stats.lead_total}
-          trend={trends ? (trends.leads.diff >= 0 ? `+${trends.leads.diff}` : `${trends.leads.diff}`) : undefined}
-          trendType={trends ? (trends.leads.diff > 0 ? 'up' : trends.leads.diff < 0 ? 'down' : 'stable') : undefined} />
-        <KpiCard icon="person_add" label="本月新增客户" value={stats.monthly_new_customers}
-          trend={trends ? `环比${trends.customers.pct >= 0 ? '+' : ''}${trends.customers.pct}%` : undefined}
-          trendType={trends ? (trends.customers.pct > 0 ? 'up' : trends.customers.pct < 0 ? 'down' : 'stable') : undefined} />
-        <KpiCard icon="schedule" label="待跟进线索" value={stats.pending_leads}
-          trend={stats.pending_leads > 5 ? '需关注' : '正常'} trendType={stats.pending_leads > 5 ? 'down' : 'stable'} />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard icon="rocket_launch" label="商机总数" value={stats.project_total} />
-        <KpiCard icon="play_circle" label="进行中商机" value={stats.active_projects}
-          trend={stats.active_projects > 0 ? '活跃' : ''} trendType="up" />
-        <KpiCard icon="payments" label="管线总额" value={stats.pipeline_value > 0 ? `¥${(stats.pipeline_value / 10000).toFixed(0)}万` : '¥0'} />
-        <KpiCard icon="handshake" label="合同/报价" value={`${stats.contract_total}/${stats.quote_total}`} />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard icon="flag" label="交付里程碑" value={stats.milestone_total}
-          trend={stats.milestone_delayed > 0 ? `${stats.milestone_delayed} 延期` : ''} trendType={stats.milestone_delayed > 0 ? 'down' : 'stable'} />
-        <KpiCard icon="receipt_long" label="发票总数" value={stats.invoice_total} />
-        <KpiCard icon="swap_horiz" label="变更单" value={stats.change_total} />
-        <KpiCard icon="confirmation_number" label="售后工单" value={stats.ticket_total}
-          trend={stats.ticket_open > 0 ? `${stats.ticket_open} 待处理` : '全部完结'} trendType={stats.ticket_open > 0 ? 'down' : 'stable'} />
-      </div></>}
-
-      {/* Pending Approvals */}
-      {isVisible('approvals') && pendingApprovals.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-amber-500">pending_actions</span>
-            <h3 className="text-sm font-bold text-slate-900">待我审批</h3>
-            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">{pendingApprovals.length}</span>
-          </div>
-          <div className="space-y-2">
-            {pendingApprovals.map((item) => (
-              <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
-                <span className="material-symbols-outlined text-amber-500">task_alt</span>
-                <div className="flex-1">
-                  <div className="text-sm font-bold text-slate-800">{item.flow?.title || item.flow?.biz_type}</div>
-                  <div className="text-xs text-slate-500">
-                    提交人: {item.flow?.submitted_by_name} · 节点 {item.node_order}/{item.flow?.total_nodes}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="material-symbols-outlined text-amber-500">bolt</span>
+                    <h3 className="text-sm font-bold text-slate-900">快捷操作</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <button onClick={() => navigate('/customers/new')}
+                      className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-slate-100 bg-slate-50 hover:border-primary/40 hover:bg-primary/5 transition-all text-left">
+                      <span className="material-symbols-outlined text-primary">add_business</span>
+                      <div>
+                        <div className="text-sm font-bold text-slate-800">新建客户</div>
+                        <div className="text-[11px] text-slate-500">录入新的客户信息</div>
+                      </div>
+                    </button>
+                    <button onClick={() => navigate('/leads/new')}
+                      className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-slate-100 bg-slate-50 hover:border-primary/40 hover:bg-primary/5 transition-all text-left">
+                      <span className="material-symbols-outlined text-emerald-600">add_circle</span>
+                      <div>
+                        <div className="text-sm font-bold text-slate-800">新建线索</div>
+                        <div className="text-[11px] text-slate-500">创建新的销售线索</div>
+                      </div>
+                    </button>
+                    <button onClick={() => navigate('/opportunities/new')}
+                      className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-slate-100 bg-slate-50 hover:border-primary/40 hover:bg-primary/5 transition-all text-left">
+                      <span className="material-symbols-outlined text-amber-500">rocket_launch</span>
+                      <div>
+                        <div className="text-sm font-bold text-slate-800">新建商机</div>
+                        <div className="text-[11px] text-slate-500">创建新的商机项目</div>
+                      </div>
+                    </button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => handleApprove(item.id)}
-                    className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors">
-                    通过
-                  </button>
-                  <button onClick={() => handleReject(item.id)}
-                    className="px-3 py-1.5 bg-white text-red-500 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">
-                    驳回
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Alerts */}
-      {isVisible('alerts') && alerts.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-red-500">notifications_active</span>
-            <h3 className="text-sm font-bold text-slate-900">风险预警</h3>
-            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-bold">{alerts.length}</span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-            {alerts.slice(0, 6).map((a, i) => {
-              const iconMap: Record<string, { icon: string; color: string }> = {
-                stalled: { icon: 'pause_circle', color: 'text-amber-500' },
-                milestone_delayed: { icon: 'event_busy', color: 'text-red-500' },
-                high_risk: { icon: 'warning', color: 'text-red-600' },
-                urgent_ticket: { icon: 'support_agent', color: 'text-orange-500' },
-              }
-              const t = iconMap[a.type] || iconMap.stalled
-              return (
-                <div key={i} onClick={() => {
-                  if (a.biz_type === 'project') navigate(`/opportunities/${a.biz_id}`)
-                  else if (a.biz_type === 'service_ticket') navigate(`/service-tickets/${a.biz_id}`)
-                  else if (a.biz_type === 'approval_flow') navigate('/approvals')
-                }} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:shadow-sm transition-shadow ${
-                  a.severity === 'critical' ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'
-                }`}>
-                  <span className={`material-symbols-outlined ${t.color} mt-0.5`}>{t.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-slate-800 truncate">{a.title}</div>
-                    <div className="text-[11px] text-slate-500 truncate">{a.content}</div>
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="material-symbols-outlined text-amber-500">emoji_events</span>
+                    <h3 className="text-sm font-bold text-slate-900">业绩排行</h3>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Sales Funnel + Payment Overview */}
-      {isVisible('funnelPayment') && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Sales Funnel */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-blue-500">filter_alt</span>
-            <h3 className="text-sm font-bold text-slate-900">销售漏斗</h3>
-          </div>
-          {funnel.length > 0 ? (
-            <FunnelChartPanel funnel={funnel} />
-          ) : (
-            <div className="text-center text-slate-400 text-sm py-8">暂无漏斗数据</div>
-          )}
-        </div>
-
-        {/* Payment Overview */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-emerald-500">account_balance</span>
-            <h3 className="text-sm font-bold text-slate-900">回款概览</h3>
-          </div>
-          {paymentOv ? (
-            <div>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-                  <div className="text-xs text-emerald-600 font-bold mb-1">已回款</div>
-                  <div className="text-xl font-black text-emerald-700">¥{(paymentOv.total_received / 10000).toFixed(1)}万</div>
-                </div>
-                <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
-                  <div className="text-xs text-blue-600 font-bold mb-1">计划总额</div>
-                  <div className="text-xl font-black text-blue-700">¥{(paymentOv.total_planned / 10000).toFixed(1)}万</div>
+                  {leaderboard.length > 0 ? (
+                    <LeaderboardChart leaderboard={leaderboard} />
+                  ) : (
+                    <div className="text-center text-slate-400 text-sm py-8">暂无排行数据</div>
+                  )}
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="text-center p-2 rounded-lg bg-slate-50">
-                  <div className="text-lg font-black text-slate-900">{paymentOv.collection_rate}%</div>
-                  <div className="text-[10px] text-slate-500">回款率</div>
-                </div>
-                <div className="text-center p-2 rounded-lg bg-red-50">
-                  <div className="text-lg font-black text-red-600">{paymentOv.overdue_count}</div>
-                  <div className="text-[10px] text-slate-500">逾期笔数</div>
-                </div>
-                <div className="text-center p-2 rounded-lg bg-amber-50">
-                  <div className="text-lg font-black text-amber-600">¥{(paymentOv.upcoming_30d_amount / 10000).toFixed(1)}万</div>
-                  <div className="text-[10px] text-slate-500">30天内到期</div>
-                </div>
-              </div>
-              {/* Collection rate bar */}
-              <div className="mt-4">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-slate-500">回款进度</span>
-                  <span className="text-xs font-bold text-emerald-600">{paymentOv.collection_rate}%</span>
-                </div>
-                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full transition-all"
-                    style={{ width: `${Math.min(paymentOv.collection_rate, 100)}%` }} />
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center text-slate-400 text-sm py-8">暂无回款数据</div>
-          )}
-        </div>
-      </div>}
+            )
 
-      {/* Charts Row: Trend + Win/Loss */}
-      {isVisible('trendWinLoss') && <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <div className="lg:col-span-2">
-          <TrendChart />
-        </div>
-        <WinLossChart />
-      </div>}
-
-      {/* Charts Row: Collection + Revenue */}
-      {isVisible('collectionRevenue') && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <CollectionChart />
-        <RevenueChart />
-      </div>}
-
-      {/* Approval SLA Overview */}
-      {isVisible('approvalSla') && approvalStats && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-indigo-500">verified</span>
-            <h3 className="text-sm font-bold text-slate-900">审批SLA概览</h3>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-            <div className="text-center p-3 rounded-lg bg-slate-50">
-              <div className="text-2xl font-black text-slate-900">{approvalStats.total_flows}</div>
-              <div className="text-[10px] text-slate-500 font-bold">审批总数</div>
-            </div>
-            <div className="text-center p-3 rounded-lg bg-emerald-50">
-              <div className="text-2xl font-black text-emerald-600">{Math.round(approvalStats.approval_rate * 100)}%</div>
-              <div className="text-[10px] text-slate-500 font-bold">通过率</div>
-            </div>
-            <div className="text-center p-3 rounded-lg bg-blue-50">
-              <div className="text-2xl font-black text-blue-600">{approvalStats.avg_approval_hours}h</div>
-              <div className="text-[10px] text-slate-500 font-bold">平均审批时长</div>
-            </div>
-            <div className={`text-center p-3 rounded-lg ${approvalStats.sla_compliance_rate >= 0.9 ? 'bg-emerald-50' : approvalStats.sla_compliance_rate >= 0.7 ? 'bg-amber-50' : 'bg-red-50'}`}>
-              <div className={`text-2xl font-black ${approvalStats.sla_compliance_rate >= 0.9 ? 'text-emerald-600' : approvalStats.sla_compliance_rate >= 0.7 ? 'text-amber-600' : 'text-red-600'}`}>
-                {Math.round(approvalStats.sla_compliance_rate * 100)}%
-              </div>
-              <div className="text-[10px] text-slate-500 font-bold">SLA达标率</div>
-            </div>
-            <div className="text-center p-3 rounded-lg bg-amber-50">
-              <div className="text-2xl font-black text-amber-600">{approvalStats.status_breakdown.pending || 0}</div>
-              <div className="text-[10px] text-slate-500 font-bold">待处理</div>
-            </div>
-          </div>
-          {approvalStats.top_approvers.length > 0 && (
-            <div>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">审批人排行</div>
-              <div className="flex flex-wrap gap-2">
-                {approvalStats.top_approvers.slice(0, 5).map((a, i) => (
-                  <span key={i} className="px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-lg text-xs">
-                    <span className="font-bold text-slate-700">{a.name}</span>
-                    <span className="text-slate-400 ml-1">{a.count}次</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Contract Expiry Warning */}
-      {isVisible('contractExpiry') && <div className="mb-6">
-        <ContractExpiryPanel />
-      </div>}
-
-      {/* Three Column Grid: Tasks + Quick Actions + Leaderboard */}
-      {isVisible('tasksActionsLeaderboard') && <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Today's Tasks */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary">calendar_today</span>
-              <h3 className="text-sm font-bold text-slate-900">今日任务</h3>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">
-              {stats.pending_leads + stats.monthly_new_customers} 项
-            </span>
-          </div>
-          <div className="space-y-2">
-            <TaskRow icon="chat" iconColor="text-blue-600" label="客户跟进" count={stats.pending_leads} />
-            <TaskRow icon="person_add" iconColor="text-emerald-600" label="新客户建档" count={stats.monthly_new_customers} />
-            <TaskRow icon="warning" iconColor="text-red-600" label="逾期待办" count={paymentOv?.overdue_count || 0} urgent={!!(paymentOv?.overdue_count)} />
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-amber-500">bolt</span>
-            <h3 className="text-sm font-bold text-slate-900">快捷操作</h3>
-          </div>
-          <div className="space-y-2">
-            <button
-              onClick={() => navigate('/customers/new')}
-              className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-slate-100 bg-slate-50 hover:border-primary/40 hover:bg-primary/5 transition-all text-left"
-            >
-              <span className="material-symbols-outlined text-primary">add_business</span>
-              <div>
-                <div className="text-sm font-bold text-slate-800">新建客户</div>
-                <div className="text-[11px] text-slate-500">录入新的客户信息</div>
-              </div>
-            </button>
-            <button
-              onClick={() => navigate('/leads/new')}
-              className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-slate-100 bg-slate-50 hover:border-primary/40 hover:bg-primary/5 transition-all text-left"
-            >
-              <span className="material-symbols-outlined text-emerald-600">add_circle</span>
-              <div>
-                <div className="text-sm font-bold text-slate-800">新建线索</div>
-                <div className="text-[11px] text-slate-500">创建新的销售线索</div>
-              </div>
-            </button>
-            <button
-              onClick={() => navigate('/opportunities/new')}
-              className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-slate-100 bg-slate-50 hover:border-primary/40 hover:bg-primary/5 transition-all text-left"
-            >
-              <span className="material-symbols-outlined text-amber-500">rocket_launch</span>
-              <div>
-                <div className="text-sm font-bold text-slate-800">新建商机</div>
-                <div className="text-[11px] text-slate-500">创建新的商机项目</div>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Leaderboard */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-amber-500">emoji_events</span>
-            <h3 className="text-sm font-bold text-slate-900">业绩排行</h3>
-          </div>
-          {leaderboard.length > 0 ? (
-            <LeaderboardChart leaderboard={leaderboard} />
-          ) : (
-            <div className="text-center text-slate-400 text-sm py-8">暂无排行数据</div>
-          )}
-        </div>
-      </div>}
+          default:
+            return null
+        }
+      })}
 
       {/* Dashboard Settings Modal */}
       <Modal title="看板设置" open={settingsOpen} onCancel={() => setSettingsOpen(false)}
         footer={null} width={480}>
-        <p className="text-sm text-slate-500 mb-4">选择要在工作台上显示的模块</p>
+        <p className="text-sm text-slate-500 mb-4">拖拽调整排序，勾选控制显示</p>
         <div className="space-y-2">
-          {DASHBOARD_CARDS.map((card) => (
-            <label key={card.key}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all ${
-                cardVisibility[card.key] !== false
-                  ? 'border-primary/30 bg-primary/5'
-                  : 'border-slate-100 hover:border-slate-200'
-              }`}>
-              <input type="checkbox" className="accent-primary w-4 h-4"
-                checked={cardVisibility[card.key] !== false}
-                onChange={(e) => {
-                  const next = { ...cardVisibility, [card.key]: e.target.checked }
-                  setCardVisibility(next)
-                  saveCardVisibility(next)
-                }} />
-              <span className="text-sm font-medium text-slate-700">{card.label}</span>
-            </label>
-          ))}
+          {cardOrder.map((key) => {
+            const card = DASHBOARD_CARDS.find((c) => c.key === key)
+            if (!card) return null
+            return (
+              <label key={card.key}
+                draggable
+                onDragStart={(e) => { setDragKey(card.key); e.dataTransfer.effectAllowed = 'move' }}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (!dragKey || dragKey === card.key) return
+                  const newOrder = [...cardOrder]
+                  const fromIdx = newOrder.indexOf(dragKey)
+                  const toIdx = newOrder.indexOf(card.key)
+                  newOrder.splice(fromIdx, 1)
+                  newOrder.splice(toIdx, 0, dragKey)
+                  setCardOrder(newOrder)
+                  saveCardOrder(newOrder)
+                  setDragKey(null)
+                }}
+                onDragEnd={() => setDragKey(null)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-grab transition-all ${
+                  cardVisibility[card.key] !== false
+                    ? 'border-primary/30 bg-primary/5'
+                    : 'border-slate-100 hover:border-slate-200'
+                } ${dragKey === card.key ? 'opacity-50' : ''}`}>
+                <span className="material-symbols-outlined text-slate-300 text-base cursor-grab">drag_indicator</span>
+                <input type="checkbox" className="accent-primary w-4 h-4"
+                  checked={cardVisibility[card.key] !== false}
+                  onChange={(e) => {
+                    const next = { ...cardVisibility, [card.key]: e.target.checked }
+                    setCardVisibility(next)
+                    saveCardVisibility(next)
+                  }} />
+                <span className="text-sm font-medium text-slate-700">{card.label}</span>
+              </label>
+            )
+          })}
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <Button size="small" onClick={() => {
@@ -693,6 +778,9 @@ export default function Dashboard() {
             DASHBOARD_CARDS.forEach((c) => { defaults[c.key] = c.defaultVisible })
             setCardVisibility(defaults)
             saveCardVisibility(defaults)
+            const defaultOrder = DASHBOARD_CARDS.map((c) => c.key)
+            setCardOrder(defaultOrder)
+            saveCardOrder(defaultOrder)
           }}>恢复默认</Button>
         </div>
       </Modal>

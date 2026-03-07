@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
 import NotificationBell from '@/components/NotificationBell'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 const tabs = [
   { key: '/m', icon: 'dashboard', label: '工作台' },
@@ -34,7 +35,9 @@ export default function MobileLayout() {
 
       {/* Content */}
       <main className="flex-1 p-3 pb-16 overflow-y-auto">
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {/* Bottom Tab Bar */}

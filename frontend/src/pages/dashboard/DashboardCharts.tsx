@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Select } from 'antd'
 import { Column, Line, Pie, Funnel as FunnelChart } from '@ant-design/charts'
@@ -175,7 +175,7 @@ export function WinLossChart() {
   )
 }
 
-export function FunnelChartPanel({ funnel }: { funnel: FunnelItem[] }) {
+export const FunnelChartPanel = memo(function FunnelChartPanel({ funnel }: { funnel: FunnelItem[] }) {
   if (funnel.length === 0) return null
 
   const chartData = funnel.map((f) => ({
@@ -194,7 +194,7 @@ export function FunnelChartPanel({ funnel }: { funnel: FunnelItem[] }) {
       scale={{ color: { range: ['#3b82f6', '#06b6d4', '#14b8a6', '#10b981', '#22c55e', '#84cc16'] } }}
     />
   )
-}
+})
 
 interface ExpiryItem {
   id: string; contract_no: string; project_name: string; owner_name: string
@@ -261,7 +261,7 @@ export function ContractExpiryPanel() {
   )
 }
 
-export function LeaderboardChart({ leaderboard }: { leaderboard: LeaderItem[] }) {
+export const LeaderboardChart = memo(function LeaderboardChart({ leaderboard }: { leaderboard: LeaderItem[] }) {
   if (leaderboard.length === 0) return null
 
   const chartData = leaderboard.slice(0, 8).flatMap((item) => [
@@ -282,4 +282,4 @@ export function LeaderboardChart({ leaderboard }: { leaderboard: LeaderItem[] })
       legend={{ position: 'top' }}
     />
   )
-}
+})

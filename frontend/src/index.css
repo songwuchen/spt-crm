@@ -134,3 +134,176 @@ body {
   box-shadow: 0 10px 15px -3px rgba(19, 127, 236, 0.2),
               0 4px 6px -4px rgba(19, 127, 236, 0.1) !important;
 }
+
+/* ================================================================
+   Dark mode overrides
+   ================================================================ */
+.dark body,
+.dark {
+  background: #0f172a !important;
+  color: #e2e8f0;
+}
+
+.dark .bg-white,
+.dark .ant-table,
+.dark .ant-table-wrapper .ant-table,
+.dark .ant-modal-content,
+.dark .ant-descriptions,
+.dark .ant-form,
+.dark .ant-card {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-slate-100,
+.dark .ant-table-thead > tr > th,
+.dark .ant-table-wrapper .ant-table-thead > tr > th {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+}
+
+.dark .ant-table-tbody > tr > td {
+  border-color: #334155 !important;
+}
+
+.dark .ant-table-row:hover > td {
+  background: #334155 !important;
+}
+
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+.dark .text-slate-600,
+.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-100 {
+  border-color: #334155 !important;
+}
+
+.dark .ant-input,
+.dark .ant-select-selector,
+.dark .ant-picker {
+  background: #334155 !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .ant-input::placeholder,
+.dark .ant-select-selection-placeholder {
+  color: #64748b !important;
+}
+
+.dark .ant-modal-header {
+  background: #1e293b !important;
+}
+
+.dark .ant-modal-title {
+  color: #e2e8f0 !important;
+}
+
+.dark .ant-descriptions-item-label {
+  color: #64748b !important;
+}
+
+.dark .ant-descriptions-item-content {
+  color: #e2e8f0 !important;
+}
+
+.dark .ant-tabs-tab {
+  color: #94a3b8 !important;
+}
+
+.dark .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #137fec !important;
+}
+
+.dark .ant-btn-default:not(:disabled) {
+  background: #334155 !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .ant-btn-default:not(:disabled):hover {
+  background: #475569 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark .ant-pagination-item a {
+  color: #94a3b8 !important;
+}
+
+.dark .ant-pagination-item-active a {
+  color: #137fec !important;
+}
+
+.dark .ant-empty-description {
+  color: #64748b !important;
+}
+
+/* ================================================================
+   Print styles — clean output for quotes, contracts, reports
+   ================================================================ */
+@media print {
+  /* Hide navigation, sidebar, header, buttons */
+  nav, header, aside,
+  .ant-layout-sider,
+  .ant-btn,
+  .ant-modal-mask, .ant-modal-wrap,
+  .ant-tabs-nav,
+  [class*="shadow-lg"],
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Remove shadows and borders for cleaner print */
+  .ant-table {
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+  }
+
+  .ant-descriptions {
+    box-shadow: none !important;
+  }
+
+  /* Ensure tables break across pages properly */
+  .ant-table-wrapper {
+    page-break-inside: auto;
+  }
+  .ant-table-row {
+    page-break-inside: avoid;
+  }
+
+  /* Full width, no padding */
+  main, .ant-layout-content {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Reduce spacing */
+  .mb-6, .mb-4 {
+    margin-bottom: 8px !important;
+  }
+  .p-6, .p-4 {
+    padding: 8px !important;
+  }
+
+  /* Show print-only elements */
+  .print-only {
+    display: block !important;
+  }
+}

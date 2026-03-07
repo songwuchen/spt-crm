@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Table, Button, Input, Space, Select, Modal, Upload, Form, DatePicker, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
 import { userApi } from '@/api/user'
 import type { Lead } from '@/api/types'
@@ -38,13 +38,29 @@ function ScoreBar({ score }: { score: number }) {
 export default function LeadList() {
   usePageTitle('线索管理')
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [data, setData] = useState<Lead[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [pageNo, setPageNo] = useState(1)
-  const [keyword, setKeyword] = useState('')
-  const [status, setStatus] = useState<string | undefined>()
-  const [source, setSource] = useState<string | undefined>()
+  const pageNo = parseInt(searchParams.get('page') || '1', 10) || 1
+  const keyword = searchParams.get('keyword') || ''
+  const status = searchParams.get('status') || undefined
+  const source = searchParams.get('source') || undefined
+
+  const updateParams = (updates: Record<string, string | undefined>) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      for (const [k, v] of Object.entries(updates)) {
+        if (v) next.set(k, v)
+        else next.delete(k)
+      }
+      return next
+    }, { replace: true })
+  }
+  const setPageNo = (p: number) => updateParams({ page: p > 1 ? String(p) : undefined })
+  const setKeyword = (v: string) => updateParams({ keyword: v || undefined })
+  const setStatus = (v: string | undefined) => updateParams({ status: v, page: undefined })
+  const setSource = (v: string | undefined) => updateParams({ source: v, page: undefined })
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [assignModal, setAssignModal] = useState(false)
   const [assignForm] = Form.useForm()
@@ -112,9 +128,9 @@ export default function LeadList() {
     }
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData(pageNo, keyword, status, source) }, [searchParams])
 
-  const doSearch = () => { setPageNo(1); fetchData(1, keyword, status, source) }
+  const doSearch = () => { updateParams({ page: undefined }) }
 
   const columns: ColumnsType<Lead> = [
     { title: '线索', key: 'title', width: 260,
@@ -259,7 +275,7 @@ export default function LeadList() {
             allowClear
             style={{ width: 140 }}
             value={status}
-            onChange={(v) => { setStatus(v); setPageNo(1); fetchData(1, keyword, v, source) }}
+            onChange={(v) => setStatus(v)}
             options={Object.entries(statusConfig).map(([k, v]) => ({ label: v.label, value: k }))}
           />
           <Select
@@ -267,7 +283,7 @@ export default function LeadList() {
             allowClear
             style={{ width: 140 }}
             value={source}
-            onChange={(v) => { setSource(v); setPageNo(1); fetchData(1, keyword, status, v) }}
+            onChange={(v) => setSource(v)}
             options={Object.entries(sourceLabels).map(([k, v]) => ({ label: v, value: k }))}
           />
           <Button onClick={doSearch}>
