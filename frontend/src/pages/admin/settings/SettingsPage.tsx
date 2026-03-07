@@ -655,6 +655,14 @@ export default function SettingsPage() {
             ),
           },
           {
+            key: 'data_dict', label: '数据字典',
+            children: <DataDictTab />,
+          },
+          {
+            key: 'recycle_bin', label: '回收站',
+            children: <RecycleBinTab />,
+          },
+          {
             key: 'audit_verify', label: '审计校验',
             children: (
               <div className="pb-6">
@@ -995,6 +1003,196 @@ export default function SettingsPage() {
           </div>
         </div>
       </Modal>
+    </div>
+  )
+}
+
+
+// ==================== Data Dictionary Tab ====================
+const DICT_TYPES = [
+  { value: 'industry', label: '行业' },
+  { value: 'customer_source', label: '客户来源' },
+  { value: 'customer_level', label: '客户等级' },
+  { value: 'risk_level', label: '风险等级' },
+  { value: 'ticket_category', label: '工单分类' },
+  { value: 'lead_source', label: '线索来源' },
+  { value: 'payment_method', label: '付款方式' },
+  { value: 'contract_type', label: '合同类型' },
+]
+
+function DataDictTab() {
+  const [items, setItems] = useState<any[]>([])
+  const [filterType, setFilterType] = useState<string | undefined>()
+  const [modal, setModal] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [form, setForm] = useState({ dict_type: 'industry', dict_code: '', dict_label: '', sort_order: 0, color: '', enabled: true })
+
+  const fetch = () => {
+    settingsApi.listDataDict(filterType).then((r: any) => r.data && setItems(r.data)).catch(() => {})
+  }
+  useEffect(() => { fetch() }, [filterType])
+
+  const handleSave = async () => {
+    try {
+      const payload = { ...form, color: form.color || null }
+      if (editId) {
+        await settingsApi.updateDataDict(editId, payload)
+        message.success('已更新')
+      } else {
+        await settingsApi.createDataDict(payload)
+        message.success('已创建')
+      }
+      setModal(false)
+      setEditId(null)
+      fetch()
+    } catch { message.error('保存失败') }
+  }
+
+  const handleDelete = (id: string) => {
+    Modal.confirm({
+      title: '删除字典项', content: '确定删除此字典项？', okType: 'danger',
+      onOk: async () => {
+        await settingsApi.deleteDataDict(id)
+        message.success('已删除')
+        fetch()
+      },
+    })
+  }
+
+  return (
+    <div className="pb-6">
+      <div className="flex items-center gap-3 mb-3">
+        <Select allowClear placeholder="选择字典类型" value={filterType} onChange={setFilterType}
+          options={DICT_TYPES} style={{ width: 180 }} size="small" />
+        <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
+          setEditId(null)
+          setForm({ dict_type: filterType || 'industry', dict_code: '', dict_label: '', sort_order: 0, color: '', enabled: true })
+          setModal(true)
+        }}>新增</Button>
+      </div>
+      <Table rowKey="id" dataSource={items} size="small" pagination={false} columns={[
+        { title: '类型', dataIndex: 'dict_type', width: 120, render: (v: string) => {
+          const dt = DICT_TYPES.find(t => t.value === v)
+          return <Tag>{dt?.label || v}</Tag>
+        }},
+        { title: '编码', dataIndex: 'dict_code', width: 120 },
+        { title: '标签', dataIndex: 'dict_label', width: 150 },
+        { title: '排序', dataIndex: 'sort_order', width: 60 },
+        { title: '颜色', dataIndex: 'color', width: 80, render: (v: string) => v ? <span className="inline-block w-4 h-4 rounded" style={{ background: v }} /> : '-' },
+        { title: '启用', dataIndex: 'enabled', width: 60, render: (v: boolean) => v ? <span className="text-emerald-500 font-bold">是</span> : <span className="text-slate-400">否</span> },
+        { title: '操作', width: 120, render: (_: unknown, r: any) => (
+          <Space size="small">
+            <a className="text-primary text-xs font-bold" onClick={() => {
+              setEditId(r.id)
+              setForm({ dict_type: r.dict_type, dict_code: r.dict_code, dict_label: r.dict_label, sort_order: r.sort_order, color: r.color || '', enabled: r.enabled })
+              setModal(true)
+            }}>编辑</a>
+            <a className="text-red-500 text-xs font-bold" onClick={() => handleDelete(r.id)}>删除</a>
+          </Space>
+        )},
+      ]} />
+      <Modal title={editId ? '编辑字典项' : '新增字典项'} open={modal} onOk={handleSave} onCancel={() => setModal(false)}>
+        <div className="space-y-4 py-2">
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">字典类型</label>
+            <Select value={form.dict_type} onChange={(v) => setForm({ ...form, dict_type: v })} options={DICT_TYPES} style={{ width: '100%' }} />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">编码</label>
+            <Input value={form.dict_code} onChange={(e) => setForm({ ...form, dict_code: e.target.value })} placeholder="electronics" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">标签</label>
+            <Input value={form.dict_label} onChange={(e) => setForm({ ...form, dict_label: e.target.value })} placeholder="电子制造" />
+          </div>
+          <div className="flex gap-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">排序</label>
+              <InputNumber value={form.sort_order} onChange={(v) => setForm({ ...form, sort_order: v || 0 })} min={0} />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">颜色</label>
+              <Input value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} placeholder="#3b82f6" style={{ width: 120 }} />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">启用</label>
+              <Switch checked={form.enabled} onChange={(v) => setForm({ ...form, enabled: v })} />
+            </div>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+
+// ==================== Recycle Bin Tab ====================
+const BIZ_TYPE_MAP: Record<string, string> = {
+  customer: '客户', lead: '线索', project: '商机',
+}
+
+function RecycleBinTab() {
+  const [items, setItems] = useState<any[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [filterType, setFilterType] = useState<string | undefined>()
+  const [keyword, setKeyword] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const fetch = (p = page) => {
+    setLoading(true)
+    settingsApi.listRecycleBin({ biz_type: filterType, keyword: keyword || undefined, page_no: p, page_size: 20 })
+      .then((r: any) => { setItems(r.data?.items || []); setTotal(r.data?.total || 0) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+  useEffect(() => { fetch(1); setPage(1) }, [filterType])
+
+  const handleRestore = async (bizType: string, id: string) => {
+    try {
+      await settingsApi.restoreRecord(bizType, id)
+      message.success('已恢复')
+      fetch()
+    } catch { message.error('恢复失败') }
+  }
+
+  const handlePermanentDelete = (bizType: string, id: string) => {
+    Modal.confirm({
+      title: '永久删除', content: '永久删除后数据将无法恢复，确定继续？',
+      okType: 'danger', okText: '永久删除',
+      onOk: async () => {
+        await settingsApi.permanentDelete(bizType, id)
+        message.success('已永久删除')
+        fetch()
+      },
+    })
+  }
+
+  return (
+    <div className="pb-6">
+      <div className="flex items-center gap-3 mb-3">
+        <Select allowClear placeholder="记录类型" value={filterType} onChange={setFilterType}
+          options={Object.entries(BIZ_TYPE_MAP).map(([v, l]) => ({ value: v, label: l }))}
+          style={{ width: 120 }} size="small" />
+        <Input.Search placeholder="搜索名称" size="small" style={{ width: 200 }}
+          value={keyword} onChange={(e) => setKeyword(e.target.value)}
+          onSearch={() => { fetch(1); setPage(1) }} allowClear />
+      </div>
+      <Table rowKey="id" dataSource={items} size="small" loading={loading}
+        pagination={{ current: page, total, pageSize: 20, onChange: (p) => { setPage(p); fetch(p) }, showTotal: (t) => `共 ${t} 条` }}
+        columns={[
+          { title: '类型', dataIndex: 'biz_type', width: 80, render: (v: string) => <Tag>{BIZ_TYPE_MAP[v] || v}</Tag> },
+          { title: '名称', dataIndex: 'name', width: 200 },
+          { title: '编码', dataIndex: 'code', width: 150 },
+          { title: '删除时间', dataIndex: 'deleted_at', width: 180, render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-' },
+          { title: '操作', width: 160, render: (_: unknown, r: any) => (
+            <Space size="small">
+              <a className="text-primary text-xs font-bold" onClick={() => handleRestore(r.biz_type, r.id)}>恢复</a>
+              <a className="text-red-500 text-xs font-bold" onClick={() => handlePermanentDelete(r.biz_type, r.id)}>永久删除</a>
+            </Space>
+          )},
+        ]}
+      />
     </div>
   )
 }

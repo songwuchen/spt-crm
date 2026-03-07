@@ -1,7 +1,6 @@
-import { useState, useRef } from 'react'
-import { Modal, Upload, Button, Table, Tag, Alert, message, Steps } from 'antd'
-import { UploadOutlined, InboxOutlined } from '@ant-design/icons'
-import type { UploadFile } from 'antd/es/upload'
+import { useState } from 'react'
+import { Modal, Upload, Button, Table, Tag, Alert, message, Steps, Select, Tooltip } from 'antd'
+import { InboxOutlined } from '@ant-design/icons'
 
 interface ImportModalProps {
   open: boolean
@@ -17,6 +16,7 @@ interface PreviewData {
   headers: string[]
   rows: string[][]
   duplicates: number[]
+  errors?: Record<number, string>
 }
 
 export default function ImportModal({
@@ -31,6 +31,8 @@ export default function ImportModal({
   const [loading, setLoading] = useState(false)
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null)
+  const [fieldMapping, setFieldMapping] = useState<Record<number, number>>({})
+  const [skipErrors, setSkipErrors] = useState(true)
 
   const reset = () => {
     setStep(0)
@@ -39,6 +41,8 @@ export default function ImportModal({
     setResult(null)
     setLoading(false)
     setImporting(false)
+    setFieldMapping({})
+    setSkipErrors(true)
   }
 
   const handleClose = () => {
@@ -60,6 +64,17 @@ export default function ImportModal({
       const json = await res.json()
       if (json.code === 0) {
         setPreview(json.data)
+        // Auto-map columns by matching header names
+        if (expectedHeaders && json.data.headers) {
+          const mapping: Record<number, number> = {}
+          expectedHeaders.forEach((eh, ei) => {
+            const matchIdx = json.data.headers.findIndex(
+              (h: string) => h.trim().toLowerCase() === eh.trim().toLowerCase()
+            )
+            if (matchIdx >= 0) mapping[ei] = matchIdx
+          })
+          setFieldMapping(mapping)
+        }
         setStep(1)
       } else {
         message.error(json.message || '解析失败')
@@ -77,6 +92,10 @@ export default function ImportModal({
     try {
       const formData = new FormData()
       formData.append('file', file)
+      if (Object.keys(fieldMapping).length > 0) {
+        formData.append('field_mapping', JSON.stringify(fieldMapping))
+      }
+      formData.append('skip_errors', String(skipErrors))
       const token = localStorage.getItem('access_token')
       const res = await fetch(importUrl, {
         method: 'POST', body: formData,
@@ -98,35 +117,65 @@ export default function ImportModal({
   }
 
   const dupSet = new Set(preview?.duplicates || [])
+  const errMap = preview?.errors || {}
+  const errSet = new Set(Object.keys(errMap).map(Number))
 
   const columns = preview?.headers.map((h, i) => ({
-    title: h,
+    title: () => (
+      <div className="space-y-1">
+        <div className="text-xs font-bold truncate">{h}</div>
+        {expectedHeaders && (
+          <Select size="small" className="w-full" allowClear
+            placeholder="映射到..."
+            value={Object.entries(fieldMapping).find(([, v]) => v === i)?.[0] != null
+              ? Number(Object.entries(fieldMapping).find(([, v]) => v === i)![0])
+              : undefined}
+            onChange={(targetIdx) => {
+              const next = { ...fieldMapping }
+              // Remove existing mapping to this column
+              Object.entries(next).forEach(([k, v]) => { if (v === i) delete next[Number(k)] })
+              if (targetIdx != null) next[targetIdx] = i
+              setFieldMapping(next)
+            }}
+            options={expectedHeaders.map((eh, ei) => ({ label: eh, value: ei }))}
+          />
+        )}
+      </div>
+    ),
     dataIndex: String(i),
     key: String(i),
-    width: 120,
+    width: expectedHeaders ? 150 : 120,
     ellipsis: true,
-    render: (v: string) => v || <span className="text-slate-300">-</span>,
+    render: (v: string, record: any) => {
+      const hasErr = record._err
+      return (
+        <span className={hasErr ? 'text-red-500' : ''}>{v || <span className="text-slate-300">-</span>}</span>
+      )
+    },
   })) || []
 
   const dataSource = preview?.rows.map((row, idx) => {
-    const record: Record<string, any> = { _key: idx, _dup: dupSet.has(idx) }
+    const record: Record<string, any> = { _key: idx, _dup: dupSet.has(idx), _err: errSet.has(idx), _errMsg: errMap[idx] }
     row.forEach((cell, ci) => { record[String(ci)] = cell })
     return record
   }) || []
+
+  const errorCount = errSet.size
+  const validCount = (preview?.rows.length || 0) - dupSet.size - errorCount
 
   return (
     <Modal
       title={title}
       open={open}
       onCancel={handleClose}
-      width={900}
+      width={960}
       footer={null}
       destroyOnClose
     >
       <Steps current={step} size="small" className="mb-6"
         items={[
           { title: '上传文件' },
-          { title: '预览确认' },
+          { title: '字段映射 + 预览' },
           { title: '导入结果' },
         ]}
       />
@@ -135,7 +184,7 @@ export default function ImportModal({
         <div>
           {expectedHeaders && (
             <Alert type="info" showIcon className="mb-4"
-              message={`文件格式要求：第一行为表头，列顺序为：${expectedHeaders.join('、')}`}
+              message={`文件格式要求：第一行为表头，期望列：${expectedHeaders.join('、')}`}
             />
           )}
           <Upload.Dragger
@@ -153,10 +202,21 @@ export default function ImportModal({
 
       {step === 1 && preview && (
         <div>
-          <div className="flex items-center gap-4 mb-3">
+          <div className="flex items-center gap-4 mb-3 flex-wrap">
             <span className="text-sm text-slate-600">共 <b>{preview.rows.length}</b> 条数据</span>
             {dupSet.size > 0 && (
-              <Tag color="warning">{dupSet.size} 条重复（已存在同名客户，导入时将自动跳过）</Tag>
+              <Tag color="warning">{dupSet.size} 条重复</Tag>
+            )}
+            {errorCount > 0 && (
+              <Tag color="error">{errorCount} 条有错误</Tag>
+            )}
+            <Tag color="success">{validCount} 条可导入</Tag>
+            {errorCount > 0 && (
+              <label className="flex items-center gap-1.5 text-sm text-slate-600 ml-auto">
+                <input type="checkbox" checked={skipErrors} onChange={(e) => setSkipErrors(e.target.checked)}
+                  className="accent-primary" />
+                跳过错误行继续导入
+              </label>
             )}
           </div>
           <Table
@@ -164,14 +224,19 @@ export default function ImportModal({
             columns={columns}
             dataSource={dataSource}
             rowKey="_key"
-            scroll={{ x: columns.length * 120, y: 360 }}
+            scroll={{ x: columns.length * (expectedHeaders ? 150 : 120), y: 320 }}
             pagination={false}
-            rowClassName={(record) => record._dup ? 'bg-amber-50' : ''}
+            rowClassName={(record) => {
+              if (record._err) return 'bg-red-50'
+              if (record._dup) return 'bg-amber-50'
+              return ''
+            }}
           />
           <div className="flex justify-end gap-2 mt-4">
-            <Button onClick={() => { setStep(0); setPreview(null); setFile(null) }}>重新选择</Button>
-            <Button type="primary" loading={importing} onClick={handleImport}>
-              确认导入 ({preview.rows.length - dupSet.size} 条)
+            <Button onClick={() => { setStep(0); setPreview(null); setFile(null); setFieldMapping({}) }}>重新选择</Button>
+            <Button type="primary" loading={importing} onClick={handleImport}
+              disabled={validCount <= 0}>
+              确认导入 ({validCount} 条)
             </Button>
           </div>
         </div>
@@ -179,7 +244,7 @@ export default function ImportModal({
 
       {step === 2 && result && (
         <div className="text-center py-6">
-          <div className="text-5xl mb-4">✅</div>
+          <div className="text-5xl mb-4">{result.errors.length > 0 && result.created === 0 ? '❌' : '✅'}</div>
           <div className="text-lg font-bold text-slate-900 mb-2">导入完成</div>
           <div className="flex justify-center gap-6 mb-4">
             <div>

@@ -76,9 +76,25 @@ interface LeaderItem {
   active_count: number; pipeline_amount: number
 }
 
-const KpiCard = memo(function KpiCard({ icon, label, value, trend, trendType }: {
+const Sparkline = memo(function Sparkline({ data, color = '#3b82f6' }: { data: number[]; color?: string }) {
+  if (data.length < 2) return null
+  const max = Math.max(...data, 1)
+  const min = Math.min(...data, 0)
+  const range = max - min || 1
+  const w = 80, h = 28
+  const points = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`)
+  return (
+    <svg width={w} height={h} className="opacity-60">
+      <polyline points={points.join(' ')} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={(w).toString()} cy={points[points.length - 1]?.split(',')[1]} r="2" fill={color} />
+    </svg>
+  )
+})
+
+const KpiCard = memo(function KpiCard({ icon, label, value, trend, trendType, sparkData, sparkColor }: {
   icon: string; label: string; value: number | string
   trend?: string; trendType?: 'up' | 'down' | 'stable'
+  sparkData?: number[]; sparkColor?: string
 }) {
   const trendColors = {
     up: 'bg-emerald-50 text-emerald-600',
@@ -90,6 +106,9 @@ const KpiCard = memo(function KpiCard({ icon, label, value, trend, trendType }: 
       <div className="flex items-center gap-2 mb-3">
         <span className="material-symbols-outlined text-primary text-xl">{icon}</span>
         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+        {sparkData && sparkData.length >= 2 && (
+          <span className="ml-auto"><Sparkline data={sparkData} color={sparkColor} /></span>
+        )}
       </div>
       <div className="flex items-center gap-3">
         <span className="text-3xl font-black text-slate-900">{value}</span>
@@ -192,6 +211,7 @@ export default function Dashboard() {
   const [funnel, setFunnel] = useState<FunnelItem[]>([])
   const [paymentOv, setPaymentOv] = useState<PaymentOv | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderItem[]>([])
+  const [trendSpark, setTrendSpark] = useState<{ customers: number[]; leads: number[]; projects: number[]; tickets: number[] }>({ customers: [], leads: [], projects: [], tickets: [] })
   const [approvalStats, setApprovalStats] = useState<{
     total_flows: number; status_breakdown: Record<string, number>
     avg_approval_hours: number; approval_rate: number; sla_compliance_rate: number
@@ -233,6 +253,16 @@ export default function Dashboard() {
     }).catch(() => {})
     approvalApi.statistics().then((r: any) => {
       if (r.data) setApprovalStats(r.data)
+    }).catch(() => {})
+    dashboardApi.trend({ months: 6 }).then((r: any) => {
+      if (r.data && Array.isArray(r.data)) {
+        setTrendSpark({
+          customers: r.data.map((d: any) => d.new || 0),
+          leads: r.data.map((d: any) => d.won || 0),
+          projects: r.data.map((d: any) => d.new || 0),
+          tickets: r.data.map((d: any) => d.lost || 0),
+        })
+      }
     }).catch(() => {})
   }, [])
 
@@ -411,15 +441,19 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                   <KpiCard icon="business" label="客户总数" value={stats.customer_total}
                     trend={trends ? (trends.customers.diff >= 0 ? `+${trends.customers.diff}` : `${trends.customers.diff}`) : undefined}
-                    trendType={trends ? (trends.customers.diff > 0 ? 'up' : trends.customers.diff < 0 ? 'down' : 'stable') : undefined} />
+                    trendType={trends ? (trends.customers.diff > 0 ? 'up' : trends.customers.diff < 0 ? 'down' : 'stable') : undefined}
+                    sparkData={trendSpark.customers} sparkColor="#3b82f6" />
                   <KpiCard icon="trending_up" label="线索总数" value={stats.lead_total}
                     trend={trends ? (trends.leads.diff >= 0 ? `+${trends.leads.diff}` : `${trends.leads.diff}`) : undefined}
-                    trendType={trends ? (trends.leads.diff > 0 ? 'up' : trends.leads.diff < 0 ? 'down' : 'stable') : undefined} />
+                    trendType={trends ? (trends.leads.diff > 0 ? 'up' : trends.leads.diff < 0 ? 'down' : 'stable') : undefined}
+                    sparkData={trendSpark.leads} sparkColor="#10b981" />
                   <KpiCard icon="person_add" label="本月新增客户" value={stats.monthly_new_customers}
                     trend={trends ? `环比${trends.customers.pct >= 0 ? '+' : ''}${trends.customers.pct}%` : undefined}
-                    trendType={trends ? (trends.customers.pct > 0 ? 'up' : trends.customers.pct < 0 ? 'down' : 'stable') : undefined} />
+                    trendType={trends ? (trends.customers.pct > 0 ? 'up' : trends.customers.pct < 0 ? 'down' : 'stable') : undefined}
+                    sparkData={trendSpark.customers} sparkColor="#8b5cf6" />
                   <KpiCard icon="schedule" label="待跟进线索" value={stats.pending_leads}
-                    trend={stats.pending_leads > 5 ? '需关注' : '正常'} trendType={stats.pending_leads > 5 ? 'down' : 'stable'} />
+                    trend={stats.pending_leads > 5 ? '需关注' : '正常'} trendType={stats.pending_leads > 5 ? 'down' : 'stable'}
+                    sparkData={trendSpark.tickets} sparkColor="#f59e0b" />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
                   <KpiCard icon="rocket_launch" label="商机总数" value={stats.project_total} />

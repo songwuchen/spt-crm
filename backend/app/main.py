@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
@@ -127,6 +127,24 @@ app.include_router(task_router)
 app.include_router(lead_public_router)
 app.include_router(saved_view_router)
 app.include_router(contact_router)
+
+
+@app.post("/api/v1/frontend-errors", tags=["系统"])
+async def report_frontend_error(request: Request):
+    """Receive frontend error reports for monitoring."""
+    import logging
+    logger = logging.getLogger("frontend_errors")
+    try:
+        body = await request.json()
+        logger.warning(
+            "Frontend error: %s at %s",
+            body.get("message", "unknown"),
+            body.get("url", ""),
+            extra={"frontend_error": body},
+        )
+    except Exception:
+        pass
+    return {"code": 0, "message": "ok", "data": None}
 
 
 @app.get("/health", tags=["系统"])

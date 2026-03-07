@@ -79,6 +79,24 @@ export const settingsApi = {
   backupDownloadUrl: () => '/api/v1/admin/backup',
   restoreBackup: (data: Record<string, unknown>) => client.post('/api/v1/admin/backup/restore', data),
 
+  // Data dictionary
+  listDataDict: (dictType?: string) =>
+    client.get('/api/v1/data-dict', { params: dictType ? { dict_type: dictType } : {} }),
+  createDataDict: (data: Record<string, unknown>) =>
+    client.post('/api/v1/data-dict', data),
+  updateDataDict: (id: string, data: Record<string, unknown>) =>
+    client.put(`/api/v1/data-dict/${id}`, data),
+  deleteDataDict: (id: string) =>
+    client.delete(`/api/v1/data-dict/${id}`),
+
+  // Recycle bin
+  listRecycleBin: (params?: Record<string, unknown>) =>
+    client.get('/api/v1/recycle-bin', { params }),
+  restoreRecord: (bizType: string, id: string) =>
+    client.post(`/api/v1/recycle-bin/${bizType}/${id}/restore`),
+  permanentDelete: (bizType: string, id: string) =>
+    client.delete(`/api/v1/recycle-bin/${bizType}/${id}`),
+
   // Audit
   auditVerify: () => client.post('/api/v1/audit_logs/verify'),
 }

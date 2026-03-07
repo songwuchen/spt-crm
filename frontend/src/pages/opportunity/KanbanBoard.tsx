@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, DragEvent } from 'react'
+import { useState, useEffect, useRef, DragEvent, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { message, Spin, Modal } from 'antd'
 import { projectApi } from '@/api/project'
@@ -9,13 +9,13 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
-const STAGE_COLORS: Record<string, { bg: string; border: string; text: string; headerBg: string }> = {
-  S1: { bg: '#f8fafc', border: '#e2e8f0', text: '#475569', headerBg: '#f1f5f9' },
-  S2: { bg: '#eff6ff', border: '#bfdbfe', text: '#1e40af', headerBg: '#dbeafe' },
-  S3: { bg: '#eef2ff', border: '#c7d2fe', text: '#3730a3', headerBg: '#e0e7ff' },
-  S4: { bg: '#fffbeb', border: '#fde68a', text: '#92400e', headerBg: '#fef3c7' },
-  S5: { bg: '#ecfdf5', border: '#a7f3d0', text: '#065f46', headerBg: '#d1fae5' },
-  S6: { bg: '#f0fdf4', border: '#86efac', text: '#166534', headerBg: '#bbf7d0' },
+const STAGE_COLORS: Record<string, { bg: string; border: string; text: string; headerBg: string; dropBg: string }> = {
+  S1: { bg: '#f8fafc', border: '#e2e8f0', text: '#475569', headerBg: '#f1f5f9', dropBg: '#e2e8f0' },
+  S2: { bg: '#eff6ff', border: '#bfdbfe', text: '#1e40af', headerBg: '#dbeafe', dropBg: '#bfdbfe' },
+  S3: { bg: '#eef2ff', border: '#c7d2fe', text: '#3730a3', headerBg: '#e0e7ff', dropBg: '#c7d2fe' },
+  S4: { bg: '#fffbeb', border: '#fde68a', text: '#92400e', headerBg: '#fef3c7', dropBg: '#fde68a' },
+  S5: { bg: '#ecfdf5', border: '#a7f3d0', text: '#065f46', headerBg: '#d1fae5', dropBg: '#a7f3d0' },
+  S6: { bg: '#f0fdf4', border: '#86efac', text: '#166534', headerBg: '#bbf7d0', dropBg: '#86efac' },
 }
 
 const statusDot: Record<string, string> = {
@@ -34,7 +34,9 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
   const [loading, setLoading] = useState(true)
   const [customerMap, setCustomerMap] = useState<Record<string, string>>({})
   const [dragOverStage, setDragOverStage] = useState<string | null>(null)
+  const [dragCardId, setDragCardId] = useState<string | null>(null)
   const dragCardRef = useRef<OpportunityProject | null>(null)
+  const dragImageRef = useRef<HTMLDivElement | null>(null)
 
   const fetchData = async () => {
     setLoading(true)
@@ -55,6 +57,15 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
 
   useEffect(() => { fetchData() }, [])
 
+  // Create drag ghost element
+  useEffect(() => {
+    const ghost = document.createElement('div')
+    ghost.style.cssText = 'position:fixed;top:-9999px;left:-9999px;pointer-events:none;z-index:9999;'
+    document.body.appendChild(ghost)
+    dragImageRef.current = ghost
+    return () => { document.body.removeChild(ghost) }
+  }, [])
+
   const grouped = STAGES.reduce<Record<string, OpportunityProject[]>>((acc, s) => {
     acc[s] = cards.filter((c) => c.stage_code === s)
     return acc
@@ -66,23 +77,46 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
     return { count: items.length, sum }
   }
 
-  const handleDragStart = (e: DragEvent, card: OpportunityProject) => {
+  const handleDragStart = useCallback((e: DragEvent, card: OpportunityProject) => {
     dragCardRef.current = card
+    setDragCardId(card.id)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', card.id)
-  }
+    // Custom drag image
+    if (dragImageRef.current) {
+      const ghost = dragImageRef.current
+      ghost.innerHTML = `<div style="background:#fff;border:2px solid #3b82f6;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;color:#1e293b;box-shadow:0 8px 25px rgba(0,0,0,0.15);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${card.name}</div>`
+      ghost.style.top = '-200px'
+      ghost.style.left = '-200px'
+      e.dataTransfer.setDragImage(ghost, 100, 20)
+    }
+  }, [])
 
-  const handleDragOver = (e: DragEvent, stage: string) => {
+  const handleDragOver = useCallback((e: DragEvent, stage: string) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setDragOverStage(stage)
-  }
+  }, [])
 
-  const handleDragLeave = () => { setDragOverStage(null) }
+  const handleDragLeave = useCallback((e: DragEvent) => {
+    // Only clear if leaving the column entirely
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const { clientX, clientY } = e
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+      setDragOverStage(null)
+    }
+  }, [])
 
-  const handleDrop = async (e: DragEvent, toStage: string) => {
+  const handleDragEnd = useCallback(() => {
+    setDragOverStage(null)
+    setDragCardId(null)
+    dragCardRef.current = null
+  }, [])
+
+  const handleDrop = useCallback(async (e: DragEvent, toStage: string) => {
     e.preventDefault()
     setDragOverStage(null)
+    setDragCardId(null)
     const card = dragCardRef.current
     if (!card || card.stage_code === toStage) return
 
@@ -120,7 +154,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
         }
       },
     })
-  }
+  }, [])
 
   if (loading) {
     return <DetailSkeleton />
@@ -147,15 +181,19 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
           const color = STAGE_COLORS[stage]
           const { count, sum } = stageTotal(stage)
           const isDragOver = dragOverStage === stage
+          const isValidDrop = isDragOver && dragCardRef.current?.stage_code !== stage
           return (
             <div
               key={stage}
-              className="flex-shrink-0 flex flex-col rounded-xl border transition-all duration-200"
+              className="flex-shrink-0 flex flex-col rounded-xl transition-all duration-200"
               style={{
                 width: 280,
-                background: isDragOver ? color.headerBg : color.bg,
-                borderColor: isDragOver ? color.text : color.border,
-                borderWidth: isDragOver ? 2 : 1,
+                background: isValidDrop ? color.dropBg : color.bg,
+                borderColor: isValidDrop ? color.text : color.border,
+                borderWidth: isValidDrop ? 2 : 1,
+                borderStyle: 'solid',
+                transform: isValidDrop ? 'scale(1.02)' : 'scale(1)',
+                boxShadow: isValidDrop ? `0 0 20px ${color.border}` : 'none',
               }}
               onDragOver={(e) => handleDragOver(e, stage)}
               onDragLeave={handleDragLeave}
@@ -176,53 +214,70 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
                 </div>
               </div>
 
+              {/* Drop zone indicator */}
+              {isValidDrop && (
+                <div className="mx-2 mt-2 py-2 rounded-lg border-2 border-dashed text-center text-xs font-bold"
+                  style={{ borderColor: color.text, color: color.text, opacity: 0.6 }}>
+                  放置到 {stageLabels[stage]}
+                </div>
+              )}
+
               {/* Cards */}
               <div className="flex-1 px-2 py-2 space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
-                {(grouped[stage] || []).map((card) => (
-                  <div
-                    key={card.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, card)}
-                    onClick={() => navigate(`/opportunities/${card.id}`)}
-                    className="bg-white rounded-lg border border-slate-200 p-3 cursor-grab hover:shadow-md hover:border-slate-300 transition-all duration-150 active:cursor-grabbing"
-                  >
-                    <div className="flex items-start justify-between mb-1.5">
-                      <h3 className="text-[13px] font-bold text-slate-800 leading-tight line-clamp-2 flex-1">{card.name}</h3>
-                      <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1 ml-2" style={{ background: statusDot[card.status] || '#94a3b8' }} />
+                {(grouped[stage] || []).map((card) => {
+                  const isDragging = dragCardId === card.id
+                  return (
+                    <div
+                      key={card.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, card)}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => !isDragging && navigate(`/opportunities/${card.id}`)}
+                      className="bg-white rounded-lg border border-slate-200 p-3 cursor-grab hover:shadow-md hover:border-slate-300 active:cursor-grabbing"
+                      style={{
+                        opacity: isDragging ? 0.3 : 1,
+                        transform: isDragging ? 'scale(0.95) rotate(-1deg)' : 'scale(1)',
+                        transition: 'opacity 0.2s, transform 0.2s, box-shadow 0.15s',
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-1.5">
+                        <h3 className="text-[13px] font-bold text-slate-800 leading-tight line-clamp-2 flex-1">{card.name}</h3>
+                        <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1 ml-2" style={{ background: statusDot[card.status] || '#94a3b8' }} />
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-mono mb-2">{card.project_code}</div>
+                      {card.customer_id && customerMap[card.customer_id] && (
+                        <div className="text-[11px] text-slate-500 mb-1.5 flex items-center gap-1">
+                          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>business</span>
+                          {customerMap[card.customer_id]}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <div className="text-[12px] font-bold text-slate-700">
+                          {card.amount_expect != null ? `¥${Number(card.amount_expect).toLocaleString()}` : '-'}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {card.probability != null && (
+                            <span className="text-[10px] font-bold text-blue-500">{card.probability}%</span>
+                          )}
+                          {card.risk_level && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              card.risk_level === 'H' ? 'bg-red-50 text-red-500' :
+                              card.risk_level === 'M' ? 'bg-amber-50 text-amber-500' :
+                              'bg-emerald-50 text-emerald-500'
+                            }`}>{riskLabels[card.risk_level]}</span>
+                          )}
+                        </div>
+                      </div>
+                      {card.owner_name && (
+                        <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center gap-1">
+                          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>person</span>
+                          {card.owner_name}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-[11px] text-slate-400 font-mono mb-2">{card.project_code}</div>
-                    {card.customer_id && customerMap[card.customer_id] && (
-                      <div className="text-[11px] text-slate-500 mb-1.5 flex items-center gap-1">
-                        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>business</span>
-                        {customerMap[card.customer_id]}
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <div className="text-[12px] font-bold text-slate-700">
-                        {card.amount_expect != null ? `¥${Number(card.amount_expect).toLocaleString()}` : '-'}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {card.probability != null && (
-                          <span className="text-[10px] font-bold text-blue-500">{card.probability}%</span>
-                        )}
-                        {card.risk_level && (
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                            card.risk_level === 'H' ? 'bg-red-50 text-red-500' :
-                            card.risk_level === 'M' ? 'bg-amber-50 text-amber-500' :
-                            'bg-emerald-50 text-emerald-500'
-                          }`}>{riskLabels[card.risk_level]}</span>
-                        )}
-                      </div>
-                    </div>
-                    {card.owner_name && (
-                      <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center gap-1">
-                        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>person</span>
-                        {card.owner_name}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {(grouped[stage] || []).length === 0 && (
+                  )
+                })}
+                {(grouped[stage] || []).length === 0 && !isValidDrop && (
                   <div className="text-center py-8 text-slate-300 text-xs">暂无商机</div>
                 )}
               </div>

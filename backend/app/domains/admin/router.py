@@ -858,3 +858,190 @@ async def delete_custom_field(
     field.is_deleted = True
     await db.commit()
     return ok(None)
+
+
+# ==================== Data Dictionary ====================
+from app.domains.admin.models import DataDictionary
+
+
+@router.get("/api/v1/data-dict")
+async def list_data_dict(
+    dict_type: Optional[str] = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    q = select(DataDictionary).where(
+        DataDictionary.tenant_id == tenant_id,
+        DataDictionary.is_deleted == False,
+    )
+    if dict_type:
+        q = q.where(DataDictionary.dict_type == dict_type)
+    q = q.order_by(DataDictionary.dict_type, DataDictionary.sort_order)
+    items = (await db.execute(q)).scalars().all()
+    return ok([{
+        "id": i.id, "dict_type": i.dict_type, "dict_code": i.dict_code,
+        "dict_label": i.dict_label, "sort_order": i.sort_order,
+        "color": i.color, "extra_json": i.extra_json, "enabled": i.enabled,
+    } for i in items])
+
+
+class DataDictBody(BaseModel):
+    dict_type: str = Field(..., max_length=64)
+    dict_code: str = Field(..., max_length=64)
+    dict_label: str = Field(..., max_length=200)
+    sort_order: int = 0
+    color: Optional[str] = None
+    extra_json: Optional[dict] = None
+    enabled: bool = True
+
+
+@router.post("/api/v1/data-dict")
+async def create_data_dict(
+    body: DataDictBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    item = DataDictionary(
+        id=gen_id(), tenant_id=tenant_id,
+        dict_type=body.dict_type, dict_code=body.dict_code,
+        dict_label=body.dict_label, sort_order=body.sort_order,
+        color=body.color, extra_json=body.extra_json, enabled=body.enabled,
+    )
+    db.add(item)
+    await db.commit()
+    return ok({"id": item.id})
+
+
+@router.put("/api/v1/data-dict/{item_id}")
+async def update_data_dict(
+    item_id: str,
+    body: DataDictBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    item = (await db.execute(
+        select(DataDictionary).where(DataDictionary.id == item_id, DataDictionary.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not item:
+        raise BusinessException(code=404, message="字典项不存在")
+    for k in ("dict_type", "dict_code", "dict_label", "sort_order", "color", "extra_json", "enabled"):
+        setattr(item, k, getattr(body, k))
+    await db.commit()
+    return ok(None)
+
+
+@router.delete("/api/v1/data-dict/{item_id}")
+async def delete_data_dict(
+    item_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    item = (await db.execute(
+        select(DataDictionary).where(DataDictionary.id == item_id, DataDictionary.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not item:
+        raise BusinessException(code=404, message="字典项不存在")
+    item.is_deleted = True
+    await db.commit()
+    return ok(None)
+
+
+# ==================== Recycle Bin ====================
+from app.domains.customer.models import Customer
+from app.domains.lead.models import Lead
+from app.domains.project.models import OpportunityProject
+
+
+@router.get("/api/v1/recycle-bin")
+async def list_recycle_bin(
+    biz_type: Optional[str] = Query(None),
+    keyword: Optional[str] = Query(None),
+    page_no: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    """List soft-deleted records across entity types."""
+    from sqlalchemy import union_all, literal_column, String as SAString, cast
+
+    results = []
+    model_map = {
+        "customer": (Customer, "name", "customer_code"),
+        "lead": (Lead, "company_name", "source"),
+        "project": (OpportunityProject, "name", "project_code"),
+    }
+    types_to_query = [biz_type] if biz_type and biz_type in model_map else list(model_map.keys())
+
+    for t in types_to_query:
+        model, name_col, code_col = model_map[t]
+        q = select(
+            model.id,
+            getattr(model, name_col).label("name"),
+            getattr(model, code_col).label("code"),
+            model.updated_at,
+        ).where(model.tenant_id == tenant_id, model.is_deleted == True)
+        if keyword:
+            q = q.where(getattr(model, name_col).ilike(f"%{keyword}%"))
+        items = (await db.execute(q.order_by(model.updated_at.desc()))).all()
+        for row in items:
+            results.append({
+                "id": row[0], "name": row[1], "code": row[2],
+                "biz_type": t, "deleted_at": row[3].isoformat() if row[3] else None,
+            })
+
+    # Sort by deleted_at desc
+    results.sort(key=lambda x: x["deleted_at"] or "", reverse=True)
+    total = len(results)
+    page_results = results[(page_no - 1) * page_size: page_no * page_size]
+    return ok({"items": page_results, "total": total})
+
+
+@router.post("/api/v1/recycle-bin/{biz_type}/{record_id}/restore")
+async def restore_record(
+    biz_type: str,
+    record_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """Restore a soft-deleted record."""
+    model_map = {"customer": Customer, "lead": Lead, "project": OpportunityProject}
+    model = model_map.get(biz_type)
+    if not model:
+        raise BusinessException(code=400, message="不支持的类型")
+    record = (await db.execute(
+        select(model).where(model.id == record_id, model.tenant_id == tenant_id, model.is_deleted == True)
+    )).scalar_one_or_none()
+    if not record:
+        raise BusinessException(code=404, message="记录不存在或未被删除")
+    record.is_deleted = False
+    await db.commit()
+    return ok(None)
+
+
+@router.delete("/api/v1/recycle-bin/{biz_type}/{record_id}")
+async def permanently_delete_record(
+    biz_type: str,
+    record_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """Permanently delete a soft-deleted record."""
+    model_map = {"customer": Customer, "lead": Lead, "project": OpportunityProject}
+    model = model_map.get(biz_type)
+    if not model:
+        raise BusinessException(code=400, message="不支持的类型")
+    record = (await db.execute(
+        select(model).where(model.id == record_id, model.tenant_id == tenant_id, model.is_deleted == True)
+    )).scalar_one_or_none()
+    if not record:
+        raise BusinessException(code=404, message="记录不存在或未被删除")
+    await db.delete(record)
+    await db.commit()
+    return ok(None)

@@ -168,6 +168,21 @@ class CustomFieldDef(TenantScopedBase):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class DataDictionary(TenantScopedBase):
+    """数据字典 — 可配置的下拉选项"""
+    __tablename__ = "data_dictionaries"
+
+    dict_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # industry / customer_source / customer_level / risk_level / ticket_category ...
+    dict_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    dict_label: Mapped[str] = mapped_column(String(200), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    color: Mapped[str | None] = mapped_column(String(32))
+    extra_json: Mapped[dict | None] = mapped_column(JSON)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+
+
 class IntegrationEndpoint(TenantScopedBase):
     """集成端点配置"""
     __tablename__ = "integration_endpoints"
