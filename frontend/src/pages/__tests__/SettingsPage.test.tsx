@@ -42,6 +42,7 @@ vi.mock('@/api/settings', () => ({
     deleteCustomField: vi.fn(),
     backupStats: vi.fn(),
     backupDownloadUrl: vi.fn(),
+    auditVerify: vi.fn(),
   },
 }))
 

@@ -32,20 +32,22 @@ export default function TaskPage() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [filterStatus, setFilterStatus] = useState<string | undefined>()
+  const [filterPriority, setFilterPriority] = useState<string | undefined>()
   const [loading, setLoading] = useState(false)
   const [modal, setModal] = useState(false)
   const [form] = Form.useForm()
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const fetch = async (p = page) => {
     setLoading(true)
     try {
-      const res = await taskApi.list({ pageNo: p, pageSize: 20, status: filterStatus })
+      const res = await taskApi.list({ pageNo: p, pageSize: 20, status: filterStatus, priority: filterPriority })
       setItems(res.data?.items || [])
       setTotal(res.data?.total || 0)
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { fetch(page) }, [page, filterStatus])
+  useEffect(() => { fetch(page) }, [page, filterStatus, filterPriority])
 
   const handleCreate = async () => {
     const values = await form.validateFields()
@@ -73,6 +75,19 @@ export default function TaskPage() {
     })
   }
 
+  const handleBulkComplete = async () => {
+    if (selectedIds.length === 0) { message.warning('请先勾选任务'); return }
+    Modal.confirm({
+      title: `批量完成 ${selectedIds.length} 项任务？`,
+      onOk: async () => {
+        await Promise.all(selectedIds.map(id => taskApi.update(id, { is_completed: true, status: 'done' })))
+        message.success(`已完成 ${selectedIds.length} 项任务`)
+        setSelectedIds([])
+        fetch()
+      },
+    })
+  }
+
   const todoCount = items.filter(t => !t.is_completed).length
   const overdueCount = items.filter(t => !t.is_completed && t.due_date && dayjs(t.due_date).isBefore(dayjs(), 'day')).length
 
@@ -82,20 +97,34 @@ export default function TaskPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">待办任务</h1>
           <p className="text-sm text-slate-500 mt-1">
-            {todoCount} 项待办{overdueCount > 0 ? `，${overdueCount} 项已逾期` : ''}
+            {todoCount} 项待办{overdueCount > 0 ? <span className="text-rose-500 font-bold ml-1">{overdueCount} 项已逾期</span> : ''}
           </p>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModal(true) }}>新建任务</Button>
+        <Space>
+          {selectedIds.length > 0 && (
+            <Button icon={<CheckOutlined />} onClick={handleBulkComplete}>
+              批量完成 ({selectedIds.length})
+            </Button>
+          )}
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModal(true) }}>新建任务</Button>
+        </Space>
       </div>
 
       <div className="flex items-center gap-3 mb-4">
         <Select placeholder="状态" allowClear style={{ width: 120 }} value={filterStatus} onChange={(v) => { setFilterStatus(v); setPage(1) }}
           options={Object.entries(statusConfig).map(([k, v]) => ({ label: v.label, value: k }))} />
+        <Select placeholder="优先级" allowClear style={{ width: 120 }} value={filterPriority} onChange={(v) => { setFilterPriority(v); setPage(1) }}
+          options={Object.entries(priorityConfig).map(([k, v]) => ({ label: v.label, value: k }))} />
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Table rowKey="id" dataSource={items} loading={loading} size="small"
           pagination={{ current: page, total, pageSize: 20, onChange: setPage }}
+          rowSelection={{
+            selectedRowKeys: selectedIds,
+            onChange: (keys) => setSelectedIds(keys as string[]),
+            getCheckboxProps: (r: TaskItem) => ({ disabled: r.is_completed }),
+          }}
           columns={[
             { title: '', key: 'check', width: 40,
               render: (_, r: TaskItem) => (
@@ -117,7 +146,12 @@ export default function TaskPage() {
               render: (v: string | null, r: TaskItem) => {
                 if (!v) return '-'
                 const isOverdue = !r.is_completed && dayjs(v).isBefore(dayjs(), 'day')
-                return <span className={isOverdue ? 'text-rose-500 font-bold' : ''}>{v}</span>
+                const isToday = dayjs(v).isSame(dayjs(), 'day')
+                return (
+                  <span className={isOverdue ? 'text-rose-500 font-bold' : isToday ? 'text-amber-600 font-medium' : ''}>
+                    {v}{isOverdue ? ' (逾期)' : isToday ? ' (今天)' : ''}
+                  </span>
+                )
               },
             },
             { title: '关联', dataIndex: 'biz_name', width: 120, ellipsis: true,

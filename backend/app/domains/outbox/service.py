@@ -134,7 +134,7 @@ async def mark_inbox_processed(db: AsyncSession, tenant_id: str, event_id: str):
     if not event:
         raise BusinessException(code=NOT_FOUND, message="事件不存在")
     event.status = "processed"
-    event.processed_at = datetime.now(timezone.utc).isoformat()
+    event.processed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")[:29]
     await db.commit()
     return event
 

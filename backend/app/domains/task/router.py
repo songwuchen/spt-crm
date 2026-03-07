@@ -85,10 +85,14 @@ async def create_task(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions()),
 ):
+    from datetime import date as date_type
+    parsed_due = None
+    if body.due_date:
+        parsed_due = date_type.fromisoformat(body.due_date)
     t = UserTask(
         tenant_id=tenant_id,
         title=body.title, description=body.description,
-        due_date=body.due_date, priority=body.priority or "normal",
+        due_date=parsed_due, priority=body.priority or "normal",
         assignee_id=body.assignee_id or current_user["sub"],
         assignee_name=body.assignee_name or current_user.get("real_name") or current_user.get("username"),
         created_by_id=current_user["sub"],
@@ -115,7 +119,11 @@ async def update_task(
     )).scalar()
     if not t:
         raise BusinessException("任务不存在")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    if "due_date" in data and data["due_date"]:
+        from datetime import date as date_type
+        data["due_date"] = date_type.fromisoformat(data["due_date"])
+    for k, v in data.items():
         setattr(t, k, v)
     if body.is_completed is True:
         t.status = "done"

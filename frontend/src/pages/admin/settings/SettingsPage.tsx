@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Tabs, Table, Button, Modal, Input, InputNumber, Select, Switch, Space, Progress, message } from 'antd'
-import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import { settingsApi } from '@/api/settings'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -40,6 +40,8 @@ export default function SettingsPage() {
   const [customFields, setCustomFields] = useState<CustomFieldItem[]>([])
   const [backupStats, setBackupStats] = useState<Record<string, number>>({})
   const [backupLoading, setBackupLoading] = useState(false)
+  const [auditResult, setAuditResult] = useState<{ total_checked: number; no_hash: number; tampered_count: number; tampered: { id: string; created_at: string; summary: string }[] } | null>(null)
+  const [auditLoading, setAuditLoading] = useState(false)
 
   // Custom field
   const [cfModal, setCfModal] = useState(false)
@@ -599,6 +601,63 @@ export default function SettingsPage() {
                 </div>
                 {Object.keys(backupStats).length === 0 && (
                   <div className="text-center py-8 text-slate-400 text-sm">暂无统计数据</div>
+                )}
+              </div>
+            ),
+          },
+          {
+            key: 'audit_verify', label: '审计校验',
+            children: (
+              <div className="pb-6">
+                <p className="text-sm text-slate-500 mb-4">验证审计日志完整性，检测是否存在篡改记录。系统会重新计算每条日志的内容哈希并与存储值比对。</p>
+                <Button type="primary" icon={<SafetyCertificateOutlined />} loading={auditLoading} onClick={async () => {
+                  setAuditLoading(true)
+                  try {
+                    const r = await settingsApi.auditVerify()
+                    setAuditResult(r.data)
+                  } catch { message.error('校验失败') }
+                  finally { setAuditLoading(false) }
+                }}>开始校验</Button>
+
+                {auditResult && (
+                  <div className="mt-6">
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                      <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-center">
+                        <div className="text-2xl font-black text-slate-900">{auditResult.total_checked}</div>
+                        <div className="text-xs text-slate-500 mt-1">检查总数</div>
+                      </div>
+                      <div className={`rounded-xl p-4 border text-center ${auditResult.tampered_count === 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+                        <div className={`text-2xl font-black ${auditResult.tampered_count === 0 ? 'text-emerald-700' : 'text-red-600'}`}>{auditResult.tampered_count}</div>
+                        <div className={`text-xs mt-1 ${auditResult.tampered_count === 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {auditResult.tampered_count === 0 ? '无异常' : '疑似篡改'}
+                        </div>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-center">
+                        <div className="text-2xl font-black text-slate-900">{auditResult.no_hash}</div>
+                        <div className="text-xs text-slate-500 mt-1">无哈希记录</div>
+                      </div>
+                    </div>
+
+                    {auditResult.tampered_count > 0 && (
+                      <div>
+                        <h4 className="text-sm font-bold text-red-600 mb-2">异常记录 (前50条)</h4>
+                        <Table rowKey="id" dataSource={auditResult.tampered} size="small" pagination={false} columns={[
+                          { title: 'ID', dataIndex: 'id', width: 280, render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+                          { title: '时间', dataIndex: 'created_at', width: 180 },
+                          { title: '摘要', dataIndex: 'summary' },
+                        ]} />
+                      </div>
+                    )}
+
+                    {auditResult.tampered_count === 0 && (
+                      <div className="text-center py-4">
+                        <span className="text-emerald-600 font-bold text-lg">
+                          <SafetyCertificateOutlined className="mr-2" />
+                          审计日志完整性验证通过
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             ),

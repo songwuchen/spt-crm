@@ -75,4 +75,7 @@ export const settingsApi = {
   // Backup
   backupStats: () => client.get('/api/v1/admin/backup/stats'),
   backupDownloadUrl: () => '/api/v1/admin/backup',
+
+  // Audit
+  auditVerify: () => client.post('/api/v1/audit_logs/verify'),
 }
