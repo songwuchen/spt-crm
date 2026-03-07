@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Button, Form, Input, Avatar, message, Divider, Modal, QRCode } from 'antd'
-import { UserOutlined, LockOutlined, SaveOutlined, DeleteOutlined, LaptopOutlined, SafetyOutlined } from '@ant-design/icons'
+import { Button, Form, Input, Avatar, Switch, message, Divider, Modal, QRCode } from 'antd'
+import { UserOutlined, LockOutlined, SaveOutlined, DeleteOutlined, LaptopOutlined, SafetyOutlined, BellOutlined } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { authApi } from '@/api/auth'
+import client from '@/api/client'
 import type { SessionItem } from '@/api/auth'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
@@ -26,6 +27,32 @@ export default function ProfilePage() {
   const [totpCode, setTotpCode] = useState('')
   const [totpLoading, setTotpLoading] = useState(false)
   const [disablePwd, setDisablePwd] = useState('')
+  const [notifTypes, setNotifTypes] = useState<{ key: string; label: string }[]>([])
+  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({})
+  const [notifSaving, setNotifSaving] = useState(false)
+
+  const fetchNotifPrefs = async () => {
+    try {
+      const res = await client.get('/api/v1/notifications/preferences') as any
+      const data = res.data || {}
+      setNotifTypes((data.types || []).map((t: any) => typeof t === 'string' ? { key: t, label: t } : t))
+      setNotifPrefs(data.preferences || {})
+    } catch { /* ignore */ }
+  }
+
+  const handleNotifToggle = async (key: string, checked: boolean) => {
+    const updated = { ...notifPrefs, [key]: checked }
+    setNotifPrefs(updated)
+    setNotifSaving(true)
+    try {
+      await client.put('/api/v1/notifications/preferences', { preferences: updated })
+    } catch {
+      message.error('保存通知偏好失败')
+      setNotifPrefs(notifPrefs) // revert
+    } finally {
+      setNotifSaving(false)
+    }
+  }
 
   const fetchSessions = async () => {
     setSessionsLoading(true)
@@ -43,7 +70,7 @@ export default function ProfilePage() {
     } catch {}
   }
 
-  useEffect(() => { fetchSessions(); fetchTotpStatus() }, [])
+  useEffect(() => { fetchSessions(); fetchTotpStatus(); fetchNotifPrefs() }, [])
 
   const handleProfileSave = async () => {
     const values = await profileForm.validateFields()
@@ -283,6 +310,44 @@ export default function ProfilePage() {
                     } finally { setTotpLoading(false) }
                   }}>禁用二步验证</Button>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Notification Preferences */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <BellOutlined /> 通知偏好
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">选择您希望接收的通知类型</p>
+            {notifTypes.length === 0 ? (
+              <div className="text-sm text-slate-400">加载中...</div>
+            ) : (
+              <div className="space-y-3">
+                {notifTypes.map((t) => {
+                  const typeLabels: Record<string, string> = {
+                    approval_pending: '待审批通知',
+                    approval_decided: '审批结果通知',
+                    stage_change: '阶段变更通知',
+                    payment_overdue: '回款逾期提醒',
+                    ai_task_complete: 'AI 任务完成',
+                    gate_blocked: '阶段门禁阻断',
+                    system: '系统通知',
+                    contract_expiry: '合同到期提醒',
+                  }
+                  return (
+                    <div key={t.key} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                      <div>
+                        <div className="text-sm font-medium text-slate-700">{typeLabels[t.key] || t.label || t.key}</div>
+                      </div>
+                      <Switch
+                        checked={notifPrefs[t.key] !== false}
+                        onChange={(checked) => handleNotifToggle(t.key, checked)}
+                        loading={notifSaving}
+                      />
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>

@@ -127,3 +127,113 @@ def build_quote_pdf(
 
     doc.build(elements)
     return buf.getvalue()
+
+
+def build_contract_pdf(
+    contract_no: str,
+    status: str,
+    amount_total: float | None,
+    signed_date: str | None,
+    end_date: str | None,
+    payment_terms: dict | None,
+    delivery_terms: dict | None,
+    created_by_name: str,
+    created_at: str,
+    version_no: int | None,
+    version_title: str | None,
+    key_clauses: dict | list | None,
+) -> bytes:
+    """Build a PDF for a contract and return bytes."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm,
+                            topMargin=20 * mm, bottomMargin=20 * mm)
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle("CTitle", parent=styles["Title"], fontName=_font_name, fontSize=18)
+    normal_style = ParagraphStyle("CNormal", parent=styles["Normal"], fontName=_font_name, fontSize=10)
+    header_style = ParagraphStyle("CHeader", parent=styles["Heading2"], fontName=_font_name, fontSize=13)
+
+    elements = []
+
+    elements.append(Paragraph(f"合同 {contract_no}", title_style))
+    elements.append(Spacer(1, 4 * mm))
+
+    status_labels = {"draft": "草稿", "signed": "已签署", "active": "执行中", "completed": "已完成", "terminated": "已终止"}
+    meta_lines = [
+        f"状态: {status_labels.get(status, status)}",
+    ]
+    if amount_total is not None:
+        meta_lines.append(f"合同金额: ¥{amount_total:,.2f}")
+    if signed_date:
+        meta_lines.append(f"签署日期: {signed_date}")
+    if end_date:
+        meta_lines.append(f"到期日期: {end_date}")
+    if version_no:
+        meta_lines.append(f"当前版本: V{version_no} - {version_title or ''}")
+    meta_lines.append(f"创建人: {created_by_name}    日期: {created_at[:10] if created_at else ''}")
+
+    for line in meta_lines:
+        elements.append(Paragraph(line, normal_style))
+    elements.append(Spacer(1, 6 * mm))
+
+    # Payment terms
+    if payment_terms and isinstance(payment_terms, dict):
+        elements.append(Paragraph("付款条款", header_style))
+        elements.append(Spacer(1, 3 * mm))
+        table_data = [["条款", "内容"]]
+        for k, v in payment_terms.items():
+            table_data.append([str(k), str(v or "")])
+        t = Table(table_data, colWidths=[120, 340])
+        t.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), _font_name),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#334155")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(t)
+        elements.append(Spacer(1, 6 * mm))
+
+    # Delivery terms
+    if delivery_terms and isinstance(delivery_terms, dict):
+        elements.append(Paragraph("交付条款", header_style))
+        elements.append(Spacer(1, 3 * mm))
+        table_data = [["条款", "内容"]]
+        for k, v in delivery_terms.items():
+            table_data.append([str(k), str(v or "")])
+        t = Table(table_data, colWidths=[120, 340])
+        t.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), _font_name),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#334155")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(t)
+        elements.append(Spacer(1, 6 * mm))
+
+    # Key clauses
+    if key_clauses:
+        elements.append(Paragraph("关键条款", header_style))
+        elements.append(Spacer(1, 3 * mm))
+        if isinstance(key_clauses, dict):
+            for k, v in key_clauses.items():
+                elements.append(Paragraph(f"<b>{k}</b>: {v}", normal_style))
+        elif isinstance(key_clauses, list):
+            for item in key_clauses:
+                if isinstance(item, dict):
+                    elements.append(Paragraph(f"· {item.get('clause', item.get('name', str(item)))}", normal_style))
+                else:
+                    elements.append(Paragraph(f"· {item}", normal_style))
+        elements.append(Spacer(1, 6 * mm))
+
+    doc.build(elements)
+    return buf.getvalue()

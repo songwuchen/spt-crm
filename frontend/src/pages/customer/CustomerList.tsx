@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Input, Space, Tag, Select, Modal, Form, message } from 'antd'
-import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Table, Button, Input, Space, Tag, Select, Modal, Form, Dropdown, Checkbox, message } from 'antd'
+import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, SettingOutlined } from '@ant-design/icons'
 import ImportModal from '@/components/ImportModal'
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -10,10 +10,12 @@ import { sourceLabels } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useDataDict } from '@/hooks/useDataDict'
+import { useColumnConfig } from '@/hooks/useColumnConfig'
 import { userApi } from '@/api/user'
 import SavedViewSelect from '@/components/SavedViewSelect'
 
-const industries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他']
+const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
 
 function Monogram({ name }: { name: string }) {
   const initials = name.slice(0, 2)
@@ -39,6 +41,7 @@ export default function CustomerList() {
   const [importModal, setImportModal] = useState(false)
   const [transferModal, setTransferModal] = useState(false)
   const [transferForm] = Form.useForm()
+  const industryDict = useDataDict('industry', defaultIndustries)
   const userSelect = useRemoteSelect(async (kw) => {
     const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
     return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
@@ -183,6 +186,8 @@ export default function CustomerList() {
     },
   ]
 
+  const { visibleColumns, hiddenKeys, setColumnConfig, allColumnKeys } = useColumnConfig('customers', columns)
+
   return (
     <div>
       {/* Page Header */}
@@ -236,7 +241,7 @@ export default function CustomerList() {
             style={{ width: 140 }}
             value={industry}
             onChange={(v) => { setIndustry(v); setPageNo(1); fetchData(1, keyword, v, region) }}
-            options={industries.map((i) => ({ label: i, value: i }))}
+            options={industryDict.options}
           />
           <Input
             placeholder="区域"
@@ -250,6 +255,28 @@ export default function CustomerList() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             筛选
           </Button>
+          <Dropdown trigger={['click']} dropdownRender={() => (
+            <div className="bg-white rounded-lg border border-slate-200 shadow-lg p-3 min-w-[160px]">
+              <div className="text-xs font-bold text-slate-400 uppercase mb-2">显示列</div>
+              {allColumnKeys.map((c) => (
+                <label key={c.key} className="flex items-center gap-2 py-1 cursor-pointer text-sm text-slate-700">
+                  <Checkbox
+                    checked={!hiddenKeys.includes(c.key)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setColumnConfig(hiddenKeys.filter((k) => k !== c.key))
+                      } else {
+                        setColumnConfig([...hiddenKeys, c.key])
+                      }
+                    }}
+                  />
+                  {c.title}
+                </label>
+              ))}
+            </div>
+          )}>
+            <Button icon={<SettingOutlined />} />
+          </Dropdown>
           <SavedViewSelect
             page="customers"
             currentFilters={{ keyword, industry, region }}
@@ -265,7 +292,7 @@ export default function CustomerList() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Table
           rowKey="id"
-          columns={columns}
+          columns={visibleColumns}
           dataSource={data}
           loading={loading}
           scroll={{ x: 1100 }}

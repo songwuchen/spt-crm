@@ -3,6 +3,7 @@ import { Button, Table, Input, Tag, Modal, Select, message } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useDataDict } from '@/hooks/useDataDict'
 import type { Customer } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 
@@ -16,6 +17,7 @@ export default function CustomerPool() {
   const [filterLevel, setFilterLevel] = useState<string | undefined>()
   const [loading, setLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const levelDict = useDataDict('customer_level', ['A', 'B', 'C', 'D'].map(l => ({ label: `${l}级`, value: l })))
 
   const fetch = async (p = page) => {
     setLoading(true)
@@ -126,7 +128,7 @@ export default function CustomerPool() {
           onSearch={handleSearch} enterButton style={{ width: 280 }} allowClear />
         <Select placeholder="级别" allowClear style={{ width: 100 }} value={filterLevel}
           onChange={(v) => { setFilterLevel(v); setPage(1); setTimeout(() => fetch(1), 0) }}
-          options={['A', 'B', 'C', 'D'].map(v => ({ label: `${v}级`, value: v }))} />
+          options={levelDict.options} />
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

@@ -48,4 +48,6 @@ export const customerApi = {
     }),
   batchTransfer: (ids: string[], owner_id: string, owner_name: string) =>
     client.post<unknown, ApiResponse<{ updated: number }>>('/api/v1/customers/batch_transfer', { ids, owner_id, owner_name }),
+  merge: (primaryId: string, secondaryId: string) =>
+    client.post<unknown, ApiResponse<Customer>>('/api/v1/customers/merge', { primary_id: primaryId, secondary_id: secondaryId }),
 }

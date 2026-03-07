@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -240,3 +241,38 @@ async def create_renewal_from_contract(
         "customer_id": renewal.customer_id,
         "amount_expect": float(renewal.amount_expect) if renewal.amount_expect else None,
     })
+
+
+# --- PDF Export ---
+@router.get("/api/v1/contracts/{contract_id}/export/pdf")
+async def export_contract_pdf(
+    contract_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("contract:view")),
+):
+    contract = await service.get_contract(db, tenant_id, contract_id)
+    versions = await service.get_versions_by_contract(db, tenant_id, contract_id)
+    cur_ver = next((v for v in versions if v.version_no == contract.current_version_no), None)
+
+    from app.common.pdf_builder import build_contract_pdf
+    pdf_bytes = build_contract_pdf(
+        contract_no=contract.contract_no,
+        status=contract.status,
+        amount_total=float(contract.amount_total) if contract.amount_total is not None else None,
+        signed_date=str(contract.signed_date) if contract.signed_date else None,
+        end_date=str(contract.end_date) if contract.end_date else None,
+        payment_terms=contract.payment_terms_json,
+        delivery_terms=contract.delivery_terms_json,
+        created_by_name=contract.created_by_name or "",
+        created_at=contract.created_at.isoformat() if contract.created_at else "",
+        version_no=cur_ver.version_no if cur_ver else None,
+        version_title=cur_ver.title if cur_ver else None,
+        key_clauses=cur_ver.key_clauses_json if cur_ver else None,
+    )
+    filename = f"contract_{contract.contract_no}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

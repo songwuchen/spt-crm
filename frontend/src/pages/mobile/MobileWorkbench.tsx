@@ -5,6 +5,7 @@ import { dashboardApi } from '@/api/dashboard'
 import { approvalApi } from '@/api/approval'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import PullToRefresh from '@/components/PullToRefresh'
 
 interface Stats {
   customer_total: number; lead_total: number; monthly_new_customers: number; pending_leads: number
@@ -44,19 +45,18 @@ export default function MobileWorkbench() {
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    dashboardApi.stats().then((res: any) => {
-      if (res.data) setStats(res.data)
-    }).catch(() => message.error('加载失败'))
-    dashboardApi.myOverview().then((res: any) => {
-      if (res.data) setMyOv(res.data)
-    }).catch(() => {})
-    approvalApi.myPending().then((r) => {
-      setPendingCount(r.data?.length || 0)
-    }).catch(() => {})
-  }, [])
+  const refreshAll = async () => {
+    await Promise.allSettled([
+      dashboardApi.stats().then((res: any) => { if (res.data) setStats(res.data) }),
+      dashboardApi.myOverview().then((res: any) => { if (res.data) setMyOv(res.data) }),
+      approvalApi.myPending().then((r) => { setPendingCount(r.data?.length || 0) }),
+    ])
+  }
+
+  useEffect(() => { refreshAll() }, [])
 
   return (
+    <PullToRefresh onRefresh={refreshAll}>
     <div>
       {/* Welcome */}
       <div className="mb-4">
@@ -159,5 +159,6 @@ export default function MobileWorkbench() {
         </div>
       </div>
     </div>
+    </PullToRefresh>
   )
 }

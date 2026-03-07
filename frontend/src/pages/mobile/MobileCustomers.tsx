@@ -5,6 +5,7 @@ import { SearchOutlined } from '@ant-design/icons'
 import { customerApi } from '@/api/customer'
 import type { Customer } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import PullToRefresh from '@/components/PullToRefresh'
 
 const levelColors: Record<string, string> = {
   A: 'bg-red-100 text-red-700', B: 'bg-amber-100 text-amber-700',
@@ -31,6 +32,7 @@ export default function MobileCustomers() {
   useEffect(() => { fetchData() }, [])
 
   return (
+    <PullToRefresh onRefresh={() => fetchData()}>
     <div>
       <h1 className="text-lg font-extrabold text-slate-900 mb-3">客户</h1>
 
@@ -82,5 +84,6 @@ export default function MobileCustomers() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   )
 }

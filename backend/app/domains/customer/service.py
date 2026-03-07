@@ -66,14 +66,19 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
 
 async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, data: CustomerUpdate, user: dict) -> Customer:
     customer = await get_customer(db, tenant_id, customer_id)
+    changes = {}
     for field, val in data.model_dump(exclude_unset=True).items():
+        old_val = getattr(customer, field, None)
+        if old_val != val:
+            changes[field] = {"old": old_val, "new": val}
         setattr(customer, field, val)
     await db.commit()
     await db.refresh(customer)
 
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="update", resource_type="customer", resource_id=customer.id,
-                     summary=f"更新客户: {customer.name}")
+                     summary=f"更新客户: {customer.name}",
+                     detail={"changes": changes} if changes else None)
     return customer
 
 
@@ -118,6 +123,71 @@ async def delete_customer(db: AsyncSession, tenant_id: str, customer_id: str, us
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="delete", resource_type="customer", resource_id=customer_id,
                      summary=f"删除客户: {customer_name}")
+
+
+# ==================== Customer Merge ====================
+
+async def merge_customers(db: AsyncSession, tenant_id: str, primary_id: str, secondary_id: str, user: dict) -> Customer:
+    """Merge secondary customer into primary. Moves contacts, projects, tickets, relations, shares."""
+    if primary_id == secondary_id:
+        raise BusinessException(code=VALIDATION_ERROR, message="不能合并同一个客户")
+
+    primary = await get_customer(db, tenant_id, primary_id)
+    secondary = await get_customer(db, tenant_id, secondary_id)
+
+    from sqlalchemy import update
+    from app.domains.project.models import OpportunityProject
+    from app.domains.service_ticket.models import ServiceTicket
+
+    # Move contacts
+    await db.execute(
+        update(Contact).where(Contact.tenant_id == tenant_id, Contact.customer_id == secondary_id)
+        .values(customer_id=primary_id)
+    )
+
+    # Move projects
+    await db.execute(
+        update(OpportunityProject).where(
+            OpportunityProject.tenant_id == tenant_id, OpportunityProject.customer_id == secondary_id
+        ).values(customer_id=primary_id)
+    )
+
+    # Move service tickets
+    await db.execute(
+        update(ServiceTicket).where(
+            ServiceTicket.tenant_id == tenant_id, ServiceTicket.customer_id == secondary_id
+        ).values(customer_id=primary_id)
+    )
+
+    # Move relations (update from/to)
+    await db.execute(
+        update(CustomerRelation).where(
+            CustomerRelation.tenant_id == tenant_id, CustomerRelation.from_customer_id == secondary_id
+        ).values(from_customer_id=primary_id)
+    )
+    await db.execute(
+        update(CustomerRelation).where(
+            CustomerRelation.tenant_id == tenant_id, CustomerRelation.to_customer_id == secondary_id
+        ).values(to_customer_id=primary_id)
+    )
+
+    # Move shares
+    await db.execute(
+        update(AclShare).where(
+            AclShare.tenant_id == tenant_id, AclShare.biz_type == "customer", AclShare.biz_id == secondary_id
+        ).values(biz_id=primary_id)
+    )
+
+    # Soft-delete secondary
+    secondary.is_deleted = True
+    await db.commit()
+    await db.refresh(primary)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"],
+                     user_name=user.get("real_name") or user.get("username"),
+                     action="merge", resource_type="customer", resource_id=primary_id,
+                     summary=f"合并客户: {secondary.name} → {primary.name}")
+    return primary
 
 
 # ==================== Customer Pool (公海池) ====================

@@ -107,6 +107,39 @@ async def receive_inbox_event(
     return ok(_inbox_dict(e))
 
 
+@router.post("/webhook/test")
+async def test_webhook(
+    body: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("project:edit")),
+):
+    """Send a test payload to a webhook URL and return the response."""
+    import httpx
+    url = body.get("url", "")
+    if not url:
+        from app.common.exceptions import BusinessException
+        raise BusinessException("请提供 webhook URL")
+    test_payload = {
+        "event": "test",
+        "tenant_id": tenant_id,
+        "message": "This is a test webhook from SPT-CRM",
+        "triggered_by": current_user.get("real_name") or current_user.get("username"),
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, json=test_payload)
+            return ok({
+                "status_code": resp.status_code,
+                "response_body": resp.text[:500],
+                "success": 200 <= resp.status_code < 300,
+            })
+    except httpx.TimeoutException:
+        return ok({"status_code": 0, "response_body": "请求超时", "success": False})
+    except Exception as e:
+        return ok({"status_code": 0, "response_body": str(e)[:200], "success": False})
+
+
 @router.post("/inbox/{event_id}/process")
 async def mark_processed(
     event_id: str,

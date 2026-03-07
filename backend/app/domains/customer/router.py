@@ -553,6 +553,23 @@ async def check_unique(
 from pydantic import BaseModel as PydanticBaseModel
 
 
+class CustomerMergeBody(PydanticBaseModel):
+    primary_id: str
+    secondary_id: str
+
+
+@router.post("/merge")
+async def merge_customers(
+    body: CustomerMergeBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("customer:edit")),
+):
+    """Merge secondary customer into primary, moving all related data."""
+    c = await service.merge_customers(db, tenant_id, body.primary_id, body.secondary_id, current_user)
+    return ok(_customer_dict(c))
+
+
 class BatchTransferBody(PydanticBaseModel):
     ids: list[str]
     owner_id: str

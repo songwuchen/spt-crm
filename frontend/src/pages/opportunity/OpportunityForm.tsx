@@ -6,19 +6,16 @@ import { customerApi } from '@/api/customer'
 import { userApi } from '@/api/user'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useDataDict } from '@/hooks/useDataDict'
+import { useAutoSave } from '@/hooks/useAutoSave'
 import dayjs from 'dayjs'
 
-const riskOptions = [
-  { label: '低', value: 'L' },
-  { label: '中', value: 'M' },
-  { label: '高', value: 'H' },
+const defaultRiskOptions = [
+  { label: '低', value: 'L' }, { label: '中', value: 'M' }, { label: '高', value: 'H' },
 ]
-
-const statusOptions = [
-  { label: '进行中', value: 'active' },
-  { label: '赢单', value: 'won' },
-  { label: '丢单', value: 'lost' },
-  { label: '暂停', value: 'suspended' },
+const defaultStatusOptions = [
+  { label: '进行中', value: 'active' }, { label: '赢单', value: 'won' },
+  { label: '丢单', value: 'lost' }, { label: '暂停', value: 'suspended' },
 ]
 
 export default function OpportunityForm() {
@@ -28,6 +25,9 @@ export default function OpportunityForm() {
   const [loading, setLoading] = useState(false)
   const isEdit = !!id
   usePageTitle(isEdit ? '编辑商机' : '新建商机')
+
+  const riskDict = useDataDict('risk_level', defaultRiskOptions)
+  const statusDict = useDataDict('project_status', defaultStatusOptions)
 
   const customerSelect = useRemoteSelect(async (kw) => {
     const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
@@ -39,6 +39,8 @@ export default function OpportunityForm() {
     return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
   })
 
+  const { restoreDraft, clearDraft } = useAutoSave(`opportunity_form_${id || 'new'}`, form)
+
   useEffect(() => {
     if (id) {
       projectApi.get(id).then((res) => {
@@ -48,6 +50,9 @@ export default function OpportunityForm() {
           close_date_expect: d.close_date_expect ? dayjs(d.close_date_expect) : undefined,
         })
       }).catch(() => message.error('加载商机数据失败'))
+    } else {
+      const restored = restoreDraft()
+      if (restored) message.info('已恢复上次未保存的草稿')
     }
   }, [id])
 
@@ -65,6 +70,7 @@ export default function OpportunityForm() {
         await projectApi.create(payload)
         message.success('商机已创建')
       }
+      clearDraft()
       navigate('/opportunities')
     } catch {
       message.error('保存失败，请重试')
@@ -100,7 +106,7 @@ export default function OpportunityForm() {
             <DatePicker className="w-full" />
           </Form.Item>
           <Form.Item name="risk_level" label="风险等级">
-            <Select placeholder="请选择风险等级" allowClear options={riskOptions} />
+            <Select placeholder="请选择风险等级" allowClear options={riskDict.options} loading={riskDict.loading} />
           </Form.Item>
           <Form.Item name="owner_id" label="负责人">
             <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
@@ -111,7 +117,7 @@ export default function OpportunityForm() {
           </Form.Item>
           {isEdit && (
             <Form.Item name="status" label="状态">
-              <Select options={statusOptions} />
+              <Select options={statusDict.options} loading={statusDict.loading} />
             </Form.Item>
           )}
           <Form.Item name="remark" label="备注">

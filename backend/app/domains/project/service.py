@@ -271,14 +271,19 @@ async def update_project(db: AsyncSession, tenant_id: str, project_id: str, data
             if contract_count == 0:
                 raise BusinessException(code=BUSINESS_ERROR, message="标记赢单前需至少有一份已签署的合同")
 
+    changes = {}
     for field, val in update_data.items():
+        old_val = getattr(project, field, None)
+        if old_val != val:
+            changes[field] = {"old": old_val if not hasattr(old_val, 'isoformat') else str(old_val), "new": val}
         setattr(project, field, val)
     await db.commit()
     await db.refresh(project)
 
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="update", resource_type="project", resource_id=project.id,
-                     summary=f"更新商机项目: {project.name}")
+                     summary=f"更新商机项目: {project.name}",
+                     detail={"changes": changes} if changes else None)
 
     # Auto-activity & notification for win/lost status change
     if new_status and new_status in ("won", "lost"):

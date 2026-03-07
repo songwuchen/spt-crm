@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Tabs, Table, Button, Modal, Input, InputNumber, Select, Switch, Space, Progress, Tag, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined, UploadOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import { settingsApi } from '@/api/settings'
+import client from '@/api/client'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import ApprovalPolicyModal from './ApprovalPolicyModal'
@@ -663,6 +664,10 @@ export default function SettingsPage() {
             children: <RecycleBinTab />,
           },
           {
+            key: 'health', label: '系统健康',
+            children: <HealthCheckTab />,
+          },
+          {
             key: 'audit_verify', label: '审计校验',
             children: (
               <div className="pb-6">
@@ -955,6 +960,20 @@ export default function SettingsPage() {
                 : intForm.auth_type === 'basic' ? '{"username": "user", "password": "pass"}'
                 : '{"token_url": "https://...", "client_id": "xxx", "client_secret": "xxx"}'} />
           </div>
+          {['dingtalk', 'wecom'].includes(intForm.system_code) && intForm.base_url && (
+            <Button size="small" onClick={async () => {
+              try {
+                const res = await client.post('/api/v1/events/webhook/test', { url: intForm.base_url }) as any
+                if (res.data?.success) {
+                  message.success(`Webhook 测试成功 (HTTP ${res.data.status_code})`)
+                } else {
+                  message.warning(`Webhook 测试失败: ${res.data?.response_body || '未知错误'}`)
+                }
+              } catch { message.error('Webhook 测试请求失败') }
+            }}>
+              测试 Webhook 连接
+            </Button>
+          )}
         </div>
       </Modal>
 
@@ -1013,12 +1032,75 @@ const DICT_TYPES = [
   { value: 'industry', label: '行业' },
   { value: 'customer_source', label: '客户来源' },
   { value: 'customer_level', label: '客户等级' },
+  { value: 'scale_level', label: '企业规模' },
   { value: 'risk_level', label: '风险等级' },
   { value: 'ticket_category', label: '工单分类' },
   { value: 'lead_source', label: '线索来源' },
+  { value: 'budget_range', label: '预算范围' },
   { value: 'payment_method', label: '付款方式' },
   { value: 'contract_type', label: '合同类型' },
+  { value: 'project_status', label: '商机状态' },
 ]
+
+function HealthCheckTab() {
+  const [health, setHealth] = useState<{ api: string; db: string; checked_at: string } | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const checkHealth = async () => {
+    setLoading(true)
+    try {
+      const [apiRes, dbRes] = await Promise.allSettled([
+        client.get('/health') as Promise<any>,
+        client.get('/health/ready') as Promise<any>,
+      ])
+      setHealth({
+        api: apiRes.status === 'fulfilled' ? (apiRes.value as any)?.status || 'ok' : 'error',
+        db: dbRes.status === 'fulfilled' ? (dbRes.value as any)?.db || (dbRes.value as any)?.status || 'ok' : 'error',
+        checked_at: new Date().toLocaleString('zh-CN'),
+      })
+    } catch {
+      setHealth({ api: 'error', db: 'unknown', checked_at: new Date().toLocaleString('zh-CN') })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { checkHealth() }, [])
+
+  return (
+    <div className="pb-6">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm text-slate-500">检查 API 服务和数据库连接状态</p>
+        <Button size="small" loading={loading} onClick={checkHealth}>刷新</Button>
+      </div>
+      {health && (
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            { label: 'API 服务', status: health.api },
+            { label: '数据库连接', status: health.db },
+          ].map((item) => {
+            const isOk = item.status === 'ok' || item.status === 'connected'
+            return (
+              <div key={item.label} className={`rounded-xl p-5 border ${isOk ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+                <div className="flex items-center gap-3">
+                  <span className={`w-3 h-3 rounded-full ${isOk ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                  <span className="text-sm font-bold text-slate-800">{item.label}</span>
+                </div>
+                <div className={`text-lg font-black mt-2 ${isOk ? 'text-emerald-700' : 'text-red-600'}`}>
+                  {isOk ? '正常' : '异常'}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">状态: {item.status}</div>
+              </div>
+            )
+          })}
+          <div className="col-span-2 text-xs text-slate-400">
+            最后检查: {health.checked_at}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function DataDictTab() {
   const [items, setItems] = useState<any[]>([])

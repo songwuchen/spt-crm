@@ -1427,3 +1427,80 @@ async def export_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+# --- Global Search ---
+
+@router.get("/search")
+async def global_search(
+    q: str = Query(..., min_length=1, max_length=100),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Search across customers, leads, projects, contacts, and tickets."""
+    from app.domains.customer.models import Contact as ContactModel
+    pattern = f"%{q}%"
+    results = []
+
+    # Customers
+    customers = (await db.execute(
+        select(Customer.id, Customer.name, Customer.industry, Customer.region)
+        .where(Customer.tenant_id == tenant_id, Customer.is_deleted == False,
+               or_(Customer.name.ilike(pattern), Customer.short_name.ilike(pattern), Customer.customer_code.ilike(pattern)))
+        .limit(5)
+    )).all()
+    for c in customers:
+        results.append({"type": "customer", "id": c.id, "title": c.name,
+                        "subtitle": " · ".join(filter(None, [c.industry, c.region])),
+                        "url": f"/customers/{c.id}"})
+
+    # Leads
+    leads = (await db.execute(
+        select(Lead.id, Lead.company_name, Lead.contact_name, Lead.source)
+        .where(Lead.tenant_id == tenant_id, Lead.is_deleted == False,
+               or_(Lead.company_name.ilike(pattern), Lead.contact_name.ilike(pattern)))
+        .limit(5)
+    )).all()
+    for l in leads:
+        results.append({"type": "lead", "id": l.id, "title": l.company_name or l.contact_name,
+                        "subtitle": l.contact_name or "",
+                        "url": f"/leads/{l.id}"})
+
+    # Projects
+    projects = (await db.execute(
+        select(OpportunityProject.id, OpportunityProject.name, OpportunityProject.stage_code, OpportunityProject.status)
+        .where(OpportunityProject.tenant_id == tenant_id, OpportunityProject.is_deleted == False,
+               OpportunityProject.name.ilike(pattern))
+        .limit(5)
+    )).all()
+    for p in projects:
+        results.append({"type": "project", "id": p.id, "title": p.name,
+                        "subtitle": f"{p.stage_code} · {p.status}",
+                        "url": f"/opportunities/{p.id}"})
+
+    # Contacts
+    contacts = (await db.execute(
+        select(ContactModel.id, ContactModel.name, ContactModel.customer_id, ContactModel.title)
+        .where(ContactModel.tenant_id == tenant_id,
+               or_(ContactModel.name.ilike(pattern), ContactModel.phone.ilike(pattern), ContactModel.email.ilike(pattern)))
+        .limit(5)
+    )).all()
+    for c in contacts:
+        results.append({"type": "contact", "id": c.id, "title": c.name,
+                        "subtitle": c.title or "",
+                        "url": f"/customers/{c.customer_id}"})
+
+    # Tickets
+    tickets = (await db.execute(
+        select(ServiceTicket.id, ServiceTicket.ticket_no, ServiceTicket.description, ServiceTicket.status)
+        .where(ServiceTicket.tenant_id == tenant_id,
+               or_(ServiceTicket.ticket_no.ilike(pattern), ServiceTicket.description.ilike(pattern)))
+        .limit(5)
+    )).all()
+    for t in tickets:
+        results.append({"type": "ticket", "id": t.id, "title": t.ticket_no,
+                        "subtitle": (t.description or "")[:60],
+                        "url": f"/service-tickets"})
+
+    return ok(results)

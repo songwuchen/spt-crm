@@ -5,6 +5,15 @@ import { leadApi } from '@/api/lead'
 import { userApi } from '@/api/user'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useDataDict } from '@/hooks/useDataDict'
+
+const defaultSources = [
+  { label: '展会', value: 'expo' }, { label: '转介绍', value: 'referral' },
+  { label: '广告', value: 'ad' }, { label: '官网/入站', value: 'inbound' },
+  { label: '合作伙伴', value: 'partner' }, { label: '电话', value: 'call' },
+]
+const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
+const defaultBudgets = ['10万以下', '10-50万', '50-100万', '100-500万', '500万以上'].map(b => ({ label: b, value: b }))
 
 export default function LeadForm() {
   const { id } = useParams<{ id: string }>()
@@ -13,6 +22,10 @@ export default function LeadForm() {
   const [loading, setLoading] = useState(false)
   const isEdit = !!id
   usePageTitle(isEdit ? '编辑线索' : '新建线索')
+
+  const sourceDict = useDataDict('lead_source', defaultSources)
+  const industryDict = useDataDict('industry', defaultIndustries)
+  const budgetDict = useDataDict('budget_range', defaultBudgets)
 
   const userSelect = useRemoteSelect(async (kw) => {
     const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
@@ -67,27 +80,16 @@ export default function LeadForm() {
                 <Input placeholder="请输入公司名称" />
               </Form.Item>
               <Form.Item name="source" label="线索来源">
-                <Select placeholder="请选择来源" allowClear
-                  options={[
-                    { label: '展会', value: 'expo' },
-                    { label: '转介绍', value: 'referral' },
-                    { label: '广告', value: 'ad' },
-                    { label: '官网/入站', value: 'inbound' },
-                    { label: '合作伙伴', value: 'partner' },
-                    { label: '电话', value: 'call' },
-                  ]} />
+                <Select placeholder="请选择来源" allowClear options={sourceDict.options} loading={sourceDict.loading} />
               </Form.Item>
               <Form.Item name="industry" label="行业">
-                <Select placeholder="请选择行业" allowClear
-                  options={['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他']
-                    .map((i) => ({ label: i, value: i }))} />
+                <Select placeholder="请选择行业" allowClear options={industryDict.options} loading={industryDict.loading} />
               </Form.Item>
               <Form.Item name="region" label="区域">
                 <Input placeholder="请输入区域" />
               </Form.Item>
               <Form.Item name="budget_range" label="预算范围">
-                <Select placeholder="请选择预算范围" allowClear
-                  options={['10万以下', '10-50万', '50-100万', '100-500万', '500万以上'].map((b) => ({ label: b, value: b }))} />
+                <Select placeholder="请选择预算范围" allowClear options={budgetDict.options} loading={budgetDict.loading} />
               </Form.Item>
               <Form.Item name="owner_id" label="负责人">
                 <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}

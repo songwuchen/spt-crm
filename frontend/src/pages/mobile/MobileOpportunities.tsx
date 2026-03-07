@@ -5,6 +5,7 @@ import { projectApi } from '@/api/project'
 import type { OpportunityProject } from '@/api/types'
 import { stageLabels, stageColors } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import PullToRefresh from '@/components/PullToRefresh'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 
@@ -37,6 +38,7 @@ export default function MobileOpportunities() {
   }))
 
   return (
+    <PullToRefresh onRefresh={() => fetchData()}>
     <div>
       <h1 className="text-lg font-extrabold text-slate-900 mb-3">商机看板</h1>
 
@@ -125,5 +127,6 @@ export default function MobileOpportunities() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   )
 }

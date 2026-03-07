@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Tag, Button, Space, Table, Modal, Form, Input, Select, Switch, Spin, Tabs, message } from 'antd'
-import { EditOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { EditOutlined, PlusOutlined, DeleteOutlined, MergeCellsOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
 import { contactApi } from '@/api/contact'
@@ -56,6 +56,8 @@ export default function CustomerDetail() {
   const [projects, setProjects] = useState<OpportunityProject[]>([])
   const [tickets, setTickets] = useState<{ id: string; ticket_no: string; type: string; status: string; priority: string; description?: string; created_at?: string }[]>([])
   const [contracts, setContracts] = useState<{ id: string; contract_no: string; status: string; amount?: number; created_at?: string }[]>([])
+  const [mergeModal, setMergeModal] = useState(false)
+  const [mergeTargetId, setMergeTargetId] = useState<string | undefined>()
 
   const customerSelect = useRemoteSelect(async (kw) => {
     const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
@@ -201,6 +203,7 @@ export default function CustomerDetail() {
                 领取客户
               </Button>
             )}
+            <Button icon={<MergeCellsOutlined />} onClick={() => { setMergeTargetId(undefined); setMergeModal(true) }}>合并</Button>
             <Button danger icon={<DeleteOutlined />} onClick={() => {
               Modal.confirm({
                 title: '确认删除', content: `确定要删除客户「${customer.name}」及其所有联系人？`, okType: 'danger',
@@ -551,6 +554,38 @@ export default function CustomerDetail() {
           </Form.Item>
           <Form.Item name="note" label="备注"><Input /></Form.Item>
         </Form>
+      </Modal>
+
+      {/* Merge Modal */}
+      <Modal title="合并客户" open={mergeModal} onCancel={() => setMergeModal(false)}
+        okText="确认合并" okButtonProps={{ danger: true }}
+        onOk={() => {
+          if (!mergeTargetId) { message.warning('请选择要合并的客户'); return }
+          Modal.confirm({
+            title: '确认合并', okType: 'danger', okText: '确认合并',
+            content: `将选中客户的所有联系人、商机、工单、关联关系合并到「${customer.name}」中，原客户将被删除。此操作不可撤销！`,
+            onOk: async () => {
+              await customerApi.merge(id!, mergeTargetId)
+              message.success('客户合并成功')
+              setMergeModal(false)
+              fetchCustomer(); fetchContacts(); fetchRelations(); fetchShares(); fetchStats(); fetchProjects(); fetchTickets()
+            },
+          })
+        }}>
+        <div className="py-2">
+          <div className="mb-3 p-3 bg-amber-50 rounded-lg text-sm text-amber-800 border border-amber-200">
+            将选中客户的所有数据（联系人、商机、工单等）合并到当前客户「<b>{customer.name}</b>」，原客户将被删除。
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">选择要合并的客户（将被删除）</label>
+            <Select className="w-full" showSearch filterOption={false} placeholder="搜索客户"
+              value={mergeTargetId} onChange={setMergeTargetId}
+              loading={customerSelect.loading}
+              options={customerSelect.options}
+              onSearch={customerSelect.onSearch}
+              onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
+          </div>
+        </div>
       </Modal>
 
       {/* Share Modal */}
