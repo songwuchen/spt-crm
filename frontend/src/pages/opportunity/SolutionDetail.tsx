@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Button, Select, Tag, Space, Spin, Descriptions, Input, message, Modal } from 'antd'
-import { CopyOutlined, EditOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons'
+import { Button, Select, Tag, Space, Spin, Descriptions, Input, message, Modal, Table } from 'antd'
+import { CopyOutlined, EditOutlined, SaveOutlined, CloseOutlined, SwapOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { solutionApi } from '@/api/solution'
 import AttachmentPanel from '@/components/AttachmentPanel'
@@ -23,6 +23,11 @@ export default function SolutionDetail() {
   const [editSummary, setEditSummary] = useState('')
   const [editConfigJson, setEditConfigJson] = useState('')
   const [editRiskJson, setEditRiskJson] = useState('')
+  const [compareModal, setCompareModal] = useState(false)
+  const [compareV1, setCompareV1] = useState<number>(0)
+  const [compareV2, setCompareV2] = useState<number>(0)
+  const [compareResult, setCompareResult] = useState<any>(null)
+  const [compareLoading, setCompareLoading] = useState(false)
 
   const fetchSolution = async () => {
     const res = await solutionApi.get(sid!)
@@ -139,6 +144,14 @@ export default function SolutionDetail() {
                 <Button icon={<CloseOutlined />} onClick={cancelEdit}>取消</Button>
               </>
             )}
+            {versions.length >= 2 && (
+              <Button icon={<SwapOutlined />} onClick={() => {
+                setCompareV1(versions[versions.length - 2]?.version_no || 1)
+                setCompareV2(versions[versions.length - 1]?.version_no || 2)
+                setCompareResult(null)
+                setCompareModal(true)
+              }}>版本对比</Button>
+            )}
             <Button icon={<CopyOutlined />} onClick={handleNewVersion}>创建新版本</Button>
           </Space>
         </div>
@@ -249,6 +262,63 @@ export default function SolutionDetail() {
         <h3 className="text-sm font-bold text-slate-900 mb-4">方案附件</h3>
         <AttachmentPanel bizType="solution_version" bizId={selectedVersionId || sid!} />
       </div>
+
+      {/* Compare Modal */}
+      <Modal
+        title="版本对比"
+        open={compareModal}
+        width={700}
+        onCancel={() => setCompareModal(false)}
+        footer={null}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <Select
+            value={compareV1}
+            onChange={setCompareV1}
+            style={{ width: 180 }}
+            options={versions.map((v) => ({ label: `V${v.version_no} - ${v.title || '无标题'}`, value: v.version_no }))}
+          />
+          <span className="text-slate-400 font-bold">vs</span>
+          <Select
+            value={compareV2}
+            onChange={setCompareV2}
+            style={{ width: 180 }}
+            options={versions.map((v) => ({ label: `V${v.version_no} - ${v.title || '无标题'}`, value: v.version_no }))}
+          />
+          <Button type="primary" loading={compareLoading} onClick={async () => {
+            if (compareV1 === compareV2) { message.warning('请选择不同版本'); return }
+            setCompareLoading(true)
+            try {
+              const r = await solutionApi.compare(sid!, compareV1, compareV2) as any
+              setCompareResult(r.data)
+            } catch { message.error('对比失败') }
+            finally { setCompareLoading(false) }
+          }}>对比</Button>
+        </div>
+
+        {compareResult && (
+          <div>
+            <div className="text-sm mb-3">
+              共发现 <span className="font-bold text-primary">{compareResult.diff_count}</span> 处差异
+            </div>
+            {compareResult.diffs?.length > 0 ? (
+              <Table
+                size="small"
+                pagination={false}
+                dataSource={compareResult.diffs}
+                rowKey="field"
+                columns={[
+                  { title: '字段', dataIndex: 'label', width: 120 },
+                  { title: `V${compareV1}`, dataIndex: 'v1', render: (v: string) => <span className="text-xs bg-red-50 px-1.5 py-0.5 rounded">{v || '-'}</span> },
+                  { title: `V${compareV2}`, dataIndex: 'v2', render: (v: string) => <span className="text-xs bg-green-50 px-1.5 py-0.5 rounded">{v || '-'}</span> },
+                ]}
+              />
+            ) : (
+              <div className="text-center py-6 text-slate-400 text-sm">两个版本内容完全一致</div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

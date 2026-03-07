@@ -148,3 +148,54 @@ async def delete_task(
     await db.delete(t)
     await db.commit()
     return ok()
+
+
+# ---- Batch Operations ----
+
+
+class BatchAssignBody(BaseModel):
+    ids: list[str]
+    assignee_id: str
+    assignee_name: Optional[str] = None
+
+
+class BatchCompleteBody(BaseModel):
+    ids: list[str]
+
+
+@router.post("/batch_assign")
+async def batch_assign(
+    body: BatchAssignBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions()),
+):
+    """Batch assign tasks to a user."""
+    from sqlalchemy import update
+    result = await db.execute(
+        update(UserTask).where(
+            UserTask.tenant_id == tenant_id,
+            UserTask.id.in_(body.ids),
+        ).values(assignee_id=body.assignee_id, assignee_name=body.assignee_name)
+    )
+    await db.commit()
+    return ok({"updated": result.rowcount})
+
+
+@router.post("/batch_complete")
+async def batch_complete(
+    body: BatchCompleteBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions()),
+):
+    """Batch mark tasks as completed."""
+    from sqlalchemy import update
+    result = await db.execute(
+        update(UserTask).where(
+            UserTask.tenant_id == tenant_id,
+            UserTask.id.in_(body.ids),
+        ).values(is_completed=True, status="done")
+    )
+    await db.commit()
+    return ok({"updated": result.rowcount})

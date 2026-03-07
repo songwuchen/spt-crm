@@ -546,3 +546,34 @@ async def check_unique(
         q = q.where(Customer.id != exclude_id)
     exists = (await db.execute(q)).scalar() is not None
     return ok({"unique": not exists})
+
+
+# ---- Batch Operations ----
+
+from pydantic import BaseModel as PydanticBaseModel
+
+
+class BatchTransferBody(PydanticBaseModel):
+    ids: list[str]
+    owner_id: str
+    owner_name: str | None = None
+
+
+@router.post("/batch_transfer")
+async def batch_transfer(
+    body: BatchTransferBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("customer:edit")),
+):
+    """Batch transfer customers to a new owner."""
+    from sqlalchemy import update
+    result = await db.execute(
+        update(Customer).where(
+            Customer.tenant_id == tenant_id,
+            Customer.id.in_(body.ids),
+            Customer.is_deleted == False,
+        ).values(owner_id=body.owner_id, owner_name=body.owner_name)
+    )
+    await db.commit()
+    return ok({"updated": result.rowcount})

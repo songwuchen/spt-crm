@@ -15,9 +15,20 @@ import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 
 const { TextArea } = Input
 
+interface SlaStats {
+  open_tickets: number
+  resolved_tickets: number
+  breach_count: number
+  near_breach_count: number
+  on_time_rate: number
+  sla_config: Record<string, number>
+  by_priority: Record<string, number>
+}
+
 export default function ServiceTicketList() {
   usePageTitle('售后工单')
   const navigate = useNavigate()
+  const [slaStats, setSlaStats] = useState<SlaStats | null>(null)
   const [tickets, setTickets] = useState<ServiceTicketItem[]>([])
   const [total, setTotal] = useState(0)
   const [pageNo, setPageNo] = useState(1)
@@ -79,7 +90,14 @@ export default function ServiceTicketList() {
     setRenewals(r.data || [])
   }
 
-  useEffect(() => { fetchTickets(); fetchRenewals() }, [])
+  const fetchSlaStats = async () => {
+    try {
+      const r = await serviceTicketApi.slaStats() as any
+      setSlaStats(r.data || null)
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => { fetchTickets(); fetchRenewals(); fetchSlaStats() }, [])
 
   const handleCreate = async () => {
     if (!form.description?.trim()) {
@@ -150,6 +168,38 @@ export default function ServiceTicketList() {
           <p className="text-sm text-slate-500 mt-1">管理售后工单与续约/复购机会</p>
         </div>
       </div>
+
+      {/* SLA Stats Bar */}
+      {slaStats && (
+        <div className="flex gap-3 flex-wrap mb-4">
+          <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <div className="text-xs text-slate-500 mb-1">SLA 达标率</div>
+            <div className={`text-2xl font-black ${slaStats.on_time_rate >= 90 ? 'text-emerald-600' : slaStats.on_time_rate >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
+              {slaStats.on_time_rate}%
+            </div>
+          </div>
+          <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <div className="text-xs text-slate-500 mb-1">待处理工单</div>
+            <div className="text-2xl font-black text-blue-600">{slaStats.open_tickets}</div>
+          </div>
+          <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <div className="text-xs text-slate-500 mb-1">已超时</div>
+            <div className={`text-2xl font-black ${slaStats.breach_count > 0 ? 'text-red-600' : 'text-slate-400'}`}>
+              {slaStats.breach_count}
+            </div>
+          </div>
+          <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <div className="text-xs text-slate-500 mb-1">即将超时</div>
+            <div className={`text-2xl font-black ${slaStats.near_breach_count > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+              {slaStats.near_breach_count}
+            </div>
+          </div>
+          <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <div className="text-xs text-slate-500 mb-1">已解决</div>
+            <div className="text-2xl font-black text-emerald-600">{slaStats.resolved_tickets}</div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
         <Tabs defaultActiveKey="tickets" className="px-4 pt-2" items={[

@@ -144,6 +144,14 @@ export default function ContractDetail() {
               <Button type="primary" icon={<CheckCircleOutlined />} onClick={() => setSignModal(true)}>签署合同</Button>
             </>
           )}
+          {contract.status === 'signed' && (
+            <Button type="primary" onClick={async () => {
+              try {
+                await contractApi.renew(contract.id)
+                message.success('续约机会已创建，请前往续约管理查看')
+              } catch { message.error('创建续约失败') }
+            }}>发起续约</Button>
+          )}
           <Button onClick={() => navigate(`/opportunities/${projectId}`)}>返回商机</Button>
         </Space>
       </div>

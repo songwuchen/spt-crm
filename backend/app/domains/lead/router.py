@@ -215,3 +215,61 @@ async def public_lead_capture(
     system_user = {"sub": "system", "real_name": "系统"}
     lead = await service.create_lead(db, x_tenant_id, data, system_user)
     return ok({"id": lead.id, "title": lead.title})
+
+
+# ---- Batch Operations ----
+
+class BatchAssignBody(BaseModel):
+    ids: list[str]
+    owner_id: str
+    owner_name: Optional[str] = None
+
+
+class BatchStatusBody(BaseModel):
+    ids: list[str]
+    status: str  # new / following / qualified / discarded
+
+
+@router.post("/batch_assign")
+async def batch_assign(
+    body: BatchAssignBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("lead:edit")),
+):
+    """Batch assign leads to a new owner."""
+    from sqlalchemy import update
+    from app.domains.lead.models import Lead
+    result = await db.execute(
+        update(Lead).where(
+            Lead.tenant_id == tenant_id,
+            Lead.id.in_(body.ids),
+            Lead.is_deleted == False,
+        ).values(owner_id=body.owner_id, owner_name=body.owner_name)
+    )
+    await db.commit()
+    return ok({"updated": result.rowcount})
+
+
+@router.post("/batch_status")
+async def batch_status(
+    body: BatchStatusBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("lead:edit")),
+):
+    """Batch update lead status."""
+    from sqlalchemy import update
+    from app.domains.lead.models import Lead
+    if body.status not in ("new", "following", "qualified", "discarded"):
+        from app.common.exceptions import BusinessException
+        raise BusinessException("无效状态")
+    result = await db.execute(
+        update(Lead).where(
+            Lead.tenant_id == tenant_id,
+            Lead.id.in_(body.ids),
+            Lead.is_deleted == False,
+        ).values(status=body.status)
+    )
+    await db.commit()
+    return ok({"updated": result.rowcount})

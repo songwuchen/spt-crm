@@ -174,3 +174,86 @@ async def update_renewal(
 ):
     r = await service.update_renewal(db, tenant_id, renewal_id, body, current_user)
     return ok(_renewal_dict(r))
+
+
+# --- SLA Management ---
+
+# Default SLA hours by priority
+DEFAULT_SLA_HOURS = {
+    "critical": 4,
+    "high": 8,
+    "medium": 24,
+    "low": 72,
+}
+
+
+@router.get("/api/v1/service_tickets/sla/stats")
+async def sla_stats(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("service:view")),
+):
+    """SLA statistics: on-time rate, average resolution time, breach count."""
+    from sqlalchemy import func, case
+    from datetime import datetime, timezone, timedelta
+    from app.domains.service_ticket.models import ServiceTicket
+
+    # Open/active tickets with SLA status
+    open_tickets = (await db.execute(
+        select(func.count(ServiceTicket.id)).where(
+            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
+        )
+    )).scalar() or 0
+
+    resolved_tickets = (await db.execute(
+        select(func.count(ServiceTicket.id)).where(
+            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.status.in_(["resolved", "closed"]),
+        )
+    )).scalar() or 0
+
+    # Calculate SLA breaches for open tickets
+    now = datetime.now(timezone.utc)
+    breach_count = 0
+    near_breach_count = 0
+
+    open_items = (await db.execute(
+        select(ServiceTicket).where(
+            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
+        )
+    )).scalars().all()
+
+    for t in open_items:
+        sla_hours = DEFAULT_SLA_HOURS.get(t.priority, 24)
+        if t.created_at:
+            created = t.created_at.replace(tzinfo=timezone.utc) if t.created_at.tzinfo is None else t.created_at
+            deadline = created + timedelta(hours=sla_hours)
+            if now > deadline:
+                breach_count += 1
+            elif now > deadline - timedelta(hours=max(1, sla_hours * 0.2)):
+                near_breach_count += 1
+
+    # By priority distribution
+    priority_rows = (await db.execute(
+        select(ServiceTicket.priority, func.count(ServiceTicket.id).label("count")).where(
+            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
+        ).group_by(ServiceTicket.priority)
+    )).all()
+
+    by_priority = {r.priority: r.count for r in priority_rows}
+
+    total = open_tickets + resolved_tickets
+    on_time_rate = round((total - breach_count) / total * 100, 1) if total > 0 else 100
+
+    return ok({
+        "open_tickets": open_tickets,
+        "resolved_tickets": resolved_tickets,
+        "breach_count": breach_count,
+        "near_breach_count": near_breach_count,
+        "on_time_rate": on_time_rate,
+        "sla_config": DEFAULT_SLA_HOURS,
+        "by_priority": by_priority,
+    })

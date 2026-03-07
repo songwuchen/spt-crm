@@ -189,3 +189,54 @@ async def update_version(
 ):
     v = await service.update_version(db, tenant_id, version_id, body, current_user)
     return ok(_version_dict(v))
+
+
+# --- Renewal from Contract ---
+
+@router.post("/api/v1/contracts/{contract_id}/renew")
+async def create_renewal_from_contract(
+    contract_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("contract:edit")),
+):
+    """Create a renewal opportunity from an expiring contract."""
+    from app.domains.contract.models import Contract
+    from app.domains.project.models import OpportunityProject
+    from app.domains.service_ticket.models import RenewalOpportunity
+
+    contract = (await db.execute(
+        select(Contract).where(Contract.tenant_id == tenant_id, Contract.id == contract_id)
+    )).scalar_one_or_none()
+    if not contract:
+        from app.common.exceptions import BusinessException
+        raise BusinessException("合同不存在")
+
+    # Get project info for customer_id
+    project = (await db.execute(
+        select(OpportunityProject).where(OpportunityProject.id == contract.project_id)
+    )).scalar_one_or_none()
+
+    customer_id = project.customer_id if project else None
+
+    renewal = RenewalOpportunity(
+        tenant_id=tenant_id,
+        customer_id=customer_id or "",
+        name=f"续约 - {contract.contract_no}",
+        amount_expect=float(contract.amount_total) if contract.amount_total else None,
+        status="open",
+        owner_id=current_user["sub"],
+        owner_name=current_user.get("real_name") or current_user.get("username"),
+        related_asset_json={"source_contract_id": contract.id, "contract_no": contract.contract_no},
+        remark=f"从合同 {contract.contract_no} 发起续约",
+    )
+    db.add(renewal)
+    await db.commit()
+    await db.refresh(renewal)
+
+    return ok({
+        "id": renewal.id,
+        "name": renewal.name,
+        "customer_id": renewal.customer_id,
+        "amount_expect": float(renewal.amount_expect) if renewal.amount_expect else None,
+    })

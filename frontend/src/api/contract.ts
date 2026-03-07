@@ -26,4 +26,8 @@ export const contractApi = {
     client.get<unknown, ApiResponse<ContractVersion>>(`/api/v1/contract_versions/${vid}`),
   updateVersion: (vid: string, data: Record<string, unknown>) =>
     client.put<unknown, ApiResponse<ContractVersion>>(`/api/v1/contract_versions/${vid}`, data),
+
+  // Renewal
+  renew: (contractId: string) =>
+    client.post(`/api/v1/contracts/${contractId}/renew`),
 }

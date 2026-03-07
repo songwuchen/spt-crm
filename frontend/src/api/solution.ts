@@ -20,4 +20,8 @@ export const solutionApi = {
     client.get<unknown, ApiResponse<SolutionVersion>>(`/api/v1/solution_versions/${vid}`),
   updateVersion: (vid: string, data: Record<string, unknown>) =>
     client.put<unknown, ApiResponse<SolutionVersion>>(`/api/v1/solution_versions/${vid}`, data),
+
+  // Compare
+  compare: (solutionId: string, v1: number, v2: number) =>
+    client.get(`/api/v1/solutions/${solutionId}/compare`, { params: { v1, v2 } }),
 }

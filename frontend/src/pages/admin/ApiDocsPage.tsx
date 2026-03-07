@@ -23,6 +23,27 @@ const apiGroups = [
       { method: 'GET', path: '/api/v1/customers/pool', desc: '公海客户列表' },
       { method: 'POST', path: '/api/v1/customers/:id/claim', desc: '领取客户' },
       { method: 'POST', path: '/api/v1/customers/:id/release', desc: '释放到公海' },
+      { method: 'POST', path: '/api/v1/customers/batch_transfer', desc: '批量转移负责人' },
+    ],
+  },
+  {
+    title: '线索', tag: 'lead', endpoints: [
+      { method: 'GET', path: '/api/v1/leads', desc: '线索列表（支持 keyword、status 筛选）' },
+      { method: 'POST', path: '/api/v1/leads', desc: '创建线索' },
+      { method: 'GET', path: '/api/v1/leads/:id', desc: '线索详情' },
+      { method: 'PUT', path: '/api/v1/leads/:id', desc: '更新线索' },
+      { method: 'POST', path: '/api/v1/leads/batch_assign', desc: '批量分配负责人' },
+      { method: 'POST', path: '/api/v1/leads/batch_status', desc: '批量更新状态' },
+    ],
+  },
+  {
+    title: '任务', tag: 'task', endpoints: [
+      { method: 'GET', path: '/api/v1/tasks', desc: '任务列表' },
+      { method: 'POST', path: '/api/v1/tasks', desc: '创建任务' },
+      { method: 'PUT', path: '/api/v1/tasks/:id', desc: '更新任务' },
+      { method: 'DELETE', path: '/api/v1/tasks/:id', desc: '删除任务' },
+      { method: 'POST', path: '/api/v1/tasks/batch_assign', desc: '批量指派' },
+      { method: 'POST', path: '/api/v1/tasks/batch_complete', desc: '批量完成' },
     ],
   },
   {
