@@ -1,5 +1,6 @@
-from sqlalchemy import String, Boolean, Text, ForeignKey
+from sqlalchemy import String, Boolean, Text, ForeignKey, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from datetime import datetime
 
 from app.database import TenantScopedBase, PlatformBase
 
@@ -14,6 +15,9 @@ class User(TenantScopedBase):
     email: Mapped[str | None] = mapped_column(String(200))
     avatar: Mapped[str | None] = mapped_column(String(500))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    totp_secret: Mapped[str | None] = mapped_column(String(64))
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user_roles: Mapped[list["UserRole"]] = relationship(back_populates="user", lazy="selectin")
     user_departments: Mapped[list["UserDepartment"]] = relationship(
@@ -58,3 +62,16 @@ class RolePermission(TenantScopedBase):
 
     role: Mapped["Role"] = relationship(back_populates="role_permissions")
     permission: Mapped["Permission"] = relationship(lazy="selectin")
+
+
+class LoginSession(TenantScopedBase):
+    __tablename__ = "login_sessions"
+
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    token_jti: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    ip: Mapped[str | None] = mapped_column(String(50))
+    user_agent: Mapped[str | None] = mapped_column(String(500))
+    device_type: Mapped[str | None] = mapped_column(String(30))  # desktop / mobile / tablet
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

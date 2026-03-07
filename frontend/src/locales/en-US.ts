@@ -48,6 +48,7 @@ const enUS = {
     dashboard: 'Dashboard',
     customers: 'Customers',
     customerPool: 'Customer Pool',
+    contacts: 'Contacts',
     leads: 'Leads',
     opportunities: 'Opportunities',
     kanban: 'Kanban',

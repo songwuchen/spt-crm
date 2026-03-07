@@ -13,6 +13,7 @@ from app.common.schemas import ok
 from app.database import generate_uuid as gen_id
 from app.domains.admin import service
 from app.domains.admin.models import DocTemplate, EmailTemplate, CustomFieldDef
+from app.common.exceptions import BusinessException
 from app.domains.admin.schemas import (
     TenantPlanCreate, TenantPlanUpdate, PlatformTenantUpdate,
     TenantProfileUpdate, FeatureToggleUpdate, StageDefinitionUpdate,
@@ -632,3 +633,228 @@ async def backup_stats(
         )).scalar() or 0
         stats[table_name] = cnt
     return ok(stats)
+
+
+@router.post("/api/v1/admin/backup/restore")
+async def restore_data(
+    body: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """Restore data from a backup JSON.
+    Expects the same structure as the backup export.
+    Existing records with matching IDs are skipped (upsert by ID).
+    """
+
+    meta = body.get("_meta", {})
+    if meta.get("tenant_id") and meta["tenant_id"] != tenant_id:
+        raise BusinessException(code=400, message="备份数据的租户ID不匹配")
+
+    _init_backup_tables()
+    table_map = {name: cls for name, cls in _BACKUP_TABLES}
+
+    restored = {}
+    skipped = {}
+    for table_name, records in body.items():
+        if table_name.startswith("_") or not isinstance(records, list):
+            continue
+        model_cls = table_map.get(table_name)
+        if not model_cls:
+            continue
+
+        count = 0
+        skip = 0
+        for record in records:
+            if not isinstance(record, dict) or "id" not in record:
+                continue
+            # Force tenant_id to current tenant
+            record["tenant_id"] = tenant_id
+            # Check if record already exists
+            existing = (await db.execute(
+                select(model_cls).where(model_cls.id == record["id"])
+            )).scalar_one_or_none()
+            if existing:
+                skip += 1
+                continue
+            try:
+                obj = model_cls(**{k: v for k, v in record.items() if hasattr(model_cls, k)})
+                db.add(obj)
+                count += 1
+            except Exception:
+                skip += 1
+        restored[table_name] = count
+        skipped[table_name] = skip
+
+    await db.commit()
+    total_restored = sum(restored.values())
+    total_skipped = sum(skipped.values())
+    return ok({"restored": restored, "skipped": skipped, "total_restored": total_restored, "total_skipped": total_skipped})
+
+
+# ==================== Email Templates ====================
+
+@router.get("/api/v1/admin/email-templates")
+async def list_email_templates(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    items = (await db.execute(
+        select(EmailTemplate).where(
+            EmailTemplate.tenant_id == tenant_id,
+            EmailTemplate.is_deleted == False,
+        ).order_by(EmailTemplate.code)
+    )).scalars().all()
+    return ok([{
+        "id": t.id, "code": t.code, "name": t.name, "subject": t.subject,
+        "body_html": t.body_html, "variables_json": t.variables_json,
+        "enabled": t.enabled,
+        "created_at": t.created_at.isoformat() if t.created_at else "",
+    } for t in items])
+
+
+@router.post("/api/v1/admin/email-templates")
+async def create_email_template(
+    body: EmailTemplateBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    tmpl = EmailTemplate(
+        tenant_id=tenant_id, code=body.code, name=body.name,
+        subject=body.subject, body_html=body.body_html,
+        variables_json=body.variables_json, enabled=body.enabled,
+    )
+    db.add(tmpl)
+    await db.commit()
+    return ok({"id": tmpl.id, "code": tmpl.code, "name": tmpl.name})
+
+
+@router.put("/api/v1/admin/email-templates/{tmpl_id}")
+async def update_email_template(
+    tmpl_id: str,
+    body: EmailTemplateBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    tmpl = (await db.execute(
+        select(EmailTemplate).where(EmailTemplate.id == tmpl_id, EmailTemplate.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not tmpl:
+        raise BusinessException(code=404, message="模板不存在")
+    tmpl.code = body.code
+    tmpl.name = body.name
+    tmpl.subject = body.subject
+    tmpl.body_html = body.body_html
+    tmpl.variables_json = body.variables_json
+    tmpl.enabled = body.enabled
+    await db.commit()
+    return ok(None)
+
+
+@router.delete("/api/v1/admin/email-templates/{tmpl_id}")
+async def delete_email_template(
+    tmpl_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    tmpl = (await db.execute(
+        select(EmailTemplate).where(EmailTemplate.id == tmpl_id, EmailTemplate.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not tmpl:
+        raise BusinessException(code=404, message="模板不存在")
+    tmpl.is_deleted = True
+    await db.commit()
+    return ok(None)
+
+
+# ==================== Custom Fields ====================
+
+class CustomFieldBody(BaseModel):
+    entity_type: str = Field(..., pattern=r"^(customer|project|lead|contact|service_ticket)$")
+    field_key: str = Field(..., max_length=64)
+    field_label: str = Field(..., max_length=100)
+    field_type: str = Field(..., pattern=r"^(text|number|date|select|multiselect|boolean)$")
+    options_json: Optional[Union[dict, list]] = None
+    required: bool = False
+    sort_order: int = 0
+    enabled: bool = True
+
+
+@router.get("/api/v1/custom-fields")
+async def list_custom_fields(
+    entity_type: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    q = select(CustomFieldDef).where(
+        CustomFieldDef.tenant_id == tenant_id,
+        CustomFieldDef.is_deleted == False,
+    )
+    if entity_type:
+        q = q.where(CustomFieldDef.entity_type == entity_type)
+    items = (await db.execute(q.order_by(CustomFieldDef.entity_type, CustomFieldDef.sort_order))).scalars().all()
+    return ok([{
+        "id": f.id, "entity_type": f.entity_type, "field_key": f.field_key,
+        "field_label": f.field_label, "field_type": f.field_type,
+        "options_json": f.options_json, "required": f.required,
+        "sort_order": f.sort_order, "enabled": f.enabled,
+    } for f in items])
+
+
+@router.post("/api/v1/custom-fields")
+async def create_custom_field(
+    body: CustomFieldBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    field = CustomFieldDef(
+        tenant_id=tenant_id, entity_type=body.entity_type,
+        field_key=body.field_key, field_label=body.field_label,
+        field_type=body.field_type, options_json=body.options_json,
+        required=body.required, sort_order=body.sort_order, enabled=body.enabled,
+    )
+    db.add(field)
+    await db.commit()
+    return ok({"id": field.id})
+
+
+@router.put("/api/v1/custom-fields/{field_id}")
+async def update_custom_field(
+    field_id: str,
+    body: CustomFieldBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    field = (await db.execute(
+        select(CustomFieldDef).where(CustomFieldDef.id == field_id, CustomFieldDef.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not field:
+        raise BusinessException(code=404, message="字段不存在")
+    for attr in ("entity_type", "field_key", "field_label", "field_type", "options_json", "required", "sort_order", "enabled"):
+        setattr(field, attr, getattr(body, attr))
+    await db.commit()
+    return ok(None)
+
+
+@router.delete("/api/v1/custom-fields/{field_id}")
+async def delete_custom_field(
+    field_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    field = (await db.execute(
+        select(CustomFieldDef).where(CustomFieldDef.id == field_id, CustomFieldDef.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not field:
+        raise BusinessException(code=404, message="字段不存在")
+    field.is_deleted = True
+    await db.commit()
+    return ok(None)

@@ -11,6 +11,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import { userApi } from '@/api/user'
+import SavedViewSelect from '@/components/SavedViewSelect'
 
 const industries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他']
 
@@ -249,6 +250,14 @@ export default function CustomerList() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             筛选
           </Button>
+          <SavedViewSelect
+            page="customers"
+            currentFilters={{ keyword, industry, region }}
+            onApply={(f) => {
+              setKeyword(f.keyword || ''); setIndustry(f.industry || undefined); setRegion(f.region || '')
+              fetchData(1, f.keyword || '', f.industry, f.region || '')
+            }}
+          />
         </div>
       </div>
 

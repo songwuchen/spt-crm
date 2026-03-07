@@ -11,6 +11,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { leadStatusConfig as statusConfig } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import SavedViewSelect from '@/components/SavedViewSelect'
 
 function ScoreBar({ score }: { score: number }) {
   const getColor = (s: number) => {
@@ -290,6 +291,13 @@ export default function LeadList() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             筛选
           </Button>
+          <SavedViewSelect
+            page="leads"
+            currentFilters={{ keyword, status, source }}
+            onApply={(f) => {
+              updateParams({ keyword: f.keyword || undefined, status: f.status || undefined, source: f.source || undefined, page: undefined })
+            }}
+          />
         </div>
       </div>
 

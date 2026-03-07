@@ -274,7 +274,7 @@ export default function Dashboard() {
   const funnelMax = Math.max(...funnel.map((f) => f.count), 1)
 
   return (
-    <div>
+    <div data-tour="dashboard">
       {/* Page Title */}
       <div className="flex items-center justify-between mb-6">
         <div>

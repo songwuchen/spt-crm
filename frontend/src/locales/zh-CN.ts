@@ -64,6 +64,7 @@ const zhCN = {
     dashboard: '工作台',
     customers: '客户管理',
     customerPool: '客户公海',
+    contacts: '联系人',
     leads: '线索管理',
     opportunities: '商机管理',
     kanban: '看板视图',

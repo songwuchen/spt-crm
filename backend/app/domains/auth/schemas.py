@@ -5,6 +5,7 @@ from pydantic import BaseModel
 class LoginRequest(BaseModel):
     username: str
     password: str
+    totp_code: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -38,3 +39,7 @@ class UpdateProfileRequest(BaseModel):
     real_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+
+
+class TotpVerifyRequest(BaseModel):
+    code: str

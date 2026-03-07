@@ -16,6 +16,7 @@ const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
       { key: '/', icon: 'dashboard', labelKey: 'nav.dashboard' },
       { key: '/customers', icon: 'business', labelKey: 'nav.customers', permission: 'customer:view' },
       { key: '/customer-pool', icon: 'waves', labelKey: 'nav.customerPool', permission: 'customer:view' },
+      { key: '/contacts', icon: 'contacts', labelKey: 'nav.contacts', permission: 'contact:view' },
       { key: '/leads', icon: 'trending_up', labelKey: 'nav.leads', permission: 'lead:view' },
       { key: '/opportunities', icon: 'rocket_launch', labelKey: 'nav.opportunities', permission: 'project:view' },
       { key: '/products', icon: 'inventory_2', labelKey: 'nav.products', permission: 'product:view' },
@@ -47,6 +48,7 @@ const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
 function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/customers/)) return '/customers'
   if (pathname.match(/^\/customer-pool/)) return '/customer-pool'
+  if (pathname.match(/^\/contacts/)) return '/contacts'
   if (pathname.match(/^\/leads/)) return '/leads'
   if (pathname.match(/^\/opportunities/)) return '/opportunities'
   if (pathname.match(/^\/products/)) return '/products'

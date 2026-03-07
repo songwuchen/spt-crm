@@ -130,7 +130,7 @@ export default function Header() {
             {sidebarCollapsed ? 'menu_open' : 'menu'}
           </span>
         </button>
-        <div ref={searchRef} style={{ position: 'relative' }}>
+        <div ref={searchRef} style={{ position: 'relative' }} data-tour="search">
           <Input
             placeholder="搜索客户、线索、商机、工单..."
             prefix={searching ? <Spin size="small" /> : <SearchOutlined className="text-slate-400" />}
@@ -218,13 +218,14 @@ export default function Header() {
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
           title={theme === 'dark' ? '浅色模式' : '深色模式'}
+          data-tour="theme"
         >
           <span className="material-symbols-outlined text-lg">
             {theme === 'dark' ? 'light_mode' : 'dark_mode'}
           </span>
         </button>
 
-        <NotificationBell />
+        <span data-tour="notifications"><NotificationBell /></span>
 
         <div className="h-8 w-px bg-slate-200 mx-1" />
 

@@ -11,6 +11,7 @@ const CustomerList = lazy(() => import('@/pages/customer/CustomerList'))
 const CustomerDetail = lazy(() => import('@/pages/customer/CustomerDetail'))
 const CustomerForm = lazy(() => import('@/pages/customer/CustomerForm'))
 const CustomerPool = lazy(() => import('@/pages/customer/CustomerPool'))
+const ContactList = lazy(() => import('@/pages/customer/ContactList'))
 const LeadList = lazy(() => import('@/pages/lead/LeadList'))
 const LeadDetail = lazy(() => import('@/pages/lead/LeadDetail'))
 const LeadForm = lazy(() => import('@/pages/lead/LeadForm'))
@@ -99,6 +100,7 @@ export const router = createBrowserRouter([
       { path: 'customers/:id', element: <Guard permission="customer:view"><CustomerDetail /></Guard> },
       { path: 'customers/:id/edit', element: <Guard permission="customer:edit"><CustomerForm /></Guard> },
       { path: 'customer-pool', element: <Guard permission="customer:view"><CustomerPool /></Guard> },
+      { path: 'contacts', element: <Guard permission="contact:view"><ContactList /></Guard> },
       { path: 'leads', element: <Guard permission="lead:view"><LeadList /></Guard> },
       { path: 'leads/new', element: <Guard permission="lead:create"><LeadForm /></Guard> },
       { path: 'leads/:id', element: <Guard permission="lead:view"><LeadDetail /></Guard> },

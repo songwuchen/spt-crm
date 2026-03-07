@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     AI_API_KEY: str = ""
     AI_MODEL: str = ""
     AI_BASE_URL: str = "https://api.openai.com/v1"
+    REDIS_URL: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

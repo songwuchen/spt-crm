@@ -4,6 +4,7 @@ import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import OnboardingTour from '@/components/OnboardingTour'
 import { useAppStore } from '@/stores/useAppStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { authApi } from '@/api/auth'
@@ -132,7 +133,7 @@ export default function MainLayout() {
         className={`!bg-white ${isMobile && !sidebarCollapsed ? 'fixed left-0 top-0 bottom-0 z-30' : ''}`}
         style={{ overflow: 'hidden' }}
       >
-        <Sidebar />
+        <div data-tour="sidebar"><Sidebar /></div>
       </Sider>
       <Layout className="bg-bg-light">
         <Header />
@@ -153,6 +154,7 @@ export default function MainLayout() {
           </div>
         </Content>
       </Layout>
+      <OnboardingTour />
     </Layout>
   )
 }

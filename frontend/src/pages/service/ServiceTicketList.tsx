@@ -12,6 +12,7 @@ import type { ServiceTicketItem, RenewalItem } from '@/api/types'
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels, renewalStatusLabels, renewalStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import SavedViewSelect from '@/components/SavedViewSelect'
 
 const { TextArea } = Input
 
@@ -225,6 +226,14 @@ export default function ServiceTicketList() {
                     <Select allowClear placeholder="类型" value={filterType}
                       onChange={(v) => { setFilterType(v); setPageNo(1); fetchTickets(1, searchText, filterStatus, filterPriority, v) }}
                       style={{ width: 130 }} options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v }))} />
+                    <SavedViewSelect
+                      page="service_tickets"
+                      currentFilters={{ searchText, status: filterStatus, priority: filterPriority, type: filterType }}
+                      onApply={(f) => {
+                        setSearchText(f.searchText || ''); setFilterStatus(f.status); setFilterPriority(f.priority); setFilterType(f.type)
+                        fetchTickets(1, f.searchText || '', f.status, f.priority, f.type)
+                      }}
+                    />
                   </div>
                   <Space wrap>
                     {selectedTicketKeys.length > 0 && (

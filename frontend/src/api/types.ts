@@ -15,6 +15,7 @@ export interface PageData<T = unknown> {
 export interface LoginRequest {
   username: string
   password: string
+  totp_code?: string
 }
 
 export interface TokenResponse {

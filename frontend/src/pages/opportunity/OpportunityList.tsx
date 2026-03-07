@@ -13,6 +13,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { opportunityStatusMap as statusMap } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import SavedViewSelect from '@/components/SavedViewSelect'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 
@@ -231,6 +232,14 @@ export default function OpportunityList() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             筛选
           </Button>
+          <SavedViewSelect
+            page="opportunities"
+            currentFilters={{ keyword, stage_code: stageCode, status }}
+            onApply={(f) => {
+              setKeyword(f.keyword || ''); setStageCode(f.stage_code || undefined); setStatus(f.status || undefined)
+              fetchData(1, f.keyword || '', f.stage_code, f.status)
+            }}
+          />
         </div>
       </div>
 

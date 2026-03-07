@@ -56,13 +56,13 @@ export const settingsApi = {
     client.delete(`/api/v1/doc-templates/${id}`),
 
   // Email templates
-  listEmailTemplates: () => client.get('/api/v1/email-templates'),
+  listEmailTemplates: () => client.get('/api/v1/admin/email-templates'),
   createEmailTemplate: (data: Record<string, unknown>) =>
-    client.post('/api/v1/email-templates', data),
+    client.post('/api/v1/admin/email-templates', data),
   updateEmailTemplate: (id: string, data: Record<string, unknown>) =>
-    client.put(`/api/v1/email-templates/${id}`, data),
+    client.put(`/api/v1/admin/email-templates/${id}`, data),
   deleteEmailTemplate: (id: string) =>
-    client.delete(`/api/v1/email-templates/${id}`),
+    client.delete(`/api/v1/admin/email-templates/${id}`),
 
   // Custom fields
   listCustomFields: (params?: Record<string, unknown>) =>
@@ -77,6 +77,7 @@ export const settingsApi = {
   // Backup
   backupStats: () => client.get('/api/v1/admin/backup/stats'),
   backupDownloadUrl: () => '/api/v1/admin/backup',
+  restoreBackup: (data: Record<string, unknown>) => client.post('/api/v1/admin/backup/restore', data),
 
   // Audit
   auditVerify: () => client.post('/api/v1/audit_logs/verify'),

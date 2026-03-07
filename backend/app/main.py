@@ -37,6 +37,8 @@ from app.domains.notification.router import router as notification_router
 from app.domains.outbox.router import router as outbox_router
 from app.domains.product.router import router as product_router
 from app.domains.task.router import router as task_router
+from app.domains.dashboard.saved_view import router as saved_view_router
+from app.domains.customer.contact_router import router as contact_router
 
 from app.config import settings
 from app.common.logging_config import setup_logging
@@ -123,6 +125,8 @@ app.include_router(outbox_router)
 app.include_router(product_router)
 app.include_router(task_router)
 app.include_router(lead_public_router)
+app.include_router(saved_view_router)
+app.include_router(contact_router)
 
 
 @app.get("/health", tags=["系统"])

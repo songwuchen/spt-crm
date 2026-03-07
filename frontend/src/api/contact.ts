@@ -2,6 +2,8 @@ import client from './client'
 import type { ApiResponse, Contact } from './types'
 
 export const contactApi = {
+  listAll: (params: Record<string, any>) =>
+    client.get<unknown, ApiResponse<{ items: (Contact & { customer_name?: string })[]; total: number }>>('/api/v1/contacts', { params }),
   list: (customerId: string) =>
     client.get<unknown, ApiResponse<Contact[]>>(`/api/v1/customers/${customerId}/contacts`),
   create: (customerId: string, data: Partial<Contact>) =>

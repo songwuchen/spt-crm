@@ -46,7 +46,13 @@ async def authenticate(db: AsyncSession, username: str, password: str, tenant_co
 
 
 async def get_user_permissions(db: AsyncSession, user_id: str, tenant_id: str) -> list[str]:
-    """Collect all permission codes for a user via their roles."""
+    """Collect all permission codes for a user via their roles. Cached for 5 min."""
+    from app.common.cache import cache_get, cache_set
+    cache_key = f"user_perms:{tenant_id}:{user_id}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     query = (
         select(RolePermission)
         .join(UserRole, UserRole.role_id == RolePermission.role_id)
@@ -54,11 +60,21 @@ async def get_user_permissions(db: AsyncSession, user_id: str, tenant_id: str) -
     )
     result = await db.execute(query)
     role_perms = result.scalars().all()
-    return list({rp.permission.code for rp in role_perms})
+    perms = list({rp.permission.code for rp in role_perms})
+    await cache_set(cache_key, perms, ttl=300)
+    return perms
 
 
 async def get_user_roles(db: AsyncSession, user_id: str, tenant_id: str) -> list[str]:
+    from app.common.cache import cache_get, cache_set
+    cache_key = f"user_roles:{tenant_id}:{user_id}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     query = select(UserRole).where(UserRole.user_id == user_id, UserRole.tenant_id == tenant_id)
     result = await db.execute(query)
     user_roles = result.scalars().all()
-    return [ur.role.code for ur in user_roles]
+    roles = [ur.role.code for ur in user_roles]
+    await cache_set(cache_key, roles, ttl=300)
+    return roles

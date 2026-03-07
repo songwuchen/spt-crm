@@ -271,6 +271,54 @@ async def cleanup_old_notifications(db: AsyncSession) -> int:
     return result.rowcount
 
 
+async def cleanup_expired_sessions(db: AsyncSession) -> int:
+    """Deactivate expired login sessions."""
+    from sqlalchemy import update as sql_update
+    from app.domains.auth.models import LoginSession
+
+    result = await db.execute(
+        sql_update(LoginSession).where(
+            LoginSession.is_active == True,
+            LoginSession.expired_at != None,
+            LoginSession.expired_at < datetime.now(timezone.utc),
+        ).values(is_active=False)
+    )
+    if result.rowcount > 0:
+        await db.commit()
+        logger.info(f"Deactivated {result.rowcount} expired login sessions")
+    return result.rowcount
+
+
+async def cleanup_soft_deleted_records(db: AsyncSession) -> int:
+    """Delete soft-deleted records older than 30 days across key tables."""
+    from sqlalchemy import delete as sql_delete
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    total = 0
+
+    # Import models that support soft delete
+    from app.domains.customer.models import Customer
+    from app.domains.lead.models import Lead
+    from app.domains.opportunity.models import OpportunityProject
+
+    for model in [Customer, Lead, OpportunityProject]:
+        try:
+            result = await db.execute(
+                sql_delete(model).where(
+                    model.is_deleted == True,
+                    model.updated_at < cutoff,
+                )
+            )
+            total += result.rowcount
+        except Exception as e:
+            logger.warning(f"Failed to clean {model.__tablename__}: {e}")
+
+    if total > 0:
+        await db.commit()
+        logger.info(f"Purged {total} soft-deleted records older than 30 days")
+    return total
+
+
 async def run_once():
     """Single reminder check cycle."""
     async with async_session_factory() as db:
@@ -280,6 +328,8 @@ async def run_once():
         contracts = await check_expiring_contracts(db)
         audit_cleanup = await cleanup_old_audit_logs(db)
         notif_cleanup = await cleanup_old_notifications(db)
+        session_cleanup = await cleanup_expired_sessions(db)
+        deleted_cleanup = await cleanup_soft_deleted_records(db)
 
         total = stale + payments + sla + contracts
         if total > 0:
@@ -287,8 +337,9 @@ async def run_once():
                 f"Reminders sent: stale_projects={stale}, upcoming_payments={payments}, "
                 f"sla_violations={sla}, expiring_contracts={contracts}"
             )
-        if audit_cleanup + notif_cleanup > 0:
-            logger.info(f"Cleanup: audit_logs={audit_cleanup}, notifications={notif_cleanup}")
+        cleanup_total = audit_cleanup + notif_cleanup + session_cleanup + deleted_cleanup
+        if cleanup_total > 0:
+            logger.info(f"Cleanup: audit={audit_cleanup}, notif={notif_cleanup}, sessions={session_cleanup}, deleted={deleted_cleanup}")
         return total
 
 

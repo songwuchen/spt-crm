@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Tabs, Table, Button, Modal, Input, InputNumber, Select, Switch, Space, Progress, Tag, message } from 'antd'
-import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined, UploadOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import { settingsApi } from '@/api/settings'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -596,11 +596,36 @@ export default function SettingsPage() {
               <div className="pb-6">
                 <div className="mb-4">
                   <p className="text-sm text-slate-500 mb-4">导出当前租户的全部业务数据为 JSON 文件，可用于数据备份或迁移。</p>
-                  <Button type="primary" icon={<CloudDownloadOutlined />} loading={backupLoading} onClick={() => {
-                    setBackupLoading(true)
-                    downloadFile(settingsApi.backupDownloadUrl(), `backup_${new Date().toISOString().slice(0, 10)}.json`)
-                    setTimeout(() => setBackupLoading(false), 3000)
-                  }}>下载备份</Button>
+                  <Space>
+                    <Button type="primary" icon={<CloudDownloadOutlined />} loading={backupLoading} onClick={() => {
+                      setBackupLoading(true)
+                      downloadFile(settingsApi.backupDownloadUrl(), `backup_${new Date().toISOString().slice(0, 10)}.json`)
+                      setTimeout(() => setBackupLoading(false), 3000)
+                    }}>下载备份</Button>
+                    <Button icon={<UploadOutlined />} onClick={() => {
+                      const input = document.createElement('input')
+                      input.type = 'file'
+                      input.accept = '.json'
+                      input.onchange = async (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0]
+                        if (!file) return
+                        try {
+                          const text = await file.text()
+                          const data = JSON.parse(text)
+                          Modal.confirm({
+                            title: '确认恢复数据',
+                            content: '将从备份文件导入数据，已存在的记录会跳过。确定继续吗？',
+                            onOk: async () => {
+                              const res = await settingsApi.restoreBackup(data) as any
+                              message.success(`恢复完成: 导入 ${res.data?.total_restored || 0} 条，跳过 ${res.data?.total_skipped || 0} 条`)
+                              fetchAll()
+                            },
+                          })
+                        } catch { message.error('文件解析失败，请确认为有效的备份JSON文件') }
+                      }
+                      input.click()
+                    }}>从备份恢复</Button>
+                  </Space>
                 </div>
                 <h3 className="text-sm font-bold text-slate-700 mb-3">数据统计</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -789,8 +814,9 @@ export default function SettingsPage() {
         </div>
       </Modal>
 
-      {/* Email Template Modal */}
-      <Modal title={etEditingId ? '编辑邮件模板' : '新增邮件模板'} open={etModal} onOk={handleSaveEt} onCancel={() => { setEtModal(false); setEtEditingId(null) }} width={600}>
+      {/* Email Template Modal — with live preview */}
+      <Modal title={etEditingId ? '编辑邮件模板' : '新增邮件模板'} open={etModal} onOk={handleSaveEt}
+        onCancel={() => { setEtModal(false); setEtEditingId(null) }} width={900}>
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -808,18 +834,66 @@ export default function SettingsPage() {
               placeholder="【提醒】{{customer_name}} 需要跟进" />
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">邮件内容 (HTML)</label>
-            <TextArea rows={8} value={etForm.body_html} onChange={(e) => setEtForm({ ...etForm, body_html: e.target.value })}
-              placeholder="<p>{{user_name}} 你好，</p><p>客户 {{customer_name}} 已 {{days}} 天未跟进。</p>" />
+            <label className="text-sm font-medium text-slate-700 mb-1 block">邮件内容</label>
+            <div className="flex gap-0 border border-slate-200 rounded-lg overflow-hidden" style={{ height: 280 }}>
+              <div className="flex-1 flex flex-col">
+                <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500">HTML 编辑</div>
+                <div className="flex gap-1 px-2 py-1 bg-slate-50 border-b border-slate-200">
+                  {[
+                    { label: 'B', tag: '<strong>', end: '</strong>' },
+                    { label: 'I', tag: '<em>', end: '</em>' },
+                    { label: 'H2', tag: '<h2>', end: '</h2>' },
+                    { label: 'P', tag: '<p>', end: '</p>' },
+                    { label: 'Link', tag: '<a href="">', end: '</a>' },
+                    { label: 'Img', tag: '<img src="" alt="" />', end: '' },
+                  ].map((btn) => (
+                    <button key={btn.label} type="button" className="px-2 py-0.5 text-xs rounded border border-slate-200 hover:bg-slate-100 text-slate-600"
+                      onClick={() => {
+                        const ins = btn.end ? `${btn.tag}文本${btn.end}` : btn.tag
+                        setEtForm({ ...etForm, body_html: (etForm.body_html || '') + ins })
+                      }}>
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+                <TextArea
+                  className="flex-1 !border-0 !rounded-none !shadow-none !resize-none"
+                  value={etForm.body_html}
+                  onChange={(e) => setEtForm({ ...etForm, body_html: e.target.value })}
+                  placeholder="<p>{{user_name}} 你好，</p><p>客户 {{customer_name}} 已 {{days}} 天未跟进。</p>"
+                  style={{ fontFamily: 'monospace', fontSize: 12 }}
+                />
+              </div>
+              <div className="flex-1 flex flex-col border-l border-slate-200">
+                <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500">预览</div>
+                <div className="flex-1 p-3 overflow-auto text-sm"
+                  dangerouslySetInnerHTML={{ __html: etForm.body_html || '<span class="text-slate-300">邮件预览区域</span>' }} />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">变量定义 (JSON)</label>
-            <TextArea rows={3} value={etForm.variables_json} onChange={(e) => setEtForm({ ...etForm, variables_json: e.target.value })}
-              placeholder='[{"name":"customer_name","label":"客户名称"},{"name":"days","label":"天数"}]' />
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch checked={etForm.enabled} onChange={(v) => setEtForm({ ...etForm, enabled: v })} />
-            <span className="text-sm text-slate-700">启用</span>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">变量定义 (JSON)</label>
+              <TextArea rows={3} value={etForm.variables_json} onChange={(e) => setEtForm({ ...etForm, variables_json: e.target.value })}
+                placeholder='[{"name":"customer_name","label":"客户名称"},{"name":"days","label":"天数"}]' />
+            </div>
+            <div className="flex flex-col justify-end">
+              <div className="flex items-center gap-3 mb-2">
+                <Switch checked={etForm.enabled} onChange={(v) => setEtForm({ ...etForm, enabled: v })} />
+                <span className="text-sm text-slate-700">启用</span>
+              </div>
+              {etForm.variables_json && (() => {
+                try {
+                  const vars = JSON.parse(etForm.variables_json)
+                  if (Array.isArray(vars)) return (
+                    <div className="text-xs text-slate-400">
+                      可用变量：{vars.map((v: any) => <Tag key={v.name} className="text-[10px]">{`{{${v.name}}}`}</Tag>)}
+                    </div>
+                  )
+                } catch { /* ignore */ }
+                return null
+              })()}
+            </div>
           </div>
         </div>
       </Modal>
