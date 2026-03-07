@@ -59,15 +59,14 @@ export default function CustomerList() {
   const handleBatchTransfer = async () => {
     const values = await transferForm.validateFields()
     const ownerName = userSelect.options.find(o => o.value === values.owner_id)?.label || ''
-    const results = await Promise.allSettled(
-      selectedRowKeys.map((id) => customerApi.update(id as string, { owner_id: values.owner_id, owner_name: ownerName }))
-    )
-    const ok = results.filter(r => r.status === 'fulfilled').length
-    message.success(`已转让 ${ok} 个客户`)
-    setTransferModal(false)
-    transferForm.resetFields()
-    setSelectedRowKeys([])
-    fetchData()
+    try {
+      const res = await customerApi.batchTransfer(selectedRowKeys as string[], values.owner_id, ownerName)
+      message.success(`已转让 ${(res as any).data?.updated || selectedRowKeys.length} 个客户`)
+      setTransferModal(false)
+      transferForm.resetFields()
+      setSelectedRowKeys([])
+      fetchData()
+    } catch { message.error('批量转让失败') }
   }
 
   const handleBatchDelete = () => {

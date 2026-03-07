@@ -24,6 +24,8 @@ const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
       { key: '/service-tickets', icon: 'confirmation_number', labelKey: 'nav.serviceTickets', permission: 'service:view' },
       { key: '/sales-targets', icon: 'flag', labelKey: 'nav.salesTargets', permission: 'project:view' },
       { key: '/analytics', icon: 'analytics', labelKey: 'nav.analytics', permission: 'project:view' },
+      { key: '/change-requests', icon: 'swap_horiz', labelKey: 'nav.changeRequests', permission: 'change:view' },
+      { key: '/milestones', icon: 'flag_circle', labelKey: 'nav.milestones', permission: 'delivery:view' },
       { key: '/tasks', icon: 'checklist', labelKey: 'nav.tasks' },
       { key: '/approvals', icon: 'task_alt', labelKey: 'nav.approvals' },
       { key: '/ai-center', icon: 'smart_toy', labelKey: 'nav.aiCenter', permission: 'project:view' },
@@ -53,6 +55,8 @@ function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/service-tickets/)) return '/service-tickets'
   if (pathname.match(/^\/sales-targets/)) return '/sales-targets'
   if (pathname.match(/^\/analytics/)) return '/analytics'
+  if (pathname.match(/^\/change-requests/)) return '/change-requests'
+  if (pathname.match(/^\/milestones/)) return '/milestones'
   if (pathname.match(/^\/tasks/)) return '/tasks'
   if (pathname.match(/^\/approvals/)) return '/approvals'
   if (pathname.match(/^\/ai-center/)) return '/ai-center'

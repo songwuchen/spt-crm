@@ -2,6 +2,10 @@ import client from './client'
 import type { ApiResponse, ErpOrderLink, DeliveryMilestone } from './types'
 
 export const deliveryApi = {
+  // Global milestone list
+  listAllMilestones: (params: Record<string, unknown>) =>
+    client.get('/api/v1/milestones', { params }),
+
   // ERP Order Links
   listOrderLinks: (projectId: string) =>
     client.get<unknown, ApiResponse<ErpOrderLink[]>>(`/api/v1/projects/${projectId}/order_links`),

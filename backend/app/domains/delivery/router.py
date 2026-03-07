@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.domains.delivery import service
+from app.domains.delivery.models import DeliveryMilestone
 from app.domains.delivery.schemas import ErpOrderLinkCreate, MilestoneCreate, MilestoneUpdate
 
 router = APIRouter(tags=["交付管理"])
@@ -67,6 +69,32 @@ async def delete_order_link(
 
 
 # --- Delivery Milestones ---
+
+@router.get("/api/v1/milestones")
+async def list_all_milestones(
+    page_no: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: str | None = None,
+    keyword: str | None = None,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("delivery:view")),
+):
+    """Global list of all delivery milestones with pagination."""
+    q = select(DeliveryMilestone).where(DeliveryMilestone.tenant_id == tenant_id)
+    cq = select(func.count()).select_from(DeliveryMilestone).where(DeliveryMilestone.tenant_id == tenant_id)
+    if status:
+        q = q.where(DeliveryMilestone.status == status)
+        cq = cq.where(DeliveryMilestone.status == status)
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.where(DeliveryMilestone.name.ilike(like) | DeliveryMilestone.milestone_code.ilike(like))
+        cq = cq.where(DeliveryMilestone.name.ilike(like) | DeliveryMilestone.milestone_code.ilike(like))
+    total = (await db.execute(cq)).scalar() or 0
+    q = q.order_by(DeliveryMilestone.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+    items = (await db.execute(q)).scalars().all()
+    return ok({"items": [_ms_dict(m) for m in items], "total": total})
+
 
 @router.get("/api/v1/projects/{project_id}/milestones")
 async def list_milestones(

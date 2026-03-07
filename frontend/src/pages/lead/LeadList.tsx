@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Input, Space, Select, Modal, Upload, message } from 'antd'
+import { Table, Button, Input, Space, Select, Modal, Upload, Form, DatePicker, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useNavigate } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
+import { userApi } from '@/api/user'
 import type { Lead } from '@/api/types'
 import { sourceLabels } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { leadStatusConfig as statusConfig } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 
 function ScoreBar({ score }: { score: number }) {
   const getColor = (s: number) => {
@@ -42,7 +44,27 @@ export default function LeadList() {
   const [pageNo, setPageNo] = useState(1)
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState<string | undefined>()
+  const [source, setSource] = useState<string | undefined>()
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [assignModal, setAssignModal] = useState(false)
+  const [assignForm] = Form.useForm()
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
+
+  const handleBatchAssign = async () => {
+    const values = await assignForm.validateFields()
+    const ownerName = userSelect.options.find(o => o.value === values.owner_id)?.label || ''
+    try {
+      const res = await leadApi.batchAssign(selectedRowKeys as string[], values.owner_id, ownerName)
+      message.success(`已分配 ${(res as any).data?.updated || selectedRowKeys.length} 条线索`)
+      setAssignModal(false)
+      assignForm.resetFields()
+      setSelectedRowKeys([])
+      fetchData()
+    } catch { message.error('批量分配失败') }
+  }
 
   const handleBatchDelete = () => {
     if (!selectedRowKeys.length) return
@@ -79,10 +101,10 @@ export default function LeadList() {
     })
   }
 
-  const fetchData = async (page = pageNo, kw = keyword, st = status) => {
+  const fetchData = async (page = pageNo, kw = keyword, st = status, src = source) => {
     setLoading(true)
     try {
-      const res = await leadApi.list({ pageNo: page, pageSize: 20, keyword: kw || undefined, status: st })
+      const res = await leadApi.list({ pageNo: page, pageSize: 20, keyword: kw || undefined, status: st, source: src })
       setData(res.data.items)
       setTotal(res.data.total)
     } finally {
@@ -92,7 +114,7 @@ export default function LeadList() {
 
   useEffect(() => { fetchData() }, [])
 
-  const doSearch = () => { setPageNo(1); fetchData(1, keyword, status) }
+  const doSearch = () => { setPageNo(1); fetchData(1, keyword, status, source) }
 
   const columns: ColumnsType<Lead> = [
     { title: '线索', key: 'title', width: 260,
@@ -211,6 +233,7 @@ export default function LeadList() {
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between">
           <span className="text-sm text-blue-700">已选中 {selectedRowKeys.length} 项</span>
           <Space>
+            <Button size="small" onClick={() => { assignForm.resetFields(); setAssignModal(true) }}>批量分配</Button>
             <Button size="small" onClick={handleBatchConvert}>批量转化</Button>
             <Button size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>批量删除</Button>
             <Button size="small" onClick={() => setSelectedRowKeys([])}>取消选择</Button>
@@ -236,8 +259,16 @@ export default function LeadList() {
             allowClear
             style={{ width: 140 }}
             value={status}
-            onChange={(v) => { setStatus(v); setPageNo(1); fetchData(1, keyword, v) }}
+            onChange={(v) => { setStatus(v); setPageNo(1); fetchData(1, keyword, v, source) }}
             options={Object.entries(statusConfig).map(([k, v]) => ({ label: v.label, value: k }))}
+          />
+          <Select
+            placeholder="来源"
+            allowClear
+            style={{ width: 140 }}
+            value={source}
+            onChange={(v) => { setSource(v); setPageNo(1); fetchData(1, keyword, status, v) }}
+            options={Object.entries(sourceLabels).map(([k, v]) => ({ label: v, value: k }))}
           />
           <Button onClick={doSearch}>
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
@@ -262,6 +293,18 @@ export default function LeadList() {
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
         />
       </div>
+
+      <Modal title="批量分配线索" open={assignModal} onOk={handleBatchAssign}
+        onCancel={() => setAssignModal(false)} okText="确认分配">
+        <Form form={assignForm} layout="vertical" className="py-2">
+          <Form.Item label="分配给" name="owner_id" rules={[{ required: true, message: '请选择负责人' }]}>
+            <Select showSearch filterOption={false} placeholder="搜索用户..."
+              loading={userSelect.loading} options={userSelect.options}
+              onSearch={userSelect.onSearch} onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
+          </Form.Item>
+        </Form>
+        <p className="text-xs text-slate-400">将选中的 {selectedRowKeys.length} 条线索分配给指定负责人</p>
+      </Modal>
     </div>
   )
 }

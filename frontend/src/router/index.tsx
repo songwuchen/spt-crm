@@ -62,6 +62,8 @@ const ApiDocsPage = lazy(() => import('@/pages/admin/ApiDocsPage'))
 const ProductReport = lazy(() => import('@/pages/report/ProductReport'))
 const CustomerLifecycleReport = lazy(() => import('@/pages/report/CustomerLifecycleReport'))
 const TeamPerformanceReport = lazy(() => import('@/pages/report/TeamPerformanceReport'))
+const ChangeRequestList = lazy(() => import('@/pages/change/ChangeRequestList'))
+const MilestoneList = lazy(() => import('@/pages/delivery/MilestoneList'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
 function Lazy({ children }: { children: React.ReactNode }) {
@@ -112,6 +114,8 @@ export const router = createBrowserRouter([
       { path: 'reports/product', element: <Guard permission="product:view"><ProductReport /></Guard> },
       { path: 'reports/customer-lifecycle', element: <Guard permission="customer:view"><CustomerLifecycleReport /></Guard> },
       { path: 'reports/team-performance', element: <Guard permission="project:view"><TeamPerformanceReport /></Guard> },
+      { path: 'change-requests', element: <Guard permission="change:view"><ChangeRequestList /></Guard> },
+      { path: 'milestones', element: <Guard permission="delivery:view"><MilestoneList /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },
       { path: 'ai-center', element: <Guard permission="project:view"><AiCenterPage /></Guard> },
       { path: 'notifications', element: <Lazy><NotificationCenter /></Lazy> },

@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.domains.change import service
+from app.domains.change.models import ChangeRequest
 from app.domains.change.schemas import ChangeRequestCreate, ChangeRequestUpdate
 
 router = APIRouter(tags=["变更管理"])
@@ -21,6 +23,36 @@ def _cr_dict(c) -> dict:
         "created_at": c.created_at.isoformat() if c.created_at else "",
         "updated_at": c.updated_at.isoformat() if c.updated_at else "",
     }
+
+
+@router.get("/api/v1/change_requests")
+async def list_all_change_requests(
+    page_no: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: str | None = None,
+    change_type: str | None = None,
+    keyword: str | None = None,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("change:view")),
+):
+    """Global list of all change requests with pagination and filters."""
+    q = select(ChangeRequest).where(ChangeRequest.tenant_id == tenant_id)
+    cq = select(func.count()).select_from(ChangeRequest).where(ChangeRequest.tenant_id == tenant_id)
+    if status:
+        q = q.where(ChangeRequest.status == status)
+        cq = cq.where(ChangeRequest.status == status)
+    if change_type:
+        q = q.where(ChangeRequest.change_type == change_type)
+        cq = cq.where(ChangeRequest.change_type == change_type)
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.where(ChangeRequest.change_no.ilike(like) | ChangeRequest.reason.ilike(like))
+        cq = cq.where(ChangeRequest.change_no.ilike(like) | ChangeRequest.reason.ilike(like))
+    total = (await db.execute(cq)).scalar() or 0
+    q = q.order_by(ChangeRequest.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+    items = (await db.execute(q)).scalars().all()
+    return ok({"items": [_cr_dict(c) for c in items], "total": total})
 
 
 @router.get("/api/v1/projects/{project_id}/change_requests")

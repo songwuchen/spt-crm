@@ -74,6 +74,8 @@ const zhCN = {
     salesTargets: '销售目标',
     renewals: '续约管理',
     analytics: '报表中心',
+    changeRequests: '变更管理',
+    milestones: '交付里程碑',
     tasks: '待办任务',
     approvals: '审批中心',
     aiCenter: 'AI 任务中心',

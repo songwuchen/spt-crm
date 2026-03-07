@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Button, Table, Tag, Modal, Form, Input, Select, DatePicker, Space, Checkbox, message } from 'antd'
-import { PlusOutlined, DeleteOutlined, CheckOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, CheckOutlined, UserSwitchOutlined } from '@ant-design/icons'
 import { taskApi } from '@/api/task'
+import { userApi } from '@/api/user'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import dayjs from 'dayjs'
 
 interface TaskItem {
@@ -35,8 +37,14 @@ export default function TaskPage() {
   const [filterPriority, setFilterPriority] = useState<string | undefined>()
   const [loading, setLoading] = useState(false)
   const [modal, setModal] = useState(false)
+  const [assignModal, setAssignModal] = useState(false)
   const [form] = Form.useForm()
+  const [assignForm] = Form.useForm()
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const userSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
 
   const fetch = async (p = page) => {
     setLoading(true)
@@ -80,12 +88,25 @@ export default function TaskPage() {
     Modal.confirm({
       title: `批量完成 ${selectedIds.length} 项任务？`,
       onOk: async () => {
-        await Promise.all(selectedIds.map(id => taskApi.update(id, { is_completed: true, status: 'done' })))
+        await taskApi.batchComplete(selectedIds)
         message.success(`已完成 ${selectedIds.length} 项任务`)
         setSelectedIds([])
         fetch()
       },
     })
+  }
+
+  const handleBatchAssign = async () => {
+    const values = await assignForm.validateFields()
+    const name = userSelect.options.find(o => o.value === values.assignee_id)?.label || ''
+    try {
+      await taskApi.batchAssign(selectedIds, values.assignee_id, name)
+      message.success(`已分配 ${selectedIds.length} 项任务`)
+      setAssignModal(false)
+      assignForm.resetFields()
+      setSelectedIds([])
+      fetch()
+    } catch { message.error('批量分配失败') }
   }
 
   const todoCount = items.filter(t => !t.is_completed).length
@@ -102,9 +123,14 @@ export default function TaskPage() {
         </div>
         <Space>
           {selectedIds.length > 0 && (
-            <Button icon={<CheckOutlined />} onClick={handleBulkComplete}>
-              批量完成 ({selectedIds.length})
-            </Button>
+            <>
+              <Button icon={<UserSwitchOutlined />} onClick={() => { assignForm.resetFields(); setAssignModal(true) }}>
+                批量分配 ({selectedIds.length})
+              </Button>
+              <Button icon={<CheckOutlined />} onClick={handleBulkComplete}>
+                批量完成 ({selectedIds.length})
+              </Button>
+            </>
           )}
           <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModal(true) }}>新建任务</Button>
         </Space>
@@ -183,6 +209,18 @@ export default function TaskPage() {
             </Form.Item>
           </div>
         </Form>
+      </Modal>
+
+      <Modal title="批量分配任务" open={assignModal} onOk={handleBatchAssign}
+        onCancel={() => setAssignModal(false)} okText="确认分配">
+        <Form form={assignForm} layout="vertical" className="py-2">
+          <Form.Item label="分配给" name="assignee_id" rules={[{ required: true, message: '请选择负责人' }]}>
+            <Select showSearch filterOption={false} placeholder="搜索用户..."
+              loading={userSelect.loading} options={userSelect.options}
+              onSearch={userSelect.onSearch} onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
+          </Form.Item>
+        </Form>
+        <p className="text-xs text-slate-400">将选中的 {selectedIds.length} 项任务分配给指定负责人</p>
       </Modal>
     </div>
   )

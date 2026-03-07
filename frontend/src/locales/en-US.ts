@@ -58,6 +58,8 @@ const enUS = {
     salesTargets: 'Sales Targets',
     renewals: 'Renewals',
     analytics: 'Analytics',
+    changeRequests: 'Change Requests',
+    milestones: 'Milestones',
     tasks: 'Tasks',
     approvals: 'Approvals',
     aiCenter: 'AI Center',

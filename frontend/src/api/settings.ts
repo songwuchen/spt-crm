@@ -24,6 +24,8 @@ export const settingsApi = {
   listIntegrations: () => client.get('/api/admin/v1/tenant/integrations'),
   createIntegration: (data: Record<string, unknown>) =>
     client.post('/api/admin/v1/tenant/integrations', data),
+  updateIntegration: (id: string, data: Record<string, unknown>) =>
+    client.put(`/api/admin/v1/tenant/integrations/${id}`, data),
   deleteIntegration: (id: string) =>
     client.delete(`/api/admin/v1/tenant/integrations/${id}`),
 

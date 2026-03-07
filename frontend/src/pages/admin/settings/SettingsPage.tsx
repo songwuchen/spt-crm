@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Tabs, Table, Button, Modal, Input, InputNumber, Select, Switch, Space, Progress, message } from 'antd'
+import { Tabs, Table, Button, Modal, Input, InputNumber, Select, Switch, Space, Progress, Tag, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import { settingsApi } from '@/api/settings'
 import { downloadFile } from '@/utils/download'
@@ -11,7 +11,7 @@ const { TextArea } = Input
 interface StageConfig { id: string; stage_code: string; name: string; gate_rules_json?: Record<string, unknown>[]; enabled: boolean }
 interface MarginPolicy { id: string; policy_code: string; redline_rate: number; action: string; scope_json?: Record<string, unknown>; enabled: boolean }
 interface AiPolicy { id: string; task_type: string; model_route_json?: Record<string, unknown>; budget_json?: Record<string, unknown>; enabled: boolean }
-interface Integration { id: string; system_code: string; name: string; base_url: string; auth_type: string; status: string }
+interface Integration { id: string; system_code: string; name: string; base_url: string; auth_type: string; auth_config_json?: Record<string, unknown>; status: string }
 interface FeatureToggle { id: string; feature_code: string; enabled: boolean; config_json?: Record<string, unknown> }
 interface AiBudget { id: string; period: string; budget_cost?: number; used_cost?: number; budget_tokens?: number; used_tokens?: number; hard_limit: boolean }
 interface ApprovalPolicyItem { id: string; biz_type: string; name: string; condition_json?: Record<string, unknown>; approver_rules_json?: Record<string, unknown>; approval_mode: string; sla_hours?: number; escalation_json?: Record<string, unknown>[]; priority: number; enabled: boolean }
@@ -69,9 +69,11 @@ export default function SettingsPage() {
   const [marginModal, setMarginModal] = useState(false)
   const [marginForm, setMarginForm] = useState({ policy_code: '', redline_rate: 0.2, action: 'warn' })
 
-  // Integration create
+  // Integration create/edit
   const [intModal, setIntModal] = useState(false)
-  const [intForm, setIntForm] = useState({ system_code: '', name: '', base_url: '', auth_type: 'apikey' })
+  const [intEditingId, setIntEditingId] = useState<string | null>(null)
+  const defaultIntForm = { system_code: '', name: '', base_url: '', auth_type: 'apikey', auth_config_json: '', status: 'active' }
+  const [intForm, setIntForm] = useState(defaultIntForm)
 
   // Approval policy create/edit
   const [apModal, setApModal] = useState(false)
@@ -134,15 +136,28 @@ export default function SettingsPage() {
     }
   }
 
-  const handleCreateInt = async () => {
+  const handleSaveInt = async () => {
     try {
-      await settingsApi.createIntegration(intForm)
-      message.success('集成端点已创建')
+      const payload: Record<string, unknown> = {
+        system_code: intForm.system_code, name: intForm.name,
+        base_url: intForm.base_url, auth_type: intForm.auth_type, status: intForm.status,
+      }
+      if (intForm.auth_config_json.trim()) {
+        try { payload.auth_config_json = JSON.parse(intForm.auth_config_json) } catch { message.error('认证配置 JSON 格式错误'); return }
+      } else { payload.auth_config_json = null }
+      if (intEditingId) {
+        await settingsApi.updateIntegration(intEditingId, payload)
+        message.success('集成端点已更新')
+      } else {
+        await settingsApi.createIntegration(payload)
+        message.success('集成端点已创建')
+      }
       setIntModal(false)
-      setIntForm({ system_code: '', name: '', base_url: '', auth_type: 'apikey' })
+      setIntEditingId(null)
+      setIntForm(defaultIntForm)
       fetchAll()
     } catch {
-      message.error('创建集成端点失败')
+      message.error(intEditingId ? '更新集成端点失败' : '创建集成端点失败')
     }
   }
 
@@ -420,24 +435,33 @@ export default function SettingsPage() {
             children: (
               <div className="pb-6">
                 <div className="flex justify-end mb-3">
-                  <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setIntModal(true)}>新增集成</Button>
+                  <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
+                    setIntEditingId(null); setIntForm(defaultIntForm); setIntModal(true)
+                  }}>新增集成</Button>
                 </div>
                 <Table rowKey="id" dataSource={integrations} size="small" pagination={false} columns={[
-                  { title: '系统', dataIndex: 'system_code', width: 120 },
+                  { title: '系统', dataIndex: 'system_code', width: 120, render: (v: string) => <span className="font-mono text-xs">{v}</span> },
                   { title: '名称', dataIndex: 'name', width: 150 },
                   { title: 'URL', dataIndex: 'base_url', ellipsis: true },
                   { title: '认证', dataIndex: 'auth_type', width: 100 },
-                  { title: '状态', dataIndex: 'status', width: 80 },
-                  { title: '', width: 80, render: (_: unknown, r: Integration) => (
-                    <a className="text-rose-500 text-xs font-bold" onClick={async () => {
-                      try {
-                        await settingsApi.deleteIntegration(r.id)
-                        message.success('已删除')
-                        fetchAll()
-                      } catch {
-                        message.error('删除失败')
-                      }
-                    }}>删除</a>
+                  { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => (
+                    <Tag color={v === 'active' ? 'green' : 'default'}>{v === 'active' ? '启用' : '停用'}</Tag>
+                  )},
+                  { title: '', width: 120, render: (_: unknown, r: Integration) => (
+                    <Space size="middle">
+                      <a className="text-primary text-xs font-bold" onClick={() => {
+                        setIntEditingId(r.id)
+                        setIntForm({
+                          system_code: r.system_code, name: r.name || '', base_url: r.base_url || '',
+                          auth_type: r.auth_type || 'apikey', status: r.status || 'active',
+                          auth_config_json: r.auth_config_json ? JSON.stringify(r.auth_config_json, null, 2) : '',
+                        })
+                        setIntModal(true)
+                      }}>编辑</a>
+                      <a className="text-rose-500 text-xs font-bold" onClick={async () => {
+                        try { await settingsApi.deleteIntegration(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') }
+                      }}>删除</a>
+                    </Space>
                   )},
                 ]} />
               </div>
@@ -801,24 +825,53 @@ export default function SettingsPage() {
       </Modal>
 
       {/* Integration Modal */}
-      <Modal title="新增集成端点" open={intModal} onOk={handleCreateInt} onCancel={() => setIntModal(false)}>
+      <Modal title={intEditingId ? '编辑集成端点' : '新增集成端点'} open={intModal} onOk={handleSaveInt}
+        onCancel={() => { setIntModal(false); setIntEditingId(null) }} width={560}>
         <div className="space-y-4 py-2">
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">系统代码</label>
-            <Input value={intForm.system_code} onChange={(e) => setIntForm({ ...intForm, system_code: e.target.value })} placeholder="erp_k3" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">系统代码</label>
+              <Select className="w-full" value={intForm.system_code} onChange={(v) => setIntForm({ ...intForm, system_code: v })}
+                showSearch allowClear={false}
+                options={[
+                  { value: 'erp_k3', label: '金蝶K3 (ERP)' }, { value: 'erp_sap', label: 'SAP (ERP)' },
+                  { value: 'erp_yonyou', label: '用友 (ERP)' }, { value: 'mes', label: 'MES' },
+                  { value: 'dingtalk', label: '钉钉' }, { value: 'wecom', label: '企业微信' },
+                ]} />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">名称</label>
+              <Input value={intForm.name} onChange={(e) => setIntForm({ ...intForm, name: e.target.value })} placeholder="金蝶K3 生产环境" />
+            </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">名称</label>
-            <Input value={intForm.name} onChange={(e) => setIntForm({ ...intForm, name: e.target.value })} placeholder="金蝶K3" />
+            <label className="text-sm font-medium text-slate-700 mb-1 block">
+              {['dingtalk', 'wecom'].includes(intForm.system_code) ? 'Webhook URL' : 'Base URL'}
+            </label>
+            <Input value={intForm.base_url} onChange={(e) => setIntForm({ ...intForm, base_url: e.target.value })}
+              placeholder={['dingtalk', 'wecom'].includes(intForm.system_code)
+                ? 'https://oapi.dingtalk.com/robot/send?access_token=xxx'
+                : 'https://erp.example.com/api'} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">认证方式</label>
+              <Select className="w-full" value={intForm.auth_type} onChange={(v) => setIntForm({ ...intForm, auth_type: v })}
+                options={[{ value: 'apikey', label: 'API Key' }, { value: 'oauth2', label: 'OAuth2' }, { value: 'basic', label: 'Basic Auth' }]} />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">状态</label>
+              <Select className="w-full" value={intForm.status} onChange={(v) => setIntForm({ ...intForm, status: v })}
+                options={[{ value: 'active', label: '启用' }, { value: 'inactive', label: '停用' }]} />
+            </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">Base URL</label>
-            <Input value={intForm.base_url} onChange={(e) => setIntForm({ ...intForm, base_url: e.target.value })} placeholder="https://erp.example.com/api" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">认证方式</label>
-            <Select className="w-full" value={intForm.auth_type} onChange={(v) => setIntForm({ ...intForm, auth_type: v })}
-              options={[{ value: 'apikey', label: 'API Key' }, { value: 'oauth2', label: 'OAuth2' }, { value: 'basic', label: 'Basic Auth' }]} />
+            <label className="text-sm font-medium text-slate-700 mb-1 block">认证配置 (JSON)</label>
+            <TextArea rows={5} value={intForm.auth_config_json} onChange={(e) => setIntForm({ ...intForm, auth_config_json: e.target.value })}
+              className="font-mono text-xs"
+              placeholder={intForm.auth_type === 'apikey' ? '{"api_key": "your-key", "header_name": "X-API-Key"}'
+                : intForm.auth_type === 'basic' ? '{"username": "user", "password": "pass"}'
+                : '{"token_url": "https://...", "client_id": "xxx", "client_secret": "xxx"}'} />
           </div>
         </div>
       </Modal>

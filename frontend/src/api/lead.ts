@@ -16,4 +16,8 @@ export const leadApi = {
     client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/discard`),
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/leads/${id}`),
+  batchAssign: (ids: string[], owner_id: string, owner_name: string) =>
+    client.post<unknown, ApiResponse<{ updated: number }>>('/api/v1/leads/batch_assign', { ids, owner_id, owner_name }),
+  batchStatus: (ids: string[], status: string) =>
+    client.post<unknown, ApiResponse<{ updated: number }>>('/api/v1/leads/batch_status', { ids, status }),
 }

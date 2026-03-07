@@ -46,4 +46,6 @@ export const customerApi = {
     client.get<unknown, ApiResponse<{ unique: boolean }>>('/api/v1/customers/check-unique', {
       params: { field, value, ...(excludeId ? { exclude_id: excludeId } : {}) },
     }),
+  batchTransfer: (ids: string[], owner_id: string, owner_name: string) =>
+    client.post<unknown, ApiResponse<{ updated: number }>>('/api/v1/customers/batch_transfer', { ids, owner_id, owner_name }),
 }

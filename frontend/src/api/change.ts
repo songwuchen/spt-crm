@@ -2,6 +2,8 @@ import client from './client'
 import type { ApiResponse, ChangeRequestItem } from './types'
 
 export const changeApi = {
+  list: (params: Record<string, unknown>) =>
+    client.get('/api/v1/change_requests', { params }),
   listByProject: (projectId: string) =>
     client.get<unknown, ApiResponse<ChangeRequestItem[]>>(`/api/v1/projects/${projectId}/change_requests`),
   create: (projectId: string, data: Record<string, unknown>) =>

@@ -42,6 +42,8 @@ export default function ServiceTicketList() {
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined)
+  const [filterPriority, setFilterPriority] = useState<string | undefined>(undefined)
+  const [filterType, setFilterType] = useState<string | undefined>(undefined)
   const [searchText, setSearchText] = useState('')
   const [selectedTicketKeys, setSelectedTicketKeys] = useState<React.Key[]>([])
   const [batchAssignModal, setBatchAssignModal] = useState(false)
@@ -71,12 +73,12 @@ export default function ServiceTicketList() {
   const [renewalForm, setRenewalForm] = useState<Record<string, any>>({ status: 'open' })
   const [editingRenewal, setEditingRenewal] = useState<RenewalItem | null>(null)
 
-  const fetchTickets = async (page = pageNo, kw = searchText, st = filterStatus) => {
+  const fetchTickets = async (page = pageNo, kw = searchText, st = filterStatus, pri = filterPriority, tp = filterType) => {
     setLoading(true)
     try {
       const r = await serviceTicketApi.list({
         pageNo: page, pageSize: 20,
-        keyword: kw || undefined, status: st,
+        keyword: kw || undefined, status: st, priority: pri, type: tp,
       })
       setTickets(r.data?.items || [])
       setTotal(r.data?.total || 0)
@@ -212,11 +214,17 @@ export default function ServiceTicketList() {
                   <div className="flex items-center gap-3 flex-wrap">
                     <Input prefix={<SearchOutlined />} placeholder="搜索编号/描述" allowClear
                       value={searchText} onChange={(e) => setSearchText(e.target.value)}
-                      onPressEnter={() => { setPageNo(1); fetchTickets(1, searchText, filterStatus) }}
+                      onPressEnter={() => { setPageNo(1); fetchTickets(1, searchText, filterStatus, filterPriority, filterType) }}
                       style={{ width: 220 }} />
                     <Select allowClear placeholder="状态" value={filterStatus}
-                      onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchTickets(1, searchText, v) }}
+                      onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchTickets(1, searchText, v, filterPriority, filterType) }}
                       style={{ width: 130 }} options={Object.entries(statusLabels).map(([k, v]) => ({ value: k, label: v }))} />
+                    <Select allowClear placeholder="优先级" value={filterPriority}
+                      onChange={(v) => { setFilterPriority(v); setPageNo(1); fetchTickets(1, searchText, filterStatus, v, filterType) }}
+                      style={{ width: 130 }} options={Object.entries(priorityLabels).map(([k, v]) => ({ value: k, label: v }))} />
+                    <Select allowClear placeholder="类型" value={filterType}
+                      onChange={(v) => { setFilterType(v); setPageNo(1); fetchTickets(1, searchText, filterStatus, filterPriority, v) }}
+                      style={{ width: 130 }} options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v }))} />
                   </div>
                   <Space wrap>
                     {selectedTicketKeys.length > 0 && (

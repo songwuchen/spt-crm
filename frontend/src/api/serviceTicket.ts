@@ -2,7 +2,7 @@ import client from './client'
 import type { ApiResponse, PageData, ServiceTicketItem, RenewalItem } from './types'
 
 export const serviceTicketApi = {
-  list: (params?: { customer_id?: string; project_id?: string; keyword?: string; status?: string; pageNo?: number; pageSize?: number }) =>
+  list: (params?: { customer_id?: string; project_id?: string; keyword?: string; status?: string; priority?: string; type?: string; pageNo?: number; pageSize?: number }) =>
     client.get<unknown, ApiResponse<PageData<ServiceTicketItem>>>('/api/v1/service_tickets', { params }),
   create: (data: Record<string, unknown>) =>
     client.post<unknown, ApiResponse<ServiceTicketItem>>('/api/v1/service_tickets', data),
