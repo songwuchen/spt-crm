@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Table, DatePicker, Select, Tag, Spin } from 'antd'
-import { DownloadOutlined } from '@ant-design/icons'
+import { Table, DatePicker, Select, Tag, Spin, Input, Button } from 'antd'
+import { DownloadOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { Column, Pie } from '@ant-design/charts'
 import { productApi } from '@/api/product'
 import { dashboardApi } from '@/api/dashboard'
+import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface ProductStat {
@@ -17,14 +18,15 @@ export default function ProductReport() {
   const [products, setProducts] = useState<ProductStat[]>([])
   const [loading, setLoading] = useState(true)
   const [filterActive, setFilterActive] = useState<boolean | undefined>(true)
+  const [keyword, setKeyword] = useState('')
 
   useEffect(() => {
     setLoading(true)
-    productApi.list({ pageNo: 1, pageSize: 100, is_active: filterActive })
+    productApi.list({ pageNo: 1, pageSize: 100, is_active: filterActive, keyword: keyword || undefined })
       .then((r: any) => setProducts(r.data?.items || []))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [filterActive])
+  }, [filterActive, keyword])
 
   const totalProducts = products.length
   const activeCount = products.filter(p => p.is_active).length
@@ -62,9 +64,14 @@ export default function ProductReport() {
         ))}
       </div>
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex gap-3 mb-4 flex-wrap">
+        <Input.Search placeholder="搜索产品名称/编码" allowClear style={{ width: 220 }}
+          onSearch={(v) => setKeyword(v)} enterButton={<SearchOutlined />} />
         <Select value={filterActive} onChange={setFilterActive} style={{ width: 120 }} allowClear placeholder="状态"
           options={[{ label: '在售', value: true }, { label: '停售', value: false }]} />
+        <Button icon={<DownloadOutlined />} onClick={() => downloadFile(dashboardApi.exportExcelUrl({ report: 'product' }), 'product_report.xlsx')}>
+          导出
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

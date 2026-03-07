@@ -71,13 +71,15 @@ async def export_tickets_excel(
 async def list_tickets(
     customer_id: str | None = Query(None), project_id: str | None = Query(None),
     keyword: str | None = Query(None), status: str | None = Query(None),
+    priority: str | None = Query(None), type: str | None = Query(None),
     pageNo: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100),
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("service:view")),
 ):
     items, total = await service.list_tickets(
         db, tenant_id, customer_id=customer_id, project_id=project_id,
-        keyword=keyword, status=status, page=pageNo, page_size=pageSize,
+        keyword=keyword, status=status, priority=priority, ticket_type=type,
+        page=pageNo, page_size=pageSize,
     )
     return ok({"items": [_ticket_dict(t) for t in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 

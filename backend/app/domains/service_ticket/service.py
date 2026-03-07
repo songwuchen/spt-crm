@@ -26,6 +26,7 @@ async def list_tickets(
     db: AsyncSession, tenant_id: str,
     customer_id: str | None = None, project_id: str | None = None,
     keyword: str | None = None, status: str | None = None,
+    priority: str | None = None, ticket_type: str | None = None,
     page: int = 1, page_size: int = 20,
 ):
     q = select(ServiceTicket).where(ServiceTicket.tenant_id == tenant_id)
@@ -45,6 +46,12 @@ async def list_tickets(
     if status:
         q = q.where(ServiceTicket.status == status)
         count_q = count_q.where(ServiceTicket.status == status)
+    if priority:
+        q = q.where(ServiceTicket.priority == priority)
+        count_q = count_q.where(ServiceTicket.priority == priority)
+    if ticket_type:
+        q = q.where(ServiceTicket.type == ticket_type)
+        count_q = count_q.where(ServiceTicket.type == ticket_type)
 
     total = (await db.execute(count_q)).scalar() or 0
     result = await db.execute(

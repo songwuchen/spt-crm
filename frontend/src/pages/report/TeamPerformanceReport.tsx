@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Table, Select, Tag, Progress } from 'antd'
+import { Table, Select, Tag, Progress, Button } from 'antd'
+import { DownloadOutlined } from '@ant-design/icons'
 import { Column } from '@ant-design/charts'
 import { dashboardApi } from '@/api/dashboard'
+import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface LeaderEntry {
@@ -16,16 +18,24 @@ export default function TeamPerformanceReport() {
   const [leaders, setLeaders] = useState<LeaderEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [year, setYear] = useState(new Date().getFullYear())
+  const [quarter, setQuarter] = useState<number | undefined>()
 
   useEffect(() => {
     setLoading(true)
-    const start = `${year}-01-01`
-    const end = `${year}-12-31`
+    let start = `${year}-01-01`
+    let end = `${year}-12-31`
+    if (quarter) {
+      const sm = (quarter - 1) * 3 + 1
+      start = `${year}-${String(sm).padStart(2, '0')}-01`
+      const em = sm + 2
+      const lastDay = new Date(year, em, 0).getDate()
+      end = `${year}-${String(em).padStart(2, '0')}-${lastDay}`
+    }
     dashboardApi.leaderboard({ start_date: start, end_date: end })
       .then((r: any) => setLeaders(r.data || []))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [year])
+  }, [year, quarter])
 
   const totalWon = leaders.reduce((s, l) => s + l.won_amount, 0)
   const totalPipeline = leaders.reduce((s, l) => s + l.pipeline_amount, 0)
@@ -59,9 +69,14 @@ export default function TeamPerformanceReport() {
         ))}
       </div>
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex gap-3 mb-4 flex-wrap">
         <Select value={year} onChange={setYear} style={{ width: 100 }}
           options={[year - 1, year, year + 1].map(y => ({ label: `${y}年`, value: y }))} />
+        <Select value={quarter} onChange={setQuarter} allowClear placeholder="全年" style={{ width: 100 }}
+          options={[1, 2, 3, 4].map(q => ({ label: `Q${q}`, value: q }))} />
+        <Button icon={<DownloadOutlined />} onClick={() => downloadFile(dashboardApi.exportExcelUrl({ report: 'team_performance', year: String(year) }), 'team_performance.xlsx')}>
+          导出
+        </Button>
       </div>
 
       {/* Chart */}

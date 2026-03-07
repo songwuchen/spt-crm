@@ -53,6 +53,14 @@ const MobileContracts = lazy(() => import('@/pages/mobile/MobileContracts'))
 const MobilePayments = lazy(() => import('@/pages/mobile/MobilePayments'))
 const MobileServiceTicketDetail = lazy(() => import('@/pages/mobile/MobileServiceTicketDetail'))
 const MobileCalendar = lazy(() => import('@/pages/mobile/MobileCalendar'))
+const MobileServiceTickets = lazy(() => import('@/pages/mobile/MobileServiceTickets'))
+const MobileNotifications = lazy(() => import('@/pages/mobile/MobileNotifications'))
+const MobileLeadForm = lazy(() => import('@/pages/mobile/MobileLeadForm'))
+const MobileOpportunityForm = lazy(() => import('@/pages/mobile/MobileOpportunityForm'))
+const MobileQuoteDetail = lazy(() => import('@/pages/mobile/MobileQuoteDetail'))
+const MobileReports = lazy(() => import('@/pages/mobile/MobileReports'))
+const MobileKanban = lazy(() => import('@/pages/mobile/MobileKanban'))
+const MobileProducts = lazy(() => import('@/pages/mobile/MobileProducts'))
 const NotificationCenter = lazy(() => import('@/pages/notification/NotificationCenter'))
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
 const ProductList = lazy(() => import('@/pages/product/ProductList'))
@@ -137,7 +145,9 @@ export const router = createBrowserRouter([
       { index: true, element: <Lazy><MobileWorkbench /></Lazy> },
       { path: 'customers', element: <Lazy><MobileCustomers /></Lazy> },
       { path: 'opportunities', element: <Lazy><MobileOpportunities /></Lazy> },
+      { path: 'opportunities/new', element: <Lazy><MobileOpportunityForm /></Lazy> },
       { path: 'opportunities/:id', element: <Lazy><MobileOpportunityDetail /></Lazy> },
+      { path: 'opportunities/:id/quotes/:qid', element: <Lazy><MobileQuoteDetail /></Lazy> },
       { path: 'opportunities/:id/risk', element: <Lazy><MobileProjectRisk /></Lazy> },
       { path: 'approvals', element: <Lazy><MobileApprovals /></Lazy> },
       { path: 'approvals/:id', element: <Lazy><MobileApprovalDetail /></Lazy> },
@@ -145,11 +155,17 @@ export const router = createBrowserRouter([
       { path: 'customers/new', element: <Lazy><MobileCustomerForm /></Lazy> },
       { path: 'contracts', element: <Lazy><MobileContracts /></Lazy> },
       { path: 'payments', element: <Lazy><MobilePayments /></Lazy> },
+      { path: 'service-tickets', element: <Lazy><MobileServiceTickets /></Lazy> },
       { path: 'service-tickets/:id', element: <Lazy><MobileServiceTicketDetail /></Lazy> },
+      { path: 'notifications', element: <Lazy><MobileNotifications /></Lazy> },
       { path: 'calendar', element: <Lazy><MobileCalendar /></Lazy> },
+      { path: 'leads/new', element: <Lazy><MobileLeadForm /></Lazy> },
       { path: 'leads/:id', element: <Lazy><MobileLeadDetail /></Lazy> },
       { path: 'tasks', element: <Lazy><MobileTasks /></Lazy> },
       { path: 'follow-up/new', element: <Lazy><MobileFollowUp /></Lazy> },
+      { path: 'reports', element: <Lazy><MobileReports /></Lazy> },
+      { path: 'kanban', element: <Lazy><MobileKanban /></Lazy> },
+      { path: 'products', element: <Lazy><MobileProducts /></Lazy> },
       { path: 'profile', element: <Lazy><MobileProfile /></Lazy> },
     ],
   },

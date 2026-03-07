@@ -142,6 +142,7 @@ const DASHBOARD_CARDS: DashboardCard[] = [
   { key: 'funnelPayment', label: '销售漏斗 + 回款概览', defaultVisible: true },
   { key: 'trendWinLoss', label: '趋势图 + 赢输分析', defaultVisible: true },
   { key: 'collectionRevenue', label: '回款分析 + 营收分析', defaultVisible: true },
+  { key: 'approvalSla', label: '审批SLA概览', defaultVisible: true },
   { key: 'contractExpiry', label: '合同到期预警', defaultVisible: true },
   { key: 'tasksActionsLeaderboard', label: '任务 + 快捷操作 + 排行榜', defaultVisible: true },
 ]
@@ -172,6 +173,11 @@ export default function Dashboard() {
   const [funnel, setFunnel] = useState<FunnelItem[]>([])
   const [paymentOv, setPaymentOv] = useState<PaymentOv | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderItem[]>([])
+  const [approvalStats, setApprovalStats] = useState<{
+    total_flows: number; status_breakdown: Record<string, number>
+    avg_approval_hours: number; approval_rate: number; sla_compliance_rate: number
+    by_biz_type: Record<string, number>; top_approvers: { name: string; count: number }[]
+  } | null>(null)
   const [refreshInterval, setRefreshInterval] = useState(0)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [cardVisibility, setCardVisibility] = useState<Record<string, boolean>>(loadCardVisibility)
@@ -203,6 +209,9 @@ export default function Dashboard() {
     }).catch(() => {})
     dashboardApi.leaderboard().then((res: any) => {
       if (res.data) setLeaderboard(res.data)
+    }).catch(() => {})
+    approvalApi.statistics().then((r: any) => {
+      if (r.data) setApprovalStats(r.data)
     }).catch(() => {})
   }, [])
 
@@ -528,6 +537,53 @@ export default function Dashboard() {
         <CollectionChart />
         <RevenueChart />
       </div>}
+
+      {/* Approval SLA Overview */}
+      {isVisible('approvalSla') && approvalStats && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="material-symbols-outlined text-indigo-500">verified</span>
+            <h3 className="text-sm font-bold text-slate-900">审批SLA概览</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+            <div className="text-center p-3 rounded-lg bg-slate-50">
+              <div className="text-2xl font-black text-slate-900">{approvalStats.total_flows}</div>
+              <div className="text-[10px] text-slate-500 font-bold">审批总数</div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-emerald-50">
+              <div className="text-2xl font-black text-emerald-600">{Math.round(approvalStats.approval_rate * 100)}%</div>
+              <div className="text-[10px] text-slate-500 font-bold">通过率</div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-blue-50">
+              <div className="text-2xl font-black text-blue-600">{approvalStats.avg_approval_hours}h</div>
+              <div className="text-[10px] text-slate-500 font-bold">平均审批时长</div>
+            </div>
+            <div className={`text-center p-3 rounded-lg ${approvalStats.sla_compliance_rate >= 0.9 ? 'bg-emerald-50' : approvalStats.sla_compliance_rate >= 0.7 ? 'bg-amber-50' : 'bg-red-50'}`}>
+              <div className={`text-2xl font-black ${approvalStats.sla_compliance_rate >= 0.9 ? 'text-emerald-600' : approvalStats.sla_compliance_rate >= 0.7 ? 'text-amber-600' : 'text-red-600'}`}>
+                {Math.round(approvalStats.sla_compliance_rate * 100)}%
+              </div>
+              <div className="text-[10px] text-slate-500 font-bold">SLA达标率</div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-amber-50">
+              <div className="text-2xl font-black text-amber-600">{approvalStats.status_breakdown.pending || 0}</div>
+              <div className="text-[10px] text-slate-500 font-bold">待处理</div>
+            </div>
+          </div>
+          {approvalStats.top_approvers.length > 0 && (
+            <div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">审批人排行</div>
+              <div className="flex flex-wrap gap-2">
+                {approvalStats.top_approvers.slice(0, 5).map((a, i) => (
+                  <span key={i} className="px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-lg text-xs">
+                    <span className="font-bold text-slate-700">{a.name}</span>
+                    <span className="text-slate-400 ml-1">{a.count}次</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Contract Expiry Warning */}
       {isVisible('contractExpiry') && <div className="mb-6">

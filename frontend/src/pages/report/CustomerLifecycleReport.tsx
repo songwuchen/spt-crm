@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Table, Select, Tag, Spin } from 'antd'
+import { Table, Select, Tag, Spin, Input, Button } from 'antd'
+import { DownloadOutlined, SearchOutlined } from '@ant-design/icons'
 import { Pie, Column } from '@ant-design/charts'
 import { customerApi } from '@/api/customer'
 import { dashboardApi } from '@/api/dashboard'
+import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface CustomerRow {
@@ -16,16 +18,18 @@ export default function CustomerLifecycleReport() {
   const [regionStats, setRegionStats] = useState<{ region: string; count: number }[]>([])
   const [loading, setLoading] = useState(true)
   const [filterLevel, setFilterLevel] = useState<string | undefined>()
+  const [keyword, setKeyword] = useState('')
 
   useEffect(() => {
+    setLoading(true)
     Promise.all([
-      customerApi.list({ pageNo: 1, pageSize: 100, level: filterLevel }).then((r: any) => r.data?.items || []),
+      customerApi.list({ pageNo: 1, pageSize: 100, level: filterLevel, keyword: keyword || undefined }).then((r: any) => r.data?.items || []),
       dashboardApi.customerRegionStats().then((r: any) => r.data || []).catch(() => []),
     ]).then(([custs, regions]) => {
       setCustomers(custs)
       setRegionStats(regions)
     }).finally(() => setLoading(false))
-  }, [filterLevel])
+  }, [filterLevel, keyword])
 
   const total = customers.length
   const levelCounts = customers.reduce<Record<string, number>>((acc, c) => {
@@ -68,9 +72,14 @@ export default function CustomerLifecycleReport() {
         ))}
       </div>
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex gap-3 mb-4 flex-wrap">
+        <Input.Search placeholder="搜索客户名称" allowClear style={{ width: 220 }}
+          onSearch={(v) => setKeyword(v)} enterButton={<SearchOutlined />} />
         <Select placeholder="客户等级" allowClear style={{ width: 120 }} value={filterLevel} onChange={setFilterLevel}
           options={['A', 'B', 'C', 'D'].map(v => ({ label: `${v}级`, value: v }))} />
+        <Button icon={<DownloadOutlined />} onClick={() => downloadFile(dashboardApi.exportExcelUrl({ report: 'customer_lifecycle' }), 'customer_lifecycle.xlsx')}>
+          导出
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
