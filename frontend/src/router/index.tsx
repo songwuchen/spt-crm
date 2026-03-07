@@ -54,6 +54,8 @@ const NotificationCenter = lazy(() => import('@/pages/notification/NotificationC
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
 const ProductList = lazy(() => import('@/pages/product/ProductList'))
 const TaskPage = lazy(() => import('@/pages/task/TaskPage'))
+const CalendarPage = lazy(() => import('@/pages/calendar/CalendarPage'))
+const ApiDocsPage = lazy(() => import('@/pages/admin/ApiDocsPage'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
 function Lazy({ children }: { children: React.ReactNode }) {
@@ -98,6 +100,7 @@ export const router = createBrowserRouter([
       { path: 'payments', element: <Guard permission="payment:view"><PaymentPage /></Guard> },
       { path: 'products', element: <Guard permission="product:view"><ProductList /></Guard> },
       { path: 'tasks', element: <Lazy><TaskPage /></Lazy> },
+      { path: 'calendar', element: <Lazy><CalendarPage /></Lazy> },
       { path: 'analytics', element: <Guard permission="project:view"><AnalyticsPage /></Guard> },
       { path: 'sales-targets', element: <Guard permission="project:view"><SalesTargetPage /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },
@@ -110,6 +113,7 @@ export const router = createBrowserRouter([
       { path: 'admin/audit', element: <Guard permission="audit:view"><AuditLogPage /></Guard> },
       { path: 'admin/settings', element: <Guard permission="role:manage"><SettingsPage /></Guard> },
       { path: 'platform/tenants', element: <Guard permission="role:manage"><PlatformTenants /></Guard> },
+      { path: 'admin/api-docs', element: <Guard permission="role:manage"><ApiDocsPage /></Guard> },
       { path: '*', element: <Lazy><NotFound /></Lazy> },
     ],
   },

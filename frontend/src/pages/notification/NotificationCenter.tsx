@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Table, Tag, Button, Space, Switch, Tabs, message, Select } from 'antd'
 import { CheckOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
@@ -30,6 +30,7 @@ export default function NotificationCenter() {
   const [prefTypes, setPrefTypes] = useState<{ key: string; label: string }[]>([])
   const [prefs, setPrefs] = useState<Record<string, boolean>>({})
   const [prefLoading, setPrefLoading] = useState(false)
+  const [unreadOnly, setUnreadOnly] = useState(false)
 
   const fetchData = async () => {
     setLoading(true)
@@ -59,7 +60,11 @@ export default function NotificationCenter() {
 
   useEffect(() => { fetchData() }, [])
 
-  const filteredItems = filter ? items.filter(n => n.type === filter) : items
+  const filteredItems = items.filter(n => {
+    if (filter && n.type !== filter) return false
+    if (unreadOnly && n.is_read) return false
+    return true
+  })
 
   const handleMarkRead = async () => {
     if (selectedIds.length === 0) return
@@ -117,7 +122,19 @@ export default function NotificationCenter() {
       title: '时间',
       dataIndex: 'created_at',
       width: 160,
-      render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '',
+      render: (v: string) => {
+        if (!v) return ''
+        const d = new Date(v)
+        const diff = Date.now() - d.getTime()
+        const mins = Math.floor(diff / 60000)
+        if (mins < 1) return <span className="text-xs text-slate-500">刚刚</span>
+        if (mins < 60) return <span className="text-xs text-slate-500">{mins}分钟前</span>
+        const hours = Math.floor(mins / 60)
+        if (hours < 24) return <span className="text-xs text-slate-500">{hours}小时前</span>
+        const days = Math.floor(hours / 24)
+        if (days < 7) return <span className="text-xs text-slate-500">{days}天前</span>
+        return <span className="text-xs text-slate-500">{d.toLocaleDateString('zh-CN')}</span>
+      },
     },
     {
       title: '状态',
@@ -128,6 +145,17 @@ export default function NotificationCenter() {
   ]
 
   const unreadCount = items.filter(n => !n.is_read).length
+
+  // Category stats
+  const categoryStats = useMemo(() => {
+    const stats: Record<string, { total: number; unread: number }> = {}
+    items.forEach((n) => {
+      if (!stats[n.type]) stats[n.type] = { total: 0, unread: 0 }
+      stats[n.type].total++
+      if (!n.is_read) stats[n.type].unread++
+    })
+    return stats
+  }, [items])
 
   return (
     <div>
@@ -140,6 +168,22 @@ export default function NotificationCenter() {
         </div>
       </div>
 
+      {/* Category Summary */}
+      {unreadCount > 0 && (
+        <div className="flex gap-2 flex-wrap mb-4">
+          {Object.entries(categoryStats).filter(([, s]) => s.unread > 0).map(([type, s]) => {
+            const tl = typeLabels[type] || typeLabels.system
+            return (
+              <button key={type} onClick={() => { setFilter(type); setUnreadOnly(true) }}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:border-primary/30 text-xs font-bold text-slate-600 flex items-center gap-1.5 transition-colors">
+                <Tag color={tl.color} className="!m-0 !text-[10px]">{tl.label}</Tag>
+                <span className="text-red-500">{s.unread}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       <Tabs defaultActiveKey="list" onChange={(key) => { if (key === 'settings') fetchPrefs() }} items={[
         {
           key: 'list',
@@ -149,6 +193,10 @@ export default function NotificationCenter() {
               <div className="flex items-center gap-3 mb-4">
                 <Select allowClear placeholder="筛选类型" style={{ width: 140 }} value={filter} onChange={setFilter}
                   options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v.label }))} />
+                <Button type={unreadOnly ? 'primary' : 'default'} size="small"
+                  onClick={() => setUnreadOnly(!unreadOnly)}>
+                  {unreadOnly ? '仅未读' : '全部'}
+                </Button>
                 <div className="flex-1" />
                 <Button icon={<CheckOutlined />} disabled={selectedIds.length === 0} onClick={handleMarkRead}>
                   标记已读 ({selectedIds.length})

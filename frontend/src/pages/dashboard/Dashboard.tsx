@@ -128,6 +128,40 @@ const REFRESH_INTERVALS = [
   { value: 300, label: '5分钟' },
 ]
 
+interface DashboardCard {
+  key: string
+  label: string
+  defaultVisible: boolean
+}
+
+const DASHBOARD_CARDS: DashboardCard[] = [
+  { key: 'myOverview', label: '我的概览', defaultVisible: true },
+  { key: 'kpiCards', label: 'KPI 指标卡', defaultVisible: true },
+  { key: 'approvals', label: '待审批', defaultVisible: true },
+  { key: 'alerts', label: '风险预警', defaultVisible: true },
+  { key: 'funnelPayment', label: '销售漏斗 + 回款概览', defaultVisible: true },
+  { key: 'trendWinLoss', label: '趋势图 + 赢输分析', defaultVisible: true },
+  { key: 'collectionRevenue', label: '回款分析 + 营收分析', defaultVisible: true },
+  { key: 'contractExpiry', label: '合同到期预警', defaultVisible: true },
+  { key: 'tasksActionsLeaderboard', label: '任务 + 快捷操作 + 排行榜', defaultVisible: true },
+]
+
+const STORAGE_KEY = 'dashboard_card_visibility'
+
+function loadCardVisibility(): Record<string, boolean> {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) return JSON.parse(saved)
+  } catch {}
+  const defaults: Record<string, boolean> = {}
+  DASHBOARD_CARDS.forEach((c) => { defaults[c.key] = c.defaultVisible })
+  return defaults
+}
+
+function saveCardVisibility(v: Record<string, boolean>) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(v))
+}
+
 export default function Dashboard() {
   usePageTitle('工作台')
   const [stats, setStats] = useState<Stats>({ customer_total: 0, lead_total: 0, monthly_new_customers: 0, pending_leads: 0, project_total: 0, active_projects: 0, quote_total: 0, solution_total: 0, milestone_total: 0, milestone_delayed: 0, invoice_total: 0, payment_received: 0, change_total: 0, ticket_total: 0, ticket_open: 0, pipeline_value: 0, contract_total: 0 })
@@ -140,6 +174,9 @@ export default function Dashboard() {
   const [leaderboard, setLeaderboard] = useState<LeaderItem[]>([])
   const [refreshInterval, setRefreshInterval] = useState(0)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+  const [cardVisibility, setCardVisibility] = useState<Record<string, boolean>>(loadCardVisibility)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const isVisible = (key: string) => cardVisibility[key] !== false
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
@@ -222,6 +259,11 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={() => setSettingsOpen(true)}
+            className="flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+            title="看板设置">
+            <span className="material-symbols-outlined text-base">settings</span>
+          </button>
           <Select size="small" value={refreshInterval} onChange={setRefreshInterval}
             options={REFRESH_INTERVALS} style={{ width: 100 }}
             suffixIcon={<span className="material-symbols-outlined text-sm">timer</span>} />
@@ -237,7 +279,7 @@ export default function Dashboard() {
       </div>
 
       {/* Personal Overview */}
-      {myOv && (
+      {isVisible('myOverview') && myOv && (
         <div className="bg-gradient-to-r from-primary/5 to-blue-50 rounded-xl border border-primary/10 p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <span className="material-symbols-outlined text-primary">person</span>
@@ -308,7 +350,7 @@ export default function Dashboard() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      {isVisible('kpiCards') && <><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <KpiCard icon="business" label="客户总数" value={stats.customer_total}
           trend={trends ? (trends.customers.diff >= 0 ? `+${trends.customers.diff}` : `${trends.customers.diff}`) : undefined}
           trendType={trends ? (trends.customers.diff > 0 ? 'up' : trends.customers.diff < 0 ? 'down' : 'stable') : undefined} />
@@ -335,10 +377,10 @@ export default function Dashboard() {
         <KpiCard icon="swap_horiz" label="变更单" value={stats.change_total} />
         <KpiCard icon="confirmation_number" label="售后工单" value={stats.ticket_total}
           trend={stats.ticket_open > 0 ? `${stats.ticket_open} 待处理` : '全部完结'} trendType={stats.ticket_open > 0 ? 'down' : 'stable'} />
-      </div>
+      </div></>}
 
       {/* Pending Approvals */}
-      {pendingApprovals.length > 0 && (
+      {isVisible('approvals') && pendingApprovals.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <span className="material-symbols-outlined text-amber-500">pending_actions</span>
@@ -372,7 +414,7 @@ export default function Dashboard() {
       )}
 
       {/* Alerts */}
-      {alerts.length > 0 && (
+      {isVisible('alerts') && alerts.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <span className="material-symbols-outlined text-red-500">notifications_active</span>
@@ -409,7 +451,7 @@ export default function Dashboard() {
       )}
 
       {/* Sales Funnel + Payment Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      {isVisible('funnelPayment') && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Sales Funnel */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -471,29 +513,29 @@ export default function Dashboard() {
             <div className="text-center text-slate-400 text-sm py-8">暂无回款数据</div>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Charts Row: Trend + Win/Loss */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      {isVisible('trendWinLoss') && <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <div className="lg:col-span-2">
           <TrendChart />
         </div>
         <WinLossChart />
-      </div>
+      </div>}
 
       {/* Charts Row: Collection + Revenue */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      {isVisible('collectionRevenue') && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <CollectionChart />
         <RevenueChart />
-      </div>
+      </div>}
 
       {/* Contract Expiry Warning */}
-      <div className="mb-6">
+      {isVisible('contractExpiry') && <div className="mb-6">
         <ContractExpiryPanel />
-      </div>
+      </div>}
 
       {/* Three Column Grid: Tasks + Quick Actions + Leaderboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      {isVisible('tasksActionsLeaderboard') && <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* Today's Tasks */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
@@ -564,7 +606,40 @@ export default function Dashboard() {
             <div className="text-center text-slate-400 text-sm py-8">暂无排行数据</div>
           )}
         </div>
-      </div>
+      </div>}
+
+      {/* Dashboard Settings Modal */}
+      <Modal title="看板设置" open={settingsOpen} onCancel={() => setSettingsOpen(false)}
+        footer={null} width={480}>
+        <p className="text-sm text-slate-500 mb-4">选择要在工作台上显示的模块</p>
+        <div className="space-y-2">
+          {DASHBOARD_CARDS.map((card) => (
+            <label key={card.key}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all ${
+                cardVisibility[card.key] !== false
+                  ? 'border-primary/30 bg-primary/5'
+                  : 'border-slate-100 hover:border-slate-200'
+              }`}>
+              <input type="checkbox" className="accent-primary w-4 h-4"
+                checked={cardVisibility[card.key] !== false}
+                onChange={(e) => {
+                  const next = { ...cardVisibility, [card.key]: e.target.checked }
+                  setCardVisibility(next)
+                  saveCardVisibility(next)
+                }} />
+              <span className="text-sm font-medium text-slate-700">{card.label}</span>
+            </label>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button size="small" onClick={() => {
+            const defaults: Record<string, boolean> = {}
+            DASHBOARD_CARDS.forEach((c) => { defaults[c.key] = c.defaultVisible })
+            setCardVisibility(defaults)
+            saveCardVisibility(defaults)
+          }}>恢复默认</Button>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Spin, DatePicker, Space, Button, message } from 'antd'
-import { DownloadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, FilePdfOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs, { type Dayjs } from 'dayjs'
 import { Column, Pie, Funnel, Bar, Line } from '@ant-design/charts'
@@ -92,6 +92,7 @@ export default function AnalyticsPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
   const [trendData, setTrendData] = useState<TrendItem[]>([])
   const [collectionData, setCollectionData] = useState<CollectionItem[]>([])
+  const [regionStats, setRegionStats] = useState<{ region: string; count: number }[]>([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [periodLabel, setPeriodLabel] = useState('全部')
@@ -104,7 +105,7 @@ export default function AnalyticsPage() {
       params.end_date = dateRange[1].format('YYYY-MM-DD')
     }
     try {
-      const [fRes, wRes, tRes, pRes, mRes, rRes, lRes, trRes, cRes] = await Promise.all([
+      const [fRes, wRes, tRes, pRes, mRes, rRes, lRes, trRes, cRes, rgRes] = await Promise.all([
         dashboardApi.funnel(params),
         dashboardApi.winLoss(params),
         dashboardApi.topCustomers(params),
@@ -114,6 +115,7 @@ export default function AnalyticsPage() {
         dashboardApi.leaderboard(params),
         dashboardApi.trend(params),
         dashboardApi.collection(params),
+        dashboardApi.customerRegionStats(),
       ]) as { data: unknown }[]
       setFunnel((fRes.data as FunnelItem[]) || [])
       setWinLoss((wRes.data as WinLoss) || null)
@@ -124,6 +126,7 @@ export default function AnalyticsPage() {
       setLeaderboard((lRes.data as LeaderboardItem[]) || [])
       setTrendData((trRes.data as TrendItem[]) || [])
       setCollectionData((cRes.data as CollectionItem[]) || [])
+      setRegionStats((rgRes.data as { region: string; count: number }[]) || [])
     } finally {
       setLoading(false)
     }
@@ -136,8 +139,18 @@ export default function AnalyticsPage() {
     setDateRange([start, end])
   }
 
+  const exportParams: Record<string, string> = {}
+  if (dateRange) {
+    exportParams.start_date = dateRange[0].format('YYYY-MM-DD')
+    exportParams.end_date = dateRange[1].format('YYYY-MM-DD')
+  }
+
   const handleExportExcel = () => {
-    downloadFile('/api/v1/projects/export/excel', `商机报表_${dayjs().format('YYYYMMDD')}.xlsx`)
+    downloadFile(dashboardApi.exportExcelUrl(exportParams), `报表中心_${dayjs().format('YYYYMMDD')}.xlsx`)
+  }
+
+  const handleExportPdf = () => {
+    downloadFile(dashboardApi.exportPdfUrl(exportParams), `报表中心_${dayjs().format('YYYYMMDD')}.pdf`)
   }
 
   if (loading) return <DetailSkeleton />
@@ -180,7 +193,8 @@ export default function AnalyticsPage() {
           <p className="text-sm text-slate-500 mt-1">销售漏斗、赢单分析、回款跟踪、交付里程碑、业绩排行</p>
         </div>
         <Space>
-          <Button icon={<DownloadOutlined />} size="small" onClick={handleExportExcel}>导出报表</Button>
+          <Button icon={<DownloadOutlined />} size="small" onClick={handleExportExcel}>导出Excel</Button>
+          <Button icon={<FilePdfOutlined />} size="small" onClick={handleExportPdf}>导出PDF</Button>
           <Space.Compact>
             {[
               { label: '本月', fn: () => setQuickRange('本月', dayjs().startOf('month'), dayjs()) },
@@ -572,6 +586,46 @@ export default function AnalyticsPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Region Distribution */}
+      {regionStats.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <h2 className="text-lg font-extrabold text-slate-800 mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-lg text-indigo-500">location_on</span>
+            客户区域分布
+          </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div style={{ height: Math.max(250, regionStats.length * 36) }}>
+              <Bar
+                data={regionStats.map((r) => ({ region: r.region, count: r.count }))}
+                xField="count"
+                yField="region"
+                color="#6366f1"
+                barWidthRatio={0.5}
+                label={{ position: 'right', style: { fill: '#475569', fontSize: 12 } }}
+                xAxis={{ label: { style: { fontSize: 11 } } }}
+                yAxis={{ label: { style: { fontSize: 12, fontWeight: 600 } } }}
+                meta={{ count: { alias: '客户数' }, region: { alias: '区域' } }}
+              />
+            </div>
+            <div style={{ height: 300 }}>
+              <Pie
+                data={regionStats.map((r) => ({ type: r.region, value: r.count }))}
+                angleField="value"
+                colorField="type"
+                radius={0.85}
+                innerRadius={0.55}
+                label={{ type: 'outer', content: '{name} {percentage}' }}
+                interactions={[{ type: 'element-active' }]}
+                statistic={{
+                  title: { content: '总客户数', style: { fontSize: '13px', color: '#64748b' } },
+                  content: { content: `${regionStats.reduce((s, r) => s + r.count, 0)}`, style: { fontSize: '24px', fontWeight: '800' } },
+                }}
+              />
+            </div>
           </div>
         </div>
       )}

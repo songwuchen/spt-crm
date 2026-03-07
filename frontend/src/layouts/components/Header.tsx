@@ -6,6 +6,7 @@ import { useAppStore } from '@/stores/useAppStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import NotificationBell from '@/components/NotificationBell'
 import client from '@/api/client'
+import { useLocale, localeLabels, type LocaleCode } from '@/locales'
 
 interface SearchResult {
   type: string
@@ -26,6 +27,7 @@ const typeIcons: Record<string, { icon: string; label: string; color: string }> 
 export default function Header() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore()
   const { user, logout } = useAuthStore()
+  const { locale, setLocale } = useLocale()
   const navigate = useNavigate()
   const [searchText, setSearchText] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -141,8 +143,25 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Right: Notifications + User */}
+      {/* Right: Lang + Notifications + User */}
       <div className="flex items-center gap-3">
+        <Dropdown
+          menu={{
+            items: (['zh-CN', 'en-US'] as LocaleCode[]).map((code) => ({
+              key: code,
+              label: localeLabels[code],
+              onClick: () => setLocale(code),
+            })),
+            selectedKeys: [locale],
+          }}
+          placement="bottomRight"
+        >
+          <button className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-100 text-xs font-bold text-slate-500 transition-colors">
+            <span className="material-symbols-outlined text-base">translate</span>
+            <span className="hidden sm:inline">{locale === 'zh-CN' ? '中文' : 'EN'}</span>
+          </button>
+        </Dropdown>
+
         <NotificationBell />
 
         <div className="h-8 w-px bg-slate-200 mx-1" />

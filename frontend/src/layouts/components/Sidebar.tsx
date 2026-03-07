@@ -36,6 +36,7 @@ const menuGroups: { title: string; items: MenuItem[] }[] = [
       { key: '/admin/roles', icon: 'admin_panel_settings', label: '角色权限', permission: 'role:view' },
       { key: '/admin/audit', icon: 'history', label: '审计日志', permission: 'audit:view' },
       { key: '/admin/settings', icon: 'settings', label: '系统配置', permission: 'role:manage' },
+      { key: '/admin/api-docs', icon: 'api', label: 'API 文档', permission: 'role:manage' },
     ],
   },
 ]
@@ -59,6 +60,7 @@ function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/admin\/roles/)) return '/admin/roles'
   if (pathname.match(/^\/admin\/audit/)) return '/admin/audit'
   if (pathname.match(/^\/admin\/settings/)) return '/admin/settings'
+  if (pathname.match(/^\/admin\/api-docs/)) return '/admin/api-docs'
   return '/'
 }
 

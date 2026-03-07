@@ -1,9 +1,14 @@
-import { useState, useEffect } from 'react'
-import { Table, Button, Modal, Form, Input, Space, message, Checkbox } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useState, useEffect, useMemo } from 'react'
+import { Table, Button, Modal, Form, Input, Space, message, Checkbox, Tag } from 'antd'
+import { PlusOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { roleApi, permissionApi } from '@/api/user'
 import type { Role, PermissionItem } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
+
+const actionLabels: Record<string, string> = {
+  view: '查看', create: '创建', edit: '编辑', delete: '删除',
+  advance: '推进', sign: '签署', manage: '管理', export: '导出',
+}
 
 export default function RoleList() {
   usePageTitle('角色管理')
@@ -13,6 +18,7 @@ export default function RoleList() {
   const [permModal, setPermModal] = useState(false)
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([])
+  const [permSearch, setPermSearch] = useState('')
   const [form] = Form.useForm()
 
   const fetchRoles = async () => {
@@ -39,6 +45,7 @@ export default function RoleList() {
     setSelectedRole(role)
     const permIds = permissions.filter((p) => role.permissions.includes(p.code)).map((p) => p.id)
     setSelectedPermIds(permIds)
+    setPermSearch('')
     setPermModal(true)
   }
 
@@ -67,12 +74,48 @@ export default function RoleList() {
     fetchRoles()
   }
 
-  // Group permissions by group_name
-  const permGroups: Record<string, PermissionItem[]> = {}
-  permissions.forEach((p) => {
-    if (!permGroups[p.group_name]) permGroups[p.group_name] = []
-    permGroups[p.group_name].push(p)
-  })
+  // Build permission matrix: group → { resource → action[] }
+  const permGroups = useMemo(() => {
+    const groups: Record<string, PermissionItem[]> = {}
+    permissions.forEach((p) => {
+      if (!groups[p.group_name]) groups[p.group_name] = []
+      groups[p.group_name].push(p)
+    })
+    return groups
+  }, [permissions])
+
+  // Filter groups by search
+  const filteredGroups = useMemo(() => {
+    if (!permSearch) return permGroups
+    const kw = permSearch.toLowerCase()
+    const result: Record<string, PermissionItem[]> = {}
+    Object.entries(permGroups).forEach(([group, perms]) => {
+      const matched = perms.filter(
+        (p) => p.name.toLowerCase().includes(kw) || p.code.toLowerCase().includes(kw) || group.toLowerCase().includes(kw)
+      )
+      if (matched.length > 0) result[group] = matched
+    })
+    return result
+  }, [permGroups, permSearch])
+
+  const toggleGroup = (groupPerms: PermissionItem[]) => {
+    const groupIds = groupPerms.map((p) => p.id)
+    const allChecked = groupIds.every((id) => selectedPermIds.includes(id))
+    if (allChecked) {
+      setSelectedPermIds((prev) => prev.filter((id) => !groupIds.includes(id)))
+    } else {
+      setSelectedPermIds((prev) => [...new Set([...prev, ...groupIds])])
+    }
+  }
+
+  const toggleAll = () => {
+    const allIds = permissions.map((p) => p.id)
+    if (selectedPermIds.length === allIds.length) {
+      setSelectedPermIds([])
+    } else {
+      setSelectedPermIds(allIds)
+    }
+  }
 
   const columns = [
     { title: '角色', key: 'role', width: 200,
@@ -167,28 +210,74 @@ export default function RoleList() {
 
       {/* Permission Matrix Modal */}
       <Modal title={`配置权限 — ${selectedRole?.name || ''}`} open={permModal}
-        onOk={handleGrantPermissions} onCancel={() => setPermModal(false)} width={640}>
-        <Checkbox.Group value={selectedPermIds} onChange={(v) => setSelectedPermIds(v as string[])}
-          className="w-full">
-          <div className="space-y-6">
-            {Object.entries(permGroups).map(([group, perms]) => (
-              <div key={group}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-sm text-slate-400">folder</span>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{group}</span>
+        onOk={handleGrantPermissions} onCancel={() => setPermModal(false)} width={720}
+        okText="保存权限">
+        <div className="mb-4 flex items-center gap-3">
+          <Input
+            placeholder="搜索权限..."
+            prefix={<SearchOutlined className="text-slate-400" />}
+            value={permSearch}
+            onChange={(e) => setPermSearch(e.target.value)}
+            allowClear
+            style={{ width: 240 }}
+          />
+          <Button size="small" onClick={toggleAll}>
+            {selectedPermIds.length === permissions.length ? '取消全选' : '全选'}
+          </Button>
+          <Tag color="blue">{selectedPermIds.length}/{permissions.length} 已选</Tag>
+        </div>
+
+        <div className="max-h-[480px] overflow-y-auto space-y-4">
+          {Object.entries(filteredGroups).map(([group, perms]) => {
+            const groupIds = perms.map((p) => p.id)
+            const checkedCount = groupIds.filter((id) => selectedPermIds.includes(id)).length
+            const allChecked = checkedCount === groupIds.length
+            const indeterminate = checkedCount > 0 && !allChecked
+
+            return (
+              <div key={group} className="border border-slate-100 rounded-lg overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                  <Checkbox
+                    checked={allChecked}
+                    indeterminate={indeterminate}
+                    onChange={() => toggleGroup(perms)}
+                  />
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-500">{group}</span>
+                  <span className="text-[10px] text-slate-400 ml-auto">{checkedCount}/{groupIds.length}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {perms.map((p) => (
-                    <Checkbox key={p.id} value={p.id}
-                      className="!ml-0 p-2.5 rounded-lg border border-slate-100 hover:border-primary/30 hover:bg-primary/5 transition-all">
-                      <span className="text-sm text-slate-700">{p.name}</span>
-                    </Checkbox>
-                  ))}
+                <div className="p-3 grid grid-cols-4 gap-2">
+                  {perms.map((p) => {
+                    const checked = selectedPermIds.includes(p.id)
+                    const action = p.code.split(':')[1]
+                    return (
+                      <label key={p.id}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all
+                          ${checked
+                            ? 'border-primary/30 bg-primary/5 text-primary'
+                            : 'border-slate-100 hover:border-slate-200 text-slate-600'
+                          }`}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPermIds((prev) => [...prev, p.id])
+                            } else {
+                              setSelectedPermIds((prev) => prev.filter((id) => id !== p.id))
+                            }
+                          }}
+                        />
+                        <span className="text-xs font-medium truncate">
+                          {actionLabels[action] || p.name}
+                        </span>
+                      </label>
+                    )
+                  })}
                 </div>
               </div>
-            ))}
-          </div>
-        </Checkbox.Group>
+            )
+          })}
+        </div>
       </Modal>
     </div>
   )

@@ -1,0 +1,26 @@
+{
+  "name": "spt-crm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "e2e": "npx playwright test",
+    "e2e:headed": "npx playwright test --headed",
+    "e2e:ui": "npx playwright test --ui"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hengchao-dev/spt-crm.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/hengchao-dev/spt-crm/issues"
+  },
+  "homepage": "https://github.com/hengchao-dev/spt-crm#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}

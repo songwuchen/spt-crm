@@ -1,6 +1,8 @@
-from datetime import datetime, timezone
+import io
+from datetime import datetime, timezone, date
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func, extract, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1015,6 +1017,117 @@ async def target_achievement(
     return ok(result)
 
 
+@router.get("/customer_region_stats")
+async def customer_region_stats(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Customer distribution by region."""
+    rows = (await db.execute(
+        select(
+            Customer.region,
+            func.count(Customer.id).label("count"),
+        ).where(
+            Customer.tenant_id == tenant_id,
+            Customer.is_deleted == False,
+            Customer.region.isnot(None),
+            Customer.region != "",
+        ).group_by(Customer.region)
+        .order_by(func.count(Customer.id).desc())
+    )).all()
+
+    return ok([{"region": r.region, "count": r.count} for r in rows])
+
+
+@router.get("/calendar_events")
+async def calendar_events(
+    year: int = Query(...),
+    month: int = Query(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Aggregate events for a given month: follow-ups, payment dues, contract expiry, milestones."""
+    from datetime import date as date_type, timedelta
+    import calendar as cal_mod
+    uid = user.id
+    first_day = date_type(year, month, 1)
+    last_day = date_type(year, month, cal_mod.monthrange(year, month)[1])
+
+    events = []
+
+    # Follow-up activities with next_follow_date
+    follow_rows = (await db.execute(
+        select(Activity.id, Activity.subject, Activity.next_follow_date).where(
+            Activity.tenant_id == tenant_id,
+            Activity.created_by_id == uid,
+            Activity.next_follow_date.isnot(None),
+            Activity.next_follow_date >= str(first_day),
+            Activity.next_follow_date <= str(last_day),
+        )
+    )).all()
+    for r in follow_rows:
+        events.append({
+            "id": r.id, "date": str(r.next_follow_date),
+            "type": "follow_up", "title": r.subject or "跟进计划",
+            "color": "#3b82f6",
+        })
+
+    # Payment plans due
+    pay_rows = (await db.execute(
+        select(PaymentPlan.id, PaymentPlan.due_date, PaymentPlan.amount, PaymentPlan.status).where(
+            PaymentPlan.tenant_id == tenant_id,
+            PaymentPlan.due_date >= first_day,
+            PaymentPlan.due_date <= last_day,
+        )
+    )).all()
+    for r in pay_rows:
+        events.append({
+            "id": r.id, "date": str(r.due_date),
+            "type": "payment_due",
+            "title": f"回款¥{float(r.amount)/10000:.1f}万",
+            "color": "#f59e0b" if r.status == "pending" else "#ef4444" if r.status == "overdue" else "#10b981",
+        })
+
+    # Contract expiry
+    contract_rows = (await db.execute(
+        select(Contract.id, Contract.contract_no, Contract.end_date).where(
+            Contract.tenant_id == tenant_id,
+            Contract.status == "signed",
+            Contract.end_date.isnot(None),
+            Contract.end_date >= first_day,
+            Contract.end_date <= last_day,
+        )
+    )).all()
+    for r in contract_rows:
+        events.append({
+            "id": r.id, "date": str(r.end_date),
+            "type": "contract_expiry",
+            "title": f"合同到期 {r.contract_no}",
+            "color": "#ef4444",
+        })
+
+    # Delivery milestones
+    milestone_rows = (await db.execute(
+        select(DeliveryMilestone.id, DeliveryMilestone.name, DeliveryMilestone.plan_end).where(
+            DeliveryMilestone.tenant_id == tenant_id,
+            DeliveryMilestone.plan_end.isnot(None),
+            DeliveryMilestone.plan_end >= str(first_day),
+            DeliveryMilestone.plan_end <= str(last_day),
+        )
+    )).all()
+    for r in milestone_rows:
+        events.append({
+            "id": r.id, "date": str(r.plan_end),
+            "type": "milestone",
+            "title": r.name or "里程碑",
+            "color": "#8b5cf6",
+        })
+
+    return ok(events)
+
+
 @router.get("/contract_expiry")
 async def contract_expiry(
     days: int = Query(90, ge=1, le=365),
@@ -1059,3 +1172,258 @@ async def contract_expiry(
             "urgency": "expired" if days_left < 0 else "critical" if days_left <= 7 else "warning" if days_left <= 30 else "normal",
         })
     return ok(items)
+
+
+# ---------- Export helpers ----------
+
+async def _gather_export_data(db: AsyncSession, tenant_id: str, start_date: Optional[str], end_date: Optional[str]):
+    """Gather analytics summary data for export."""
+    filters = [OpportunityProject.tenant_id == tenant_id]
+    if start_date:
+        filters.append(OpportunityProject.created_at >= start_date)
+    if end_date:
+        filters.append(OpportunityProject.created_at <= end_date + " 23:59:59")
+
+    # Funnel
+    stage_map = {"S1": "线索确认", "S2": "需求分析", "S3": "方案报价", "S4": "商务谈判", "S5": "合同签订", "S6": "交付验收"}
+    funnel_rows = (await db.execute(
+        select(OpportunityProject.stage, func.count(OpportunityProject.id).label("cnt"),
+               func.coalesce(func.sum(OpportunityProject.amount_expect), 0).label("amt"))
+        .where(*filters).group_by(OpportunityProject.stage)
+    )).all()
+    funnel = [{"stage": r.stage, "label": stage_map.get(r.stage, r.stage), "count": r.cnt, "amount": float(r.amt)} for r in funnel_rows]
+
+    # Win/Loss
+    won_count = (await db.execute(select(func.count(OpportunityProject.id)).where(*filters, OpportunityProject.status == "won"))).scalar() or 0
+    lost_count = (await db.execute(select(func.count(OpportunityProject.id)).where(*filters, OpportunityProject.status == "lost"))).scalar() or 0
+    won_amount = float((await db.execute(select(func.coalesce(func.sum(OpportunityProject.amount_expect), 0)).where(*filters, OpportunityProject.status == "won"))).scalar() or 0)
+    lost_amount = float((await db.execute(select(func.coalesce(func.sum(OpportunityProject.amount_expect), 0)).where(*filters, OpportunityProject.status == "lost"))).scalar() or 0)
+    total_decided = won_count + lost_count
+    win_rate = round(won_count / total_decided * 100, 1) if total_decided else 0
+
+    # Top customers
+    top_rows = (await db.execute(
+        select(Customer.name, func.count(OpportunityProject.id).label("cnt"),
+               func.coalesce(func.sum(OpportunityProject.amount_expect), 0).label("amt"))
+        .join(Customer, Customer.id == OpportunityProject.customer_id)
+        .where(OpportunityProject.tenant_id == tenant_id)
+        .group_by(Customer.name).order_by(func.sum(OpportunityProject.amount_expect).desc()).limit(10)
+    )).all()
+    top_customers = [{"name": r.name, "project_count": r.cnt, "total_amount": float(r.amt)} for r in top_rows]
+
+    # Region
+    region_rows = (await db.execute(
+        select(Customer.region, func.count(Customer.id).label("count"))
+        .where(Customer.tenant_id == tenant_id, Customer.is_deleted == False,
+               Customer.region.isnot(None), Customer.region != "")
+        .group_by(Customer.region).order_by(func.count(Customer.id).desc())
+    )).all()
+    regions = [{"region": r.region, "count": r.count} for r in region_rows]
+
+    return {
+        "funnel": funnel,
+        "won_count": won_count, "lost_count": lost_count,
+        "won_amount": won_amount, "lost_amount": lost_amount, "win_rate": win_rate,
+        "top_customers": top_customers,
+        "regions": regions,
+    }
+
+
+@router.get("/export/excel")
+async def export_excel(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+
+    data = await _gather_export_data(db, tenant_id, start_date, end_date)
+    wb = Workbook()
+
+    header_font = Font(bold=True, size=11, color="FFFFFF")
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin", color="D9D9D9"), right=Side(style="thin", color="D9D9D9"),
+        top=Side(style="thin", color="D9D9D9"), bottom=Side(style="thin", color="D9D9D9"),
+    )
+
+    def style_header(ws, cols):
+        for col_idx, title in enumerate(cols, 1):
+            cell = ws.cell(row=1, column=col_idx, value=title)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_align
+            cell.border = thin_border
+
+    # Sheet 1: Funnel
+    ws1 = wb.active
+    ws1.title = "销售漏斗"
+    style_header(ws1, ["阶段", "名称", "商机数", "金额"])
+    for i, f in enumerate(data["funnel"], 2):
+        ws1.cell(row=i, column=1, value=f["stage"])
+        ws1.cell(row=i, column=2, value=f["label"])
+        ws1.cell(row=i, column=3, value=f["count"])
+        ws1.cell(row=i, column=4, value=f["amount"])
+    ws1.column_dimensions["A"].width = 10
+    ws1.column_dimensions["B"].width = 16
+    ws1.column_dimensions["C"].width = 12
+    ws1.column_dimensions["D"].width = 16
+
+    # Sheet 2: Win/Loss
+    ws2 = wb.create_sheet("赢单分析")
+    style_header(ws2, ["指标", "值"])
+    for i, (k, v) in enumerate([
+        ("赢单数", data["won_count"]), ("丢单数", data["lost_count"]),
+        ("赢单金额", data["won_amount"]), ("丢单金额", data["lost_amount"]),
+        ("赢单率(%)", data["win_rate"]),
+    ], 2):
+        ws2.cell(row=i, column=1, value=k)
+        ws2.cell(row=i, column=2, value=v)
+    ws2.column_dimensions["A"].width = 16
+    ws2.column_dimensions["B"].width = 16
+
+    # Sheet 3: Top Customers
+    ws3 = wb.create_sheet("客户TOP10")
+    style_header(ws3, ["排名", "客户名称", "商机数", "总金额"])
+    for i, c in enumerate(data["top_customers"], 2):
+        ws3.cell(row=i, column=1, value=i - 1)
+        ws3.cell(row=i, column=2, value=c["name"])
+        ws3.cell(row=i, column=3, value=c["project_count"])
+        ws3.cell(row=i, column=4, value=c["total_amount"])
+    ws3.column_dimensions["A"].width = 8
+    ws3.column_dimensions["B"].width = 24
+    ws3.column_dimensions["C"].width = 12
+    ws3.column_dimensions["D"].width = 16
+
+    # Sheet 4: Region
+    ws4 = wb.create_sheet("区域分布")
+    style_header(ws4, ["区域", "客户数"])
+    for i, r in enumerate(data["regions"], 2):
+        ws4.cell(row=i, column=1, value=r["region"])
+        ws4.cell(row=i, column=2, value=r["count"])
+    ws4.column_dimensions["A"].width = 20
+    ws4.column_dimensions["B"].width = 12
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f"analytics_{date.today().isoformat()}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/pdf")
+async def export_pdf(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    import os
+
+    # Try to register a Chinese font; fall back to Helvetica
+    font_name = "Helvetica"
+    for font_path in [
+        "C:/Windows/Fonts/msyh.ttc",
+        "C:/Windows/Fonts/simhei.ttf",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    ]:
+        if os.path.exists(font_path):
+            try:
+                pdfmetrics.registerFont(TTFont("CJK", font_path))
+                font_name = "CJK"
+                break
+            except Exception:
+                continue
+
+    data = await _gather_export_data(db, tenant_id, start_date, end_date)
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20 * mm, bottomMargin=15 * mm)
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle("Title_CJK", parent=styles["Title"], fontName=font_name, fontSize=18)
+    h2_style = ParagraphStyle("H2_CJK", parent=styles["Heading2"], fontName=font_name, fontSize=13, spaceAfter=6)
+    normal_style = ParagraphStyle("Normal_CJK", parent=styles["Normal"], fontName=font_name, fontSize=9)
+
+    elements = []
+    period = ""
+    if start_date and end_date:
+        period = f"  ({start_date} ~ {end_date})"
+    elements.append(Paragraph(f"Analytics Report{period}", title_style))
+    elements.append(Spacer(1, 8 * mm))
+
+    table_style = TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4472C4")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, -1), font_name),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D9D9D9")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F2F6FC")]),
+    ])
+
+    # Funnel
+    elements.append(Paragraph("Sales Funnel", h2_style))
+    t_data = [["Stage", "Label", "Count", "Amount"]]
+    for f in data["funnel"]:
+        t_data.append([f["stage"], f["label"], str(f["count"]), f"{f['amount']:,.0f}"])
+    t = Table(t_data, colWidths=[60, 80, 60, 90])
+    t.setStyle(table_style)
+    elements.append(t)
+    elements.append(Spacer(1, 6 * mm))
+
+    # Win/Loss
+    elements.append(Paragraph("Win/Loss Analysis", h2_style))
+    t_data = [["Metric", "Value"]]
+    t_data.append(["Won", f"{data['won_count']} ({data['won_amount']:,.0f})"])
+    t_data.append(["Lost", f"{data['lost_count']} ({data['lost_amount']:,.0f})"])
+    t_data.append(["Win Rate", f"{data['win_rate']}%"])
+    t = Table(t_data, colWidths=[100, 150])
+    t.setStyle(table_style)
+    elements.append(t)
+    elements.append(Spacer(1, 6 * mm))
+
+    # Top Customers
+    elements.append(Paragraph("Top Customers", h2_style))
+    t_data = [["#", "Customer", "Projects", "Amount"]]
+    for i, c in enumerate(data["top_customers"], 1):
+        t_data.append([str(i), c["name"], str(c["project_count"]), f"{c['total_amount']:,.0f}"])
+    t = Table(t_data, colWidths=[30, 160, 60, 90])
+    t.setStyle(table_style)
+    elements.append(t)
+    elements.append(Spacer(1, 6 * mm))
+
+    # Region
+    if data["regions"]:
+        elements.append(Paragraph("Customer Region Distribution", h2_style))
+        t_data = [["Region", "Count"]]
+        for r in data["regions"]:
+            t_data.append([r["region"], str(r["count"])])
+        t = Table(t_data, colWidths=[150, 80])
+        t.setStyle(table_style)
+        elements.append(t)
+
+    doc.build(elements)
+    buf.seek(0)
+    filename = f"analytics_{date.today().isoformat()}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
