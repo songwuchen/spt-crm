@@ -48,6 +48,8 @@ const MobileCustomerForm = lazy(() => import('@/pages/mobile/MobileCustomerForm'
 const MobileLeadDetail = lazy(() => import('@/pages/mobile/MobileLeadDetail'))
 const MobileTasks = lazy(() => import('@/pages/mobile/MobileTasks'))
 const MobileOpportunityDetail = lazy(() => import('@/pages/mobile/MobileOpportunityDetail'))
+const MobileCustomerDetail = lazy(() => import('@/pages/mobile/MobileCustomerDetail'))
+const MobileContracts = lazy(() => import('@/pages/mobile/MobileContracts'))
 const NotificationCenter = lazy(() => import('@/pages/notification/NotificationCenter'))
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
 const ProductList = lazy(() => import('@/pages/product/ProductList'))
@@ -122,7 +124,9 @@ export const router = createBrowserRouter([
       { path: 'opportunities/:id/risk', element: <Lazy><MobileProjectRisk /></Lazy> },
       { path: 'approvals', element: <Lazy><MobileApprovals /></Lazy> },
       { path: 'approvals/:id', element: <Lazy><MobileApprovalDetail /></Lazy> },
+      { path: 'customers/:id', element: <Lazy><MobileCustomerDetail /></Lazy> },
       { path: 'customers/new', element: <Lazy><MobileCustomerForm /></Lazy> },
+      { path: 'contracts', element: <Lazy><MobileContracts /></Lazy> },
       { path: 'leads/:id', element: <Lazy><MobileLeadDetail /></Lazy> },
       { path: 'tasks', element: <Lazy><MobileTasks /></Lazy> },
       { path: 'follow-up/new', element: <Lazy><MobileFollowUp /></Lazy> },

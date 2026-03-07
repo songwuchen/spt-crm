@@ -21,4 +21,5 @@ export const dashboardApi = {
   upsertTarget: (data: Record<string, unknown>) => client.post('/api/v1/dashboard/targets', data),
   deleteTarget: (id: string) => client.delete(`/api/v1/dashboard/targets/${id}`),
   targetAchievement: (params: Record<string, unknown>) => client.get('/api/v1/dashboard/target_achievement', { params }),
+  contractExpiry: (params?: Record<string, unknown>) => client.get('/api/v1/dashboard/contract_expiry', { params }),
 }

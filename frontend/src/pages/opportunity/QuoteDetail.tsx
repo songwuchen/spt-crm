@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Button, Select, Table, Modal, Form, Input, InputNumber, Tag, Space, Descriptions, message, Timeline, Tabs, Progress, Spin } from 'antd'
-import { PlusOutlined, CopyOutlined, SwapOutlined, CameraOutlined, HistoryOutlined, AuditOutlined, FileProtectOutlined, SendOutlined, RobotOutlined } from '@ant-design/icons'
+import { PlusOutlined, CopyOutlined, SwapOutlined, CameraOutlined, HistoryOutlined, AuditOutlined, FileProtectOutlined, SendOutlined, RobotOutlined, FilePdfOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { quoteApi } from '@/api/quote'
+import { downloadFile } from '@/utils/download'
 import { productApi } from '@/api/product'
 import { contractApi } from '@/api/contract'
 import { approvalApi } from '@/api/approval'
@@ -329,6 +330,10 @@ export default function QuoteDetail() {
           }}>生成合同</Button>
           <Button icon={<SendOutlined />} onClick={() => { sendForm.resetFields(); setSendModal(true) }}>发送报价</Button>
           <Button icon={<AuditOutlined />} onClick={openApprovalModal}>提交审批</Button>
+          <Button icon={<FilePdfOutlined />} onClick={() => {
+            const versionParam = currentVersion ? `?version_id=${currentVersion.id}` : ''
+            downloadFile(`/api/v1/quotes/${qid}/export/pdf${versionParam}`, `quote_${quote?.quote_no || ''}.pdf`)
+          }}>导出PDF</Button>
           <Button icon={<HistoryOutlined />} onClick={openSnapshotModal}>成本快照</Button>
           <Button onClick={() => navigate(`/opportunities/${projectId}`)}>返回商机</Button>
         </Space>

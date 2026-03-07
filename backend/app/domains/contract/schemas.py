@@ -1,10 +1,12 @@
 from typing import Optional
+from datetime import date
 from pydantic import BaseModel
 
 
 class ContractCreate(BaseModel):
     title: Optional[str] = None
     amount_total: Optional[float] = None
+    end_date: Optional[date] = None
     payment_terms_json: Optional[dict] = None
     delivery_terms_json: Optional[dict] = None
 
@@ -12,6 +14,7 @@ class ContractCreate(BaseModel):
 class ContractUpdate(BaseModel):
     status: Optional[str] = None
     amount_total: Optional[float] = None
+    end_date: Optional[date] = None
     payment_terms_json: Optional[dict] = None
     delivery_terms_json: Optional[dict] = None
 

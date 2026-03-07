@@ -36,6 +36,10 @@ vi.mock('@/api/settings', () => ({
     updateEmailTemplate: vi.fn(),
     deleteEmailTemplate: vi.fn(),
     getDocTemplate: vi.fn(),
+    listCustomFields: vi.fn(),
+    createCustomField: vi.fn(),
+    updateCustomField: vi.fn(),
+    deleteCustomField: vi.fn(),
   },
 }))
 
@@ -91,6 +95,7 @@ describe('SettingsPage', () => {
     ;(settingsApi.listApprovalPolicies as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(settingsApi.listDocTemplates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(settingsApi.listEmailTemplates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
+    ;(settingsApi.listCustomFields as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(roleApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [{ id: 'r-1', code: 'admin', name: '管理员' }] })
     ;(client.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [{ id: 'u-1', real_name: 'Admin', username: 'admin' }] } })
   })

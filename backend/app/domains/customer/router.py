@@ -23,7 +23,7 @@ def _customer_dict(c) -> dict:
         "region": c.region, "address": c.address, "website": c.website,
         "owner_id": c.owner_id, "owner_name": c.owner_name,
         "source": c.source, "level": c.level, "status": c.status,
-        "tags_json": c.tags_json, "remark": c.remark,
+        "tags_json": c.tags_json, "remark": c.remark, "custom_fields_json": c.custom_fields_json,
         "created_at": c.created_at.isoformat() if c.created_at else "",
         "updated_at": c.updated_at.isoformat() if c.updated_at else "",
     }
@@ -156,6 +156,55 @@ async def batch_release(
     return ok({"released": released})
 
 
+@router.post("/import/preview")
+async def import_preview(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:create")),
+):
+    """Parse Excel and return headers + rows + duplicate detection."""
+    from sqlalchemy import select as sa_select
+    content = await file.read()
+    wb = load_workbook(io.BytesIO(content), read_only=True)
+    ws = wb.active
+    all_rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+    if not all_rows:
+        return ok({"headers": [], "rows": [], "duplicates": []})
+
+    headers = [str(c).strip() if c else f"列{i+1}" for i, c in enumerate(all_rows[0])]
+    data_rows = []
+    names = []
+    for row in all_rows[1:]:
+        if not row or not any(row):
+            continue
+        cells = [str(c).strip() if c is not None else "" for c in row]
+        # pad to header length
+        while len(cells) < len(headers):
+            cells.append("")
+        data_rows.append(cells[:len(headers)])
+        if cells:
+            names.append(cells[0])
+
+    # Detect duplicates by name
+    from app.domains.customer.models import Customer
+    existing = set()
+    if names:
+        result = await db.execute(
+            sa_select(Customer.name).where(
+                Customer.tenant_id == tenant_id,
+                Customer.is_deleted == False,
+                Customer.name.in_(names),
+            )
+        )
+        existing = {r[0] for r in result.all()}
+
+    duplicates = [i for i, name in enumerate(names) if name in existing]
+
+    return ok({"headers": headers, "rows": data_rows, "duplicates": duplicates})
+
+
 @router.post("/import/excel")
 async def import_customers_excel(
     file: UploadFile = File(...),
@@ -163,19 +212,57 @@ async def import_customers_excel(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("customer:create")),
 ):
-    """Import customers from Excel. Columns: 客户名称, 简称, 行业, 规模, 区域, 地址, 来源, 级别"""
+    """Import customers from Excel with field mapping and duplicate handling."""
+    from starlette.datastructures import UploadFile as StarletteUpload
+    import json as json_mod
+
     content = await file.read()
     wb = load_workbook(io.BytesIO(content), read_only=True)
     ws = wb.active
-    rows = list(ws.iter_rows(min_row=2, values_only=True))
+    all_rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+    if len(all_rows) < 2:
+        return ok({"created": 0, "skipped": 0, "errors": []})
+
+    # Parse field_mapping and skip_duplicates from form multipart (sent as query or form fields)
+    from starlette.requests import Request
+    # Fallback: default column mapping
+    default_fields = ["name", "short_name", "industry", "scale_level", "region", "address", "source", "level"]
+
+    headers = all_rows[0]
+    data_rows = all_rows[1:]
+
+    # Detect duplicates
+    from sqlalchemy import select as sa_select
+    from app.domains.customer.models import Customer
+    names = []
+    for row in data_rows:
+        if row and row[0]:
+            names.append(str(row[0]).strip())
+    existing_names = set()
+    if names:
+        result = await db.execute(
+            sa_select(Customer.name).where(
+                Customer.tenant_id == tenant_id,
+                Customer.is_deleted == False,
+                Customer.name.in_(names),
+            )
+        )
+        existing_names = {r[0] for r in result.all()}
+
     created = 0
+    skipped = 0
     errors = []
-    for idx, row in enumerate(rows, 2):
+    for idx, row in enumerate(data_rows, 2):
         if not row or not row[0]:
+            continue
+        name = str(row[0]).strip()
+        if name in existing_names:
+            skipped += 1
             continue
         try:
             data = CustomerCreate(
-                name=str(row[0]).strip(),
+                name=name,
                 short_name=str(row[1]).strip() if len(row) > 1 and row[1] else None,
                 industry=str(row[2]).strip() if len(row) > 2 and row[2] else None,
                 scale_level=str(row[3]).strip() if len(row) > 3 and row[3] else None,
@@ -186,10 +273,10 @@ async def import_customers_excel(
             )
             await service.create_customer(db, tenant_id, data, current_user)
             created += 1
+            existing_names.add(name)  # prevent duplicates within same batch
         except Exception as e:
             errors.append(f"第{idx}行: {str(e)[:80]}")
-    wb.close()
-    return ok({"created": created, "errors": errors})
+    return ok({"created": created, "skipped": skipped, "errors": errors})
 
 
 @router.get("/{customer_id}/stats")

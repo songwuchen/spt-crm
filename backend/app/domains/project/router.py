@@ -1,5 +1,8 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, UploadFile, File
+from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
+from openpyxl import load_workbook
+import io
 
 from app.dependencies import get_db, get_tenant_id, require_permissions, get_data_scope
 from app.common.schemas import ok
@@ -22,7 +25,7 @@ def _project_dict(p) -> dict:
         "key_requirements_json": p.key_requirements_json,
         "risk_level": p.risk_level,
         "owner_id": p.owner_id, "owner_name": p.owner_name,
-        "status": p.status, "remark": p.remark,
+        "status": p.status, "remark": p.remark, "custom_fields_json": p.custom_fields_json,
         "created_at": p.created_at.isoformat() if p.created_at else "",
         "updated_at": p.updated_at.isoformat() if p.updated_at else "",
     }
@@ -81,6 +84,118 @@ async def export_projects_excel(
         ])
     buf = build_excel("商机项目", headers, rows)
     return excel_response(buf, "projects.xlsx")
+
+
+@router.post("/import/preview")
+async def import_preview(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:create")),
+):
+    content = await file.read()
+    wb = load_workbook(io.BytesIO(content), read_only=True)
+    ws = wb.active
+    all_rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+    if not all_rows:
+        return ok({"headers": [], "rows": [], "duplicates": []})
+
+    headers = [str(c).strip() if c else f"列{i+1}" for i, c in enumerate(all_rows[0])]
+    data_rows = []
+    names = []
+    for row in all_rows[1:]:
+        if not row or not any(row):
+            continue
+        cells = [str(c).strip() if c is not None else "" for c in row]
+        while len(cells) < len(headers):
+            cells.append("")
+        data_rows.append(cells[:len(headers)])
+        if cells:
+            names.append(cells[0])
+
+    from app.domains.project.models import OpportunityProject
+    existing = set()
+    if names:
+        result = await db.execute(
+            sa_select(OpportunityProject.name).where(
+                OpportunityProject.tenant_id == tenant_id,
+                OpportunityProject.name.in_(names),
+            )
+        )
+        existing = {r[0] for r in result.all()}
+
+    duplicates = [i for i, name in enumerate(names) if name in existing]
+    return ok({"headers": headers, "rows": data_rows, "duplicates": duplicates})
+
+
+@router.post("/import/excel")
+async def import_projects_excel(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("project:create")),
+):
+    """Import projects. Columns: 项目名称, 预计金额, 概率(%), 预计关闭日, 风险等级, 备注"""
+    content = await file.read()
+    wb = load_workbook(io.BytesIO(content), read_only=True)
+    ws = wb.active
+    all_rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+    if len(all_rows) < 2:
+        return ok({"created": 0, "skipped": 0, "errors": []})
+
+    data_rows = all_rows[1:]
+
+    from app.domains.project.models import OpportunityProject
+    names = [str(r[0]).strip() for r in data_rows if r and r[0]]
+    existing_names = set()
+    if names:
+        result = await db.execute(
+            sa_select(OpportunityProject.name).where(
+                OpportunityProject.tenant_id == tenant_id,
+                OpportunityProject.name.in_(names),
+            )
+        )
+        existing_names = {r[0] for r in result.all()}
+
+    created = 0
+    skipped = 0
+    errors = []
+    for idx, row in enumerate(data_rows, 2):
+        if not row or not row[0]:
+            continue
+        name = str(row[0]).strip()
+        if name in existing_names:
+            skipped += 1
+            continue
+        try:
+            amount = None
+            if len(row) > 1 and row[1]:
+                try:
+                    amount = float(row[1])
+                except (ValueError, TypeError):
+                    pass
+            prob = None
+            if len(row) > 2 and row[2]:
+                try:
+                    prob = int(float(row[2]))
+                except (ValueError, TypeError):
+                    pass
+            data = ProjectCreate(
+                name=name,
+                amount_expect=amount,
+                probability=prob,
+                close_date_expect=str(row[3]).strip() if len(row) > 3 and row[3] else None,
+                risk_level=str(row[4]).strip() if len(row) > 4 and row[4] else None,
+                remark=str(row[5]).strip() if len(row) > 5 and row[5] else None,
+            )
+            await service.create_project(db, tenant_id, data, current_user)
+            created += 1
+            existing_names.add(name)
+        except Exception as e:
+            errors.append(f"第{idx}行: {str(e)[:80]}")
+    return ok({"created": created, "skipped": skipped, "errors": errors})
 
 
 @router.post("")

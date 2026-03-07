@@ -54,7 +54,7 @@ export default function MobileCustomers() {
           {data.map((c) => (
             <div
               key={c.id}
-              onClick={() => navigate(`/customers/${c.id}`)}
+              onClick={() => navigate(`/m/customers/${c.id}`)}
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 flex items-center gap-3 active:bg-slate-50 cursor-pointer"
             >
               <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-sm font-bold text-slate-600 shrink-0">

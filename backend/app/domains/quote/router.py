@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
@@ -299,3 +300,51 @@ async def list_send_logs(
 ):
     items = await service.list_send_logs(db, tenant_id, quote_id)
     return ok([_send_log_dict(l) for l in items])
+
+
+@router.get("/api/v1/quotes/{quote_id}/export/pdf")
+async def export_quote_pdf(
+    quote_id: str,
+    version_id: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("quote:view")),
+):
+    """Export quote as PDF."""
+    from app.common.pdf_builder import build_quote_pdf
+
+    quote = await service.get_quote(db, tenant_id, quote_id)
+    versions = await service.get_versions_by_quote(db, tenant_id, quote_id)
+
+    if version_id:
+        ver = next((v for v in versions if v.id == version_id), None)
+    else:
+        ver = next((v for v in versions if v.version_no == quote.current_version_no), None)
+
+    if not ver:
+        from app.common.exceptions import BusinessException
+        raise BusinessException("未找到报价版本")
+
+    lines = await service.list_lines(db, tenant_id, ver.id)
+
+    pdf_bytes = build_quote_pdf(
+        quote_no=quote.quote_no,
+        version_title=ver.title or "",
+        version_no=ver.version_no,
+        price_total=float(ver.price_total or 0),
+        tax_rate=float(ver.tax_rate or 0),
+        tax_total=float(ver.tax_total or 0),
+        discount_total=float(ver.discount_total or 0),
+        delivery_promise_date=str(ver.delivery_promise_date) if ver.delivery_promise_date else None,
+        validity_days=ver.validity_days,
+        lines=[_line_dict(l) for l in lines],
+        created_by_name=quote.created_by_name or "",
+        created_at=quote.created_at.isoformat() if quote.created_at else "",
+    )
+
+    filename = f"quote_{quote.quote_no}_v{ver.version_no}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

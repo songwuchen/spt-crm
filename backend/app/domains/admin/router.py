@@ -8,7 +8,7 @@ from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.database import gen_id
 from app.domains.admin import service
-from app.domains.admin.models import DocTemplate, EmailTemplate
+from app.domains.admin.models import DocTemplate, EmailTemplate, CustomFieldDef
 from app.domains.admin.schemas import (
     TenantPlanCreate, TenantPlanUpdate, PlatformTenantUpdate,
     TenantProfileUpdate, FeatureToggleUpdate, StageDefinitionUpdate,
@@ -32,6 +32,17 @@ class EmailTemplateBody(BaseModel):
     subject: Optional[str] = None
     body_html: Optional[str] = None
     variables_json: Optional[Union[dict, list]] = None
+    enabled: bool = True
+
+
+class CustomFieldDefBody(BaseModel):
+    entity_type: str = Field(..., pattern=r"^(customer|project|lead|contact|service_ticket)$")
+    field_key: str = Field(..., max_length=64)
+    field_label: str = Field(..., max_length=100)
+    field_type: str = Field(..., pattern=r"^(text|number|date|select|multiselect|boolean)$")
+    options_json: Optional[list] = None
+    required: bool = False
+    sort_order: int = 0
     enabled: bool = True
 
 router = APIRouter(tags=["管理端"])
@@ -434,5 +445,78 @@ async def delete_email_template(
     t = await db.get(EmailTemplate, template_id)
     if t and t.tenant_id == tenant_id:
         await db.delete(t)
+        await db.commit()
+    return ok(None)
+
+
+# ==================== Custom Field Definitions ====================
+
+def _cf_dict(f: CustomFieldDef) -> dict:
+    return {
+        "id": f.id, "entity_type": f.entity_type,
+        "field_key": f.field_key, "field_label": f.field_label,
+        "field_type": f.field_type, "options_json": f.options_json,
+        "required": f.required, "sort_order": f.sort_order, "enabled": f.enabled,
+    }
+
+
+@router.get("/api/v1/custom-fields")
+async def list_custom_fields(
+    entity_type: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    q = select(CustomFieldDef).where(CustomFieldDef.tenant_id == tenant_id)
+    if entity_type:
+        q = q.where(CustomFieldDef.entity_type == entity_type)
+    q = q.order_by(CustomFieldDef.entity_type, CustomFieldDef.sort_order)
+    items = (await db.execute(q)).scalars().all()
+    return ok([_cf_dict(f) for f in items])
+
+
+@router.post("/api/v1/custom-fields")
+async def create_custom_field(
+    body: CustomFieldDefBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    f = CustomFieldDef(id=gen_id(), tenant_id=tenant_id, **body.model_dump())
+    db.add(f)
+    await db.commit()
+    await db.refresh(f)
+    return ok(_cf_dict(f))
+
+
+@router.put("/api/v1/custom-fields/{field_id}")
+async def update_custom_field(
+    field_id: str,
+    body: CustomFieldDefBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    f = await db.get(CustomFieldDef, field_id)
+    if not f or f.tenant_id != tenant_id:
+        from app.common.exceptions import BusinessException
+        raise BusinessException("字段不存在")
+    for k, v in body.model_dump().items():
+        setattr(f, k, v)
+    await db.commit()
+    await db.refresh(f)
+    return ok(_cf_dict(f))
+
+
+@router.delete("/api/v1/custom-fields/{field_id}")
+async def delete_custom_field(
+    field_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    f = await db.get(CustomFieldDef, field_id)
+    if f and f.tenant_id == tenant_id:
+        await db.delete(f)
         await db.commit()
     return ok(None)

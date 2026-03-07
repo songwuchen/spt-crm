@@ -9,6 +9,7 @@ class ActivityCreate(BaseModel):
     activity_type: str
     subject: Optional[str] = None
     content: Optional[str] = None
+    contact_id: Optional[str] = None
     contact_name: Optional[str] = None
     result_json: Optional[dict] = None
     next_follow_date: Optional[date] = None
@@ -18,6 +19,7 @@ class ActivityCreate(BaseModel):
 class ActivityUpdate(BaseModel):
     subject: Optional[str] = None
     content: Optional[str] = None
+    contact_id: Optional[str] = None
     contact_name: Optional[str] = None
     result_json: Optional[dict] = None
     next_follow_date: Optional[date] = None

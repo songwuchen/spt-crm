@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
@@ -16,6 +17,7 @@ def _contract_dict(c) -> dict:
         "from_quote_id": c.from_quote_id,
         "current_version_no": c.current_version_no, "status": c.status,
         "signed_date": str(c.signed_date) if c.signed_date else None,
+        "end_date": str(c.end_date) if c.end_date else None,
         "amount_total": float(c.amount_total) if c.amount_total is not None else None,
         "payment_terms_json": c.payment_terms_json,
         "delivery_terms_json": c.delivery_terms_json,
@@ -33,6 +35,30 @@ def _version_dict(v) -> dict:
         "risk_level": v.risk_level, "status": v.status,
         "created_at": v.created_at.isoformat() if v.created_at else "",
     }
+
+
+# --- List all contracts ---
+@router.get("/api/v1/contracts")
+async def list_contracts(
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    status: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("contract:view")),
+):
+    from app.domains.contract.models import Contract
+    q = select(Contract).where(Contract.tenant_id == tenant_id)
+    cq = select(func.count(Contract.id)).where(Contract.tenant_id == tenant_id)
+    if status:
+        q = q.where(Contract.status == status)
+        cq = cq.where(Contract.status == status)
+    total = (await db.execute(cq)).scalar() or 0
+    items = (await db.execute(
+        q.order_by(Contract.created_at.desc())
+        .offset((pageNo - 1) * pageSize).limit(pageSize)
+    )).scalars().all()
+    return ok({"items": [_contract_dict(c) for c in items], "total": total})
 
 
 # --- Project-scoped routes ---

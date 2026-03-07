@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Input, Space, Tag, Select, Modal, Upload, Form, message } from 'antd'
+import { Table, Button, Input, Space, Tag, Select, Modal, Form, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
+import ImportModal from '@/components/ImportModal'
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
@@ -34,6 +35,7 @@ export default function CustomerList() {
   const [industry, setIndustry] = useState<string | undefined>(searchParams.get('industry') || undefined)
   const [region, setRegion] = useState(searchParams.get('region') || '')
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [importModal, setImportModal] = useState(false)
   const [transferModal, setTransferModal] = useState(false)
   const [transferForm] = Form.useForm()
   const userSelect = useRemoteSelect(async (kw) => {
@@ -190,24 +192,7 @@ export default function CustomerList() {
           <p className="text-sm text-slate-500 mt-0.5">管理和跟踪所有客户信息</p>
         </div>
         <Space wrap>
-          <Upload accept=".xlsx,.xls" showUploadList={false} customRequest={async ({ file }) => {
-            const formData = new FormData()
-            formData.append('file', file as File)
-            try {
-              const token = localStorage.getItem('access_token')
-              const res = await fetch('/api/v1/customers/import/excel', {
-                method: 'POST', body: formData,
-                headers: { Authorization: `Bearer ${token}` },
-              })
-              const json = await res.json()
-              if (json.code === 0) {
-                message.success(`导入成功: ${json.data.created} 条${json.data.errors?.length ? `, ${json.data.errors.length} 条失败` : ''}`)
-                fetchData()
-              } else { message.error(json.message || '导入失败') }
-            } catch { message.error('导入失败') }
-          }}>
-            <Button icon={<UploadOutlined />}>导入</Button>
-          </Upload>
+          <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>导入</Button>
           <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/customers/export/excel', 'customers.xlsx')}>导出</Button>
           <Button
             type="primary"
@@ -284,6 +269,17 @@ export default function CustomerList() {
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
         />
       </div>
+
+      {/* Import Modal */}
+      <ImportModal
+        open={importModal}
+        onClose={() => setImportModal(false)}
+        onSuccess={() => fetchData()}
+        previewUrl="/api/v1/customers/import/preview"
+        importUrl="/api/v1/customers/import/excel"
+        title="导入客户"
+        expectedHeaders={['客户名称', '简称', '行业', '规模', '区域', '地址', '来源', '级别']}
+      />
 
       {/* Batch Transfer Modal */}
       <Modal title="批量转让客户" open={transferModal} onOk={handleBatchTransfer}

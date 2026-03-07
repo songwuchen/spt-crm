@@ -19,6 +19,7 @@ def _activity_dict(a) -> dict:
         "activity_type": a.activity_type,
         "subject": a.subject,
         "content": a.content,
+        "contact_id": a.contact_id,
         "contact_name": a.contact_name,
         "result_json": a.result_json,
         "next_follow_date": str(a.next_follow_date) if a.next_follow_date else None,

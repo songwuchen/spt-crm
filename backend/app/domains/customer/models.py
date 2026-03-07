@@ -22,6 +22,7 @@ class Customer(TenantScopedBase):
     status: Mapped[str] = mapped_column(String(50), default="active")  # active / inactive
     tags_json: Mapped[dict | None] = mapped_column(JSON)
     remark: Mapped[str | None] = mapped_column(Text)
+    custom_fields_json: Mapped[dict | None] = mapped_column(JSON)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
 

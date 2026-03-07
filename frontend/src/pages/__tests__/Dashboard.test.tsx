@@ -4,6 +4,14 @@ import Dashboard from '../dashboard/Dashboard'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type { UserInfo } from '@/api/types'
 
+// Mock chart components (canvas-based, not renderable in jsdom)
+vi.mock('@ant-design/charts', () => ({
+  Line: () => null,
+  Column: () => null,
+  Pie: () => null,
+  Funnel: () => null,
+}))
+
 // Mock dashboard API
 vi.mock('@/api/dashboard', () => ({
   dashboardApi: {
@@ -45,6 +53,11 @@ vi.mock('@/api/dashboard', () => ({
     funnel: vi.fn().mockResolvedValue({ data: [] }),
     paymentOverview: vi.fn().mockResolvedValue({ data: null }),
     leaderboard: vi.fn().mockResolvedValue({ data: [] }),
+    trend: vi.fn().mockResolvedValue({ data: [] }),
+    collection: vi.fn().mockResolvedValue({ data: [] }),
+    monthlyRevenue: vi.fn().mockResolvedValue({ data: [] }),
+    winLoss: vi.fn().mockResolvedValue({ data: { won_count: 0, lost_count: 0, win_rate: 0, won_amount: 0, lost_amount: 0 } }),
+    contractExpiry: vi.fn().mockResolvedValue({ data: [] }),
   },
 }))
 

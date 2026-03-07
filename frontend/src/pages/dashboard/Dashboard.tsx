@@ -6,6 +6,7 @@ import { approvalApi } from '@/api/approval'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import type { ApprovalPendingItem } from '@/api/types'
+import { TrendChart, CollectionChart, RevenueChart, WinLossChart, FunnelChartPanel, LeaderboardChart, ContractExpiryPanel } from './DashboardCharts'
 
 interface Stats {
   customer_total: number
@@ -416,25 +417,7 @@ export default function Dashboard() {
             <h3 className="text-sm font-bold text-slate-900">销售漏斗</h3>
           </div>
           {funnel.length > 0 ? (
-            <div className="space-y-3">
-              {funnel.map((f, i) => {
-                const pct = funnelMax > 0 ? Math.max((f.count / funnelMax) * 100, 8) : 8
-                return (
-                  <div key={f.stage}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold text-slate-700">{f.label}</span>
-                      <span className="text-xs text-slate-500">{f.count} 个 · ¥{(f.amount / 10000).toFixed(1)}万</span>
-                    </div>
-                    <div className="h-6 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full ${stageColors[i] || 'bg-blue-500'} rounded-full flex items-center justify-end pr-2 transition-all`}
-                        style={{ width: `${pct}%` }}>
-                        {f.count > 0 && <span className="text-[10px] font-bold text-white">{f.count}</span>}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            <FunnelChartPanel funnel={funnel} />
           ) : (
             <div className="text-center text-slate-400 text-sm py-8">暂无漏斗数据</div>
           )}
@@ -488,6 +471,25 @@ export default function Dashboard() {
             <div className="text-center text-slate-400 text-sm py-8">暂无回款数据</div>
           )}
         </div>
+      </div>
+
+      {/* Charts Row: Trend + Win/Loss */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div className="lg:col-span-2">
+          <TrendChart />
+        </div>
+        <WinLossChart />
+      </div>
+
+      {/* Charts Row: Collection + Revenue */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <CollectionChart />
+        <RevenueChart />
+      </div>
+
+      {/* Contract Expiry Warning */}
+      <div className="mb-6">
+        <ContractExpiryPanel />
       </div>
 
       {/* Three Column Grid: Tasks + Quick Actions + Leaderboard */}
@@ -557,23 +559,7 @@ export default function Dashboard() {
             <h3 className="text-sm font-bold text-slate-900">业绩排行</h3>
           </div>
           {leaderboard.length > 0 ? (
-            <div className="space-y-2">
-              {leaderboard.slice(0, 5).map((item, i) => (
-                <div key={item.owner_id} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                  <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-black ${
-                    i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-white' : i === 2 ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-500'
-                  }`}>{i + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-slate-800 truncate">{item.owner_name}</div>
-                    <div className="text-[10px] text-slate-500">赢单 {item.won_count} · 进行 {item.active_count}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-black text-slate-900">¥{(item.won_amount / 10000).toFixed(1)}万</div>
-                    <div className="text-[10px] text-slate-400">管线 ¥{(item.pipeline_amount / 10000).toFixed(1)}万</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <LeaderboardChart leaderboard={leaderboard} />
           ) : (
             <div className="text-center text-slate-400 text-sm py-8">暂无排行数据</div>
           )}

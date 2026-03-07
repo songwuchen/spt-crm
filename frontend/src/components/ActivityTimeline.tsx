@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Button, Modal, Input, Select, Spin, message } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { Button, Modal, Input, Select, Spin, DatePicker, Upload, message } from 'antd'
+import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import { activityApi } from '@/api/activity'
 import { aiApi } from '@/api/ai'
-import type { ActivityItem } from '@/api/types'
+import { contactApi } from '@/api/contact'
+import type { ActivityItem, Contact } from '@/api/types'
+import AttachmentPanel from './AttachmentPanel'
+import dayjs from 'dayjs'
 
 const { TextArea } = Input
 
@@ -20,26 +23,52 @@ const typeConfig: Record<string, { label: string; icon: string; color: string }>
 interface Props {
   bizType: string
   bizId: string
+  customerId?: string
 }
 
-export default function ActivityTimeline({ bizType, bizId }: Props) {
+export default function ActivityTimeline({ bizType, bizId, customerId }: Props) {
   const [items, setItems] = useState<ActivityItem[]>([])
   const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({ activity_type: 'note', subject: '', content: '', contact_name: '' })
+  const [form, setForm] = useState({
+    activity_type: 'note', subject: '', content: '', contact_id: '', contact_name: '', next_follow_date: '',
+  })
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [aiSummary, setAiSummary] = useState<{ summary: string; key_points: string[]; suggestion: string } | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const fetch = () => {
+  const fetchActivities = () => {
     activityApi.list(bizType, bizId).then((r) => setItems(r.data))
   }
-  useEffect(() => { fetch() }, [bizType, bizId])
+  useEffect(() => { fetchActivities() }, [bizType, bizId])
+
+  // Load contacts for customer-related entities
+  useEffect(() => {
+    const cid = customerId
+    if (cid) {
+      contactApi.list(cid).then((r) => setContacts(r.data || [])).catch(() => {})
+    }
+  }, [customerId])
 
   const handleCreate = async () => {
-    await activityApi.create({ biz_type: bizType, biz_id: bizId, ...form })
+    await activityApi.create({
+      biz_type: bizType, biz_id: bizId,
+      activity_type: form.activity_type,
+      subject: form.subject || undefined,
+      content: form.content || undefined,
+      contact_id: form.contact_id || undefined,
+      contact_name: form.contact_name || undefined,
+      next_follow_date: form.next_follow_date || undefined,
+    })
     message.success('记录已添加')
     setModal(false)
-    setForm({ activity_type: 'note', subject: '', content: '', contact_name: '' })
-    fetch()
+    setForm({ activity_type: 'note', subject: '', content: '', contact_id: '', contact_name: '', next_follow_date: '' })
+    fetchActivities()
+  }
+
+  const handleContactSelect = (contactId: string) => {
+    const c = contacts.find((x) => x.id === contactId)
+    setForm({ ...form, contact_id: contactId, contact_name: c?.name || '' })
   }
 
   return (
@@ -100,6 +129,7 @@ export default function ActivityTimeline({ bizType, bizId }: Props) {
 
           {items.map((item) => {
             const cfg = typeConfig[item.activity_type] || typeConfig.note
+            const isExpanded = expandedId === item.id
             return (
               <div key={item.id} className="relative mb-6 last:mb-0">
                 {/* Dot */}
@@ -137,9 +167,30 @@ export default function ActivityTimeline({ bizType, bizId }: Props) {
                   {item.content && (
                     <p className="text-sm text-slate-600 mt-2 whitespace-pre-wrap leading-relaxed">{item.content}</p>
                   )}
-                  <div className="mt-2 text-xs text-slate-400">
-                    {item.created_by_name || '系统'}
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-slate-400">{item.created_by_name || '系统'}</span>
+                      {item.next_follow_date && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-100 text-[10px] font-bold text-amber-600">
+                          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>event</span>
+                          下次跟进: {item.next_follow_date}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                      className="text-xs text-slate-400 hover:text-primary"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                        {isExpanded ? 'expand_less' : 'attach_file'}
+                      </span>
+                    </button>
                   </div>
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                      <AttachmentPanel bizType="activity" bizId={item.id} />
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -147,7 +198,7 @@ export default function ActivityTimeline({ bizType, bizId }: Props) {
         </div>
       )}
 
-      <Modal title="添加互动记录" open={modal} onOk={handleCreate} onCancel={() => setModal(false)}>
+      <Modal title="添加互动记录" open={modal} onOk={handleCreate} onCancel={() => setModal(false)} width={520}>
         <div className="space-y-4 py-2">
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">类型</label>
@@ -160,11 +211,37 @@ export default function ActivityTimeline({ bizType, bizId }: Props) {
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">联系人</label>
-            <Input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} placeholder="联系人姓名..." />
+            {contacts.length > 0 ? (
+              <Select
+                className="w-full"
+                value={form.contact_id || undefined}
+                onChange={handleContactSelect}
+                allowClear
+                onClear={() => setForm({ ...form, contact_id: '', contact_name: '' })}
+                placeholder="选择联系人..."
+                showSearch
+                optionFilterProp="label"
+                options={contacts.map((c) => ({
+                  value: c.id,
+                  label: `${c.name}${c.title ? ` (${c.title})` : ''}${c.phone ? ` ${c.phone}` : ''}`,
+                }))}
+              />
+            ) : (
+              <Input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} placeholder="联系人姓名..." />
+            )}
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">内容</label>
             <TextArea rows={4} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="详细内容..." />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">下次跟进日期</label>
+            <DatePicker
+              className="w-full"
+              value={form.next_follow_date ? dayjs(form.next_follow_date) : null}
+              onChange={(d) => setForm({ ...form, next_follow_date: d ? d.format('YYYY-MM-DD') : '' })}
+              placeholder="选择日期..."
+            />
           </div>
         </div>
       </Modal>

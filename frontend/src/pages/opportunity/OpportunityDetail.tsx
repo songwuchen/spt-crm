@@ -971,7 +971,7 @@ export default function OpportunityDetail() {
                 label: <span className="font-semibold">互动记录</span>,
                 children: (
                   <div className="py-4">
-                    <ActivityTimeline bizType="project" bizId={id!} />
+                    <ActivityTimeline bizType="project" bizId={id!} customerId={project?.customer_id} />
                   </div>
                 ),
               },

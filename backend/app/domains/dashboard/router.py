@@ -1013,3 +1013,49 @@ async def target_achievement(
         })
     result.sort(key=lambda x: x["achievement_rate"], reverse=True)
     return ok(result)
+
+
+@router.get("/contract_expiry")
+async def contract_expiry(
+    days: int = Query(90, ge=1, le=365),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Contracts expiring within N days."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc).date()
+    cutoff = now + timedelta(days=days)
+
+    rows = (await db.execute(
+        select(
+            Contract.id, Contract.contract_no, Contract.status,
+            Contract.signed_date, Contract.end_date, Contract.amount_total,
+            OpportunityProject.name.label("project_name"),
+            OpportunityProject.owner_name,
+        ).join(
+            OpportunityProject, OpportunityProject.id == Contract.project_id
+        ).where(
+            Contract.tenant_id == tenant_id,
+            Contract.status == "signed",
+            Contract.end_date.isnot(None),
+            Contract.end_date <= cutoff,
+        ).order_by(Contract.end_date.asc())
+        .limit(50)
+    )).all()
+
+    items = []
+    for r in rows:
+        days_left = (r.end_date - now).days if r.end_date else 0
+        items.append({
+            "id": r.id,
+            "contract_no": r.contract_no,
+            "project_name": r.project_name,
+            "owner_name": r.owner_name,
+            "amount_total": float(r.amount_total) if r.amount_total else 0,
+            "signed_date": str(r.signed_date) if r.signed_date else None,
+            "end_date": str(r.end_date) if r.end_date else None,
+            "days_left": days_left,
+            "urgency": "expired" if days_left < 0 else "critical" if days_left <= 7 else "warning" if days_left <= 30 else "normal",
+        })
+    return ok(items)

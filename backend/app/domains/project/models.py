@@ -21,6 +21,7 @@ class OpportunityProject(TenantScopedBase):
     owner_name: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(16), default="active")  # active/won/lost/suspended
     remark: Mapped[str | None] = mapped_column(Text)
+    custom_fields_json: Mapped[dict | None] = mapped_column(JSON)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
 

@@ -151,6 +151,23 @@ class EmailTemplate(TenantScopedBase):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class CustomFieldDef(TenantScopedBase):
+    """自定义字段定义"""
+    __tablename__ = "custom_field_defs"
+
+    entity_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    # customer / project / lead / contact / service_ticket
+    field_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    field_label: Mapped[str] = mapped_column(String(100), nullable=False)
+    field_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    # text / number / date / select / multiselect / boolean
+    options_json: Mapped[dict | None] = mapped_column(JSON)
+    # for select/multiselect: ["option1", "option2"]
+    required: Mapped[bool] = mapped_column(Boolean, default=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class IntegrationEndpoint(TenantScopedBase):
     """集成端点配置"""
     __tablename__ = "integration_endpoints"

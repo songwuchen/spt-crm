@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Table, Button, Input, Select, Space, Modal, Form, Progress, message } from 'antd'
-import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
+import ImportModal from '@/components/ImportModal'
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { projectApi } from '@/api/project'
@@ -30,6 +31,7 @@ export default function OpportunityList() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [batchStageModal, setBatchStageModal] = useState(false)
   const [batchStage, setBatchStage] = useState<string>('S1')
+  const [importModal, setImportModal] = useState(false)
   const [batchTransferModal, setBatchTransferModal] = useState(false)
   const [transferForm] = Form.useForm()
   const userSelect = useRemoteSelect(async (kw) => {
@@ -200,6 +202,7 @@ export default function OpportunityList() {
               </Button>
             </>
           )}
+          <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>导入</Button>
           <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/projects/export/excel', 'projects.xlsx')}>导出</Button>
           <button onClick={() => navigate('/opportunities/kanban')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
@@ -241,6 +244,17 @@ export default function OpportunityList() {
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
         />
       </div>
+
+      {/* Import Modal */}
+      <ImportModal
+        open={importModal}
+        onClose={() => setImportModal(false)}
+        onSuccess={() => fetchData()}
+        previewUrl="/api/v1/projects/import/preview"
+        importUrl="/api/v1/projects/import/excel"
+        title="导入商机"
+        expectedHeaders={['项目名称', '预计金额', '概率(%)', '预计关闭日', '风险等级', '备注']}
+      />
 
       {/* Batch Stage Modal */}
       <Modal title="批量变更阶段" open={batchStageModal} onOk={handleBatchStageChange}

@@ -319,7 +319,7 @@ export default function CustomerDetail() {
                   label: <span className="font-semibold">互动记录</span>,
                   children: (
                     <div className="py-4">
-                      <ActivityTimeline bizType="customer" bizId={id!} />
+                      <ActivityTimeline bizType="customer" bizId={id!} customerId={id!} />
                     </div>
                   ),
                 },

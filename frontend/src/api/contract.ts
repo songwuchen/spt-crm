@@ -2,6 +2,8 @@ import client from './client'
 import type { ApiResponse, ContractItem, ContractVersion } from './types'
 
 export const contractApi = {
+  list: (params?: Record<string, unknown>) =>
+    client.get('/api/v1/contracts', { params }),
   listByProject: (projectId: string) =>
     client.get<unknown, ApiResponse<ContractItem[]>>(`/api/v1/projects/${projectId}/contracts`),
   create: (projectId: string, data: Record<string, unknown>) =>

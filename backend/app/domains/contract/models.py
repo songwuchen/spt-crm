@@ -13,6 +13,7 @@ class Contract(TenantScopedBase):
     current_version_no: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(16), default="draft")  # draft/signed/terminated
     signed_date: Mapped[str | None] = mapped_column(Date)
+    end_date: Mapped[str | None] = mapped_column(Date)
     amount_total: Mapped[float | None] = mapped_column(Numeric(18, 2))
     payment_terms_json: Mapped[dict | None] = mapped_column(JSON)
     delivery_terms_json: Mapped[dict | None] = mapped_column(JSON)

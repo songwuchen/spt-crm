@@ -156,6 +156,7 @@ export default function ContractDetail() {
           </Descriptions.Item>
           <Descriptions.Item label="状态"><Tag color={statusColors[contract.status]}>{contract.status}</Tag></Descriptions.Item>
           <Descriptions.Item label="签署日期">{contract.signed_date || '-'}</Descriptions.Item>
+          <Descriptions.Item label="到期日期">{contract.end_date || '-'}</Descriptions.Item>
         </Descriptions>
 
         {contract.payment_terms_json && (

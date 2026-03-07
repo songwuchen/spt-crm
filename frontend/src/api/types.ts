@@ -224,6 +224,7 @@ export interface ContractItem {
   current_version_no: number
   status: string
   signed_date?: string
+  end_date?: string
   amount_total?: number
   payment_terms_json?: Record<string, unknown>
   delivery_terms_json?: Record<string, unknown>
@@ -448,6 +449,7 @@ export interface ActivityItem {
   activity_type: string
   subject?: string
   content?: string
+  contact_id?: string
   contact_name?: string
   result_json?: Record<string, unknown>
   next_follow_date?: string | null
