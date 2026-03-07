@@ -1,42 +1,43 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { t } from '@/locales'
 
 interface MenuItem {
   key: string
   icon: string
-  label: string
+  labelKey: string
   permission?: string
 }
 
-const menuGroups: { title: string; items: MenuItem[] }[] = [
+const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
   {
-    title: '业务管理',
+    titleKey: 'nav.businessGroup',
     items: [
-      { key: '/', icon: 'dashboard', label: '工作台' },
-      { key: '/customers', icon: 'business', label: '客户管理', permission: 'customer:view' },
-      { key: '/customer-pool', icon: 'waves', label: '客户公海', permission: 'customer:view' },
-      { key: '/leads', icon: 'trending_up', label: '线索管理', permission: 'lead:view' },
-      { key: '/opportunities', icon: 'rocket_launch', label: '商机管理', permission: 'project:view' },
-      { key: '/products', icon: 'inventory_2', label: '产品目录', permission: 'product:view' },
-      { key: '/follow-ups', icon: 'contact_phone', label: '跟进记录', permission: 'customer:view' },
-      { key: '/payments', icon: 'account_balance', label: '回款管理', permission: 'payment:view' },
-      { key: '/service-tickets', icon: 'confirmation_number', label: '售后工单', permission: 'service:view' },
-      { key: '/sales-targets', icon: 'flag', label: '销售目标', permission: 'project:view' },
-      { key: '/analytics', icon: 'analytics', label: '报表中心', permission: 'project:view' },
-      { key: '/tasks', icon: 'checklist', label: '待办任务' },
-      { key: '/approvals', icon: 'task_alt', label: '审批中心' },
-      { key: '/ai-center', icon: 'smart_toy', label: 'AI 任务中心', permission: 'project:view' },
+      { key: '/', icon: 'dashboard', labelKey: 'nav.dashboard' },
+      { key: '/customers', icon: 'business', labelKey: 'nav.customers', permission: 'customer:view' },
+      { key: '/customer-pool', icon: 'waves', labelKey: 'nav.customerPool', permission: 'customer:view' },
+      { key: '/leads', icon: 'trending_up', labelKey: 'nav.leads', permission: 'lead:view' },
+      { key: '/opportunities', icon: 'rocket_launch', labelKey: 'nav.opportunities', permission: 'project:view' },
+      { key: '/products', icon: 'inventory_2', labelKey: 'nav.products', permission: 'product:view' },
+      { key: '/follow-ups', icon: 'contact_phone', labelKey: 'nav.followUps', permission: 'customer:view' },
+      { key: '/payments', icon: 'account_balance', labelKey: 'nav.payments', permission: 'payment:view' },
+      { key: '/service-tickets', icon: 'confirmation_number', labelKey: 'nav.serviceTickets', permission: 'service:view' },
+      { key: '/sales-targets', icon: 'flag', labelKey: 'nav.salesTargets', permission: 'project:view' },
+      { key: '/analytics', icon: 'analytics', labelKey: 'nav.analytics', permission: 'project:view' },
+      { key: '/tasks', icon: 'checklist', labelKey: 'nav.tasks' },
+      { key: '/approvals', icon: 'task_alt', labelKey: 'nav.approvals' },
+      { key: '/ai-center', icon: 'smart_toy', labelKey: 'nav.aiCenter', permission: 'project:view' },
     ],
   },
   {
-    title: '系统设置',
+    titleKey: 'nav.systemGroup',
     items: [
-      { key: '/admin/departments', icon: 'account_tree', label: '部门管理', permission: 'dept:view' },
-      { key: '/admin/users', icon: 'group', label: '用户管理', permission: 'user:view' },
-      { key: '/admin/roles', icon: 'admin_panel_settings', label: '角色权限', permission: 'role:view' },
-      { key: '/admin/audit', icon: 'history', label: '审计日志', permission: 'audit:view' },
-      { key: '/admin/settings', icon: 'settings', label: '系统配置', permission: 'role:manage' },
-      { key: '/admin/api-docs', icon: 'api', label: 'API 文档', permission: 'role:manage' },
+      { key: '/admin/departments', icon: 'account_tree', labelKey: 'nav.departments', permission: 'dept:view' },
+      { key: '/admin/users', icon: 'group', labelKey: 'nav.users', permission: 'user:view' },
+      { key: '/admin/roles', icon: 'admin_panel_settings', labelKey: 'nav.roles', permission: 'role:view' },
+      { key: '/admin/audit', icon: 'history', labelKey: 'nav.auditLog', permission: 'audit:view' },
+      { key: '/admin/settings', icon: 'settings', labelKey: 'nav.settings', permission: 'role:manage' },
+      { key: '/admin/api-docs', icon: 'api', labelKey: 'nav.apiDocs', permission: 'role:manage' },
     ],
   },
 ]
@@ -88,8 +89,8 @@ export default function Sidebar() {
           )
           if (visibleItems.length === 0) return null
           return (
-            <div key={group.title} className="sidebar-group">
-              <div className="sidebar-group-title">{group.title}</div>
+            <div key={group.titleKey} className="sidebar-group">
+              <div className="sidebar-group-title">{t(group.titleKey)}</div>
               <nav className="sidebar-group-nav">
                 {visibleItems.map((item) => {
                   const isActive = selectedKey === item.key
@@ -100,7 +101,7 @@ export default function Sidebar() {
                       className={`sidebar-item ${isActive ? 'sidebar-item--active' : ''}`}
                     >
                       <span className="material-symbols-outlined sidebar-item-icon">{item.icon}</span>
-                      <span className="sidebar-item-label">{item.label}</span>
+                      <span className="sidebar-item-label">{t(item.labelKey)}</span>
                     </button>
                   )
                 })}

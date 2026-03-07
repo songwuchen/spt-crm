@@ -235,6 +235,42 @@ async def check_expiring_contracts(db: AsyncSession) -> int:
     return notified
 
 
+AUDIT_RETENTION_DAYS = 180  # Keep audit logs for 6 months
+
+
+async def cleanup_old_audit_logs(db: AsyncSession) -> int:
+    """Delete audit logs older than retention period."""
+    from sqlalchemy import delete as sql_delete
+    from app.domains.audit.models import AuditLog
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=AUDIT_RETENTION_DAYS)
+    result = await db.execute(
+        sql_delete(AuditLog).where(AuditLog.created_at < cutoff)
+    )
+    if result.rowcount > 0:
+        await db.commit()
+        logger.info(f"Cleaned up {result.rowcount} old audit log entries (>{AUDIT_RETENTION_DAYS} days)")
+    return result.rowcount
+
+
+async def cleanup_old_notifications(db: AsyncSession) -> int:
+    """Delete read notifications older than 90 days."""
+    from sqlalchemy import delete as sql_delete
+    _Notification = _notification_model()
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    result = await db.execute(
+        sql_delete(_Notification).where(
+            _Notification.is_read == True,
+            _Notification.created_at < cutoff,
+        )
+    )
+    if result.rowcount > 0:
+        await db.commit()
+        logger.info(f"Cleaned up {result.rowcount} old read notifications (>90 days)")
+    return result.rowcount
+
+
 async def run_once():
     """Single reminder check cycle."""
     async with async_session_factory() as db:
@@ -242,6 +278,8 @@ async def run_once():
         payments = await check_upcoming_payments(db)
         sla = await check_approval_sla(db)
         contracts = await check_expiring_contracts(db)
+        audit_cleanup = await cleanup_old_audit_logs(db)
+        notif_cleanup = await cleanup_old_notifications(db)
 
         total = stale + payments + sla + contracts
         if total > 0:
@@ -249,6 +287,8 @@ async def run_once():
                 f"Reminders sent: stale_projects={stale}, upcoming_payments={payments}, "
                 f"sla_violations={sla}, expiring_contracts={contracts}"
             )
+        if audit_cleanup + notif_cleanup > 0:
+            logger.info(f"Cleanup: audit_logs={audit_cleanup}, notifications={notif_cleanup}")
         return total
 
 

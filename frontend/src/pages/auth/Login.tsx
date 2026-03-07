@@ -5,9 +5,10 @@ import { useNavigate } from 'react-router-dom'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { t } from '@/locales'
 
 export default function Login() {
-  usePageTitle('登录')
+  usePageTitle(t('auth.login'))
   const navigate = useNavigate()
   const { token, setAuth } = useAuthStore()
   const [form] = Form.useForm()
@@ -30,18 +31,18 @@ export default function Login() {
   return (
     <div className="h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-96 shadow-lg">
-        <h1 className="text-2xl font-bold text-center mb-6">SPT-CRM</h1>
-        <p className="text-center text-gray-500 mb-8">离散制造业 CRM + AI 平台</p>
+        <h1 className="text-2xl font-bold text-center mb-6">{t('auth.loginTitle')}</h1>
+        <p className="text-center text-gray-500 mb-8">{t('auth.loginSubtitle')}</p>
         <Form form={form} onFinish={onFinish} size="large">
-          <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
-            <Input prefix={<UserOutlined />} placeholder="用户名" />
+          <Form.Item name="username" rules={[{ required: true, message: t('auth.username') }]}>
+            <Input prefix={<UserOutlined />} placeholder={t('auth.username')} />
           </Form.Item>
-          <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="密码" />
+          <Form.Item name="password" rules={[{ required: true, message: t('auth.password') }]}>
+            <Input.Password prefix={<LockOutlined />} placeholder={t('auth.password')} />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block>
-              登录
+              {t('auth.login')}
             </Button>
           </Form.Item>
         </Form>

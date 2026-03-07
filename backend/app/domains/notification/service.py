@@ -1,4 +1,4 @@
-from sqlalchemy import select, func, update
+from sqlalchemy import select, func, update, delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
@@ -48,6 +48,29 @@ async def mark_all_read(db: AsyncSession, tenant_id: str, recipient_id: str):
         ).values(is_read=True)
     )
     await db.commit()
+
+
+async def delete_notification(db: AsyncSession, tenant_id: str, recipient_id: str, notification_id: str):
+    await db.execute(
+        sql_delete(Notification).where(
+            Notification.tenant_id == tenant_id,
+            Notification.recipient_id == recipient_id,
+            Notification.id == notification_id,
+        )
+    )
+    await db.commit()
+
+
+async def batch_delete(db: AsyncSession, tenant_id: str, recipient_id: str, ids: list[str]) -> int:
+    result = await db.execute(
+        sql_delete(Notification).where(
+            Notification.tenant_id == tenant_id,
+            Notification.recipient_id == recipient_id,
+            Notification.id.in_(ids),
+        )
+    )
+    await db.commit()
+    return result.rowcount
 
 
 async def create_notification(db: AsyncSession, tenant_id: str, data: dict) -> Notification:

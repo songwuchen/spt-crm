@@ -23,8 +23,8 @@ describe('Login', () => {
 
   it('renders login form with title', () => {
     render(<Login />)
-    expect(screen.getByText('SPT-CRM')).toBeInTheDocument()
-    expect(screen.getByText('离散制造业 CRM + AI 平台')).toBeInTheDocument()
+    expect(screen.getByText(/SPT-CRM/)).toBeInTheDocument()
+    expect(screen.getByText(/智能销售项目管理平台/)).toBeInTheDocument()
   })
 
   it('renders username and password inputs', () => {

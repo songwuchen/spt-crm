@@ -125,6 +125,28 @@ async def update_profile(body: UpdateProfileRequest, current_user: dict = Depend
     return ok({"real_name": user.real_name, "phone": user.phone, "email": user.email})
 
 
+@router.get("/login-history")
+async def login_history(current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Return recent login events for the current user."""
+    from sqlalchemy import select
+    from app.domains.audit.models import AuditLog
+
+    user_id = current_user["sub"]
+    items = (await db.execute(
+        select(AuditLog).where(
+            AuditLog.user_id == user_id,
+            AuditLog.resource_type == "auth",
+            AuditLog.action == "login",
+        ).order_by(AuditLog.created_at.desc()).limit(20)
+    )).scalars().all()
+    return ok([{
+        "id": log.id,
+        "summary": log.summary,
+        "ip": log.ip,
+        "created_at": log.created_at.isoformat() if log.created_at else "",
+    } for log in items])
+
+
 @router.post("/change-password")
 async def change_password(body: ChangePasswordRequest, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     import bcrypt

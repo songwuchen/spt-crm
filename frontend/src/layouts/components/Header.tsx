@@ -6,7 +6,7 @@ import { useAppStore } from '@/stores/useAppStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import NotificationBell from '@/components/NotificationBell'
 import client from '@/api/client'
-import { useLocale, localeLabels, type LocaleCode } from '@/locales'
+import { t, useLocale, localeLabels, type LocaleCode } from '@/locales'
 
 interface SearchResult {
   type: string
@@ -169,9 +169,9 @@ export default function Header() {
         <Dropdown
           menu={{
             items: [
-              { key: 'profile', icon: <UserOutlined />, label: '个人中心', onClick: () => navigate('/profile') },
+              { key: 'profile', icon: <UserOutlined />, label: t('nav.profile'), onClick: () => navigate('/profile') },
               { type: 'divider' as const },
-              { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: handleLogout },
+              { key: 'logout', icon: <LogoutOutlined />, label: t('auth.logout'), onClick: handleLogout },
             ],
           }}
           placement="bottomRight"

@@ -50,12 +50,18 @@ const MobileTasks = lazy(() => import('@/pages/mobile/MobileTasks'))
 const MobileOpportunityDetail = lazy(() => import('@/pages/mobile/MobileOpportunityDetail'))
 const MobileCustomerDetail = lazy(() => import('@/pages/mobile/MobileCustomerDetail'))
 const MobileContracts = lazy(() => import('@/pages/mobile/MobileContracts'))
+const MobilePayments = lazy(() => import('@/pages/mobile/MobilePayments'))
+const MobileServiceTicketDetail = lazy(() => import('@/pages/mobile/MobileServiceTicketDetail'))
+const MobileCalendar = lazy(() => import('@/pages/mobile/MobileCalendar'))
 const NotificationCenter = lazy(() => import('@/pages/notification/NotificationCenter'))
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
 const ProductList = lazy(() => import('@/pages/product/ProductList'))
 const TaskPage = lazy(() => import('@/pages/task/TaskPage'))
 const CalendarPage = lazy(() => import('@/pages/calendar/CalendarPage'))
 const ApiDocsPage = lazy(() => import('@/pages/admin/ApiDocsPage'))
+const ProductReport = lazy(() => import('@/pages/report/ProductReport'))
+const CustomerLifecycleReport = lazy(() => import('@/pages/report/CustomerLifecycleReport'))
+const TeamPerformanceReport = lazy(() => import('@/pages/report/TeamPerformanceReport'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
 function Lazy({ children }: { children: React.ReactNode }) {
@@ -103,6 +109,9 @@ export const router = createBrowserRouter([
       { path: 'calendar', element: <Lazy><CalendarPage /></Lazy> },
       { path: 'analytics', element: <Guard permission="project:view"><AnalyticsPage /></Guard> },
       { path: 'sales-targets', element: <Guard permission="project:view"><SalesTargetPage /></Guard> },
+      { path: 'reports/product', element: <Guard permission="product:view"><ProductReport /></Guard> },
+      { path: 'reports/customer-lifecycle', element: <Guard permission="customer:view"><CustomerLifecycleReport /></Guard> },
+      { path: 'reports/team-performance', element: <Guard permission="project:view"><TeamPerformanceReport /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },
       { path: 'ai-center', element: <Guard permission="project:view"><AiCenterPage /></Guard> },
       { path: 'notifications', element: <Lazy><NotificationCenter /></Lazy> },
@@ -131,6 +140,9 @@ export const router = createBrowserRouter([
       { path: 'customers/:id', element: <Lazy><MobileCustomerDetail /></Lazy> },
       { path: 'customers/new', element: <Lazy><MobileCustomerForm /></Lazy> },
       { path: 'contracts', element: <Lazy><MobileContracts /></Lazy> },
+      { path: 'payments', element: <Lazy><MobilePayments /></Lazy> },
+      { path: 'service-tickets/:id', element: <Lazy><MobileServiceTicketDetail /></Lazy> },
+      { path: 'calendar', element: <Lazy><MobileCalendar /></Lazy> },
       { path: 'leads/:id', element: <Lazy><MobileLeadDetail /></Lazy> },
       { path: 'tasks', element: <Lazy><MobileTasks /></Lazy> },
       { path: 'follow-up/new', element: <Lazy><MobileFollowUp /></Lazy> },

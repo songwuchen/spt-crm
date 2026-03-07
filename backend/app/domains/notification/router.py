@@ -65,6 +65,28 @@ async def mark_all_read(
     return ok(None)
 
 
+@router.delete("/api/v1/notifications/{notification_id}")
+async def delete_notification(
+    notification_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions()),
+):
+    await service.delete_notification(db, tenant_id, current_user["sub"], notification_id)
+    return ok(None)
+
+
+@router.post("/api/v1/notifications/batch_delete")
+async def batch_delete(
+    body: MarkReadRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions()),
+):
+    count = await service.batch_delete(db, tenant_id, current_user["sub"], body.ids)
+    return ok({"deleted": count})
+
+
 # ---- Notification Preferences ----
 
 NOTIFICATION_TYPES = [
