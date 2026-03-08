@@ -16,9 +16,23 @@ vi.mock('@/api/serviceTicket', () => ({
 
 vi.mock('@/api/activity', () => ({
   activityApi: {
-    list: vi.fn().mockResolvedValue({ data: { items: [], total: 0 } }),
+    list: vi.fn().mockResolvedValue({ data: [] }),
     create: vi.fn().mockResolvedValue({ data: {} }),
+    togglePin: vi.fn().mockResolvedValue({ data: {} }),
+    delete: vi.fn().mockResolvedValue({ data: null }),
   },
+}))
+
+vi.mock('@/api/attachment', () => ({
+  attachmentApi: {
+    list: vi.fn().mockResolvedValue({ data: [] }),
+    upload: vi.fn().mockResolvedValue({ data: {} }),
+    delete: vi.fn().mockResolvedValue({ data: null }),
+  },
+}))
+
+vi.mock('@/components/VoiceInput', () => ({
+  default: () => null,
 }))
 
 vi.mock('@/api/user', () => ({
@@ -59,7 +73,6 @@ import ProfilePage from '../profile/ProfilePage'
 describe('LeadDetail', () => {
   it('renders page structure', () => {
     render(<LeadDetail />)
-    // Should render loading skeleton initially
     expect(document.querySelector('.ant-skeleton') || document.querySelector('[class*="skeleton"]')).toBeTruthy()
   })
 })
