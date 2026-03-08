@@ -147,6 +147,122 @@ async def update_preferences(
     return ok({"preferences": prefs})
 
 
+# ---- Notification Templates ----
+
+TEMPLATE_VARIABLES = [
+    {"key": "customer_name", "label": "客户名称"},
+    {"key": "project_name", "label": "商机名称"},
+    {"key": "user_name", "label": "操作人"},
+    {"key": "amount", "label": "金额"},
+    {"key": "stage", "label": "阶段"},
+    {"key": "date", "label": "日期"},
+    {"key": "contract_no", "label": "合同编号"},
+    {"key": "quote_no", "label": "报价编号"},
+]
+
+
+@router.get("/api/v1/notification_templates")
+async def list_templates(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    from sqlalchemy import select
+    from app.domains.notification.models import NotificationTemplate
+    items = (await db.execute(
+        select(NotificationTemplate).where(
+            NotificationTemplate.tenant_id == tenant_id,
+            NotificationTemplate.is_deleted == False,
+        ).order_by(NotificationTemplate.event_type)
+    )).scalars().all()
+    return ok({
+        "items": [{
+            "id": t.id, "event_type": t.event_type,
+            "title_template": t.title_template,
+            "content_template": t.content_template,
+            "is_active": t.is_active,
+        } for t in items],
+        "variables": TEMPLATE_VARIABLES,
+        "event_types": NOTIFICATION_TYPES,
+    })
+
+
+@router.post("/api/v1/notification_templates")
+async def create_template(
+    body: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    from app.database import generate_uuid
+    from app.domains.notification.models import NotificationTemplate
+    t = NotificationTemplate(
+        id=generate_uuid(), tenant_id=tenant_id,
+        event_type=body["event_type"],
+        title_template=body["title_template"],
+        content_template=body.get("content_template"),
+        is_active=body.get("is_active", True),
+    )
+    db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    return ok({"id": t.id, "event_type": t.event_type, "title_template": t.title_template,
+               "content_template": t.content_template, "is_active": t.is_active})
+
+
+@router.put("/api/v1/notification_templates/{template_id}")
+async def update_template(
+    template_id: str,
+    body: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    from sqlalchemy import select
+    from app.domains.notification.models import NotificationTemplate
+    t = (await db.execute(
+        select(NotificationTemplate).where(
+            NotificationTemplate.tenant_id == tenant_id,
+            NotificationTemplate.id == template_id,
+        )
+    )).scalar()
+    if not t:
+        from app.common.exceptions import BusinessException
+        raise BusinessException("模板不存在")
+    if "title_template" in body:
+        t.title_template = body["title_template"]
+    if "content_template" in body:
+        t.content_template = body["content_template"]
+    if "is_active" in body:
+        t.is_active = body["is_active"]
+    if "event_type" in body:
+        t.event_type = body["event_type"]
+    await db.commit()
+    return ok({"id": t.id, "event_type": t.event_type, "title_template": t.title_template,
+               "content_template": t.content_template, "is_active": t.is_active})
+
+
+@router.delete("/api/v1/notification_templates/{template_id}")
+async def delete_template(
+    template_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    from sqlalchemy import select
+    from app.domains.notification.models import NotificationTemplate
+    t = (await db.execute(
+        select(NotificationTemplate).where(
+            NotificationTemplate.tenant_id == tenant_id,
+            NotificationTemplate.id == template_id,
+        )
+    )).scalar()
+    if t:
+        t.is_deleted = True
+        await db.commit()
+    return ok(None)
+
+
 @router.websocket("/ws/notifications")
 async def ws_notifications(ws: WebSocket):
     """WebSocket endpoint for real-time notifications.

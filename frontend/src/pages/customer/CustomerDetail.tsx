@@ -58,6 +58,7 @@ export default function CustomerDetail() {
   const [contracts, setContracts] = useState<{ id: string; contract_no: string; status: string; amount?: number; created_at?: string }[]>([])
   const [mergeModal, setMergeModal] = useState(false)
   const [mergeTargetId, setMergeTargetId] = useState<string | undefined>()
+  const [health, setHealth] = useState<{ score: number; grade: string; breakdown: Record<string, { score: number; max: number; detail: string }> } | null>(null)
 
   const customerSelect = useRemoteSelect(async (kw) => {
     const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
@@ -87,6 +88,7 @@ export default function CustomerDetail() {
   useEffect(() => {
     if (id) {
       fetchCustomer(); fetchContacts(); fetchRelations(); fetchShares(); fetchStats(); fetchProjects(); fetchTickets()
+      customerApi.health(id).then(r => setHealth(r.data)).catch(() => {})
       customerApi.list({ pageNo: 1, pageSize: 100 }).then((r) => setAllCustomers(r.data.items)).catch(() => {})
     }
   }, [id])
@@ -239,6 +241,41 @@ export default function CustomerDetail() {
           </div>
         ))}
       </div>
+
+      {/* Health Score */}
+      {health && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6">
+          <div className="flex items-center gap-4 mb-3">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-lg font-black ${
+              health.grade === 'A' ? 'bg-emerald-50 text-emerald-600' :
+              health.grade === 'B' ? 'bg-blue-50 text-blue-600' :
+              health.grade === 'C' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'
+            }`}>{health.grade}</div>
+            <div>
+              <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">健康度评分</div>
+              <div className="text-xl font-black text-slate-900">{health.score}<span className="text-sm text-slate-400 font-normal">/100</span></div>
+            </div>
+            <div className="flex-1">
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${
+                  health.score >= 80 ? 'bg-emerald-500' : health.score >= 60 ? 'bg-blue-500' : health.score >= 40 ? 'bg-amber-500' : 'bg-red-500'
+                }`} style={{ width: `${health.score}%` }} />
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-4 gap-3">
+            {Object.entries(health.breakdown).map(([key, b]) => (
+              <div key={key} className="text-center">
+                <div className="text-xs font-bold text-slate-500">{b.score}/{b.max}</div>
+                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1 mb-1">
+                  <div className="h-full bg-primary rounded-full" style={{ width: `${(b.score / b.max) * 100}%` }} />
+                </div>
+                <div className="text-[10px] text-slate-400">{b.detail}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Profile Metrics */}
       {(stats.won_count > 0 || stats.lost_count > 0 || stats.collection_rate > 0) && (

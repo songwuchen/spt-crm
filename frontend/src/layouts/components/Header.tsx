@@ -36,7 +36,14 @@ export default function Header() {
   const [searching, setSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<any>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const handler = () => searchInputRef.current?.focus()
+    window.addEventListener('focus-search', handler)
+    return () => window.removeEventListener('focus-search', handler)
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -132,7 +139,8 @@ export default function Header() {
         </button>
         <div ref={searchRef} style={{ position: 'relative' }} data-tour="search">
           <Input
-            placeholder="搜索客户、线索、商机、工单..."
+            ref={searchInputRef}
+            placeholder="搜索客户、线索、商机... (Ctrl+K)"
             prefix={searching ? <Spin size="small" /> : <SearchOutlined className="text-slate-400" />}
             className="w-40 sm:w-56 md:w-72 rounded-lg"
             style={{ background: '#f1f5f9', borderColor: 'transparent' }}

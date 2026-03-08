@@ -1504,3 +1504,158 @@ async def global_search(
                         "url": f"/service-tickets"})
 
     return ok(results)
+
+
+# --- Win Forecast ---
+
+STAGE_PROBABILITIES = {"S1": 0.10, "S2": 0.20, "S3": 0.40, "S4": 0.60, "S5": 0.80, "S6": 0.95}
+
+
+@router.get("/win_forecast")
+async def win_forecast(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Calculate weighted pipeline forecast by stage."""
+    projects = (await db.execute(
+        select(
+            OpportunityProject.stage_code,
+            func.count(OpportunityProject.id).label("count"),
+            func.coalesce(func.sum(OpportunityProject.amount_expect), 0).label("total"),
+        ).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.is_deleted == False,
+            OpportunityProject.status == "active",
+        ).group_by(OpportunityProject.stage_code)
+    )).all()
+
+    stages = []
+    weighted_total = 0.0
+    pipeline_total = 0.0
+    for row in projects:
+        prob = STAGE_PROBABILITIES.get(row.stage_code, 0.5)
+        amount = float(row.total or 0)
+        weighted = amount * prob
+        weighted_total += weighted
+        pipeline_total += amount
+        stages.append({
+            "stage": row.stage_code,
+            "count": row.count,
+            "amount": amount,
+            "probability": prob,
+            "weighted_amount": round(weighted, 2),
+        })
+
+    return ok({
+        "stages": sorted(stages, key=lambda x: x["stage"]),
+        "pipeline_total": round(pipeline_total, 2),
+        "weighted_total": round(weighted_total, 2),
+    })
+
+
+@router.get("/calendar_events")
+async def calendar_events(
+    year: int = Query(...),
+    month: int = Query(..., ge=1, le=12),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Return payment plans, contract expiries, and milestones for a given month."""
+    import calendar as cal_mod
+    from datetime import date as date_cls
+
+    start_date = date_cls(year, month, 1)
+    last_day = cal_mod.monthrange(year, month)[1]
+    end_date = date_cls(year, month, last_day)
+
+    events = []
+
+    # Payment plans due in range
+    plans = (await db.execute(
+        select(PaymentPlan, OpportunityProject.name.label("project_name")).join(
+            OpportunityProject, OpportunityProject.id == PaymentPlan.project_id
+        ).where(
+            PaymentPlan.tenant_id == tenant_id,
+            PaymentPlan.is_deleted == False,
+            PaymentPlan.due_date >= start_date,
+            PaymentPlan.due_date <= end_date,
+        )
+    )).all()
+
+    for pp, project_name in plans:
+        events.append({
+            "id": pp.id,
+            "type": "payment_due",
+            "title": f"回款: {project_name} - {pp.plan_no}",
+            "date": str(pp.due_date),
+            "amount": float(pp.amount or 0),
+            "status": pp.status,
+            "color": "#f59e0b",
+        })
+
+    # Contracts expiring in range
+    contracts = (await db.execute(
+        select(Contract).where(
+            Contract.tenant_id == tenant_id,
+            Contract.is_deleted == False,
+            Contract.end_date >= start_date,
+            Contract.end_date <= end_date,
+        )
+    )).scalars().all()
+
+    for c in contracts:
+        events.append({
+            "id": c.id,
+            "type": "contract_expiry",
+            "title": f"合同到期: {c.contract_no}",
+            "date": str(c.end_date),
+            "amount": float(c.amount_total or 0),
+            "status": c.status,
+            "color": "#ef4444",
+        })
+
+    # Delivery milestones in range
+    milestones = (await db.execute(
+        select(DeliveryMilestone, OpportunityProject.name.label("project_name")).join(
+            OpportunityProject, OpportunityProject.id == DeliveryMilestone.project_id
+        ).where(
+            DeliveryMilestone.tenant_id == tenant_id,
+            DeliveryMilestone.is_deleted == False,
+            DeliveryMilestone.plan_date >= start_date,
+            DeliveryMilestone.plan_date <= end_date,
+        )
+    )).all()
+
+    for ms, project_name in milestones:
+        events.append({
+            "id": ms.id,
+            "type": "milestone",
+            "title": f"里程碑: {project_name} - {ms.name}",
+            "date": str(ms.plan_date),
+            "status": ms.status,
+            "color": "#8b5cf6",
+        })
+
+    return ok(events)
+
+
+@router.get("/rate_limit_stats")
+async def rate_limit_stats(
+    _user=Depends(require_permissions("role:manage")),
+):
+    """Return rate limiter stats for admin dashboard."""
+    try:
+        from app.middleware.rate_limiter import RateLimitMiddleware
+        from app.main import app as fastapi_app
+        current = fastapi_app
+        for _ in range(20):
+            if isinstance(current, RateLimitMiddleware):
+                return ok(current.get_stats())
+            current = getattr(current, "app", None)
+            if current is None:
+                break
+        return ok({"rpm_limit": 120, "active_clients": 0, "total_rejected": 0, "clients": []})
+    except Exception:
+        return ok({"rpm_limit": 120, "active_clients": 0, "total_rejected": 0, "clients": []})

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Form, Input, Select, Button, Card, message } from 'antd'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { Form, Input, Select, Button, Card, Alert, message } from 'antd'
 import { useParams, useNavigate } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
 import { userApi } from '@/api/user'
@@ -34,6 +34,20 @@ export default function CustomerForm() {
     const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
     return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
   })
+
+  const [similarCustomers, setSimilarCustomers] = useState<{ id: string; name: string; short_name?: string; industry?: string; owner_name?: string }[]>([])
+  const dupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const checkDuplicates = useCallback((name: string) => {
+    if (dupTimerRef.current) clearTimeout(dupTimerRef.current)
+    if (!name || name.length < 2) { setSimilarCustomers([]); return }
+    dupTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await customerApi.checkSimilar(name, id)
+        setSimilarCustomers(res.data || [])
+      } catch { /* ignore */ }
+    }, 500)
+  }, [id])
 
   const { restoreDraft, clearDraft } = useAutoSave(`customer_form_${id || 'new'}`, form)
 
@@ -71,8 +85,24 @@ export default function CustomerForm() {
       <Card>
         <Form form={form} layout="vertical" onFinish={onFinish} className="max-w-2xl">
           <Form.Item name="name" label="客户名称" rules={[{ required: true, message: '请输入客户名称' }]}>
-            <Input placeholder="请输入客户全称" />
+            <Input placeholder="请输入客户全称" onChange={(e) => checkDuplicates(e.target.value)} />
           </Form.Item>
+          {similarCustomers.length > 0 && (
+            <Alert type="warning" showIcon className="mb-4"
+              message={`发现 ${similarCustomers.length} 个相似客户`}
+              description={
+                <div className="mt-1 space-y-1">
+                  {similarCustomers.map((c) => (
+                    <div key={c.id} className="flex items-center gap-2 text-sm">
+                      <a onClick={() => navigate(`/customers/${c.id}`)} className="text-primary font-bold hover:underline">{c.name}</a>
+                      {c.industry && <span className="text-slate-400 text-xs">{c.industry}</span>}
+                      {c.owner_name && <span className="text-slate-400 text-xs">负责人: {c.owner_name}</span>}
+                    </div>
+                  ))}
+                </div>
+              }
+            />
+          )}
           <Form.Item name="short_name" label="简称">
             <Input placeholder="请输入简称" />
           </Form.Item>

@@ -93,6 +93,7 @@ export default function AnalyticsPage() {
   const [trendData, setTrendData] = useState<TrendItem[]>([])
   const [collectionData, setCollectionData] = useState<CollectionItem[]>([])
   const [regionStats, setRegionStats] = useState<{ region: string; count: number }[]>([])
+  const [forecast, setForecast] = useState<{ stages: { stage: string; count: number; amount: number; probability: number; weighted_amount: number }[]; pipeline_total: number; weighted_total: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [periodLabel, setPeriodLabel] = useState('全部')
@@ -105,7 +106,7 @@ export default function AnalyticsPage() {
       params.end_date = dateRange[1].format('YYYY-MM-DD')
     }
     try {
-      const [fRes, wRes, tRes, pRes, mRes, rRes, lRes, trRes, cRes, rgRes] = await Promise.all([
+      const [fRes, wRes, tRes, pRes, mRes, rRes, lRes, trRes, cRes, rgRes, fcRes] = await Promise.all([
         dashboardApi.funnel(params),
         dashboardApi.winLoss(params),
         dashboardApi.topCustomers(params),
@@ -116,6 +117,7 @@ export default function AnalyticsPage() {
         dashboardApi.trend(params),
         dashboardApi.collection(params),
         dashboardApi.customerRegionStats(),
+        dashboardApi.winForecast(),
       ]) as { data: unknown }[]
       setFunnel((fRes.data as FunnelItem[]) || [])
       setWinLoss((wRes.data as WinLoss) || null)
@@ -127,6 +129,7 @@ export default function AnalyticsPage() {
       setTrendData((trRes.data as TrendItem[]) || [])
       setCollectionData((cRes.data as CollectionItem[]) || [])
       setRegionStats((rgRes.data as { region: string; count: number }[]) || [])
+      setForecast((fcRes.data as typeof forecast) || null)
     } finally {
       setLoading(false)
     }
@@ -629,6 +632,36 @@ export default function AnalyticsPage() {
           </div>
         </div>
       )}
+
+      {/* Win Forecast */}
+        {forecast && forecast.stages.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">赢率加权预测</h3>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <div className="text-xs text-blue-500 font-bold">管线总额</div>
+                <div className="text-2xl font-black text-blue-700">¥{forecast.pipeline_total.toLocaleString()}</div>
+              </div>
+              <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
+                <div className="text-xs text-emerald-500 font-bold">加权预测</div>
+                <div className="text-2xl font-black text-emerald-700">¥{forecast.weighted_total.toLocaleString()}</div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {forecast.stages.map((s) => (
+                <div key={s.stage} className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-slate-500 w-8">{s.stage}</span>
+                  <div className="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden">
+                    <div className="bg-primary h-full rounded-full transition-all" style={{ width: `${s.probability * 100}%` }} />
+                  </div>
+                  <span className="text-xs text-slate-500 w-10 text-right">{(s.probability * 100).toFixed(0)}%</span>
+                  <span className="text-xs font-bold text-slate-700 w-24 text-right">¥{s.weighted_amount.toLocaleString()}</span>
+                  <span className="text-[10px] text-slate-400 w-12 text-right">{s.count} 个</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
     </div>
   )
 }

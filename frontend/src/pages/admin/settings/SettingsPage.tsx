@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Tabs, Table, Button, Modal, Input, InputNumber, Select, Switch, Space, Progress, Tag, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined, UploadOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import { settingsApi } from '@/api/settings'
+import { dashboardApi } from '@/api/dashboard'
 import client from '@/api/client'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -76,6 +77,13 @@ export default function SettingsPage() {
   const defaultIntForm = { system_code: '', name: '', base_url: '', auth_type: 'apikey', auth_config_json: '', status: 'active' }
   const [intForm, setIntForm] = useState(defaultIntForm)
 
+  // Notification templates
+  const [ntTemplates, setNtTemplates] = useState<{ id: string; event_type: string; title_template: string; content_template?: string; is_active: boolean }[]>([])
+  const [ntVariables, setNtVariables] = useState<{ key: string; label: string }[]>([])
+  const [ntModal, setNtModal] = useState(false)
+  const [ntEditingId, setNtEditingId] = useState<string | null>(null)
+  const [ntForm, setNtForm] = useState({ event_type: '', title_template: '', content_template: '', is_active: true })
+
   // Approval policy create/edit
   const [apModal, setApModal] = useState(false)
   const [apEditingId, setApEditingId] = useState<string | null>(null)
@@ -96,6 +104,9 @@ export default function SettingsPage() {
     settingsApi.listEmailTemplates().then((r: { data: EmailTemplateItem[] }) => r.data && setEmailTemplates(r.data)).catch(() => {})
     settingsApi.listCustomFields().then((r: { data: CustomFieldItem[] }) => r.data && setCustomFields(r.data)).catch(() => {})
     settingsApi.backupStats().then((r: { data: Record<string, number> }) => r.data && setBackupStats(r.data)).catch(() => {})
+    client.get('/api/v1/notification_templates').then((r: any) => {
+      if (r.data) { setNtTemplates(r.data.items || []); setNtVariables(r.data.variables || []) }
+    }).catch(() => {})
   }
 
   const handleSaveBudget = async () => {
@@ -418,6 +429,43 @@ export default function SettingsPage() {
             ),
           },
           {
+            key: 'notification_templates', label: '通知模板',
+            children: (
+              <div className="pb-6">
+                <div className="flex justify-between mb-3">
+                  <div className="text-xs text-slate-400">
+                    可用变量: {ntVariables.map(v => <Tag key={v.key} className="text-[10px]">{`{{${v.key}}}`} {v.label}</Tag>)}
+                  </div>
+                  <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
+                    setNtEditingId(null); setNtForm({ event_type: '', title_template: '', content_template: '', is_active: true }); setNtModal(true)
+                  }}>新增模板</Button>
+                </div>
+                <Table rowKey="id" dataSource={ntTemplates} size="small" pagination={false} columns={[
+                  { title: '事件类型', dataIndex: 'event_type', width: 140 },
+                  { title: '标题模板', dataIndex: 'title_template', ellipsis: true },
+                  { title: '内容模板', dataIndex: 'content_template', ellipsis: true },
+                  { title: '启用', dataIndex: 'is_active', width: 60, render: (v: boolean, r: any) => (
+                    <Switch size="small" checked={v} onChange={async (checked) => {
+                      try { await client.put(`/api/v1/notification_templates/${r.id}`, { is_active: checked }); fetchAll() } catch { message.error('更新失败') }
+                    }} />
+                  )},
+                  { title: '', width: 100, render: (_: unknown, r: any) => (
+                    <Space size="middle">
+                      <a className="text-primary text-xs font-bold" onClick={() => {
+                        setNtEditingId(r.id)
+                        setNtForm({ event_type: r.event_type, title_template: r.title_template, content_template: r.content_template || '', is_active: r.is_active })
+                        setNtModal(true)
+                      }}>编辑</a>
+                      <a className="text-rose-500 text-xs font-bold" onClick={async () => {
+                        try { await client.delete(`/api/v1/notification_templates/${r.id}`); message.success('已删除'); fetchAll() } catch { message.error('删除失败') }
+                      }}>删除</a>
+                    </Space>
+                  )},
+                ]} />
+              </div>
+            ),
+          },
+          {
             key: 'ai', label: 'AI策略',
             children: (
               <div className="pb-6">
@@ -668,6 +716,10 @@ export default function SettingsPage() {
             children: <HealthCheckTab />,
           },
           {
+            key: 'rate_limit', label: '限流监控',
+            children: <RateLimitTab />,
+          },
+          {
             key: 'audit_verify', label: '审计校验',
             children: (
               <div className="pb-6">
@@ -911,6 +963,52 @@ export default function SettingsPage() {
         </div>
       </Modal>
 
+      {/* Notification Template Modal */}
+      <Modal title={ntEditingId ? '编辑通知模板' : '新增通知模板'} open={ntModal}
+        onCancel={() => { setNtModal(false); setNtEditingId(null) }} width={560}
+        onOk={async () => {
+          if (!ntForm.event_type || !ntForm.title_template) { message.error('事件类型和标题模板必填'); return }
+          try {
+            if (ntEditingId) {
+              await client.put(`/api/v1/notification_templates/${ntEditingId}`, ntForm)
+            } else {
+              await client.post('/api/v1/notification_templates', ntForm)
+            }
+            message.success('保存成功'); setNtModal(false); setNtEditingId(null); fetchAll()
+          } catch { message.error('保存失败') }
+        }}>
+        <div className="space-y-4 py-2">
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">事件类型</label>
+            <Select value={ntForm.event_type || undefined} onChange={(v) => setNtForm({ ...ntForm, event_type: v })}
+              placeholder="选择事件类型" style={{ width: '100%' }}
+              options={[
+                { label: '待审批', value: 'approval_pending' },
+                { label: '审批结果', value: 'approval_decided' },
+                { label: '阶段变更', value: 'stage_change' },
+                { label: '回款逾期', value: 'payment_overdue' },
+                { label: 'AI任务完成', value: 'ai_task_complete' },
+                { label: '合同到期', value: 'contract_expiry' },
+                { label: '系统通知', value: 'system' },
+              ]} />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">标题模板</label>
+            <Input value={ntForm.title_template} onChange={(e) => setNtForm({ ...ntForm, title_template: e.target.value })}
+              placeholder="例: {{user_name}} 提交了 {{project_name}} 的审批" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">内容模板（可选）</label>
+            <Input.TextArea rows={4} value={ntForm.content_template}
+              onChange={(e) => setNtForm({ ...ntForm, content_template: e.target.value })}
+              placeholder="详细内容，可使用 {{variable}} 变量" />
+          </div>
+          <div className="text-xs text-slate-400">
+            可用变量: {ntVariables.map(v => <Tag key={v.key} className="text-[10px]">{`{{${v.key}}}`} {v.label}</Tag>)}
+          </div>
+        </div>
+      </Modal>
+
       {/* Integration Modal */}
       <Modal title={intEditingId ? '编辑集成端点' : '新增集成端点'} open={intModal} onOk={handleSaveInt}
         onCancel={() => { setIntModal(false); setIntEditingId(null) }} width={560}>
@@ -1097,6 +1195,69 @@ function HealthCheckTab() {
             最后检查: {health.checked_at}
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+function RateLimitTab() {
+  const [stats, setStats] = useState<{
+    rpm_limit: number; active_clients: number; total_rejected: number;
+    clients: { ip: string; requests: number; limit: number; usage_pct: number; rejected: number }[]
+  } | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const fetch = async () => {
+    setLoading(true)
+    try {
+      const res = await dashboardApi.rateLimitStats() as any
+      setStats(res.data)
+    } catch { /* ignore */ }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { fetch(); const t = setInterval(fetch, 10000); return () => clearInterval(t) }, [])
+
+  return (
+    <div className="pb-6">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm text-slate-500">API 请求限流监控（每10秒自动刷新）</p>
+        <Button size="small" loading={loading} onClick={fetch}>刷新</Button>
+      </div>
+      {stats && (
+        <>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+              <div className="text-xs font-bold text-slate-400 mb-1">限流阈值</div>
+              <div className="text-2xl font-black text-slate-900">{stats.rpm_limit} <span className="text-sm font-normal text-slate-400">RPM</span></div>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+              <div className="text-xs font-bold text-slate-400 mb-1">活跃客户端</div>
+              <div className="text-2xl font-black text-primary">{stats.active_clients}</div>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+              <div className="text-xs font-bold text-slate-400 mb-1">累计拒绝</div>
+              <div className={`text-2xl font-black ${stats.total_rejected > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{stats.total_rejected}</div>
+            </div>
+          </div>
+          <Table rowKey="ip" dataSource={stats.clients} size="small" pagination={false} columns={[
+            { title: 'IP', dataIndex: 'ip', width: 150, render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+            { title: '请求数', dataIndex: 'requests', width: 80 },
+            { title: '使用率', dataIndex: 'usage_pct', width: 200, render: (v: number) => (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${v >= 90 ? 'bg-red-500' : v >= 70 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                    style={{ width: `${Math.min(100, v)}%` }} />
+                </div>
+                <span className="text-xs text-slate-500 w-12 text-right">{v}%</span>
+              </div>
+            )},
+            { title: '被拒绝', dataIndex: 'rejected', width: 80, render: (v: number) => (
+              <span className={v > 0 ? 'text-red-600 font-bold' : 'text-slate-400'}>{v}</span>
+            )},
+          ]} />
+          {stats.clients.length === 0 && <div className="text-center py-8 text-slate-400 text-sm">当前无活跃请求</div>}
+        </>
       )}
     </div>
   )

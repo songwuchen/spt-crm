@@ -81,11 +81,46 @@ async def create_notification(db: AsyncSession, tenant_id: str, data: dict) -> N
     return n
 
 
+async def render_template(db: AsyncSession, tenant_id: str, event_type: str, variables: dict) -> tuple[str | None, str | None]:
+    """Try to render a notification template for the given event type. Returns (title, content) or (None, None)."""
+    from app.domains.notification.models import NotificationTemplate
+    import re
+    t = (await db.execute(
+        select(NotificationTemplate).where(
+            NotificationTemplate.tenant_id == tenant_id,
+            NotificationTemplate.event_type == event_type,
+            NotificationTemplate.is_active == True,
+            NotificationTemplate.is_deleted == False,
+        ).limit(1)
+    )).scalar()
+    if not t:
+        return None, None
+
+    def replace_vars(text: str) -> str:
+        return re.sub(r'\{\{(\w+)\}\}', lambda m: str(variables.get(m.group(1), m.group(0))), text)
+
+    title = replace_vars(t.title_template)
+    content = replace_vars(t.content_template) if t.content_template else None
+    return title, content
+
+
 async def send_notification(db: AsyncSession, tenant_id: str, recipient_id: str,
                             type: str, title: str, content: str | None = None,
                             biz_type: str | None = None, biz_id: str | None = None,
-                            sender_name: str | None = None, extra_json: dict | None = None) -> Notification:
-    """Convenience function for sending a notification + real-time WS push."""
+                            sender_name: str | None = None, extra_json: dict | None = None,
+                            template_vars: dict | None = None) -> Notification:
+    """Convenience function for sending a notification + real-time WS push.
+    If template_vars is provided, tries to render a template first."""
+    if template_vars:
+        try:
+            tpl_title, tpl_content = await render_template(db, tenant_id, type, template_vars)
+            if tpl_title:
+                title = tpl_title
+            if tpl_content:
+                content = tpl_content
+        except Exception:
+            pass  # fallback to provided title/content
+
     n = await create_notification(db, tenant_id, {
         "recipient_id": recipient_id,
         "type": type,

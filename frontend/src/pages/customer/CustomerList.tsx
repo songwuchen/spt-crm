@@ -14,6 +14,7 @@ import { useDataDict } from '@/hooks/useDataDict'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
 import { userApi } from '@/api/user'
 import SavedViewSelect from '@/components/SavedViewSelect'
+import EditableCell from '@/components/EditableCell'
 
 const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
 
@@ -143,13 +144,17 @@ export default function CustomerList() {
     { title: '规模', dataIndex: 'scale_level', width: 80, responsive: ['lg'],
       render: (v) => v || <span className="text-slate-300">-</span> },
     { title: '区域', dataIndex: 'region', width: 100,
-      render: (v) => v || <span className="text-slate-300">-</span> },
-    { title: '级别', dataIndex: 'level', width: 70,
-      render: (v) => v ? (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase border ${levelColors[v] || levelColors.D}`}>
-          {v}
-        </span>
-      ) : <span className="text-slate-300">-</span>,
+      render: (v: string, record: Customer) => (
+        <EditableCell value={v} type="text" placeholder="区域"
+          onSave={async (val) => { await customerApi.update(record.id, { region: val }); fetchData() }} />
+      ),
+    },
+    { title: '级别', dataIndex: 'level', width: 90,
+      render: (v: string, record: Customer) => (
+        <EditableCell value={v} type="select" placeholder="级别"
+          options={[{ label: 'A', value: 'A' }, { label: 'B', value: 'B' }, { label: 'C', value: 'C' }, { label: 'D', value: 'D' }]}
+          onSave={async (val) => { await customerApi.update(record.id, { level: val }); fetchData() }} />
+      ),
     },
     { title: '来源', dataIndex: 'source', width: 100, responsive: ['lg'],
       render: (v) => v ? (sourceLabels[v] || v) : <span className="text-slate-300">-</span> },

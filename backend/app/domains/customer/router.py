@@ -526,6 +526,27 @@ async def delete_share(
     return ok()
 
 
+@router.get("/check-similar")
+async def check_similar(
+    name: str = Query(..., min_length=2),
+    exclude_id: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Find customers with similar names for duplicate detection."""
+    from sqlalchemy import or_
+    q = select(Customer.id, Customer.name, Customer.short_name, Customer.industry, Customer.owner_name).where(
+        Customer.tenant_id == tenant_id,
+        Customer.is_deleted == False,
+        or_(Customer.name.ilike(f"%{name}%"), Customer.short_name.ilike(f"%{name}%")),
+    )
+    if exclude_id:
+        q = q.where(Customer.id != exclude_id)
+    items = (await db.execute(q.limit(5))).all()
+    return ok([{"id": r.id, "name": r.name, "short_name": r.short_name, "industry": r.industry, "owner_name": r.owner_name} for r in items])
+
+
 @router.get("/check-unique")
 async def check_unique(
     field: str = Query(..., pattern=r"^(name|customer_code)$"),
@@ -594,3 +615,93 @@ async def batch_transfer(
     )
     await db.commit()
     return ok({"updated": result.rowcount})
+
+
+@router.get("/{customer_id}/health")
+async def customer_health(
+    customer_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Compute a health score (0-100, grade A-D) for a customer."""
+    from datetime import datetime, timedelta
+    from sqlalchemy import func
+    from app.domains.project.models import OpportunityProject
+    from app.domains.payment.models import PaymentPlan, PaymentRecord
+    from app.domains.service_ticket.models import ServiceTicket
+    from app.domains.activity.models import Activity
+
+    now = datetime.utcnow()
+    d90 = now - timedelta(days=90)
+
+    # 1. Recent activity count (max 30 pts)
+    activity_count = (await db.execute(
+        select(func.count()).where(
+            Activity.tenant_id == tenant_id,
+            Activity.customer_id == customer_id,
+            Activity.created_at >= d90,
+        )
+    )).scalar_one() or 0
+    activity_score = min(30, activity_count * 5)
+
+    # 2. Active projects (max 25 pts)
+    active_projects = (await db.execute(
+        select(func.count()).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.customer_id == customer_id,
+            OpportunityProject.is_deleted == False,
+            OpportunityProject.stage_code.notin_(["S6", "lost"]),
+        )
+    )).scalar_one() or 0
+    project_score = min(25, active_projects * 10)
+
+    # 3. Payment health (max 25 pts) — ratio of on-time payments
+    total_plans = (await db.execute(
+        select(func.count()).select_from(PaymentPlan).join(
+            OpportunityProject, OpportunityProject.id == PaymentPlan.project_id
+        ).where(
+            PaymentPlan.tenant_id == tenant_id,
+            OpportunityProject.customer_id == customer_id,
+            PaymentPlan.is_deleted == False,
+        )
+    )).scalar_one() or 0
+    overdue_plans = (await db.execute(
+        select(func.count()).select_from(PaymentPlan).join(
+            OpportunityProject, OpportunityProject.id == PaymentPlan.project_id
+        ).where(
+            PaymentPlan.tenant_id == tenant_id,
+            OpportunityProject.customer_id == customer_id,
+            PaymentPlan.is_deleted == False,
+            PaymentPlan.status == "overdue",
+        )
+    )).scalar_one() or 0
+    if total_plans > 0:
+        payment_score = int(25 * (1 - overdue_plans / total_plans))
+    else:
+        payment_score = 15  # neutral if no plans
+
+    # 4. Service ticket health (max 20 pts) — fewer open tickets = better
+    open_tickets = (await db.execute(
+        select(func.count()).where(
+            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.customer_id == customer_id,
+            ServiceTicket.is_deleted == False,
+            ServiceTicket.status.in_(["open", "in_progress"]),
+        )
+    )).scalar_one() or 0
+    ticket_score = max(0, 20 - open_tickets * 5)
+
+    total = activity_score + project_score + payment_score + ticket_score
+    grade = "A" if total >= 80 else "B" if total >= 60 else "C" if total >= 40 else "D"
+
+    return ok({
+        "score": total,
+        "grade": grade,
+        "breakdown": {
+            "activity": {"score": activity_score, "max": 30, "detail": f"近90天{activity_count}次互动"},
+            "project": {"score": project_score, "max": 25, "detail": f"{active_projects}个活跃商机"},
+            "payment": {"score": payment_score, "max": 25, "detail": f"{overdue_plans}/{total_plans}逾期"},
+            "service": {"score": ticket_score, "max": 20, "detail": f"{open_tickets}个待处理工单"},
+        },
+    })

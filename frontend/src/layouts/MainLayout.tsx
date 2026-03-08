@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Layout, Breadcrumb, Spin } from 'antd'
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
+import { useHotkeys } from '@/hooks/useHotkeys'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -110,6 +111,19 @@ export default function MainLayout() {
       navigate('/login', { replace: true })
     })
   }, [token])
+
+  // Global keyboard shortcuts
+  const hotkeys = useMemo(() => ({
+    'ctrl+k': () => window.dispatchEvent(new CustomEvent('focus-search')),
+    'ctrl+n': () => {
+      const path = location.pathname
+      if (path.startsWith('/customers')) navigate('/customers/new')
+      else if (path.startsWith('/leads')) navigate('/leads/new')
+      else if (path.startsWith('/opportunities')) navigate('/opportunities/new')
+    },
+    'escape': () => window.dispatchEvent(new CustomEvent('close-modal')),
+  }), [location.pathname, navigate])
+  useHotkeys(hotkeys)
 
   const breadcrumbItems = getBreadcrumbs(location.pathname)
   const isHome = location.pathname === '/'

@@ -20,6 +20,17 @@ class Notification(TenantScopedBase):
     extra_json: Mapped[dict | None] = mapped_column(JSON)
 
 
+class NotificationTemplate(TenantScopedBase):
+    __tablename__ = "notification_templates"
+
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # e.g. approval_pending, stage_change, payment_overdue
+    title_template: Mapped[str] = mapped_column(String(500), nullable=False)
+    content_template: Mapped[str | None] = mapped_column(Text)
+    # Templates use {{variable}} syntax: {{customer_name}}, {{project_name}}, {{user_name}}, etc.
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class NotificationPreference(TenantScopedBase):
     __tablename__ = "notification_preferences"
 

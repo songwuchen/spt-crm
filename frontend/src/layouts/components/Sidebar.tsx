@@ -25,6 +25,7 @@ const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
       { key: '/service-tickets', icon: 'confirmation_number', labelKey: 'nav.serviceTickets', permission: 'service:view' },
       { key: '/sales-targets', icon: 'flag', labelKey: 'nav.salesTargets', permission: 'project:view' },
       { key: '/analytics', icon: 'analytics', labelKey: 'nav.analytics', permission: 'project:view' },
+      { key: '/calendar', icon: 'calendar_month', labelKey: 'nav.calendar' },
       { key: '/change-requests', icon: 'swap_horiz', labelKey: 'nav.changeRequests', permission: 'change:view' },
       { key: '/milestones', icon: 'flag_circle', labelKey: 'nav.milestones', permission: 'delivery:view' },
       { key: '/tasks', icon: 'checklist', labelKey: 'nav.tasks' },
@@ -57,6 +58,7 @@ function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/service-tickets/)) return '/service-tickets'
   if (pathname.match(/^\/sales-targets/)) return '/sales-targets'
   if (pathname.match(/^\/analytics/)) return '/analytics'
+  if (pathname.match(/^\/calendar/)) return '/calendar'
   if (pathname.match(/^\/change-requests/)) return '/change-requests'
   if (pathname.match(/^\/milestones/)) return '/milestones'
   if (pathname.match(/^\/tasks/)) return '/tasks'

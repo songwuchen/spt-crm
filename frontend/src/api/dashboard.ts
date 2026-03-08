@@ -21,9 +21,11 @@ export const dashboardApi = {
   upsertTarget: (data: Record<string, unknown>) => client.post('/api/v1/dashboard/targets', data),
   deleteTarget: (id: string) => client.delete(`/api/v1/dashboard/targets/${id}`),
   targetAchievement: (params: Record<string, unknown>) => client.get('/api/v1/dashboard/target_achievement', { params }),
+  winForecast: () => client.get('/api/v1/dashboard/win_forecast'),
   customerRegionStats: () => client.get('/api/v1/dashboard/customer_region_stats'),
   calendarEvents: (params: Record<string, unknown>) => client.get('/api/v1/dashboard/calendar_events', { params }),
   contractExpiry: (params?: Record<string, unknown>) => client.get('/api/v1/dashboard/contract_expiry', { params }),
+  rateLimitStats: () => client.get('/api/v1/dashboard/rate_limit_stats'),
   exportExcelUrl: (params?: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString()
     return `/api/v1/dashboard/export/excel${qs ? '?' + qs : ''}`

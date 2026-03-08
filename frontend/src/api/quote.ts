@@ -46,4 +46,6 @@ export const quoteApi = {
     client.post<unknown, ApiResponse<QuoteSendLogItem>>(`/api/v1/quote_versions/${vid}/send`, data),
   listSendLogs: (quoteId: string) =>
     client.get<unknown, ApiResponse<QuoteSendLogItem[]>>(`/api/v1/quotes/${quoteId}/send_logs`),
+  batchExportPdf: (ids: string[]) =>
+    client.post('/api/v1/quotes/batch_export/pdf', { ids }, { responseType: 'blob' }),
 }

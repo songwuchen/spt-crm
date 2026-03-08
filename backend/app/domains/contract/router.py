@@ -276,3 +276,53 @@ async def export_contract_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/api/v1/contracts/batch_export/pdf")
+async def batch_export_contract_pdf(
+    body: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("contract:view")),
+):
+    """Batch export multiple contracts as a ZIP of PDFs."""
+    import io
+    import zipfile
+    from app.common.pdf_builder import build_contract_pdf
+
+    ids = body.get("ids", [])
+    if not ids:
+        from app.common.exceptions import BusinessException
+        raise BusinessException("请选择要导出的合同")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for cid in ids[:50]:
+            try:
+                contract = await service.get_contract(db, tenant_id, cid)
+                versions = await service.get_versions_by_contract(db, tenant_id, cid)
+                cur_ver = next((v for v in versions if v.version_no == contract.current_version_no), None)
+                pdf_bytes = build_contract_pdf(
+                    contract_no=contract.contract_no,
+                    status=contract.status,
+                    amount_total=float(contract.amount_total) if contract.amount_total is not None else None,
+                    signed_date=str(contract.signed_date) if contract.signed_date else None,
+                    end_date=str(contract.end_date) if contract.end_date else None,
+                    payment_terms=contract.payment_terms_json,
+                    delivery_terms=contract.delivery_terms_json,
+                    created_by_name=contract.created_by_name or "",
+                    created_at=contract.created_at.isoformat() if contract.created_at else "",
+                    version_no=cur_ver.version_no if cur_ver else None,
+                    version_title=cur_ver.title if cur_ver else None,
+                    key_clauses=cur_ver.key_clauses_json if cur_ver else None,
+                )
+                zf.writestr(f"contract_{contract.contract_no}.pdf", pdf_bytes)
+            except Exception:
+                continue
+
+    buf.seek(0)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="contracts_export.zip"'},
+    )

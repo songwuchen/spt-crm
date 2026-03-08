@@ -160,15 +160,17 @@ async def export_logs(
     end_date: date = Query(None),
     resource_type: str = Query(None),
     action: str = Query(None),
+    keyword: str = Query(None),
+    format: str = Query("xlsx"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("audit:view")),
 ):
-    """Export audit logs as Excel."""
+    """Export audit logs as Excel or CSV."""
     items, _ = await list_audit_logs(
         db, tenant_id, page_no=1, page_size=10000,
         resource_type=resource_type, action=action,
-        start_date=start_date, end_date=end_date,
+        keyword=keyword, start_date=start_date, end_date=end_date,
     )
     headers = ["时间", "操作人", "动作", "资源类型", "资源ID", "摘要", "IP"]
     rows = []
@@ -182,6 +184,22 @@ async def export_logs(
             log.summary or "",
             log.ip or "",
         ])
+
+    if format == "csv":
+        import io, csv
+        from fastapi.responses import StreamingResponse
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(headers)
+        writer.writerows(rows)
+        buf.seek(0)
+        filename = f"audit_logs_{start_date or 'all'}_{end_date or 'all'}.csv"
+        return StreamingResponse(
+            iter([buf.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
     buf = build_excel("审计日志", headers, rows)
     filename = f"audit_logs_{start_date or 'all'}_{end_date or 'all'}.xlsx"
     return excel_response(buf, filename)

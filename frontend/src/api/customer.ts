@@ -42,12 +42,21 @@ export const customerApi = {
     client.post<unknown, ApiResponse<any>>(`/api/v1/customers/${id}/shares`, data),
   deleteShare: (id: string, shareId: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/customers/${id}/shares/${shareId}`),
+  checkSimilar: (name: string, excludeId?: string) =>
+    client.get<unknown, ApiResponse<{ id: string; name: string; short_name?: string; industry?: string; owner_name?: string }[]>>(
+      '/api/v1/customers/check-similar', { params: { name, ...(excludeId ? { exclude_id: excludeId } : {}) } }
+    ),
   checkUnique: (field: string, value: string, excludeId?: string) =>
     client.get<unknown, ApiResponse<{ unique: boolean }>>('/api/v1/customers/check-unique', {
       params: { field, value, ...(excludeId ? { exclude_id: excludeId } : {}) },
     }),
   batchTransfer: (ids: string[], owner_id: string, owner_name: string) =>
     client.post<unknown, ApiResponse<{ updated: number }>>('/api/v1/customers/batch_transfer', { ids, owner_id, owner_name }),
+  health: (id: string) =>
+    client.get<unknown, ApiResponse<{
+      score: number; grade: string;
+      breakdown: Record<string, { score: number; max: number; detail: string }>
+    }>>(`/api/v1/customers/${id}/health`),
   merge: (primaryId: string, secondaryId: string) =>
     client.post<unknown, ApiResponse<Customer>>('/api/v1/customers/merge', { primary_id: primaryId, secondary_id: secondaryId }),
 }

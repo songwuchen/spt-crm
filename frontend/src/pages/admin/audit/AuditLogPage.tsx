@@ -119,15 +119,27 @@ export default function AuditLogPage() {
 
   const doSearch = () => { setPageNo(1); fetchData(1) }
 
-  const handleExport = () => {
+  const buildExportQs = () => {
     const params: string[] = []
     if (dateRange?.[0]) params.push(`start_date=${dateRange[0].format('YYYY-MM-DD')}`)
     if (dateRange?.[1]) params.push(`end_date=${dateRange[1].format('YYYY-MM-DD')}`)
     if (resourceType) params.push(`resource_type=${resourceType}`)
     if (action) params.push(`action=${action}`)
-    const qs = params.length > 0 ? `?${params.join('&')}` : ''
+    if (keyword) params.push(`keyword=${encodeURIComponent(keyword)}`)
+    return params.length > 0 ? `?${params.join('&')}` : ''
+  }
+
+  const handleExport = () => {
+    const qs = buildExportQs()
     downloadFile(`/api/v1/audit_logs/export${qs}`, `审计日志_${new Date().toISOString().slice(0, 10)}.xlsx`)
     message.success('正在导出...')
+  }
+
+  const handleExportCsv = () => {
+    const qs = buildExportQs()
+    const fmt = qs ? `${qs}&format=csv` : '?format=csv'
+    downloadFile(`/api/v1/audit_logs/export${fmt}`, `审计日志_${new Date().toISOString().slice(0, 10)}.csv`)
+    message.success('正在导出CSV...')
   }
 
   const dailyMax = stats ? Math.max(...stats.daily.map((d) => d.count), 1) : 1
@@ -349,7 +361,8 @@ export default function AuditLogPage() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             筛选
           </Button>
-          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出Excel</Button>
+          <Button icon={<DownloadOutlined />} onClick={handleExportCsv}>导出CSV</Button>
         </div>
       </div>
 

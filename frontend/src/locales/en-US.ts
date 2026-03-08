@@ -59,6 +59,7 @@ const enUS = {
     salesTargets: 'Sales Targets',
     renewals: 'Renewals',
     analytics: 'Analytics',
+    calendar: 'Calendar',
     changeRequests: 'Change Requests',
     milestones: 'Milestones',
     tasks: 'Tasks',

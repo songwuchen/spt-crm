@@ -30,4 +30,6 @@ export const contractApi = {
   // Renewal
   renew: (contractId: string) =>
     client.post(`/api/v1/contracts/${contractId}/renew`),
+  batchExportPdf: (ids: string[]) =>
+    client.post('/api/v1/contracts/batch_export/pdf', { ids }, { responseType: 'blob' }),
 }

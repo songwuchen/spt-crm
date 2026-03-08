@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Calendar, Badge, Select, Drawer, Tag, Button, Modal, Form, Input, DatePicker, message } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { Calendar, Badge, Select, Drawer, Tag } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
 import { dashboardApi } from '@/api/dashboard'
-import { taskApi } from '@/api/task'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface CalendarEvent {
@@ -31,13 +29,6 @@ const typeFilters = [
   { value: 'milestone', label: '里程碑' },
 ]
 
-const priorityOptions = [
-  { value: 'low', label: '低' },
-  { value: 'normal', label: '中' },
-  { value: 'high', label: '高' },
-  { value: 'urgent', label: '紧急' },
-]
-
 function getEventLink(e: CalendarEvent): string | null {
   switch (e.type) {
     case 'follow_up': return '/follow-ups'
@@ -56,9 +47,6 @@ export default function CalendarPage() {
   const [typeFilter, setTypeFilter] = useState('')
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createLoading, setCreateLoading] = useState(false)
-  const [form] = Form.useForm()
 
   const fetchEvents = (d: Dayjs) => {
     dashboardApi.calendarEvents({ year: d.year(), month: d.month() + 1 })
@@ -82,37 +70,6 @@ export default function CalendarPage() {
     if (dayEvents && dayEvents.length > 0) {
       setSelectedDate(dateStr)
       setDrawerOpen(true)
-    } else {
-      // No events — open create modal with this date pre-filled
-      form.setFieldsValue({ due_date: value, title: '', priority: 'normal', description: '' })
-      setCreateOpen(true)
-    }
-  }
-
-  const handleCreateEvent = () => {
-    form.setFieldsValue({ due_date: dayjs(), title: '', priority: 'normal', description: '' })
-    setCreateOpen(true)
-  }
-
-  const handleCreateSubmit = async () => {
-    const values = await form.validateFields()
-    setCreateLoading(true)
-    try {
-      await taskApi.create({
-        title: values.title,
-        description: values.description || null,
-        due_date: values.due_date.format('YYYY-MM-DD'),
-        priority: values.priority || 'normal',
-        biz_type: 'follow_up',
-      })
-      message.success('日程创建成功')
-      setCreateOpen(false)
-      form.resetFields()
-      fetchEvents(currentDate)
-    } catch {
-      message.error('创建失败')
-    } finally {
-      setCreateLoading(false)
     }
   }
 
@@ -153,7 +110,6 @@ export default function CalendarPage() {
         </div>
         <div className="flex items-center gap-2">
           <Select value={typeFilter} onChange={setTypeFilter} options={typeFilters} style={{ width: 140 }} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateEvent}>新建日程</Button>
         </div>
       </div>
 
@@ -233,31 +189,6 @@ export default function CalendarPage() {
         )}
       </Drawer>
 
-      {/* Create Event Modal */}
-      <Modal
-        title="新建日程"
-        open={createOpen}
-        onCancel={() => setCreateOpen(false)}
-        onOk={handleCreateSubmit}
-        confirmLoading={createLoading}
-        okText="创建"
-        destroyOnClose
-      >
-        <Form form={form} layout="vertical" className="mt-4">
-          <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入标题' }]}>
-            <Input placeholder="日程标题" maxLength={200} />
-          </Form.Item>
-          <Form.Item name="due_date" label="日期" rules={[{ required: true, message: '请选择日期' }]}>
-            <DatePicker className="w-full" />
-          </Form.Item>
-          <Form.Item name="priority" label="优先级" initialValue="normal">
-            <Select options={priorityOptions} />
-          </Form.Item>
-          <Form.Item name="description" label="描述">
-            <Input.TextArea rows={3} placeholder="日程描述（可选）" />
-          </Form.Item>
-        </Form>
-      </Modal>
     </div>
   )
 }

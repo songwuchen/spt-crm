@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button, Space, Modal, Input, InputNumber, Select, Spin, Tabs, Table, Tag, Timeline, DatePicker, Form, message } from 'antd'
-import { EditOutlined, DeleteOutlined, PlusOutlined, RobotOutlined } from '@ant-design/icons'
+import { EditOutlined, DeleteOutlined, PlusOutlined, RobotOutlined, FilePdfOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { projectApi } from '@/api/project'
@@ -655,6 +655,14 @@ export default function OpportunityDetail() {
                 children: (
                   <div className="pb-6">
                     <div className="flex justify-end mb-3">
+                      {quotes.length > 0 && (
+                        <Button size="small" icon={<FilePdfOutlined />} onClick={async () => {
+                          const res = await quoteApi.batchExportPdf(quotes.map(q => q.id)) as any
+                          const url = window.URL.createObjectURL(new Blob([res]))
+                          const a = document.createElement('a'); a.href = url; a.download = 'quotes_export.zip'; a.click()
+                          window.URL.revokeObjectURL(url)
+                        }}>批量导出PDF</Button>
+                      )}
                       <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleCreateQuote}>新建报价</Button>
                     </div>
                     <Table rowKey="id" dataSource={quotes} pagination={false} size="small"
@@ -691,6 +699,14 @@ export default function OpportunityDetail() {
                 children: (
                   <div className="pb-6">
                     <div className="flex justify-end mb-3">
+                      {contracts.length > 0 && (
+                        <Button size="small" icon={<FilePdfOutlined />} onClick={async () => {
+                          const res = await contractApi.batchExportPdf(contracts.map(c => c.id)) as any
+                          const url = window.URL.createObjectURL(new Blob([res]))
+                          const a = document.createElement('a'); a.href = url; a.download = 'contracts_export.zip'; a.click()
+                          window.URL.revokeObjectURL(url)
+                        }}>批量导出PDF</Button>
+                      )}
                       <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleCreateContract}>新建合同</Button>
                     </div>
                     <Table rowKey="id" dataSource={contracts} pagination={false} size="small"
