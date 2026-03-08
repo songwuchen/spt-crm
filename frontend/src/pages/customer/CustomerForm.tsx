@@ -146,6 +146,9 @@ export default function CustomerForm() {
               ]} />
             </Form.Item>
           )}
+          <Form.Item name="tags_json" label="标签">
+            <Select mode="tags" placeholder="输入标签后回车添加" tokenSeparators={[',']} />
+          </Form.Item>
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={3} placeholder="备注信息" />
           </Form.Item>

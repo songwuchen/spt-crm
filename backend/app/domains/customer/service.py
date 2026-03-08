@@ -15,6 +15,7 @@ async def list_customers(
     db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20,
     keyword: str | None = None, industry: str | None = None,
     region: str | None = None, owner_id: str | None = None,
+    tag: str | None = None,
     current_user: dict | None = None,
 ):
     base = select(Customer).where(Customer.tenant_id == tenant_id, Customer.is_deleted == False)
@@ -26,6 +27,9 @@ async def list_customers(
         base = base.where(Customer.region.ilike(f"%{region}%"))
     if owner_id:
         base = base.where(Customer.owner_id == owner_id)
+    if tag:
+        from sqlalchemy import cast, String
+        base = base.where(cast(Customer.tags_json, String).ilike(f"%{tag}%"))
 
     # Apply data scope (non-admin only sees owned/shared records)
     if current_user:

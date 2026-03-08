@@ -1659,3 +1659,52 @@ async def rate_limit_stats(
         return ok({"rpm_limit": 120, "active_clients": 0, "total_rejected": 0, "clients": []})
     except Exception:
         return ok({"rpm_limit": 120, "active_clients": 0, "total_rejected": 0, "clients": []})
+
+
+@router.get("/stage_duration")
+async def stage_duration(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Analyze average time spent in each project stage."""
+    from app.domains.project.models import ProjectStageHistory
+    from collections import defaultdict
+
+    rows = (await db.execute(
+        select(ProjectStageHistory).where(
+            ProjectStageHistory.tenant_id == tenant_id,
+            ProjectStageHistory.is_deleted == False,
+        ).order_by(ProjectStageHistory.project_id, ProjectStageHistory.created_at)
+    )).scalars().all()
+
+    projects: dict[str, list] = defaultdict(list)
+    for r in rows:
+        projects[r.project_id].append(r)
+
+    stage_durations: dict[str, list[float]] = defaultdict(list)
+    for pid, transitions in projects.items():
+        for i, t in enumerate(transitions):
+            entered = t.created_at
+            if i + 1 < len(transitions):
+                exited = transitions[i + 1].created_at
+            else:
+                exited = datetime.utcnow()
+            days = (exited - entered).total_seconds() / 86400
+            stage_durations[t.to_stage].append(days)
+
+    stages = []
+    for stage in ["S1", "S2", "S3", "S4", "S5", "S6"]:
+        durations = stage_durations.get(stage, [])
+        if durations:
+            stages.append({
+                "stage": stage,
+                "avg_days": round(sum(durations) / len(durations), 1),
+                "min_days": round(min(durations), 1),
+                "max_days": round(max(durations), 1),
+                "count": len(durations),
+            })
+        else:
+            stages.append({"stage": stage, "avg_days": 0, "min_days": 0, "max_days": 0, "count": 0})
+
+    return ok(stages)

@@ -172,34 +172,78 @@ export default function ServiceTicketList() {
         </div>
       </div>
 
-      {/* SLA Stats Bar */}
+      {/* SLA Dashboard */}
       {slaStats && (
-        <div className="flex gap-3 flex-wrap mb-4">
-          <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-            <div className="text-xs text-slate-500 mb-1">SLA 达标率</div>
-            <div className={`text-2xl font-black ${slaStats.on_time_rate >= 90 ? 'text-emerald-600' : slaStats.on_time_rate >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
-              {slaStats.on_time_rate}%
+        <div className="mb-4 space-y-3">
+          {/* SLA Stats Row */}
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="text-xs text-slate-500 mb-1">SLA 达标率</div>
+              <div className={`text-2xl font-black ${slaStats.on_time_rate >= 90 ? 'text-emerald-600' : slaStats.on_time_rate >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
+                {slaStats.on_time_rate}%
+              </div>
+              <div className="mt-2 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${slaStats.on_time_rate >= 90 ? 'bg-emerald-500' : slaStats.on_time_rate >= 70 ? 'bg-amber-500' : 'bg-red-500'}`}
+                  style={{ width: `${Math.min(100, slaStats.on_time_rate)}%` }} />
+              </div>
+            </div>
+            <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="text-xs text-slate-500 mb-1">待处理工单</div>
+              <div className="text-2xl font-black text-blue-600">{slaStats.open_tickets}</div>
+            </div>
+            <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="text-xs text-slate-500 mb-1">已超时</div>
+              <div className={`text-2xl font-black ${slaStats.breach_count > 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                {slaStats.breach_count}
+              </div>
+            </div>
+            <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="text-xs text-slate-500 mb-1">即将超时</div>
+              <div className={`text-2xl font-black ${slaStats.near_breach_count > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                {slaStats.near_breach_count}
+              </div>
+            </div>
+            <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="text-xs text-slate-500 mb-1">已解决</div>
+              <div className="text-2xl font-black text-emerald-600">{slaStats.resolved_tickets}</div>
             </div>
           </div>
-          <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-            <div className="text-xs text-slate-500 mb-1">待处理工单</div>
-            <div className="text-2xl font-black text-blue-600">{slaStats.open_tickets}</div>
-          </div>
-          <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-            <div className="text-xs text-slate-500 mb-1">已超时</div>
-            <div className={`text-2xl font-black ${slaStats.breach_count > 0 ? 'text-red-600' : 'text-slate-400'}`}>
-              {slaStats.breach_count}
+
+          {/* Priority Distribution + SLA Config */}
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 min-w-[280px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">优先级分布</div>
+              {(() => {
+                const prios = slaStats.by_priority || {}
+                const maxVal = Math.max(...Object.values(prios), 1)
+                const colors: Record<string, string> = { critical: 'bg-red-500', high: 'bg-orange-500', medium: 'bg-blue-500', low: 'bg-slate-400' }
+                return (
+                  <div className="space-y-2">
+                    {['critical', 'high', 'medium', 'low'].map((p) => (
+                      <div key={p} className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-12">{priorityLabels[p] || p}</span>
+                        <div className="flex-1 h-5 bg-slate-100 rounded overflow-hidden">
+                          <div className={`h-full rounded ${colors[p] || 'bg-slate-300'} transition-all`}
+                            style={{ width: `${((prios[p] || 0) / maxVal) * 100}%`, minWidth: prios[p] ? 16 : 0 }} />
+                        </div>
+                        <span className="text-xs font-bold text-slate-700 w-8 text-right">{prios[p] || 0}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
-          </div>
-          <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-            <div className="text-xs text-slate-500 mb-1">即将超时</div>
-            <div className={`text-2xl font-black ${slaStats.near_breach_count > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-              {slaStats.near_breach_count}
+            <div className="flex-1 min-w-[280px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">SLA 响应时限</div>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(slaStats.sla_config || {}).map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
+                    <span className="text-xs text-slate-600">{priorityLabels[k] || k}</span>
+                    <span className="text-sm font-bold text-slate-800">{v}h</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-            <div className="text-xs text-slate-500 mb-1">已解决</div>
-            <div className="text-2xl font-black text-emerald-600">{slaStats.resolved_tickets}</div>
           </div>
         </div>
       )}

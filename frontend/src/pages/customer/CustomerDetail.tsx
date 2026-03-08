@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Tag, Button, Space, Table, Modal, Form, Input, Select, Switch, Spin, Tabs, message } from 'antd'
+import { Tag, Button, Space, Table, Modal, Form, Input, Select, Switch, Spin, Tabs, Popover, message } from 'antd'
+import { PlusOutlined as PlusIcon } from '@ant-design/icons'
 import { EditOutlined, PlusOutlined, DeleteOutlined, MergeCellsOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
@@ -172,6 +173,30 @@ export default function CustomerDetail() {
                     {customer.status === 'active' ? '活跃' : '不活跃'}
                   </span>
                 </div>
+              </div>
+              {/* Tags */}
+              <div className="flex items-center gap-1 flex-wrap mt-1">
+                {(customer.tags_json || []).map((tag: string) => (
+                  <Tag key={tag} closable onClose={async () => {
+                    const next = (customer.tags_json || []).filter((t: string) => t !== tag)
+                    await customerApi.update(id!, { tags_json: next })
+                    fetchCustomer()
+                  }} className="text-xs">{tag}</Tag>
+                ))}
+                <Popover trigger="click" content={
+                  <Input size="small" placeholder="输入标签回车" style={{ width: 120 }}
+                    onPressEnter={async (e) => {
+                      const val = (e.target as HTMLInputElement).value.trim()
+                      if (!val) return
+                      const tags = customer.tags_json || []
+                      if (tags.includes(val)) return
+                      await customerApi.update(id!, { tags_json: [...tags, val] })
+                      ;(e.target as HTMLInputElement).value = ''
+                      fetchCustomer()
+                    }} />
+                }>
+                  <Tag className="cursor-pointer border-dashed"><PlusIcon className="text-[10px]" /> 标签</Tag>
+                </Popover>
               </div>
               <div className="flex items-center gap-4 text-sm text-slate-500">
                 {customer.industry && (

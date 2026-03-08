@@ -51,7 +51,7 @@ export interface Customer {
   source?: string
   level?: string
   status: string
-  tags_json?: Record<string, unknown>
+  tags_json?: string[]
   remark?: string
   created_at: string
   updated_at: string

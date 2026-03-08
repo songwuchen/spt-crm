@@ -571,6 +571,44 @@ export default function QuoteDetail() {
 
       {/* Version Comparison Modal */}
       <Modal title="版本对比" open={compareModal} onCancel={() => setCompareModal(false)} footer={null} width={900}>
+        {/* Price Trend across all versions */}
+        {versions.length > 1 && (() => {
+          const sorted = [...versions].sort((a, b) => (a.version_no || 0) - (b.version_no || 0))
+          const prices = sorted.map(v => Number(v.price_total) || 0)
+          const maxPrice = Math.max(...prices, 1)
+          return (
+            <div className="mb-5 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-3">报价趋势</div>
+              <div className="flex items-end gap-2" style={{ height: 80 }}>
+                {sorted.map((v, i) => {
+                  const h = Math.max((prices[i] / maxPrice) * 100, 8)
+                  const prev = i > 0 ? prices[i - 1] : null
+                  const diff = prev != null ? prices[i] - prev : null
+                  return (
+                    <div key={v.id} className="flex-1 flex flex-col items-center gap-1">
+                      <div className="text-[10px] font-bold text-slate-600">
+                        {prices[i] > 0 ? `¥${(prices[i] / 10000).toFixed(1)}万` : '-'}
+                      </div>
+                      {diff != null && diff !== 0 && (
+                        <div className={`text-[9px] font-bold ${diff > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                          {diff > 0 ? '+' : ''}{(diff / 10000).toFixed(1)}万
+                        </div>
+                      )}
+                      <div
+                        className={`w-full rounded-t transition-all ${
+                          v.id === compareA ? 'bg-blue-500' : v.id === compareB ? 'bg-indigo-500' : 'bg-blue-200'
+                        }`}
+                        style={{ height: `${h}%`, minHeight: 4 }}
+                      />
+                      <div className="text-[10px] text-slate-500 font-medium">V{v.version_no}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
         <div className="mb-4 flex items-center gap-3">
           <Select value={compareA} onChange={setCompareA} style={{ width: 200 }}
             options={versions.map((v) => ({ label: `${v.title || `V${v.version_no}`}`, value: v.id }))} />

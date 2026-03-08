@@ -4,8 +4,10 @@ import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import { activityApi } from '@/api/activity'
 import { aiApi } from '@/api/ai'
 import { contactApi } from '@/api/contact'
+import { userApi } from '@/api/user'
 import type { ActivityItem, Contact } from '@/api/types'
 import AttachmentPanel from './AttachmentPanel'
+import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import dayjs from 'dayjs'
 
 const { TextArea } = Input
@@ -32,6 +34,11 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
   const [form, setForm] = useState({
     activity_type: 'note', subject: '', content: '', contact_id: '', contact_name: '', next_follow_date: '',
   })
+  const [mentionIds, setMentionIds] = useState<string[]>([])
+  const mentionSelect = useRemoteSelect(async (kw) => {
+    const r = await userApi.list({ pageNo: 1, pageSize: 50, keyword: kw })
+    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
+  })
   const [contacts, setContacts] = useState<Contact[]>([])
   const [aiSummary, setAiSummary] = useState<{ summary: string; key_points: string[]; suggestion: string } | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
@@ -51,6 +58,10 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
   }, [customerId])
 
   const handleCreate = async () => {
+    const mentions = mentionIds.map((uid) => {
+      const opt = mentionSelect.options.find((o) => o.value === uid)
+      return { user_id: uid, user_name: opt?.label || '' }
+    })
     await activityApi.create({
       biz_type: bizType, biz_id: bizId,
       activity_type: form.activity_type,
@@ -59,10 +70,12 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
       contact_id: form.contact_id || undefined,
       contact_name: form.contact_name || undefined,
       next_follow_date: form.next_follow_date || undefined,
+      mentions_json: mentions.length > 0 ? mentions : undefined,
     })
     message.success('记录已添加')
     setModal(false)
     setForm({ activity_type: 'note', subject: '', content: '', contact_id: '', contact_name: '', next_follow_date: '' })
+    setMentionIds([])
     fetchActivities()
   }
 
@@ -168,8 +181,14 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
                     <p className="text-sm text-slate-600 mt-2 whitespace-pre-wrap leading-relaxed">{item.content}</p>
                   )}
                   <div className="mt-2 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <span className="text-xs text-slate-400">{item.created_by_name || '系统'}</span>
+                      {(item as any).mentions_json?.length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-blue-500">
+                          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>alternate_email</span>
+                          {(item as any).mentions_json.map((m: any) => m.user_name).join(', ')}
+                        </span>
+                      )}
                       {item.next_follow_date && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-100 text-[10px] font-bold text-amber-600">
                           <span className="material-symbols-outlined" style={{ fontSize: 12 }}>event</span>
@@ -233,6 +252,18 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">内容</label>
             <TextArea rows={4} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="详细内容..." />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">@提及同事</label>
+            <Select mode="multiple" className="w-full" placeholder="搜索并选择要@的同事"
+              value={mentionIds} onChange={setMentionIds}
+              showSearch filterOption={false}
+              loading={mentionSelect.loading}
+              options={mentionSelect.options}
+              onSearch={mentionSelect.onSearch}
+              onDropdownVisibleChange={mentionSelect.onDropdownVisibleChange}
+            />
+            <div className="text-xs text-slate-400 mt-0.5">被@的同事将收到通知</div>
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">下次跟进日期</label>

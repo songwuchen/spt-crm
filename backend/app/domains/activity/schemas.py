@@ -14,6 +14,7 @@ class ActivityCreate(BaseModel):
     result_json: Optional[dict] = None
     next_follow_date: Optional[date] = None
     biz_name: Optional[str] = None
+    mentions_json: Optional[list] = None
 
 
 class ActivityUpdate(BaseModel):

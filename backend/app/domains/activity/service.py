@@ -45,6 +45,26 @@ async def create_activity(db: AsyncSession, tenant_id: str, data: ActivityCreate
         action="create", resource_type="activity", resource_id=activity.id,
         summary=f"添加互动记录: {data.activity_type} - {data.subject or ''}"
     )
+
+    # Send @mention notifications
+    mentions = activity.mentions_json or []
+    if mentions:
+        try:
+            from app.domains.notification.service import send_notification
+            creator = user.get("real_name") or user.get("username", "")
+            for m in mentions:
+                uid = m.get("user_id") if isinstance(m, dict) else None
+                if uid and uid != user["sub"]:
+                    await send_notification(
+                        db=db, tenant_id=tenant_id, recipient_id=uid,
+                        type="mention",
+                        title=f"{creator} 在活动中@了你",
+                        content=f"{creator} 在「{activity.subject or '活动'}」中提及了你: {(activity.content or '')[:100]}",
+                        biz_type=activity.biz_type, biz_id=activity.biz_id,
+                    )
+        except Exception:
+            pass  # Non-critical
+
     return activity
 
 

@@ -94,6 +94,7 @@ export default function AnalyticsPage() {
   const [collectionData, setCollectionData] = useState<CollectionItem[]>([])
   const [regionStats, setRegionStats] = useState<{ region: string; count: number }[]>([])
   const [forecast, setForecast] = useState<{ stages: { stage: string; count: number; amount: number; probability: number; weighted_amount: number }[]; pipeline_total: number; weighted_total: number } | null>(null)
+  const [stageDuration, setStageDuration] = useState<{ stage: string; avg_days: number; min_days: number; max_days: number; count: number }[]>([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [periodLabel, setPeriodLabel] = useState('全部')
@@ -106,7 +107,7 @@ export default function AnalyticsPage() {
       params.end_date = dateRange[1].format('YYYY-MM-DD')
     }
     try {
-      const [fRes, wRes, tRes, pRes, mRes, rRes, lRes, trRes, cRes, rgRes, fcRes] = await Promise.all([
+      const [fRes, wRes, tRes, pRes, mRes, rRes, lRes, trRes, cRes, rgRes, fcRes, sdRes] = await Promise.all([
         dashboardApi.funnel(params),
         dashboardApi.winLoss(params),
         dashboardApi.topCustomers(params),
@@ -118,6 +119,7 @@ export default function AnalyticsPage() {
         dashboardApi.collection(params),
         dashboardApi.customerRegionStats(),
         dashboardApi.winForecast(),
+        dashboardApi.stageDuration(),
       ]) as { data: unknown }[]
       setFunnel((fRes.data as FunnelItem[]) || [])
       setWinLoss((wRes.data as WinLoss) || null)
@@ -130,6 +132,7 @@ export default function AnalyticsPage() {
       setCollectionData((cRes.data as CollectionItem[]) || [])
       setRegionStats((rgRes.data as { region: string; count: number }[]) || [])
       setForecast((fcRes.data as typeof forecast) || null)
+      setStageDuration((sdRes.data as typeof stageDuration) || [])
     } finally {
       setLoading(false)
     }
@@ -662,6 +665,35 @@ export default function AnalyticsPage() {
             </div>
           </div>
         )}
+
+      {/* Stage Duration Analysis */}
+      {stageDuration.some(s => s.count > 0) && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">阶段耗时分析</h3>
+          <div className="space-y-3">
+            {stageDuration.filter(s => s.count > 0).map((s) => {
+              const maxAvg = Math.max(...stageDuration.map(x => x.avg_days), 1)
+              return (
+                <div key={s.stage} className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-slate-500 w-8">{s.stage}</span>
+                  <div className="flex-1 bg-slate-100 rounded-full h-6 overflow-hidden relative">
+                    <div className={`h-full rounded-full transition-all ${s.avg_days > 30 ? 'bg-red-400' : s.avg_days > 14 ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                      style={{ width: `${(s.avg_days / maxAvg) * 100}%` }} />
+                    <span className="absolute inset-0 flex items-center px-2 text-[11px] font-bold text-slate-700">{s.avg_days}天</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 w-20 text-right">{s.min_days}-{s.max_days}天</span>
+                  <span className="text-[10px] text-slate-400 w-12 text-right">{s.count} 个</span>
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex gap-4 mt-3 text-[10px] text-slate-400">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" />{'<'}14天</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" />14-30天</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400" />{'>'}30天</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

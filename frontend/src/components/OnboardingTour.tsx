@@ -10,11 +10,13 @@ interface TourStep {
 }
 
 const TOUR_STEPS: TourStep[] = [
-  { target: '[data-tour="sidebar"]', title: '导航菜单', content: '左侧菜单可以快速切换各个功能模块', placement: 'right' },
-  { target: '[data-tour="dashboard"]', title: '工作台', content: '这里展示了您最关注的业务数据和待办事项' },
-  { target: '[data-tour="search"]', title: '全局搜索', content: '按 Ctrl+K 可快速搜索客户、商机、线索等' },
-  { target: '[data-tour="notifications"]', title: '消息通知', content: '这里会显示审批提醒、工单通知等消息' },
+  { target: '[data-tour="sidebar"]', title: '导航菜单', content: '左侧菜单可以快速切换各个功能模块，包括客户、商机、工单等', placement: 'right' },
+  { target: '[data-tour="dashboard"]', title: '工作台', content: '这里展示了您最关注的业务数据和待办事项，可自定义卡片布局' },
+  { target: '[data-tour="search"]', title: '全局搜索', content: '按 Ctrl+K 可快速搜索客户、商机、线索等，支持模糊匹配' },
+  { target: '[data-tour="notifications"]', title: '消息通知', content: '这里会显示审批提醒、工单通知、@提及等消息' },
   { target: '[data-tour="theme"]', title: '主题切换', content: '支持亮色/暗色/跟随系统三种模式' },
+  { target: '[data-tour="shortcuts"]', title: '快捷键', content: 'Ctrl+K 搜索、Ctrl+N 新建、Esc 关闭弹窗，提升操作效率' },
+  { target: '[data-tour="calendar"]', title: '日历', content: '查看回款计划、合同到期、里程碑等日程事件' },
 ]
 
 const STORAGE_KEY = 'spt_onboarding_done'

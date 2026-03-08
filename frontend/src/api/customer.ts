@@ -59,4 +59,8 @@ export const customerApi = {
     }>>(`/api/v1/customers/${id}/health`),
   merge: (primaryId: string, secondaryId: string) =>
     client.post<unknown, ApiResponse<Customer>>('/api/v1/customers/merge', { primary_id: primaryId, secondary_id: secondaryId }),
+  batchMessage: (data: { customer_ids: string[]; channel: string; subject?: string; content: string }) =>
+    client.post<unknown, ApiResponse<{ sent: number; failed: number; results: { customer_id: string; contact: string; target?: string; status: string; reason?: string }[] }>>(
+      '/api/v1/customers/batch_message', data
+    ),
 }

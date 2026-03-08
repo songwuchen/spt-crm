@@ -50,6 +50,12 @@ def build_excel(title: str, headers: list[str], rows: list[list]) -> io.BytesIO:
     return buf
 
 
+def build_template(title: str, headers: list[str], sample_rows: list[list] | None = None) -> io.BytesIO:
+    """Build a template Excel with headers and optional sample data rows."""
+    rows = sample_rows or []
+    return build_excel(title, headers, rows)
+
+
 def excel_response(buf: io.BytesIO, filename: str) -> StreamingResponse:
     """Wrap BytesIO in a StreamingResponse for download."""
     return StreamingResponse(

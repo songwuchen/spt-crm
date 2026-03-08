@@ -16,6 +16,14 @@ const client = axios.create({
   timeout: 30000,
 })
 
+// Request deduplication for identical GET requests in flight
+const inflightRequests = new Map<string, Promise<unknown>>()
+
+function getRequestKey(config: { method?: string; url?: string; params?: unknown }) {
+  if (config.method !== 'get') return null
+  return `${config.url}|${JSON.stringify(config.params || {})}`
+}
+
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
   if (token) {
@@ -90,5 +98,19 @@ client.interceptors.response.use(
     return Promise.reject(error)
   },
 )
+
+// Wrap client.get with request deduplication
+const originalGet = client.get.bind(client)
+client.get = function dedupGet(url: string, config?: any) {
+  const key = `${url}|${JSON.stringify(config?.params || {})}`
+  const inflight = inflightRequests.get(key)
+  if (inflight) return inflight as any
+
+  const promise = originalGet(url, config).finally(() => {
+    inflightRequests.delete(key)
+  })
+  inflightRequests.set(key, promise)
+  return promise
+} as typeof client.get
 
 export default client

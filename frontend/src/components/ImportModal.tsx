@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Modal, Upload, Button, Table, Tag, Alert, message, Steps, Select, Tooltip } from 'antd'
-import { InboxOutlined } from '@ant-design/icons'
+import { InboxOutlined, DownloadOutlined } from '@ant-design/icons'
 
 interface ImportModalProps {
   open: boolean
@@ -8,6 +8,7 @@ interface ImportModalProps {
   onSuccess: () => void
   previewUrl: string
   importUrl: string
+  templateUrl?: string
   title?: string
   expectedHeaders?: string[]
 }
@@ -21,7 +22,7 @@ interface PreviewData {
 
 export default function ImportModal({
   open, onClose, onSuccess,
-  previewUrl, importUrl,
+  previewUrl, importUrl, templateUrl,
   title = '导入数据',
   expectedHeaders,
 }: ImportModalProps) {
@@ -184,7 +185,27 @@ export default function ImportModal({
         <div>
           {expectedHeaders && (
             <Alert type="info" showIcon className="mb-4"
-              message={`文件格式要求：第一行为表头，期望列：${expectedHeaders.join('、')}`}
+              message={
+                <div className="flex items-center justify-between">
+                  <span>文件格式要求：第一行为表头，期望列：{expectedHeaders.join('、')}</span>
+                  {templateUrl && (
+                    <Button size="small" icon={<DownloadOutlined />} type="link"
+                      onClick={() => {
+                        const token = localStorage.getItem('access_token')
+                        const a = document.createElement('a')
+                        fetch(templateUrl, { headers: { Authorization: `Bearer ${token}` } })
+                          .then(r => r.blob())
+                          .then(blob => {
+                            a.href = URL.createObjectURL(blob)
+                            a.download = 'import_template.xlsx'
+                            a.click()
+                            URL.revokeObjectURL(a.href)
+                          })
+                      }}
+                    >下载模板</Button>
+                  )}
+                </div>
+              }
             />
           )}
           <Upload.Dragger

@@ -26,6 +26,7 @@ export const dashboardApi = {
   calendarEvents: (params: Record<string, unknown>) => client.get('/api/v1/dashboard/calendar_events', { params }),
   contractExpiry: (params?: Record<string, unknown>) => client.get('/api/v1/dashboard/contract_expiry', { params }),
   rateLimitStats: () => client.get('/api/v1/dashboard/rate_limit_stats'),
+  stageDuration: () => client.get('/api/v1/dashboard/stage_duration'),
   exportExcelUrl: (params?: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString()
     return `/api/v1/dashboard/export/excel${qs ? '?' + qs : ''}`

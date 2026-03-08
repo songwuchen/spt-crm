@@ -6,7 +6,7 @@ import io
 
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions, get_data_scope
 from app.common.schemas import ok
-from app.common.export import build_excel, excel_response
+from app.common.export import build_excel, build_template, excel_response
 from app.domains.customer.models import Customer
 from app.domains.customer.schemas import (
     CustomerCreate, CustomerUpdate, CustomerOut,
@@ -39,13 +39,14 @@ async def list_customers(
     industry: str = Query(None),
     region: str = Query(None),
     owner_id: str = Query(None),
+    tag: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
     data_scope: str | None = Depends(get_data_scope),
 ):
     effective_owner = owner_id or data_scope
-    items, total = await service.list_customers(db, tenant_id, pageNo, pageSize, keyword, industry, region, effective_owner)
+    items, total = await service.list_customers(db, tenant_id, pageNo, pageSize, keyword, industry, region, effective_owner, tag=tag)
     return ok({"items": [_customer_dict(c) for c in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
@@ -156,6 +157,15 @@ async def batch_release(
     ids = body.get("customer_ids", [])
     released = await service.batch_release_to_pool(db, tenant_id, ids, current_user)
     return ok({"released": released})
+
+
+@router.get("/import/template")
+async def download_import_template():
+    """Download an Excel template for customer import."""
+    headers = ["客户名称", "简称", "行业", "规模等级", "区域", "地址", "来源", "级别"]
+    sample = [["示例客户A", "示例A", "电子制造", "大型", "华东", "上海市浦东新区XX路", "官网", "A"]]
+    buf = build_template("客户导入模板", headers, sample)
+    return excel_response(buf, "customer_import_template.xlsx")
 
 
 @router.post("/import/preview")
@@ -705,3 +715,84 @@ async def customer_health(
             "service": {"score": ticket_score, "max": 20, "detail": f"{open_tickets}个待处理工单"},
         },
     })
+
+
+# ---- Batch Messaging ----
+
+class BatchMessageBody(PydanticBaseModel):
+    customer_ids: list[str]
+    channel: str  # email / sms
+    subject: str | None = None
+    content: str
+
+
+@router.post("/batch_message")
+async def batch_message(
+    body: BatchMessageBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("customer:edit")),
+):
+    """Send batch messages (email/sms) to primary contacts of selected customers."""
+    from app.domains.customer.models import Contact
+
+    # Get primary contacts for selected customers
+    contacts = (await db.execute(
+        select(Contact).where(
+            Contact.tenant_id == tenant_id,
+            Contact.customer_id.in_(body.customer_ids),
+            Contact.is_primary == True,
+        )
+    )).scalars().all()
+
+    # Fallback: if no primary contact, pick first contact per customer
+    covered_ids = {c.customer_id for c in contacts}
+    missing_ids = [cid for cid in body.customer_ids if cid not in covered_ids]
+    if missing_ids:
+        fallback = (await db.execute(
+            select(Contact).where(
+                Contact.tenant_id == tenant_id,
+                Contact.customer_id.in_(missing_ids),
+            ).order_by(Contact.created_at)
+        )).scalars().all()
+        seen = set()
+        for c in fallback:
+            if c.customer_id not in seen:
+                contacts.append(c)
+                seen.add(c.customer_id)
+
+    sent = 0
+    failed = 0
+    results = []
+    for contact in contacts:
+        target = contact.email if body.channel == "email" else contact.mobile or contact.phone
+        if not target:
+            results.append({"customer_id": contact.customer_id, "contact": contact.name, "status": "skipped", "reason": "无联系方式"})
+            failed += 1
+            continue
+
+        if body.channel == "email":
+            try:
+                from app.common.email_service import send_email
+                await send_email(
+                    to=target,
+                    subject=body.subject or "来自CRM的消息",
+                    body=body.content,
+                )
+                results.append({"customer_id": contact.customer_id, "contact": contact.name, "target": target, "status": "sent"})
+                sent += 1
+            except Exception as e:
+                results.append({"customer_id": contact.customer_id, "contact": contact.name, "target": target, "status": "failed", "reason": str(e)[:100]})
+                failed += 1
+        else:
+            # SMS: log only (no real SMS provider integrated)
+            results.append({"customer_id": contact.customer_id, "contact": contact.name, "target": target, "status": "queued"})
+            sent += 1
+
+    # Audit log
+    from app.domains.audit.service import log_action
+    await log_action(db, tenant_id=tenant_id, user_id=current_user["id"],
+                     user_name=current_user.get("real_name", ""), action="batch_message",
+                     resource_type="customer", detail=f"channel={body.channel}, sent={sent}, failed={failed}")
+
+    return ok({"sent": sent, "failed": failed, "results": results})

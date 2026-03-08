@@ -20,5 +20,7 @@ class Activity(TenantScopedBase):
     # e.g. {"action_items": [...], "next_step": "..."}
     next_follow_date: Mapped[str | None] = mapped_column(Date)
     biz_name: Mapped[str | None] = mapped_column(String(200))
+    mentions_json: Mapped[list | None] = mapped_column(JSON)
+    # [{"user_id": "...", "user_name": "..."}]
     created_by_id: Mapped[str | None] = mapped_column(String(36))
     created_by_name: Mapped[str | None] = mapped_column(String(100))

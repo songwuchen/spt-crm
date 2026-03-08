@@ -27,6 +27,7 @@ POLL_INTERVAL = 300  # 5 minutes
 STALE_DAYS = 7  # No activity for 7 days = stale
 PAYMENT_WARN_DAYS = 7  # Warn 7 days before due
 CONTRACT_WARN_DAYS = 30  # Warn 30 days before expiry
+FOLLOWUP_WARN_DAYS = 1  # Warn 1 day before follow-up date
 
 
 async def check_stale_projects(db: AsyncSession) -> int:
@@ -235,6 +236,58 @@ async def check_expiring_contracts(db: AsyncSession) -> int:
     return notified
 
 
+async def check_upcoming_followups(db: AsyncSession) -> int:
+    """Notify owners about upcoming follow-up dates."""
+    from app.domains.activity.models import Activity
+    from app.domains.notification.service import send_notification
+
+    today = date.today()
+    warn_date = today + timedelta(days=FOLLOWUP_WARN_DAYS)
+
+    activities = (await db.execute(
+        select(Activity).where(
+            Activity.is_deleted == False,
+            Activity.next_follow_date >= str(today),
+            Activity.next_follow_date <= str(warn_date),
+        )
+    )).scalars().all()
+
+    notified = 0
+    for act in activities:
+        if not act.created_by_id:
+            continue
+        # Skip if already notified
+        from app.domains.notification.models import Notification
+        existing = (await db.execute(
+            select(func.count()).where(
+                Notification.tenant_id == act.tenant_id,
+                Notification.recipient_id == act.created_by_id,
+                Notification.biz_type == "activity",
+                Notification.biz_id == act.id,
+                Notification.title.like("%跟进提醒%"),
+            )
+        )).scalar()
+        if existing:
+            continue
+
+        try:
+            await send_notification(
+                db=db,
+                tenant_id=act.tenant_id,
+                recipient_id=act.created_by_id,
+                type="stage_change",
+                title=f"跟进提醒: {act.subject or '活动'}",
+                content=f"您计划在 {act.next_follow_date} 跟进「{act.subject or '活动'}」，请及时处理。",
+                biz_type="activity",
+                biz_id=act.id,
+            )
+            notified += 1
+        except Exception as e:
+            logger.warning(f"Failed to notify follow-up {act.id}: {e}")
+
+    return notified
+
+
 AUDIT_RETENTION_DAYS = 180  # Keep audit logs for 6 months
 
 
@@ -331,11 +384,12 @@ async def run_once():
         session_cleanup = await cleanup_expired_sessions(db)
         deleted_cleanup = await cleanup_soft_deleted_records(db)
 
-        total = stale + payments + sla + contracts
+        followups = await check_upcoming_followups(db)
+        total = stale + payments + sla + contracts + followups
         if total > 0:
             logger.info(
                 f"Reminders sent: stale_projects={stale}, upcoming_payments={payments}, "
-                f"sla_violations={sla}, expiring_contracts={contracts}"
+                f"sla_violations={sla}, expiring_contracts={contracts}, followups={followups}"
             )
         cleanup_total = audit_cleanup + notif_cleanup + session_cleanup + deleted_cleanup
         if cleanup_total > 0:
