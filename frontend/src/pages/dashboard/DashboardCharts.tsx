@@ -1,6 +1,7 @@
 import { useState, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Select } from 'antd'
+import { Select, Button, message } from 'antd'
+import { contractApi } from '@/api/contract'
 import { Column, Line, Pie, Funnel as FunnelChart } from '@ant-design/charts'
 import { dashboardApi } from '@/api/dashboard'
 
@@ -197,7 +198,7 @@ export const FunnelChartPanel = memo(function FunnelChartPanel({ funnel }: { fun
 })
 
 interface ExpiryItem {
-  id: string; contract_no: string; project_name: string; owner_name: string
+  id: string; contract_no: string; project_id?: string; project_name: string; owner_name: string
   amount_total: number; signed_date: string | null; end_date: string | null
   days_left: number; urgency: string
 }
@@ -206,6 +207,7 @@ export function ContractExpiryPanel() {
   const navigate = useNavigate()
   const [items, setItems] = useState<ExpiryItem[]>([])
   const [days, setDays] = useState(90)
+  const [renewingId, setRenewingId] = useState<string | null>(null)
 
   useEffect(() => {
     dashboardApi.contractExpiry({ days }).then((r: any) => setItems(r.data || [])).catch(() => {})
@@ -217,6 +219,22 @@ export function ContractExpiryPanel() {
     warning: { label: '30天内', bg: 'bg-amber-50', text: 'text-amber-600' },
     normal: { label: '正常', bg: 'bg-blue-50', text: 'text-blue-600' },
   }
+
+  const handleRenew = async (e: React.MouseEvent, contractId: string) => {
+    e.stopPropagation()
+    setRenewingId(contractId)
+    try {
+      await contractApi.renew(contractId)
+      message.success('已创建续签机会')
+      setItems((prev) => prev.filter((i) => i.id !== contractId))
+    } catch {
+      message.error('创建续签失败')
+    } finally {
+      setRenewingId(null)
+    }
+  }
+
+  const expiredCount = items.filter((i) => i.urgency === 'expired' || i.urgency === 'critical').length
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
@@ -231,6 +249,23 @@ export function ContractExpiryPanel() {
         <Select size="small" value={days} onChange={setDays} style={{ width: 100 }}
           options={[{ value: 30, label: '30天' }, { value: 60, label: '60天' }, { value: 90, label: '90天' }]} />
       </div>
+      {/* Summary bar */}
+      {items.length > 0 && (
+        <div className="flex gap-3 mb-3">
+          <div className="flex-1 rounded-lg bg-red-50 border border-red-100 p-2 text-center">
+            <div className="text-lg font-black text-red-600">{expiredCount}</div>
+            <div className="text-[10px] text-red-500 font-bold">紧急/已过期</div>
+          </div>
+          <div className="flex-1 rounded-lg bg-amber-50 border border-amber-100 p-2 text-center">
+            <div className="text-lg font-black text-amber-600">{items.length - expiredCount}</div>
+            <div className="text-[10px] text-amber-500 font-bold">预警中</div>
+          </div>
+          <div className="flex-1 rounded-lg bg-blue-50 border border-blue-100 p-2 text-center">
+            <div className="text-lg font-black text-blue-600">¥{(items.reduce((s, i) => s + (i.amount_total || 0), 0) / 10000).toFixed(0)}万</div>
+            <div className="text-[10px] text-blue-500 font-bold">涉及金额</div>
+          </div>
+        </div>
+      )}
       {items.length === 0 ? (
         <div className="text-center text-slate-400 text-sm py-8">暂无即将到期合同</div>
       ) : (
@@ -239,7 +274,7 @@ export function ContractExpiryPanel() {
             const u = urgencyConfig[item.urgency] || urgencyConfig.normal
             return (
               <div key={item.id}
-                onClick={() => navigate(`/opportunities`)}
+                onClick={() => navigate(`/opportunities/${item.project_id || ''}`)}
                 className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:shadow-sm transition-shadow ${u.bg} border-slate-100`}>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-800 truncate">{item.contract_no}</div>
@@ -252,6 +287,12 @@ export function ContractExpiryPanel() {
                   </div>
                 </div>
                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${u.bg} ${u.text}`}>{u.label}</span>
+                <Button size="small" type="primary"
+                  loading={renewingId === item.id}
+                  onClick={(e) => handleRenew(e, item.id)}
+                  className="shrink-0 text-[11px]">
+                  续签
+                </Button>
               </div>
             )
           })}

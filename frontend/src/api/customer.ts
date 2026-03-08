@@ -42,9 +42,9 @@ export const customerApi = {
     client.post<unknown, ApiResponse<any>>(`/api/v1/customers/${id}/shares`, data),
   deleteShare: (id: string, shareId: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/customers/${id}/shares/${shareId}`),
-  checkSimilar: (name: string, excludeId?: string) =>
-    client.get<unknown, ApiResponse<{ id: string; name: string; short_name?: string; industry?: string; owner_name?: string }[]>>(
-      '/api/v1/customers/check-similar', { params: { name, ...(excludeId ? { exclude_id: excludeId } : {}) } }
+  checkSimilar: (params: { name?: string; phone?: string; exclude_id?: string }) =>
+    client.get<unknown, ApiResponse<{ id: string; name: string; short_name?: string; industry?: string; owner_name?: string; match_type?: string; match_phone?: string; match_contact?: string }[]>>(
+      '/api/v1/customers/check-similar', { params }
     ),
   checkUnique: (field: string, value: string, excludeId?: string) =>
     client.get<unknown, ApiResponse<{ unique: boolean }>>('/api/v1/customers/check-unique', {
@@ -59,6 +59,8 @@ export const customerApi = {
     }>>(`/api/v1/customers/${id}/health`),
   merge: (primaryId: string, secondaryId: string) =>
     client.post<unknown, ApiResponse<Customer>>('/api/v1/customers/merge', { primary_id: primaryId, secondary_id: secondaryId }),
+  regionDistribution: () =>
+    client.get<unknown, ApiResponse<{ region: string; count: number }[]>>('/api/v1/customers/region-distribution'),
   batchMessage: (data: { customer_ids: string[]; channel: string; subject?: string; content: string }) =>
     client.post<unknown, ApiResponse<{ sent: number; failed: number; results: { customer_id: string; contact: string; target?: string; status: string; reason?: string }[] }>>(
       '/api/v1/customers/batch_message', data

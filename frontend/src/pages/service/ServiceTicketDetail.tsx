@@ -12,6 +12,8 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import SubscribeButton from '@/components/SubscribeButton'
+import SlaCountdown from '@/components/SlaCountdown'
+import InternalNotes from '@/components/InternalNotes'
 
 const { TextArea } = Input
 const statusFlow: Record<string, string[]> = {
@@ -157,6 +159,14 @@ export default function ServiceTicketDetail() {
         </Space>
       </div>
 
+      {/* SLA Countdown */}
+      {(ticket.sla_respond_by || ticket.sla_resolve_by) && (
+        <div className="flex gap-4 mb-6">
+          <SlaCountdown label="响应时限" deadline={ticket.sla_respond_by} completedAt={ticket.sla_responded_at} />
+          <SlaCountdown label="解决时限" deadline={ticket.sla_resolve_by} completedAt={ticket.sla_resolved_at} />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Main Content */}
         <div className="lg:col-span-2 space-y-4">
@@ -218,6 +228,15 @@ export default function ServiceTicketDetail() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-sm font-bold text-slate-900 mb-3">附件</h3>
             <AttachmentPanel bizType="service_ticket" bizId={id!} />
+          </div>
+
+          {/* Internal Notes */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <span className="material-symbols-outlined text-amber-500" style={{ fontSize: 18 }}>sticky_note_2</span>
+              内部备忘
+            </h3>
+            <InternalNotes bizType="service_ticket" bizId={id!} />
           </div>
 
           {/* Activity Timeline */}

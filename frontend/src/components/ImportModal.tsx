@@ -209,13 +209,13 @@ export default function ImportModal({
             />
           )}
           <Upload.Dragger
-            accept=".xlsx,.xls"
+            accept=".xlsx,.xls,.csv"
             showUploadList={false}
             beforeUpload={(f) => { handlePreview(f); return false }}
           >
             <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-            <p className="ant-upload-text">点击或拖拽Excel文件到此处</p>
-            <p className="ant-upload-hint">支持 .xlsx / .xls 格式</p>
+            <p className="ant-upload-text">点击或拖拽文件到此处</p>
+            <p className="ant-upload-hint">支持 .xlsx / .xls / .csv 格式</p>
           </Upload.Dragger>
           {loading && <div className="text-center mt-4 text-slate-500">解析中...</div>}
         </div>

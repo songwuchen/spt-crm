@@ -6,6 +6,8 @@ import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import OnboardingTour from '@/components/OnboardingTour'
+import CommandPalette from '@/components/CommandPalette'
+import ContextualHelp from '@/components/ContextualHelp'
 import { useAppStore } from '@/stores/useAppStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { authApi } from '@/api/auth'
@@ -115,7 +117,7 @@ export default function MainLayout() {
 
   // Global keyboard shortcuts
   const hotkeys = useMemo(() => ({
-    'ctrl+k': () => window.dispatchEvent(new CustomEvent('focus-search')),
+    // ctrl+k is handled by CommandPalette
     'ctrl+n': () => {
       const path = location.pathname
       if (path.startsWith('/customers')) navigate('/customers/new')
@@ -170,6 +172,8 @@ export default function MainLayout() {
         </Content>
       </Layout>
       <OnboardingTour />
+      <CommandPalette />
+      <ContextualHelp />
     </Layout>
   )
 }

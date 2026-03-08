@@ -24,6 +24,8 @@ def _activity_dict(a) -> dict:
         "result_json": a.result_json,
         "next_follow_date": str(a.next_follow_date) if a.next_follow_date else None,
         "biz_name": a.biz_name,
+        "mentions_json": a.mentions_json,
+        "pinned": bool(a.pinned) if a.pinned else False,
         "created_by_id": a.created_by_id,
         "created_by_name": a.created_by_name,
         "created_at": a.created_at.isoformat() if a.created_at else "",
@@ -118,6 +120,25 @@ async def delete_activity(
 ):
     await service.delete_activity(db, tenant_id, activity_id)
     return ok(None)
+
+
+@router.post("/api/v1/activities/{activity_id}/pin")
+async def toggle_pin(
+    activity_id: str,
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:edit")),
+):
+    a = (await db.execute(
+        select(Activity).where(Activity.id == activity_id, Activity.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not a:
+        from app.common.exceptions import BusinessException
+        from app.common.error_codes import NOT_FOUND
+        raise BusinessException(code=NOT_FOUND, message="记录不存在")
+    a.pinned = not bool(a.pinned)
+    await db.commit()
+    await db.refresh(a)
+    return ok(_activity_dict(a))
 
 
 @router.post("/api/v1/activities/ai-summary")

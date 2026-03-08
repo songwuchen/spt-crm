@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,14 @@ from app.domains.service_ticket.schemas import (
     ServiceTicketCreate, ServiceTicketUpdate, RenewalCreate, RenewalUpdate,
 )
 from app.domains.audit.service import log_action
+
+# SLA targets per priority: (respond_hours, resolve_hours)
+SLA_TARGETS = {
+    "critical": (1, 4),
+    "high": (2, 8),
+    "medium": (4, 24),
+    "low": (8, 72),
+}
 
 
 def _generate_ticket_no() -> str:
@@ -71,11 +79,17 @@ async def get_ticket(db: AsyncSession, tenant_id: str, ticket_id: str) -> Servic
 
 
 async def create_ticket(db: AsyncSession, tenant_id: str, data: ServiceTicketCreate, user: dict) -> ServiceTicket:
+    now = datetime.now(timezone.utc)
+    dump = data.model_dump(exclude_unset=True)
+    priority = dump.get("priority", "medium")
+    respond_h, resolve_h = SLA_TARGETS.get(priority, SLA_TARGETS["medium"])
     ticket = ServiceTicket(
         id=generate_uuid(), tenant_id=tenant_id,
         ticket_no=_generate_ticket_no(),
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
-        **data.model_dump(exclude_unset=True),
+        sla_respond_by=now + timedelta(hours=respond_h),
+        sla_resolve_by=now + timedelta(hours=resolve_h),
+        **dump,
     )
     db.add(ticket)
     await db.commit()
@@ -89,8 +103,16 @@ async def create_ticket(db: AsyncSession, tenant_id: str, data: ServiceTicketCre
 async def update_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, data: ServiceTicketUpdate, user: dict) -> ServiceTicket:
     ticket = await get_ticket(db, tenant_id, ticket_id)
     old_assignee = ticket.assigned_to_id
+    old_status = ticket.status
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(ticket, field, val)
+    now = datetime.now(timezone.utc)
+    # Auto-track SLA: first response when leaving "open"
+    if old_status == "open" and ticket.status != "open" and not ticket.sla_responded_at:
+        ticket.sla_responded_at = now
+    # Auto-track SLA: resolution time when reaching "resolved"
+    if ticket.status == "resolved" and old_status != "resolved" and not ticket.sla_resolved_at:
+        ticket.sla_resolved_at = now
     await db.commit()
     await db.refresh(ticket)
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),

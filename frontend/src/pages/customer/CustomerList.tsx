@@ -17,6 +17,7 @@ import { userApi } from '@/api/user'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import EditableCell from '@/components/EditableCell'
 import FeatureTip from '@/components/FeatureTip'
+import RegionMap from '@/components/RegionMap'
 
 const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
 
@@ -47,6 +48,14 @@ export default function CustomerList() {
   const [messageModal, setMessageModal] = useState(false)
   const [messageForm] = Form.useForm()
   const [messageSending, setMessageSending] = useState(false)
+  const [showMap, setShowMap] = useState(false)
+  const [regionData, setRegionData] = useState<{ region: string; count: number }[]>([])
+
+  useEffect(() => {
+    if (showMap) {
+      customerApi.regionDistribution().then((r) => setRegionData(r.data || [])).catch(() => {})
+    }
+  }, [showMap])
   const industryDict = useDataDict('industry', defaultIndustries)
   const dangerConfirm = useCountdownConfirm()
   const userSelect = useRemoteSelect(async (kw) => {
@@ -239,6 +248,11 @@ export default function CustomerList() {
           <p className="text-sm text-slate-500 mt-0.5">管理和跟踪所有客户信息</p>
         </div>
         <Space wrap>
+          <Button onClick={() => setShowMap(!showMap)}
+            type={showMap ? 'primary' : 'default'} ghost={showMap}>
+            <span className="material-symbols-outlined text-sm mr-1" style={{ fontSize: 14 }}>map</span>
+            {showMap ? '列表' : '地图'}
+          </Button>
           <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>导入</Button>
           <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/customers/export/excel', 'customers.xlsx')}>导出</Button>
           <Button
@@ -267,6 +281,12 @@ export default function CustomerList() {
 
       <FeatureTip id="customer-swipe-actions" title="批量操作提示"
         content="勾选客户后可进行批量转让、群发消息、释放到公海等操作。左滑客户可快速拨号或删除。" />
+
+      {showMap && (
+        <div className="mb-4">
+          <RegionMap data={regionData} onRegionClick={(r) => { setRegion(r); setShowMap(false); fetchData(1, keyword, industry, r) }} />
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">

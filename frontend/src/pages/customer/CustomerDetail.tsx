@@ -18,6 +18,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import CustomerRelationGraph from '@/components/CustomerRelationGraph'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import InternalNotes from '@/components/InternalNotes'
 
 const roleTypeMap: Record<string, { label: string; color: string }> = {
   decision_maker: { label: '决策者', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
@@ -385,6 +386,15 @@ export default function CustomerDetail() {
                   children: (
                     <div className="py-4">
                       <ActivityTimeline bizType="customer" bizId={id!} customerId={id!} />
+                    </div>
+                  ),
+                },
+                {
+                  key: 'notes',
+                  label: <span className="font-semibold">内部备忘</span>,
+                  children: (
+                    <div className="py-4">
+                      <InternalNotes bizType="customer" bizId={id!} />
                     </div>
                   ),
                 },

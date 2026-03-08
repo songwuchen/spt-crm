@@ -12,4 +12,6 @@ export const activityApi = {
     client.put<unknown, ApiResponse<ActivityItem>>(`/api/v1/activities/${id}`, data),
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/activities/${id}`),
+  togglePin: (id: string) =>
+    client.post<unknown, ApiResponse<ActivityItem>>(`/api/v1/activities/${id}/pin`),
 }

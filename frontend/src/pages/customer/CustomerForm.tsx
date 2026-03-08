@@ -35,15 +35,19 @@ export default function CustomerForm() {
     return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
   })
 
-  const [similarCustomers, setSimilarCustomers] = useState<{ id: string; name: string; short_name?: string; industry?: string; owner_name?: string }[]>([])
+  const [similarCustomers, setSimilarCustomers] = useState<{ id: string; name: string; short_name?: string; industry?: string; owner_name?: string; match_type?: string; match_phone?: string; match_contact?: string }[]>([])
   const dupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const checkDuplicates = useCallback((name: string) => {
+  const checkDuplicates = useCallback((name?: string, phone?: string) => {
     if (dupTimerRef.current) clearTimeout(dupTimerRef.current)
-    if (!name || name.length < 2) { setSimilarCustomers([]); return }
+    if ((!name || name.length < 2) && (!phone || phone.length < 4)) { setSimilarCustomers([]); return }
     dupTimerRef.current = setTimeout(async () => {
       try {
-        const res = await customerApi.checkSimilar(name, id)
+        const res = await customerApi.checkSimilar({
+          name: name && name.length >= 2 ? name : undefined,
+          phone: phone && phone.length >= 4 ? phone : undefined,
+          exclude_id: id,
+        })
         setSimilarCustomers(res.data || [])
       } catch { /* ignore */ }
     }, 500)
@@ -85,18 +89,29 @@ export default function CustomerForm() {
       <Card>
         <Form form={form} layout="vertical" onFinish={onFinish} className="max-w-2xl">
           <Form.Item name="name" label="客户名称" rules={[{ required: true, message: '请输入客户名称' }]}>
-            <Input placeholder="请输入客户全称" onChange={(e) => checkDuplicates(e.target.value)} />
+            <Input placeholder="请输入客户全称" onChange={(e) => checkDuplicates(e.target.value, form.getFieldValue('phone'))} />
           </Form.Item>
           {similarCustomers.length > 0 && (
             <Alert type="warning" showIcon className="mb-4"
-              message={`发现 ${similarCustomers.length} 个相似客户`}
+              message={`发现 ${similarCustomers.length} 个疑似重复客户`}
               description={
                 <div className="mt-1 space-y-1">
                   {similarCustomers.map((c) => (
                     <div key={c.id} className="flex items-center gap-2 text-sm">
                       <a onClick={() => navigate(`/customers/${c.id}`)} className="text-primary font-bold hover:underline">{c.name}</a>
+                      {c.match_type === 'phone' && (
+                        <span className="text-orange-500 text-xs bg-orange-50 px-1.5 py-0.5 rounded">
+                          电话匹配: {c.match_contact} {c.match_phone}
+                        </span>
+                      )}
+                      {c.match_type === 'name' && (
+                        <span className="text-blue-500 text-xs bg-blue-50 px-1.5 py-0.5 rounded">名称匹配</span>
+                      )}
                       {c.industry && <span className="text-slate-400 text-xs">{c.industry}</span>}
                       {c.owner_name && <span className="text-slate-400 text-xs">负责人: {c.owner_name}</span>}
+                      {!isEdit && (
+                        <a onClick={() => navigate(`/customers/${c.id}`)} className="text-xs text-emerald-600 hover:underline">查看并合并</a>
+                      )}
                     </div>
                   ))}
                 </div>

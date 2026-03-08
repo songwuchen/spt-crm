@@ -23,6 +23,10 @@ def _ticket_dict(t) -> dict:
         "ai_summary_json": t.ai_summary_json,
         "assigned_to_id": t.assigned_to_id, "assigned_to_name": t.assigned_to_name,
         "created_by_id": t.created_by_id, "created_by_name": t.created_by_name,
+        "sla_respond_by": t.sla_respond_by.isoformat() if t.sla_respond_by else None,
+        "sla_resolve_by": t.sla_resolve_by.isoformat() if t.sla_resolve_by else None,
+        "sla_responded_at": t.sla_responded_at.isoformat() if t.sla_responded_at else None,
+        "sla_resolved_at": t.sla_resolved_at.isoformat() if t.sla_resolved_at else None,
         "created_at": t.created_at.isoformat() if t.created_at else "",
         "updated_at": t.updated_at.isoformat() if t.updated_at else "",
     }

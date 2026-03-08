@@ -108,6 +108,27 @@ async def export_customers_excel(
     return excel_response(buf, "customers.xlsx")
 
 
+# ---- Region Distribution ----
+
+@router.get("/region-distribution")
+async def region_distribution(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    """Get customer count grouped by region."""
+    from sqlalchemy import func
+    rows = (await db.execute(
+        select(Customer.region, func.count(Customer.id).label("count")).where(
+            Customer.tenant_id == tenant_id,
+            Customer.is_deleted == False,
+            Customer.region != None,
+            Customer.region != "",
+        ).group_by(Customer.region)
+    )).all()
+    return ok([{"region": r.region, "count": r.count} for r in rows])
+
+
 # ---- Customer Pool (公海池) ----
 
 @router.get("/pool")
@@ -175,13 +196,20 @@ async def import_preview(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:create")),
 ):
-    """Parse Excel and return headers + rows + duplicate detection."""
+    """Parse Excel/CSV and return headers + rows + duplicate detection."""
     from sqlalchemy import select as sa_select
     content = await file.read()
-    wb = load_workbook(io.BytesIO(content), read_only=True)
-    ws = wb.active
-    all_rows = list(ws.iter_rows(values_only=True))
-    wb.close()
+    fname = (file.filename or "").lower()
+    if fname.endswith(".csv"):
+        import csv as csv_mod
+        text = content.decode("utf-8-sig")
+        reader = csv_mod.reader(text.splitlines())
+        all_rows = [tuple(r) for r in reader]
+    else:
+        wb = load_workbook(io.BytesIO(content), read_only=True)
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+        wb.close()
     if not all_rows:
         return ok({"headers": [], "rows": [], "duplicates": []})
 
@@ -214,7 +242,13 @@ async def import_preview(
 
     duplicates = [i for i, name in enumerate(names) if name in existing]
 
-    return ok({"headers": headers, "rows": data_rows, "duplicates": duplicates})
+    # Row-level validation errors
+    errors: dict[int, str] = {}
+    for i, row in enumerate(data_rows):
+        if not row or not row[0] or not row[0].strip():
+            errors[i] = "客户名称不能为空"
+
+    return ok({"headers": headers, "rows": data_rows, "duplicates": duplicates, "errors": errors})
 
 
 @router.post("/import/excel")
@@ -224,15 +258,22 @@ async def import_customers_excel(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("customer:create")),
 ):
-    """Import customers from Excel with field mapping and duplicate handling."""
+    """Import customers from Excel/CSV with field mapping and duplicate handling."""
     from starlette.datastructures import UploadFile as StarletteUpload
     import json as json_mod
 
     content = await file.read()
-    wb = load_workbook(io.BytesIO(content), read_only=True)
-    ws = wb.active
-    all_rows = list(ws.iter_rows(values_only=True))
-    wb.close()
+    fname = (file.filename or "").lower()
+    if fname.endswith(".csv"):
+        import csv as csv_mod
+        text = content.decode("utf-8-sig")
+        reader = csv_mod.reader(text.splitlines())
+        all_rows = [tuple(r) for r in reader]
+    else:
+        wb = load_workbook(io.BytesIO(content), read_only=True)
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+        wb.close()
     if len(all_rows) < 2:
         return ok({"created": 0, "skipped": 0, "errors": []})
 
@@ -538,23 +579,65 @@ async def delete_share(
 
 @router.get("/check-similar")
 async def check_similar(
-    name: str = Query(..., min_length=2),
+    name: str = Query(None, min_length=2),
+    phone: str = Query(None, min_length=4),
     exclude_id: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    """Find customers with similar names for duplicate detection."""
+    """Find customers with similar names or matching contact phone for duplicate detection."""
     from sqlalchemy import or_
-    q = select(Customer.id, Customer.name, Customer.short_name, Customer.industry, Customer.owner_name).where(
-        Customer.tenant_id == tenant_id,
-        Customer.is_deleted == False,
-        or_(Customer.name.ilike(f"%{name}%"), Customer.short_name.ilike(f"%{name}%")),
-    )
-    if exclude_id:
-        q = q.where(Customer.id != exclude_id)
-    items = (await db.execute(q.limit(5))).all()
-    return ok([{"id": r.id, "name": r.name, "short_name": r.short_name, "industry": r.industry, "owner_name": r.owner_name} for r in items])
+    from app.domains.customer.models import Contact
+
+    results: list[dict] = []
+    seen_ids: set[str] = set()
+
+    # Match by name / short_name
+    if name:
+        q = select(Customer.id, Customer.name, Customer.short_name, Customer.industry, Customer.owner_name).where(
+            Customer.tenant_id == tenant_id,
+            Customer.is_deleted == False,
+            or_(Customer.name.ilike(f"%{name}%"), Customer.short_name.ilike(f"%{name}%")),
+        )
+        if exclude_id:
+            q = q.where(Customer.id != exclude_id)
+        items = (await db.execute(q.limit(5))).all()
+        for r in items:
+            seen_ids.add(r.id)
+            results.append({"id": r.id, "name": r.name, "short_name": r.short_name,
+                            "industry": r.industry, "owner_name": r.owner_name, "match_type": "name"})
+
+    # Match by contact phone
+    if phone and len(phone) >= 4:
+        phone_q = (
+            select(Contact.customer_id, Contact.phone, Contact.name.label("contact_name"))
+            .where(
+                Contact.tenant_id == tenant_id,
+                or_(Contact.phone.ilike(f"%{phone}%"), Contact.mobile.ilike(f"%{phone}%")),
+            )
+        )
+        if exclude_id:
+            phone_q = phone_q.where(Contact.customer_id != exclude_id)
+        phone_matches = (await db.execute(phone_q.limit(5))).all()
+        cust_ids = [m.customer_id for m in phone_matches if m.customer_id not in seen_ids]
+        if cust_ids:
+            custs = (await db.execute(
+                select(Customer).where(Customer.id.in_(cust_ids), Customer.is_deleted == False)
+            )).scalars().all()
+            cust_map = {c.id: c for c in custs}
+            for m in phone_matches:
+                if m.customer_id in seen_ids:
+                    continue
+                c = cust_map.get(m.customer_id)
+                if c:
+                    seen_ids.add(c.id)
+                    results.append({"id": c.id, "name": c.name, "short_name": c.short_name,
+                                    "industry": c.industry, "owner_name": c.owner_name,
+                                    "match_type": "phone", "match_phone": m.phone,
+                                    "match_contact": m.contact_name})
+
+    return ok(results[:10])
 
 
 @router.get("/check-unique")

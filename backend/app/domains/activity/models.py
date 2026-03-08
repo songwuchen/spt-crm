@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, JSON, DateTime, Date
+from sqlalchemy import String, Text, JSON, DateTime, Date, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import TenantScopedBase
@@ -22,5 +22,6 @@ class Activity(TenantScopedBase):
     biz_name: Mapped[str | None] = mapped_column(String(200))
     mentions_json: Mapped[list | None] = mapped_column(JSON)
     # [{"user_id": "...", "user_name": "..."}]
+    pinned: Mapped[bool | None] = mapped_column(Boolean, default=False)
     created_by_id: Mapped[str | None] = mapped_column(String(36))
     created_by_name: Mapped[str | None] = mapped_column(String(100))

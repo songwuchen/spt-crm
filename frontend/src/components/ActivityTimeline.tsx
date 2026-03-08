@@ -8,6 +8,7 @@ import { userApi } from '@/api/user'
 import type { ActivityItem, Contact } from '@/api/types'
 import AttachmentPanel from './AttachmentPanel'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import VoiceInput from '@/components/VoiceInput'
 import dayjs from 'dayjs'
 
 const { TextArea } = Input
@@ -250,7 +251,10 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
             )}
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">内容</label>
+            <div className="flex items-center gap-2 mb-1">
+              <label className="text-sm font-medium text-slate-700">内容</label>
+              <VoiceInput onResult={(text) => setForm((prev: typeof form) => ({ ...prev, content: (prev.content || '') + text }))} />
+            </div>
             <TextArea rows={4} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="详细内容..." />
           </div>
           <div>

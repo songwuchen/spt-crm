@@ -421,6 +421,10 @@ export interface ServiceTicketItem {
   assigned_to_name?: string
   created_by_id?: string
   created_by_name?: string
+  sla_respond_by?: string
+  sla_resolve_by?: string
+  sla_responded_at?: string
+  sla_resolved_at?: string
   created_at: string
   updated_at: string
 }
@@ -455,6 +459,8 @@ export interface ActivityItem {
   result_json?: Record<string, unknown>
   next_follow_date?: string | null
   biz_name?: string | null
+  mentions_json?: { user_id: string; user_name: string }[]
+  pinned?: boolean
   created_by_id?: string
   created_by_name?: string
   created_at: string

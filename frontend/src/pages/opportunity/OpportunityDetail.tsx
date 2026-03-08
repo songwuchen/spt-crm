@@ -23,6 +23,7 @@ import type { OpportunityProject, ProjectStageHistory, QuoteItem, ContractItem, 
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import InternalNotes from '@/components/InternalNotes'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 
@@ -988,6 +989,15 @@ export default function OpportunityDetail() {
                 children: (
                   <div className="py-4">
                     <ActivityTimeline bizType="project" bizId={id!} customerId={project?.customer_id} />
+                  </div>
+                ),
+              },
+              {
+                key: 'notes',
+                label: <span className="font-semibold">内部备忘</span>,
+                children: (
+                  <div className="py-4">
+                    <InternalNotes bizType="project" bizId={id!} />
                   </div>
                 ),
               },

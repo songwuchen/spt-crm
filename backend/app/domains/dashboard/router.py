@@ -1182,7 +1182,7 @@ async def contract_expiry(
 
     rows = (await db.execute(
         select(
-            Contract.id, Contract.contract_no, Contract.status,
+            Contract.id, Contract.contract_no, Contract.project_id, Contract.status,
             Contract.signed_date, Contract.end_date, Contract.amount_total,
             OpportunityProject.name.label("project_name"),
             OpportunityProject.owner_name,
@@ -1203,6 +1203,7 @@ async def contract_expiry(
         items.append({
             "id": r.id,
             "contract_no": r.contract_no,
+            "project_id": r.project_id,
             "project_name": r.project_name,
             "owner_name": r.owner_name,
             "amount_total": float(r.amount_total) if r.amount_total else 0,
