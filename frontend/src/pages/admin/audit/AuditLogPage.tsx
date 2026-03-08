@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Table, Select, DatePicker, Input, Button, message } from 'antd'
-import { SearchOutlined, DownloadOutlined } from '@ant-design/icons'
+import { useState, useEffect, useMemo } from 'react'
+import { Table, Select, DatePicker, Input, Button, message, Segmented } from 'antd'
+import { SearchOutlined, DownloadOutlined, UnorderedListOutlined, FieldTimeOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import client from '@/api/client'
 import type { AuditLog, PageData, ApiResponse } from '@/api/types'
@@ -73,6 +73,106 @@ function DiffView({ detail }: { detail: Record<string, unknown> }) {
   )
 }
 
+const weekDayLabels = ['日', '一', '二', '三', '四', '五', '六']
+
+function ActivityHeatmap({ daily }: { daily: Array<{ date: string; count: number }> }) {
+  const { grid, maxCount, weeks } = useMemo(() => {
+    const map = new Map(daily.map((d) => [d.date, d.count]))
+    const max = Math.max(...daily.map((d) => d.count), 1)
+    // Build 12-week grid ending today
+    const today = new Date()
+    const totalWeeks = 12
+    const cells: Array<{ date: string; count: number; dow: number; week: number }> = []
+    for (let i = totalWeeks * 7 - 1; i >= 0; i--) {
+      const d = new Date(today)
+      d.setDate(d.getDate() - i)
+      const ds = d.toISOString().slice(0, 10)
+      const dow = d.getDay()
+      const week = Math.floor((totalWeeks * 7 - 1 - i) / 7)
+      cells.push({ date: ds, count: map.get(ds) || 0, dow, week })
+    }
+    return { grid: cells, maxCount: max, weeks: totalWeeks }
+  }, [daily])
+
+  const getColor = (count: number) => {
+    if (count === 0) return 'bg-slate-100'
+    const ratio = count / maxCount
+    if (ratio <= 0.25) return 'bg-emerald-200'
+    if (ratio <= 0.5) return 'bg-emerald-400'
+    if (ratio <= 0.75) return 'bg-emerald-500'
+    return 'bg-emerald-700'
+  }
+
+  return (
+    <div>
+      <div className="flex gap-1">
+        <div className="flex flex-col gap-1 mr-1 mt-5">
+          {weekDayLabels.filter((_, i) => i % 2 === 1).map((l) => (
+            <div key={l} className="text-[9px] text-slate-400 h-3 leading-3">{l}</div>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          {Array.from({ length: weeks }, (_, w) => (
+            <div key={w} className="flex flex-col gap-1">
+              {Array.from({ length: 7 }, (_, dow) => {
+                const cell = grid.find((c) => c.week === w && c.dow === dow)
+                return (
+                  <div key={dow} className={`w-3 h-3 rounded-sm ${cell ? getColor(cell.count) : 'bg-slate-50'} group relative`}>
+                    {cell && cell.count > 0 && (
+                      <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-800 text-white text-[10px] rounded whitespace-nowrap z-10">
+                        {cell.date.slice(5)}: {cell.count} 次操作
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-1 mt-2 justify-end">
+        <span className="text-[9px] text-slate-400">少</span>
+        {['bg-slate-100', 'bg-emerald-200', 'bg-emerald-400', 'bg-emerald-500', 'bg-emerald-700'].map((c) => (
+          <div key={c} className={`w-3 h-3 rounded-sm ${c}`} />
+        ))}
+        <span className="text-[9px] text-slate-400">多</span>
+      </div>
+    </div>
+  )
+}
+
+function TimelineView({ data, actionCfg }: { data: AuditLog[]; actionCfg: typeof actionConfig }) {
+  return (
+    <div className="space-y-1 py-2">
+      {data.map((log) => {
+        const cfg = actionCfg[log.action]
+        return (
+          <div key={log.id} className="flex items-start gap-3 py-2 px-3 hover:bg-slate-50 rounded-lg transition-colors">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${cfg?.bg || 'bg-slate-100'} ${cfg?.text || 'text-slate-500'}`}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{cfg?.icon || 'info'}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-slate-800">{log.user_name}</span>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cfg?.bg || 'bg-slate-100'} ${cfg?.text || 'text-slate-500'}`}>
+                  {cfg?.label || log.action}
+                </span>
+                <span className="text-xs text-slate-500">{resourceLabels[log.resource_type] || log.resource_type}</span>
+              </div>
+              <div className="text-sm text-slate-600 mt-0.5">{log.summary}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">
+                {log.created_at ? new Date(log.created_at).toLocaleString('zh-CN') : '-'}
+                {log.ip && <span className="ml-2 font-mono">{log.ip}</span>}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+      {data.length === 0 && <div className="text-center text-slate-400 py-8">暂无数据</div>}
+    </div>
+  )
+}
+
 export default function AuditLogPage() {
   usePageTitle('操作日志')
   const [data, setData] = useState<AuditLog[]>([])
@@ -85,6 +185,7 @@ export default function AuditLogPage() {
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
   const [stats, setStats] = useState<AuditStats | null>(null)
   const [showStats, setShowStats] = useState(true)
+  const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table')
 
   const fetchData = async (
     page = pageNo, rt = resourceType, act = action,
@@ -236,24 +337,11 @@ export default function AuditLogPage() {
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Daily Activity */}
+            {/* Activity Heatmap */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">每日活动</h4>
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">活动热力图</h4>
               {stats.daily.length > 0 ? (
-                <div className="flex items-end gap-[2px] h-24">
-                  {stats.daily.slice(-30).map((d) => {
-                    const h = Math.max((d.count / dailyMax) * 100, 4)
-                    return (
-                      <div key={d.date} className="flex-1 min-w-0 group relative">
-                        <div className="bg-primary/80 hover:bg-primary rounded-t transition-colors"
-                          style={{ height: `${h}%` }} />
-                        <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-800 text-white text-[10px] rounded whitespace-nowrap z-10">
-                          {d.date.slice(5)}: {d.count}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                <ActivityHeatmap daily={stats.daily} />
               ) : (
                 <div className="text-center text-slate-400 text-xs py-8">暂无数据</div>
               )}
@@ -363,30 +451,46 @@ export default function AuditLogPage() {
           </Button>
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出Excel</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExportCsv}>导出CSV</Button>
+          <Segmented size="small" value={viewMode} onChange={(v) => setViewMode(v as any)}
+            options={[
+              { value: 'table', icon: <UnorderedListOutlined />, label: '表格' },
+              { value: 'timeline', icon: <FieldTimeOutlined />, label: '时间线' },
+            ]} />
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table / Timeline */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={data}
-          loading={loading}
-          scroll={{ x: 900 }}
-          expandable={{
-            expandedRowRender: (record: AuditLog) => record.detail ? (
-              <DiffView detail={record.detail} />
-            ) : <span className="text-slate-400 text-xs">无详细信息</span>,
-            rowExpandable: () => true,
-          }}
-          pagination={{
-            current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
-            onChange: (p) => { setPageNo(p); fetchData(p) },
-          }}
-          size="small"
-          className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
-        />
+        {viewMode === 'table' ? (
+          <Table
+            rowKey="id"
+            columns={columns}
+            dataSource={data}
+            loading={loading}
+            scroll={{ x: 900 }}
+            expandable={{
+              expandedRowRender: (record: AuditLog) => record.detail ? (
+                <DiffView detail={record.detail} />
+              ) : <span className="text-slate-400 text-xs">无详细信息</span>,
+              rowExpandable: () => true,
+            }}
+            pagination={{
+              current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
+              onChange: (p) => { setPageNo(p); fetchData(p) },
+            }}
+            size="small"
+            className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
+          />
+        ) : (
+          <div>
+            <TimelineView data={data} actionCfg={actionConfig} />
+            <div className="px-4 pb-3 flex justify-end">
+              <Button size="small" disabled={pageNo <= 1} onClick={() => { setPageNo(pageNo - 1); fetchData(pageNo - 1) }}>上一页</Button>
+              <span className="text-xs text-slate-500 mx-3 self-center">{pageNo} / {Math.ceil(total / 20) || 1}</span>
+              <Button size="small" disabled={pageNo * 20 >= total} onClick={() => { setPageNo(pageNo + 1); fetchData(pageNo + 1) }}>下一页</Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

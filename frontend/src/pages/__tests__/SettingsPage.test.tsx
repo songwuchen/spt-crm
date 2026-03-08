@@ -43,6 +43,12 @@ vi.mock('@/api/settings', () => ({
     backupStats: vi.fn(),
     backupDownloadUrl: vi.fn(),
     auditVerify: vi.fn(),
+    getPoolRules: vi.fn(),
+    updatePoolRules: vi.fn(),
+    getFieldRules: vi.fn(),
+    updateFieldRules: vi.fn(),
+    getReportSchedules: vi.fn(),
+    updateReportSchedules: vi.fn(),
   },
 }))
 
@@ -105,6 +111,9 @@ describe('SettingsPage', () => {
     ;(settingsApi.listCustomFields as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(settingsApi.backupStats as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} })
     ;(settingsApi.backupDownloadUrl as ReturnType<typeof vi.fn>).mockReturnValue('/api/v1/admin/backup')
+    ;(settingsApi.getPoolRules as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} })
+    ;(settingsApi.getFieldRules as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
+    ;(settingsApi.getReportSchedules as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(roleApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [{ id: 'r-1', code: 'admin', name: '管理员' }] })
     ;(client.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [{ id: 'u-1', real_name: 'Admin', username: 'admin' }] } })
   })

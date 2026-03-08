@@ -90,6 +90,10 @@ export default function SettingsPage() {
   const defaultApForm = { biz_type: 'quote_version', name: '', condition_json: '', approver_rules_json: '', approval_mode: 'sequential', sla_hours: undefined as number | undefined, escalation_json: '' }
   const [apForm, setApForm] = useState(defaultApForm)
 
+  // Pool rules
+  const [poolRules, setPoolRules] = useState({ enabled: false, idle_days: { A: 90, B: 60, C: 30, D: 15 }, default_idle_days: 30 })
+  const [poolSaving, setPoolSaving] = useState(false)
+
   const currentPeriod = new Date().toISOString().slice(0, 7)
 
   const fetchAll = () => {
@@ -104,6 +108,7 @@ export default function SettingsPage() {
     settingsApi.listEmailTemplates().then((r: { data: EmailTemplateItem[] }) => r.data && setEmailTemplates(r.data)).catch(() => {})
     settingsApi.listCustomFields().then((r: { data: CustomFieldItem[] }) => r.data && setCustomFields(r.data)).catch(() => {})
     settingsApi.backupStats().then((r: { data: Record<string, number> }) => r.data && setBackupStats(r.data)).catch(() => {})
+    settingsApi.getPoolRules().then((r: any) => { if (r.data && typeof r.data === 'object') setPoolRules({ enabled: false, idle_days: { A: 90, B: 60, C: 30, D: 15 }, default_idle_days: 30, ...r.data }) }).catch(() => {})
     client.get('/api/v1/notification_templates').then((r: any) => {
       if (r.data) { setNtTemplates(r.data.items || []); setNtVariables(r.data.variables || []) }
     }).catch(() => {})
@@ -718,6 +723,56 @@ export default function SettingsPage() {
           {
             key: 'rate_limit', label: '限流监控',
             children: <RateLimitTab />,
+          },
+          {
+            key: 'pool_rules', label: '公海规则',
+            children: (
+              <div className="pb-6 max-w-lg">
+                <p className="text-sm text-slate-500 mb-4">配置客户自动释放到公海的规则。系统每5分钟检查一次，将超过闲置天数未跟进的客户自动释放。</p>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-700">启用自动释放</span>
+                    <Switch checked={poolRules.enabled} onChange={(v) => setPoolRules({ ...poolRules, enabled: v })} />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">按客户级别设置闲置天数</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {['A', 'B', 'C', 'D'].map((level) => (
+                        <div key={level} className="flex items-center gap-2">
+                          <Tag className="w-8 text-center font-bold">{level}</Tag>
+                          <InputNumber className="flex-1" min={1} max={365}
+                            value={(poolRules.idle_days as Record<string, number>)[level]}
+                            onChange={(v) => setPoolRules({ ...poolRules, idle_days: { ...poolRules.idle_days, [level]: v || 30 } })}
+                            addonAfter="天" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 mb-1 block">默认闲置天数（未设级别时）</label>
+                    <InputNumber min={1} max={365} value={poolRules.default_idle_days}
+                      onChange={(v) => setPoolRules({ ...poolRules, default_idle_days: v || 30 })}
+                      addonAfter="天" />
+                  </div>
+                  <Button type="primary" loading={poolSaving} onClick={async () => {
+                    setPoolSaving(true)
+                    try {
+                      await settingsApi.updatePoolRules(poolRules)
+                      message.success('公海规则已保存')
+                    } catch { message.error('保存失败') }
+                    finally { setPoolSaving(false) }
+                  }}>保存规则</Button>
+                </div>
+              </div>
+            ),
+          },
+          {
+            key: 'field_rules', label: '字段权限',
+            children: <FieldRulesTab />,
+          },
+          {
+            key: 'report_schedules', label: '报表推送',
+            children: <ReportScheduleTab />,
           },
           {
             key: 'audit_verify', label: '审计校验',
@@ -1364,6 +1419,202 @@ function DataDictTab() {
           </div>
         </div>
       </Modal>
+    </div>
+  )
+}
+
+
+// ==================== Field Rules Tab ====================
+
+const FIELD_RESOURCES = [
+  { value: 'customer', label: '客户', fields: ['phone', 'email', 'address', 'credit_code', 'bank_account'] },
+  { value: 'contact', label: '联系人', fields: ['phone', 'email', 'wechat', 'id_number'] },
+  { value: 'project', label: '商机', fields: ['amount_expect', 'amount_actual', 'margin_rate'] },
+  { value: 'contract', label: '合同', fields: ['amount', 'payment_terms', 'bank_account'] },
+  { value: 'quote', label: '报价', fields: ['price_total', 'discount_rate', 'margin_rate'] },
+]
+
+const FIELD_LABELS: Record<string, string> = {
+  phone: '电话', email: '邮箱', address: '地址', credit_code: '信用代码', bank_account: '银行账户',
+  wechat: '微信', id_number: '身份证号',
+  amount_expect: '预期金额', amount_actual: '实际金额', margin_rate: '毛利率',
+  amount: '合同金额', payment_terms: '付款条件',
+  price_total: '报价总额', discount_rate: '折扣率',
+}
+
+interface FieldRule { resource: string; field: string; roles: string[]; action: 'hide' | 'mask' }
+
+function FieldRulesTab() {
+  const [rules, setRules] = useState<FieldRule[]>([])
+  const [saving, setSaving] = useState(false)
+  const [roles, setRoles] = useState<{ id: string; code: string; name: string }[]>([])
+
+  useEffect(() => {
+    settingsApi.getFieldRules().then((r: any) => { if (Array.isArray(r.data)) setRules(r.data) }).catch(() => {})
+    client.get('/api/admin/v1/tenant/roles').then((r: any) => { if (r.data) setRoles(r.data) }).catch(() => {})
+  }, [])
+
+  const addRule = () => {
+    setRules([...rules, { resource: 'customer', field: 'phone', roles: [], action: 'mask' }])
+  }
+
+  const updateRule = (idx: number, patch: Partial<FieldRule>) => {
+    const next = [...rules]
+    next[idx] = { ...next[idx], ...patch }
+    setRules(next)
+  }
+
+  const removeRule = (idx: number) => {
+    setRules(rules.filter((_, i) => i !== idx))
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await settingsApi.updateFieldRules(rules as any)
+      message.success('字段权限规则已保存')
+    } catch { message.error('保存失败') }
+    finally { setSaving(false) }
+  }
+
+  const currentFields = (resource: string) => {
+    const r = FIELD_RESOURCES.find((f) => f.value === resource)
+    return (r?.fields || []).map((f) => ({ value: f, label: FIELD_LABELS[f] || f }))
+  }
+
+  return (
+    <div className="pb-6">
+      <p className="text-sm text-slate-500 mb-4">
+        配置字段级别的可见性规则。当用户拥有指定角色时，对应字段将被隐藏或脱敏显示。
+      </p>
+      <div className="space-y-3 mb-4">
+        {rules.map((rule, idx) => (
+          <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <Select size="small" value={rule.resource} onChange={(v) => updateRule(idx, { resource: v, field: currentFields(v)[0]?.value || '' })}
+              options={FIELD_RESOURCES.map((r) => ({ value: r.value, label: r.label }))} style={{ width: 100 }} />
+            <Select size="small" value={rule.field} onChange={(v) => updateRule(idx, { field: v })}
+              options={currentFields(rule.resource)} style={{ width: 120 }} />
+            <Select size="small" mode="multiple" value={rule.roles} onChange={(v) => updateRule(idx, { roles: v })}
+              options={roles.map((r) => ({ value: r.code, label: r.name }))}
+              placeholder="适用角色" style={{ minWidth: 200, flex: 1 }} />
+            <Select size="small" value={rule.action} onChange={(v) => updateRule(idx, { action: v })}
+              options={[{ value: 'mask', label: '脱敏 (****)' }, { value: 'hide', label: '隐藏' }]} style={{ width: 130 }} />
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={() => removeRule(idx)} />
+          </div>
+        ))}
+        {rules.length === 0 && <div className="text-center text-slate-400 py-6">暂未配置字段权限规则</div>}
+      </div>
+      <Space>
+        <Button icon={<PlusOutlined />} onClick={addRule}>添加规则</Button>
+        <Button type="primary" loading={saving} onClick={handleSave}>保存规则</Button>
+      </Space>
+    </div>
+  )
+}
+
+
+// ==================== Report Schedule Tab ====================
+
+const REPORT_TYPES = [
+  { value: 'summary', label: '业务汇总' },
+  { value: 'pipeline', label: '商机漏斗' },
+  { value: 'revenue', label: '回款统计' },
+  { value: 'activity', label: '活动报告' },
+  { value: 'sla', label: 'SLA达标' },
+]
+
+const FREQ_OPTIONS = [
+  { value: 'daily', label: '每日' },
+  { value: 'weekly', label: '每周' },
+  { value: 'monthly', label: '每月' },
+]
+
+const WEEKDAY_OPTIONS = [
+  { value: 0, label: '周一' }, { value: 1, label: '周二' }, { value: 2, label: '周三' },
+  { value: 3, label: '周四' }, { value: 4, label: '周五' }, { value: 5, label: '周六' }, { value: 6, label: '周日' },
+]
+
+interface ReportSchedule {
+  name: string; report_type: string; frequency: string
+  send_hour: number; send_weekday?: number; send_day?: number
+  recipient_ids: string[]; enabled: boolean
+}
+
+function ReportScheduleTab() {
+  const [schedules, setSchedules] = useState<ReportSchedule[]>([])
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    settingsApi.getReportSchedules().then((r: any) => {
+      if (Array.isArray(r.data)) setSchedules(r.data)
+    }).catch(() => {})
+  }, [])
+
+  const addSchedule = () => {
+    setSchedules([...schedules, { name: '新报表', report_type: 'summary', frequency: 'daily', send_hour: 8, recipient_ids: [], enabled: true }])
+  }
+
+  const updateSchedule = (idx: number, patch: Partial<ReportSchedule>) => {
+    const next = [...schedules]
+    next[idx] = { ...next[idx], ...patch }
+    setSchedules(next)
+  }
+
+  const removeSchedule = (idx: number) => {
+    setSchedules(schedules.filter((_, i) => i !== idx))
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await settingsApi.updateReportSchedules(schedules as any)
+      message.success('报表推送计划已保存')
+    } catch { message.error('保存失败') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="pb-6">
+      <p className="text-sm text-slate-500 mb-4">
+        配置定时报表推送，系统将按计划发送报表通知给指定用户。
+      </p>
+      <div className="space-y-4 mb-4">
+        {schedules.map((sched, idx) => (
+          <div key={idx} className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+            <div className="flex items-center gap-3 mb-3">
+              <Input size="small" value={sched.name} onChange={(e) => updateSchedule(idx, { name: e.target.value })}
+                placeholder="报表名称" style={{ width: 160 }} />
+              <Select size="small" value={sched.report_type} onChange={(v) => updateSchedule(idx, { report_type: v })}
+                options={REPORT_TYPES} style={{ width: 120 }} />
+              <Select size="small" value={sched.frequency} onChange={(v) => updateSchedule(idx, { frequency: v })}
+                options={FREQ_OPTIONS} style={{ width: 100 }} />
+              <InputNumber size="small" value={sched.send_hour} onChange={(v) => updateSchedule(idx, { send_hour: v ?? 8 })}
+                min={0} max={23} addonAfter="时" style={{ width: 100 }} />
+              {sched.frequency === 'weekly' && (
+                <Select size="small" value={sched.send_weekday ?? 0} onChange={(v) => updateSchedule(idx, { send_weekday: v })}
+                  options={WEEKDAY_OPTIONS} style={{ width: 90 }} />
+              )}
+              {sched.frequency === 'monthly' && (
+                <InputNumber size="small" value={sched.send_day ?? 1} onChange={(v) => updateSchedule(idx, { send_day: v ?? 1 })}
+                  min={1} max={28} addonAfter="日" style={{ width: 100 }} />
+              )}
+              <Switch size="small" checked={sched.enabled} onChange={(v) => updateSchedule(idx, { enabled: v })} />
+              <Button size="small" danger icon={<DeleteOutlined />} onClick={() => removeSchedule(idx)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">接收人ID (逗号分隔):</span>
+              <Input size="small" value={(sched.recipient_ids || []).join(',')}
+                onChange={(e) => updateSchedule(idx, { recipient_ids: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+                placeholder="user-id-1, user-id-2" style={{ flex: 1 }} />
+            </div>
+          </div>
+        ))}
+        {schedules.length === 0 && <div className="text-center text-slate-400 py-6">暂未配置报表推送计划</div>}
+      </div>
+      <Space>
+        <Button icon={<PlusOutlined />} onClick={addSchedule}>添加推送计划</Button>
+        <Button type="primary" loading={saving} onClick={handleSave}>保存</Button>
+      </Space>
     </div>
   )
 }

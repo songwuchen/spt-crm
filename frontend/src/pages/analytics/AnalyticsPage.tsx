@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Spin, DatePicker, Space, Button, message } from 'antd'
-import { DownloadOutlined, FilePdfOutlined } from '@ant-design/icons'
+import { DownloadOutlined, FilePdfOutlined, CameraOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs, { type Dayjs } from 'dayjs'
 import { Column, Pie, Funnel, Bar, Line } from '@ant-design/charts'
@@ -159,6 +159,23 @@ export default function AnalyticsPage() {
     downloadFile(dashboardApi.exportPdfUrl(exportParams), `报表中心_${dayjs().format('YYYYMMDD')}.pdf`)
   }
 
+  const chartsRef = useRef<HTMLDivElement>(null)
+
+  const handleExportImage = async () => {
+    if (!chartsRef.current) return
+    try {
+      const { default: html2canvas } = await import('html2canvas')
+      const canvas = await html2canvas(chartsRef.current, { useCORS: true, scale: 2, backgroundColor: '#f8fafc' })
+      const link = document.createElement('a')
+      link.download = `报表中心_${dayjs().format('YYYYMMDD')}.png`
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+      message.success('图表已导出为图片')
+    } catch {
+      message.error('图片导出失败，请安装 html2canvas')
+    }
+  }
+
   if (loading) return <DetailSkeleton />
 
   // --- Chart data transforms ---
@@ -201,6 +218,7 @@ export default function AnalyticsPage() {
         <Space>
           <Button icon={<DownloadOutlined />} size="small" onClick={handleExportExcel}>导出Excel</Button>
           <Button icon={<FilePdfOutlined />} size="small" onClick={handleExportPdf}>导出PDF</Button>
+          <Button icon={<CameraOutlined />} size="small" onClick={handleExportImage}>导出图片</Button>
           <Space.Compact>
             {[
               { label: '本月', fn: () => setQuickRange('本月', dayjs().startOf('month'), dayjs()) },
@@ -221,6 +239,7 @@ export default function AnalyticsPage() {
         </Space>
       </div>
 
+      <div ref={chartsRef}>
       {/* Payment + Milestone KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {payment && (
@@ -694,6 +713,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
       )}
+      </div>{/* end chartsRef */}
     </div>
   )
 }

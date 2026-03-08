@@ -8,6 +8,7 @@ import { approvalApi } from '@/api/approval'
 import { userApi } from '@/api/user'
 import { aiApi } from '@/api/ai'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import SignaturePad from '@/components/SignaturePad'
 import type { ContractItem, ContractVersion } from '@/api/types'
 import { riskLabels, riskColors } from '@/api/types'
 import { contractStatusColors } from '@/constants/labels'
@@ -26,6 +27,8 @@ export default function ContractDetail() {
   const [selectedVersionId, setSelectedVersionId] = useState<string>('')
   const [signModal, setSignModal] = useState(false)
   const [signDate, setSignDate] = useState<dayjs.Dayjs | null>(dayjs())
+  const [signatureImage, setSignatureImage] = useState<string | null>(null)
+  const [showSignPad, setShowSignPad] = useState(false)
 
   // Approval
   const [approvalModal, setApprovalModal] = useState(false)
@@ -84,9 +87,14 @@ export default function ContractDetail() {
 
   const handleSign = async () => {
     if (!signDate) return
-    await contractApi.sign(cid!, { signed_date: signDate.format('YYYY-MM-DD') })
+    await contractApi.sign(cid!, {
+      signed_date: signDate.format('YYYY-MM-DD'),
+      ...(signatureImage ? { signature_image: signatureImage } : {}),
+    })
     message.success('合同已签署')
     setSignModal(false)
+    setSignatureImage(null)
+    setShowSignPad(false)
     fetchContract()
   }
 
@@ -336,12 +344,32 @@ export default function ContractDetail() {
       </div>
 
       {/* Sign Modal */}
-      <Modal title="签署合同" open={signModal} onOk={handleSign} onCancel={() => setSignModal(false)}>
+      <Modal title="签署合同" open={signModal} onOk={handleSign} onCancel={() => { setSignModal(false); setShowSignPad(false); setSignatureImage(null) }}
+        width={showSignPad ? 600 : 480}>
         <div className="py-4">
           <p className="text-sm text-slate-600 mb-3">确认签署合同 <span className="font-bold">{contract.contract_no}</span>？</p>
-          <div>
+          <div className="mb-4">
             <label className="text-sm font-medium text-slate-700 mb-1 block">签署日期</label>
             <DatePicker className="w-full" value={signDate} onChange={(d) => setSignDate(d)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-2 block">电子签名（可选）</label>
+            {signatureImage ? (
+              <div className="border border-slate-200 rounded-lg p-2 bg-slate-50">
+                <img src={signatureImage} alt="签名" className="max-h-24" />
+                <Button size="small" className="mt-2" onClick={() => { setSignatureImage(null); setShowSignPad(true) }}>重新签名</Button>
+              </div>
+            ) : showSignPad ? (
+              <SignaturePad
+                onSave={(dataUrl) => { setSignatureImage(dataUrl); setShowSignPad(false) }}
+                onCancel={() => setShowSignPad(false)}
+              />
+            ) : (
+              <Button onClick={() => setShowSignPad(true)} className="border-dashed">
+                <span className="material-symbols-outlined text-sm mr-1">draw</span>
+                添加手写签名
+              </Button>
+            )}
           </div>
         </div>
       </Modal>

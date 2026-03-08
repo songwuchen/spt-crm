@@ -37,3 +37,16 @@ class NotificationPreference(TenantScopedBase):
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     # JSON map of type -> enabled, e.g. {"approval_pending": true, "payment_overdue": false}
     preferences_json: Mapped[dict | None] = mapped_column(JSON)
+
+
+class DataSubscription(TenantScopedBase):
+    """Users subscribe to specific business entities for change notifications."""
+    __tablename__ = "data_subscriptions"
+
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    biz_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    # biz_type: customer, project, contract, service_ticket, etc.
+    biz_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    biz_name: Mapped[str | None] = mapped_column(String(200))
+    # notify on: create/update/delete/status_change/comment
+    events_json: Mapped[list | None] = mapped_column(JSON)  # e.g. ["update","status_change","comment"]

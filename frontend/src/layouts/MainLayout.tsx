@@ -32,6 +32,7 @@ const breadcrumbNameMap: Record<string, string> = {
   '/admin/audit': '审计日志',
   '/admin/settings': '系统设置',
   '/admin/api-docs': 'API 文档',
+  '/admin/system-health': '系统健康',
 }
 
 function getBreadcrumbs(pathname: string) {

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Tabs, Table, Tag, Space, Modal, Input, Button, message, Spin, Checkbox, Select, Card, Statistic, Row, Col } from 'antd'
-import { CheckCircleOutlined, CloseCircleOutlined, SwapOutlined, UndoOutlined, RedoOutlined, BarChartOutlined } from '@ant-design/icons'
+import { useState, useEffect, useMemo } from 'react'
+import { Tabs, Table, Tag, Space, Modal, Input, Button, message, Spin, Checkbox, Select, Card, Statistic, Row, Col, DatePicker } from 'antd'
+import { CheckCircleOutlined, CloseCircleOutlined, SwapOutlined, UndoOutlined, RedoOutlined, BarChartOutlined, FilterOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { approvalApi } from '@/api/approval'
 import client from '@/api/client'
@@ -46,8 +46,10 @@ export default function ApprovalCenter() {
   const [withdrawModal, setWithdrawModal] = useState(false)
   const [withdrawFlowId, setWithdrawFlowId] = useState('')
   const [withdrawReason, setWithdrawReason] = useState('')
-  // Bulk actions
+  // Bulk actions & filters
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
+  const [filterBizType, setFilterBizType] = useState<string>('')
+  const [filterDateRange, setFilterDateRange] = useState<[any, any] | null>(null)
   const userSelect = useRemoteSelect(async (kw) => {
     const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
     return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
@@ -221,6 +223,27 @@ export default function ApprovalCenter() {
     }
   }
 
+  const filteredPending = useMemo(() => {
+    let list = pending
+    if (filterBizType) {
+      list = list.filter((p) => p.flow?.biz_type === filterBizType)
+    }
+    if (filterDateRange && filterDateRange[0] && filterDateRange[1]) {
+      const start = filterDateRange[0].startOf('day').valueOf()
+      const end = filterDateRange[1].endOf('day').valueOf()
+      list = list.filter((p) => {
+        const t = p.flow?.created_at ? new Date(p.flow.created_at).getTime() : 0
+        return t >= start && t <= end
+      })
+    }
+    return list
+  }, [pending, filterBizType, filterDateRange])
+
+  const pendingBizTypes = useMemo(() => {
+    const types = new Set(pending.map((p) => p.flow?.biz_type).filter(Boolean))
+    return Array.from(types).map((t) => ({ value: t!, label: bizTypeLabels[t!] || t! }))
+  }, [pending])
+
   const pendingColumns: ColumnsType<ApprovalPendingItem> = [
     {
       title: '审批标题', dataIndex: ['flow', 'title'], width: 280,
@@ -346,17 +369,27 @@ export default function ApprovalCenter() {
               children: (
                 <div>
                   {pending.length > 0 && (
-                    <div className="mb-3 flex gap-2">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <FilterOutlined className="text-slate-400" />
+                      <Select size="small" allowClear placeholder="业务类型" value={filterBizType || undefined}
+                        onChange={(v) => { setFilterBizType(v || ''); setSelectedRowKeys([]) }}
+                        options={pendingBizTypes} style={{ width: 130 }} />
+                      <DatePicker.RangePicker size="small" value={filterDateRange as any}
+                        onChange={(v) => { setFilterDateRange(v as any); setSelectedRowKeys([]) }} />
+                      {(filterBizType || filterDateRange) && (
+                        <Button size="small" type="link" onClick={() => { setFilterBizType(''); setFilterDateRange(null); setSelectedRowKeys([]) }}>清除筛选</Button>
+                      )}
+                      <div className="flex-1" />
                       <Button size="small" type="primary" icon={<CheckCircleOutlined />}
                         disabled={selectedRowKeys.length === 0} loading={submitting}
                         onClick={() => handleBulkDecide('approved')}>批量通过</Button>
                       <Button size="small" danger icon={<CloseCircleOutlined />}
                         disabled={selectedRowKeys.length === 0} loading={submitting}
                         onClick={() => handleBulkDecide('rejected')}>批量驳回</Button>
-                      {selectedRowKeys.length > 0 && <span className="text-xs text-slate-400 self-center">已选 {selectedRowKeys.length} 项</span>}
+                      {selectedRowKeys.length > 0 && <span className="text-xs text-slate-400 self-center">已选 {selectedRowKeys.length}/{filteredPending.length} 项</span>}
                     </div>
                   )}
-                  <Table rowKey="id" columns={pendingColumns} dataSource={pending}
+                  <Table rowKey="id" columns={pendingColumns} dataSource={filteredPending}
                     rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys as string[]) }}
                     pagination={false} size="small"
                     locale={{ emptyText: <div className="py-8 text-slate-400">暂无待审批任务</div> }} />

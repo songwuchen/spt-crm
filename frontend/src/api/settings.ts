@@ -99,4 +99,19 @@ export const settingsApi = {
 
   // Audit
   auditVerify: () => client.post('/api/v1/audit_logs/verify'),
+
+  // Pool rules
+  getPoolRules: () => client.get('/api/admin/v1/tenant/pool_rules'),
+  updatePoolRules: (data: Record<string, unknown>) =>
+    client.put('/api/admin/v1/tenant/pool_rules', data),
+
+  // Field rules
+  getFieldRules: () => client.get('/api/admin/v1/tenant/field_rules'),
+  updateFieldRules: (data: Array<Record<string, unknown>>) =>
+    client.put('/api/admin/v1/tenant/field_rules', data),
+
+  // Report schedules
+  getReportSchedules: () => client.get('/api/admin/v1/tenant/report_schedules'),
+  updateReportSchedules: (data: Array<Record<string, unknown>>) =>
+    client.put('/api/admin/v1/tenant/report_schedules', data),
 }

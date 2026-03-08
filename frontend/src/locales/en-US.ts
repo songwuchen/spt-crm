@@ -73,6 +73,7 @@ const enUS = {
     auditLog: 'Audit Log',
     settings: 'Settings',
     apiDocs: 'API Docs',
+    systemHealth: 'System Health',
     profile: 'Profile',
   },
   customer: {

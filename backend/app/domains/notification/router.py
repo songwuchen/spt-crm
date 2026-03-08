@@ -263,6 +263,95 @@ async def delete_template(
     return ok(None)
 
 
+# ---- Data Subscriptions ----
+
+@router.get("/api/v1/data_subscriptions")
+async def list_subscriptions(
+    biz_type: str = Query(None),
+    biz_id: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions()),
+):
+    """List current user's subscriptions, optionally filtered by biz_type/biz_id."""
+    from sqlalchemy import select
+    from app.domains.notification.models import DataSubscription
+    q = select(DataSubscription).where(
+        DataSubscription.tenant_id == tenant_id,
+        DataSubscription.user_id == current_user["sub"],
+    )
+    if biz_type:
+        q = q.where(DataSubscription.biz_type == biz_type)
+    if biz_id:
+        q = q.where(DataSubscription.biz_id == biz_id)
+    q = q.order_by(DataSubscription.created_at.desc())
+    items = (await db.execute(q)).scalars().all()
+    return ok([{
+        "id": s.id, "biz_type": s.biz_type, "biz_id": s.biz_id,
+        "biz_name": s.biz_name, "events_json": s.events_json,
+        "created_at": s.created_at.isoformat() if s.created_at else "",
+    } for s in items])
+
+
+@router.post("/api/v1/data_subscriptions")
+async def create_subscription(
+    body: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions()),
+):
+    """Subscribe to changes on a business entity."""
+    from sqlalchemy import select
+    from app.domains.notification.models import DataSubscription
+    from app.database import generate_uuid
+    # Check if already subscribed
+    existing = (await db.execute(
+        select(DataSubscription).where(
+            DataSubscription.tenant_id == tenant_id,
+            DataSubscription.user_id == current_user["sub"],
+            DataSubscription.biz_type == body["biz_type"],
+            DataSubscription.biz_id == body["biz_id"],
+        )
+    )).scalar()
+    if existing:
+        existing.events_json = body.get("events_json", ["update", "status_change", "comment"])
+        existing.biz_name = body.get("biz_name", existing.biz_name)
+        await db.commit()
+        return ok({"id": existing.id, "status": "updated"})
+    sub = DataSubscription(
+        id=generate_uuid(), tenant_id=tenant_id,
+        user_id=current_user["sub"],
+        biz_type=body["biz_type"], biz_id=body["biz_id"],
+        biz_name=body.get("biz_name"),
+        events_json=body.get("events_json", ["update", "status_change", "comment"]),
+    )
+    db.add(sub)
+    await db.commit()
+    return ok({"id": sub.id, "status": "created"})
+
+
+@router.delete("/api/v1/data_subscriptions/{subscription_id}")
+async def delete_subscription(
+    subscription_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions()),
+):
+    from sqlalchemy import select
+    from app.domains.notification.models import DataSubscription
+    sub = (await db.execute(
+        select(DataSubscription).where(
+            DataSubscription.tenant_id == tenant_id,
+            DataSubscription.user_id == current_user["sub"],
+            DataSubscription.id == subscription_id,
+        )
+    )).scalar()
+    if sub:
+        await db.delete(sub)
+        await db.commit()
+    return ok(None)
+
+
 @router.websocket("/ws/notifications")
 async def ws_notifications(ws: WebSocket):
     """WebSocket endpoint for real-time notifications.

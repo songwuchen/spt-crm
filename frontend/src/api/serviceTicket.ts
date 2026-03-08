@@ -25,4 +25,10 @@ export const serviceTicketApi = {
 
   // SLA
   slaStats: () => client.get('/api/v1/service_tickets/sla/stats'),
+
+  // Knowledge base
+  knowledgeSearch: (keyword: string, type?: string) =>
+    client.get<unknown, ApiResponse<{ id: string; ticket_no: string; type: string; priority: string; description: string; resolution: string; updated_at: string }[]>>(
+      '/api/v1/service_tickets/knowledge', { params: { keyword, type: type || undefined } }
+    ),
 }

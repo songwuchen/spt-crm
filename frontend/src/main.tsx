@@ -17,3 +17,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ConfigProvider>
   </React.StrictMode>,
 )
+
+// Register Service Worker for offline support (mobile)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // SW registration failed, offline mode not available
+    })
+  })
+}

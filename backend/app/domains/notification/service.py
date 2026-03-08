@@ -2,7 +2,7 @@ from sqlalchemy import select, func, update, delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
-from app.domains.notification.models import Notification
+from app.domains.notification.models import Notification, DataSubscription
 
 
 async def list_notifications(db: AsyncSession, tenant_id: str, recipient_id: str, unread_only: bool = False, limit: int = 50):
@@ -154,3 +154,36 @@ async def send_notification(db: AsyncSession, tenant_id: str, recipient_id: str,
         pass
 
     return n
+
+
+async def notify_subscribers(
+    db: AsyncSession, tenant_id: str,
+    biz_type: str, biz_id: str,
+    event: str, title: str, content: str | None = None,
+    sender_name: str | None = None, exclude_user_id: str | None = None,
+):
+    """Notify all users subscribed to a specific business entity about a change event."""
+    subs = (await db.execute(
+        select(DataSubscription).where(
+            DataSubscription.tenant_id == tenant_id,
+            DataSubscription.biz_type == biz_type,
+            DataSubscription.biz_id == biz_id,
+        )
+    )).scalars().all()
+
+    for sub in subs:
+        if sub.user_id == exclude_user_id:
+            continue
+        events = sub.events_json or []
+        if events and event not in events:
+            continue
+        await send_notification(
+            db, tenant_id, sub.user_id,
+            type="data_change",
+            title=title,
+            content=content,
+            biz_type=biz_type,
+            biz_id=biz_id,
+            sender_name=sender_name,
+            extra_json={"event": event},
+        )

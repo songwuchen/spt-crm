@@ -11,6 +11,7 @@ import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels,
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import SubscribeButton from '@/components/SubscribeButton'
 
 const { TextArea } = Input
 const statusFlow: Record<string, string[]> = {
@@ -38,6 +39,21 @@ export default function ServiceTicketDetail() {
   // Assign modal
   const [assignModal, setAssignModal] = useState(false)
   const [assigneeId, setAssigneeId] = useState('')
+
+  // Knowledge base
+  const [kbKeyword, setKbKeyword] = useState('')
+  const [kbResults, setKbResults] = useState<{ id: string; ticket_no: string; type: string; description: string; resolution: string }[]>([])
+  const [kbLoading, setKbLoading] = useState(false)
+  const [kbOpen, setKbOpen] = useState(false)
+
+  const searchKnowledge = async (kw: string) => {
+    if (kw.length < 2) return
+    setKbLoading(true)
+    try {
+      const r = await serviceTicketApi.knowledgeSearch(kw)
+      setKbResults(r.data || [])
+    } finally { setKbLoading(false) }
+  }
 
   const userSelect = useRemoteSelect(async (kw) => {
     const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
@@ -136,6 +152,7 @@ export default function ServiceTicketDetail() {
           ))}
           <Button onClick={openAssignModal}>分配</Button>
           <Button onClick={openEditModal}>编辑</Button>
+          <SubscribeButton bizType="service_ticket" bizId={id!} bizName={ticket.ticket_no} />
           <Button onClick={() => navigate('/service-tickets')}>返回列表</Button>
         </Space>
       </div>
@@ -159,6 +176,42 @@ export default function ServiceTicketDetail() {
               解决方案
             </h3>
             <p className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.resolution || '暂未填写'}</p>
+          </div>
+
+          {/* Knowledge Base Search */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <span className="material-symbols-outlined text-blue-500" style={{ fontSize: 18 }}>menu_book</span>
+                知识库
+              </h3>
+              <Button size="small" onClick={() => setKbOpen(!kbOpen)}>{kbOpen ? '收起' : '搜索类似工单'}</Button>
+            </div>
+            {kbOpen && (
+              <div>
+                <Input.Search placeholder="输入关键词搜索历史解决方案..." value={kbKeyword}
+                  onChange={(e) => setKbKeyword(e.target.value)}
+                  onSearch={searchKnowledge} loading={kbLoading} enterButton className="mb-3" />
+                {kbResults.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-auto">
+                    {kbResults.map((r) => (
+                      <div key={r.id} className="border border-slate-100 rounded-lg p-3 hover:bg-slate-50">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-xs text-slate-400">{r.ticket_no}</span>
+                          <Tag className="text-[10px]">{typeLabels[r.type] || r.type}</Tag>
+                        </div>
+                        <div className="text-xs text-slate-500 mb-1">{r.description}</div>
+                        <div className="text-xs text-emerald-700 bg-emerald-50 rounded p-2 mt-1">
+                          <span className="font-bold">解决方案: </span>{r.resolution}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : kbKeyword && !kbLoading ? (
+                  <div className="text-center text-sm text-slate-400 py-4">未找到相关解决方案</div>
+                ) : null}
+              </div>
+            )}
           </div>
 
           {/* Attachments */}

@@ -288,6 +288,84 @@ async def check_upcoming_followups(db: AsyncSession) -> int:
     return notified
 
 
+async def check_pool_auto_release(db: AsyncSession) -> int:
+    """Auto-release customers to pool based on tenant pool rules.
+
+    Pool rules stored in TenantProfile.security_policy_json:
+      {"pool_rules": {"enabled": true, "idle_days": {"A": 90, "B": 60, "C": 30, "D": 15}, "default_idle_days": 30}}
+    """
+    from app.domains.customer.models import Customer
+    from app.domains.activity.models import Activity
+    from app.domains.admin.models import TenantProfile
+    from app.domains.notification.service import send_notification
+
+    profiles = (await db.execute(
+        select(TenantProfile)
+    )).scalars().all()
+
+    released = 0
+    for profile in profiles:
+        policy = (profile.security_policy_json or {}).get("pool_rules")
+        if not policy or not policy.get("enabled"):
+            continue
+
+        idle_by_level = policy.get("idle_days", {})
+        default_idle = policy.get("default_idle_days", 30)
+
+        # Get active customers with owners
+        customers = (await db.execute(
+            select(Customer).where(
+                Customer.tenant_id == profile.tenant_id,
+                Customer.status == "active",
+                Customer.is_deleted == False,
+                Customer.owner_id != None,
+            )
+        )).scalars().all()
+
+        for cust in customers:
+            idle_days = idle_by_level.get(cust.level or "D", default_idle)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=idle_days)
+
+            # Check last activity
+            last = (await db.execute(
+                select(func.max(Activity.created_at)).where(
+                    Activity.biz_type == "customer",
+                    Activity.biz_id == cust.id,
+                )
+            )).scalar()
+
+            is_idle = False
+            if last is None and cust.created_at and cust.created_at < cutoff:
+                is_idle = True
+            elif last and last < cutoff:
+                is_idle = True
+
+            if is_idle:
+                old_owner = cust.owner_id
+                cust.status = "pool"
+                cust.owner_id = None
+                cust.owner_name = None
+                released += 1
+
+                if old_owner:
+                    try:
+                        await send_notification(
+                            db=db, tenant_id=profile.tenant_id,
+                            recipient_id=old_owner,
+                            type="system",
+                            title=f"客户自动释放到公海: {cust.name}",
+                            content=f"客户「{cust.name}」因 {idle_days} 天无跟进活动已自动释放到公海池。",
+                            biz_type="customer", biz_id=cust.id,
+                        )
+                    except Exception:
+                        pass
+
+    if released > 0:
+        await db.commit()
+        logger.info(f"Auto-released {released} idle customers to pool")
+    return released
+
+
 AUDIT_RETENTION_DAYS = 180  # Keep audit logs for 6 months
 
 
@@ -372,6 +450,59 @@ async def cleanup_soft_deleted_records(db: AsyncSession) -> int:
     return total
 
 
+async def check_scheduled_reports(db: AsyncSession) -> int:
+    """Send scheduled report emails based on tenant report_schedules config."""
+    from app.domains.admin.models import TenantProfile
+    from app.domains.notification.service import send_notification
+
+    now = datetime.now(timezone.utc)
+    current_hour = now.hour
+    current_weekday = now.weekday()  # 0=Mon
+    current_day = now.day
+
+    profiles = (await db.execute(select(TenantProfile))).scalars().all()
+    total = 0
+
+    for profile in profiles:
+        policy = profile.security_policy_json or {}
+        schedules = policy.get("report_schedules", [])
+        if not schedules:
+            continue
+
+        for sched in schedules:
+            if not sched.get("enabled", True):
+                continue
+            freq = sched.get("frequency", "daily")
+            send_hour = sched.get("send_hour", 8)
+
+            if current_hour != send_hour:
+                continue
+            if freq == "weekly" and current_weekday != sched.get("send_weekday", 0):
+                continue
+            if freq == "monthly" and current_day != sched.get("send_day", 1):
+                continue
+
+            report_type = sched.get("report_type", "summary")
+            recipients = sched.get("recipient_ids", [])
+
+            for uid in recipients:
+                await send_notification(
+                    db, profile.tenant_id, uid,
+                    type="scheduled_report",
+                    title=f"定时报表: {sched.get('name', report_type)}",
+                    content=f"您订阅的{freq_label(freq)}报表已生成，请前往报表中心查看。",
+                    biz_type="report",
+                    extra_json={"report_type": report_type, "frequency": freq},
+                )
+                total += 1
+
+    return total
+
+
+def freq_label(freq: str) -> str:
+    return {"daily": "每日", "weekly": "每周", "monthly": "每月"}.get(freq, freq)
+
+
 async def run_once():
     """Single reminder check cycle."""
     async with async_session_factory() as db:
@@ -385,11 +516,13 @@ async def run_once():
         deleted_cleanup = await cleanup_soft_deleted_records(db)
 
         followups = await check_upcoming_followups(db)
-        total = stale + payments + sla + contracts + followups
+        pool_released = await check_pool_auto_release(db)
+        reports = await check_scheduled_reports(db)
+        total = stale + payments + sla + contracts + followups + pool_released + reports
         if total > 0:
             logger.info(
                 f"Reminders sent: stale_projects={stale}, upcoming_payments={payments}, "
-                f"sla_violations={sla}, expiring_contracts={contracts}, followups={followups}"
+                f"sla_violations={sla}, expiring_contracts={contracts}, followups={followups}, pool_released={pool_released}, reports={reports}"
             )
         cleanup_total = audit_cleanup + notif_cleanup + session_cleanup + deleted_cleanup
         if cleanup_total > 0:

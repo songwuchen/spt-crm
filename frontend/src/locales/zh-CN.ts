@@ -89,6 +89,7 @@ const zhCN = {
     auditLog: '审计日志',
     settings: '系统配置',
     apiDocs: 'API 文档',
+    systemHealth: '系统健康',
     profile: '个人中心',
   },
 

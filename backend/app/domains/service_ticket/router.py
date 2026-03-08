@@ -259,3 +259,41 @@ async def sla_stats(
         "sla_config": DEFAULT_SLA_HOURS,
         "by_priority": by_priority,
     })
+
+
+@router.get("/api/v1/service_tickets/knowledge")
+async def knowledge_search(
+    keyword: str = Query(..., min_length=2),
+    ticket_type: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("service:view")),
+):
+    """Search resolved tickets as knowledge base for similar solutions."""
+    from sqlalchemy import or_
+    from app.domains.service_ticket.models import ServiceTicket
+
+    q = select(ServiceTicket).where(
+        ServiceTicket.tenant_id == tenant_id,
+        ServiceTicket.status.in_(["resolved", "closed"]),
+        ServiceTicket.resolution != None,
+        or_(
+            ServiceTicket.description.ilike(f"%{keyword}%"),
+            ServiceTicket.resolution.ilike(f"%{keyword}%"),
+            ServiceTicket.ticket_no.ilike(f"%{keyword}%"),
+        ),
+    )
+    if ticket_type:
+        q = q.where(ServiceTicket.type == ticket_type)
+    q = q.order_by(ServiceTicket.updated_at.desc()).limit(20)
+
+    items = (await db.execute(q)).scalars().all()
+    return ok([{
+        "id": t.id,
+        "ticket_no": t.ticket_no,
+        "type": t.type,
+        "priority": t.priority,
+        "description": (t.description or "")[:200],
+        "resolution": (t.resolution or "")[:500],
+        "updated_at": t.updated_at.isoformat() if t.updated_at else "",
+    } for t in items])

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
 import NotificationBell from '@/components/NotificationBell'
@@ -14,9 +15,25 @@ export default function MobileLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
+  const [offline, setOffline] = useState(!navigator.onLine)
+
+  useEffect(() => {
+    const on = () => setOffline(false)
+    const off = () => setOffline(true)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50">
+      {/* Offline Banner */}
+      {offline && (
+        <div className="bg-amber-500 text-white text-xs font-bold text-center py-1 px-2">
+          <span className="material-symbols-outlined text-xs align-middle mr-1" style={{ fontSize: 14 }}>cloud_off</span>
+          离线模式 — 部分数据可能不是最新的
+        </div>
+      )}
       {/* Mobile Header */}
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 h-12 flex items-center justify-between">
         <div className="flex items-center gap-2">

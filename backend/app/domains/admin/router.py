@@ -114,6 +114,142 @@ async def update_profile(body: TenantProfileUpdate, tenant_id: str = Depends(get
     return ok({"id": p.id, "timezone": p.timezone, "locale": p.locale})
 
 
+# ==================== Tenant: Pool Rules ====================
+
+@router.get("/api/admin/v1/tenant/pool_rules")
+async def get_pool_rules(tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    p = await service.get_profile(db, tenant_id)
+    rules = (p.security_policy_json or {}).get("pool_rules", {}) if p else {}
+    return ok(rules)
+
+
+@router.put("/api/admin/v1/tenant/pool_rules")
+async def update_pool_rules(body: dict, tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    p = await service.get_profile(db, tenant_id)
+    if not p:
+        p = await service.upsert_profile(db, tenant_id, {})
+    policy = p.security_policy_json or {}
+    policy["pool_rules"] = body
+    p.security_policy_json = policy
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(p, "security_policy_json")
+    await db.commit()
+    return ok(body)
+
+
+# ==================== System Health ====================
+
+@router.get("/api/admin/v1/system/health")
+async def system_health(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """System health dashboard: DB pool, API stats, worker heartbeat."""
+    import time
+    from app.database import engine
+
+    # DB pool stats
+    pool = engine.pool
+    pool_stats = {
+        "pool_size": pool.size(),
+        "checked_out": pool.checkedout(),
+        "overflow": pool.overflow(),
+        "checked_in": pool.checkedin(),
+    }
+
+    # DB connectivity check
+    db_ok = True
+    db_latency_ms = 0
+    try:
+        t0 = time.monotonic()
+        await db.execute(select(1))
+        db_latency_ms = round((time.monotonic() - t0) * 1000, 1)
+    except Exception:
+        db_ok = False
+
+    # Table row counts (approximate)
+    from app.domains.customer.models import Customer
+    from app.domains.lead.models import Lead
+    from app.domains.project.models import OpportunityProject
+    from app.domains.notification.models import Notification
+
+    counts = {}
+    for name, model in [("customers", Customer), ("leads", Lead), ("projects", OpportunityProject), ("notifications", Notification)]:
+        try:
+            c = (await db.execute(select(func.count(model.id)).where(model.tenant_id == tenant_id))).scalar() or 0
+            counts[name] = c
+        except Exception:
+            counts[name] = -1
+
+    # Recent error rate (from audit logs, last 24h)
+    from app.domains.audit.models import AuditLog
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    day_ago = now - timedelta(hours=24)
+    total_ops = (await db.execute(
+        select(func.count(AuditLog.id)).where(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.created_at >= day_ago,
+        )
+    )).scalar() or 0
+
+    return ok({
+        "db": {"ok": db_ok, "latency_ms": db_latency_ms, "pool": pool_stats},
+        "table_counts": counts,
+        "api": {"total_ops_24h": total_ops},
+        "timestamp": now.isoformat(),
+    })
+
+
+# ==================== Tenant: Report Schedules ====================
+
+@router.get("/api/admin/v1/tenant/report_schedules")
+async def get_report_schedules(tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    p = await service.get_profile(db, tenant_id)
+    schedules = (p.security_policy_json or {}).get("report_schedules", []) if p else []
+    return ok(schedules)
+
+
+@router.put("/api/admin/v1/tenant/report_schedules")
+async def update_report_schedules(body: list, tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    p = await service.get_profile(db, tenant_id)
+    if not p:
+        p = await service.upsert_profile(db, tenant_id, {})
+    policy = p.security_policy_json or {}
+    policy["report_schedules"] = body
+    p.security_policy_json = policy
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(p, "security_policy_json")
+    await db.commit()
+    return ok(body)
+
+
+# ==================== Tenant: Field Rules ====================
+
+@router.get("/api/admin/v1/tenant/field_rules")
+async def get_field_rules(tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    """Get field-level visibility/masking rules per role."""
+    p = await service.get_profile(db, tenant_id)
+    rules = (p.security_policy_json or {}).get("field_rules", []) if p else []
+    return ok(rules)
+
+
+@router.put("/api/admin/v1/tenant/field_rules")
+async def update_field_rules(body: list, tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    """Update field-level visibility rules. Body: list of { resource, field, roles, action }."""
+    p = await service.get_profile(db, tenant_id)
+    if not p:
+        p = await service.upsert_profile(db, tenant_id, {})
+    policy = p.security_policy_json or {}
+    policy["field_rules"] = body
+    p.security_policy_json = policy
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(p, "security_policy_json")
+    await db.commit()
+    return ok(body)
+
+
 # ==================== Tenant: Feature Toggles ====================
 
 @router.get("/api/admin/v1/tenant/features")

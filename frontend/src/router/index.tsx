@@ -70,6 +70,7 @@ const ProductList = lazy(() => import('@/pages/product/ProductList'))
 const TaskPage = lazy(() => import('@/pages/task/TaskPage'))
 const CalendarPage = lazy(() => import('@/pages/calendar/CalendarPage'))
 const ApiDocsPage = lazy(() => import('@/pages/admin/ApiDocsPage'))
+const SystemHealthPage = lazy(() => import('@/pages/admin/SystemHealthPage'))
 const ProductReport = lazy(() => import('@/pages/report/ProductReport'))
 const CustomerLifecycleReport = lazy(() => import('@/pages/report/CustomerLifecycleReport'))
 const TeamPerformanceReport = lazy(() => import('@/pages/report/TeamPerformanceReport'))
@@ -139,6 +140,7 @@ export const router = createBrowserRouter([
       { path: 'admin/settings', element: <Guard permission="role:manage"><SettingsPage /></Guard> },
       { path: 'platform/tenants', element: <Guard permission="role:manage"><PlatformTenants /></Guard> },
       { path: 'admin/api-docs', element: <Guard permission="role:manage"><ApiDocsPage /></Guard> },
+      { path: 'admin/system-health', element: <Guard permission="role:manage"><SystemHealthPage /></Guard> },
       { path: '*', element: <Lazy><NotFound /></Lazy> },
     ],
   },

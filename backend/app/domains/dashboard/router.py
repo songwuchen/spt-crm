@@ -285,6 +285,46 @@ async def alerts(
             "biz_type": "service_ticket", "biz_id": t.id,
         })
 
+    # Overdue payments
+    from datetime import timedelta
+    overdue_plans = (await db.execute(
+        select(PaymentPlan).where(
+            PaymentPlan.tenant_id == tenant_id,
+            PaymentPlan.status == "pending",
+            PaymentPlan.due_date != None,
+            PaymentPlan.due_date < date.today(),
+        ).limit(10)
+    )).scalars().all()
+    for p in overdue_plans:
+        overdue_days = (date.today() - p.due_date).days
+        alerts_list.append({
+            "type": "payment_overdue", "severity": "critical" if overdue_days > 30 else "warning",
+            "title": f"回款逾期 {overdue_days} 天: {p.plan_no}",
+            "content": f"金额: ¥{float(p.amount or 0):,.0f}，到期: {p.due_date}",
+            "biz_type": "project", "biz_id": p.project_id,
+        })
+
+    # Large amount projects with no quote
+    big_no_quote = (await db.execute(
+        select(OpportunityProject).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.status == "active",
+            OpportunityProject.amount_expect > 100000,
+            OpportunityProject.stage_code.in_(["S3", "S4"]),
+        ).limit(10)
+    )).scalars().all()
+    for p in big_no_quote:
+        has_quote = (await db.execute(
+            select(func.count()).where(Quote.project_id == p.id, Quote.tenant_id == tenant_id)
+        )).scalar()
+        if not has_quote:
+            alerts_list.append({
+                "type": "no_quote", "severity": "info",
+                "title": f"大额商机未报价: {p.name}",
+                "content": f"预期金额 ¥{float(p.amount_expect or 0):,.0f}，阶段 {p.stage_code}",
+                "biz_type": "project", "biz_id": p.id,
+            })
+
     return ok(alerts_list)
 
 
