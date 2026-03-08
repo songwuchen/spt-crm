@@ -14,10 +14,10 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("service_tickets", sa.Column("sla_respond_by", sa.DateTime(), nullable=True))
-    op.add_column("service_tickets", sa.Column("sla_resolve_by", sa.DateTime(), nullable=True))
-    op.add_column("service_tickets", sa.Column("sla_responded_at", sa.DateTime(), nullable=True))
-    op.add_column("service_tickets", sa.Column("sla_resolved_at", sa.DateTime(), nullable=True))
+    op.add_column("service_tickets", sa.Column("sla_respond_by", sa.DateTime(timezone=True), nullable=True))
+    op.add_column("service_tickets", sa.Column("sla_resolve_by", sa.DateTime(timezone=True), nullable=True))
+    op.add_column("service_tickets", sa.Column("sla_responded_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column("service_tickets", sa.Column("sla_resolved_at", sa.DateTime(timezone=True), nullable=True))
 
 
 def downgrade():

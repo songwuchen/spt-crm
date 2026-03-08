@@ -24,10 +24,10 @@ class ServiceTicket(TenantScopedBase):
     created_by_id: Mapped[str | None] = mapped_column(String(36))
     created_by_name: Mapped[str | None] = mapped_column(String(100))
     # SLA fields
-    sla_respond_by: Mapped[str | None] = mapped_column(DateTime)  # response deadline
-    sla_resolve_by: Mapped[str | None] = mapped_column(DateTime)  # resolution deadline
-    sla_responded_at: Mapped[str | None] = mapped_column(DateTime)  # actual first response
-    sla_resolved_at: Mapped[str | None] = mapped_column(DateTime)  # actual resolution
+    sla_respond_by: Mapped[str | None] = mapped_column(DateTime(timezone=True))
+    sla_resolve_by: Mapped[str | None] = mapped_column(DateTime(timezone=True))
+    sla_responded_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
+    sla_resolved_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
 
 
 class RenewalOpportunity(TenantScopedBase):
