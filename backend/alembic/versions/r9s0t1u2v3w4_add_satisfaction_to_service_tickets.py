@@ -14,9 +14,15 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("service_tickets", sa.Column("satisfaction_score", sa.Integer(), nullable=True))
-    op.add_column("service_tickets", sa.Column("satisfaction_comment", sa.Text(), nullable=True))
-    op.add_column("service_tickets", sa.Column("satisfaction_at", sa.DateTime(timezone=True), nullable=True))
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    columns = [c["name"] for c in inspect(bind).get_columns("service_tickets")]
+    if "satisfaction_score" not in columns:
+        op.add_column("service_tickets", sa.Column("satisfaction_score", sa.Integer(), nullable=True))
+    if "satisfaction_comment" not in columns:
+        op.add_column("service_tickets", sa.Column("satisfaction_comment", sa.Text(), nullable=True))
+    if "satisfaction_at" not in columns:
+        op.add_column("service_tickets", sa.Column("satisfaction_at", sa.DateTime(timezone=True), nullable=True))
 
 
 def downgrade():

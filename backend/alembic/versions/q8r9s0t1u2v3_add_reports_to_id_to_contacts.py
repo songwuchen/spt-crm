@@ -14,7 +14,11 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("contacts", sa.Column("reports_to_id", sa.String(36), nullable=True))
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    columns = [c["name"] for c in inspect(bind).get_columns("contacts")]
+    if "reports_to_id" not in columns:
+        op.add_column("contacts", sa.Column("reports_to_id", sa.String(36), nullable=True))
 
 
 def downgrade():

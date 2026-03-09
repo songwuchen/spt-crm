@@ -14,6 +14,10 @@ depends_on = None
 
 
 def upgrade():
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    if "dashboard_snapshots" in inspect(bind).get_table_names():
+        return
     op.create_table(
         "dashboard_snapshots",
         sa.Column("id", sa.String(36), primary_key=True),

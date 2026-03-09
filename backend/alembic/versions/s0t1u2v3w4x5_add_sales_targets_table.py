@@ -14,19 +14,23 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table(
-        "sales_targets",
-        sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("tenant_id", sa.String(36), nullable=False, index=True),
-        sa.Column("user_id", sa.String(36), nullable=False, index=True),
-        sa.Column("user_name", sa.String(100)),
-        sa.Column("year", sa.Integer(), nullable=False),
-        sa.Column("month", sa.Integer(), nullable=False),
-        sa.Column("target_amount", sa.Numeric(18, 2), nullable=False),
-        sa.Column("target_count", sa.Integer()),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), onupdate=sa.func.now()),
-    )
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if "sales_targets" not in inspector.get_table_names():
+        op.create_table(
+            "sales_targets",
+            sa.Column("id", sa.String(36), primary_key=True),
+            sa.Column("tenant_id", sa.String(36), nullable=False, index=True),
+            sa.Column("user_id", sa.String(36), nullable=False, index=True),
+            sa.Column("user_name", sa.String(100)),
+            sa.Column("year", sa.Integer(), nullable=False),
+            sa.Column("month", sa.Integer(), nullable=False),
+            sa.Column("target_amount", sa.Numeric(18, 2), nullable=False),
+            sa.Column("target_count", sa.Integer()),
+            sa.Column("created_at", sa.DateTime(), server_default=sa.func.now()),
+            sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), onupdate=sa.func.now()),
+        )
 
 
 def downgrade():
