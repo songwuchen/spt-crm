@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Tag, Select, Input, Space, Spin, Descriptions, Modal, message } from 'antd'
+import { Button, Tag, Select, Input, Space, Spin, Descriptions, Modal, Rate, message } from 'antd'
 import { useParams, useNavigate } from 'react-router-dom'
 import { serviceTicketApi } from '@/api/serviceTicket'
 import { activityApi } from '@/api/activity'
@@ -41,6 +41,11 @@ export default function ServiceTicketDetail() {
   // Assign modal
   const [assignModal, setAssignModal] = useState(false)
   const [assigneeId, setAssigneeId] = useState('')
+
+  // Satisfaction rating
+  const [rateScore, setRateScore] = useState(0)
+  const [rateComment, setRateComment] = useState('')
+  const [rateSubmitting, setRateSubmitting] = useState(false)
 
   // Knowledge base
   const [kbKeyword, setKbKeyword] = useState('')
@@ -187,6 +192,48 @@ export default function ServiceTicketDetail() {
             </h3>
             <p className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.resolution || '暂未填写'}</p>
           </div>
+
+          {/* Satisfaction Rating */}
+          {(ticket.status === 'resolved' || ticket.status === 'closed') && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+              <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-500" style={{ fontSize: 18 }}>star</span>
+                满意度评价
+              </h3>
+              {ticket.satisfaction_score ? (
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Rate disabled value={ticket.satisfaction_score} />
+                    <span className="text-sm font-bold text-slate-700">{ticket.satisfaction_score}/5</span>
+                  </div>
+                  {ticket.satisfaction_comment && (
+                    <div className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3">{ticket.satisfaction_comment}</div>
+                  )}
+                  {ticket.satisfaction_at && (
+                    <div className="text-xs text-slate-400 mt-2">评价时间: {new Date(ticket.satisfaction_at).toLocaleString('zh-CN')}</div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <div className="mb-3">
+                    <Rate value={rateScore} onChange={setRateScore} />
+                    {rateScore > 0 && <span className="ml-2 text-sm text-slate-500">{['', '非常不满意', '不满意', '一般', '满意', '非常满意'][rateScore]}</span>}
+                  </div>
+                  <Input.TextArea rows={2} placeholder="请输入评价内容（可选）" value={rateComment} onChange={(e) => setRateComment(e.target.value)} className="mb-3" />
+                  <Button type="primary" size="small" disabled={rateScore === 0} loading={rateSubmitting}
+                    onClick={async () => {
+                      setRateSubmitting(true)
+                      try {
+                        const res = await serviceTicketApi.rate(id!, { score: rateScore, comment: rateComment })
+                        setTicket(res.data)
+                        message.success('评价已提交')
+                      } catch { message.error('评价失败') }
+                      finally { setRateSubmitting(false) }
+                    }}>提交评价</Button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Knowledge Base Search */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">

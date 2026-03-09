@@ -48,6 +48,8 @@ interface AuditStats {
   by_resource: Array<{ resource_type: string; count: number }>
   daily: Array<{ date: string; count: number }>
   top_operators: Array<{ user_id: string; user_name: string; count: number }>
+  hourly?: Array<{ hour: number; count: number }>
+  resource_action_matrix?: Array<{ resource_type: string; action: string; count: number }>
 }
 
 function DiffView({ detail }: { detail: Record<string, unknown> }) {
@@ -137,6 +139,145 @@ function ActivityHeatmap({ daily }: { daily: Array<{ date: string; count: number
         ))}
         <span className="text-[9px] text-slate-400">多</span>
       </div>
+    </div>
+  )
+}
+
+function DailyTrendChart({ daily }: { daily: Array<{ date: string; count: number }> }) {
+  const { points, areaPath, maxCount, width, height, labels } = useMemo(() => {
+    if (daily.length < 2) return { points: '', areaPath: '', maxCount: 1, width: 0, height: 0, labels: [] as string[] }
+    const w = 500, h = 120, pad = 30
+    const max = Math.max(...daily.map((d) => d.count), 1)
+    const pts = daily.map((d, i) => ({
+      x: pad + (i / (daily.length - 1)) * (w - pad * 2),
+      y: pad + (1 - d.count / max) * (h - pad * 2),
+    }))
+    const line = pts.map((p) => `${p.x},${p.y}`).join(' ')
+    const area = `M ${pts[0].x},${h - pad} L ${line} L ${pts[pts.length - 1].x},${h - pad} Z`
+    const lbls = daily.length > 5
+      ? [daily[0].date.slice(5), daily[Math.floor(daily.length / 2)].date.slice(5), daily[daily.length - 1].date.slice(5)]
+      : daily.map((d) => d.date.slice(5))
+    return { points: line, areaPath: area, maxCount: max, width: w, height: h, labels: lbls }
+  }, [daily])
+
+  if (daily.length < 2) return <div className="text-center text-slate-400 text-xs py-8">数据不足</div>
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+      <defs>
+        <linearGradient id="areafill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill="url(#areafill)" />
+      <polyline points={points} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {labels.map((l, i) => (
+        <text key={i} x={30 + (i / (labels.length - 1)) * (width - 60)} y={height - 5}
+          textAnchor="middle" fontSize="9" fill="#94a3b8">{l}</text>
+      ))}
+      <text x={5} y={35} fontSize="9" fill="#94a3b8">{maxCount}</text>
+      <text x={5} y={height - 30} fontSize="9" fill="#94a3b8">0</text>
+    </svg>
+  )
+}
+
+function HourlyChart({ hourly }: { hourly: Array<{ hour: number; count: number }> }) {
+  const fullHours = useMemo(() => {
+    const map = new Map(hourly.map((h) => [h.hour, h.count]))
+    return Array.from({ length: 24 }, (_, i) => ({ hour: i, count: map.get(i) || 0 }))
+  }, [hourly])
+
+  const max = Math.max(...fullHours.map((h) => h.count), 1)
+
+  return (
+    <div className="flex items-end gap-[3px] h-20">
+      {fullHours.map((h) => {
+        const pct = (h.count / max) * 100
+        const intensity = h.count === 0 ? 'bg-slate-100' :
+          pct <= 25 ? 'bg-blue-200' : pct <= 50 ? 'bg-blue-400' : pct <= 75 ? 'bg-blue-500' : 'bg-blue-700'
+        return (
+          <div key={h.hour} className="flex-1 flex flex-col items-center gap-0.5 group relative">
+            <div className={`w-full rounded-sm ${intensity} transition-all`}
+              style={{ height: `${Math.max(pct, 4)}%` }} />
+            {h.hour % 4 === 0 && <span className="text-[8px] text-slate-400">{h.hour}</span>}
+            <div className="hidden group-hover:block absolute bottom-full mb-1 px-2 py-1 bg-slate-800 text-white text-[10px] rounded whitespace-nowrap z-10">
+              {h.hour}:00 — {h.count} 次
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ResourceActionMatrix({ matrix, actionCfg }: {
+  matrix: Array<{ resource_type: string; action: string; count: number }>
+  actionCfg: typeof actionConfig
+}) {
+  const { resources, actions, grid, maxVal } = useMemo(() => {
+    const resSet = new Set<string>()
+    const actSet = new Set<string>()
+    const map = new Map<string, number>()
+    matrix.forEach((m) => {
+      resSet.add(m.resource_type)
+      actSet.add(m.action)
+      map.set(`${m.resource_type}|${m.action}`, m.count)
+    })
+    const res = Array.from(resSet).slice(0, 8)
+    const acts = Array.from(actSet).slice(0, 6)
+    const mx = Math.max(...matrix.map((m) => m.count), 1)
+    return { resources: res, actions: acts, grid: map, maxVal: mx }
+  }, [matrix])
+
+  if (resources.length === 0) return <div className="text-center text-slate-400 text-xs py-4">暂无数据</div>
+
+  const getColor = (count: number) => {
+    if (count === 0) return 'bg-slate-50'
+    const ratio = count / maxVal
+    if (ratio <= 0.2) return 'bg-blue-100'
+    if (ratio <= 0.4) return 'bg-blue-200'
+    if (ratio <= 0.6) return 'bg-blue-400'
+    if (ratio <= 0.8) return 'bg-blue-500'
+    return 'bg-blue-700'
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="text-[10px]">
+        <thead>
+          <tr>
+            <th className="p-1" />
+            {actions.map((a) => (
+              <th key={a} className={`p-1 font-bold ${actionCfg[a]?.text || 'text-slate-500'}`}>
+                {actionCfg[a]?.label || a}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {resources.map((r) => (
+            <tr key={r}>
+              <td className="p-1 font-bold text-slate-600 whitespace-nowrap">
+                {resourceLabels[r] || r}
+              </td>
+              {actions.map((a) => {
+                const count = grid.get(`${r}|${a}`) || 0
+                return (
+                  <td key={a} className="p-0.5">
+                    <div className={`w-8 h-6 rounded ${getColor(count)} flex items-center justify-center group relative`}>
+                      {count > 0 && <span className="text-[9px] font-bold text-white mix-blend-difference">{count}</span>}
+                      <div className="hidden group-hover:block absolute bottom-full mb-1 px-2 py-1 bg-slate-800 text-white text-[10px] rounded whitespace-nowrap z-10">
+                        {resourceLabels[r] || r} · {actionCfg[a]?.label || a}: {count}
+                      </div>
+                    </div>
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -384,6 +525,34 @@ export default function AuditLogPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* Daily Trend + Hourly + Resource-Action Matrix */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">每日操作趋势</h4>
+              {stats.daily.length >= 2 ? (
+                <DailyTrendChart daily={stats.daily} />
+              ) : (
+                <div className="text-center text-slate-400 text-xs py-8">数据不足</div>
+              )}
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">小时分布</h4>
+              {stats.hourly && stats.hourly.length > 0 ? (
+                <HourlyChart hourly={stats.hourly} />
+              ) : (
+                <div className="text-center text-slate-400 text-xs py-8">暂无数据</div>
+              )}
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">资源-操作矩阵</h4>
+              {stats.resource_action_matrix && stats.resource_action_matrix.length > 0 ? (
+                <ResourceActionMatrix matrix={stats.resource_action_matrix} actionCfg={actionConfig} />
+              ) : (
+                <div className="text-center text-slate-400 text-xs py-8">暂无数据</div>
+              )}
             </div>
           </div>
 

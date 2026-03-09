@@ -85,6 +85,7 @@ class ContactCreate(BaseModel):
     mobile: Optional[str] = None
     email: Optional[str] = None
     is_primary: bool = False
+    reports_to_id: Optional[str] = None
     remark: Optional[str] = None
 
 
@@ -96,6 +97,7 @@ class ContactUpdate(BaseModel):
     mobile: Optional[str] = None
     email: Optional[str] = None
     is_primary: Optional[bool] = None
+    reports_to_id: Optional[str] = None
     remark: Optional[str] = None
 
 
@@ -109,6 +111,7 @@ class ContactOut(BaseModel):
     mobile: Optional[str] = None
     email: Optional[str] = None
     is_primary: bool
+    reports_to_id: Optional[str] = None
     remark: Optional[str] = None
 
     model_config = {"from_attributes": True}

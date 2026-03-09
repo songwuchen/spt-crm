@@ -23,7 +23,7 @@ from app.domains.activity.models import Activity
 from app.domains.ai_center.models import AiTask
 from app.domains.contract.models import Contract
 from app.domains.payment.models import PaymentPlan
-from app.domains.dashboard.models import SalesTarget
+from app.domains.dashboard.models import SalesTarget, DashboardSnapshot
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["工作台"])
 
@@ -1749,3 +1749,246 @@ async def stage_duration(
             stages.append({"stage": stage, "avg_days": 0, "min_days": 0, "max_days": 0, "count": 0})
 
     return ok(stages)
+
+
+# --- Sales Targets ---
+
+@router.get("/targets")
+async def list_targets(
+    year: int = Query(..., ge=2020),
+    month: int | None = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("dashboard:view")),
+):
+    q = select(SalesTarget).where(SalesTarget.tenant_id == tenant_id, SalesTarget.year == year)
+    if month is not None:
+        q = q.where(SalesTarget.month == month)
+    items = (await db.execute(q.order_by(SalesTarget.month, SalesTarget.user_name))).scalars().all()
+    return ok([{
+        "id": t.id, "user_id": t.user_id, "user_name": t.user_name,
+        "year": t.year, "month": t.month,
+        "target_amount": float(t.target_amount) if t.target_amount else 0,
+        "target_count": t.target_count,
+    } for t in items])
+
+
+@router.post("/targets")
+async def upsert_target(
+    body: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("dashboard:view")),
+):
+    user_id = body.get("user_id", "")
+    year = body.get("year", 0)
+    month = body.get("month", 0)
+    existing = (await db.execute(
+        select(SalesTarget).where(
+            SalesTarget.tenant_id == tenant_id,
+            SalesTarget.user_id == user_id,
+            SalesTarget.year == year,
+            SalesTarget.month == month,
+        )
+    )).scalar_one_or_none()
+
+    if existing:
+        existing.target_amount = body.get("target_amount", existing.target_amount)
+        existing.target_count = body.get("target_count", existing.target_count)
+        existing.user_name = body.get("user_name", existing.user_name)
+    else:
+        t = SalesTarget(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_name=body.get("user_name"),
+            year=year,
+            month=month,
+            target_amount=body.get("target_amount", 0),
+            target_count=body.get("target_count"),
+        )
+        db.add(t)
+    await db.commit()
+    return ok(None)
+
+
+@router.delete("/targets/{target_id}")
+async def delete_target(
+    target_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("dashboard:view")),
+):
+    t = (await db.execute(
+        select(SalesTarget).where(SalesTarget.tenant_id == tenant_id, SalesTarget.id == target_id)
+    )).scalar_one_or_none()
+    if t:
+        await db.delete(t)
+        await db.commit()
+    return ok(None)
+
+
+@router.get("/target_achievement")
+async def target_achievement(
+    year: int = Query(..., ge=2020),
+    month: int | None = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("dashboard:view")),
+):
+    """Calculate achievement: target vs actual won deals."""
+    # Get targets
+    tq = select(SalesTarget).where(SalesTarget.tenant_id == tenant_id, SalesTarget.year == year)
+    if month:
+        tq = tq.where(SalesTarget.month == month)
+    targets = (await db.execute(tq)).scalars().all()
+
+    # Get actual won projects in the period
+    pq = select(
+        OpportunityProject.owner_id,
+        func.sum(OpportunityProject.amount_expect).label("total_amount"),
+        func.count(OpportunityProject.id).label("total_count"),
+    ).where(
+        OpportunityProject.tenant_id == tenant_id,
+        OpportunityProject.status == "won",
+        extract("year", OpportunityProject.updated_at) == year,
+    )
+    if month:
+        pq = pq.where(extract("month", OpportunityProject.updated_at) == month)
+    pq = pq.group_by(OpportunityProject.owner_id)
+    actuals = {r.owner_id: {"amount": float(r.total_amount or 0), "count": r.total_count or 0}
+               for r in (await db.execute(pq)).all()}
+
+    # Merge
+    user_map: dict[str, dict] = {}
+    for t in targets:
+        entry = user_map.setdefault(t.user_id, {
+            "user_id": t.user_id, "user_name": t.user_name or "",
+            "target_amount": 0, "target_count": 0,
+            "actual_amount": 0, "actual_count": 0, "achievement_rate": 0,
+        })
+        entry["target_amount"] += float(t.target_amount or 0)
+        entry["target_count"] += t.target_count or 0
+
+    for uid, data in actuals.items():
+        entry = user_map.setdefault(uid, {
+            "user_id": uid, "user_name": "",
+            "target_amount": 0, "target_count": 0,
+            "actual_amount": 0, "actual_count": 0, "achievement_rate": 0,
+        })
+        entry["actual_amount"] = data["amount"]
+        entry["actual_count"] = data["count"]
+
+    for entry in user_map.values():
+        if entry["target_amount"] > 0:
+            entry["achievement_rate"] = round(entry["actual_amount"] / entry["target_amount"] * 100)
+
+    return ok(list(user_map.values()))
+
+
+# ── Dashboard Snapshot Sharing ─────────────────────────────────────
+
+class SnapshotCreate(BaseModel):
+    title: str = Field(..., max_length=200)
+    snapshot_data: dict
+    card_visibility: Optional[dict] = None
+    card_order: Optional[list] = None
+    expires_hours: Optional[int] = None  # None = never expires
+
+
+@router.post("/snapshots")
+async def create_snapshot(
+    body: SnapshotCreate,
+    tenant_id: str = Depends(get_tenant_id),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    import secrets, json
+    from datetime import timedelta
+
+    token = secrets.token_urlsafe(32)
+    expires_at = None
+    if body.expires_hours:
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=body.expires_hours)
+
+    snap = DashboardSnapshot(
+        tenant_id=tenant_id,
+        share_token=token,
+        title=body.title,
+        created_by=current_user["sub"],
+        created_by_name=current_user.get("real_name") or current_user.get("username", ""),
+        snapshot_json=json.dumps(body.snapshot_data, ensure_ascii=False),
+        card_visibility_json=json.dumps(body.card_visibility) if body.card_visibility else None,
+        card_order_json=json.dumps(body.card_order) if body.card_order else None,
+        expires_at=expires_at,
+    )
+    db.add(snap)
+    await db.commit()
+    return ok({"id": snap.id, "share_token": token, "expires_at": expires_at.isoformat() if expires_at else None})
+
+
+@router.get("/snapshots")
+async def list_snapshots(
+    tenant_id: str = Depends(get_tenant_id),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    import json
+    rows = (await db.execute(
+        select(DashboardSnapshot).where(
+            DashboardSnapshot.tenant_id == tenant_id,
+            DashboardSnapshot.created_by == current_user["sub"],
+        ).order_by(DashboardSnapshot.created_at.desc()).limit(50)
+    )).scalars().all()
+    return ok([{
+        "id": s.id, "title": s.title, "share_token": s.share_token,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+        "expires_at": s.expires_at.isoformat() if s.expires_at else None,
+    } for s in rows])
+
+
+@router.get("/snapshots/{token}")
+async def get_snapshot(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    import json
+    from app.common.exceptions import BusinessException
+
+    snap = (await db.execute(
+        select(DashboardSnapshot).where(DashboardSnapshot.share_token == token)
+    )).scalar_one_or_none()
+    if not snap:
+        raise BusinessException(code=404, message="快照不存在")
+    if snap.expires_at and snap.expires_at < datetime.now(timezone.utc):
+        raise BusinessException(code=410, message="快照已过期")
+
+    return ok({
+        "id": snap.id,
+        "title": snap.title,
+        "created_by_name": snap.created_by_name,
+        "created_at": snap.created_at.isoformat() if snap.created_at else None,
+        "snapshot_data": json.loads(snap.snapshot_json),
+        "card_visibility": json.loads(snap.card_visibility_json) if snap.card_visibility_json else None,
+        "card_order": json.loads(snap.card_order_json) if snap.card_order_json else None,
+    })
+
+
+@router.delete("/snapshots/{snapshot_id}")
+async def delete_snapshot(
+    snapshot_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.common.exceptions import BusinessException
+    snap = (await db.execute(
+        select(DashboardSnapshot).where(
+            DashboardSnapshot.id == snapshot_id,
+            DashboardSnapshot.created_by == current_user["sub"],
+        )
+    )).scalar_one_or_none()
+    if not snap:
+        raise BusinessException(code=404, message="快照不存在")
+    await db.delete(snap)
+    await db.commit()
+    return ok(None)

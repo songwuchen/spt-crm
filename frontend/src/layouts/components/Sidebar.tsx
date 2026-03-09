@@ -141,7 +141,7 @@ export default function Sidebar() {
           flex-direction: column;
           background: #ffffff;
           border-right: 1px solid #e2e8f0;
-          overflow-y: auto;
+          overflow: hidden;
         }
 
         /* ── Logo ── */
@@ -174,10 +174,12 @@ export default function Sidebar() {
         /* ── Menu ── */
         .sidebar-menu {
           flex: 1;
+          min-height: 0;
           padding: 16px 12px;
           display: flex;
           flex-direction: column;
           gap: 24px;
+          overflow-y: auto;
         }
         .sidebar-group-title {
           padding: 0 12px;

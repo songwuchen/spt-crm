@@ -37,6 +37,7 @@ class Contact(TenantScopedBase):
     mobile: Mapped[str | None] = mapped_column(String(30))
     email: Mapped[str | None] = mapped_column(String(200))
     is_primary: Mapped[bool] = mapped_column(default=False)
+    reports_to_id: Mapped[str | None] = mapped_column(String(36))  # parent contact id
     remark: Mapped[str | None] = mapped_column(Text)
 
 

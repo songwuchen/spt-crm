@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useSwipe } from '@/hooks/useSwipe'
 import { message, Modal, Input, Select } from 'antd'
 import { approvalApi } from '@/api/approval'
 import { aiApi } from '@/api/ai'
@@ -162,8 +163,10 @@ export default function MobileApprovalDetail() {
 
   const statusText = flow.status === 'pending' ? '审批中' : flow.status === 'approved' ? '已通过' : flow.status === 'withdrawn' ? '已撤回' : '已拒绝'
 
+  const swipeHandlers = useSwipe({ onSwipeRight: () => navigate(-1) })
+
   return (
-    <div className="flex flex-col min-h-[calc(100vh-7rem)]">
+    <div className="flex flex-col min-h-[calc(100vh-7rem)]" {...swipeHandlers}>
       {/* Top Nav */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => navigate(-1)} className="flex items-center text-primary bg-transparent border-0 cursor-pointer p-0">

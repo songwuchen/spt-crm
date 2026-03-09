@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, Tabs, message } from 'antd'
+import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, Tabs, Steps, message } from 'antd'
 import { CopyOutlined, CheckCircleOutlined, AuditOutlined, RobotOutlined, PrinterOutlined, FilePdfOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -40,6 +40,9 @@ export default function ContractDetail() {
     return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
   })
 
+  // Signing workflow
+  const [approvalFlow, setApprovalFlow] = useState<import('@/api/types').ApprovalFlowItem | null>(null)
+
   // AI analysis
   const [aiResult, setAiResult] = useState<{
     risk_level?: string
@@ -68,13 +71,25 @@ export default function ContractDetail() {
     setVersions(d.versions || [])
     const curVer = d.versions?.find((v) => v.version_no === d.current_version_no)
     setCurrentVersion(curVer || null)
-    if (curVer) setSelectedVersionId(curVer.id)
+    if (curVer) {
+      setSelectedVersionId(curVer.id)
+      fetchApprovalFlow(curVer.id)
+    }
   }
 
   const fetchVersion = async (vid: string) => {
     const res = await contractApi.getVersion(vid)
     setCurrentVersion(res.data)
     setSelectedVersionId(vid)
+    fetchApprovalFlow(vid)
+  }
+
+  const fetchApprovalFlow = async (versionId: string) => {
+    try {
+      const res = await approvalApi.list({ biz_type: 'contract_version', biz_id: versionId })
+      const flows = res.data || []
+      setApprovalFlow(flows.length > 0 ? flows[0] : null)
+    } catch { setApprovalFlow(null) }
   }
 
   useEffect(() => { fetchContract() }, [cid])
@@ -165,6 +180,81 @@ export default function ContractDetail() {
           <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
           <Button onClick={() => navigate(`/opportunities/${projectId}`)}>返回商机</Button>
         </Space>
+      </div>
+
+      {/* Signing Workflow Stepper */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">签章流程</div>
+        <Steps
+          size="small"
+          current={
+            contract.status === 'signed' ? 3 :
+            contract.status === 'terminated' ? 3 :
+            approvalFlow?.status === 'approved' ? 2 :
+            approvalFlow?.status === 'pending' ? 1 :
+            0
+          }
+          status={
+            contract.status === 'terminated' ? 'error' :
+            approvalFlow?.status === 'rejected' ? 'error' :
+            undefined
+          }
+          items={[
+            {
+              title: '草稿',
+              description: contract.status === 'draft' && !approvalFlow ? '当前' : '完成',
+              icon: <span className="material-symbols-outlined" style={{ fontSize: 20 }}>edit_document</span>,
+            },
+            {
+              title: '审批',
+              description: approvalFlow
+                ? approvalFlow.status === 'pending'
+                  ? `${approvalFlow.current_node}/${approvalFlow.total_nodes} 审批中`
+                  : approvalFlow.status === 'approved' ? '已通过'
+                  : approvalFlow.status === 'rejected' ? '已驳回'
+                  : approvalFlow.status === 'withdrawn' ? '已撤回' : approvalFlow.status
+                : '待提交',
+              icon: <span className="material-symbols-outlined" style={{ fontSize: 20 }}>approval</span>,
+            },
+            {
+              title: '签章',
+              description: contract.status === 'signed' ? '已签署' :
+                approvalFlow?.status === 'approved' ? '待签署' : '等待中',
+              icon: <span className="material-symbols-outlined" style={{ fontSize: 20 }}>draw</span>,
+            },
+            {
+              title: contract.status === 'terminated' ? '已终止' : '生效',
+              description: contract.status === 'signed'
+                ? `${contract.signed_date || ''}`
+                : contract.status === 'terminated' ? '合同已终止' : '等待中',
+              icon: <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
+                {contract.status === 'terminated' ? 'cancel' : 'verified'}
+              </span>,
+            },
+          ]}
+        />
+        {/* Approval tasks detail */}
+        {approvalFlow?.tasks && approvalFlow.tasks.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <div className="text-xs font-bold text-slate-400 mb-2">审批记录</div>
+            <div className="flex flex-wrap gap-2">
+              {approvalFlow.tasks.map((t) => (
+                <div key={t.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
+                  t.status === 'approved' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                  t.status === 'rejected' ? 'bg-red-50 border-red-200 text-red-700' :
+                  t.status === 'pending' ? 'bg-blue-50 border-blue-200 text-blue-700' :
+                  'bg-slate-50 border-slate-200 text-slate-500'
+                }`}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                    {t.status === 'approved' ? 'check_circle' : t.status === 'rejected' ? 'cancel' : t.status === 'pending' ? 'schedule' : 'more_horiz'}
+                  </span>
+                  {t.assignee_name || '审批人'}
+                  {t.comment && <span className="text-slate-400 ml-1">"{t.comment}"</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Contract Info */}

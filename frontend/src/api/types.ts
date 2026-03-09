@@ -67,6 +67,7 @@ export interface Contact {
   mobile?: string
   email?: string
   is_primary: boolean
+  reports_to_id?: string
   remark?: string
 }
 
@@ -425,6 +426,9 @@ export interface ServiceTicketItem {
   sla_resolve_by?: string
   sla_responded_at?: string
   sla_resolved_at?: string
+  satisfaction_score?: number
+  satisfaction_comment?: string
+  satisfaction_at?: string
   created_at: string
   updated_at: string
 }

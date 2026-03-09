@@ -18,6 +18,7 @@ import DetailSkeleton from '@/components/DetailSkeleton'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import MilestoneGantt from '@/components/MilestoneGantt'
 import PaymentChart from '@/components/PaymentChart'
+import PaymentGantt from '@/components/PaymentGantt'
 import { userApi, roleApi } from '@/api/user'
 import type { OpportunityProject, ProjectStageHistory, QuoteItem, ContractItem, SolutionItem, DeliveryMilestone, ErpOrderLink, PaymentPlanItem, PaymentRecordItem, InvoiceItem, ChangeRequestItem, Customer, AclShareItem } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
@@ -72,6 +73,9 @@ export default function OpportunityDetail() {
   const [milestoneModal, setMilestoneModal] = useState(false)
   const [editingMilestone, setEditingMilestone] = useState<DeliveryMilestone | null>(null)
   const [milestoneForm] = Form.useForm()
+
+  // Payment view toggle
+  const [paymentView, setPaymentView] = useState<'chart' | 'gantt'>('chart')
 
   // Payment plan modal
   const [planModal, setPlanModal] = useState(false)
@@ -869,12 +873,24 @@ export default function OpportunityDetail() {
                 label: <span className="font-semibold">回款 ({plans.length + invoices.length})</span>,
                 children: (
                   <div className="pb-6 space-y-6">
-                    {/* Payment Overview Chart */}
+                    {/* Payment Overview Chart / Gantt */}
                     {(plans.length > 0 || records.length > 0) && (
                       <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">回款概览</h4>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">回款概览</h4>
+                          <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
+                            <button className={`px-3 py-1 text-xs font-bold ${paymentView === 'chart' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                              onClick={() => setPaymentView('chart')}>图表</button>
+                            <button className={`px-3 py-1 text-xs font-bold ${paymentView === 'gantt' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                              onClick={() => setPaymentView('gantt')}>甘特图</button>
+                          </div>
+                        </div>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                          <PaymentChart plans={plans} records={records} />
+                          {paymentView === 'chart' ? (
+                            <PaymentChart plans={plans} records={records} />
+                          ) : (
+                            <PaymentGantt plans={plans} records={records} />
+                          )}
                         </div>
                       </div>
                     )}

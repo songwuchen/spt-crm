@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, DragEvent, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, DragEvent, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { message, Spin, Modal } from 'antd'
+import { message, Spin, Modal, Select } from 'antd'
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
 import type { OpportunityProject, Customer } from '@/api/types'
@@ -35,6 +35,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
   const [customerMap, setCustomerMap] = useState<Record<string, string>>({})
   const [dragOverStage, setDragOverStage] = useState<string | null>(null)
   const [dragCardId, setDragCardId] = useState<string | null>(null)
+  const [swimlane, setSwimlane] = useState<'none' | 'owner' | 'customer' | 'amount'>('none')
   const dragCardRef = useRef<OpportunityProject | null>(null)
   const dragImageRef = useRef<HTMLDivElement | null>(null)
 
@@ -70,6 +71,25 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
     acc[s] = cards.filter((c) => c.stage_code === s)
     return acc
   }, {})
+
+  const swimlaneGroups = useMemo(() => {
+    if (swimlane === 'none') return [{ key: '', label: '', cards }]
+    const map = new Map<string, OpportunityProject[]>()
+    for (const c of cards) {
+      let key = ''
+      if (swimlane === 'owner') key = c.owner_name || '未分配'
+      else if (swimlane === 'customer') key = customerMap[c.customer_id || ''] || '未知客户'
+      else if (swimlane === 'amount') {
+        const amt = c.amount_expect || 0
+        if (amt >= 1000000) key = '≥100万'
+        else if (amt >= 100000) key = '10-100万'
+        else key = '<10万'
+      }
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(c)
+    }
+    return [...map.entries()].map(([key, items]) => ({ key, label: key, cards: items }))
+  }, [cards, swimlane, customerMap])
 
   const stageTotal = (stage: string) => {
     const items = grouped[stage] || []
@@ -168,18 +188,38 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">商机看板</h1>
           <p className="text-sm text-slate-500 mt-0.5">拖拽卡片推进阶段</p>
         </div>
-        <button onClick={switchToTable}
+        <div className="flex items-center gap-2">
+          <Select size="small" value={swimlane} onChange={setSwimlane} style={{ width: 120 }}
+            options={[
+              { value: 'none', label: '不分组' },
+              { value: 'owner', label: '按负责人' },
+              { value: 'customer', label: '按客户' },
+              { value: 'amount', label: '按金额' },
+            ]} />
+          <button onClick={switchToTable}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>table_rows</span>
             表格视图
           </button>
+        </div>
       </div>
 
       {/* Board */}
-      <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 'calc(100vh - 200px)' }}>
+      {swimlaneGroups.map((group) => (
+      <div key={group.key || '__all'}>
+        {swimlane !== 'none' && (
+          <div className="flex items-center gap-2 mb-2 mt-4 first:mt-0">
+            <span className="text-sm font-bold text-slate-700">{group.label}</span>
+            <span className="text-xs text-slate-400">({group.cards.length})</span>
+            <div className="flex-1 h-px bg-slate-200" />
+          </div>
+        )}
+      <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: swimlane !== 'none' ? 200 : 'calc(100vh - 200px)' }}>
         {STAGES.map((stage) => {
           const color = STAGE_COLORS[stage]
-          const { count, sum } = stageTotal(stage)
+          const laneCards = swimlane === 'none' ? (grouped[stage] || []) : group.cards.filter((c) => c.stage_code === stage)
+          const count = laneCards.length
+          const sum = laneCards.reduce((a, b) => a + (b.amount_expect || 0), 0)
           const isDragOver = dragOverStage === stage
           const isValidDrop = isDragOver && dragCardRef.current?.stage_code !== stage
           return (
@@ -224,7 +264,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
 
               {/* Cards */}
               <div className="flex-1 px-2 py-2 space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
-                {(grouped[stage] || []).map((card) => {
+                {laneCards.map((card) => {
                   const isDragging = dragCardId === card.id
                   return (
                     <div
@@ -277,7 +317,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
                     </div>
                   )
                 })}
-                {(grouped[stage] || []).length === 0 && !isValidDrop && (
+                {laneCards.length === 0 && !isValidDrop && (
                   <div className="text-center py-8 text-slate-300 text-xs">暂无商机</div>
                 )}
               </div>
@@ -285,6 +325,8 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
           )
         })}
       </div>
+    </div>
+    ))}
     </div>
   )
 }

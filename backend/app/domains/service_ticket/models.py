@@ -28,6 +28,10 @@ class ServiceTicket(TenantScopedBase):
     sla_resolve_by: Mapped[str | None] = mapped_column(DateTime(timezone=True))
     sla_responded_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
     sla_resolved_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
+    # Satisfaction
+    satisfaction_score: Mapped[int | None] = mapped_column(Integer)  # 1-5 stars
+    satisfaction_comment: Mapped[str | None] = mapped_column(Text)
+    satisfaction_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
 
 
 class RenewalOpportunity(TenantScopedBase):

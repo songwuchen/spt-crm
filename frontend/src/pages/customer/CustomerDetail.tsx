@@ -19,6 +19,7 @@ import DetailSkeleton from '@/components/DetailSkeleton'
 import CustomerRelationGraph from '@/components/CustomerRelationGraph'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import InternalNotes from '@/components/InternalNotes'
+import ContactOrgChart from '@/components/ContactOrgChart'
 
 const roleTypeMap: Record<string, { label: string; color: string }> = {
   decision_maker: { label: '决策者', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
@@ -45,6 +46,7 @@ export default function CustomerDetail() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [contactModal, setContactModal] = useState(false)
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
+  const [contactView, setContactView] = useState<'table' | 'chart'>('table')
   const [form] = Form.useForm()
   const [relations, setRelations] = useState<{ id: string; from_customer_id: string; to_customer_id: string; relation_type: string; to_customer_name?: string; note?: string }[]>([])
   const [shares, setShares] = useState<{ id: string; user_id: string; user_name?: string; permission_level: string }[]>([])
@@ -369,14 +371,28 @@ export default function CustomerDetail() {
                   label: <span className="font-semibold">联系人 ({contacts.length})</span>,
                   children: (
                     <div className="pb-6">
-                      <div className="flex justify-end mb-3">
+                      <div className="flex justify-between mb-3">
+                        <div className="flex gap-1">
+                          <Button size="small" type={contactView === 'table' ? 'primary' : 'default'}
+                            onClick={() => setContactView('table')}>列表</Button>
+                          <Button size="small" type={contactView === 'chart' ? 'primary' : 'default'}
+                            onClick={() => setContactView('chart')}>组织架构</Button>
+                        </div>
                         <Button type="primary" size="small" icon={<PlusOutlined />}
                           onClick={() => { setEditingContact(null); form.resetFields(); setContactModal(true) }}>
                           添加联系人
                         </Button>
                       </div>
-                      <Table rowKey="id" columns={contactColumns} dataSource={contacts} pagination={false} size="small"
-                        scroll={{ x: 900 }} />
+                      {contactView === 'table' ? (
+                        <Table rowKey="id" columns={contactColumns} dataSource={contacts} pagination={false} size="small"
+                          scroll={{ x: 900 }} />
+                      ) : (
+                        <ContactOrgChart contacts={contacts} onSelect={(c) => {
+                          setEditingContact(c)
+                          form.setFieldsValue(c)
+                          setContactModal(true)
+                        }} />
+                      )}
                     </div>
                   ),
                 },
@@ -594,6 +610,10 @@ export default function CustomerDetail() {
           <Form.Item name="mobile" label="手机"><Input /></Form.Item>
           <Form.Item name="email" label="邮箱"><Input /></Form.Item>
           <Form.Item name="is_primary" label="主要联系人" valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name="reports_to_id" label="上级联系人">
+            <Select placeholder="选择上级" allowClear
+              options={contacts.filter((c) => c.id !== editingContact?.id).map((c) => ({ label: `${c.name}${c.title ? ' · ' + c.title : ''}`, value: c.id }))} />
+          </Form.Item>
           <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>

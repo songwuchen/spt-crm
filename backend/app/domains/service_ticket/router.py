@@ -27,6 +27,9 @@ def _ticket_dict(t) -> dict:
         "sla_resolve_by": t.sla_resolve_by.isoformat() if t.sla_resolve_by else None,
         "sla_responded_at": t.sla_responded_at.isoformat() if t.sla_responded_at else None,
         "sla_resolved_at": t.sla_resolved_at.isoformat() if t.sla_resolved_at else None,
+        "satisfaction_score": t.satisfaction_score,
+        "satisfaction_comment": t.satisfaction_comment,
+        "satisfaction_at": t.satisfaction_at.isoformat() if t.satisfaction_at else None,
         "created_at": t.created_at.isoformat() if t.created_at else "",
         "updated_at": t.updated_at.isoformat() if t.updated_at else "",
     }
@@ -125,6 +128,46 @@ async def delete_ticket(
 ):
     await service.delete_ticket(db, tenant_id, ticket_id, current_user)
     return ok(None)
+
+
+# --- Satisfaction Rating ---
+
+@router.post("/api/v1/service_tickets/{ticket_id}/rate")
+async def rate_ticket(
+    ticket_id: str,
+    body: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("service:view")),
+):
+    """Rate a resolved/closed ticket with 1-5 stars and optional comment."""
+    from datetime import datetime, timezone
+    from app.domains.service_ticket.models import ServiceTicket
+
+    score = body.get("score")
+    if not score or score < 1 or score > 5:
+        from app.common.exceptions import BusinessException
+        raise BusinessException("评分必须为1-5")
+
+    t = (await db.execute(
+        select(ServiceTicket).where(
+            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.id == ticket_id,
+        )
+    )).scalar_one_or_none()
+    if not t:
+        from app.common.exceptions import BusinessException
+        raise BusinessException("工单不存在")
+    if t.status not in ("resolved", "closed"):
+        from app.common.exceptions import BusinessException
+        raise BusinessException("仅已解决或已关闭的工单可评价")
+
+    t.satisfaction_score = score
+    t.satisfaction_comment = body.get("comment", "")
+    t.satisfaction_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(t)
+    return ok(_ticket_dict(t))
 
 
 # --- RenewalOpportunity ---

@@ -5,6 +5,7 @@ import { projectApi } from '@/api/project'
 import { activityApi } from '@/api/activity'
 import { stageLabels, stageColors } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useSwipe } from '@/hooks/useSwipe'
 
 interface ProjectInfo {
   id: string; name: string; project_code: string; stage_code: string; status: string
@@ -50,9 +51,10 @@ export default function MobileOpportunityDetail() {
 
   const sc = stageColors[project.stage_code] || stageColors.S1
   const risk = riskLabels[project.risk_level || ''] || null
+  const swipeHandlers = useSwipe({ onSwipeRight: () => navigate(-1) })
 
   return (
-    <div>
+    <div {...swipeHandlers}>
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => navigate(-1)} className="text-slate-400">

@@ -18,6 +18,7 @@ import SavedViewSelect from '@/components/SavedViewSelect'
 import EditableCell from '@/components/EditableCell'
 import FeatureTip from '@/components/FeatureTip'
 import RegionMap from '@/components/RegionMap'
+import CustomerTagCloud from '@/components/CustomerTagCloud'
 
 const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
 
@@ -49,6 +50,7 @@ export default function CustomerList() {
   const [messageForm] = Form.useForm()
   const [messageSending, setMessageSending] = useState(false)
   const [showMap, setShowMap] = useState(false)
+  const [showTagCloud, setShowTagCloud] = useState(false)
   const [regionData, setRegionData] = useState<{ region: string; count: number }[]>([])
 
   useEffect(() => {
@@ -248,6 +250,11 @@ export default function CustomerList() {
           <p className="text-sm text-slate-500 mt-0.5">管理和跟踪所有客户信息</p>
         </div>
         <Space wrap>
+          <Button onClick={() => setShowTagCloud(!showTagCloud)}
+            type={showTagCloud ? 'primary' : 'default'} ghost={showTagCloud}>
+            <span className="material-symbols-outlined text-sm mr-1" style={{ fontSize: 14 }}>sell</span>
+            标签云
+          </Button>
           <Button onClick={() => setShowMap(!showMap)}
             type={showMap ? 'primary' : 'default'} ghost={showMap}>
             <span className="material-symbols-outlined text-sm mr-1" style={{ fontSize: 14 }}>map</span>
@@ -265,6 +272,16 @@ export default function CustomerList() {
           </Button>
         </Space>
       </div>
+
+      {showTagCloud && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
+          <h3 className="text-sm font-bold text-slate-900 mb-3">客户标签画像</h3>
+          <CustomerTagCloud
+            tags={data.flatMap((c) => (c.tags_json as unknown as string[]) || [])}
+            onClick={(tag) => { setKeyword(tag); setPageNo(1) }}
+          />
+        </div>
+      )}
 
       {selectedRowKeys.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between">

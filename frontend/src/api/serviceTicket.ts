@@ -23,6 +23,10 @@ export const serviceTicketApi = {
   updateRenewal: (id: string, data: Record<string, unknown>) =>
     client.put<unknown, ApiResponse<RenewalItem>>(`/api/v1/renewal_opportunities/${id}`, data),
 
+  // Satisfaction
+  rate: (id: string, data: { score: number; comment?: string }) =>
+    client.post<unknown, ApiResponse<ServiceTicketItem>>(`/api/v1/service_tickets/${id}/rate`, data),
+
   // SLA
   slaStats: () => client.get('/api/v1/service_tickets/sla/stats'),
 

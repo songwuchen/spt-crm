@@ -35,4 +35,11 @@ export const dashboardApi = {
     const qs = new URLSearchParams(params).toString()
     return `/api/v1/dashboard/export/pdf${qs ? '?' + qs : ''}`
   },
+
+  // Snapshots
+  createSnapshot: (data: { title: string; snapshot_data: Record<string, unknown>; card_visibility?: Record<string, boolean>; card_order?: string[]; expires_hours?: number }) =>
+    client.post('/api/v1/dashboard/snapshots', data),
+  listSnapshots: () => client.get('/api/v1/dashboard/snapshots'),
+  getSnapshot: (token: string) => client.get(`/api/v1/dashboard/snapshots/${token}`),
+  deleteSnapshot: (id: string) => client.delete(`/api/v1/dashboard/snapshots/${id}`),
 }

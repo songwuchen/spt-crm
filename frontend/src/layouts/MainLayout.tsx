@@ -148,13 +148,13 @@ export default function MainLayout() {
         width={240}
         collapsedWidth={0}
         className={`!bg-white ${isMobile && !sidebarCollapsed ? 'fixed left-0 top-0 bottom-0 z-30' : ''}`}
-        style={{ overflow: 'hidden' }}
+        style={{ overflow: 'hidden', height: '100vh' }}
       >
-        <div data-tour="sidebar"><Sidebar /></div>
+        <div data-tour="sidebar" style={{ height: '100%' }}><Sidebar /></div>
       </Sider>
-      <Layout className="bg-bg-light">
+      <Layout className="bg-bg-light" style={{ height: '100vh', overflow: 'hidden' }}>
         <Header />
-        <Content className="overflow-auto">
+        <Content className="overflow-auto" style={{ flex: 1, minHeight: 0 }}>
           <div className="p-3 sm:p-4 md:p-6">
             {!isHome && breadcrumbItems.length > 1 && (
               <Breadcrumb items={breadcrumbItems} className="mb-4" />

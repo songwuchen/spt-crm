@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback, memo } from 'react'
+import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Modal, Input, Select, message } from 'antd'
+import { Button, Modal, Input, Select, message, Tooltip, Popover, List } from 'antd'
 import { dashboardApi } from '@/api/dashboard'
 import { approvalApi } from '@/api/approval'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -223,6 +223,12 @@ export default function Dashboard() {
   const [cardOrder, setCardOrder] = useState<string[]>(loadCardOrder)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [dragKey, setDragKey] = useState<string | null>(null)
+  const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [shareTitle, setShareTitle] = useState('')
+  const [shareExpires, setShareExpires] = useState<number>(0)
+  const [shareLoading, setShareLoading] = useState(false)
+  const [snapshots, setSnapshots] = useState<{ id: string; title: string; share_token: string; created_at: string; expires_at: string | null }[]>([])
+  const [snapshotsPopover, setSnapshotsPopover] = useState(false)
   const isVisible = (key: string) => cardVisibility[key] !== false
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const user = useAuthStore((s) => s.user)
@@ -301,6 +307,53 @@ export default function Dashboard() {
     })
   }
 
+  const handleShareSnapshot = async () => {
+    if (!shareTitle.trim()) { message.warning('请输入快照标题'); return }
+    setShareLoading(true)
+    try {
+      const snapshotData = {
+        stats, alerts: alerts.slice(0, 6), trends, myOv, funnel, paymentOv,
+        leaderboard, approvalStats, trendSpark, pendingApprovals: pendingApprovals.length,
+      }
+      const res: any = await dashboardApi.createSnapshot({
+        title: shareTitle.trim(),
+        snapshot_data: snapshotData,
+        card_visibility: cardVisibility,
+        card_order: cardOrder,
+        expires_hours: shareExpires || undefined,
+      })
+      const token = res.data?.share_token
+      if (token) {
+        const url = `${window.location.origin}/dashboard/shared/${token}`
+        await navigator.clipboard.writeText(url).catch(() => {})
+        message.success('快照已创建，链接已复制到剪贴板')
+      }
+      setShareModalOpen(false)
+      setShareTitle('')
+    } catch {
+      message.error('创建快照失败')
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  const loadSnapshots = async () => {
+    try {
+      const res: any = await dashboardApi.listSnapshots()
+      setSnapshots(res.data || [])
+    } catch {}
+  }
+
+  const handleDeleteSnapshot = async (id: string) => {
+    try {
+      await dashboardApi.deleteSnapshot(id)
+      setSnapshots((prev) => prev.filter((s) => s.id !== id))
+      message.success('已删除')
+    } catch {
+      message.error('删除失败')
+    }
+  }
+
   const funnelMax = Math.max(...funnel.map((f) => f.count), 1)
 
   return (
@@ -319,6 +372,57 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Popover
+            open={snapshotsPopover}
+            onOpenChange={(open) => { setSnapshotsPopover(open); if (open) loadSnapshots() }}
+            trigger="click"
+            placement="bottomRight"
+            content={
+              <div style={{ width: 320 }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold text-slate-700">我的快照</span>
+                  <button onClick={() => { setSnapshotsPopover(false); setShareModalOpen(true) }}
+                    className="text-xs text-primary font-bold hover:underline">+ 新建快照</button>
+                </div>
+                {snapshots.length === 0 ? (
+                  <div className="text-center text-slate-400 text-sm py-4">暂无快照</div>
+                ) : (
+                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                    {snapshots.map((s) => (
+                      <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 group">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-slate-800 truncate">{s.title}</div>
+                          <div className="text-[10px] text-slate-400">
+                            {s.created_at ? new Date(s.created_at).toLocaleString('zh-CN') : ''}
+                            {s.expires_at ? ` · 过期: ${new Date(s.expires_at).toLocaleDateString('zh-CN')}` : ''}
+                          </div>
+                        </div>
+                        <button onClick={() => {
+                          const url = `${window.location.origin}/dashboard/shared/${s.share_token}`
+                          navigator.clipboard.writeText(url).then(() => message.success('链接已复制'))
+                        }} className="text-slate-400 hover:text-primary" title="复制链接">
+                          <span className="material-symbols-outlined text-base">content_copy</span>
+                        </button>
+                        <button onClick={() => navigate(`/dashboard/shared/${s.share_token}`)}
+                          className="text-slate-400 hover:text-primary" title="查看">
+                          <span className="material-symbols-outlined text-base">visibility</span>
+                        </button>
+                        <button onClick={() => handleDeleteSnapshot(s.id)}
+                          className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100" title="删除">
+                          <span className="material-symbols-outlined text-base">delete</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            }
+          >
+            <button className="flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+              title="分享快照">
+              <span className="material-symbols-outlined text-base">share</span>
+            </button>
+          </Popover>
           <button onClick={() => setSettingsOpen(true)}
             className="flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 transition-colors"
             title="看板设置">
@@ -761,6 +865,32 @@ export default function Dashboard() {
             return null
         }
       })}
+
+      {/* Share Snapshot Modal */}
+      <Modal title="创建看板快照" open={shareModalOpen} onCancel={() => setShareModalOpen(false)}
+        onOk={handleShareSnapshot} confirmLoading={shareLoading}
+        okText="创建并复制链接" width={420}>
+        <div className="space-y-4 py-2">
+          <div>
+            <label className="text-xs font-bold text-slate-500 block mb-1">快照标题</label>
+            <Input value={shareTitle} onChange={(e) => setShareTitle(e.target.value)}
+              placeholder={`工作台快照 ${new Date().toLocaleDateString('zh-CN')}`}
+              maxLength={200} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 block mb-1">有效期</label>
+            <Select value={shareExpires} onChange={setShareExpires} style={{ width: '100%' }}
+              options={[
+                { value: 0, label: '永久有效' },
+                { value: 24, label: '24小时' },
+                { value: 72, label: '3天' },
+                { value: 168, label: '7天' },
+                { value: 720, label: '30天' },
+              ]} />
+          </div>
+          <p className="text-xs text-slate-400">快照保存当前看板数据的静态副本，分享给同事查看。</p>
+        </div>
+      </Modal>
 
       {/* Dashboard Settings Modal */}
       <Modal title="看板设置" open={settingsOpen} onCancel={() => setSettingsOpen(false)}

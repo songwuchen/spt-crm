@@ -110,6 +110,35 @@ async def statistics(
     )).all()
     top_operators = [{"user_id": r.user_id, "user_name": r.user_name or "未知", "count": r.cnt} for r in operator_rows]
 
+    # Hourly distribution (0-23)
+    hourly_rows = (await db.execute(
+        select(
+            extract("hour", AuditLog.created_at).label("hour"),
+            func.count(AuditLog.id).label("cnt"),
+        ).where(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.created_at >= since,
+        ).group_by(extract("hour", AuditLog.created_at))
+        .order_by(extract("hour", AuditLog.created_at))
+    )).all()
+    hourly = [{"hour": int(r.hour), "count": r.cnt} for r in hourly_rows]
+
+    # Resource-action cross matrix
+    cross_rows = (await db.execute(
+        select(
+            AuditLog.resource_type, AuditLog.action,
+            func.count(AuditLog.id).label("cnt"),
+        ).where(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.created_at >= since,
+        ).group_by(AuditLog.resource_type, AuditLog.action)
+        .order_by(func.count(AuditLog.id).desc())
+    )).all()
+    resource_action_matrix = [
+        {"resource_type": r.resource_type, "action": r.action, "count": r.cnt}
+        for r in cross_rows
+    ]
+
     return ok({
         "total": total,
         "days": days,
@@ -117,6 +146,8 @@ async def statistics(
         "by_resource": by_resource,
         "daily": daily,
         "top_operators": top_operators,
+        "hourly": hourly,
+        "resource_action_matrix": resource_action_matrix,
     })
 
 
