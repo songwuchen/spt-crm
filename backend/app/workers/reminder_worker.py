@@ -32,7 +32,7 @@ FOLLOWUP_WARN_DAYS = 1  # Warn 1 day before follow-up date
 
 async def check_stale_projects(db: AsyncSession) -> int:
     """Find active projects with no recent activity and notify owners."""
-    from app.domains.opportunity.models import OpportunityProject
+    from app.domains.project.models import OpportunityProject
     from app.domains.activity.models import Activity
     from app.domains.notification.service import send_notification
 
@@ -116,7 +116,7 @@ def _notification_model():
 async def check_upcoming_payments(db: AsyncSession) -> int:
     """Find payment plans due within PAYMENT_WARN_DAYS and notify project owners."""
     from app.domains.payment.models import PaymentPlan
-    from app.domains.opportunity.models import OpportunityProject
+    from app.domains.project.models import OpportunityProject
     from app.domains.notification.service import send_notification
 
     warn_date = date.today() + timedelta(days=PAYMENT_WARN_DAYS)
@@ -190,7 +190,7 @@ async def check_approval_sla(db: AsyncSession) -> int:
 async def check_expiring_contracts(db: AsyncSession) -> int:
     """Find contracts expiring within CONTRACT_WARN_DAYS and notify owners."""
     from app.domains.contract.models import ContractVersion
-    from app.domains.opportunity.models import OpportunityProject
+    from app.domains.project.models import OpportunityProject
     from app.domains.notification.service import send_notification
 
     warn_date = date.today() + timedelta(days=CONTRACT_WARN_DAYS)
@@ -246,7 +246,6 @@ async def check_upcoming_followups(db: AsyncSession) -> int:
 
     activities = (await db.execute(
         select(Activity).where(
-            Activity.is_deleted == False,
             Activity.next_follow_date >= str(today),
             Activity.next_follow_date <= str(warn_date),
         )
@@ -430,7 +429,7 @@ async def cleanup_soft_deleted_records(db: AsyncSession) -> int:
     # Import models that support soft delete
     from app.domains.customer.models import Customer
     from app.domains.lead.models import Lead
-    from app.domains.opportunity.models import OpportunityProject
+    from app.domains.project.models import OpportunityProject
 
     for model in [Customer, Lead, OpportunityProject]:
         try:

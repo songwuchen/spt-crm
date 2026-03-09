@@ -21,8 +21,8 @@ async def list_contacts(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("contact:view")),
 ):
-    q = select(Contact).where(Contact.tenant_id == tenant_id, Contact.is_deleted == False)
-    count_q = select(func.count(Contact.id)).where(Contact.tenant_id == tenant_id, Contact.is_deleted == False)
+    q = select(Contact).where(Contact.tenant_id == tenant_id)
+    count_q = select(func.count(Contact.id)).where(Contact.tenant_id == tenant_id)
 
     if keyword:
         like = f"%{keyword}%"

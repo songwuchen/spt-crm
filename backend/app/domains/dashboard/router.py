@@ -1619,7 +1619,6 @@ async def calendar_events(
             OpportunityProject, OpportunityProject.id == PaymentPlan.project_id
         ).where(
             PaymentPlan.tenant_id == tenant_id,
-            PaymentPlan.is_deleted == False,
             PaymentPlan.due_date >= start_date,
             PaymentPlan.due_date <= end_date,
         )
@@ -1640,7 +1639,6 @@ async def calendar_events(
     contracts = (await db.execute(
         select(Contract).where(
             Contract.tenant_id == tenant_id,
-            Contract.is_deleted == False,
             Contract.end_date >= start_date,
             Contract.end_date <= end_date,
         )
@@ -1663,7 +1661,6 @@ async def calendar_events(
             OpportunityProject, OpportunityProject.id == DeliveryMilestone.project_id
         ).where(
             DeliveryMilestone.tenant_id == tenant_id,
-            DeliveryMilestone.is_deleted == False,
             DeliveryMilestone.plan_date >= start_date,
             DeliveryMilestone.plan_date <= end_date,
         )
@@ -1715,7 +1712,6 @@ async def stage_duration(
     rows = (await db.execute(
         select(ProjectStageHistory).where(
             ProjectStageHistory.tenant_id == tenant_id,
-            ProjectStageHistory.is_deleted == False,
         ).order_by(ProjectStageHistory.project_id, ProjectStageHistory.created_at)
     )).scalars().all()
 

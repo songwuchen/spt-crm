@@ -756,7 +756,7 @@ async def customer_health(
         ).where(
             PaymentPlan.tenant_id == tenant_id,
             OpportunityProject.customer_id == customer_id,
-            PaymentPlan.is_deleted == False,
+
         )
     )).scalar_one() or 0
     overdue_plans = (await db.execute(
@@ -765,7 +765,7 @@ async def customer_health(
         ).where(
             PaymentPlan.tenant_id == tenant_id,
             OpportunityProject.customer_id == customer_id,
-            PaymentPlan.is_deleted == False,
+
             PaymentPlan.status == "overdue",
         )
     )).scalar_one() or 0
@@ -779,7 +779,7 @@ async def customer_health(
         select(func.count()).where(
             ServiceTicket.tenant_id == tenant_id,
             ServiceTicket.customer_id == customer_id,
-            ServiceTicket.is_deleted == False,
+
             ServiceTicket.status.in_(["open", "in_progress"]),
         )
     )).scalar_one() or 0
