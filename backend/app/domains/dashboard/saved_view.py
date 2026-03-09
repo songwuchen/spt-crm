@@ -45,7 +45,6 @@ async def list_views(page: str, current_user: dict = Depends(get_current_user), 
         select(SavedView).where(
             SavedView.user_id == user_id,
             SavedView.page == page,
-            SavedView.is_deleted == False,
         ).order_by(SavedView.is_default.desc(), SavedView.created_at.desc())
     )).scalars().all()
     return ok([{
@@ -65,7 +64,7 @@ async def create_view(body: SavedViewCreate, current_user: dict = Depends(get_cu
         existing = (await db.execute(
             select(SavedView).where(
                 SavedView.user_id == user_id, SavedView.page == body.page,
-                SavedView.is_default == True, SavedView.is_deleted == False,
+                SavedView.is_default == True,
             )
         )).scalars().all()
         for v in existing:
@@ -106,6 +105,6 @@ async def delete_view(view_id: str, current_user: dict = Depends(get_current_use
     )).scalar_one_or_none()
     if not view:
         raise BusinessException(code=404, message="视图不存在")
-    view.is_deleted = True
+    await db.delete(view)
     await db.commit()
     return ok(None)
