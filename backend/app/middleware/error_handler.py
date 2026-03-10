@@ -32,6 +32,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    import logging
+    logging.getLogger("spt_crm.error").exception("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
     trace_id = getattr(request.state, "trace_id", None)
     return JSONResponse(
         status_code=500,

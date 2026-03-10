@@ -172,7 +172,6 @@ async def list_templates(
     items = (await db.execute(
         select(NotificationTemplate).where(
             NotificationTemplate.tenant_id == tenant_id,
-            NotificationTemplate.is_deleted == False,
         ).order_by(NotificationTemplate.event_type)
     )).scalars().all()
     return ok({

@@ -90,7 +90,6 @@ async def render_template(db: AsyncSession, tenant_id: str, event_type: str, var
             NotificationTemplate.tenant_id == tenant_id,
             NotificationTemplate.event_type == event_type,
             NotificationTemplate.is_active == True,
-            NotificationTemplate.is_deleted == False,
         ).limit(1)
     )).scalar()
     if not t:

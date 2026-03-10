@@ -5,7 +5,7 @@ from typing import Optional, Union
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, inspect as sa_inspect
+from sqlalchemy import select, func, inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
@@ -163,7 +163,8 @@ async def system_health(
     db_latency_ms = 0
     try:
         t0 = time.monotonic()
-        await db.execute(select(1))
+        from sqlalchemy import text
+        await db.execute(text("SELECT 1"))
         db_latency_ms = round((time.monotonic() - t0) * 1000, 1)
     except Exception:
         db_ok = False
@@ -839,7 +840,6 @@ async def list_email_templates(
     items = (await db.execute(
         select(EmailTemplate).where(
             EmailTemplate.tenant_id == tenant_id,
-            EmailTemplate.is_deleted == False,
         ).order_by(EmailTemplate.code)
     )).scalars().all()
     return ok([{
@@ -929,7 +929,6 @@ async def list_custom_fields(
 ):
     q = select(CustomFieldDef).where(
         CustomFieldDef.tenant_id == tenant_id,
-        CustomFieldDef.is_deleted == False,
     )
     if entity_type:
         q = q.where(CustomFieldDef.entity_type == entity_type)

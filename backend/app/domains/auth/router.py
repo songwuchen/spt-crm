@@ -212,7 +212,6 @@ async def list_sessions(current_user: dict = Depends(get_current_user), db: Asyn
         select(LoginSession).where(
             LoginSession.user_id == user_id,
             LoginSession.is_active == True,
-            LoginSession.is_deleted == False,
         ).order_by(LoginSession.last_active_at.desc())
     )).scalars().all()
 

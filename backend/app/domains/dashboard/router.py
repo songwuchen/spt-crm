@@ -735,7 +735,7 @@ async def my_overview(
 ):
     """Personal dashboard: my customers, projects, expiring contracts, pending items."""
     from datetime import timedelta
-    uid = user.id
+    uid = user["sub"]
     now = datetime.now(timezone.utc)
 
     # My customers
@@ -787,7 +787,7 @@ async def my_overview(
     my_open_tickets = (await db.execute(
         select(func.count(ServiceTicket.id)).where(
             ServiceTicket.tenant_id == tenant_id,
-            ServiceTicket.owner_id == uid,
+            ServiceTicket.assigned_to_id == uid,
             ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
         )
     )).scalar() or 0
@@ -1091,7 +1091,7 @@ async def calendar_events(
     """Aggregate events for a given month: follow-ups, payment dues, contract expiry, milestones."""
     from datetime import date as date_type, timedelta
     import calendar as cal_mod
-    uid = user.id
+    uid = user["sub"]
     first_day = date_type(year, month, 1)
     last_day = date_type(year, month, cal_mod.monthrange(year, month)[1])
 
@@ -1103,8 +1103,8 @@ async def calendar_events(
             Activity.tenant_id == tenant_id,
             Activity.created_by_id == uid,
             Activity.next_follow_date.isnot(None),
-            Activity.next_follow_date >= str(first_day),
-            Activity.next_follow_date <= str(last_day),
+            Activity.next_follow_date >= first_day,
+            Activity.next_follow_date <= last_day,
         )
     )).all()
     for r in follow_rows:
@@ -1150,16 +1150,16 @@ async def calendar_events(
 
     # Delivery milestones
     milestone_rows = (await db.execute(
-        select(DeliveryMilestone.id, DeliveryMilestone.name, DeliveryMilestone.plan_end).where(
+        select(DeliveryMilestone.id, DeliveryMilestone.name, DeliveryMilestone.plan_date).where(
             DeliveryMilestone.tenant_id == tenant_id,
-            DeliveryMilestone.plan_end.isnot(None),
-            DeliveryMilestone.plan_end >= str(first_day),
-            DeliveryMilestone.plan_end <= str(last_day),
+            DeliveryMilestone.plan_date.isnot(None),
+            DeliveryMilestone.plan_date >= first_day,
+            DeliveryMilestone.plan_date <= last_day,
         )
     )).all()
     for r in milestone_rows:
         events.append({
-            "id": r.id, "date": str(r.plan_end),
+            "id": r.id, "date": str(r.plan_date),
             "type": "milestone",
             "title": r.name or "里程碑",
             "color": "#8b5cf6",
@@ -1595,90 +1595,6 @@ async def win_forecast(
     })
 
 
-@router.get("/calendar_events")
-async def calendar_events(
-    year: int = Query(...),
-    month: int = Query(..., ge=1, le=12),
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(get_current_user),
-):
-    """Return payment plans, contract expiries, and milestones for a given month."""
-    import calendar as cal_mod
-    from datetime import date as date_cls
-
-    start_date = date_cls(year, month, 1)
-    last_day = cal_mod.monthrange(year, month)[1]
-    end_date = date_cls(year, month, last_day)
-
-    events = []
-
-    # Payment plans due in range
-    plans = (await db.execute(
-        select(PaymentPlan, OpportunityProject.name.label("project_name")).join(
-            OpportunityProject, OpportunityProject.id == PaymentPlan.project_id
-        ).where(
-            PaymentPlan.tenant_id == tenant_id,
-            PaymentPlan.due_date >= start_date,
-            PaymentPlan.due_date <= end_date,
-        )
-    )).all()
-
-    for pp, project_name in plans:
-        events.append({
-            "id": pp.id,
-            "type": "payment_due",
-            "title": f"回款: {project_name} - {pp.plan_no}",
-            "date": str(pp.due_date),
-            "amount": float(pp.amount or 0),
-            "status": pp.status,
-            "color": "#f59e0b",
-        })
-
-    # Contracts expiring in range
-    contracts = (await db.execute(
-        select(Contract).where(
-            Contract.tenant_id == tenant_id,
-            Contract.end_date >= start_date,
-            Contract.end_date <= end_date,
-        )
-    )).scalars().all()
-
-    for c in contracts:
-        events.append({
-            "id": c.id,
-            "type": "contract_expiry",
-            "title": f"合同到期: {c.contract_no}",
-            "date": str(c.end_date),
-            "amount": float(c.amount_total or 0),
-            "status": c.status,
-            "color": "#ef4444",
-        })
-
-    # Delivery milestones in range
-    milestones = (await db.execute(
-        select(DeliveryMilestone, OpportunityProject.name.label("project_name")).join(
-            OpportunityProject, OpportunityProject.id == DeliveryMilestone.project_id
-        ).where(
-            DeliveryMilestone.tenant_id == tenant_id,
-            DeliveryMilestone.plan_date >= start_date,
-            DeliveryMilestone.plan_date <= end_date,
-        )
-    )).all()
-
-    for ms, project_name in milestones:
-        events.append({
-            "id": ms.id,
-            "type": "milestone",
-            "title": f"里程碑: {project_name} - {ms.name}",
-            "date": str(ms.plan_date),
-            "status": ms.status,
-            "color": "#8b5cf6",
-        })
-
-    return ok(events)
-
-
 @router.get("/rate_limit_stats")
 async def rate_limit_stats(
     _user=Depends(require_permissions("role:manage")),
@@ -1726,7 +1642,7 @@ async def stage_duration(
             if i + 1 < len(transitions):
                 exited = transitions[i + 1].created_at
             else:
-                exited = datetime.utcnow()
+                exited = datetime.now(timezone.utc)
             days = (exited - entered).total_seconds() / 86400
             stage_durations[t.to_stage].append(days)
 
