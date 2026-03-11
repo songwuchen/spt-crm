@@ -13,7 +13,9 @@ import type { ColumnsType } from 'antd/es/table'
 import { opportunityStatusMap as statusMap } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useColumnConfig } from '@/hooks/useColumnConfig'
 import SavedViewSelect from '@/components/SavedViewSelect'
+import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 
@@ -114,7 +116,7 @@ export default function OpportunityList() {
     fetchData(1, keyword, stageCode, status)
   }
 
-  const columns: ColumnsType<OpportunityProject> = [
+  const allColumns: ColumnsType<OpportunityProject> = [
     { title: '项目', key: 'name', width: 260,
       render: (_, r) => (
         <div>
@@ -186,6 +188,8 @@ export default function OpportunityList() {
     },
   ]
 
+  const { visibleColumns, hiddenKeys, setColumnConfig, allColumnKeys } = useColumnConfig('opportunities', allColumns)
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
@@ -232,6 +236,7 @@ export default function OpportunityList() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             筛选
           </Button>
+          <ColumnConfigDropdown allColumnKeys={allColumnKeys} hiddenKeys={hiddenKeys} onChange={setColumnConfig} />
           <SavedViewSelect
             page="opportunities"
             currentFilters={{ keyword, stage_code: stageCode, status }}
@@ -244,7 +249,7 @@ export default function OpportunityList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={data} loading={loading} scroll={{ x: 1200 }}
+        <Table rowKey="id" columns={visibleColumns} dataSource={data} loading={loading} scroll={{ x: 1200 }}
           rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys) }}
           pagination={{
             current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,

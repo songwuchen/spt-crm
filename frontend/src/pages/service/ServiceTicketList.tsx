@@ -12,7 +12,9 @@ import type { ServiceTicketItem, RenewalItem } from '@/api/types'
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels, renewalStatusLabels, renewalStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useColumnConfig } from '@/hooks/useColumnConfig'
 import SavedViewSelect from '@/components/SavedViewSelect'
+import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
 
 const { TextArea } = Input
 
@@ -99,6 +101,21 @@ export default function ServiceTicketList() {
       setSlaStats(r.data || null)
     } catch { /* ignore */ }
   }
+
+  const ticketColumns: import('antd/es/table').ColumnsType<ServiceTicketItem> = [
+    { title: '工单编号', dataIndex: 'ticket_no', render: (v: string, r: ServiceTicketItem) => (
+      <a className="font-mono font-bold text-primary cursor-pointer" onClick={() => navigate(`/service-tickets/${r.id}`)}>{v}</a>
+    )},
+    { title: '类型', dataIndex: 'type', render: (v: string) => typeLabels[v] || v },
+    { title: '优先级', dataIndex: 'priority', render: (v: string) => <Tag color={priorityColors[v]}>{priorityLabels[v] || v}</Tag> },
+    { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag> },
+    { title: '描述', dataIndex: 'description', ellipsis: true, width: 200 },
+    { title: '负责人', dataIndex: 'assigned_to_name', render: (v: string) => v || '-' },
+    { title: '创建人', dataIndex: 'created_by_name', responsive: ['lg'] as any },
+    { title: '创建时间', dataIndex: 'created_at', responsive: ['xl'] as any, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
+  ]
+
+  const { visibleColumns: visibleTicketColumns, hiddenKeys: ticketHiddenKeys, setColumnConfig: setTicketColumnConfig, allColumnKeys: ticketColumnKeys } = useColumnConfig('service_tickets', ticketColumns)
 
   useEffect(() => { fetchTickets(); fetchRenewals(); fetchSlaStats() }, [])
 
@@ -270,6 +287,7 @@ export default function ServiceTicketList() {
                     <Select allowClear placeholder="类型" value={filterType}
                       onChange={(v) => { setFilterType(v); setPageNo(1); fetchTickets(1, searchText, filterStatus, filterPriority, v) }}
                       style={{ width: 130 }} options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v }))} />
+                    <ColumnConfigDropdown allColumnKeys={ticketColumnKeys} hiddenKeys={ticketHiddenKeys} onChange={setTicketColumnConfig} />
                     <SavedViewSelect
                       page="service_tickets"
                       currentFilters={{ searchText, status: filterStatus, priority: filterPriority, type: filterType }}
@@ -295,18 +313,7 @@ export default function ServiceTicketList() {
                     current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
                     onChange: (p) => { setPageNo(p); fetchTickets(p) },
                   }}
-                  columns={[
-                    { title: '工单编号', dataIndex: 'ticket_no', render: (v: string, r: ServiceTicketItem) => (
-                      <a className="font-mono font-bold text-primary cursor-pointer" onClick={() => navigate(`/service-tickets/${r.id}`)}>{v}</a>
-                    )},
-                    { title: '类型', dataIndex: 'type', render: (v: string) => typeLabels[v] || v },
-                    { title: '优先级', dataIndex: 'priority', render: (v: string) => <Tag color={priorityColors[v]}>{priorityLabels[v] || v}</Tag> },
-                    { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag> },
-                    { title: '描述', dataIndex: 'description', ellipsis: true, width: 200 },
-                    { title: '负责人', dataIndex: 'assigned_to_name', render: (v: string) => v || '-' },
-                    { title: '创建人', dataIndex: 'created_by_name', responsive: ['lg'] as any },
-                    { title: '创建时间', dataIndex: 'created_at', responsive: ['xl'] as any, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
-                  ]}
+                  columns={visibleTicketColumns}
                 />
               </div>
             ),

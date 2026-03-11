@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Input, Space, Tag, Select, Modal, Form, Dropdown, Checkbox, message } from 'antd'
-import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, SettingOutlined, MailOutlined } from '@ant-design/icons'
+import { Table, Button, Input, Space, Tag, Select, Modal, Form, message } from 'antd'
+import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, MailOutlined } from '@ant-design/icons'
 import ImportModal from '@/components/ImportModal'
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -15,6 +15,7 @@ import { useColumnConfig } from '@/hooks/useColumnConfig'
 import { useCountdownConfirm } from '@/hooks/useCountdownConfirm'
 import { userApi } from '@/api/user'
 import SavedViewSelect from '@/components/SavedViewSelect'
+import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
 import EditableCell from '@/components/EditableCell'
 import FeatureTip from '@/components/FeatureTip'
 import RegionMap from '@/components/RegionMap'
@@ -338,28 +339,7 @@ export default function CustomerList() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             筛选
           </Button>
-          <Dropdown trigger={['click']} dropdownRender={() => (
-            <div className="bg-white rounded-lg border border-slate-200 shadow-lg p-3 min-w-[160px]">
-              <div className="text-xs font-bold text-slate-400 uppercase mb-2">显示列</div>
-              {allColumnKeys.map((c) => (
-                <label key={c.key} className="flex items-center gap-2 py-1 cursor-pointer text-sm text-slate-700">
-                  <Checkbox
-                    checked={!hiddenKeys.includes(c.key)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setColumnConfig(hiddenKeys.filter((k) => k !== c.key))
-                      } else {
-                        setColumnConfig([...hiddenKeys, c.key])
-                      }
-                    }}
-                  />
-                  {c.title}
-                </label>
-              ))}
-            </div>
-          )}>
-            <Button icon={<SettingOutlined />} />
-          </Dropdown>
+          <ColumnConfigDropdown allColumnKeys={allColumnKeys} hiddenKeys={hiddenKeys} onChange={setColumnConfig} />
           <SavedViewSelect
             page="customers"
             currentFilters={{ keyword, industry, region }}

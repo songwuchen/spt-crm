@@ -11,7 +11,9 @@ import type { ColumnsType } from 'antd/es/table'
 import { leadStatusConfig as statusConfig } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useColumnConfig } from '@/hooks/useColumnConfig'
 import SavedViewSelect from '@/components/SavedViewSelect'
+import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
 
 function ScoreBar({ score }: { score: number }) {
   const getColor = (s: number) => {
@@ -133,7 +135,7 @@ export default function LeadList() {
 
   const doSearch = () => { updateParams({ page: undefined }) }
 
-  const columns: ColumnsType<Lead> = [
+  const allColumns: ColumnsType<Lead> = [
     { title: '线索', key: 'title', width: 260,
       render: (_, record) => (
         <div className="flex items-center gap-3">
@@ -206,6 +208,8 @@ export default function LeadList() {
       ),
     },
   ]
+
+  const { visibleColumns, hiddenKeys, setColumnConfig, allColumnKeys } = useColumnConfig('leads', allColumns)
 
   return (
     <div>
@@ -291,6 +295,7 @@ export default function LeadList() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             筛选
           </Button>
+          <ColumnConfigDropdown allColumnKeys={allColumnKeys} hiddenKeys={hiddenKeys} onChange={setColumnConfig} />
           <SavedViewSelect
             page="leads"
             currentFilters={{ keyword, status, source }}
@@ -305,7 +310,7 @@ export default function LeadList() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Table
           rowKey="id"
-          columns={columns}
+          columns={visibleColumns}
           dataSource={data}
           loading={loading}
           scroll={{ x: 1050 }}
