@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 import { Modal } from 'antd'
 
 interface CountdownConfirmOptions {
@@ -17,7 +17,20 @@ interface CountdownConfirmOptions {
 export function useCountdownConfirm() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return clearTimer
+  }, [clearTimer])
+
   const confirm = useCallback((opts: CountdownConfirmOptions) => {
+    clearTimer()
     const seconds = opts.countdown ?? 3
     let remaining = seconds
 
@@ -28,12 +41,13 @@ export function useCountdownConfirm() {
       okType: opts.okType || 'danger',
       okButtonProps: { disabled: true },
       onOk: opts.onOk,
+      onCancel: clearTimer,
     })
 
     timerRef.current = setInterval(() => {
       remaining -= 1
       if (remaining <= 0) {
-        if (timerRef.current) clearInterval(timerRef.current)
+        clearTimer()
         modal.update({
           okText: opts.okText || '确认',
           okButtonProps: { disabled: false },
@@ -44,7 +58,7 @@ export function useCountdownConfirm() {
         })
       }
     }, 1000)
-  }, [])
+  }, [clearTimer])
 
   return confirm
 }

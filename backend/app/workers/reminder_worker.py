@@ -39,12 +39,12 @@ async def check_stale_projects(db: AsyncSession) -> int:
     cutoff = datetime.now(timezone.utc) - timedelta(days=STALE_DAYS)
     active_stages = ("S1", "S2", "S3", "S4")
 
-    # Get active projects
+    # Get active projects (batch limit to prevent OOM)
     projects = (await db.execute(
         select(OpportunityProject).where(
             OpportunityProject.is_deleted == False,
             OpportunityProject.stage_code.in_(active_stages),
-        )
+        ).limit(5000)
     )).scalars().all()
 
     notified = 0
@@ -311,14 +311,14 @@ async def check_pool_auto_release(db: AsyncSession) -> int:
         idle_by_level = policy.get("idle_days", {})
         default_idle = policy.get("default_idle_days", 30)
 
-        # Get active customers with owners
+        # Get active customers with owners (batch limit)
         customers = (await db.execute(
             select(Customer).where(
                 Customer.tenant_id == profile.tenant_id,
                 Customer.status == "active",
                 Customer.is_deleted == False,
                 Customer.owner_id != None,
-            )
+            ).limit(5000)
         )).scalars().all()
 
         for cust in customers:

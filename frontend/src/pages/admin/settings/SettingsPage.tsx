@@ -47,6 +47,7 @@ export default function SettingsPage() {
   const [backupLoading, setBackupLoading] = useState(false)
   const [auditResult, setAuditResult] = useState<{ total_checked: number; no_hash: number; tampered_count: number; tampered: { id: string; created_at: string; summary: string }[] } | null>(null)
   const [auditLoading, setAuditLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // Custom field
   const [cfModal, setCfModal] = useState(false)
@@ -352,12 +353,14 @@ export default function SettingsPage() {
                   { title: '', width: 100, render: (_: unknown, r: ApprovalPolicyItem) => (
                     <Space size="middle">
                       <a className="text-primary text-xs font-bold" onClick={() => openApEdit(r)}>编辑</a>
-                      <a className="text-rose-500 text-xs font-bold" onClick={async () => {
+                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                        setDeletingId(r.id)
                         try {
                           await settingsApi.deleteApprovalPolicy(r.id)
                           message.success('已删除')
                           fetchAll()
                         } catch { message.error('删除失败') }
+                        finally { setDeletingId(null) }
                       }}>删除</a>
                     </Space>
                   )},
@@ -389,8 +392,8 @@ export default function SettingsPage() {
                           content_json: r.content_json ? JSON.stringify(r.content_json, null, 2) : '', is_default: r.is_default })
                         setDtModal(true)
                       }}>编辑</a>
-                      <a className="text-rose-500 text-xs font-bold" onClick={async () => {
-                        try { await settingsApi.deleteDocTemplate(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') }
+                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                        setDeletingId(r.id); try { await settingsApi.deleteDocTemplate(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') } finally { setDeletingId(null) }
                       }}>删除</a>
                     </Space>
                   )},
@@ -426,8 +429,8 @@ export default function SettingsPage() {
                           enabled: r.enabled })
                         setEtModal(true)
                       }}>编辑</a>
-                      <a className="text-rose-500 text-xs font-bold" onClick={async () => {
-                        try { await settingsApi.deleteEmailTemplate(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') }
+                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                        setDeletingId(r.id); try { await settingsApi.deleteEmailTemplate(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') } finally { setDeletingId(null) }
                       }}>删除</a>
                     </Space>
                   )},
@@ -464,8 +467,8 @@ export default function SettingsPage() {
                         setNtForm({ event_type: r.event_type, title_template: r.title_template, content_template: r.content_template || '', is_active: r.is_active })
                         setNtModal(true)
                       }}>编辑</a>
-                      <a className="text-rose-500 text-xs font-bold" onClick={async () => {
-                        try { await client.delete(`/api/v1/notification_templates/${r.id}`); message.success('已删除'); fetchAll() } catch { message.error('删除失败') }
+                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                        setDeletingId(r.id); try { await client.delete(`/api/v1/notification_templates/${r.id}`); message.success('已删除'); fetchAll() } catch { message.error('删除失败') } finally { setDeletingId(null) }
                       }}>删除</a>
                     </Space>
                   )},
@@ -521,8 +524,8 @@ export default function SettingsPage() {
                         })
                         setIntModal(true)
                       }}>编辑</a>
-                      <a className="text-rose-500 text-xs font-bold" onClick={async () => {
-                        try { await settingsApi.deleteIntegration(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') }
+                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                        setDeletingId(r.id); try { await settingsApi.deleteIntegration(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') } finally { setDeletingId(null) }
                       }}>删除</a>
                     </Space>
                   )},
@@ -643,8 +646,8 @@ export default function SettingsPage() {
                         setCfForm({ entity_type: r.entity_type, field_key: r.field_key, field_label: r.field_label, field_type: r.field_type, options_json: r.options_json ? JSON.stringify(r.options_json) : '', required: r.required, sort_order: r.sort_order, enabled: r.enabled })
                         setCfModal(true)
                       }} className="text-primary text-xs font-bold">编辑</a>
-                      <a className="text-rose-500 text-xs font-bold" onClick={async () => {
-                        await settingsApi.deleteCustomField(r.id); message.success('已删除'); fetchAll()
+                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                        setDeletingId(r.id); try { await settingsApi.deleteCustomField(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') } finally { setDeletingId(null) }
                       }}>删除</a>
                     </Space>
                   )},

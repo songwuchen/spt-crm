@@ -229,7 +229,10 @@ export default function CustomerDetail() {
               }}>释放到公海</Button>
             )}
             {customer.status === 'pool' && (
-              <Button type="primary" onClick={async () => { await customerApi.claim(id!); message.success('已领取'); window.location.reload() }}>
+              <Button type="primary" onClick={async () => {
+                try { await customerApi.claim(id!); message.success('已领取'); window.location.reload() }
+                catch { message.error('领取失败') }
+              }}>
                 领取客户
               </Button>
             )}

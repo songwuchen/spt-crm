@@ -30,6 +30,8 @@ export default function ContractDetail() {
   const [signatureImage, setSignatureImage] = useState<string | null>(null)
   const [showSignPad, setShowSignPad] = useState(false)
 
+  const [renewLoading, setRenewLoading] = useState(false)
+
   // Approval
   const [approvalModal, setApprovalModal] = useState(false)
   const [selectedApprovers, setSelectedApprovers] = useState<string[]>([])
@@ -169,11 +171,13 @@ export default function ContractDetail() {
             </>
           )}
           {contract.status === 'signed' && (
-            <Button type="primary" onClick={async () => {
+            <Button type="primary" loading={renewLoading} onClick={async () => {
+              setRenewLoading(true)
               try {
                 await contractApi.renew(contract.id)
                 message.success('续约机会已创建，请前往续约管理查看')
               } catch { message.error('创建续约失败') }
+              finally { setRenewLoading(false) }
             }}>发起续约</Button>
           )}
           <Button icon={<FilePdfOutlined />} onClick={() => downloadFile(`/api/v1/contracts/${cid}/export/pdf`, `contract_${contract.contract_no}.pdf`)}>导出PDF</Button>

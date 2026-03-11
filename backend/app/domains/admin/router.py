@@ -166,7 +166,7 @@ async def list_usage(
         q = q.where(TenantUsageMeter.tenant_id == tenant_id)
     if period:
         q = q.where(TenantUsageMeter.period == period)
-    rows = (await db.execute(q)).scalars().all()
+    rows = (await db.execute(q.limit(500))).scalars().all()
     return ok([{
         "id": r.id, "tenant_id": r.tenant_id, "metric_code": r.metric_code,
         "period": r.period, "value": float(r.value),

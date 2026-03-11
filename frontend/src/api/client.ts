@@ -91,10 +91,53 @@ client.interceptors.response.use(
     return data
   },
   (error) => {
-    if (error.response?.status === 401) {
+    const data = error.response?.data
+    const code = data?.code
+
+    // Handle business error codes from non-200 responses
+    if (code === 40101) {
+      const refreshToken = localStorage.getItem('refresh_token')
+      if (refreshToken && !isRefreshing) {
+        isRefreshing = true
+        return axios.post('/api/v1/auth/refresh', { refresh_token: refreshToken })
+          .then((res) => {
+            const newData = res.data
+            if (newData.code === 0 && newData.data) {
+              localStorage.setItem('access_token', newData.data.access_token)
+              localStorage.setItem('refresh_token', newData.data.refresh_token)
+              pendingRequests.forEach((cb) => cb(newData.data.access_token))
+              pendingRequests = []
+              error.config.headers.Authorization = `Bearer ${newData.data.access_token}`
+              return client(error.config)
+            }
+            throw new Error('refresh failed')
+          })
+          .catch(() => {
+            clearAuthAndRedirect()
+            return Promise.reject(new Error('登录已过期'))
+          })
+          .finally(() => { isRefreshing = false })
+      } else if (isRefreshing) {
+        return new Promise((resolve) => {
+          pendingRequests.push((token: string) => {
+            error.config.headers.Authorization = `Bearer ${token}`
+            resolve(client(error.config))
+          })
+        })
+      }
+    }
+
+    if (code === 40100 || error.response?.status === 401) {
       clearAuthAndRedirect()
     }
-    message.error(error.response?.data?.message || '网络异常')
+
+    if (code === 42201) {
+      const err = new Error(data.message) as Error & { gateData: unknown }
+      err.gateData = data.data
+      return Promise.reject(err)
+    }
+
+    message.error(data?.message || '网络异常')
     return Promise.reject(error)
   },
 )

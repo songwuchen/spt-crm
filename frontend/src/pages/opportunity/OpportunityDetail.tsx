@@ -66,6 +66,7 @@ export default function OpportunityDetail() {
   const [advanceTarget, setAdvanceTarget] = useState('')
   const [advanceNote, setAdvanceNote] = useState('')
   const [advanceDirection, setAdvanceDirection] = useState<'advance' | 'rollback'>('advance')
+  const [exportingPdf, setExportingPdf] = useState<'quotes' | 'contracts' | null>(null)
   const [healthScore, setHealthScore] = useState<{ score: number; max_score: number; level: string; dimensions: Record<string, { score: number; max: number; label: string; detail: string }>; risks: string[]; stall_days: number } | null>(null)
   const [orderLinks, setOrderLinks] = useState<ErpOrderLink[]>([])
 
@@ -661,11 +662,15 @@ export default function OpportunityDetail() {
                   <div className="pb-6">
                     <div className="flex justify-end mb-3">
                       {quotes.length > 0 && (
-                        <Button size="small" icon={<FilePdfOutlined />} onClick={async () => {
-                          const res = await quoteApi.batchExportPdf(quotes.map(q => q.id)) as any
-                          const url = window.URL.createObjectURL(new Blob([res]))
-                          const a = document.createElement('a'); a.href = url; a.download = 'quotes_export.zip'; a.click()
-                          window.URL.revokeObjectURL(url)
+                        <Button size="small" icon={<FilePdfOutlined />} loading={exportingPdf === 'quotes'} onClick={async () => {
+                          setExportingPdf('quotes')
+                          try {
+                            const res = await quoteApi.batchExportPdf(quotes.map(q => q.id)) as any
+                            const url = window.URL.createObjectURL(new Blob([res]))
+                            const a = document.createElement('a'); a.href = url; a.download = 'quotes_export.zip'; a.click()
+                            window.URL.revokeObjectURL(url)
+                          } catch { message.error('导出失败') }
+                          finally { setExportingPdf(null) }
                         }}>批量导出PDF</Button>
                       )}
                       <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleCreateQuote}>新建报价</Button>
@@ -705,11 +710,15 @@ export default function OpportunityDetail() {
                   <div className="pb-6">
                     <div className="flex justify-end mb-3">
                       {contracts.length > 0 && (
-                        <Button size="small" icon={<FilePdfOutlined />} onClick={async () => {
-                          const res = await contractApi.batchExportPdf(contracts.map(c => c.id)) as any
-                          const url = window.URL.createObjectURL(new Blob([res]))
-                          const a = document.createElement('a'); a.href = url; a.download = 'contracts_export.zip'; a.click()
-                          window.URL.revokeObjectURL(url)
+                        <Button size="small" icon={<FilePdfOutlined />} loading={exportingPdf === 'contracts'} onClick={async () => {
+                          setExportingPdf('contracts')
+                          try {
+                            const res = await contractApi.batchExportPdf(contracts.map(c => c.id)) as any
+                            const url = window.URL.createObjectURL(new Blob([res]))
+                            const a = document.createElement('a'); a.href = url; a.download = 'contracts_export.zip'; a.click()
+                            window.URL.revokeObjectURL(url)
+                          } catch { message.error('导出失败') }
+                          finally { setExportingPdf(null) }
                         }}>批量导出PDF</Button>
                       )}
                       <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleCreateContract}>新建合同</Button>

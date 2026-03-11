@@ -510,7 +510,8 @@ export default function Dashboard() {
                           <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">待跟进商机</div>
                           <div className="space-y-1.5">
                             {myOv.stalled_projects.map((p) => (
-                              <div key={p.id} onClick={() => navigate(`/opportunities/${p.id}`)}
+                              <div key={p.id} role="button" tabIndex={0} onClick={() => navigate(`/opportunities/${p.id}`)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/opportunities/${p.id}`) } }}
                                 className="flex items-center gap-2 p-2 rounded-lg bg-white/70 border border-amber-100 cursor-pointer hover:shadow-sm transition-shadow">
                                 <span className="material-symbols-outlined text-amber-500 text-base">schedule</span>
                                 <span className="text-sm font-medium text-slate-800 flex-1 truncate">{p.name}</span>
@@ -637,10 +638,17 @@ export default function Dashboard() {
                       }
                       const t = iconMap[a.type] || iconMap.stalled
                       return (
-                        <div key={i} onClick={() => {
+                        <div key={i} role="button" tabIndex={0} onClick={() => {
                           if (a.biz_type === 'project') navigate(`/opportunities/${a.biz_id}`)
                           else if (a.biz_type === 'service_ticket') navigate(`/service-tickets/${a.biz_id}`)
                           else if (a.biz_type === 'approval_flow') navigate('/approvals')
+                        }} onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            if (a.biz_type === 'project') navigate(`/opportunities/${a.biz_id}`)
+                            else if (a.biz_type === 'service_ticket') navigate(`/service-tickets/${a.biz_id}`)
+                            else if (a.biz_type === 'approval_flow') navigate('/approvals')
+                          }
                         }} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:shadow-sm transition-shadow ${
                           a.severity === 'critical' ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'
                         }`}>

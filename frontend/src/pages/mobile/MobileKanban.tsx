@@ -67,7 +67,8 @@ export default function MobileKanban() {
           </div>
         )}
         {(grouped[activeStage] || []).map((c) => (
-          <div key={c.id} onClick={() => navigate(`/m/opportunities/${c.id}`)}
+          <div key={c.id} role="button" tabIndex={0} onClick={() => navigate(`/m/opportunities/${c.id}`)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/m/opportunities/${c.id}`) } }}
             className={`rounded-xl border-l-4 bg-white shadow-sm p-3 active:bg-slate-50 ${stageColors[c.stage_code] || 'border-slate-300'}`}>
             <div className="flex items-start justify-between mb-1">
               <span className="text-sm font-bold text-slate-800 flex-1 truncate">{c.name}</span>

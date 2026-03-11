@@ -154,12 +154,17 @@ async def process_email_events(db: AsyncSession, event: OutboxEvent):
             event.status = "published"
             event.published_by = "outbox_worker:email"
         else:
+            logger.warning("Email send returned failure for event=%s to=%s tenant=%s",
+                           event.id, data.get("to", "?"), event.tenant_id)
             event.status = "failed"
             event.retry_count += 1
             event.error_message = "Email send failed"
         await db.commit()
         return True
     except Exception as e:
+        data = event.payload_json or {}
+        logger.warning("Email send failed for event=%s to=%s tenant=%s: %s",
+                        event.id, data.get("to", "?"), event.tenant_id, e)
         event.status = "failed"
         event.retry_count += 1
         event.error_message = str(e)[:200]
