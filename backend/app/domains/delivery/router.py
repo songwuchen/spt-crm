@@ -72,8 +72,8 @@ async def delete_order_link(
 
 @router.get("/api/v1/milestones")
 async def list_all_milestones(
-    page_no: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
     status: str | None = None,
     keyword: str | None = None,
     tenant_id: str = Depends(get_tenant_id),
@@ -91,7 +91,7 @@ async def list_all_milestones(
         q = q.where(DeliveryMilestone.name.ilike(like) | DeliveryMilestone.milestone_code.ilike(like))
         cq = cq.where(DeliveryMilestone.name.ilike(like) | DeliveryMilestone.milestone_code.ilike(like))
     total = (await db.execute(cq)).scalar() or 0
-    q = q.order_by(DeliveryMilestone.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+    q = q.order_by(DeliveryMilestone.created_at.desc()).offset((pageNo - 1) * pageSize).limit(pageSize)
     items = (await db.execute(q)).scalars().all()
     return ok({"items": [_ms_dict(m) for m in items], "total": total})
 

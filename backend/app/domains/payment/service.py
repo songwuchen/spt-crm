@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,8 @@ from app.domains.payment.schemas import (
     InvoiceCreate, InvoiceUpdate, PaymentPlanCreate, PaymentPlanUpdate, PaymentRecordCreate,
 )
 from app.domains.audit.service import log_action
+
+logger = logging.getLogger("spt_crm.payment")
 
 
 async def mark_overdue_plans(db: AsyncSession, tenant_id: str):
@@ -79,8 +82,8 @@ async def check_overdue_and_notify(db: AsyncSession, tenant_id: str):
                 sender_name="系统",
             )
             notified += 1
-        except Exception:
-            pass  # Non-critical: continue processing remaining projects
+        except Exception as e:
+            logger.warning("Payment overdue notification failed for project %s: %s", project_id, e)
 
     return notified
 
@@ -126,6 +129,19 @@ async def update_invoice(db: AsyncSession, tenant_id: str, invoice_id: str, data
     return inv
 
 
+async def delete_invoice(db: AsyncSession, tenant_id: str, invoice_id: str, user: dict):
+    inv = (await db.execute(
+        select(Invoice).where(Invoice.id == invoice_id, Invoice.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not inv:
+        raise BusinessException(code=NOT_FOUND, message="发票不存在")
+    await db.delete(inv)
+    await db.commit()
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="delete", resource_type="invoice", resource_id=invoice_id,
+                     summary=f"删除发票: {inv.invoice_no}")
+
+
 # ==================== PaymentPlan ====================
 
 async def list_plans(db: AsyncSession, tenant_id: str, project_id: str):
@@ -167,6 +183,19 @@ async def update_plan(db: AsyncSession, tenant_id: str, plan_id: str, data: Paym
     return plan
 
 
+async def delete_plan(db: AsyncSession, tenant_id: str, plan_id: str, user: dict):
+    plan = (await db.execute(
+        select(PaymentPlan).where(PaymentPlan.id == plan_id, PaymentPlan.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not plan:
+        raise BusinessException(code=NOT_FOUND, message="回款计划不存在")
+    await db.delete(plan)
+    await db.commit()
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="delete", resource_type="payment_plan", resource_id=plan_id,
+                     summary=f"删除回款计划: {plan.plan_no}")
+
+
 # ==================== PaymentRecord ====================
 
 async def list_records(db: AsyncSession, tenant_id: str, project_id: str):
@@ -206,8 +235,8 @@ async def create_record(db: AsyncSession, tenant_id: str, project_id: str, data:
         await record_activity(db, tenant_id, "project", project_id, "system",
                               f"收到回款 ¥{float(data.amount):,.2f}", None,
                               user["sub"], user.get("real_name") or user.get("username"))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Auto-activity record for payment received failed: %s", e)
 
     # Auto-notify project owner
     try:
@@ -219,7 +248,20 @@ async def create_record(db: AsyncSession, tenant_id: str, project_id: str, data:
             from app.common.auto_notify import notify_payment_received
             await notify_payment_received(db, tenant_id, float(data.amount), proj.owner_id,
                                            user.get("real_name") or user.get("username"), project_id)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Auto-notify project owner for payment received failed: %s", e)
 
     return rec
+
+
+async def delete_record(db: AsyncSession, tenant_id: str, record_id: str, user: dict):
+    rec = (await db.execute(
+        select(PaymentRecord).where(PaymentRecord.id == record_id, PaymentRecord.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not rec:
+        raise BusinessException(code=NOT_FOUND, message="回款记录不存在")
+    await db.delete(rec)
+    await db.commit()
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="delete", resource_type="payment_record", resource_id=record_id,
+                     summary=f"删除回款记录: ¥{float(rec.amount) if rec.amount else 0}")

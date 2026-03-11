@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select, func
@@ -10,6 +11,8 @@ from app.domains.approval.models import ApprovalFlow, ApprovalTask
 from app.domains.approval.schemas import ApprovalSubmit
 from app.domains.audit.service import log_action
 from app.domains.notification.service import send_notification
+
+logger = logging.getLogger("spt_crm.approval")
 
 
 async def list_flows(db: AsyncSession, tenant_id: str, biz_type: str | None = None, biz_id: str | None = None, status: str | None = None):
@@ -77,8 +80,8 @@ async def _check_margin_redline(db: AsyncSession, tenant_id: str, biz_type: str,
                         "message": f"毛利率 {margin:.1%} 低于红线 {redline:.1%}（策略: {policy.policy_code}），需要额外审批。",
                         "policy_code": policy.policy_code,
                     }
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Margin redline policy check failed: %s", e)
     return None
 
 
@@ -142,13 +145,13 @@ async def _resolve_policy_approvers(db: AsyncSession, tenant_id: str, biz_type: 
                     from app.domains.auth.models import UserDepartment
                     from app.domains.admin.models import Department
                     # We don't have current user here, so skip in this context
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Department leader resolution failed: %s", e)
 
         if approver_ids:
             return approver_ids, approver_names, policy.approval_mode or "sequential"
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Approver resolution from policy failed: %s", e)
     return None
 
 
@@ -157,8 +160,8 @@ async def _dispatch_msg_safe(db: AsyncSession, tenant_id: str, title: str, conte
     try:
         from app.common.msg_integration import dispatch_message
         await dispatch_message(db, tenant_id, title, content, msg_type=msg_type)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Dispatch external message failed: %s", e)
 
 
 async def _enqueue_approval_event(db: AsyncSession, tenant_id: str, event_type: str, flow: ApprovalFlow, extra: dict | None = None):
@@ -184,8 +187,8 @@ async def _enqueue_approval_event(db: AsyncSession, tenant_id: str, event_type: 
             aggregate_id=flow.id,
             payload_json=payload,
         ))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Outbox event enqueue failed for %s: %s", event_type, e)
 
 
 async def submit_approval(db: AsyncSession, tenant_id: str, data: ApprovalSubmit, user: dict) -> ApprovalFlow:
@@ -445,23 +448,23 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
                         c = (await db.execute(select(Contract).where(Contract.id == ver.contract_id))).scalar_one_or_none()
                         if c:
                             activity_biz_id = c.project_id
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to resolve project_id from %s: %s", flow.biz_type, e)
         elif flow.biz_type == "change_request":
             try:
                 from app.domains.change.models import ChangeRequest
                 cr = (await db.execute(select(ChangeRequest).where(ChangeRequest.id == flow.biz_id))).scalar_one_or_none()
                 if cr:
                     activity_biz_id = cr.project_id
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to resolve project_id from change_request: %s", e)
 
         decision_label = "通过" if action == "approved" else "驳回"
         await record_activity(db, tenant_id, activity_biz_type, activity_biz_id, "system",
                               f"审批{decision_label}: {flow.title or flow.biz_type}", comment,
                               user["sub"], user_name)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to record approval activity: %s", e)
 
     return flow
 
@@ -493,8 +496,8 @@ async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: Approva
             if cr:
                 cr.status = "approved"
                 await db.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Approval completion callback failed for %s/%s: %s", flow.biz_type, flow.biz_id, e)
 
 
 async def withdraw_flow(db: AsyncSession, tenant_id: str, flow_id: str, reason: str | None, user: dict) -> ApprovalFlow:
@@ -818,8 +821,8 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
                 detail["change_no"] = cr.change_no
                 detail["change_type"] = cr.change_type
                 detail["scope_description"] = cr.scope_description
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to resolve biz detail for %s/%s: %s", biz_type, biz_id, e)
     return detail
 
 
@@ -919,8 +922,8 @@ async def check_sla_overdue(db: AsyncSession, tenant_id: str) -> int:
                             "审批超时升级通知",
                             f"**审批对象**: {flow.title or flow.biz_type}\n\n**已等待**: {int(elapsed_hours)}小时\n\n**SLA**: {policy.sla_hours}小时\n\n请尽快处理。")
                         notified += 1
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning("SLA escalation notification failed for flow %s: %s", flow.id, e)
                 elif action_type == "auto_approve":
                     # Auto-approve with system user
                     try:
@@ -937,8 +940,8 @@ async def check_sla_overdue(db: AsyncSession, tenant_id: str) -> int:
                             flow.status = "approved"
                             await _on_approval_completed(db, tenant_id, flow)
                         notified += 1
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning("SLA auto-approve failed for flow %s: %s", flow.id, e)
                 flow.escalation_level = i + 1
             await db.commit()
         else:
@@ -956,7 +959,7 @@ async def check_sla_overdue(db: AsyncSession, tenant_id: str) -> int:
                     "审批超时提醒",
                     f"**审批对象**: {flow.title or flow.biz_type}\n\n**已等待**: {int(elapsed_hours)}小时\n\n请尽快处理。")
                 notified += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("SLA overdue notification failed for flow %s: %s", flow.id, e)
 
     return notified

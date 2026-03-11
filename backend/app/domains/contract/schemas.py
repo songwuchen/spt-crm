@@ -1,11 +1,11 @@
 from typing import Optional
 from datetime import date
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ContractCreate(BaseModel):
     title: Optional[str] = None
-    amount_total: Optional[float] = None
+    amount_total: Optional[float] = Field(None, ge=0)
     end_date: Optional[date] = None
     payment_terms_json: Optional[dict] = None
     delivery_terms_json: Optional[dict] = None
@@ -13,7 +13,7 @@ class ContractCreate(BaseModel):
 
 class ContractUpdate(BaseModel):
     status: Optional[str] = None
-    amount_total: Optional[float] = None
+    amount_total: Optional[float] = Field(None, ge=0)
     end_date: Optional[date] = None
     payment_terms_json: Optional[dict] = None
     delivery_terms_json: Optional[dict] = None

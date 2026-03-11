@@ -56,7 +56,7 @@ async def list_tasks(
     keyword: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions()),
+    current_user: dict = Depends(require_permissions("task:view")),
 ):
     q = select(UserTask).where(UserTask.tenant_id == tenant_id)
     # By default show user's own tasks unless assignee_id is specified
@@ -83,7 +83,7 @@ async def create_task(
     body: TaskCreate,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions()),
+    current_user: dict = Depends(require_permissions("task:create")),
 ):
     from datetime import date as date_type
     parsed_due = None
@@ -111,7 +111,7 @@ async def update_task(
     body: TaskUpdate,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions()),
+    current_user: dict = Depends(require_permissions("task:edit")),
 ):
     from app.common.exceptions import BusinessException
     t = (await db.execute(
@@ -137,7 +137,7 @@ async def delete_task(
     task_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions()),
+    current_user: dict = Depends(require_permissions("task:delete")),
 ):
     from app.common.exceptions import BusinessException
     t = (await db.execute(
@@ -168,7 +168,7 @@ async def batch_assign(
     body: BatchAssignBody,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions()),
+    current_user: dict = Depends(require_permissions("task:edit")),
 ):
     """Batch assign tasks to a user."""
     from sqlalchemy import update
@@ -187,7 +187,7 @@ async def batch_complete(
     body: BatchCompleteBody,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions()),
+    current_user: dict = Depends(require_permissions("task:edit")),
 ):
     """Batch mark tasks as completed."""
     from sqlalchemy import update

@@ -102,6 +102,14 @@ PERMISSIONS = [
     ("product:create", "创建产品", "产品管理"),
     ("product:edit", "编辑产品", "产品管理"),
     ("product:delete", "删除产品", "产品管理"),
+    # Task
+    ("task:view", "查看任务", "任务管理"),
+    ("task:create", "创建任务", "任务管理"),
+    ("task:edit", "编辑任务", "任务管理"),
+    ("task:delete", "删除任务", "任务管理"),
+    # Notification
+    ("notification:view", "查看通知", "通知管理"),
+    ("notification:manage", "管理通知", "通知管理"),
     # Audit
     ("audit:view", "查看审计日志", "审计管理"),
     # Data scope
@@ -136,6 +144,8 @@ ROLES = {
             "change:view", "change:create", "change:edit", "change:delete",
             "service:view", "service:create", "service:edit",
             "product:view", "product:create", "product:edit", "product:delete",
+            "task:view", "task:create", "task:edit", "task:delete",
+            "notification:view", "notification:manage",
             "attachment:upload", "attachment:download",
             "data:view_all",
         ],
@@ -157,6 +167,8 @@ ROLES = {
             "service:view", "service:create",
             "contract:view",
             "product:view",
+            "task:view", "task:create", "task:edit",
+            "notification:view", "notification:manage",
             "attachment:upload", "attachment:download",
         ],
     },

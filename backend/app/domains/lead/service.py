@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 import random
 
@@ -11,6 +12,8 @@ from app.domains.lead.models import Lead
 from app.domains.lead.schemas import LeadCreate, LeadUpdate
 from app.domains.customer.models import Customer
 from app.domains.audit.service import log_action
+
+logger = logging.getLogger("spt_crm.lead")
 
 
 def _generate_lead_code() -> str:
@@ -149,8 +152,8 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         await record_activity(db, tenant_id, "lead", lead.id, "system",
                               f"线索转化为客户: {customer.name}", None,
                               user["sub"], user.get("real_name") or user.get("username"))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Auto-activity record for lead qualification failed: %s", e)
 
     return {"lead_id": lead.id, "customer_id": customer.id, "customer_name": customer.name}
 
@@ -193,7 +196,7 @@ async def discard_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         await record_activity(db, tenant_id, "lead", lead.id, "system",
                               "线索已废弃", None,
                               user["sub"], user.get("real_name") or user.get("username"))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Auto-activity record for lead discard failed: %s", e)
 
     return lead

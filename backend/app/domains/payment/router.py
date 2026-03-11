@@ -82,6 +82,16 @@ async def update_invoice(
     return ok(_inv_dict(inv))
 
 
+@router.delete("/api/v1/invoices/{invoice_id}")
+async def delete_invoice(
+    invoice_id: str,
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("payment:edit")),
+):
+    await service.delete_invoice(db, tenant_id, invoice_id, current_user)
+    return ok(None)
+
+
 # --- PaymentPlan ---
 
 @router.get("/api/v1/projects/{project_id}/payment_plans")
@@ -113,6 +123,16 @@ async def update_plan(
     return ok(_plan_dict(plan))
 
 
+@router.delete("/api/v1/payment_plans/{plan_id}")
+async def delete_plan(
+    plan_id: str,
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("payment:edit")),
+):
+    await service.delete_plan(db, tenant_id, plan_id, current_user)
+    return ok(None)
+
+
 # --- PaymentRecord ---
 
 @router.get("/api/v1/projects/{project_id}/payment_records")
@@ -132,6 +152,16 @@ async def create_record(
 ):
     rec = await service.create_record(db, tenant_id, project_id, body, current_user)
     return ok(_rec_dict(rec))
+
+
+@router.delete("/api/v1/payment_records/{record_id}")
+async def delete_record(
+    record_id: str,
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("payment:edit")),
+):
+    await service.delete_record(db, tenant_id, record_id, current_user)
+    return ok(None)
 
 
 # --- Cross-project listing ---

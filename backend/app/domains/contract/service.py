@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone, date as date_type
 
 from sqlalchemy import select, func
@@ -9,6 +10,8 @@ from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR
 from app.domains.contract.models import Contract, ContractVersion
 from app.domains.contract.schemas import ContractCreate, ContractUpdate, ContractVersionUpdate
 from app.domains.audit.service import log_action
+
+logger = logging.getLogger("spt_crm.contract")
 
 
 def _generate_contract_no() -> str:
@@ -179,8 +182,12 @@ async def sign_contract(db: AsyncSession, tenant_id: str, contract_id: str, sign
     if contract.status == "signed":
         raise BusinessException(code=BUSINESS_ERROR, message="合同已签署")
 
+    parsed_signed_date = date_type.fromisoformat(signed_date)
+    if contract.end_date and parsed_signed_date > contract.end_date:
+        raise BusinessException(code=BUSINESS_ERROR, message="签署日期不能晚于合同结束日期")
+
     contract.status = "signed"
-    contract.signed_date = date_type.fromisoformat(signed_date)
+    contract.signed_date = parsed_signed_date
 
     # Also mark current version as signed
     current_version = (await db.execute(
@@ -206,8 +213,8 @@ async def sign_contract(db: AsyncSession, tenant_id: str, contract_id: str, sign
         if contract.created_by_id and contract.created_by_id != user["sub"]:
             await notify_contract_signed(db, tenant_id, contract.contract_no, contract.created_by_id,
                                           user.get("real_name") or user.get("username"), contract_id)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Auto-notify contract signed failed: %s", e)
 
     # Auto-activity record on the project
     try:
@@ -215,8 +222,8 @@ async def sign_contract(db: AsyncSession, tenant_id: str, contract_id: str, sign
         await record_activity(db, tenant_id, "project", contract.project_id, "system",
                                f"签署合同: {contract.contract_no}", None,
                                user["sub"], user.get("real_name") or user.get("username"))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Auto-activity record for contract sign failed: %s", e)
 
     return contract
 
@@ -258,7 +265,7 @@ async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data
             )).scalar_one_or_none()
             title = f"合同审批: {c.contract_no if c else ''} V{version.version_no}"
             await auto_trigger_approval(db, tenant_id, "contract_version", version_id, title, user)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Auto-trigger approval for contract version failed: %s", e)
 
     return version

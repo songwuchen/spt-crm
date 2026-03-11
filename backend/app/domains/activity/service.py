@@ -9,13 +9,13 @@ from app.domains.activity.schemas import ActivityCreate, ActivityUpdate
 from app.domains.audit.service import log_action
 
 
-async def list_activities(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str):
+async def list_activities(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str, limit: int = 200):
     result = await db.execute(
         select(Activity).where(
             Activity.tenant_id == tenant_id,
             Activity.biz_type == biz_type,
             Activity.biz_id == biz_id,
-        ).order_by(Activity.created_at.desc())
+        ).order_by(Activity.created_at.desc()).limit(limit)
     )
     return result.scalars().all()
 

@@ -34,7 +34,6 @@ from app.domains.ai_center.router import router as ai_center_router
 from app.domains.approval.router import router as approval_router
 from app.domains.admin.router import router as admin_console_router
 from app.domains.notification.router import router as notification_router
-from app.domains.notification.ws import router as ws_router
 from app.domains.outbox.router import router as outbox_router
 from app.domains.product.router import router as product_router
 from app.domains.task.router import router as task_router
@@ -128,7 +127,6 @@ app.include_router(task_router)
 app.include_router(lead_public_router)
 app.include_router(saved_view_router)
 app.include_router(contact_router)
-app.include_router(ws_router)
 
 
 @app.post("/api/v1/frontend-errors", tags=["系统"])

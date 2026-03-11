@@ -42,6 +42,7 @@ class ConnectionManager:
             try:
                 await ws.send_text(message)
             except Exception:
+                logger.debug("WS send failed for user=%s", user_id)
                 dead.append(ws)
         for ws in dead:
             conns.discard(ws)

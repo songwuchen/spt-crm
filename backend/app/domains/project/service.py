@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select, func
@@ -9,6 +10,8 @@ from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR
 from app.domains.project.models import OpportunityProject, ProjectStageHistory
 from app.domains.project.schemas import ProjectCreate, ProjectUpdate
 from app.domains.audit.service import log_action
+
+logger = logging.getLogger("spt_crm.project")
 
 STAGE_ORDER = ["S1", "S2", "S3", "S4", "S5", "S6"]
 
@@ -61,8 +64,8 @@ async def _load_gate_rules_from_db(db: AsyncSession, tenant_id: str, to_stage: s
         )).scalar_one_or_none()
         if sd and sd.gate_rules_json:
             return sd.gate_rules_json if isinstance(sd.gate_rules_json, list) else None
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to load gate rules from DB for stage %s: %s", to_stage, e)
     return None
 
 
@@ -79,8 +82,8 @@ async def _load_allowed_transitions_from_db(db: AsyncSession, tenant_id: str, fr
         )).scalar_one_or_none()
         if sd and sd.allowed_transitions_json:
             return sd.allowed_transitions_json if isinstance(sd.allowed_transitions_json, list) else None
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to load allowed transitions from DB for stage %s: %s", from_stage, e)
     return None
 
 
@@ -293,15 +296,15 @@ async def update_project(db: AsyncSession, tenant_id: str, project_id: str, data
             await record_activity(db, tenant_id, "project", project.id, "system",
                                   f"商机已{label}", None,
                                   user["sub"], user.get("real_name") or user.get("username"))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Auto-activity record for project win/lost failed: %s", e)
         try:
             if project.owner_id and project.owner_id != user["sub"]:
                 from app.common.auto_notify import notify_project_won_lost
                 await notify_project_won_lost(db, tenant_id, project.name, new_status,
                                                project.owner_id, user.get("real_name") or user.get("username"), project.id)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Auto-notify project owner for win/lost failed: %s", e)
 
     return project
 
@@ -433,8 +436,8 @@ async def advance_stage(db: AsyncSession, tenant_id: str, project_id: str, to_st
         if project.owner_id and project.owner_id != user["sub"]:
             await notify_stage_advance(db, tenant_id, project.name, from_stage, to_stage,
                                        project.owner_id, user.get("real_name") or user.get("username"))
-    except Exception:
-        pass  # non-critical
+    except Exception as e:
+        logger.warning("Auto-notify stage advance failed: %s", e)
 
     # Auto-activity record
     try:
@@ -442,8 +445,8 @@ async def advance_stage(db: AsyncSession, tenant_id: str, project_id: str, to_st
         await record_activity(db, tenant_id, "project", project_id, "stage_change",
                                f"阶段推进: {from_stage} → {to_stage}", note,
                                user["sub"], user.get("real_name") or user.get("username"))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Auto-activity record for stage advance failed: %s", e)
 
     return project
 

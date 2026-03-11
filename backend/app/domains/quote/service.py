@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select, func
@@ -9,6 +10,8 @@ from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR
 from app.domains.quote.models import Quote, QuoteVersion, QuoteLine, CostSnapshot, QuoteSendLog
 from app.domains.quote.schemas import QuoteCreate, QuoteUpdate, QuoteVersionUpdate, QuoteLineCreate, QuoteLineUpdate, CostSnapshotCreate, QuoteSendLogCreate
 from app.domains.audit.service import log_action
+
+logger = logging.getLogger("spt_crm.quote")
 
 
 def _generate_quote_no() -> str:
@@ -93,8 +96,8 @@ async def create_quote(db: AsyncSession, tenant_id: str, project_id: str, data: 
         await record_activity(db, tenant_id, "project", project_id, "system",
                                f"创建报价: {quote.quote_no}", None,
                                user["sub"], user.get("real_name") or user.get("username"))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Auto-activity record for quote creation failed: %s", e)
 
     return {"quote": quote, "version": version}
 
@@ -228,8 +231,8 @@ async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data
             q = (await db.execute(select(Quote).where(Quote.id == version.quote_id))).scalar_one_or_none()
             title = f"报价审批: {q.quote_no if q else ''} V{version.version_no}"
             await auto_trigger_approval(db, tenant_id, "quote_version", version_id, title, user)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Auto-trigger approval for quote version failed: %s", e)
 
     return version
 

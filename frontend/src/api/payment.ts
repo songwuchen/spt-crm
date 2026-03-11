@@ -9,6 +9,8 @@ export const paymentApi = {
     client.post<unknown, ApiResponse<InvoiceItem>>(`/api/v1/projects/${projectId}/invoices`, data),
   updateInvoice: (id: string, data: Record<string, unknown>) =>
     client.put<unknown, ApiResponse<InvoiceItem>>(`/api/v1/invoices/${id}`, data),
+  deleteInvoice: (id: string) =>
+    client.delete<unknown, ApiResponse<null>>(`/api/v1/invoices/${id}`),
 
   // Payment Plans
   listPlans: (projectId: string) =>
@@ -17,12 +19,16 @@ export const paymentApi = {
     client.post<unknown, ApiResponse<PaymentPlanItem>>(`/api/v1/projects/${projectId}/payment_plans`, data),
   updatePlan: (id: string, data: Record<string, unknown>) =>
     client.put<unknown, ApiResponse<PaymentPlanItem>>(`/api/v1/payment_plans/${id}`, data),
+  deletePlan: (id: string) =>
+    client.delete<unknown, ApiResponse<null>>(`/api/v1/payment_plans/${id}`),
 
   // Payment Records
   listRecords: (projectId: string) =>
     client.get<unknown, ApiResponse<PaymentRecordItem[]>>(`/api/v1/projects/${projectId}/payment_records`),
   createRecord: (projectId: string, data: Record<string, unknown>) =>
     client.post<unknown, ApiResponse<PaymentRecordItem>>(`/api/v1/projects/${projectId}/payment_records`, data),
+  deleteRecord: (id: string) =>
+    client.delete<unknown, ApiResponse<null>>(`/api/v1/payment_records/${id}`),
 
   // Cross-project listing
   listAllPlans: (params: Record<string, unknown>) =>

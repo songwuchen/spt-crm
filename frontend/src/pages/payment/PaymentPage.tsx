@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Table, Tabs, Tag, Select, Input, Button } from 'antd'
-import { SearchOutlined, DownloadOutlined } from '@ant-design/icons'
+import { Table, Tabs, Tag, Select, Input, Button, Popconfirm, message } from 'antd'
+import { SearchOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { downloadFile } from '@/utils/download'
 import { paymentApi } from '@/api/payment'
@@ -99,6 +99,30 @@ export default function PaymentPage() {
     } finally { setInvoiceLoading(false) }
   }
 
+  const handleDeletePlan = async (id: string) => {
+    try {
+      await paymentApi.deletePlan(id)
+      message.success('删除成功')
+      fetchPlans(); fetchOverview()
+    } catch { message.error('删除失败') }
+  }
+
+  const handleDeleteRecord = async (id: string) => {
+    try {
+      await paymentApi.deleteRecord(id)
+      message.success('删除成功')
+      fetchRecords(); fetchOverview()
+    } catch { message.error('删除失败') }
+  }
+
+  const handleDeleteInvoice = async (id: string) => {
+    try {
+      await paymentApi.deleteInvoice(id)
+      message.success('删除成功')
+      fetchInvoices()
+    } catch { message.error('删除失败') }
+  }
+
   useEffect(() => { fetchOverview(); fetchPlans(); fetchRecords(); fetchInvoices() }, [])
 
   return (
@@ -187,6 +211,11 @@ export default function PaymentPage() {
                         return cfg ? <Tag color={cfg.color}>{cfg.label}</Tag> : v
                       } },
                     { title: '备注', dataIndex: 'remark', ellipsis: true, responsive: ['lg'] as any },
+                    { title: '操作', key: 'action', width: 70, render: (_: unknown, r: PlanRow) => (
+                      <Popconfirm title="确认删除此计划？" onConfirm={() => handleDeletePlan(r.id)} okText="删除" cancelText="取消">
+                        <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    ) },
                   ]}
                 />
               </div>
@@ -221,6 +250,11 @@ export default function PaymentPage() {
                       render: (v: string) => v ? <span className="font-mono text-xs">{v}</span> : '-' },
                     { title: '记录人', dataIndex: 'created_by_name', width: 90, responsive: ['lg'] as any },
                     { title: '备注', dataIndex: 'remark', ellipsis: true, responsive: ['lg'] as any },
+                    { title: '操作', key: 'action', width: 70, render: (_: unknown, r: RecordRow) => (
+                      <Popconfirm title="确认删除此记录？" onConfirm={() => handleDeleteRecord(r.id)} okText="删除" cancelText="取消">
+                        <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    ) },
                   ]}
                 />
               </div>
@@ -256,6 +290,11 @@ export default function PaymentPage() {
                       render: (v: string) => <Tag color={v === 'issued' ? 'blue' : 'default'}>{v === 'issued' ? '已开' : '作废'}</Tag> },
                     { title: '记录人', dataIndex: 'created_by_name', width: 90, responsive: ['lg'] as any },
                     { title: '备注', dataIndex: 'remark', ellipsis: true, responsive: ['lg'] as any },
+                    { title: '操作', key: 'action', width: 70, render: (_: unknown, r: InvoiceRow) => (
+                      <Popconfirm title="确认删除此发票？" onConfirm={() => handleDeleteInvoice(r.id)} okText="删除" cancelText="取消">
+                        <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    ) },
                   ]}
                 />
               </div>

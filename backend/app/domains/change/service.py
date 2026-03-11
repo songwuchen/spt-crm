@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -9,6 +10,8 @@ from app.common.error_codes import NOT_FOUND
 from app.domains.change.models import ChangeRequest
 from app.domains.change.schemas import ChangeRequestCreate, ChangeRequestUpdate
 from app.domains.audit.service import log_action
+
+logger = logging.getLogger("spt_crm.change")
 
 
 def _generate_change_no() -> str:
@@ -54,8 +57,8 @@ async def create(db: AsyncSession, tenant_id: str, project_id: str, data: Change
         from app.domains.approval.service import auto_trigger_approval
         title = f"变更审批: {cr.change_no}"
         await auto_trigger_approval(db, tenant_id, "change_request", cr.id, title, user)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Auto-trigger approval for change request failed: %s", e)
 
     return cr
 
@@ -97,8 +100,8 @@ async def update(db: AsyncSession, tenant_id: str, cr_id: str, data: ChangeReque
             await record_activity(db, tenant_id, "project", cr.project_id, "system",
                                   f"变更单 {cr.change_no} 状态: {status_labels.get(cr.status, cr.status)}", None,
                                   user["sub"], user.get("real_name") or user.get("username"))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Auto-activity record for change status update failed: %s", e)
 
     return cr
 
