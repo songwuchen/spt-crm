@@ -15,3 +15,7 @@ class NotificationCreate(BaseModel):
 
 class MarkReadRequest(BaseModel):
     ids: List[str]
+
+
+class UpdatePreferencesRequest(BaseModel):
+    preferences: dict[str, bool] = {}  # e.g. {"approval_pending": true, "stage_change": false}

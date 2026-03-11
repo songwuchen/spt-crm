@@ -449,6 +449,42 @@ async def cleanup_soft_deleted_records(db: AsyncSession) -> int:
     return total
 
 
+async def cleanup_old_outbox_events(db: AsyncSession) -> int:
+    """Delete published/failed outbox events older than 90 days."""
+    from sqlalchemy import delete as sql_delete
+    from app.domains.outbox.models import OutboxEvent
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    result = await db.execute(
+        sql_delete(OutboxEvent).where(
+            OutboxEvent.status.in_(["published", "failed"]),
+            OutboxEvent.updated_at < cutoff,
+        )
+    )
+    if result.rowcount > 0:
+        await db.commit()
+        logger.info(f"Cleaned up {result.rowcount} old outbox events (>90 days)")
+    return result.rowcount
+
+
+async def cleanup_inactive_sessions(db: AsyncSession) -> int:
+    """Hard-delete inactive login sessions older than 90 days."""
+    from sqlalchemy import delete as sql_delete
+    from app.domains.auth.models import LoginSession
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    result = await db.execute(
+        sql_delete(LoginSession).where(
+            LoginSession.is_active == False,
+            LoginSession.updated_at < cutoff,
+        )
+    )
+    if result.rowcount > 0:
+        await db.commit()
+        logger.info(f"Purged {result.rowcount} inactive login sessions (>90 days)")
+    return result.rowcount
+
+
 async def check_scheduled_reports(db: AsyncSession) -> int:
     """Send scheduled report emails based on tenant report_schedules config."""
     from app.domains.admin.models import TenantProfile
@@ -513,6 +549,8 @@ async def run_once():
         notif_cleanup = await cleanup_old_notifications(db)
         session_cleanup = await cleanup_expired_sessions(db)
         deleted_cleanup = await cleanup_soft_deleted_records(db)
+        outbox_cleanup = await cleanup_old_outbox_events(db)
+        inactive_sessions = await cleanup_inactive_sessions(db)
 
         followups = await check_upcoming_followups(db)
         pool_released = await check_pool_auto_release(db)
@@ -523,9 +561,9 @@ async def run_once():
                 f"Reminders sent: stale_projects={stale}, upcoming_payments={payments}, "
                 f"sla_violations={sla}, expiring_contracts={contracts}, followups={followups}, pool_released={pool_released}, reports={reports}"
             )
-        cleanup_total = audit_cleanup + notif_cleanup + session_cleanup + deleted_cleanup
+        cleanup_total = audit_cleanup + notif_cleanup + session_cleanup + deleted_cleanup + outbox_cleanup + inactive_sessions
         if cleanup_total > 0:
-            logger.info(f"Cleanup: audit={audit_cleanup}, notif={notif_cleanup}, sessions={session_cleanup}, deleted={deleted_cleanup}")
+            logger.info(f"Cleanup: audit={audit_cleanup}, notif={notif_cleanup}, sessions={session_cleanup}, deleted={deleted_cleanup}, outbox={outbox_cleanup}, inactive_sessions={inactive_sessions}")
         return total
 
 

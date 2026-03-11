@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.domains.notification import service
-from app.domains.notification.schemas import MarkReadRequest
+from app.domains.notification.schemas import MarkReadRequest, UpdatePreferencesRequest
 from app.common.ws_manager import ws_manager
 
 logger = logging.getLogger("spt_crm.ws")
@@ -121,7 +121,7 @@ async def get_preferences(
 
 @router.put("/api/v1/notifications/preferences")
 async def update_preferences(
-    body: dict,
+    body: UpdatePreferencesRequest,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("notification:manage")),
@@ -134,7 +134,7 @@ async def update_preferences(
             NotificationPreference.user_id == current_user["sub"],
         )
     )).scalar()
-    prefs = body.get("preferences", {})
+    prefs = body.preferences
     if pref:
         pref.preferences_json = prefs
     else:
@@ -375,12 +375,19 @@ async def ws_notifications(ws: WebSocket):
 
     await ws_manager.connect(user_id, ws)
     try:
-        # Keep connection alive — listen for pings / any client messages
+        import asyncio
+        # Keep connection alive with 60s read timeout
         while True:
-            data = await ws.receive_text()
-            # Client can send "ping", we reply "pong"
-            if data == "ping":
-                await ws.send_text("pong")
+            try:
+                data = await asyncio.wait_for(ws.receive_text(), timeout=60.0)
+                if data == "ping":
+                    await ws.send_text("pong")
+            except asyncio.TimeoutError:
+                # No message in 60s, send server ping to check connection
+                try:
+                    await ws.send_text("ping")
+                except Exception:
+                    break  # Connection dead
     except WebSocketDisconnect:
         pass
     except Exception:

@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import json
 import logging
+import random
 import time
 
 import httpx
@@ -36,7 +37,9 @@ def compute_hmac(secret: str, payload: str) -> str:
 
 
 async def fetch_pending_events(db: AsyncSession, batch_size: int = BATCH_SIZE) -> list[OutboxEvent]:
-    """Fetch pending events across all tenants."""
+    """Fetch pending events across all tenants, respecting backoff windows."""
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
     result = await db.execute(
         select(OutboxEvent)
         .where(OutboxEvent.status.in_(["pending", "failed"]))
@@ -44,7 +47,17 @@ async def fetch_pending_events(db: AsyncSession, batch_size: int = BATCH_SIZE) -
         .order_by(OutboxEvent.created_at)
         .limit(batch_size)
     )
-    return list(result.scalars().all())
+    events = list(result.scalars().all())
+    # Filter out events still in backoff window (with jitter)
+    ready = []
+    for e in events:
+        if e.status == "pending" or e.retry_count == 0:
+            ready.append(e)
+        else:
+            backoff = min(2 ** e.retry_count + random.uniform(0, 5), 300)
+            if e.updated_at and (now - e.updated_at).total_seconds() >= backoff:
+                ready.append(e)
+    return ready
 
 
 async def fetch_webhook_subscriptions(db: AsyncSession, tenant_id: str, event_type: str) -> list[WebhookSubscription]:

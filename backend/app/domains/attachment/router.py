@@ -17,6 +17,13 @@ ALLOWED_EXTENSIONS = {
     '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
     '.txt', '.csv', '.zip', '.rar', '.7z',
 }
+ALLOWED_MIME_PREFIXES = {
+    'image/', 'application/pdf', 'application/msword',
+    'application/vnd.openxmlformats', 'application/vnd.ms-',
+    'text/plain', 'text/csv',
+    'application/zip', 'application/x-rar', 'application/x-7z',
+    'application/octet-stream',  # generic fallback for zip/rar
+}
 
 
 @router.post("")
@@ -33,6 +40,11 @@ async def upload(
     ext = os.path.splitext(filename)[1].lower()
     if ext and ext not in ALLOWED_EXTENSIONS:
         raise BusinessException(message=f"不支持的文件类型: {ext}")
+
+    # Validate MIME type
+    ct = (file.content_type or "").lower()
+    if ct and ct != "application/octet-stream" and not any(ct.startswith(p) for p in ALLOWED_MIME_PREFIXES):
+        raise BusinessException(message=f"不支持的内容类型: {ct}")
 
     content = await file.read()
 

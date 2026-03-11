@@ -101,21 +101,24 @@ export default function SettingsPage() {
   const currentPeriod = new Date().toISOString().slice(0, 7)
 
   const fetchAll = () => {
-    settingsApi.listStages().then((r: { data: StageConfig[] }) => r.data && setStages(r.data)).catch(() => {})
-    settingsApi.listMargins().then((r: { data: MarginPolicy[] }) => r.data && setMargins(r.data)).catch(() => {})
-    settingsApi.listAiPolicies().then((r: { data: AiPolicy[] }) => r.data && setAiPolicies(r.data)).catch(() => {})
-    settingsApi.listIntegrations().then((r: { data: Integration[] }) => r.data && setIntegrations(r.data)).catch(() => {})
-    settingsApi.listFeatures().then((r: { data: FeatureToggle[] }) => r.data && setFeatures(r.data)).catch(() => {})
-    settingsApi.getAiBudget(currentPeriod).then((r: { data: AiBudget | null }) => r.data && setAiBudget(r.data)).catch(() => {})
-    settingsApi.listApprovalPolicies().then((r: { data: ApprovalPolicyItem[] }) => r.data && setApprovalPolicies(r.data)).catch(() => {})
-    settingsApi.listDocTemplates().then((r: { data: DocTemplateItem[] }) => r.data && setDocTemplates(r.data)).catch(() => {})
-    settingsApi.listEmailTemplates().then((r: { data: EmailTemplateItem[] }) => r.data && setEmailTemplates(r.data)).catch(() => {})
-    settingsApi.listCustomFields().then((r: { data: CustomFieldItem[] }) => r.data && setCustomFields(r.data)).catch(() => {})
-    settingsApi.backupStats().then((r: { data: Record<string, number> }) => r.data && setBackupStats(r.data)).catch(() => {})
-    settingsApi.getPoolRules().then((r: any) => { if (r.data && typeof r.data === 'object') setPoolRules({ enabled: false, idle_days: { A: 90, B: 60, C: 30, D: 15 }, default_idle_days: 30, ...r.data }) }).catch(() => {})
-    client.get('/api/v1/notification_templates').then((r: any) => {
-      if (r.data) { setNtTemplates(r.data.items || []); setNtVariables(r.data.variables || []) }
-    }).catch(() => {})
+    // Fire all requests in parallel for faster loading
+    Promise.allSettled([
+      settingsApi.listStages().then((r: { data: StageConfig[] }) => r.data && setStages(r.data)),
+      settingsApi.listMargins().then((r: { data: MarginPolicy[] }) => r.data && setMargins(r.data)),
+      settingsApi.listAiPolicies().then((r: { data: AiPolicy[] }) => r.data && setAiPolicies(r.data)),
+      settingsApi.listIntegrations().then((r: { data: Integration[] }) => r.data && setIntegrations(r.data)),
+      settingsApi.listFeatures().then((r: { data: FeatureToggle[] }) => r.data && setFeatures(r.data)),
+      settingsApi.getAiBudget(currentPeriod).then((r: { data: AiBudget | null }) => r.data && setAiBudget(r.data)),
+      settingsApi.listApprovalPolicies().then((r: { data: ApprovalPolicyItem[] }) => r.data && setApprovalPolicies(r.data)),
+      settingsApi.listDocTemplates().then((r: { data: DocTemplateItem[] }) => r.data && setDocTemplates(r.data)),
+      settingsApi.listEmailTemplates().then((r: { data: EmailTemplateItem[] }) => r.data && setEmailTemplates(r.data)),
+      settingsApi.listCustomFields().then((r: { data: CustomFieldItem[] }) => r.data && setCustomFields(r.data)),
+      settingsApi.backupStats().then((r: { data: Record<string, number> }) => r.data && setBackupStats(r.data)),
+      settingsApi.getPoolRules().then((r: any) => { if (r.data && typeof r.data === 'object') setPoolRules({ enabled: false, idle_days: { A: 90, B: 60, C: 30, D: 15 }, default_idle_days: 30, ...r.data }) }),
+      client.get('/api/v1/notification_templates').then((r: any) => {
+        if (r.data) { setNtTemplates(r.data.items || []); setNtVariables(r.data.variables || []) }
+      }),
+    ])
   }
 
   const handleSaveBudget = async () => {

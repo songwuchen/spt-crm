@@ -85,10 +85,12 @@ async def list_all_activities(
 @router.get("/api/v1/activities")
 async def list_activities(
     biz_type: str = Query(...), biz_id: str = Query(...),
+    pageSize: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
 ):
-    items = await service.list_activities(db, tenant_id, biz_type, biz_id)
+    items = await service.list_activities(db, tenant_id, biz_type, biz_id, limit=pageSize, offset=offset)
     return ok([_activity_dict(a) for a in items])
 
 
