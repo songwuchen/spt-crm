@@ -123,6 +123,33 @@ async def delete_quote(db: AsyncSession, tenant_id: str, quote_id: str, user: di
     versions = (await db.execute(
         select(QuoteVersion).where(QuoteVersion.tenant_id == tenant_id, QuoteVersion.quote_id == quote_id)
     )).scalars().all()
+
+    # Cascade: cancel pending approval flows for quote versions
+    version_ids = [v.id for v in versions]
+    if version_ids:
+        try:
+            from app.domains.approval.models import ApprovalFlow, ApprovalTask
+            from sqlalchemy import update as sql_update
+            flow_ids = (await db.execute(
+                select(ApprovalFlow.id).where(
+                    ApprovalFlow.tenant_id == tenant_id,
+                    ApprovalFlow.biz_type == "quote_version",
+                    ApprovalFlow.biz_id.in_(version_ids),
+                )
+            )).scalars().all()
+            if flow_ids:
+                await db.execute(
+                    sql_update(ApprovalFlow).where(ApprovalFlow.id.in_(flow_ids), ApprovalFlow.status == "pending")
+                    .values(status="withdrawn")
+                )
+                await db.execute(
+                    sql_update(ApprovalTask).where(
+                        ApprovalTask.flow_id.in_(flow_ids), ApprovalTask.status.in_(["pending", "waiting"])
+                    ).values(status="cancelled")
+                )
+        except Exception as e:
+            logger.warning("Cascade cancel approvals on quote delete failed: %s", e)
+
     for v in versions:
         lines = (await db.execute(
             select(QuoteLine).where(QuoteLine.tenant_id == tenant_id, QuoteLine.quote_version_id == v.id)

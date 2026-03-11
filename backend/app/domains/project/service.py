@@ -313,7 +313,67 @@ async def delete_project(db: AsyncSession, tenant_id: str, project_id: str, user
     project = await get_project(db, tenant_id, project_id)
     project_name = project.name
 
-    # Soft delete
+    # Cascade: soft-delete related payment data
+    from sqlalchemy import update as sql_update
+    from app.domains.payment.models import Invoice, PaymentPlan, PaymentRecord
+    for model in (Invoice, PaymentPlan, PaymentRecord):
+        await db.execute(
+            sql_update(model).where(model.tenant_id == tenant_id, model.project_id == project_id)
+            .values(status="void" if model is Invoice else "cancelled")
+        )
+
+    # Cascade: cancel pending approval flows on this project's quotes/contracts
+    try:
+        from app.domains.approval.models import ApprovalFlow, ApprovalTask
+        from app.domains.quote.models import Quote, QuoteVersion
+        from app.domains.contract.models import Contract, ContractVersion
+
+        quote_ids = (await db.execute(
+            select(Quote.id).where(Quote.tenant_id == tenant_id, Quote.project_id == project_id)
+        )).scalars().all()
+        contract_ids = (await db.execute(
+            select(Contract.id).where(Contract.tenant_id == tenant_id, Contract.project_id == project_id)
+        )).scalars().all()
+
+        biz_ids = []
+        if quote_ids:
+            qv_ids = (await db.execute(
+                select(QuoteVersion.id).where(QuoteVersion.tenant_id == tenant_id, QuoteVersion.quote_id.in_(quote_ids))
+            )).scalars().all()
+            biz_ids.extend(qv_ids)
+        if contract_ids:
+            cv_ids = (await db.execute(
+                select(ContractVersion.id).where(ContractVersion.tenant_id == tenant_id, ContractVersion.contract_id.in_(contract_ids))
+            )).scalars().all()
+            biz_ids.extend(cv_ids)
+
+        if biz_ids:
+            await db.execute(
+                sql_update(ApprovalFlow).where(
+                    ApprovalFlow.tenant_id == tenant_id,
+                    ApprovalFlow.biz_id.in_(biz_ids),
+                    ApprovalFlow.status == "pending",
+                ).values(status="withdrawn")
+            )
+            # Cancel pending tasks for those flows
+            pending_flow_ids = (await db.execute(
+                select(ApprovalFlow.id).where(
+                    ApprovalFlow.tenant_id == tenant_id,
+                    ApprovalFlow.biz_id.in_(biz_ids),
+                )
+            )).scalars().all()
+            if pending_flow_ids:
+                await db.execute(
+                    sql_update(ApprovalTask).where(
+                        ApprovalTask.tenant_id == tenant_id,
+                        ApprovalTask.flow_id.in_(pending_flow_ids),
+                        ApprovalTask.status.in_(["pending", "waiting"]),
+                    ).values(status="cancelled")
+                )
+    except Exception as e:
+        logger.warning("Cascade cancel approvals on project delete failed: %s", e)
+
+    # Soft delete the project itself
     project.is_deleted = True
     await db.commit()
 

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import { aiApi } from '@/api/ai'
 import { projectApi } from '@/api/project'
+import { taskApi } from '@/api/task'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import type { OpportunityProject } from '@/api/types'
 
@@ -80,6 +81,27 @@ export default function MobileProjectRisk() {
     finally { setAnalyzing(false) }
   }
 
+  const [creatingIdx, setCreatingIdx] = useState<number | null>(null)
+
+  const handleCreateTask = async (actionText: string, idx: number) => {
+    if (!id) return
+    setCreatingIdx(idx)
+    try {
+      await taskApi.create({
+        title: actionText,
+        biz_type: 'project',
+        biz_id: id,
+        biz_name: project?.name,
+        priority: 'high',
+      })
+      message.success('任务已创建')
+    } catch {
+      message.error('创建任务失败')
+    } finally {
+      setCreatingIdx(null)
+    }
+  }
+
   const highCount = risks.filter(r => r.severity === 'H').length
   const medCount = risks.filter(r => r.severity === 'M').length
   const lowCount = risks.filter(r => r.severity === 'L').length
@@ -154,7 +176,8 @@ export default function MobileProjectRisk() {
                 </div>
                 <p className="text-sm text-slate-600 leading-relaxed">{risk.description}</p>
                 {risk.evidence_link && (
-                  <a className="flex items-center text-primary text-xs font-bold gap-1 mt-2" href="#">
+                  <a className="flex items-center text-primary text-xs font-bold gap-1 mt-2 cursor-pointer"
+                    onClick={(e) => { e.preventDefault(); navigate(risk.evidence_link!) }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 14 }}>link</span>
                     查看证据
                   </a>
@@ -182,8 +205,12 @@ export default function MobileProjectRisk() {
                 {i > 0 && <div className="w-full h-px bg-primary/10 mb-3" />}
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm text-slate-700">{i + 1}. {typeof action === 'string' ? action : action.text}</p>
-                  <button className="bg-primary text-white text-xs font-bold px-3 py-2 rounded-lg shrink-0 border-0 cursor-pointer active:scale-95 transition-transform">
-                    创建任务
+                  <button
+                    disabled={creatingIdx === i}
+                    onClick={() => handleCreateTask(typeof action === 'string' ? action : action.text, i)}
+                    className="bg-primary text-white text-xs font-bold px-3 py-2 rounded-lg shrink-0 border-0 cursor-pointer active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    {creatingIdx === i ? '创建中...' : '创建任务'}
                   </button>
                 </div>
               </div>

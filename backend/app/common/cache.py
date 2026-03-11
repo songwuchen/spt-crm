@@ -38,8 +38,8 @@ async def cache_get(key: str) -> Optional[Any]:
             val = r.get(key)
             if val:
                 return json.loads(val)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Redis GET failed for key=%s: %s", key, e)
         return None
 
     # Fallback: memory cache
@@ -60,8 +60,8 @@ async def cache_set(key: str, value: Any, ttl: int = 300):
         try:
             r.setex(key, ttl, json.dumps(value, default=str))
             return
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Redis SET failed for key=%s: %s", key, e)
 
     # Fallback: memory cache
     import time
@@ -75,8 +75,8 @@ async def cache_delete(key: str):
         try:
             r.delete(key)
             return
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Redis DELETE failed for key=%s: %s", key, e)
     _memory_cache.pop(key, None)
 
 
@@ -89,8 +89,8 @@ async def cache_delete_pattern(pattern: str):
             if keys:
                 r.delete(*keys)
             return
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Redis DELETE_PATTERN failed for pattern=%s: %s", pattern, e)
     # Memory fallback: simple prefix match
     prefix = pattern.rstrip("*")
     to_del = [k for k in _memory_cache if k.startswith(prefix)]
