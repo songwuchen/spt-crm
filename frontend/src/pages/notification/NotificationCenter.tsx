@@ -54,8 +54,13 @@ export default function NotificationCenter() {
   const togglePref = async (key: string, enabled: boolean) => {
     const newPrefs = { ...prefs, [key]: enabled }
     setPrefs(newPrefs)
-    await notificationApi.updatePreferences(newPrefs)
-    message.success(enabled ? '已开启' : '已关闭')
+    try {
+      await notificationApi.updatePreferences(newPrefs)
+      message.success(enabled ? '已开启' : '已关闭')
+    } catch {
+      setPrefs(prefs) // rollback
+      message.error('更新失败')
+    }
   }
 
   useEffect(() => { fetchData() }, [])
@@ -68,16 +73,24 @@ export default function NotificationCenter() {
 
   const handleMarkRead = async () => {
     if (selectedIds.length === 0) return
-    await notificationApi.markRead(selectedIds)
-    setItems(prev => prev.map(n => selectedIds.includes(n.id) ? { ...n, is_read: true } : n))
-    setSelectedIds([])
-    message.success('已标记为已读')
+    try {
+      await notificationApi.markRead(selectedIds)
+      setItems(prev => prev.map(n => selectedIds.includes(n.id) ? { ...n, is_read: true } : n))
+      setSelectedIds([])
+      message.success('已标记为已读')
+    } catch {
+      message.error('操作失败')
+    }
   }
 
   const handleMarkAllRead = async () => {
-    await notificationApi.markAllRead()
-    setItems(prev => prev.map(n => ({ ...n, is_read: true })))
-    message.success('已全部标记为已读')
+    try {
+      await notificationApi.markAllRead()
+      setItems(prev => prev.map(n => ({ ...n, is_read: true })))
+      message.success('已全部标记为已读')
+    } catch {
+      message.error('操作失败')
+    }
   }
 
   const handleRowClick = (item: NotificationItem) => {

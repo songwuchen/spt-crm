@@ -49,8 +49,12 @@ export default function ProductList() {
   }
 
   const fetchCategories = async () => {
-    const res = await productApi.listCategories()
-    setCategories(res.data || [])
+    try {
+      const res = await productApi.listCategories()
+      setCategories(res.data || [])
+    } catch {
+      message.error('加载分类失败')
+    }
   }
 
   useEffect(() => { fetchCategories() }, [])

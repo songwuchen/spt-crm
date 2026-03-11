@@ -133,21 +133,18 @@ async def send_notification(db: AsyncSession, tenant_id: str, recipient_id: str,
 
     # Push via WebSocket (non-blocking, non-critical)
     try:
-        from app.common.ws_manager import ws_manager
-        await ws_manager.send_to_user(recipient_id, {
-            "event": "notification",
-            "data": {
-                "id": n.id,
-                "type": n.type,
-                "title": n.title,
-                "content": n.content,
-                "biz_type": n.biz_type,
-                "biz_id": n.biz_id,
-                "sender_name": n.sender_name,
-                "is_read": False,
-                "extra_json": n.extra_json,
-                "created_at": n.created_at.isoformat() if n.created_at else "",
-            },
+        from app.domains.notification.ws import broadcast_to_user
+        await broadcast_to_user(recipient_id, "notification", {
+            "id": n.id,
+            "type": n.type,
+            "title": n.title,
+            "content": n.content,
+            "biz_type": n.biz_type,
+            "biz_id": n.biz_id,
+            "sender_name": n.sender_name,
+            "is_read": False,
+            "extra_json": n.extra_json,
+            "created_at": n.created_at.isoformat() if n.created_at else "",
         })
     except Exception:
         pass

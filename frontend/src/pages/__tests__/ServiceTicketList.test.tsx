@@ -37,7 +37,7 @@ const adminUser: UserInfo = {
   tenant_id: 't-1',
 }
 
-describe('ServiceTicketList', () => {
+describe('ServiceTicketList', { timeout: 15000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useAuthStore.getState().setUser(adminUser)

@@ -60,8 +60,12 @@ export default function LeadDetail() {
   const [lead, setLead] = useState<Lead | null>(null)
 
   const fetchLead = async () => {
-    const res = await leadApi.get(id!)
-    setLead(res.data)
+    try {
+      const res = await leadApi.get(id!)
+      setLead(res.data)
+    } catch {
+      message.error('获取线索详情失败')
+    }
   }
 
   useEffect(() => { if (id) fetchLead() }, [id])
@@ -71,9 +75,13 @@ export default function LeadDetail() {
       title: '确认转化',
       content: '将此线索转化为客户？转化后线索状态将变为"已转化"。',
       onOk: async () => {
-        const res = await leadApi.qualify(id!)
-        message.success(`已转化为客户: ${res.data.customer_name}`)
-        fetchLead()
+        try {
+          const res = await leadApi.qualify(id!)
+          message.success(`已转化为客户: ${res.data.customer_name}`)
+          fetchLead()
+        } catch {
+          message.error('转化失败')
+        }
       },
     })
   }
@@ -84,9 +92,13 @@ export default function LeadDetail() {
       content: '确定要废弃此线索？',
       okType: 'danger',
       onOk: async () => {
-        await leadApi.discard(id!)
-        message.success('线索已废弃')
-        fetchLead()
+        try {
+          await leadApi.discard(id!)
+          message.success('线索已废弃')
+          fetchLead()
+        } catch {
+          message.error('操作失败')
+        }
       },
     })
   }
@@ -158,9 +170,13 @@ export default function LeadDetail() {
                 title: '确认删除', content: `确定要删除线索「${lead.title}」？`,
                 okType: 'danger',
                 onOk: async () => {
-                  await leadApi.delete(id!)
-                  message.success('线索已删除')
-                  navigate('/leads')
+                  try {
+                    await leadApi.delete(id!)
+                    message.success('线索已删除')
+                    navigate('/leads')
+                  } catch {
+                    message.error('删除失败')
+                  }
                 },
               })
             }}>删除</Button>

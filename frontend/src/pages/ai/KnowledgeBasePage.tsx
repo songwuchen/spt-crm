@@ -65,27 +65,35 @@ export default function KnowledgeBasePage() {
   }
 
   const handleEdit = async (doc: KnowledgeDoc) => {
-    const res = await aiApi.getKnowledgeDoc(doc.id)
-    setEditingDoc(doc)
-    form.setFieldsValue({
-      title: res.data.title,
-      doc_type: res.data.doc_type,
-      content_text: res.data.content_text,
-    })
-    setEditModal(true)
+    try {
+      const res = await aiApi.getKnowledgeDoc(doc.id)
+      setEditingDoc(doc)
+      form.setFieldsValue({
+        title: res.data.title,
+        doc_type: res.data.doc_type,
+        content_text: res.data.content_text,
+      })
+      setEditModal(true)
+    } catch {
+      message.error('获取文档详情失败')
+    }
   }
 
   const handleSave = async () => {
     const values = await form.validateFields()
-    if (editingDoc) {
-      await aiApi.updateKnowledgeDoc(editingDoc.id, values)
-      message.success('文档已更新')
-    } else {
-      await aiApi.createKnowledgeDoc(values)
-      message.success('文档已创建')
+    try {
+      if (editingDoc) {
+        await aiApi.updateKnowledgeDoc(editingDoc.id, values)
+        message.success('文档已更新')
+      } else {
+        await aiApi.createKnowledgeDoc(values)
+        message.success('文档已创建')
+      }
+      setEditModal(false)
+      fetchDocs()
+    } catch {
+      message.error('保存失败')
     }
-    setEditModal(false)
-    fetchDocs()
   }
 
   const handleDelete = (doc: KnowledgeDoc) => {
@@ -107,15 +115,21 @@ export default function KnowledgeBasePage() {
     try {
       const res = await aiApi.searchKnowledge({ query: searchQuery, top_k: 10, doc_type: docType })
       setSearchResults(res.data)
+    } catch {
+      message.error('检索失败')
     } finally {
       setSearching(false)
     }
   }
 
   const handleViewDetail = async (docId: string) => {
-    const res = await aiApi.getKnowledgeDoc(docId)
-    setDetailDoc(res.data)
-    setDetailModal(true)
+    try {
+      const res = await aiApi.getKnowledgeDoc(docId)
+      setDetailDoc(res.data)
+      setDetailModal(true)
+    } catch {
+      message.error('获取文档详情失败')
+    }
   }
 
   return (

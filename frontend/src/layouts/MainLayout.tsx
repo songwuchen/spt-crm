@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { Layout, Breadcrumb, Spin } from 'antd'
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useHotkeys } from '@/hooks/useHotkeys'
@@ -128,6 +129,7 @@ export default function MainLayout() {
   }), [location.pathname, navigate])
   useHotkeys(hotkeys)
 
+  const online = useOnlineStatus()
   const breadcrumbItems = getBreadcrumbs(location.pathname)
   const isHome = location.pathname === '/'
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
@@ -153,6 +155,12 @@ export default function MainLayout() {
         <div data-tour="sidebar" style={{ height: '100%' }}><Sidebar /></div>
       </Sider>
       <Layout className="bg-bg-light" style={{ height: '100vh', overflow: 'hidden' }}>
+        {!online && (
+          <div className="bg-amber-500 text-white text-xs font-bold text-center py-1 px-2 flex items-center justify-center gap-1">
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>cloud_off</span>
+            网络已断开 — 部分功能可能不可用
+          </div>
+        )}
         <Header />
         <Content className="overflow-auto" style={{ flex: 1, minHeight: 0 }}>
           <div className="p-3 sm:p-4 md:p-6">

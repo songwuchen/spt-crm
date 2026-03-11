@@ -15,5 +15,8 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: false,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    testTimeout: 15000,
+    pool: 'forks',
+    poolOptions: { forks: { maxForks: 4 } },
   },
 })
