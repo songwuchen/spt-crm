@@ -198,8 +198,9 @@ async def export_logs(
     _user=Depends(require_permissions("audit:view")),
 ):
     """Export audit logs as Excel or CSV."""
+    from app.config import settings
     items, _ = await list_audit_logs(
-        db, tenant_id, page_no=1, page_size=10000,
+        db, tenant_id, page_no=1, page_size=settings.MAX_EXPORT_ROWS,
         resource_type=resource_type, action=action,
         keyword=keyword, start_date=start_date, end_date=end_date,
     )
@@ -244,7 +245,8 @@ async def verify_integrity(
 ):
     """Verify audit log integrity by re-computing content hashes."""
     from app.domains.audit.service import _compute_content_hash
-    items, _ = await list_audit_logs(db, tenant_id, page_no=1, page_size=10000)
+    from app.config import settings
+    items, _ = await list_audit_logs(db, tenant_id, page_no=1, page_size=settings.MAX_EXPORT_ROWS)
     total = len(items)
     tampered = []
     no_hash = 0

@@ -23,7 +23,9 @@ export default function SavedViewSelect({ page, currentFilters, onApply }: Props
     try {
       const res = await client.get('/api/v1/saved-views', { params: { page } }) as any
       setViews(res.data || [])
-    } catch {}
+    } catch {
+      // Non-critical — keep existing views
+    }
   }
 
   useEffect(() => { fetchViews() }, [page])
@@ -37,13 +39,19 @@ export default function SavedViewSelect({ page, currentFilters, onApply }: Props
       setSaveName('')
       setShowSave(false)
       fetchViews()
+    } catch {
+      message.error('保存视图失败')
     } finally { setSaving(false) }
   }
 
   const handleDelete = async (id: string) => {
-    await client.delete(`/api/v1/saved-views/${id}`)
-    message.success('已删除')
-    fetchViews()
+    try {
+      await client.delete(`/api/v1/saved-views/${id}`)
+      message.success('已删除')
+      fetchViews()
+    } catch {
+      message.error('删除视图失败')
+    }
   }
 
   return (

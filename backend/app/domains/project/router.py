@@ -71,7 +71,8 @@ async def export_projects_excel(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("project:view")),
 ):
-    items, _ = await service.list_projects(db, tenant_id, 1, 5000, keyword, stage_code, customer_id, status, owner_id)
+    from app.config import settings
+    items, _ = await service.list_projects(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, stage_code, customer_id, status, owner_id)
     headers = ["项目编码", "项目名称", "阶段", "预计金额", "概率(%)", "预计关闭日", "风险等级", "负责人", "状态", "创建时间"]
     rows = []
     for p in items:

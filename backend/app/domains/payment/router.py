@@ -304,13 +304,14 @@ async def export_payments_excel(
     _user=Depends(require_permissions("payment:view")),
 ):
     """Export payment plans + records to Excel."""
+    from app.config import settings
     # Plans
     plan_rows = (await db.execute(
         select(PaymentPlan, OpportunityProject.name.label("project_name"))
         .outerjoin(OpportunityProject, OpportunityProject.id == PaymentPlan.project_id)
         .where(PaymentPlan.tenant_id == tenant_id)
         .order_by(PaymentPlan.due_date.asc())
-        .limit(5000)
+        .limit(settings.MAX_EXPORT_ROWS)
     )).all()
     # Records
     rec_rows = (await db.execute(
@@ -318,7 +319,7 @@ async def export_payments_excel(
         .outerjoin(OpportunityProject, OpportunityProject.id == PaymentRecord.project_id)
         .where(PaymentRecord.tenant_id == tenant_id)
         .order_by(PaymentRecord.received_date.desc())
-        .limit(5000)
+        .limit(settings.MAX_EXPORT_ROWS)
     )).all()
 
     from openpyxl import Workbook

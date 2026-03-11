@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     AI_MODEL: str = ""
     AI_BASE_URL: str = "https://api.openai.com/v1"
     REDIS_URL: str = ""
+    MAX_EXPORT_ROWS: int = 5000
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

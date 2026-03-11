@@ -58,7 +58,8 @@ async def export_tickets_excel(
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("service:view")),
 ):
-    items, _ = await service.list_tickets(db, tenant_id, page_size=10000)
+    from app.config import settings
+    items, _ = await service.list_tickets(db, tenant_id, page_size=settings.MAX_EXPORT_ROWS)
     headers = ["工单编号", "类型", "优先级", "状态", "描述", "处理结果", "负责人", "创建人", "创建时间"]
     rows = []
     for t in items:

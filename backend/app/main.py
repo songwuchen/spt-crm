@@ -43,11 +43,16 @@ from app.domains.customer.contact_router import router as contact_router
 from app.config import settings
 from app.common.logging_config import setup_logging
 
-import os
+import os, logging
 setup_logging(
     json_format=os.getenv("LOG_FORMAT", "").lower() == "json",
     level=os.getenv("LOG_LEVEL", "INFO"),
 )
+
+if settings.JWT_SECRET_KEY == "change-me-in-production":
+    logging.getLogger("spt_crm.security").warning(
+        "JWT_SECRET_KEY is using the default value! Set a strong secret via environment variable for production."
+    )
 
 app = FastAPI(
     title="SPT-CRM API",

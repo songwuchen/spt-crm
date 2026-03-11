@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Tabs, Table, Button, Modal, Input, InputNumber, Select, Switch, Space, Progress, Tag, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined, UploadOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
+import DOMPurify from 'dompurify'
 import { settingsApi } from '@/api/settings'
 import { dashboardApi } from '@/api/dashboard'
 import client from '@/api/client'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import ApprovalPolicyModal from './ApprovalPolicyModal'
+
+const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, { ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'img', 'hr'], ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'target'] })
 
 const { TextArea } = Input
 
@@ -993,7 +996,7 @@ export default function SettingsPage() {
               <div className="flex-1 flex flex-col border-l border-slate-200">
                 <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500">预览</div>
                 <div className="flex-1 p-3 overflow-auto text-sm"
-                  dangerouslySetInnerHTML={{ __html: etForm.body_html || '<span class="text-slate-300">邮件预览区域</span>' }} />
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(etForm.body_html || '<span class="text-slate-300">邮件预览区域</span>') }} />
               </div>
             </div>
           </div>

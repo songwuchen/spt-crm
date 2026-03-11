@@ -30,7 +30,7 @@ interface LeaderItem {
 export function TrendChart() {
   const [data, setData] = useState<TrendItem[]>([])
   useEffect(() => {
-    dashboardApi.trend({ months: 6 }).then((r: any) => setData(r.data || [])).catch(() => {})
+    dashboardApi.trend({ months: 6 }).then((r: any) => setData(r.data || [])).catch(() => { /* non-critical chart data */ })
   }, [])
 
   const chartData = data.flatMap((d) => [
@@ -69,7 +69,7 @@ export function TrendChart() {
 export function CollectionChart() {
   const [data, setData] = useState<CollectionItem[]>([])
   useEffect(() => {
-    dashboardApi.collection({ months: 6 }).then((r: any) => setData(r.data || [])).catch(() => {})
+    dashboardApi.collection({ months: 6 }).then((r: any) => setData(r.data || [])).catch(() => { /* non-critical chart data */ })
   }, [])
 
   const chartData = data.flatMap((d) => [
@@ -106,7 +106,7 @@ export function CollectionChart() {
 export function RevenueChart() {
   const [data, setData] = useState<RevenueItem[]>([])
   useEffect(() => {
-    dashboardApi.monthlyRevenue({ months: 6 }).then((r: any) => setData(r.data || [])).catch(() => {})
+    dashboardApi.monthlyRevenue({ months: 6 }).then((r: any) => setData(r.data || [])).catch(() => { /* non-critical chart data */ })
   }, [])
 
   const chartData = data.map((d) => ({ month: d.label, value: d.amount / 10000 }))
@@ -137,7 +137,7 @@ export function RevenueChart() {
 export function WinLossChart() {
   const [data, setData] = useState<WinLoss | null>(null)
   useEffect(() => {
-    dashboardApi.winLoss().then((r: any) => setData(r.data)).catch(() => {})
+    dashboardApi.winLoss().then((r: any) => setData(r.data)).catch(() => { /* non-critical chart data */ })
   }, [])
 
   if (!data) return null
@@ -210,7 +210,7 @@ export function ContractExpiryPanel() {
   const [renewingId, setRenewingId] = useState<string | null>(null)
 
   useEffect(() => {
-    dashboardApi.contractExpiry({ days }).then((r: any) => setItems(r.data || [])).catch(() => {})
+    dashboardApi.contractExpiry({ days }).then((r: any) => setItems(r.data || [])).catch(() => { /* non-critical chart data */ })
   }, [days])
 
   const urgencyConfig: Record<string, { label: string; bg: string; text: string }> = {

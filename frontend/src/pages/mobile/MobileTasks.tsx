@@ -64,7 +64,8 @@ export default function MobileTasks() {
       {todoTasks.length > 0 && (
         <div className="space-y-2 mb-4">
           {todoTasks.map(t => (
-            <div key={t.id} onClick={() => toggleComplete(t)}
+            <div key={t.id} role="button" tabIndex={0} onClick={() => toggleComplete(t)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleComplete(t) } }}
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 flex items-center gap-3 cursor-pointer active:bg-slate-50">
               <div className="w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center shrink-0" />
               <div className="flex-1 min-w-0">
@@ -86,7 +87,8 @@ export default function MobileTasks() {
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">已完成 ({doneTasks.length})</div>
           <div className="space-y-2">
             {doneTasks.slice(0, 5).map(t => (
-              <div key={t.id} onClick={() => toggleComplete(t)}
+              <div key={t.id} role="button" tabIndex={0} onClick={() => toggleComplete(t)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleComplete(t) } }}
                 className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 flex items-center gap-3 cursor-pointer active:bg-slate-50 opacity-60">
                 <div className="w-5 h-5 rounded-full border-2 border-emerald-400 bg-emerald-50 flex items-center justify-center shrink-0">
                   <span className="material-symbols-outlined text-emerald-500" style={{ fontSize: 14 }}>check</span>

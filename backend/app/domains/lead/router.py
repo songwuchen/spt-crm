@@ -57,7 +57,8 @@ async def export_leads_excel(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("lead:view")),
 ):
-    items, _ = await service.list_leads(db, tenant_id, 1, 5000, keyword, status, owner_id)
+    from app.config import settings
+    items, _ = await service.list_leads(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, status, owner_id)
     headers = ["线索编码", "标题", "公司名称", "联系人", "联系电话", "邮箱", "来源", "行业", "地区", "负责人", "状态", "评分", "创建时间"]
     rows = []
     for l in items:

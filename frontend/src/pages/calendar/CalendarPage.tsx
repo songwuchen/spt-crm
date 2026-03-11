@@ -118,8 +118,9 @@ export default function CalendarPage() {
         {Object.entries(totalByType).map(([type, count]) => {
           const tl = typeLabels[type]
           return tl ? (
-            <div key={type} className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:border-primary/40 transition-colors"
-              onClick={() => setTypeFilter(typeFilter === type ? '' : type)}>
+            <div key={type} role="button" tabIndex={0} className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:border-primary/40 transition-colors"
+              onClick={() => setTypeFilter(typeFilter === type ? '' : type)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter(typeFilter === type ? '' : type) } }}>
               <span className="material-symbols-outlined text-base text-slate-400">{tl.icon}</span>
               <span className="text-xs font-bold text-slate-700">{tl.label}</span>
               <span className="text-xs font-black text-primary">{count}</span>

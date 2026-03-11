@@ -94,7 +94,8 @@ async def export_customers_excel(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
 ):
-    items, _ = await service.list_customers(db, tenant_id, 1, 5000, keyword, industry, region, owner_id)
+    from app.config import settings
+    items, _ = await service.list_customers(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, industry, region, owner_id)
     headers = ["客户编码", "客户名称", "简称", "行业", "规模", "地区", "地址", "负责人", "来源", "级别", "状态", "创建时间"]
     rows = []
     for c in items:

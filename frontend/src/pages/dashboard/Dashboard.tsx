@@ -238,28 +238,29 @@ export default function Dashboard() {
     dashboardApi.stats().then((res: any) => {
       if (res.data) setStats(res.data)
     }).catch(() => { message.error('加载统计数据失败') })
+    // Secondary dashboard panels — gracefully degrade on failure
     dashboardApi.alerts().then((res: any) => {
       if (res.data) setAlerts(res.data)
-    }).catch(() => {})
+    }).catch(() => { /* non-critical panel */ })
     dashboardApi.trends().then((res: any) => {
       if (res.data) setTrends(res.data)
-    }).catch(() => {})
-    approvalApi.myPending().then((r) => setPendingApprovals(r.data)).catch(() => {})
+    }).catch(() => { /* non-critical panel */ })
+    approvalApi.myPending().then((r) => setPendingApprovals(r.data)).catch(() => { /* non-critical panel */ })
     dashboardApi.myOverview().then((res: any) => {
       if (res.data) setMyOv(res.data)
-    }).catch(() => {})
+    }).catch(() => { /* non-critical panel */ })
     dashboardApi.funnel().then((res: any) => {
       if (res.data) setFunnel(res.data)
-    }).catch(() => {})
+    }).catch(() => { /* non-critical panel */ })
     dashboardApi.paymentOverview().then((res: any) => {
       if (res.data) setPaymentOv(res.data)
-    }).catch(() => {})
+    }).catch(() => { /* non-critical panel */ })
     dashboardApi.leaderboard().then((res: any) => {
       if (res.data) setLeaderboard(res.data)
-    }).catch(() => {})
+    }).catch(() => { /* non-critical panel */ })
     approvalApi.statistics().then((r: any) => {
       if (r.data) setApprovalStats(r.data)
-    }).catch(() => {})
+    }).catch(() => { /* non-critical panel */ })
     dashboardApi.trend({ months: 6 }).then((r: any) => {
       if (r.data && Array.isArray(r.data)) {
         setTrendSpark({
@@ -269,7 +270,7 @@ export default function Dashboard() {
           tickets: r.data.map((d: any) => d.lost || 0),
         })
       }
-    }).catch(() => {})
+    }).catch(() => { /* non-critical panel */ })
   }, [])
 
   useEffect(() => { fetchData(); setLastRefresh(new Date()) }, [fetchData])

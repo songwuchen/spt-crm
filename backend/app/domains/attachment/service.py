@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,6 +7,8 @@ from app.common.exceptions import BusinessException
 from app.common.error_codes import NOT_FOUND
 from app.domains.attachment.models import Attachment, AttachmentLink
 from app.domains.attachment.storage import save_file
+
+logger = logging.getLogger("spt_crm.attachment")
 
 
 async def upload_attachment(
@@ -64,11 +67,16 @@ async def delete_attachment(db: AsyncSession, tenant_id: str, attachment_id: str
     )).scalars().all()
     for link in links:
         await db.delete(link)
-    # Delete file on disk
+    # Delete DB record first, then attempt file cleanup
+    await db.delete(att)
+    await db.commit()
+
+    # Best-effort file deletion — DB record already removed
     import os
     from app.domains.attachment.storage import get_full_path
     full_path = get_full_path(att.stored_path)
-    if os.path.exists(full_path):
-        os.remove(full_path)
-    await db.delete(att)
-    await db.commit()
+    try:
+        if os.path.exists(full_path):
+            os.remove(full_path)
+    except OSError as e:
+        logger.warning("Failed to delete attachment file %s: %s", full_path, e)

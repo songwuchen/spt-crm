@@ -29,7 +29,7 @@ export default function CustomFieldsPanel({ entityType, values, onChange, readOn
   useEffect(() => {
     settingsApi.listCustomFields({ entity_type: entityType })
       .then((r: any) => setFields((r.data || []).filter((f: FieldDef) => f.enabled)))
-      .catch(() => {})
+      .catch(() => { /* non-critical — custom fields won't render */ })
   }, [entityType])
 
   useEffect(() => {

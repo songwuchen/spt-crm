@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
 type Option = { label: string; value: string }
-type FetchFn = (keyword?: string) => Promise<Option[]>
+type FetchFn = (keyword?: string, signal?: AbortSignal) => Promise<Option[]>
 
 export function useRemoteSelect(
   fetchFn: FetchFn,
@@ -11,18 +11,29 @@ export function useRemoteSelect(
   const [loading, setLoading] = useState(false)
   const loadedRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const abortRef = useRef<AbortController>()
   const fetchRef = useRef(fetchFn)
   fetchRef.current = fetchFn
 
   const load = useCallback(async (keyword?: string) => {
+    // Cancel previous in-flight request to prevent stale data
+    if (abortRef.current) abortRef.current.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setLoading(true)
     try {
-      const list = await fetchRef.current(keyword)
-      setOptions(list)
-    } catch {
-      /* ignore */
+      const list = await fetchRef.current(keyword, controller.signal)
+      if (!controller.signal.aborted) {
+        setOptions(list)
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      // Silently degrade — keep previous options visible
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) {
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -56,6 +67,7 @@ export function useRemoteSelect(
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
+      if (abortRef.current) abortRef.current.abort()
     }
   }, [])
 

@@ -302,8 +302,10 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
     if action not in ("approved", "rejected"):
         raise BusinessException(code=BUSINESS_ERROR, message="action 必须为 approved 或 rejected")
 
+    # Lock task row to prevent concurrent decisions
     task = (await db.execute(
         select(ApprovalTask).where(ApprovalTask.id == task_id, ApprovalTask.tenant_id == tenant_id)
+        .with_for_update()
     )).scalar_one_or_none()
     if not task:
         raise BusinessException(code=NOT_FOUND, message="审批任务不存在")
@@ -312,7 +314,13 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
     if task.assignee_id != user["sub"]:
         raise BusinessException(code=BUSINESS_ERROR, message="您不是该审批任务的审批人")
 
-    flow = await get_flow(db, tenant_id, task.flow_id)
+    # Lock flow row to prevent concurrent state transitions
+    flow = (await db.execute(
+        select(ApprovalFlow).where(ApprovalFlow.id == task.flow_id, ApprovalFlow.tenant_id == tenant_id)
+        .with_for_update()
+    )).scalar_one_or_none()
+    if not flow:
+        raise BusinessException(code=NOT_FOUND, message="审批流不存在")
     if flow.status != "pending":
         raise BusinessException(code=BUSINESS_ERROR, message="审批流已结束")
 
