@@ -331,6 +331,12 @@ async def update_integration(db: AsyncSession, tenant_id: str, ep_id: str, data:
     return ep
 
 
+async def get_integration(db: AsyncSession, tenant_id: str, ep_id: str) -> IntegrationEndpoint | None:
+    return (await db.execute(
+        select(IntegrationEndpoint).where(IntegrationEndpoint.id == ep_id, IntegrationEndpoint.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+
+
 async def delete_integration(db: AsyncSession, tenant_id: str, ep_id: str):
     ep = (await db.execute(
         select(IntegrationEndpoint).where(IntegrationEndpoint.id == ep_id, IntegrationEndpoint.tenant_id == tenant_id)

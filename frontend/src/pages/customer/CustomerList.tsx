@@ -9,6 +9,7 @@ import type { Customer } from '@/api/types'
 import { sourceLabels } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { t } from '@/locales'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
@@ -33,7 +34,7 @@ function Monogram({ name }: { name: string }) {
 }
 
 export default function CustomerList() {
-  usePageTitle('客户管理')
+  usePageTitle(t('customer.title'))
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [data, setData] = useState<Customer[]>([])
@@ -69,10 +70,10 @@ export default function CustomerList() {
   const handleBatchRelease = () => {
     if (!selectedRowKeys.length) return
     Modal.confirm({
-      title: '批量释放到公海', content: `确定要将选中的 ${selectedRowKeys.length} 个客户释放到公海池？`,
+      title: t('customer.batchRelease'), content: t('customer.batchReleaseConfirm', { count: selectedRowKeys.length }),
       onOk: async () => {
         const res = await customerApi.batchRelease(selectedRowKeys as string[])
-        message.success(`已释放 ${res.data?.released || 0} 个客户到公海`)
+        message.success(t('customer.batchReleaseDone', { count: res.data?.released || 0 }))
         setSelectedRowKeys([])
         fetchData()
       },
@@ -84,28 +85,28 @@ export default function CustomerList() {
     const ownerName = userSelect.options.find(o => o.value === values.owner_id)?.label || ''
     try {
       const res = await customerApi.batchTransfer(selectedRowKeys as string[], values.owner_id, ownerName)
-      message.success(`已转让 ${(res as any).data?.updated || selectedRowKeys.length} 个客户`)
+      message.success(t('customer.transferDone', { count: (res as any).data?.updated || selectedRowKeys.length }))
       setTransferModal(false)
       transferForm.resetFields()
       setSelectedRowKeys([])
       fetchData()
-    } catch { message.error('批量转让失败') }
+    } catch { message.error(t('common.failed')) }
   }
 
   const handleBatchDelete = () => {
     if (!selectedRowKeys.length) return
     dangerConfirm({
-      title: '批量删除',
-      content: `确定要删除选中的 ${selectedRowKeys.length} 个客户？此操作不可撤销。`,
-      okText: '删除',
+      title: t('common.batchDelete'),
+      content: t('common.batchDeleteConfirm', { count: selectedRowKeys.length }),
+      okText: t('common.delete'),
       countdown: 3,
       onOk: async () => {
         const results = await Promise.allSettled(selectedRowKeys.map((id) => customerApi.delete(id as string)))
         const failed = results.filter((r) => r.status === 'rejected').length
         if (failed > 0) {
-          message.warning(`${selectedRowKeys.length - failed} 个已删除，${failed} 个删除失败`)
+          message.warning(t('common.batchDeleteDone', { count: selectedRowKeys.length - failed }) + `，${failed} ` + t('common.failed'))
         } else {
-          message.success(`已删除 ${selectedRowKeys.length} 个客户`)
+          message.success(t('common.batchDeleteDone', { count: selectedRowKeys.length }))
         }
         setSelectedRowKeys([])
         fetchData()
@@ -124,11 +125,11 @@ export default function CustomerList() {
         content: values.content,
       })
       const d = res.data
-      message.success(`发送完成: 成功 ${d?.sent || 0}，失败 ${d?.failed || 0}`)
+      message.success(t('common.success') + `: ${d?.sent || 0} / ${d?.failed || 0}`)
       setMessageModal(false)
       messageForm.resetFields()
     } catch {
-      message.error('批量发送失败')
+      message.error(t('common.failed'))
     } finally {
       setMessageSending(false)
     }
@@ -168,7 +169,7 @@ export default function CustomerList() {
   }
 
   const columns: ColumnsType<Customer> = [
-    { title: '客户', key: 'name', width: 240,
+    { title: t('customer.name'), key: 'name', width: 240,
       render: (_, record) => (
         <div className="flex items-center gap-3">
           <Monogram name={record.name} />
@@ -181,26 +182,26 @@ export default function CustomerList() {
         </div>
       ),
     },
-    { title: '行业', dataIndex: 'industry', width: 120,
+    { title: t('customer.industry'), dataIndex: 'industry', width: 120,
       render: (v) => v || <span className="text-slate-300">-</span> },
-    { title: '规模', dataIndex: 'scale_level', width: 80, responsive: ['lg'],
+    { title: t('customer.level'), dataIndex: 'scale_level', width: 80, responsive: ['lg'],
       render: (v) => v || <span className="text-slate-300">-</span> },
-    { title: '区域', dataIndex: 'region', width: 100,
+    { title: t('customer.region'), dataIndex: 'region', width: 100,
       render: (v: string, record: Customer) => (
-        <EditableCell value={v} type="text" placeholder="区域"
+        <EditableCell value={v} type="text" placeholder={t('customer.region')}
           onSave={async (val) => { await customerApi.update(record.id, { region: val }); fetchData() }} />
       ),
     },
-    { title: '级别', dataIndex: 'level', width: 90,
+    { title: t('customer.level'), dataIndex: 'level', width: 90,
       render: (v: string, record: Customer) => (
-        <EditableCell value={v} type="select" placeholder="级别"
+        <EditableCell value={v} type="select" placeholder={t('customer.level')}
           options={[{ label: 'A', value: 'A' }, { label: 'B', value: 'B' }, { label: 'C', value: 'C' }, { label: 'D', value: 'D' }]}
           onSave={async (val) => { await customerApi.update(record.id, { level: val }); fetchData() }} />
       ),
     },
-    { title: '来源', dataIndex: 'source', width: 100, responsive: ['lg'],
+    { title: t('lead.source'), dataIndex: 'source', width: 100, responsive: ['lg'],
       render: (v) => v ? (sourceLabels[v] || v) : <span className="text-slate-300">-</span> },
-    { title: '状态', dataIndex: 'status', width: 80,
+    { title: t('customer.status'), dataIndex: 'status', width: 80,
       render: (v) => (
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${v === 'active' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
@@ -210,31 +211,31 @@ export default function CustomerList() {
     },
     { title: '标签', dataIndex: 'tags_json', width: 150, responsive: ['lg'],
       render: (v: string[]) => v?.length ? (
-        <div className="flex gap-1 flex-wrap">{v.slice(0, 3).map((t) => <Tag key={t} className="text-[10px] m-0">{t}</Tag>)}{v.length > 3 && <span className="text-[10px] text-slate-400">+{v.length - 3}</span>}</div>
+        <div className="flex gap-1 flex-wrap">{v.slice(0, 3).map((tag) => <Tag key={tag} className="text-[10px] m-0">{tag}</Tag>)}{v.length > 3 && <span className="text-[10px] text-slate-400">+{v.length - 3}</span>}</div>
       ) : <span className="text-slate-300">-</span>,
     },
-    { title: '负责人', dataIndex: 'owner_name', width: 100,
+    { title: t('common.owner'), dataIndex: 'owner_name', width: 100,
       render: (v) => v || <span className="text-slate-300">-</span> },
-    { title: '创建时间', dataIndex: 'created_at', width: 110, responsive: ['xl'],
+    { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, responsive: ['xl'],
       render: (v) => v ? <span className="text-xs text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-' },
     { title: '', key: 'actions', width: 150, fixed: 'right',
       render: (_, record) => (
         <Space size={0}>
-          <a onClick={() => navigate(`/customers/${record.id}`)} className="text-primary text-xs font-bold uppercase tracking-widest px-2">详情</a>
-          <a onClick={() => navigate(`/customers/${record.id}/edit`)} className="text-slate-500 text-xs font-bold uppercase tracking-widest px-2 hover:text-primary">编辑</a>
+          <a onClick={() => navigate(`/customers/${record.id}`)} className="text-primary text-xs font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
+          <a onClick={() => navigate(`/customers/${record.id}/edit`)} className="text-slate-500 text-xs font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
           <a className="text-xs font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
             dangerConfirm({
-              title: '确认删除',
-              content: `确定要删除客户「${record.name}」及其所有联系人？此操作不可撤销。`,
-              okText: '删除',
+              title: t('common.confirmDelete'),
+              content: t('customer.deleteConfirm', { name: record.name }),
+              okText: t('common.delete'),
               countdown: 3,
               onOk: async () => {
                 await customerApi.delete(record.id)
-                message.success('客户已删除')
+                message.success(t('common.deleted'))
                 fetchData()
               },
             })
-          }}>删除</a>
+          }}>{t('common.delete')}</a>
         </Space>
       ),
     },
@@ -247,8 +248,8 @@ export default function CustomerList() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">客户管理</h1>
-          <p className="text-sm text-slate-500 mt-0.5">管理和跟踪所有客户信息</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{t('customer.title')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('customer.subtitle')}</p>
         </div>
         <Space wrap>
           <Button onClick={() => setShowTagCloud(!showTagCloud)}
@@ -261,22 +262,22 @@ export default function CustomerList() {
             <span className="material-symbols-outlined text-sm mr-1" style={{ fontSize: 14 }}>map</span>
             {showMap ? '列表' : '地图'}
           </Button>
-          <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>导入</Button>
-          <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/customers/export/excel', 'customers.xlsx')}>导出</Button>
+          <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>{t('common.import')}</Button>
+          <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/customers/export/excel', 'customers.xlsx')}>{t('common.export')}</Button>
           <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => navigate('/customers/new')}
             className="shadow-lg shadow-primary/20 font-bold"
           >
-            新建客户
+            {t('customer.createCustomer')}
           </Button>
         </Space>
       </div>
 
       {showTagCloud && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
-          <h3 className="text-sm font-bold text-slate-900 mb-3">客户标签画像</h3>
+          <h3 className="text-sm font-bold text-slate-900 mb-3">{t('ai.customerProfile')}</h3>
           <CustomerTagCloud
             tags={data.flatMap((c) => (c.tags_json as unknown as string[]) || [])}
             onClick={(tag) => { setKeyword(tag); setPageNo(1) }}
@@ -286,13 +287,13 @@ export default function CustomerList() {
 
       {selectedRowKeys.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between">
-          <span className="text-sm text-blue-700">已选中 {selectedRowKeys.length} 项</span>
+          <span className="text-sm text-blue-700">{t('common.selected', { count: selectedRowKeys.length })}</span>
           <Space>
-            <Button size="small" onClick={() => { transferForm.resetFields(); setTransferModal(true) }}>批量转让</Button>
+            <Button size="small" onClick={() => { transferForm.resetFields(); setTransferModal(true) }}>{t('customer.batchTransfer')}</Button>
             <Button size="small" icon={<MailOutlined />} onClick={() => { messageForm.resetFields(); setMessageModal(true) }}>群发消息</Button>
-            <Button size="small" onClick={handleBatchRelease}>释放到公海</Button>
-            <Button size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>批量删除</Button>
-            <Button size="small" onClick={() => setSelectedRowKeys([])}>取消选择</Button>
+            <Button size="small" onClick={handleBatchRelease}>{t('customer.releaseToPool')}</Button>
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>{t('common.batchDelete')}</Button>
+            <Button size="small" onClick={() => setSelectedRowKeys([])}>{t('common.cancelSelect')}</Button>
           </Space>
         </div>
       )}
@@ -310,7 +311,7 @@ export default function CustomerList() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
         <div className="flex gap-3 flex-wrap items-center flex-col sm:flex-row">
           <Input
-            placeholder="搜索客户名称..."
+            placeholder={t('customer.searchPlaceholder')}
             prefix={<SearchOutlined className="text-slate-400" />}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
@@ -320,7 +321,7 @@ export default function CustomerList() {
             className="rounded-lg"
           />
           <Select
-            placeholder="行业"
+            placeholder={t('customer.industry')}
             allowClear
             style={{ width: 140 }}
             value={industry}
@@ -328,7 +329,7 @@ export default function CustomerList() {
             options={industryDict.options}
           />
           <Input
-            placeholder="区域"
+            placeholder={t('customer.region')}
             value={region}
             onChange={(e) => setRegion(e.target.value)}
             onPressEnter={doSearch}
@@ -337,7 +338,7 @@ export default function CustomerList() {
           />
           <Button onClick={doSearch}>
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
-            筛选
+            {t('common.filter')}
           </Button>
           <ColumnConfigDropdown allColumnKeys={allColumnKeys} hiddenKeys={hiddenKeys} onChange={setColumnConfig} />
           <SavedViewSelect
@@ -361,7 +362,7 @@ export default function CustomerList() {
           scroll={{ x: 1100 }}
           rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
           pagination={{
-            current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
+            current: pageNo, total, pageSize: 20, showTotal: (tot) => t('common.totalCount', { count: tot }),
             onChange: (p) => { setPageNo(p); fetchData(p) },
           }}
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
@@ -376,20 +377,20 @@ export default function CustomerList() {
         previewUrl="/api/v1/customers/import/preview"
         importUrl="/api/v1/customers/import/excel"
         templateUrl="/api/v1/customers/import/template"
-        title="导入客户"
+        title={t('common.import') + t('customer.title')}
         expectedHeaders={['客户名称', '简称', '行业', '规模', '区域', '地址', '来源', '级别']}
       />
 
       {/* Batch Transfer Modal */}
-      <Modal title="批量转让客户" open={transferModal} onOk={handleBatchTransfer}
-        onCancel={() => setTransferModal(false)} okText="确认转让">
+      <Modal title={t('customer.batchTransfer')} open={transferModal} onOk={handleBatchTransfer}
+        onCancel={() => setTransferModal(false)} okText={t('common.confirm')}>
         <div className="py-2">
           <div className="mb-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
-            将选中的 <b>{selectedRowKeys.length}</b> 个客户转让给新的负责人
+            {t('customer.transferConfirm', { count: selectedRowKeys.length })}
           </div>
           <Form form={transferForm} layout="vertical">
-            <Form.Item name="owner_id" label="新负责人" rules={[{ required: true, message: '请选择' }]}>
-              <Select showSearch filterOption={false} placeholder="搜索用户"
+            <Form.Item name="owner_id" label={t('customer.newOwner')} rules={[{ required: true, message: t('common.confirm') }]}>
+              <Select showSearch filterOption={false} placeholder={t('customer.searchUser')}
                 loading={userSelect.loading} options={userSelect.options}
                 onSearch={userSelect.onSearch} onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
             </Form.Item>

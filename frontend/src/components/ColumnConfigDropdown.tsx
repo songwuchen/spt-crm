@@ -1,5 +1,6 @@
 import { Dropdown, Button, Checkbox } from 'antd'
 import { SettingOutlined } from '@ant-design/icons'
+import { t } from '@/locales'
 
 interface ColumnMeta {
   key: string
@@ -16,7 +17,7 @@ export default function ColumnConfigDropdown({ allColumnKeys, hiddenKeys, onChan
   return (
     <Dropdown trigger={['click']} dropdownRender={() => (
       <div className="bg-white rounded-lg border border-slate-200 shadow-lg p-3 min-w-[160px]">
-        <div className="text-xs font-bold text-slate-400 uppercase mb-2">显示列</div>
+        <div className="text-xs font-bold text-slate-400 uppercase mb-2">{t('common.displayColumns')}</div>
         {allColumnKeys.map((c) => (
           <label key={c.key} className="flex items-center gap-2 py-1 cursor-pointer text-sm text-slate-700">
             <Checkbox

@@ -43,4 +43,40 @@ export const aiApi = {
     client.post<unknown, ApiResponse<{ similar_projects: Array<{ name: string; similarity_score: number; reason: string }>; insights: string }>>(
       '/api/v1/ai/similar-projects', { project_id: projectId }
     ),
+
+  // Knowledge Base
+  listKnowledgeDocs: (params?: { doc_type?: string; keyword?: string; pageNo?: number; pageSize?: number }) =>
+    client.get<unknown, ApiResponse<{ items: KnowledgeDoc[]; total: number }>>('/api/v1/ai/knowledge/documents', { params }),
+  getKnowledgeDoc: (id: string) =>
+    client.get<unknown, ApiResponse<KnowledgeDoc & { content_text: string }>>(`/api/v1/ai/knowledge/documents/${id}`),
+  createKnowledgeDoc: (data: { title: string; doc_type: string; content_text: string; source_filename?: string; metadata_json?: Record<string, unknown> }) =>
+    client.post<unknown, ApiResponse<KnowledgeDoc>>('/api/v1/ai/knowledge/documents', data),
+  updateKnowledgeDoc: (id: string, data: Record<string, unknown>) =>
+    client.put<unknown, ApiResponse<KnowledgeDoc>>(`/api/v1/ai/knowledge/documents/${id}`, data),
+  deleteKnowledgeDoc: (id: string) =>
+    client.delete<unknown, ApiResponse<void>>(`/api/v1/ai/knowledge/documents/${id}`),
+  searchKnowledge: (data: { query: string; doc_type?: string; top_k?: number }) =>
+    client.post<unknown, ApiResponse<KnowledgeSearchResult[]>>('/api/v1/ai/knowledge/search', data),
+}
+
+export interface KnowledgeDoc {
+  id: string
+  title: string
+  doc_type: string
+  source_filename?: string
+  chunk_count: number
+  status: string
+  metadata_json?: Record<string, unknown>
+  created_by_name?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface KnowledgeSearchResult {
+  chunk_id: string
+  document_id: string
+  doc_title: string
+  chunk_index: number
+  content: string
+  score: number
 }

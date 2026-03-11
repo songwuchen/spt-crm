@@ -96,6 +96,83 @@ async def update_tenant(tenant_id: str, body: PlatformTenantUpdate, db: AsyncSes
     return ok({"id": t.id, "name": t.name, "status": t.status})
 
 
+# ==================== Platform: Overview & Usage ====================
+
+@router.get("/api/admin/v1/platform/overview")
+async def platform_overview(db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    """Platform-level overview: tenant counts, user counts, usage summaries."""
+    from app.domains.auth.models import User
+    from app.domains.tenant.models import PlatformTenant
+    from app.domains.admin.models import TenantUsageMeter
+    from datetime import datetime, timezone
+
+    current_period = datetime.now(timezone.utc).strftime("%Y-%m")
+
+    # Tenant stats
+    total_tenants = (await db.execute(select(func.count(PlatformTenant.id)))).scalar() or 0
+    active_tenants = (await db.execute(
+        select(func.count(PlatformTenant.id)).where(PlatformTenant.is_active == True)
+    )).scalar() or 0
+
+    # User stats (across all tenants)
+    total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
+
+    # Usage meters for current period (aggregated across tenants)
+    usage_rows = (await db.execute(
+        select(
+            TenantUsageMeter.metric_code,
+            func.sum(TenantUsageMeter.value).label("total")
+        ).where(TenantUsageMeter.period == current_period)
+        .group_by(TenantUsageMeter.metric_code)
+    )).all()
+    usage_summary = {row.metric_code: float(row.total) for row in usage_rows}
+
+    # Per-tenant usage for current period
+    tenant_usage_rows = (await db.execute(
+        select(
+            TenantUsageMeter.tenant_id,
+            TenantUsageMeter.metric_code,
+            TenantUsageMeter.value
+        ).where(TenantUsageMeter.period == current_period)
+    )).all()
+    tenant_usage: dict = {}
+    for row in tenant_usage_rows:
+        if row.tenant_id not in tenant_usage:
+            tenant_usage[row.tenant_id] = {}
+        tenant_usage[row.tenant_id][row.metric_code] = float(row.value)
+
+    return ok({
+        "total_tenants": total_tenants,
+        "active_tenants": active_tenants,
+        "total_users": total_users,
+        "current_period": current_period,
+        "usage_summary": usage_summary,
+        "tenant_usage": tenant_usage,
+    })
+
+
+@router.get("/api/admin/v1/platform/usage")
+async def list_usage(
+    tenant_id: Optional[str] = Query(None),
+    period: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """List usage meter records, optionally filtered by tenant/period."""
+    from app.domains.admin.models import TenantUsageMeter
+
+    q = select(TenantUsageMeter).order_by(TenantUsageMeter.period.desc())
+    if tenant_id:
+        q = q.where(TenantUsageMeter.tenant_id == tenant_id)
+    if period:
+        q = q.where(TenantUsageMeter.period == period)
+    rows = (await db.execute(q)).scalars().all()
+    return ok([{
+        "id": r.id, "tenant_id": r.tenant_id, "metric_code": r.metric_code,
+        "period": r.period, "value": float(r.value),
+    } for r in rows])
+
+
 # ==================== Tenant: Profile ====================
 
 @router.get("/api/admin/v1/tenant/profile")
@@ -412,6 +489,48 @@ async def update_integration(ep_id: str, body: IntegrationUpdate, tenant_id: str
 async def delete_integration(ep_id: str, tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
     await service.delete_integration(db, tenant_id, ep_id)
     return ok(None)
+
+
+@router.post("/api/admin/v1/tenant/integrations/{ep_id}/test")
+async def test_integration(ep_id: str, tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    """Test ERP integration connectivity."""
+    from app.common.erp_sync import get_erp_client
+    ep = await service.get_integration(db, tenant_id, ep_id)
+    if not ep:
+        raise BusinessException(code=44004, message="集成端点不存在")
+    from app.common.erp_sync import GenericERPClient
+    client = GenericERPClient(ep)
+    try:
+        healthy = await client.health_check()
+        return ok({"connected": healthy, "system_code": ep.system_code, "base_url": ep.base_url})
+    except Exception as e:
+        return ok({"connected": False, "error": str(e)})
+
+
+@router.post("/api/admin/v1/tenant/integrations/{ep_id}/sync-contract")
+async def sync_contract(ep_id: str, contract_id: str = Query(...), tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    """Manually trigger contract sync to ERP."""
+    from app.domains.contract.models import Contract
+    contract = (await db.execute(
+        select(Contract).where(Contract.id == contract_id, Contract.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not contract:
+        raise BusinessException(code=44004, message="合同不存在")
+
+    from app.common.erp_sync import get_erp_client
+    ep = await service.get_integration(db, tenant_id, ep_id)
+    if not ep:
+        raise BusinessException(code=44004, message="集成端点不存在")
+
+    from app.common.erp_sync import GenericERPClient
+    client = GenericERPClient(ep)
+    result = await client.push_contract({
+        "contract_no": contract.contract_no,
+        "amount_total": float(contract.amount_total) if contract.amount_total else 0,
+        "sign_date": contract.sign_date.isoformat() if contract.sign_date else "",
+        "customer_id": contract.customer_id or "",
+    })
+    return ok({"sync_result": result})
 
 
 # ==================== Tenant: Webhooks ====================

@@ -15,6 +15,7 @@ import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
+import { t } from '@/locales'
 
 const { TextArea } = Input
 
@@ -29,7 +30,7 @@ interface SlaStats {
 }
 
 export default function ServiceTicketList() {
-  usePageTitle('售后工单')
+  usePageTitle(t('service.pageTitle'))
   const navigate = useNavigate()
   const [slaStats, setSlaStats] = useState<SlaStats | null>(null)
   const [tickets, setTickets] = useState<ServiceTicketItem[]>([])
@@ -63,7 +64,7 @@ export default function ServiceTicketList() {
       selectedTicketKeys.map((id) => serviceTicketApi.update(id as string, { assigned_to_id: values.assigned_to_id, assigned_to_name: userName }))
     )
     const ok = results.filter(r => r.status === 'fulfilled').length
-    message.success(`已指派 ${ok} 个工单`)
+    message.success(t('service.batchAssignDone', { count: ok }))
     setBatchAssignModal(false)
     assignForm.resetFields()
     setSelectedTicketKeys([])
@@ -103,16 +104,16 @@ export default function ServiceTicketList() {
   }
 
   const ticketColumns: import('antd/es/table').ColumnsType<ServiceTicketItem> = [
-    { title: '工单编号', dataIndex: 'ticket_no', render: (v: string, r: ServiceTicketItem) => (
+    { title: t('service.ticketNo'), dataIndex: 'ticket_no', render: (v: string, r: ServiceTicketItem) => (
       <a className="font-mono font-bold text-primary cursor-pointer" onClick={() => navigate(`/service-tickets/${r.id}`)}>{v}</a>
     )},
-    { title: '类型', dataIndex: 'type', render: (v: string) => typeLabels[v] || v },
-    { title: '优先级', dataIndex: 'priority', render: (v: string) => <Tag color={priorityColors[v]}>{priorityLabels[v] || v}</Tag> },
-    { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag> },
-    { title: '描述', dataIndex: 'description', ellipsis: true, width: 200 },
-    { title: '负责人', dataIndex: 'assigned_to_name', render: (v: string) => v || '-' },
-    { title: '创建人', dataIndex: 'created_by_name', responsive: ['lg'] as any },
-    { title: '创建时间', dataIndex: 'created_at', responsive: ['xl'] as any, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
+    { title: t('service.type'), dataIndex: 'type', render: (v: string) => typeLabels[v] || v },
+    { title: t('service.priority'), dataIndex: 'priority', render: (v: string) => <Tag color={priorityColors[v]}>{priorityLabels[v] || v}</Tag> },
+    { title: t('common.status'), dataIndex: 'status', render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag> },
+    { title: t('service.description'), dataIndex: 'description', ellipsis: true, width: 200 },
+    { title: t('common.owner'), dataIndex: 'assigned_to_name', render: (v: string) => v || '-' },
+    { title: t('common.createdBy'), dataIndex: 'created_by_name', responsive: ['lg'] as any },
+    { title: t('common.createdAt'), dataIndex: 'created_at', responsive: ['xl'] as any, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
   ]
 
   const { visibleColumns: visibleTicketColumns, hiddenKeys: ticketHiddenKeys, setColumnConfig: setTicketColumnConfig, allColumnKeys: ticketColumnKeys } = useColumnConfig('service_tickets', ticketColumns)
@@ -121,19 +122,19 @@ export default function ServiceTicketList() {
 
   const handleCreate = async () => {
     if (!form.description?.trim()) {
-      message.warning('请填写问题描述')
+      message.warning(t('service.descriptionRequired'))
       return
     }
     try {
       const data = { ...form }
       if (!data.customer_id) delete data.customer_id
       await serviceTicketApi.create(data)
-      message.success('工单已创建')
+      message.success(t('service.ticketCreated'))
       setCreateModal(false)
       setForm({ type: 'fault', priority: 'medium', description: '' })
       fetchTickets()
     } catch {
-      message.error('创建工单失败')
+      message.error(t('service.ticketCreateFailed'))
     }
   }
 
@@ -169,10 +170,10 @@ export default function ServiceTicketList() {
     }
     if (editingRenewal) {
       await serviceTicketApi.updateRenewal(editingRenewal.id, data)
-      message.success('续约机会已更新')
+      message.success(t('service.renewalUpdated'))
     } else {
       await serviceTicketApi.createRenewal(data)
-      message.success('续约机会已创建')
+      message.success(t('service.renewalCreated'))
     }
     setRenewalModal(false)
     setEditingRenewal(null)
@@ -184,8 +185,8 @@ export default function ServiceTicketList() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">售后服务</h1>
-          <p className="text-sm text-slate-500 mt-1">管理售后工单与续约/复购机会</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">{t('service.pageTitle')}</h1>
+          <p className="text-sm text-slate-500 mt-1">{t('service.pageSubtitle')}</p>
         </div>
       </div>
 
@@ -195,7 +196,7 @@ export default function ServiceTicketList() {
           {/* SLA Stats Row */}
           <div className="flex gap-3 flex-wrap">
             <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-xs text-slate-500 mb-1">SLA 达标率</div>
+              <div className="text-xs text-slate-500 mb-1">{t('service.slaRate')}</div>
               <div className={`text-2xl font-black ${slaStats.on_time_rate >= 90 ? 'text-emerald-600' : slaStats.on_time_rate >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
                 {slaStats.on_time_rate}%
               </div>
@@ -205,23 +206,23 @@ export default function ServiceTicketList() {
               </div>
             </div>
             <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-xs text-slate-500 mb-1">待处理工单</div>
+              <div className="text-xs text-slate-500 mb-1">{t('service.openTickets')}</div>
               <div className="text-2xl font-black text-blue-600">{slaStats.open_tickets}</div>
             </div>
             <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-xs text-slate-500 mb-1">已超时</div>
+              <div className="text-xs text-slate-500 mb-1">{t('service.breached')}</div>
               <div className={`text-2xl font-black ${slaStats.breach_count > 0 ? 'text-red-600' : 'text-slate-400'}`}>
                 {slaStats.breach_count}
               </div>
             </div>
             <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-xs text-slate-500 mb-1">即将超时</div>
+              <div className="text-xs text-slate-500 mb-1">{t('service.nearBreach')}</div>
               <div className={`text-2xl font-black ${slaStats.near_breach_count > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
                 {slaStats.near_breach_count}
               </div>
             </div>
             <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-xs text-slate-500 mb-1">已解决</div>
+              <div className="text-xs text-slate-500 mb-1">{t('service.resolved')}</div>
               <div className="text-2xl font-black text-emerald-600">{slaStats.resolved_tickets}</div>
             </div>
           </div>
@@ -229,7 +230,7 @@ export default function ServiceTicketList() {
           {/* Priority Distribution + SLA Config */}
           <div className="flex gap-3 flex-wrap">
             <div className="flex-1 min-w-[280px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">优先级分布</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">{t('service.priorityDistribution')}</div>
               {(() => {
                 const prios = slaStats.by_priority || {}
                 const maxVal = Math.max(...Object.values(prios), 1)
@@ -251,7 +252,7 @@ export default function ServiceTicketList() {
               })()}
             </div>
             <div className="flex-1 min-w-[280px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">SLA 响应时限</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">{t('service.slaResponseTime')}</div>
               <div className="grid grid-cols-2 gap-2">
                 {Object.entries(slaStats.sla_config || {}).map(([k, v]) => (
                   <div key={k} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
@@ -269,22 +270,22 @@ export default function ServiceTicketList() {
         <Tabs defaultActiveKey="tickets" className="px-4 pt-2" items={[
           {
             key: 'tickets',
-            label: '售后工单',
+            label: t('service.ticketsTab'),
             children: (
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <Input prefix={<SearchOutlined />} placeholder="搜索编号/描述" allowClear
+                    <Input prefix={<SearchOutlined />} placeholder={t('service.searchNoDesc')} allowClear
                       value={searchText} onChange={(e) => setSearchText(e.target.value)}
                       onPressEnter={() => { setPageNo(1); fetchTickets(1, searchText, filterStatus, filterPriority, filterType) }}
                       style={{ width: 220 }} />
-                    <Select allowClear placeholder="状态" value={filterStatus}
+                    <Select allowClear placeholder={t('common.status')} value={filterStatus}
                       onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchTickets(1, searchText, v, filterPriority, filterType) }}
                       style={{ width: 130 }} options={Object.entries(statusLabels).map(([k, v]) => ({ value: k, label: v }))} />
-                    <Select allowClear placeholder="优先级" value={filterPriority}
+                    <Select allowClear placeholder={t('service.priority')} value={filterPriority}
                       onChange={(v) => { setFilterPriority(v); setPageNo(1); fetchTickets(1, searchText, filterStatus, v, filterType) }}
                       style={{ width: 130 }} options={Object.entries(priorityLabels).map(([k, v]) => ({ value: k, label: v }))} />
-                    <Select allowClear placeholder="类型" value={filterType}
+                    <Select allowClear placeholder={t('service.type')} value={filterType}
                       onChange={(v) => { setFilterType(v); setPageNo(1); fetchTickets(1, searchText, filterStatus, filterPriority, v) }}
                       style={{ width: 130 }} options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v }))} />
                     <ColumnConfigDropdown allColumnKeys={ticketColumnKeys} hiddenKeys={ticketHiddenKeys} onChange={setTicketColumnConfig} />
@@ -300,17 +301,17 @@ export default function ServiceTicketList() {
                   <Space wrap>
                     {selectedTicketKeys.length > 0 && (
                       <Button onClick={() => { assignForm.resetFields(); setBatchAssignModal(true) }}>
-                        批量指派 ({selectedTicketKeys.length})
+                        {t('service.batchAssign', { count: selectedTicketKeys.length })}
                       </Button>
                     )}
-                    <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/service_tickets/export/excel', 'service_tickets.xlsx')}>导出</Button>
-                    <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建工单</Button>
+                    <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/service_tickets/export/excel', 'service_tickets.xlsx')}>{t('common.export')}</Button>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{t('service.createTicket')}</Button>
                   </Space>
                 </div>
                 <Table rowKey="id" dataSource={tickets} loading={loading} size="small" scroll={{ x: 900 }}
                   rowSelection={{ selectedRowKeys: selectedTicketKeys, onChange: setSelectedTicketKeys }}
                   pagination={{
-                    current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
+                    current: pageNo, total, pageSize: 20, showTotal: (total) => t('common.totalCount', { count: total }),
                     onChange: (p) => { setPageNo(p); fetchTickets(p) },
                   }}
                   columns={visibleTicketColumns}
@@ -320,7 +321,7 @@ export default function ServiceTicketList() {
           },
           {
             key: 'renewals',
-            label: `续约/复购 (${renewals.length})`,
+            label: t('service.renewalsTab', { count: renewals.length }),
             children: (
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -334,23 +335,23 @@ export default function ServiceTicketList() {
                       )
                     })}
                     <span className="text-xs text-slate-400 ml-2">
-                      预计金额: ¥{renewals.filter((r) => r.status === 'open').reduce((sum, r) => sum + (r.amount_expect || 0), 0).toLocaleString()}
+                      {t('service.estimatedAmount')} ¥{renewals.filter((r) => r.status === 'open').reduce((sum, r) => sum + (r.amount_expect || 0), 0).toLocaleString()}
                     </span>
                   </div>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={openRenewalCreate}>新建续约机会</Button>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={openRenewalCreate}>{t('service.createRenewal')}</Button>
                 </div>
                 <Table rowKey="id" dataSource={renewals} pagination={{ pageSize: 20 }} size="small"
                   columns={[
-                    { title: '名称', dataIndex: 'name', render: (v: string) => <span className="font-semibold">{v}</span> },
-                    { title: '状态', dataIndex: 'status', width: 100, render: (v: string) => <Tag color={renewalStatusColors[v]}>{renewalStatusLabels[v] || v}</Tag> },
-                    { title: '预计金额', dataIndex: 'amount_expect', width: 130, render: (v: number | null) => v != null ? `¥${v.toLocaleString()}` : '-' },
-                    { title: '预计关闭', dataIndex: 'close_date_expect', width: 120, render: (v: string) => v || '-' },
-                    { title: '概率', dataIndex: 'probability', width: 80, render: (v: number | null) => v != null ? `${v}%` : '-' },
-                    { title: '负责人', dataIndex: 'owner_name', width: 100, render: (v: string) => v || '-' },
-                    { title: '备注', dataIndex: 'remark', ellipsis: true, width: 180 },
-                    { title: '创建时间', dataIndex: 'created_at', width: 110, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
+                    { title: t('service.renewalName'), dataIndex: 'name', render: (v: string) => <span className="font-semibold">{v}</span> },
+                    { title: t('common.status'), dataIndex: 'status', width: 100, render: (v: string) => <Tag color={renewalStatusColors[v]}>{renewalStatusLabels[v] || v}</Tag> },
+                    { title: t('service.expectedAmount'), dataIndex: 'amount_expect', width: 130, render: (v: number | null) => v != null ? `¥${v.toLocaleString()}` : '-' },
+                    { title: t('service.expectedCloseDate'), dataIndex: 'close_date_expect', width: 120, render: (v: string) => v || '-' },
+                    { title: t('service.probability'), dataIndex: 'probability', width: 80, render: (v: number | null) => v != null ? `${v}%` : '-' },
+                    { title: t('common.owner'), dataIndex: 'owner_name', width: 100, render: (v: string) => v || '-' },
+                    { title: t('common.remark'), dataIndex: 'remark', ellipsis: true, width: 180 },
+                    { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
                     { title: '', key: 'actions', width: 60, render: (_: unknown, r: RenewalItem) => (
-                      <a className="text-primary text-xs font-bold" onClick={() => openRenewalEdit(r)}>编辑</a>
+                      <a className="text-primary text-xs font-bold" onClick={() => openRenewalEdit(r)}>{t('common.edit')}</a>
                     )},
                   ]}
                 />
@@ -361,11 +362,11 @@ export default function ServiceTicketList() {
       </div>
 
       {/* Create Ticket Modal */}
-      <Modal title="新建售后工单" open={createModal} onOk={handleCreate} onCancel={() => setCreateModal(false)} width={500}>
+      <Modal title={t('service.createTicketTitle')} open={createModal} onOk={handleCreate} onCancel={() => setCreateModal(false)} width={500}>
         <div className="space-y-4 py-2">
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">关联客户</label>
-            <Select className="w-full" allowClear showSearch filterOption={false} placeholder="选择关联客户（可选）"
+            <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.relatedCustomer')}</label>
+            <Select className="w-full" allowClear showSearch filterOption={false} placeholder={t('service.relatedCustomerPlaceholder')}
               value={form.customer_id} onChange={(v) => setForm({ ...form, customer_id: v })}
               loading={customerSelect.loading}
               options={customerSelect.options}
@@ -374,30 +375,30 @@ export default function ServiceTicketList() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">类型</label>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.type')}</label>
               <Select className="w-full" value={form.type} onChange={(v) => setForm({ ...form, type: v })}
                 options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v }))} />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">优先级</label>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.priority')}</label>
               <Select className="w-full" value={form.priority} onChange={(v) => setForm({ ...form, priority: v })}
                 options={Object.entries(priorityLabels).map(([k, v]) => ({ value: k, label: v }))} />
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">描述</label>
-            <TextArea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="描述问题..." />
+            <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.description')}</label>
+            <TextArea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={t('service.descriptionPlaceholder')} />
           </div>
         </div>
       </Modal>
 
       {/* Renewal Modal */}
-      <Modal title={editingRenewal ? '编辑续约机会' : '新建续约机会'} open={renewalModal}
+      <Modal title={editingRenewal ? t('service.editRenewal') : t('service.createRenewal')} open={renewalModal}
         onOk={handleRenewalSave} onCancel={() => { setRenewalModal(false); setEditingRenewal(null) }} width={500}>
         <div className="space-y-4 py-2">
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">关联客户 <span className="text-red-500">*</span></label>
-            <Select className="w-full" showSearch filterOption={false} placeholder="选择客户"
+            <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.relatedCustomer')} <span className="text-red-500">*</span></label>
+            <Select className="w-full" showSearch filterOption={false} placeholder={t('service.customer')}
               value={renewalForm.customer_id} onChange={(v) => setRenewalForm({ ...renewalForm, customer_id: v })}
               loading={customerSelect.loading}
               options={customerSelect.options}
@@ -405,50 +406,50 @@ export default function ServiceTicketList() {
               onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">名称 <span className="text-red-500">*</span></label>
-            <Input value={renewalForm.name} onChange={(e) => setRenewalForm({ ...renewalForm, name: e.target.value })} placeholder="续约/复购名称" />
+            <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.renewalName')} <span className="text-red-500">*</span></label>
+            <Input value={renewalForm.name} onChange={(e) => setRenewalForm({ ...renewalForm, name: e.target.value })} placeholder={t('service.renewalNamePlaceholder')} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">预计金额</label>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.expectedAmount')}</label>
               <InputNumber className="w-full" min={0} prefix="¥" value={renewalForm.amount_expect}
                 onChange={(v) => setRenewalForm({ ...renewalForm, amount_expect: v })} placeholder="0" />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">预计关闭日期</label>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.expectedCloseDate')}</label>
               <DatePicker className="w-full" value={renewalForm.close_date_expect ? dayjs(renewalForm.close_date_expect) : null}
                 onChange={(v) => setRenewalForm({ ...renewalForm, close_date_expect: v })} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">概率 (%)</label>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.probabilityPercent')}</label>
               <InputNumber className="w-full" min={0} max={100} value={renewalForm.probability}
                 onChange={(v) => setRenewalForm({ ...renewalForm, probability: v })} placeholder="50" />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">状态</label>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('common.status')}</label>
               <Select className="w-full" value={renewalForm.status} onChange={(v) => setRenewalForm({ ...renewalForm, status: v })}
                 options={Object.entries(renewalStatusLabels).map(([k, v]) => ({ value: k, label: v }))} />
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">备注</label>
-            <TextArea rows={2} value={renewalForm.remark} onChange={(e) => setRenewalForm({ ...renewalForm, remark: e.target.value })} placeholder="备注信息..." />
+            <label className="text-sm font-medium text-slate-700 mb-1 block">{t('common.remark')}</label>
+            <TextArea rows={2} value={renewalForm.remark} onChange={(e) => setRenewalForm({ ...renewalForm, remark: e.target.value })} placeholder={t('service.remarkPlaceholder')} />
           </div>
         </div>
       </Modal>
 
       {/* Batch Assign Modal */}
-      <Modal title="批量指派工单" open={batchAssignModal} onOk={handleBatchAssign}
-        onCancel={() => setBatchAssignModal(false)} okText="确认指派">
+      <Modal title={t('service.batchAssignTitle')} open={batchAssignModal} onOk={handleBatchAssign}
+        onCancel={() => setBatchAssignModal(false)} okText={t('service.confirmAssign')}>
         <div className="py-2">
           <div className="mb-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
-            将选中的 <b>{selectedTicketKeys.length}</b> 个工单指派给
+            {t('service.batchAssignMsg', { count: selectedTicketKeys.length })}
           </div>
           <Form form={assignForm} layout="vertical">
-            <Form.Item name="assigned_to_id" label="负责人" rules={[{ required: true, message: '请选择' }]}>
-              <Select showSearch filterOption={false} placeholder="搜索用户"
+            <Form.Item name="assigned_to_id" label={t('common.owner')} rules={[{ required: true, message: t('service.selectUser') }]}>
+              <Select showSearch filterOption={false} placeholder={t('service.searchUser')}
                 loading={assignUserSelect.loading} options={assignUserSelect.options}
                 onSearch={assignUserSelect.onSearch} onDropdownVisibleChange={assignUserSelect.onDropdownVisibleChange} />
             </Form.Item>

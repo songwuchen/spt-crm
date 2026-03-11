@@ -28,6 +28,8 @@ export const settingsApi = {
     client.put(`/api/admin/v1/tenant/integrations/${id}`, data),
   deleteIntegration: (id: string) =>
     client.delete(`/api/admin/v1/tenant/integrations/${id}`),
+  testIntegration: (id: string) =>
+    client.post(`/api/admin/v1/tenant/integrations/${id}/test`),
 
   // Feature toggles
   listFeatures: () => client.get('/api/admin/v1/tenant/features'),

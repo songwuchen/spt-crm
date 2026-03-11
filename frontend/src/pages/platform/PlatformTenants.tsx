@@ -1,14 +1,38 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Tag, Modal, Input, Select, Space, Switch, message } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { Table, Button, Tag, Modal, Input, Select, Space, Switch, message, Spin } from 'antd'
+import { PlusOutlined, TeamOutlined, CloudOutlined, ThunderboltOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { platformApi } from '@/api/platform'
-import type { PlatformTenant, TenantPlan } from '@/api/platform'
+import type { PlatformTenant, TenantPlan, PlatformOverview } from '@/api/platform'
 import { usePageTitle } from '@/hooks/usePageTitle'
+
+const metricLabels: Record<string, { label: string; icon: React.ReactNode; unit: string; format: (v: number) => string }> = {
+  user_active: { label: '活跃用户', icon: <TeamOutlined />, unit: '人', format: (v) => String(Math.round(v)) },
+  api_calls: { label: 'API 调用', icon: <ThunderboltOutlined />, unit: '次', format: (v) => v >= 10000 ? `${(v / 10000).toFixed(1)}万` : String(Math.round(v)) },
+  ai_tokens: { label: 'AI Tokens', icon: <CloudOutlined />, unit: '', format: (v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(Math.round(v)) },
+  ai_cost: { label: 'AI 费用', icon: <CloudOutlined />, unit: '元', format: (v) => `¥${v.toFixed(2)}` },
+  storage_bytes: { label: '存储用量', icon: <DatabaseOutlined />, unit: '', format: (v) => v >= 1073741824 ? `${(v / 1073741824).toFixed(1)} GB` : `${(v / 1048576).toFixed(1)} MB` },
+}
+
+function StatCard({ title, value, icon, sub }: { title: string; value: string | number; icon: React.ReactNode; sub?: string }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-start gap-4">
+      <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary text-lg shrink-0">
+        {icon}
+      </div>
+      <div>
+        <div className="text-2xl font-extrabold text-slate-900 tracking-tight">{value}</div>
+        <div className="text-xs text-slate-500 mt-0.5">{title}</div>
+        {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
+      </div>
+    </div>
+  )
+}
 
 export default function PlatformTenants() {
   usePageTitle('租户管理')
   const [tenants, setTenants] = useState<PlatformTenant[]>([])
   const [plans, setPlans] = useState<TenantPlan[]>([])
+  const [overview, setOverview] = useState<PlatformOverview | null>(null)
   const [loading, setLoading] = useState(true)
 
   // Plan modal
@@ -20,6 +44,7 @@ export default function PlatformTenants() {
     Promise.all([
       platformApi.listTenants().then(r => r.data && setTenants(r.data)).catch(() => {}),
       platformApi.listPlans().then(r => r.data && setPlans(r.data)).catch(() => {}),
+      platformApi.getOverview().then(r => r.data && setOverview(r.data)).catch(() => {}),
     ]).finally(() => setLoading(false))
   }
 
@@ -57,6 +82,74 @@ export default function PlatformTenants() {
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">平台租户管理</h1>
         <p className="text-sm text-slate-500 mt-1">管理租户开通、停用与套餐绑定</p>
       </div>
+
+      {/* Overview Cards */}
+      {loading && !overview ? (
+        <div className="flex justify-center py-8"><Spin /></div>
+      ) : overview && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard
+            title="租户总数"
+            value={overview.total_tenants}
+            icon={<TeamOutlined />}
+            sub={`${overview.active_tenants} 个活跃`}
+          />
+          <StatCard
+            title="用户总数"
+            value={overview.total_users}
+            icon={<TeamOutlined />}
+          />
+          {Object.entries(overview.usage_summary).slice(0, 2).map(([code, val]) => {
+            const m = metricLabels[code]
+            return m ? (
+              <StatCard
+                key={code}
+                title={`本月${m.label}`}
+                value={m.format(val)}
+                icon={m.icon}
+                sub={overview.current_period}
+              />
+            ) : null
+          })}
+        </div>
+      )}
+
+      {/* Per-Tenant Usage */}
+      {overview && Object.keys(overview.tenant_usage).length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+          <div className="p-4 border-b border-slate-100">
+            <h3 className="text-sm font-bold text-slate-900">租户用量概览 ({overview.current_period})</h3>
+          </div>
+          <Table
+            rowKey="id"
+            dataSource={tenants.filter(t => overview.tenant_usage[t.id])}
+            size="small"
+            pagination={false}
+            columns={[
+              { title: '租户', dataIndex: 'name', width: 200,
+                render: (v: string, r: PlatformTenant) => (
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">{v}</div>
+                    <div className="text-[11px] text-slate-400 font-mono">{r.code}</div>
+                  </div>
+                ),
+              },
+              ...Object.keys(metricLabels).map(code => ({
+                title: metricLabels[code].label,
+                key: code,
+                width: 120,
+                align: 'right' as const,
+                render: (_: unknown, r: PlatformTenant) => {
+                  const val = overview.tenant_usage[r.id]?.[code]
+                  return val != null ? (
+                    <span className="text-sm font-bold text-slate-700">{metricLabels[code].format(val)}</span>
+                  ) : <span className="text-slate-300">-</span>
+                },
+              })),
+            ]}
+          />
+        </div>
+      )}
 
       {/* Tenant List */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">

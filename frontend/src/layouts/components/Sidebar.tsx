@@ -31,6 +31,7 @@ const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
       { key: '/tasks', icon: 'checklist', labelKey: 'nav.tasks' },
       { key: '/approvals', icon: 'task_alt', labelKey: 'nav.approvals' },
       { key: '/ai-center', icon: 'smart_toy', labelKey: 'nav.aiCenter', permission: 'project:view' },
+      { key: '/knowledge-base', icon: 'menu_book', labelKey: 'nav.knowledgeBase', permission: 'project:view' },
     ],
   },
   {

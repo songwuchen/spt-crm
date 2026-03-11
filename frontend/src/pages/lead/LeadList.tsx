@@ -14,6 +14,7 @@ import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
+import { t } from '@/locales'
 
 function ScoreBar({ score }: { score: number }) {
   const getColor = (s: number) => {
@@ -39,7 +40,7 @@ function ScoreBar({ score }: { score: number }) {
 }
 
 export default function LeadList() {
-  usePageTitle('线索管理')
+  usePageTitle(t('lead.title'))
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [data, setData] = useState<Lead[]>([])
@@ -77,21 +78,21 @@ export default function LeadList() {
     const ownerName = userSelect.options.find(o => o.value === values.owner_id)?.label || ''
     try {
       const res = await leadApi.batchAssign(selectedRowKeys as string[], values.owner_id, ownerName)
-      message.success(`已分配 ${(res as any).data?.updated || selectedRowKeys.length} 条线索`)
+      message.success(t('lead.batchAssignDone', { count: (res as any).data?.updated || selectedRowKeys.length }))
       setAssignModal(false)
       assignForm.resetFields()
       setSelectedRowKeys([])
       fetchData()
-    } catch { message.error('批量分配失败') }
+    } catch { message.error(t('lead.batchAssignFailed')) }
   }
 
   const handleBatchDelete = () => {
     if (!selectedRowKeys.length) return
     Modal.confirm({
-      title: '批量删除', content: `确定要删除选中的 ${selectedRowKeys.length} 条线索？`, okType: 'danger',
+      title: t('common.batchDelete'), content: t('common.batchDeleteConfirm', { count: selectedRowKeys.length }), okType: 'danger',
       onOk: async () => {
         await Promise.all(selectedRowKeys.map((id) => leadApi.delete(id as string)))
-        message.success(`已删除 ${selectedRowKeys.length} 条线索`)
+        message.success(t('common.batchDeleteDone', { count: selectedRowKeys.length }))
         setSelectedRowKeys([])
         fetchData()
       },
@@ -101,8 +102,8 @@ export default function LeadList() {
   const handleBatchConvert = () => {
     if (!selectedRowKeys.length) return
     Modal.confirm({
-      title: '批量转化', content: `确定要将选中的 ${selectedRowKeys.length} 条线索转化为客户？`,
-      okText: '确认转化',
+      title: t('lead.batchConvert'), content: t('lead.batchConvertConfirm', { count: selectedRowKeys.length }),
+      okText: t('common.confirm'),
       onOk: async () => {
         const results = await Promise.allSettled(
           selectedRowKeys.map((id) => leadApi.qualify(id as string))
@@ -110,9 +111,9 @@ export default function LeadList() {
         const ok = results.filter(r => r.status === 'fulfilled').length
         const fail = results.filter(r => r.status === 'rejected').length
         if (fail > 0) {
-          message.warning(`${ok} 条已转化，${fail} 条转化失败（可能已转化或已废弃）`)
+          message.warning(t('lead.batchConvertPartial', { ok, fail }))
         } else {
-          message.success(`已转化 ${ok} 条线索为客户`)
+          message.success(t('lead.batchConvertDone', { count: ok }))
         }
         setSelectedRowKeys([])
         fetchData()
@@ -136,7 +137,7 @@ export default function LeadList() {
   const doSearch = () => { updateParams({ page: undefined }) }
 
   const allColumns: ColumnsType<Lead> = [
-    { title: '线索', key: 'title', width: 260,
+    { title: t('lead.name'), key: 'title', width: 260,
       render: (_, record) => (
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
@@ -154,20 +155,20 @@ export default function LeadList() {
         </div>
       ),
     },
-    { title: '联系人', dataIndex: 'contact_name', width: 100,
+    { title: t('lead.contact'), dataIndex: 'contact_name', width: 100,
       render: (v) => v ? (
         <span className="text-sm text-slate-700">{v}</span>
       ) : <span className="text-slate-300">-</span>,
     },
-    { title: '来源', dataIndex: 'source', width: 90, responsive: ['lg'],
+    { title: t('lead.source'), dataIndex: 'source', width: 90, responsive: ['lg'],
       render: (v: string) => v ? (
         <span className="text-xs text-slate-600">{sourceLabels[v] || v}</span>
       ) : <span className="text-slate-300">-</span>,
     },
-    { title: '评分', dataIndex: 'score', width: 140,
+    { title: t('lead.score'), dataIndex: 'score', width: 140,
       render: (v: number) => <ScoreBar score={v ?? 0} />,
     },
-    { title: '状态', dataIndex: 'status', width: 100,
+    { title: t('lead.status'), dataIndex: 'status', width: 100,
       render: (v: string) => {
         const cfg = statusConfig[v] || statusConfig.new
         return (
@@ -178,32 +179,32 @@ export default function LeadList() {
         )
       },
     },
-    { title: '负责人', dataIndex: 'owner_name', width: 90,
+    { title: t('common.owner'), dataIndex: 'owner_name', width: 90,
       render: (v) => v ? (
         <span className="text-sm text-slate-600">{v}</span>
       ) : <span className="text-slate-300">-</span>,
     },
-    { title: '创建时间', dataIndex: 'created_at', width: 110, responsive: ['xl'],
+    { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, responsive: ['xl'],
       render: (v) => v ? <span className="text-xs text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-',
     },
     { title: '', key: 'actions', width: 160, fixed: 'right',
       render: (_, record) => (
         <Space size={0}>
-          <a onClick={() => navigate(`/leads/${record.id}`)} className="text-primary text-xs font-bold uppercase tracking-widest px-2">详情</a>
+          <a onClick={() => navigate(`/leads/${record.id}`)} className="text-primary text-xs font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
           {record.status !== 'qualified' && record.status !== 'discarded' && (
-            <a onClick={() => navigate(`/leads/${record.id}/edit`)} className="text-slate-500 text-xs font-bold uppercase tracking-widest px-2 hover:text-primary">编辑</a>
+            <a onClick={() => navigate(`/leads/${record.id}/edit`)} className="text-slate-500 text-xs font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
           )}
           <a className="text-xs font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
             Modal.confirm({
-              title: '确认删除', content: `确定要删除线索「${record.title}」？`,
+              title: t('common.confirmDelete'), content: t('lead.deleteConfirm', { name: record.title }),
               okType: 'danger',
               onOk: async () => {
                 await leadApi.delete(record.id)
-                message.success('线索已删除')
+                message.success(t('lead.deleted'))
                 fetchData()
               },
             })
-          }}>删除</a>
+          }}>{t('common.delete')}</a>
         </Space>
       ),
     },
@@ -216,8 +217,8 @@ export default function LeadList() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">线索管理</h1>
-          <p className="text-sm text-slate-500 mt-0.5">管理和跟踪所有销售线索</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{t('lead.title')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('lead.subtitle')}</p>
         </div>
         <Space>
           <Upload accept=".xlsx,.xls" showUploadList={false} customRequest={async ({ file }) => {
@@ -236,28 +237,28 @@ export default function LeadList() {
               } else { message.error(json.message || '导入失败') }
             } catch { message.error('导入失败') }
           }}>
-            <Button icon={<UploadOutlined />}>导入</Button>
+            <Button icon={<UploadOutlined />}>{t('common.import')}</Button>
           </Upload>
-          <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/leads/export/excel', 'leads.xlsx')}>导出</Button>
+          <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/leads/export/excel', 'leads.xlsx')}>{t('common.export')}</Button>
           <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => navigate('/leads/new')}
             className="shadow-lg shadow-primary/20 font-bold"
           >
-            新建线索
+            {t('lead.createLead')}
           </Button>
         </Space>
       </div>
 
       {selectedRowKeys.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between">
-          <span className="text-sm text-blue-700">已选中 {selectedRowKeys.length} 项</span>
+          <span className="text-sm text-blue-700">{t('common.selected', { count: selectedRowKeys.length })}</span>
           <Space>
-            <Button size="small" onClick={() => { assignForm.resetFields(); setAssignModal(true) }}>批量分配</Button>
-            <Button size="small" onClick={handleBatchConvert}>批量转化</Button>
-            <Button size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>批量删除</Button>
-            <Button size="small" onClick={() => setSelectedRowKeys([])}>取消选择</Button>
+            <Button size="small" onClick={() => { assignForm.resetFields(); setAssignModal(true) }}>{t('lead.batchAssign')}</Button>
+            <Button size="small" onClick={handleBatchConvert}>{t('lead.batchConvert')}</Button>
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>{t('common.batchDelete')}</Button>
+            <Button size="small" onClick={() => setSelectedRowKeys([])}>{t('common.cancelSelect')}</Button>
           </Space>
         </div>
       )}
@@ -266,7 +267,7 @@ export default function LeadList() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
         <div className="flex gap-3 flex-wrap items-center">
           <Input
-            placeholder="搜索线索标题..."
+            placeholder={t('lead.searchPlaceholder')}
             prefix={<SearchOutlined className="text-slate-400" />}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
@@ -276,7 +277,7 @@ export default function LeadList() {
             className="rounded-lg"
           />
           <Select
-            placeholder="状态"
+            placeholder={t('lead.status')}
             allowClear
             style={{ width: 140 }}
             value={status}
@@ -284,7 +285,7 @@ export default function LeadList() {
             options={Object.entries(statusConfig).map(([k, v]) => ({ label: v.label, value: k }))}
           />
           <Select
-            placeholder="来源"
+            placeholder={t('lead.source')}
             allowClear
             style={{ width: 140 }}
             value={source}
@@ -293,7 +294,7 @@ export default function LeadList() {
           />
           <Button onClick={doSearch}>
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
-            筛选
+            {t('common.filter')}
           </Button>
           <ColumnConfigDropdown allColumnKeys={allColumnKeys} hiddenKeys={hiddenKeys} onChange={setColumnConfig} />
           <SavedViewSelect
@@ -316,23 +317,23 @@ export default function LeadList() {
           scroll={{ x: 1050 }}
           rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
           pagination={{
-            current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
+            current: pageNo, total, pageSize: 20, showTotal: (total) => t('common.totalCount', { count: total }),
             onChange: (p) => { setPageNo(p); fetchData(p) },
           }}
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
         />
       </div>
 
-      <Modal title="批量分配线索" open={assignModal} onOk={handleBatchAssign}
-        onCancel={() => setAssignModal(false)} okText="确认分配">
+      <Modal title={t('lead.batchAssign')} open={assignModal} onOk={handleBatchAssign}
+        onCancel={() => setAssignModal(false)} okText={t('common.confirm')}>
         <Form form={assignForm} layout="vertical" className="py-2">
-          <Form.Item label="分配给" name="owner_id" rules={[{ required: true, message: '请选择负责人' }]}>
-            <Select showSearch filterOption={false} placeholder="搜索用户..."
+          <Form.Item label={t('lead.batchAssignTo')} name="owner_id" rules={[{ required: true, message: t('lead.batchAssignTo') }]}>
+            <Select showSearch filterOption={false} placeholder={t('common.searchPlaceholder')}
               loading={userSelect.loading} options={userSelect.options}
               onSearch={userSelect.onSearch} onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
           </Form.Item>
         </Form>
-        <p className="text-xs text-slate-400">将选中的 {selectedRowKeys.length} 条线索分配给指定负责人</p>
+        <p className="text-xs text-slate-400">{t('lead.assignTo', { count: selectedRowKeys.length })}</p>
       </Modal>
     </div>
   )

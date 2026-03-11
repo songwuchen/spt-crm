@@ -46,3 +46,27 @@ class AiPromptTemplateUpdate(BaseModel):
     output_schema_json: Optional[dict] = None
     guardrails_json: Optional[dict] = None
     is_active: Optional[bool] = None
+
+
+# ==================== Knowledge Base ====================
+
+class KnowledgeDocCreate(BaseModel):
+    title: str
+    doc_type: str = "other"
+    content_text: str = ""
+    source_filename: Optional[str] = None
+    metadata_json: Optional[dict] = None
+
+
+class KnowledgeDocUpdate(BaseModel):
+    title: Optional[str] = None
+    doc_type: Optional[str] = None
+    content_text: Optional[str] = None
+    metadata_json: Optional[dict] = None
+    status: Optional[str] = None
+
+
+class KnowledgeSearchQuery(BaseModel):
+    query: str
+    doc_type: Optional[str] = None
+    top_k: int = 5

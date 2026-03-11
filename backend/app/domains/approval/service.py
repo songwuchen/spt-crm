@@ -673,34 +673,57 @@ async def bulk_decide(db: AsyncSession, tenant_id: str, task_ids: list[str], act
 
 
 async def get_statistics(db: AsyncSession, tenant_id: str, date_from: str | None = None, date_to: str | None = None) -> dict:
-    """Get approval statistics for the tenant."""
-    base = select(ApprovalFlow).where(ApprovalFlow.tenant_id == tenant_id)
+    """Get approval statistics for the tenant using SQL aggregation."""
+    from sqlalchemy import extract, case
+
+    # Build shared WHERE conditions
+    conditions = [ApprovalFlow.tenant_id == tenant_id]
     if date_from:
-        base = base.where(ApprovalFlow.created_at >= date_from)
+        conditions.append(ApprovalFlow.created_at >= date_from)
     if date_to:
-        base = base.where(ApprovalFlow.created_at <= date_to)
+        conditions.append(ApprovalFlow.created_at <= date_to)
 
-    flows = (await db.execute(base)).scalars().all()
-    total = len(flows)
+    # 1. Total count
+    total_q = select(func.count(ApprovalFlow.id)).where(*conditions)
+    total = (await db.execute(total_q)).scalar() or 0
 
-    status_breakdown = {}
-    by_biz_type = {}
-    approved_hours = []
+    # 2. Status breakdown via GROUP BY
+    status_q = select(
+        ApprovalFlow.status,
+        func.count(ApprovalFlow.id),
+    ).where(*conditions).group_by(ApprovalFlow.status)
+    status_rows = (await db.execute(status_q)).all()
+    status_breakdown = {row[0]: row[1] for row in status_rows}
 
-    for f in flows:
-        status_breakdown[f.status] = status_breakdown.get(f.status, 0) + 1
-        by_biz_type[f.biz_type] = by_biz_type.get(f.biz_type, 0) + 1
-        if f.status == "approved" and f.created_at and f.updated_at:
-            hours = (f.updated_at - f.created_at).total_seconds() / 3600
-            approved_hours.append(hours)
+    # 3. By biz_type via GROUP BY
+    biz_q = select(
+        ApprovalFlow.biz_type,
+        func.count(ApprovalFlow.id),
+    ).where(*conditions).group_by(ApprovalFlow.biz_type)
+    biz_rows = (await db.execute(biz_q)).all()
+    by_biz_type = {row[0]: row[1] for row in biz_rows}
 
-    avg_hours = round(sum(approved_hours) / len(approved_hours), 1) if approved_hours else 0
+    # 4. Average approval hours via SQL AVG on approved flows
+    avg_q = select(
+        func.avg(
+            extract("epoch", ApprovalFlow.updated_at - ApprovalFlow.created_at) / 3600
+        )
+    ).where(
+        *conditions,
+        ApprovalFlow.status == "approved",
+        ApprovalFlow.created_at.isnot(None),
+        ApprovalFlow.updated_at.isnot(None),
+    )
+    avg_hours_raw = (await db.execute(avg_q)).scalar()
+    avg_hours = round(float(avg_hours_raw), 1) if avg_hours_raw else 0
+
+    # 5. Approval rate
     approved_count = status_breakdown.get("approved", 0)
     rejected_count = status_breakdown.get("rejected", 0)
     decided_total = approved_count + rejected_count
     approval_rate = round(approved_count / decided_total, 2) if decided_total > 0 else 0
 
-    # SLA compliance
+    # 6. SLA compliance via SQL
     from app.domains.admin.models import ApprovalPolicy
     policies = (await db.execute(
         select(ApprovalPolicy).where(ApprovalPolicy.tenant_id == tenant_id, ApprovalPolicy.enabled == True)
@@ -709,15 +732,35 @@ async def get_statistics(db: AsyncSession, tenant_id: str, date_from: str | None
 
     sla_total = 0
     sla_compliant = 0
-    for f in flows:
-        if f.status in ("approved", "rejected") and f.biz_type in sla_map and f.created_at and f.updated_at:
-            sla_total += 1
-            hours = (f.updated_at - f.created_at).total_seconds() / 3600
-            if hours <= sla_map[f.biz_type]:
-                sla_compliant += 1
+    if sla_map:
+        # Count decided flows that have an SLA policy, and check compliance
+        sla_conditions = [
+            *conditions,
+            ApprovalFlow.status.in_(["approved", "rejected"]),
+            ApprovalFlow.biz_type.in_(list(sla_map.keys())),
+            ApprovalFlow.created_at.isnot(None),
+            ApprovalFlow.updated_at.isnot(None),
+        ]
+        # Total SLA-applicable flows
+        sla_total_q = select(func.count(ApprovalFlow.id)).where(*sla_conditions)
+        sla_total = (await db.execute(sla_total_q)).scalar() or 0
+
+        if sla_total > 0:
+            # Build CASE expression for compliance: compliant if hours <= sla for that biz_type
+            hours_expr = extract("epoch", ApprovalFlow.updated_at - ApprovalFlow.created_at) / 3600
+            compliant_whens = [
+                (ApprovalFlow.biz_type == biz_type, hours_expr <= sla_hours)
+                for biz_type, sla_hours in sla_map.items()
+            ]
+            compliant_case = case(*compliant_whens, else_=False)
+            sla_compliant_q = select(
+                func.count(ApprovalFlow.id)
+            ).where(*sla_conditions, compliant_case)
+            sla_compliant = (await db.execute(sla_compliant_q)).scalar() or 0
+
     sla_rate = round(sla_compliant / sla_total, 2) if sla_total > 0 else 1.0
 
-    # Top approvers
+    # 7. Top approvers via GROUP BY (already uses SQL)
     task_base = select(
         ApprovalTask.assignee_name,
         func.count(ApprovalTask.id).label("cnt"),
@@ -810,13 +853,28 @@ async def check_sla_overdue(db: AsyncSession, tenant_id: str) -> int:
     if not policies:
         return 0
 
+    # Only fetch flows whose biz_type has an SLA policy
     pending_flows = await db.execute(
         select(ApprovalFlow).where(
             ApprovalFlow.tenant_id == tenant_id,
             ApprovalFlow.status == "pending",
+            ApprovalFlow.biz_type.in_(list(policies.keys())),
         )
     )
     flows = pending_flows.scalars().all()
+
+    # Batch-load all pending tasks for these flows in a single query (fix N+1)
+    flow_ids = [f.id for f in flows]
+    tasks_by_flow: dict[str, list[ApprovalTask]] = {}
+    if flow_ids:
+        all_tasks_result = await db.execute(
+            select(ApprovalTask).where(
+                ApprovalTask.tenant_id == tenant_id,
+                ApprovalTask.flow_id.in_(flow_ids),
+            ).order_by(ApprovalTask.node_order)
+        )
+        for t in all_tasks_result.scalars().all():
+            tasks_by_flow.setdefault(t.flow_id, []).append(t)
 
     notified = 0
     now = datetime.now(timezone.utc)
@@ -832,8 +890,8 @@ async def check_sla_overdue(db: AsyncSession, tenant_id: str) -> int:
         if elapsed_hours <= policy.sla_hours:
             continue
 
-        tasks = await get_flow_tasks(db, tenant_id, flow.id)
-        pending_task = next((t for t in tasks if t.status == "pending"), None)
+        flow_tasks = tasks_by_flow.get(flow.id, [])
+        pending_task = next((t for t in flow_tasks if t.status == "pending"), None)
         if not pending_task:
             continue
 
@@ -873,9 +931,8 @@ async def check_sla_overdue(db: AsyncSession, tenant_id: str) -> int:
                         pending_task.status = "approved"
                         pending_task.comment = f"SLA超时自动通过（{int(elapsed_hours)}小时）"
                         pending_task.decided_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
-                        # Check if all tasks done
-                        all_tasks = await get_flow_tasks(db, tenant_id, flow.id)
-                        all_approved = all(t.status == "approved" for t in all_tasks)
+                        # Check if all tasks done (use batch-loaded tasks)
+                        all_approved = all(t.status == "approved" for t in flow_tasks)
                         if all_approved:
                             flow.status = "approved"
                             await _on_approval_completed(db, tenant_id, flow)

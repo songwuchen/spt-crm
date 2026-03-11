@@ -36,6 +36,7 @@ const AnalyticsPage = lazy(() => import('@/pages/analytics/AnalyticsPage'))
 const SalesTargetPage = lazy(() => import('@/pages/analytics/SalesTargetPage'))
 const ApprovalCenter = lazy(() => import('@/pages/approval/ApprovalCenter'))
 const AiCenterPage = lazy(() => import('@/pages/ai/AiCenterPage'))
+const KnowledgeBasePage = lazy(() => import('@/pages/ai/KnowledgeBasePage'))
 const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'))
 const MobileWorkbench = lazy(() => import('@/pages/mobile/MobileWorkbench'))
 const MobileCustomers = lazy(() => import('@/pages/mobile/MobileCustomers'))
@@ -132,6 +133,7 @@ export const router = createBrowserRouter([
       { path: 'milestones', element: <Guard permission="delivery:view"><MilestoneList /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },
       { path: 'ai-center', element: <Guard permission="project:view"><AiCenterPage /></Guard> },
+      { path: 'knowledge-base', element: <Guard permission="project:view"><KnowledgeBasePage /></Guard> },
       { path: 'notifications', element: <Lazy><NotificationCenter /></Lazy> },
       { path: 'profile', element: <Lazy><ProfilePage /></Lazy> },
       { path: 'admin/departments', element: <Guard permission="dept:view"><DepartmentPage /></Guard> },

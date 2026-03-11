@@ -501,8 +501,14 @@ export default function SettingsPage() {
                   { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => (
                     <Tag color={v === 'active' ? 'green' : 'default'}>{v === 'active' ? '启用' : '停用'}</Tag>
                   )},
-                  { title: '', width: 120, render: (_: unknown, r: Integration) => (
+                  { title: '', width: 180, render: (_: unknown, r: Integration) => (
                     <Space size="middle">
+                      <a className="text-emerald-600 text-xs font-bold" onClick={async () => {
+                        try {
+                          const res = await settingsApi.testIntegration(r.id) as { data: { connected: boolean; error?: string } }
+                          if (res.data?.connected) { message.success('连接成功') } else { message.warning(`连接失败: ${res.data?.error || '无法连接'}`) }
+                        } catch { message.error('测试连接失败') }
+                      }}>测试</a>
                       <a className="text-primary text-xs font-bold" onClick={() => {
                         setIntEditingId(r.id)
                         setIntForm({

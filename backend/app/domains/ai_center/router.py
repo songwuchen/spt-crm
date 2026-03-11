@@ -8,7 +8,9 @@ from app.domains.ai_center import service
 from app.domains.ai_center.schemas import (
     AiTaskCreate, AiTaskUpdate, AiResultCreate,
     AiPromptTemplateCreate, AiPromptTemplateUpdate,
+    KnowledgeDocCreate, KnowledgeDocUpdate, KnowledgeSearchQuery,
 )
+from app.domains.ai_center import knowledge_service
 
 router = APIRouter(tags=["AI中心"])
 
@@ -448,3 +450,96 @@ async def find_similar(
         from app.common.exceptions import BusinessException
         raise BusinessException(code=50000, message=f"相似商机分析失败: {str(e)}")
     return ok(result or {"similar_projects": [], "insights": ""})
+
+
+# ==================== Knowledge Base ====================
+
+def _doc_dict(d) -> dict:
+    return {
+        "id": d.id, "title": d.title, "doc_type": d.doc_type,
+        "source_filename": d.source_filename,
+        "chunk_count": d.chunk_count, "status": d.status,
+        "metadata_json": d.metadata_json,
+        "created_by_name": d.created_by_name,
+        "created_at": d.created_at.isoformat() if d.created_at else "",
+        "updated_at": d.updated_at.isoformat() if d.updated_at else "",
+    }
+
+
+@router.get("/api/v1/ai/knowledge/documents")
+async def list_knowledge_docs(
+    doc_type: str | None = Query(None),
+    keyword: str | None = Query(None),
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:view")),
+):
+    items, total = await knowledge_service.list_documents(
+        db, tenant_id, doc_type=doc_type, keyword=keyword, page=pageNo, page_size=pageSize,
+    )
+    return ok({"items": [_doc_dict(d) for d in items], "total": total})
+
+
+@router.get("/api/v1/ai/knowledge/documents/{doc_id}")
+async def get_knowledge_doc(
+    doc_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:view")),
+):
+    doc = await knowledge_service.get_document(db, tenant_id, doc_id)
+    data = _doc_dict(doc)
+    data["content_text"] = doc.content_text
+    return ok(data)
+
+
+@router.post("/api/v1/ai/knowledge/documents")
+async def create_knowledge_doc(
+    body: KnowledgeDocCreate,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("project:edit")),
+):
+    doc = await knowledge_service.create_document(
+        db, tenant_id, body.model_dump(), current_user,
+    )
+    return ok(_doc_dict(doc))
+
+
+@router.put("/api/v1/ai/knowledge/documents/{doc_id}")
+async def update_knowledge_doc(
+    doc_id: str, body: KnowledgeDocUpdate,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:edit")),
+):
+    doc = await knowledge_service.update_document(
+        db, tenant_id, doc_id, body.model_dump(exclude_unset=True),
+    )
+    return ok(_doc_dict(doc))
+
+
+@router.delete("/api/v1/ai/knowledge/documents/{doc_id}")
+async def delete_knowledge_doc(
+    doc_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:edit")),
+):
+    await knowledge_service.delete_document(db, tenant_id, doc_id)
+    return ok(None)
+
+
+@router.post("/api/v1/ai/knowledge/search")
+async def search_knowledge(
+    body: KnowledgeSearchQuery,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:view")),
+):
+    chunks = await knowledge_service.search_chunks(
+        db, tenant_id, body.query, doc_type=body.doc_type, top_k=body.top_k,
+    )
+    return ok(chunks)

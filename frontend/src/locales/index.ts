@@ -33,15 +33,22 @@ let _listeners: Array<() => void> = []
 /**
  * Translate a dot-separated key path.
  * Returns the key itself if not found.
+ * Supports interpolation: t('key', { count: 5 }) replaces {count} in the string.
  */
-export function t(key: string): string {
+export function t(key: string, params?: Record<string, string | number>): string {
   const parts = key.split('.')
   let current: any = _currentLocale
   for (const part of parts) {
     if (current == null || typeof current !== 'object') return key
     current = current[part]
   }
-  return typeof current === 'string' ? current : key
+  let result = typeof current === 'string' ? current : key
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      result = result.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v))
+    }
+  }
+  return result
 }
 
 /**

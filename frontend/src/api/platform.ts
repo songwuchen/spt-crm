@@ -32,6 +32,23 @@ export interface AiBudget {
   hard_limit: boolean
 }
 
+export interface PlatformOverview {
+  total_tenants: number
+  active_tenants: number
+  total_users: number
+  current_period: string
+  usage_summary: Record<string, number>
+  tenant_usage: Record<string, Record<string, number>>
+}
+
+export interface UsageMeter {
+  id: string
+  tenant_id: string
+  metric_code: string
+  period: string
+  value: number
+}
+
 export const platformApi = {
   // Tenants
   listTenants: () =>
@@ -46,6 +63,12 @@ export const platformApi = {
     client.post<unknown, ApiResponse<TenantPlan>>('/api/admin/v1/platform/plans', data),
   updatePlan: (id: string, data: Record<string, unknown>) =>
     client.put<unknown, ApiResponse<TenantPlan>>(`/api/admin/v1/platform/plans/${id}`, data),
+
+  // Platform Overview & Usage
+  getOverview: () =>
+    client.get<unknown, ApiResponse<PlatformOverview>>('/api/admin/v1/platform/overview'),
+  listUsage: (params?: { tenant_id?: string; period?: string }) =>
+    client.get<unknown, ApiResponse<UsageMeter[]>>('/api/admin/v1/platform/usage', { params }),
 
   // AI Budget
   getAiBudget: (period: string) =>
