@@ -175,6 +175,7 @@ button {
 .dark .bg-white,
 .dark .ant-table,
 .dark .ant-table-wrapper .ant-table,
+.dark .ant-table-wrapper,
 .dark .ant-modal-content,
 .dark .ant-descriptions,
 .dark .ant-form,
@@ -193,9 +194,100 @@ button {
 
 .dark .ant-table-tbody > tr > td {
   border-color: #334155 !important;
+  background: #1e293b !important;
 }
 
-.dark .ant-table-row:hover > td {
+.dark .ant-table-tbody > tr.ant-table-row:hover > td {
+  background: #334155 !important;
+}
+
+.dark .ant-table-cell-fix-left,
+.dark .ant-table-cell-fix-right {
+  background: #1e293b !important;
+}
+
+/* Table container & empty state */
+.dark .ant-table-container,
+.dark .ant-table-content,
+.dark .ant-table-body,
+.dark .ant-table-placeholder {
+  background: #1e293b !important;
+}
+
+.dark .ant-table-placeholder .ant-table-cell {
+  background: #1e293b !important;
+}
+
+/* Alert */
+.dark .ant-alert {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .ant-alert-message,
+.dark .ant-alert-description {
+  color: #e2e8f0 !important;
+}
+
+/* Pagination */
+.dark .ant-pagination-item {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+.dark .ant-pagination-item-active {
+  border-color: #137fec !important;
+}
+
+.dark .ant-pagination-options .ant-select-selector {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+.dark .ant-pagination-prev .ant-pagination-item-link,
+.dark .ant-pagination-next .ant-pagination-item-link {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+/* Breadcrumb */
+.dark .ant-breadcrumb-link,
+.dark .ant-breadcrumb-link a,
+.dark .ant-breadcrumb-separator {
+  color: #64748b !important;
+}
+
+/* Tag */
+.dark .ant-tag {
+  background: #334155 !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+
+/* Dropdown / Popover */
+.dark .ant-dropdown-menu,
+.dark .ant-popover-inner {
+  background: #1e293b !important;
+}
+
+.dark .ant-dropdown-menu-item {
+  color: #e2e8f0 !important;
+}
+
+.dark .ant-dropdown-menu-item:hover {
+  background: #334155 !important;
+}
+
+/* Checkbox */
+.dark .ant-checkbox-inner {
+  background: #334155 !important;
+  border-color: #475569 !important;
+}
+
+/* Tooltip */
+.dark .ant-tooltip-inner {
   background: #334155 !important;
 }
 
