@@ -32,8 +32,11 @@ export default function Login() {
       setAuth(res.data.access_token, res.data.refresh_token)
       message.success('登录成功')
       navigate('/')
-    } catch {
-      // Error handled by interceptor
+    } catch (err: unknown) {
+      // Interceptor shows message.error for business errors;
+      // catch here in case interceptor didn't display (e.g. network error)
+      const msg = err instanceof Error ? err.message : '登录失败'
+      if (!msg.includes('请求失败')) message.error(msg)
     } finally {
       setLoading(false)
     }

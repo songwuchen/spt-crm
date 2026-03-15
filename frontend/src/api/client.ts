@@ -74,7 +74,7 @@ client.interceptors.response.use(
         }
       }
 
-      if (data.code === 40100) {
+      if (data.code === 40100 && !response.config.url?.includes('/auth/login')) {
         clearAuthAndRedirect()
       }
 
@@ -127,7 +127,7 @@ client.interceptors.response.use(
       }
     }
 
-    if (code === 40100 || error.response?.status === 401) {
+    if ((code === 40100 || error.response?.status === 401) && !error.config?.url?.includes('/auth/login')) {
       clearAuthAndRedirect()
     }
 
