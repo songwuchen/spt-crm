@@ -710,7 +710,8 @@ async def customer_health(
     activity_count = (await db.execute(
         select(func.count()).where(
             Activity.tenant_id == tenant_id,
-            Activity.customer_id == customer_id,
+            Activity.biz_type == "customer",
+            Activity.biz_id == customer_id,
             Activity.created_at >= d90,
         )
     )).scalar_one() or 0
