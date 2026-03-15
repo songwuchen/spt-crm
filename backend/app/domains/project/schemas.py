@@ -1,4 +1,5 @@
 from typing import Optional, List
+from datetime import date
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -8,7 +9,7 @@ class ProjectCreate(BaseModel):
     stage_code: Optional[str] = "S1"
     amount_expect: Optional[float] = Field(None, ge=0)
     probability: Optional[int] = Field(None, ge=0, le=100)
-    close_date_expect: Optional[str] = None
+    close_date_expect: Optional[date] = None
     competitors_json: Optional[dict] = None
     key_requirements_json: Optional[dict] = None
     risk_level: Optional[str] = None
@@ -27,7 +28,7 @@ class ProjectUpdate(BaseModel):
     customer_id: Optional[str] = None
     amount_expect: Optional[float] = Field(None, ge=0)
     probability: Optional[int] = Field(None, ge=0, le=100)
-    close_date_expect: Optional[str] = None
+    close_date_expect: Optional[date] = None
     competitors_json: Optional[dict] = None
     key_requirements_json: Optional[dict] = None
     risk_level: Optional[str] = None
