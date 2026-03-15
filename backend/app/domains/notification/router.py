@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_tenant_id, require_permissions
+from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions
 from app.common.schemas import ok
 from app.domains.notification import service
 from app.domains.notification.schemas import MarkReadRequest, UpdatePreferencesRequest, NotificationTemplateCreate, NotificationTemplateUpdate, DataSubscriptionCreate
@@ -28,7 +28,7 @@ async def list_notifications(
     unread_only: bool = Query(False),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("notification:view")),
+    current_user: dict = Depends(get_current_user),
 ):
     items = await service.list_notifications(db, tenant_id, current_user["sub"], unread_only)
     return ok([_notif_dict(n) for n in items])
@@ -38,7 +38,7 @@ async def list_notifications(
 async def unread_count(
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("notification:view")),
+    current_user: dict = Depends(get_current_user),
 ):
     count = await service.count_unread(db, tenant_id, current_user["sub"])
     return ok({"count": count})
@@ -49,7 +49,7 @@ async def mark_read(
     body: MarkReadRequest,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("notification:manage")),
+    current_user: dict = Depends(get_current_user),
 ):
     await service.mark_read(db, tenant_id, current_user["sub"], body.ids)
     return ok(None)
@@ -59,7 +59,7 @@ async def mark_read(
 async def mark_all_read(
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("notification:manage")),
+    current_user: dict = Depends(get_current_user),
 ):
     await service.mark_all_read(db, tenant_id, current_user["sub"])
     return ok(None)
@@ -70,7 +70,7 @@ async def delete_notification(
     notification_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("notification:manage")),
+    current_user: dict = Depends(get_current_user),
 ):
     await service.delete_notification(db, tenant_id, current_user["sub"], notification_id)
     return ok(None)
@@ -81,7 +81,7 @@ async def batch_delete(
     body: MarkReadRequest,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("notification:manage")),
+    current_user: dict = Depends(get_current_user),
 ):
     count = await service.batch_delete(db, tenant_id, current_user["sub"], body.ids)
     return ok({"deleted": count})
@@ -105,7 +105,7 @@ NOTIFICATION_TYPES = [
 async def get_preferences(
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("notification:view")),
+    current_user: dict = Depends(get_current_user),
 ):
     from sqlalchemy import select
     from app.domains.notification.models import NotificationPreference
@@ -124,7 +124,7 @@ async def update_preferences(
     body: UpdatePreferencesRequest,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("notification:manage")),
+    current_user: dict = Depends(get_current_user),
 ):
     from sqlalchemy import select
     from app.domains.notification.models import NotificationPreference
@@ -264,7 +264,7 @@ async def list_subscriptions(
     biz_id: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("notification:view")),
+    current_user: dict = Depends(get_current_user),
 ):
     """List current user's subscriptions, optionally filtered by biz_type/biz_id."""
     from sqlalchemy import select
@@ -291,7 +291,7 @@ async def create_subscription(
     body: DataSubscriptionCreate,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("notification:manage")),
+    current_user: dict = Depends(get_current_user),
 ):
     """Subscribe to changes on a business entity."""
     from sqlalchemy import select
@@ -329,7 +329,7 @@ async def delete_subscription(
     subscription_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("notification:manage")),
+    current_user: dict = Depends(get_current_user),
 ):
     from sqlalchemy import select
     from app.domains.notification.models import DataSubscription
