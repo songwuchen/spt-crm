@@ -62,29 +62,6 @@ async def create_customer(
     return ok(_customer_dict(c))
 
 
-@router.get("/{customer_id}")
-async def get_customer(
-    customer_id: str,
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("customer:view")),
-):
-    c = await service.get_customer(db, tenant_id, customer_id)
-    return ok(_customer_dict(c))
-
-
-@router.put("/{customer_id}")
-async def update_customer(
-    customer_id: str,
-    body: CustomerUpdate,
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("customer:edit")),
-):
-    c = await service.update_customer(db, tenant_id, customer_id, body, current_user)
-    return ok(_customer_dict(c))
-
-
 @router.get("/export/excel")
 async def export_customers_excel(
     keyword: str = Query(None),
@@ -880,3 +857,28 @@ async def batch_message(
                      resource_type="customer", detail=f"channel={body.channel}, sent={sent}, failed={failed}")
 
     return ok({"sent": sent, "failed": failed, "results": results})
+
+
+# ---- Single customer CRUD (must be AFTER all fixed-path routes to avoid /{customer_id} swallowing /pool etc.) ----
+
+@router.get("/{customer_id}")
+async def get_customer(
+    customer_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    c = await service.get_customer(db, tenant_id, customer_id)
+    return ok(_customer_dict(c))
+
+
+@router.put("/{customer_id}")
+async def update_customer(
+    customer_id: str,
+    body: CustomerUpdate,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("customer:edit")),
+):
+    c = await service.update_customer(db, tenant_id, customer_id, body, current_user)
+    return ok(_customer_dict(c))
