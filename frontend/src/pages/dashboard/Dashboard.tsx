@@ -471,40 +471,40 @@ export default function Dashboard() {
             if (!myOv) return null
             return (
               <div key={cardKey} {...dragProps} className={`mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
-                <div className="bg-gradient-to-r from-primary/5 to-blue-50 rounded-xl border border-primary/10 p-6">
+                <div className="bg-gradient-to-r from-primary/5 to-blue-50 dark:from-slate-800 dark:to-slate-800 rounded-xl border border-primary/10 dark:border-slate-700 p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <span className="material-symbols-outlined text-primary">person</span>
-                    <h3 className="text-sm font-bold text-slate-900">我的概览</h3>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">我的概览</h3>
                     <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <div className="text-center">
                       <div className="text-2xl font-black text-slate-900">{myOv.my_customer_count}</div>
-                      <div className="text-xs text-slate-500 mt-1">我的客户</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">我的客户</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-black text-slate-900">{myOv.my_active_projects}</div>
-                      <div className="text-xs text-slate-500 mt-1">进行中商机</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">进行中商机</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-black text-primary">{myOv.my_pipeline > 0 ? `¥${(myOv.my_pipeline / 10000).toFixed(1)}万` : '¥0'}</div>
-                      <div className="text-xs text-slate-500 mt-1">我的管线</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">我的管线</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-black text-emerald-600">{myOv.my_won_month}</div>
-                      <div className="text-xs text-slate-500 mt-1">本月赢单</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">本月赢单</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-black text-amber-600">{myOv.my_pending_leads}</div>
-                      <div className="text-xs text-slate-500 mt-1">待跟进线索</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">待跟进线索</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-black text-red-500">{myOv.my_open_tickets}</div>
-                      <div className="text-xs text-slate-500 mt-1">处理中工单</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">处理中工单</div>
                     </div>
                   </div>
                   {(myOv.stalled_projects.length > 0 || myOv.expiring_contracts.length > 0) && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-primary/10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-primary/10 dark:border-slate-700">
                       {myOv.stalled_projects.length > 0 && (
                         <div>
                           <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">待跟进商机</div>
@@ -512,7 +512,7 @@ export default function Dashboard() {
                             {myOv.stalled_projects.map((p) => (
                               <div key={p.id} role="button" tabIndex={0} onClick={() => navigate(`/opportunities/${p.id}`)}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/opportunities/${p.id}`) } }}
-                                className="flex items-center gap-2 p-2 rounded-lg bg-white/70 border border-amber-100 cursor-pointer hover:shadow-sm transition-shadow">
+                                className="flex items-center gap-2 p-2 rounded-lg bg-white/70 dark:bg-slate-700/50 border border-amber-100 dark:border-slate-600 cursor-pointer hover:shadow-sm transition-shadow">
                                 <span className="material-symbols-outlined text-amber-500 text-base">schedule</span>
                                 <span className="text-sm font-medium text-slate-800 flex-1 truncate">{p.name}</span>
                                 <span className="text-xs font-bold text-amber-600">{p.days_stalled}天未更新</span>
@@ -526,7 +526,7 @@ export default function Dashboard() {
                           <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">我的合同</div>
                           <div className="space-y-1.5">
                             {myOv.expiring_contracts.map((c) => (
-                              <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/70 border border-slate-100">
+                              <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/70 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-600">
                                 <span className="material-symbols-outlined text-blue-500 text-base">description</span>
                                 <span className="text-sm font-medium text-slate-800 flex-1 truncate">{c.contract_no}</span>
                                 <span className="text-xs text-slate-500">¥{c.amount_total?.toLocaleString()}</span>
