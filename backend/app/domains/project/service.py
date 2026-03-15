@@ -294,13 +294,20 @@ async def delete_project(db: AsyncSession, tenant_id: str, project_id: str, user
     project_name = project.name
 
     # Cascade: soft-delete related payment data
-    from sqlalchemy import update as sql_update
+    from sqlalchemy import update as sql_update, delete as sql_delete
     from app.domains.payment.models import Invoice, PaymentPlan, PaymentRecord
-    for model in (Invoice, PaymentPlan, PaymentRecord):
-        await db.execute(
-            sql_update(model).where(model.tenant_id == tenant_id, model.project_id == project_id)
-            .values(status="void" if model is Invoice else "cancelled")
-        )
+    await db.execute(
+        sql_update(Invoice).where(Invoice.tenant_id == tenant_id, Invoice.project_id == project_id)
+        .values(status="void")
+    )
+    await db.execute(
+        sql_update(PaymentPlan).where(PaymentPlan.tenant_id == tenant_id, PaymentPlan.project_id == project_id)
+        .values(status="cancelled")
+    )
+    # PaymentRecord has no status column — delete directly
+    await db.execute(
+        sql_delete(PaymentRecord).where(PaymentRecord.tenant_id == tenant_id, PaymentRecord.project_id == project_id)
+    )
 
     # Cascade: cancel pending approval flows on this project's quotes/contracts
     try:
