@@ -10,6 +10,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Reset native button border (preflight is disabled) */
+button {
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -140,6 +150,26 @@ body {
 .dark {
   background: #0f172a !important;
   color: #e2e8f0;
+}
+
+.dark .ant-layout {
+  background: #0f172a !important;
+}
+
+.dark .bg-white\/80 {
+  background: rgba(15, 23, 42, 0.8) !important;
+}
+
+.dark .bg-gray-50 {
+  background: #0f172a !important;
+}
+
+.dark .ant-layout-sider {
+  background: #0f172a !important;
+}
+
+.dark .ant-layout-content {
+  background: #0f172a !important;
 }
 
 .dark .bg-white,

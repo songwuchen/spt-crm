@@ -149,12 +149,12 @@ export default function MainLayout() {
         collapsed={sidebarCollapsed}
         width={240}
         collapsedWidth={0}
-        className={`!bg-white ${isMobile && !sidebarCollapsed ? 'fixed left-0 top-0 bottom-0 z-30' : ''}`}
+        className={`!bg-white dark:!bg-slate-950 ${isMobile && !sidebarCollapsed ? 'fixed left-0 top-0 bottom-0 z-30' : ''}`}
         style={{ overflow: 'hidden', height: '100vh' }}
       >
         <div data-tour="sidebar" style={{ height: '100%' }}><Sidebar /></div>
       </Sider>
-      <Layout className="bg-bg-light" style={{ height: '100vh', overflow: 'hidden' }}>
+      <Layout className="bg-bg-light dark:!bg-slate-900" style={{ height: '100vh', overflow: 'hidden' }}>
         {!online && (
           <div className="bg-amber-500 text-white text-xs font-bold text-center py-1 px-2 flex items-center justify-center gap-1">
             <span className="material-symbols-outlined" style={{ fontSize: 14 }}>cloud_off</span>

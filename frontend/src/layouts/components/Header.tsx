@@ -126,7 +126,7 @@ export default function Header() {
   }, [])
 
   return (
-    <div className="h-14 sm:h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 md:px-6 sticky top-0 z-10">
+    <div className="h-14 sm:h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-3 sm:px-4 md:px-6 sticky top-0 z-10">
       {/* Left: Toggle + Search */}
       <div className="flex items-center gap-4">
         <button

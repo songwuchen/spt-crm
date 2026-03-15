@@ -144,6 +144,10 @@ export default function Sidebar() {
           border-right: 1px solid #e2e8f0;
           overflow: hidden;
         }
+        .dark .sidebar-root {
+          background: #0f172a;
+          border-right-color: #1e293b;
+        }
 
         /* ── Logo ── */
         .sidebar-logo {
@@ -154,6 +158,9 @@ export default function Sidebar() {
           padding: 0 20px;
           border-bottom: 1px solid #e2e8f0;
           flex-shrink: 0;
+        }
+        .dark .sidebar-logo {
+          border-bottom-color: #1e293b;
         }
         .sidebar-logo-icon {
           width: 34px;
@@ -170,6 +177,9 @@ export default function Sidebar() {
           font-weight: 800;
           color: #0f172a;
           letter-spacing: -0.025em;
+        }
+        .dark .sidebar-logo-text {
+          color: #e2e8f0;
         }
 
         /* ── Menu ── */
@@ -190,6 +200,9 @@ export default function Sidebar() {
           text-transform: uppercase;
           letter-spacing: 0.1em;
           color: #94a3b8;
+        }
+        .dark .sidebar-group-title {
+          color: #64748b;
         }
         .sidebar-group-nav {
           display: flex;
@@ -224,9 +237,16 @@ export default function Sidebar() {
         .sidebar-item:not(.sidebar-item--active) {
           color: #475569;
         }
+        .dark .sidebar-item:not(.sidebar-item--active) {
+          color: #94a3b8;
+        }
         .sidebar-item:not(.sidebar-item--active):hover {
           background: #f1f5f9;
           color: #0f172a;
+        }
+        .dark .sidebar-item:not(.sidebar-item--active):hover {
+          background: #1e293b;
+          color: #e2e8f0;
         }
 
         /* Active state */
@@ -250,6 +270,10 @@ export default function Sidebar() {
           border: 1px solid #dbeafe;
           padding: 16px;
         }
+        .dark .sidebar-ai-panel {
+          background: #1e293b;
+          border-color: #334155;
+        }
         .sidebar-ai-header {
           display: flex;
           align-items: center;
@@ -265,6 +289,9 @@ export default function Sidebar() {
           font-weight: 700;
           color: #334155;
           letter-spacing: 0.025em;
+        }
+        .dark .sidebar-ai-title {
+          color: #94a3b8;
         }
         .sidebar-ai-desc {
           font-size: 12px;
