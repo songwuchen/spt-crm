@@ -309,15 +309,43 @@ button {
 
 .dark .ant-input,
 .dark .ant-select-selector,
-.dark .ant-picker {
+.dark .ant-picker,
+.dark .ant-input-affix-wrapper,
+.dark .ant-input-number,
+.dark .ant-input-number-input,
+.dark .ant-input-group-addon,
+.dark .ant-cascader-picker {
   background: #334155 !important;
   border-color: #475569 !important;
   color: #e2e8f0 !important;
 }
 
+.dark .ant-input-affix-wrapper .ant-input {
+  background: transparent !important;
+}
+
 .dark .ant-input::placeholder,
-.dark .ant-select-selection-placeholder {
+.dark .ant-select-selection-placeholder,
+.dark .ant-input-number-input::placeholder {
   color: #64748b !important;
+}
+
+/* Select dropdown & option */
+.dark .ant-select-dropdown {
+  background: #1e293b !important;
+}
+
+.dark .ant-select-item {
+  color: #e2e8f0 !important;
+}
+
+.dark .ant-select-item-option-active,
+.dark .ant-select-item-option-selected {
+  background: #334155 !important;
+}
+
+.dark .ant-select-item-option-selected {
+  font-weight: 600;
 }
 
 .dark .ant-modal-header {
