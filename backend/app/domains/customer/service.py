@@ -57,9 +57,18 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
     dump = data.model_dump()
     if not dump.get("customer_code"):
         dump["customer_code"] = await generate_code(db, tenant_id, "customer")
+    # Resolve owner_name from owner_id if provided
+    owner_id = dump.pop("owner_id", None)
+    owner_name = None
+    if owner_id:
+        from app.domains.admin.models import User
+        owner = (await db.execute(
+            select(User).where(User.id == owner_id, User.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        owner_name = owner.real_name or owner.username if owner else None
     customer = Customer(
         id=generate_uuid(), tenant_id=tenant_id,
-        owner_id=user["sub"], owner_name=user.get("real_name") or user.get("username"),
+        owner_id=owner_id, owner_name=owner_name,
         **dump,
     )
     db.add(customer)
@@ -74,8 +83,20 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
 
 async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, data: CustomerUpdate, user: dict) -> Customer:
     customer = await get_customer(db, tenant_id, customer_id)
+    update_data = data.model_dump(exclude_unset=True)
+    # Resolve owner_name when owner_id changes
+    if "owner_id" in update_data:
+        new_owner_id = update_data["owner_id"]
+        if new_owner_id:
+            from app.domains.admin.models import User
+            owner = (await db.execute(
+                select(User).where(User.id == new_owner_id, User.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            update_data["owner_name"] = owner.real_name or owner.username if owner else None
+        else:
+            update_data["owner_name"] = None
     changes = {}
-    for field, val in data.model_dump(exclude_unset=True).items():
+    for field, val in update_data.items():
         old_val = getattr(customer, field, None)
         if old_val != val:
             changes[field] = {"old": old_val, "new": val}

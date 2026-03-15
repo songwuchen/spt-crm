@@ -71,5 +71,12 @@ export function useRemoteSelect(
     }
   }, [])
 
-  return { options, loading, onSearch, onDropdownVisibleChange }
+  const setInitialOption = useCallback((opt: Option) => {
+    setOptions((prev) => {
+      if (prev.some((o) => o.value === opt.value)) return prev
+      return [opt, ...prev]
+    })
+  }, [])
+
+  return { options, loading, onSearch, onDropdownVisibleChange, setInitialOption }
 }

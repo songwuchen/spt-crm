@@ -53,7 +53,13 @@ export default function CustomerForm() {
 
   useEffect(() => {
     if (id) {
-      customerApi.get(id).then((res) => form.setFieldsValue(res.data)).catch(() => message.error('加载客户数据失败'))
+      customerApi.get(id).then((res) => {
+        form.setFieldsValue(res.data)
+        // Seed owner option so Select shows name instead of raw ID
+        if (res.data.owner_id && res.data.owner_name) {
+          userSelect.setInitialOption({ label: res.data.owner_name, value: res.data.owner_id })
+        }
+      }).catch(() => message.error('加载客户数据失败'))
     } else {
       const restored = restoreDraft()
       if (restored) message.info('已恢复上次未保存的草稿')

@@ -13,6 +13,7 @@ class CustomerCreate(BaseModel):
     website: Optional[str] = Field(None, max_length=500)
     source: Optional[str] = None
     level: Optional[str] = None
+    owner_id: Optional[str] = None
     tags_json: Optional[dict] = None
     remark: Optional[str] = Field(None, max_length=2000)
 
@@ -36,6 +37,7 @@ class CustomerUpdate(BaseModel):
     source: Optional[str] = None
     level: Optional[str] = None
     status: Optional[str] = None
+    owner_id: Optional[str] = None
     tags_json: Optional[dict] = None
     remark: Optional[str] = Field(None, max_length=2000)
 
