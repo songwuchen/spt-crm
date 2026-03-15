@@ -3,10 +3,9 @@ import { Table, Select, Input, Tag, Modal, DatePicker, message } from 'antd'
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { activityApi } from '@/api/activity'
-import { customerApi } from '@/api/customer'
+import { useCustomerSelect } from '@/hooks/useSelectOptions'
 import type { ActivityItem } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import dayjs from 'dayjs'
 
 const { TextArea } = Input
@@ -53,10 +52,7 @@ export default function FollowUpPage() {
     activity_type: 'call',
   })
 
-  const customerSelect = useRemoteSelect(async (kw) => {
-    const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((c: any) => ({ label: c.name, value: c.id }))
-  })
+  const customerSelect = useCustomerSelect()
 
   const fetchData = async (page = pageNo, bt = filterBizType, at = filterActivityType, kw = keyword) => {
     setLoading(true)

@@ -115,3 +115,20 @@ class ContactOut(BaseModel):
     remark: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class RelationCreate(BaseModel):
+    to_customer_id: str
+    relation_type: str
+    note: Optional[str] = None
+
+
+class ShareCreate(BaseModel):
+    shared_to_type: str = "user"
+    shared_to_id: str
+    shared_to_name: Optional[str] = None
+    permission: str = "view"
+
+
+class BatchReleaseRequest(BaseModel):
+    customer_ids: List[str]

@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react'
 import { Button, Table, Tag, Modal, Form, Input, Select, DatePicker, Space, Checkbox, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, CheckOutlined, UserSwitchOutlined } from '@ant-design/icons'
 import { taskApi } from '@/api/task'
-import { userApi } from '@/api/user'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import dayjs from 'dayjs'
 
 interface TaskItem {
@@ -41,10 +40,7 @@ export default function TaskPage() {
   const [form] = Form.useForm()
   const [assignForm] = Form.useForm()
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   const fetch = async (p = page) => {
     setLoading(true)

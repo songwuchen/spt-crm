@@ -19,11 +19,11 @@ import ActivityTimeline from '@/components/ActivityTimeline'
 import MilestoneGantt from '@/components/MilestoneGantt'
 import PaymentChart from '@/components/PaymentChart'
 import PaymentGantt from '@/components/PaymentGantt'
-import { userApi, roleApi } from '@/api/user'
+import { roleApi } from '@/api/user'
 import type { OpportunityProject, ProjectStageHistory, QuoteItem, ContractItem, SolutionItem, DeliveryMilestone, ErpOrderLink, PaymentPlanItem, PaymentRecordItem, InvoiceItem, ChangeRequestItem, Customer, AclShareItem } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import InternalNotes from '@/components/InternalNotes'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
@@ -56,10 +56,7 @@ export default function OpportunityDetail() {
   const [shareForm] = Form.useForm()
   const [shareRoleList, setShareRoleList] = useState<{ id: string; name: string }[]>([])
 
-  const shareUserSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const shareUserSelect = useUserSelect()
 
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [advanceModal, setAdvanceModal] = useState(false)
@@ -113,33 +110,39 @@ export default function OpportunityDetail() {
   const [similarInsights, setSimilarInsights] = useState('')
   const [similarLoading, setSimilarLoading] = useState(false)
 
-  const fetchAll = async () => {
+  const fetchAll = async (signal?: AbortSignal) => {
     if (!id) return
     try {
       const pRes = await projectApi.get(id)
+      if (signal?.aborted) return
       setProject(pRes.data)
       if (pRes.data.customer_id) {
-        customerApi.get(pRes.data.customer_id).then((r) => setCustomer(r.data)).catch(() => {})
+        customerApi.get(pRes.data.customer_id).then((r) => { if (!signal?.aborted) setCustomer(r.data) }).catch(() => {})
       }
     } catch {
-      message.error('加载商机数据失败')
+      if (!signal?.aborted) message.error('加载商机数据失败')
       return
     }
-    projectApi.stageHistory(id).then((r) => setHistory(r.data)).catch(() => {})
-    quoteApi.listByProject(id).then((r) => setQuotes(r.data)).catch(() => {})
-    contractApi.listByProject(id).then((r) => setContracts(r.data)).catch(() => {})
-    solutionApi.listByProject(id).then((r) => setSolutions(r.data)).catch(() => {})
-    deliveryApi.listMilestones(id).then((r) => setMilestones(r.data)).catch(() => {})
-    paymentApi.listInvoices(id).then((r) => setInvoices(r.data)).catch(() => {})
-    paymentApi.listPlans(id).then((r) => setPlans(r.data)).catch(() => {})
-    paymentApi.listRecords(id).then((r) => setRecords(r.data)).catch(() => {})
-    changeApi.listByProject(id).then((r) => setChangeRequests(r.data)).catch(() => {})
-    deliveryApi.listOrderLinks(id).then((r) => setOrderLinks(r.data)).catch(() => {})
-    projectApi.health(id).then((r) => setHealthScore(r.data)).catch(() => {})
-    projectApi.listShares(id).then((r) => setShares(r.data)).catch(() => {})
+    const guard = (fn: (v: any) => void) => (r: any) => { if (!signal?.aborted) fn(r.data) }
+    projectApi.stageHistory(id).then(guard(setHistory)).catch(() => {})
+    quoteApi.listByProject(id).then(guard(setQuotes)).catch(() => {})
+    contractApi.listByProject(id).then(guard(setContracts)).catch(() => {})
+    solutionApi.listByProject(id).then(guard(setSolutions)).catch(() => {})
+    deliveryApi.listMilestones(id).then(guard(setMilestones)).catch(() => {})
+    paymentApi.listInvoices(id).then(guard(setInvoices)).catch(() => {})
+    paymentApi.listPlans(id).then(guard(setPlans)).catch(() => {})
+    paymentApi.listRecords(id).then(guard(setRecords)).catch(() => {})
+    changeApi.listByProject(id).then(guard(setChangeRequests)).catch(() => {})
+    deliveryApi.listOrderLinks(id).then(guard(setOrderLinks)).catch(() => {})
+    projectApi.health(id).then(guard(setHealthScore)).catch(() => {})
+    projectApi.listShares(id).then(guard(setShares)).catch(() => {})
   }
 
-  useEffect(() => { fetchAll() }, [id])
+  useEffect(() => {
+    const ac = new AbortController()
+    fetchAll(ac.signal)
+    return () => ac.abort()
+  }, [id])
 
   const handleAiAnalysis = async () => {
     setAiLoading(true)

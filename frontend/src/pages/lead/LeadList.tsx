@@ -4,13 +4,12 @@ import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteO
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
-import { userApi } from '@/api/user'
 import type { Lead } from '@/api/types'
 import { sourceLabels } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { leadStatusConfig as statusConfig } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
@@ -68,10 +67,7 @@ export default function LeadList() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [assignModal, setAssignModal] = useState(false)
   const [assignForm] = Form.useForm()
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   const handleBatchAssign = async () => {
     const values = await assignForm.validateFields()

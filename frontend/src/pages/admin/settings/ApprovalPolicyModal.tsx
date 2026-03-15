@@ -106,13 +106,13 @@ function approversToJson(rows: ApproverRow[]): unknown[] | null {
 
 function jsonToApprovers(json: unknown): ApproverRow[] {
   if (!Array.isArray(json)) return []
-  return json.map((item: Record<string, string>) => ({
+  return json.map((item: { type?: string; value?: string }) => ({
     type: item.type || '',
     value: item.value || '',
   }))
 }
 
-function escalationToJson(rows: EscalationRow[]): unknown[] | null {
+function escalationToJson(rows: EscalationRow[]): EscalationRow[] | null {
   const arr = rows.filter(r => r.after_hours !== undefined && r.action)
     .map(r => ({ after_hours: r.after_hours, action: r.action }))
   return arr.length > 0 ? arr : null
@@ -120,9 +120,9 @@ function escalationToJson(rows: EscalationRow[]): unknown[] | null {
 
 function jsonToEscalation(json: unknown): EscalationRow[] {
   if (!Array.isArray(json)) return []
-  return json.map((item: Record<string, unknown>) => ({
+  return json.map((item: { after_hours?: number; action?: string }) => ({
     after_hours: typeof item.after_hours === 'number' ? item.after_hours : undefined,
-    action: (item.action as string) || 'remind',
+    action: item.action || 'remind',
   }))
 }
 
@@ -271,14 +271,14 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
   // Load options when modal opens
   useEffect(() => {
     if (!open) return
-    roleApi.list().then((res: any) => {
+    roleApi.list().then((res: { data: { code: string; name: string }[] }) => {
       const list = res.data || []
-      setRoles(list.map((r: any) => ({ code: r.code, name: r.name })))
+      setRoles(list.map((r) => ({ code: r.code, name: r.name })))
     }).catch(() => setRoles([]))
 
-    client.get('/api/admin/v1/tenant/users').then((res: any) => {
-      const list = res.data?.items || res.data || []
-      setUsers(list.map((u: any) => ({ id: u.id, real_name: u.real_name || u.username })))
+    client.get('/api/admin/v1/tenant/users').then((res: { data: { items?: { id: string; real_name?: string; username: string }[] } }) => {
+      const list = res.data?.items || []
+      setUsers(list.map((u) => ({ id: u.id, real_name: u.real_name || u.username })))
     }).catch(() => setUsers([]))
   }, [open])
 

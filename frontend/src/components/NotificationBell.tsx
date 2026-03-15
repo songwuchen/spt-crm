@@ -98,9 +98,13 @@ export default function NotificationBell() {
   }
 
   const handleMarkAllRead = async () => {
-    await notificationApi.markAllRead()
-    setItems((prev) => prev.map((n) => ({ ...n, is_read: true })))
-    setUnread(0)
+    try {
+      await notificationApi.markAllRead()
+      setItems((prev) => prev.map((n) => ({ ...n, is_read: true })))
+      setUnread(0)
+    } catch {
+      message.error('操作失败，请重试')
+    }
   }
 
   const timeAgo = (dateStr: string) => {

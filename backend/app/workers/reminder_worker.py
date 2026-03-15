@@ -128,7 +128,7 @@ async def check_upcoming_payments(db: AsyncSession) -> int:
             PaymentPlan.due_date != None,
             PaymentPlan.due_date <= warn_date,
             PaymentPlan.due_date >= today,
-        )
+        ).limit(5000)
     )).scalars().all()
 
     notified = 0
@@ -202,7 +202,7 @@ async def check_expiring_contracts(db: AsyncSession) -> int:
             ContractVersion.end_date != None,
             ContractVersion.end_date <= warn_date,
             ContractVersion.end_date >= today,
-        )
+        ).limit(5000)
     )).scalars().all()
 
     notified = 0
@@ -248,7 +248,7 @@ async def check_upcoming_followups(db: AsyncSession) -> int:
         select(Activity).where(
             Activity.next_follow_date >= str(today),
             Activity.next_follow_date <= str(warn_date),
-        )
+        ).limit(5000)
     )).scalars().all()
 
     notified = 0
@@ -299,7 +299,7 @@ async def check_pool_auto_release(db: AsyncSession) -> int:
     from app.domains.notification.service import send_notification
 
     profiles = (await db.execute(
-        select(TenantProfile)
+        select(TenantProfile).limit(500)
     )).scalars().all()
 
     released = 0
@@ -495,7 +495,7 @@ async def check_scheduled_reports(db: AsyncSession) -> int:
     current_weekday = now.weekday()  # 0=Mon
     current_day = now.day
 
-    profiles = (await db.execute(select(TenantProfile))).scalars().all()
+    profiles = (await db.execute(select(TenantProfile).limit(500))).scalars().all()
     total = 0
 
     for profile in profiles:

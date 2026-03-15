@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.domains.notification import service
-from app.domains.notification.schemas import MarkReadRequest, UpdatePreferencesRequest
+from app.domains.notification.schemas import MarkReadRequest, UpdatePreferencesRequest, NotificationTemplateCreate, NotificationTemplateUpdate, DataSubscriptionCreate
 from app.common.ws_manager import ws_manager
 
 logger = logging.getLogger("spt_crm.ws")
@@ -188,7 +188,7 @@ async def list_templates(
 
 @router.post("/api/v1/notification_templates")
 async def create_template(
-    body: dict,
+    body: NotificationTemplateCreate,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:manage")),
@@ -197,10 +197,10 @@ async def create_template(
     from app.domains.notification.models import NotificationTemplate
     t = NotificationTemplate(
         id=generate_uuid(), tenant_id=tenant_id,
-        event_type=body["event_type"],
-        title_template=body["title_template"],
-        content_template=body.get("content_template"),
-        is_active=body.get("is_active", True),
+        event_type=body.event_type,
+        title_template=body.title_template,
+        content_template=body.content_template,
+        is_active=body.is_active,
     )
     db.add(t)
     await db.commit()
@@ -212,7 +212,7 @@ async def create_template(
 @router.put("/api/v1/notification_templates/{template_id}")
 async def update_template(
     template_id: str,
-    body: dict,
+    body: NotificationTemplateUpdate,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:manage")),
@@ -228,14 +228,8 @@ async def update_template(
     if not t:
         from app.common.exceptions import BusinessException
         raise BusinessException("模板不存在")
-    if "title_template" in body:
-        t.title_template = body["title_template"]
-    if "content_template" in body:
-        t.content_template = body["content_template"]
-    if "is_active" in body:
-        t.is_active = body["is_active"]
-    if "event_type" in body:
-        t.event_type = body["event_type"]
+    for field, val in body.model_dump(exclude_unset=True).items():
+        setattr(t, field, val)
     await db.commit()
     return ok({"id": t.id, "event_type": t.event_type, "title_template": t.title_template,
                "content_template": t.content_template, "is_active": t.is_active})
@@ -294,7 +288,7 @@ async def list_subscriptions(
 
 @router.post("/api/v1/data_subscriptions")
 async def create_subscription(
-    body: dict,
+    body: DataSubscriptionCreate,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("notification:manage")),
@@ -303,26 +297,27 @@ async def create_subscription(
     from sqlalchemy import select
     from app.domains.notification.models import DataSubscription
     from app.database import generate_uuid
+    default_events = ["update", "status_change", "comment"]
     # Check if already subscribed
     existing = (await db.execute(
         select(DataSubscription).where(
             DataSubscription.tenant_id == tenant_id,
             DataSubscription.user_id == current_user["sub"],
-            DataSubscription.biz_type == body["biz_type"],
-            DataSubscription.biz_id == body["biz_id"],
+            DataSubscription.biz_type == body.biz_type,
+            DataSubscription.biz_id == body.biz_id,
         )
     )).scalar()
     if existing:
-        existing.events_json = body.get("events_json", ["update", "status_change", "comment"])
-        existing.biz_name = body.get("biz_name", existing.biz_name)
+        existing.events_json = body.events_json or default_events
+        existing.biz_name = body.biz_name or existing.biz_name
         await db.commit()
         return ok({"id": existing.id, "status": "updated"})
     sub = DataSubscription(
         id=generate_uuid(), tenant_id=tenant_id,
         user_id=current_user["sub"],
-        biz_type=body["biz_type"], biz_id=body["biz_id"],
-        biz_name=body.get("biz_name"),
-        events_json=body.get("events_json", ["update", "status_change", "comment"]),
+        biz_type=body.biz_type, biz_id=body.biz_id,
+        biz_name=body.biz_name,
+        events_json=body.events_json or default_events,
     )
     db.add(sub)
     await db.commit()

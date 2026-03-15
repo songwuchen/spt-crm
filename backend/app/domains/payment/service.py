@@ -11,6 +11,7 @@ from app.domains.payment.schemas import (
     InvoiceCreate, InvoiceUpdate, PaymentPlanCreate, PaymentPlanUpdate, PaymentRecordCreate,
 )
 from app.domains.audit.service import log_action
+from app.common.code_generator import generate_code
 
 logger = logging.getLogger("spt_crm.payment")
 
@@ -99,17 +100,20 @@ async def list_invoices(db: AsyncSession, tenant_id: str, project_id: str):
 
 
 async def create_invoice(db: AsyncSession, tenant_id: str, project_id: str, data: InvoiceCreate, user: dict) -> Invoice:
+    dump = data.model_dump(exclude_unset=True)
+    if not dump.get("invoice_no"):
+        dump["invoice_no"] = await generate_code(db, tenant_id, "invoice")
     inv = Invoice(
         id=generate_uuid(), tenant_id=tenant_id, project_id=project_id,
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
-        **data.model_dump(exclude_unset=True),
+        **dump,
     )
     db.add(inv)
     await db.commit()
     await db.refresh(inv)
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="create", resource_type="invoice", resource_id=inv.id,
-                     summary=f"创建发票: {data.invoice_no}")
+                     summary=f"创建发票: {inv.invoice_no}")
     return inv
 
 
@@ -154,16 +158,19 @@ async def list_plans(db: AsyncSession, tenant_id: str, project_id: str):
 
 
 async def create_plan(db: AsyncSession, tenant_id: str, project_id: str, data: PaymentPlanCreate, user: dict) -> PaymentPlan:
+    dump = data.model_dump(exclude_unset=True)
+    if not dump.get("plan_no"):
+        dump["plan_no"] = await generate_code(db, tenant_id, "payment_plan")
     plan = PaymentPlan(
         id=generate_uuid(), tenant_id=tenant_id, project_id=project_id,
-        **data.model_dump(exclude_unset=True),
+        **dump,
     )
     db.add(plan)
     await db.commit()
     await db.refresh(plan)
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="create", resource_type="payment_plan", resource_id=plan.id,
-                     summary=f"创建回款计划: {data.plan_no}")
+                     summary=f"创建回款计划: {plan.plan_no}")
     return plan
 
 

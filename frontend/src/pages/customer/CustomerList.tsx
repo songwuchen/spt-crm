@@ -10,11 +10,10 @@ import { sourceLabels } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { t } from '@/locales'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import { useDataDict } from '@/hooks/useDataDict'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
 import { useCountdownConfirm } from '@/hooks/useCountdownConfirm'
-import { userApi } from '@/api/user'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
 import EditableCell from '@/components/EditableCell'
@@ -62,10 +61,7 @@ export default function CustomerList() {
   }, [showMap])
   const industryDict = useDataDict('industry', defaultIndustries)
   const dangerConfirm = useCountdownConfirm()
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   const handleBatchRelease = () => {
     if (!selectedRowKeys.length) return

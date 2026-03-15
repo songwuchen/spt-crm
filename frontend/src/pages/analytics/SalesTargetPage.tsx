@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react'
 import { Table, Button, Modal, Form, InputNumber, Select, Progress, DatePicker, message, Tag } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { dashboardApi } from '@/api/dashboard'
-import { userApi } from '@/api/user'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import dayjs from 'dayjs'
 
 interface Achievement {
@@ -31,10 +30,7 @@ export default function SalesTargetPage() {
   const [modal, setModal] = useState(false)
   const [form] = Form.useForm()
 
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   const fetch = async () => {
     setLoading(true)

@@ -16,10 +16,9 @@ import {
   taskStatusLabelsApproval,
   taskStatusColorsApproval,
 } from '@/constants/labels'
-import { userApi } from '@/api/user'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 
 export default function ApprovalCenter() {
   usePageTitle('审批中心')
@@ -50,10 +49,7 @@ export default function ApprovalCenter() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
   const [filterBizType, setFilterBizType] = useState<string>('')
   const [filterDateRange, setFilterDateRange] = useState<[any, any] | null>(null)
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   // Statistics
   const [stats, setStats] = useState<Record<string, unknown> | null>(null)
@@ -67,7 +63,7 @@ export default function ApprovalCenter() {
         approvalApi.list(),
       ])
       setPending(pRes.data || [])
-      setAllFlows(fRes.data || [])
+      setAllFlows(fRes.data?.items || [])
     } finally {
       setLoading(false)
     }
@@ -184,20 +180,27 @@ export default function ApprovalCenter() {
   }
 
   // Bulk decide
-  const handleBulkDecide = async (action: 'approved' | 'rejected') => {
+  const handleBulkDecide = (action: 'approved' | 'rejected') => {
     if (selectedRowKeys.length === 0) { message.warning('请选择审批任务'); return }
-    setSubmitting(true)
-    try {
-      const res = await approvalApi.bulkDecide({ task_ids: selectedRowKeys, action })
-      const results = res.data || []
-      const successCount = results.filter((r) => r.success).length
-      const failCount = results.filter((r) => !r.success).length
-      message.info(`完成: 成功 ${successCount} 条，失败 ${failCount} 条`)
-      setSelectedRowKeys([])
-      fetchData()
-    } finally {
-      setSubmitting(false)
-    }
+    const label = action === 'approved' ? '通过' : '驳回'
+    Modal.confirm({
+      title: `批量${label}确认`,
+      content: `确定要${label} ${selectedRowKeys.length} 条审批任务吗？`,
+      onOk: async () => {
+        setSubmitting(true)
+        try {
+          const res = await approvalApi.bulkDecide({ task_ids: selectedRowKeys, action })
+          const results = res.data || []
+          const successCount = results.filter((r: any) => r.success).length
+          const failCount = results.filter((r: any) => !r.success).length
+          message.info(`完成: 成功 ${successCount} 条，失败 ${failCount} 条`)
+          setSelectedRowKeys([])
+          fetchData()
+        } finally {
+          setSubmitting(false)
+        }
+      },
+    })
   }
 
   // Resubmit

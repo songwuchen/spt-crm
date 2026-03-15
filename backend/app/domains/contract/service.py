@@ -10,15 +10,10 @@ from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR
 from app.domains.contract.models import Contract, ContractVersion
 from app.domains.contract.schemas import ContractCreate, ContractUpdate, ContractVersionUpdate
 from app.domains.audit.service import log_action
+from app.common.code_generator import generate_code
 
 logger = logging.getLogger("spt_crm.contract")
 
-
-def _generate_contract_no() -> str:
-    now = datetime.now(timezone.utc)
-    import random
-    seq = random.randint(1000, 9999)
-    return f"CT-{now.strftime('%Y%m%d')}-{seq}"
 
 
 # ==================== Contract ====================
@@ -43,7 +38,7 @@ async def get_contract(db: AsyncSession, tenant_id: str, contract_id: str) -> Co
 async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, data: ContractCreate, user: dict) -> dict:
     contract = Contract(
         id=generate_uuid(), tenant_id=tenant_id,
-        project_id=project_id, contract_no=_generate_contract_no(),
+        project_id=project_id, contract_no=await generate_code(db, tenant_id, "contract"),
         current_version_no=1,
         amount_total=data.amount_total,
         payment_terms_json=data.payment_terms_json,
@@ -179,7 +174,7 @@ async def create_from_quote(db: AsyncSession, tenant_id: str, quote_id: str, use
 
     contract = Contract(
         id=generate_uuid(), tenant_id=tenant_id,
-        project_id=quote.project_id, contract_no=_generate_contract_no(),
+        project_id=quote.project_id, contract_no=await generate_code(db, tenant_id, "contract"),
         from_quote_id=quote_id,
         current_version_no=1,
         amount_total=amount,

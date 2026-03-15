@@ -2,9 +2,8 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { Form, Input, Select, Button, Card, Alert, message } from 'antd'
 import { useParams, useNavigate } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
-import { userApi } from '@/api/user'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useAutoSave } from '@/hooks/useAutoSave'
 
@@ -30,10 +29,7 @@ export default function CustomerForm() {
   const scaleDict = useDataDict('scale_level', defaultScales)
   const sourceDict = useDataDict('customer_source', defaultSources)
 
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   const [similarCustomers, setSimilarCustomers] = useState<{ id: string; name: string; short_name?: string; industry?: string; owner_name?: string; match_type?: string; match_phone?: string; match_contact?: string }[]>([])
   const dupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -53,7 +49,7 @@ export default function CustomerForm() {
     }, 500)
   }, [id])
 
-  const { restoreDraft, clearDraft } = useAutoSave(`customer_form_${id || 'new'}`, form)
+  const { restoreDraft, clearDraft, markDirty } = useAutoSave(`customer_form_${id || 'new'}`, form)
 
   useEffect(() => {
     if (id) {
@@ -62,6 +58,7 @@ export default function CustomerForm() {
       const restored = restoreDraft()
       if (restored) message.info('已恢复上次未保存的草稿')
     }
+    return () => { if (dupTimerRef.current) clearTimeout(dupTimerRef.current) }
   }, [id])
 
   const onFinish = async (values: Record<string, unknown>) => {
@@ -87,7 +84,7 @@ export default function CustomerForm() {
     <div>
       <h2 className="text-xl font-semibold mb-4">{isEdit ? '编辑客户' : '新建客户'}</h2>
       <Card>
-        <Form form={form} layout="vertical" onFinish={onFinish} className="max-w-2xl">
+        <Form form={form} layout="vertical" onFinish={onFinish} onValuesChange={markDirty} className="max-w-2xl">
           <Form.Item name="name" label="客户名称" rules={[{ required: true, message: '请输入客户名称' }]}>
             <Input placeholder="请输入客户全称" onChange={(e) => checkDuplicates(e.target.value, form.getFieldValue('phone'))} />
           </Form.Item>

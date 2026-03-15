@@ -10,15 +10,10 @@ from app.common.error_codes import NOT_FOUND
 from app.domains.change.models import ChangeRequest
 from app.domains.change.schemas import ChangeRequestCreate, ChangeRequestUpdate
 from app.domains.audit.service import log_action
+from app.common.code_generator import generate_code
 
 logger = logging.getLogger("spt_crm.change")
 
-
-def _generate_change_no() -> str:
-    now = datetime.now(timezone.utc)
-    import random
-    seq = random.randint(1000, 9999)
-    return f"CR-{now.strftime('%Y%m%d')}-{seq}"
 
 
 async def list_by_project(db: AsyncSession, tenant_id: str, project_id: str):
@@ -41,7 +36,7 @@ async def get(db: AsyncSession, tenant_id: str, cr_id: str) -> ChangeRequest:
 async def create(db: AsyncSession, tenant_id: str, project_id: str, data: ChangeRequestCreate, user: dict) -> ChangeRequest:
     cr = ChangeRequest(
         id=generate_uuid(), tenant_id=tenant_id, project_id=project_id,
-        change_no=_generate_change_no(),
+        change_no=await generate_code(db, tenant_id, "change"),
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
         **data.model_dump(exclude_unset=True),
     )

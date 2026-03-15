@@ -5,13 +5,11 @@ import { downloadFile } from '@/utils/download'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { serviceTicketApi } from '@/api/serviceTicket'
-import { customerApi } from '@/api/customer'
-import { userApi } from '@/api/user'
+import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
 import type { ServiceTicketItem, RenewalItem } from '@/api/types'
 
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels, renewalStatusLabels, renewalStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
@@ -39,10 +37,7 @@ export default function ServiceTicketList() {
   const [loading, setLoading] = useState(false)
   const [createModal, setCreateModal] = useState(false)
   const [form, setForm] = useState<Record<string, any>>({ type: 'fault', priority: 'medium', description: '' })
-  const customerSelect = useRemoteSelect(async (kw) => {
-    const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((c: any) => ({ label: c.name, value: c.id }))
-  })
+  const customerSelect = useCustomerSelect()
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined)
@@ -52,10 +47,7 @@ export default function ServiceTicketList() {
   const [selectedTicketKeys, setSelectedTicketKeys] = useState<React.Key[]>([])
   const [batchAssignModal, setBatchAssignModal] = useState(false)
   const [assignForm] = Form.useForm()
-  const assignUserSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const assignUserSelect = useUserSelect()
 
   const handleBatchAssign = async () => {
     const values = await assignForm.validateFields()

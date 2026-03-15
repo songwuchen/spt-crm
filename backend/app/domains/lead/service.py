@@ -1,6 +1,4 @@
 import logging
-from datetime import datetime, timezone
-import random
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
 from app.common.error_codes import NOT_FOUND, LEAD_ALREADY_QUALIFIED, LEAD_ALREADY_DISCARDED
+from app.common.code_generator import generate_code
 from app.domains.lead.models import Lead
 from app.domains.lead.schemas import LeadCreate, LeadUpdate
 from app.domains.customer.models import Customer
@@ -15,23 +14,6 @@ from app.domains.audit.service import log_action
 
 logger = logging.getLogger("spt_crm.lead")
 
-
-def _generate_lead_code() -> str:
-    now = datetime.now(timezone.utc)
-    seq = random.randint(1000, 9999)
-    return f"LD-{now.strftime('%Y%m%d')}-{seq}"
-
-
-async def _unique_lead_code(db: AsyncSession, tenant_id: str) -> str:
-    """Generate a unique lead code with collision retry."""
-    for _ in range(10):
-        code = _generate_lead_code()
-        exists = (await db.execute(
-            select(func.count(Lead.id)).where(Lead.tenant_id == tenant_id, Lead.lead_code == code)
-        )).scalar()
-        if not exists:
-            return code
-    return _generate_lead_code()
 
 
 def _compute_score(lead: Lead) -> int:
@@ -90,7 +72,7 @@ async def get_lead(db: AsyncSession, tenant_id: str, lead_id: str) -> Lead:
 async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: dict) -> Lead:
     lead = Lead(
         id=generate_uuid(), tenant_id=tenant_id,
-        lead_code=await _unique_lead_code(db, tenant_id),
+        lead_code=await generate_code(db, tenant_id, "lead"),
         owner_id=user["sub"], owner_name=user.get("real_name") or user.get("username"),
         **data.model_dump(),
     )

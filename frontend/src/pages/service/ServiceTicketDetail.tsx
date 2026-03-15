@@ -3,14 +3,13 @@ import { Button, Tag, Select, Input, Space, Spin, Descriptions, Modal, Rate, mes
 import { useParams, useNavigate } from 'react-router-dom'
 import { serviceTicketApi } from '@/api/serviceTicket'
 import { activityApi } from '@/api/activity'
-import { userApi } from '@/api/user'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import type { ServiceTicketItem, ActivityItem } from '@/api/types'
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import SubscribeButton from '@/components/SubscribeButton'
 import SlaCountdown from '@/components/SlaCountdown'
 import InternalNotes from '@/components/InternalNotes'
@@ -62,10 +61,7 @@ export default function ServiceTicketDetail() {
     } finally { setKbLoading(false) }
   }
 
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   const fetchTicket = async () => {
     setLoading(true)

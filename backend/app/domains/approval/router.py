@@ -46,11 +46,12 @@ def _task_dict(t) -> dict:
 async def list_flows(
     biz_type: str | None = Query(None), biz_id: str | None = Query(None),
     status: str | None = Query(None),
+    pageNo: int = Query(1, ge=1), pageSize: int = Query(50, ge=1, le=200),
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    items = await service.list_flows(db, tenant_id, biz_type=biz_type, biz_id=biz_id, status=status)
-    return ok([_flow_dict(f) for f in items])
+    items, total = await service.list_flows(db, tenant_id, biz_type=biz_type, biz_id=biz_id, status=status, page=pageNo, page_size=pageSize)
+    return ok({"items": [_flow_dict(f) for f in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.post("/api/v1/approvals")
@@ -79,10 +80,10 @@ async def my_pending(
 
 @router.get("/api/v1/approvals/statistics")
 async def statistics(
-    date_from: str | None = Query(None),
-    date_to: str | None = Query(None),
+    date_from: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    date_to: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_permissions("approval:view")),
 ):
     data = await service.get_statistics(db, tenant_id, date_from=date_from, date_to=date_to)
     return ok(data)

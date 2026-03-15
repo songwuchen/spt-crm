@@ -9,11 +9,10 @@ import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
 import type { OpportunityProject, Customer } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
-import { userApi } from '@/api/user'
 import type { ColumnsType } from 'antd/es/table'
 import { opportunityStatusMap as statusMap } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
@@ -38,10 +37,7 @@ export default function OpportunityList() {
   const [importModal, setImportModal] = useState(false)
   const [batchTransferModal, setBatchTransferModal] = useState(false)
   const [transferForm] = Form.useForm()
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   const handleBatchStageChange = async () => {
     const results = await Promise.allSettled(

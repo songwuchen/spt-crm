@@ -2,10 +2,8 @@ import { useEffect, useState } from 'react'
 import { Form, Input, Select, Button, Card, InputNumber, DatePicker, message } from 'antd'
 import { useParams, useNavigate } from 'react-router-dom'
 import { projectApi } from '@/api/project'
-import { customerApi } from '@/api/customer'
-import { userApi } from '@/api/user'
+import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useAutoSave } from '@/hooks/useAutoSave'
 import dayjs from 'dayjs'
@@ -29,17 +27,11 @@ export default function OpportunityForm() {
   const riskDict = useDataDict('risk_level', defaultRiskOptions)
   const statusDict = useDataDict('project_status', defaultStatusOptions)
 
-  const customerSelect = useRemoteSelect(async (kw) => {
-    const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((c: any) => ({ label: c.name, value: c.id }))
-  })
+  const customerSelect = useCustomerSelect()
 
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
-  const { restoreDraft, clearDraft } = useAutoSave(`opportunity_form_${id || 'new'}`, form)
+  const { restoreDraft, clearDraft, markDirty } = useAutoSave(`opportunity_form_${id || 'new'}`, form)
 
   useEffect(() => {
     if (id) {
@@ -83,7 +75,7 @@ export default function OpportunityForm() {
     <div>
       <h2 className="text-xl font-semibold mb-4">{isEdit ? '编辑商机' : '新建商机'}</h2>
       <Card>
-        <Form form={form} layout="vertical" onFinish={onFinish} className="max-w-2xl">
+        <Form form={form} layout="vertical" onFinish={onFinish} onValuesChange={markDirty} className="max-w-2xl">
           <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
             <Input placeholder="请输入项目名称" />
           </Form.Item>

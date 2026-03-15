@@ -7,6 +7,7 @@ from app.common.error_codes import NOT_FOUND, VALIDATION_ERROR
 from app.domains.customer.models import Customer, Contact, CustomerRelation, AclShare
 from app.domains.customer.schemas import CustomerCreate, CustomerUpdate, ContactCreate, ContactUpdate
 from app.domains.audit.service import log_action
+from app.common.code_generator import generate_code
 
 
 # ==================== Customer ====================
@@ -53,10 +54,13 @@ async def get_customer(db: AsyncSession, tenant_id: str, customer_id: str) -> Cu
 
 
 async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate, user: dict) -> Customer:
+    dump = data.model_dump()
+    if not dump.get("customer_code"):
+        dump["customer_code"] = await generate_code(db, tenant_id, "customer")
     customer = Customer(
         id=generate_uuid(), tenant_id=tenant_id,
         owner_id=user["sub"], owner_name=user.get("real_name") or user.get("username"),
-        **data.model_dump(),
+        **dump,
     )
     db.add(customer)
     await db.commit()
@@ -119,6 +123,18 @@ async def delete_customer(db: AsyncSession, tenant_id: str, customer_id: str, us
     )).scalar() or 0
     if signed_contracts > 0:
         raise BusinessException(code=VALIDATION_ERROR, message=f"该客户有 {signed_contracts} 份已签合同，无法删除")
+
+    # Clean up related data before soft-delete
+    from sqlalchemy import delete as sql_delete
+    await db.execute(
+        sql_delete(AclShare).where(AclShare.tenant_id == tenant_id, AclShare.biz_type == "customer", AclShare.biz_id == customer_id)
+    )
+    await db.execute(
+        sql_delete(CustomerRelation).where(
+            CustomerRelation.tenant_id == tenant_id,
+            (CustomerRelation.from_customer_id == customer_id) | (CustomerRelation.to_customer_id == customer_id),
+        )
+    )
 
     # Soft delete
     customer.is_deleted = True

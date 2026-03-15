@@ -115,7 +115,7 @@ describe('ApprovalCenter', { timeout: 15000 }, () => {
       useAuthStore.getState().setUser(adminUser)
     })
     ;(approvalApi.myPending as ReturnType<typeof vi.fn>).mockResolvedValue({ data: mockPending })
-    ;(approvalApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: mockFlows })
+    ;(approvalApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: mockFlows, total: mockFlows.length } })
     ;(userApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [], total: 0 } })
   })
 

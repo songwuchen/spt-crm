@@ -12,11 +12,23 @@ export function useWebSocket(onMessage: MessageHandler) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const mountedRef = useRef(true)
   const onMessageRef = useRef(onMessage)
   onMessageRef.current = onMessage
 
+  const clearTimers = useCallback(() => {
+    if (pingTimer.current) {
+      clearInterval(pingTimer.current)
+      pingTimer.current = null
+    }
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current)
+      reconnectTimer.current = null
+    }
+  }, [])
+
   const connect = useCallback(() => {
-    if (!token) return
+    if (!token || !mountedRef.current) return
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
@@ -45,33 +57,29 @@ export function useWebSocket(onMessage: MessageHandler) {
     }
 
     ws.onclose = () => {
-      cleanup()
-      // Reconnect after 3s
-      reconnectTimer.current = setTimeout(connect, 3000)
+      clearTimers()
+      // Only reconnect if still mounted
+      if (mountedRef.current) {
+        reconnectTimer.current = setTimeout(connect, 3000)
+      }
     }
 
     ws.onerror = () => {
       ws.close()
     }
-  }, [token])
-
-  const cleanup = useCallback(() => {
-    if (pingTimer.current) {
-      clearInterval(pingTimer.current)
-      pingTimer.current = null
-    }
-  }, [])
+  }, [token, clearTimers])
 
   useEffect(() => {
+    mountedRef.current = true
     connect()
     return () => {
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
-      cleanup()
+      mountedRef.current = false
+      clearTimers()
       if (wsRef.current) {
         wsRef.current.onclose = null // prevent reconnect on intentional close
         wsRef.current.close()
         wsRef.current = null
       }
     }
-  }, [connect, cleanup])
+  }, [connect, clearTimers])
 }

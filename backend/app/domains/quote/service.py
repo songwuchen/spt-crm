@@ -10,15 +10,10 @@ from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR
 from app.domains.quote.models import Quote, QuoteVersion, QuoteLine, CostSnapshot, QuoteSendLog
 from app.domains.quote.schemas import QuoteCreate, QuoteUpdate, QuoteVersionUpdate, QuoteLineCreate, QuoteLineUpdate, CostSnapshotCreate, QuoteSendLogCreate
 from app.domains.audit.service import log_action
+from app.common.code_generator import generate_code
 
 logger = logging.getLogger("spt_crm.quote")
 
-
-def _generate_quote_no() -> str:
-    now = datetime.now(timezone.utc)
-    import random
-    seq = random.randint(1000, 9999)
-    return f"QT-{now.strftime('%Y%m%d')}-{seq}"
 
 
 async def _recalc_totals(db: AsyncSession, version_id: str):
@@ -68,7 +63,7 @@ async def get_quote(db: AsyncSession, tenant_id: str, quote_id: str) -> Quote:
 async def create_quote(db: AsyncSession, tenant_id: str, project_id: str, data: QuoteCreate, user: dict) -> dict:
     quote = Quote(
         id=generate_uuid(), tenant_id=tenant_id,
-        project_id=project_id, quote_no=_generate_quote_no(),
+        project_id=project_id, quote_no=await generate_code(db, tenant_id, "quote"),
         current_version_no=1,
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
     )

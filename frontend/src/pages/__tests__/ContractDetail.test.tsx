@@ -128,7 +128,7 @@ describe('ContractDetail', { timeout: 15000 }, () => {
       useAuthStore.getState().setUser(adminUser)
     })
     ;(contractApi.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: mockContract })
-    ;(approvalApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
+    ;(approvalApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [], total: 0 } })
     ;(userApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [], total: 0 } })
   })
 

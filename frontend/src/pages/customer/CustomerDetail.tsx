@@ -6,7 +6,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
 import { contactApi } from '@/api/contact'
 import { projectApi } from '@/api/project'
-import { userApi, roleApi } from '@/api/user'
+import { roleApi } from '@/api/user'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import ChangeHistory from '@/components/ChangeHistory'
@@ -18,6 +18,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import CustomerRelationGraph from '@/components/CustomerRelationGraph'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import InternalNotes from '@/components/InternalNotes'
 import ContactOrgChart from '@/components/ContactOrgChart'
 
@@ -69,10 +70,7 @@ export default function CustomerDetail() {
     return (r.data?.items || []).filter((c) => c.id !== id).map((c) => ({ label: c.name, value: c.id }))
   })
 
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   const fetchCustomer = async () => { const res = await customerApi.get(id!); setCustomer(res.data) }
   const fetchContacts = async () => { const res = await contactApi.list(id!); setContacts(res.data) }
@@ -90,11 +88,15 @@ export default function CustomerDetail() {
   }
 
   useEffect(() => {
-    if (id) {
+    if (!id) return
+    let cancelled = false
+    const load = async () => {
       fetchCustomer(); fetchContacts(); fetchRelations(); fetchShares(); fetchStats(); fetchProjects(); fetchTickets()
-      customerApi.health(id).then(r => setHealth(r.data)).catch(() => {})
-      customerApi.list({ pageNo: 1, pageSize: 100 }).then((r) => setAllCustomers(r.data.items)).catch(() => {})
+      customerApi.health(id).then(r => { if (!cancelled) setHealth(r.data) }).catch(() => {})
+      customerApi.list({ pageNo: 1, pageSize: 100 }).then((r) => { if (!cancelled) setAllCustomers(r.data.items) }).catch(() => {})
     }
+    load()
+    return () => { cancelled = true }
   }, [id])
 
   const handleContactSubmit = async () => {

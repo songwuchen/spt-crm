@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Input, Button, message, Popconfirm } from 'antd'
 import { activityApi } from '@/api/activity'
 import { userApi } from '@/api/user'
@@ -30,16 +30,25 @@ export default function InternalNotes({ bizType, bizId }: InternalNotesProps) {
 
   useEffect(() => { fetchNotes() }, [bizType, bizId])
 
-  const searchUsers = async (kw: string) => {
+  const mentionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const searchUsers = useCallback((kw: string) => {
+    if (mentionTimerRef.current) clearTimeout(mentionTimerRef.current)
     if (kw.length < 1) { setMentionUsers([]); return }
-    try {
-      const r = await userApi.list({ pageNo: 1, pageSize: 20, keyword: kw })
-      setMentionUsers((r.data?.items || []).map((u: any) => ({
-        label: u.real_name || u.username,
-        value: u.id,
-      })))
-    } catch { /* ignore */ }
-  }
+    mentionTimerRef.current = setTimeout(async () => {
+      try {
+        const r = await userApi.list({ pageNo: 1, pageSize: 20, keyword: kw })
+        setMentionUsers((r.data?.items || []).map((u: any) => ({
+          label: u.real_name || u.username,
+          value: u.id,
+        })))
+      } catch { /* ignore */ }
+    }, 300)
+  }, [])
+
+  useEffect(() => {
+    return () => { if (mentionTimerRef.current) clearTimeout(mentionTimerRef.current) }
+  }, [])
 
   const handleInput = (val: string) => {
     setContent(val)

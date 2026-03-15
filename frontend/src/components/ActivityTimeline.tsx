@@ -63,21 +63,25 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
       const opt = mentionSelect.options.find((o) => o.value === uid)
       return { user_id: uid, user_name: opt?.label || '' }
     })
-    await activityApi.create({
-      biz_type: bizType, biz_id: bizId,
-      activity_type: form.activity_type,
-      subject: form.subject || undefined,
-      content: form.content || undefined,
-      contact_id: form.contact_id || undefined,
-      contact_name: form.contact_name || undefined,
-      next_follow_date: form.next_follow_date || undefined,
-      mentions_json: mentions.length > 0 ? mentions : undefined,
-    })
-    message.success('记录已添加')
-    setModal(false)
-    setForm({ activity_type: 'note', subject: '', content: '', contact_id: '', contact_name: '', next_follow_date: '' })
-    setMentionIds([])
-    fetchActivities()
+    try {
+      await activityApi.create({
+        biz_type: bizType, biz_id: bizId,
+        activity_type: form.activity_type,
+        subject: form.subject || undefined,
+        content: form.content || undefined,
+        contact_id: form.contact_id || undefined,
+        contact_name: form.contact_name || undefined,
+        next_follow_date: form.next_follow_date || undefined,
+        mentions_json: mentions.length > 0 ? mentions : undefined,
+      })
+      message.success('记录已添加')
+      setModal(false)
+      setForm({ activity_type: 'note', subject: '', content: '', contact_id: '', contact_name: '', next_follow_date: '' })
+      setMentionIds([])
+      fetchActivities()
+    } catch {
+      message.error('添加记录失败')
+    }
   }
 
   const handleContactSelect = (contactId: string) => {

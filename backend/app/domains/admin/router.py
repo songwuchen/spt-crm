@@ -584,8 +584,10 @@ async def get_doc_template(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("project:view")),
 ):
-    t = await db.get(DocTemplate, template_id)
-    if not t or t.tenant_id != tenant_id:
+    t = (await db.execute(
+        select(DocTemplate).where(DocTemplate.id == template_id, DocTemplate.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not t:
         from app.common.schemas import fail
         return fail(40400, "模板不存在")
     return ok(_doc_tpl_dict(t))
@@ -616,8 +618,10 @@ async def update_doc_template(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:manage")),
 ):
-    t = await db.get(DocTemplate, template_id)
-    if not t or t.tenant_id != tenant_id:
+    t = (await db.execute(
+        select(DocTemplate).where(DocTemplate.id == template_id, DocTemplate.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not t:
         from app.common.schemas import fail
         return fail(40400, "模板不存在")
     for k, v in body.model_dump(exclude_unset=True).items():
@@ -634,8 +638,10 @@ async def delete_doc_template(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:manage")),
 ):
-    t = await db.get(DocTemplate, template_id)
-    if t and t.tenant_id == tenant_id:
+    t = (await db.execute(
+        select(DocTemplate).where(DocTemplate.id == template_id, DocTemplate.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if t:
         await db.delete(t)
         await db.commit()
     return ok(None)

@@ -7,14 +7,13 @@ import { downloadFile } from '@/utils/download'
 import { productApi } from '@/api/product'
 import { contractApi } from '@/api/contract'
 import { approvalApi } from '@/api/approval'
-import { userApi } from '@/api/user'
 import { aiApi } from '@/api/ai'
 import type { QuoteItem, QuoteVersion, QuoteLine, CostSnapshotItem, QuoteSendLogItem } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { quoteLineItemTypeLabels as itemTypeLabels, quoteStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 
 const BREAKDOWN_LABELS: Record<string, string> = {
   material: '材料费', processing: '加工费', outsource: '外协费',
@@ -61,10 +60,7 @@ export default function QuoteDetail() {
   const [selectedApprovers, setSelectedApprovers] = useState<string[]>([])
   const [approvalSubmitting, setApprovalSubmitting] = useState(false)
 
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   // Product picker
   const [productPickerOpen, setProductPickerOpen] = useState(false)

@@ -15,7 +15,7 @@ from app.domains.notification.service import send_notification
 logger = logging.getLogger("spt_crm.approval")
 
 
-async def list_flows(db: AsyncSession, tenant_id: str, biz_type: str | None = None, biz_id: str | None = None, status: str | None = None):
+async def list_flows(db: AsyncSession, tenant_id: str, biz_type: str | None = None, biz_id: str | None = None, status: str | None = None, page: int = 1, page_size: int = 50):
     q = select(ApprovalFlow).where(ApprovalFlow.tenant_id == tenant_id)
     if biz_type:
         q = q.where(ApprovalFlow.biz_type == biz_type)
@@ -23,8 +23,11 @@ async def list_flows(db: AsyncSession, tenant_id: str, biz_type: str | None = No
         q = q.where(ApprovalFlow.biz_id == biz_id)
     if status:
         q = q.where(ApprovalFlow.status == status)
-    result = await db.execute(q.order_by(ApprovalFlow.created_at.desc()))
-    return result.scalars().all()
+    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
+    items = (await db.execute(
+        q.order_by(ApprovalFlow.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    )).scalars().all()
+    return items, total
 
 
 async def get_flow(db: AsyncSession, tenant_id: str, flow_id: str) -> ApprovalFlow:
@@ -118,35 +121,40 @@ async def _resolve_policy_approvers(db: AsyncSession, tenant_id: str, biz_type: 
         approver_ids = []
         approver_names = []
         rules = policy.approver_rules_json if isinstance(policy.approver_rules_json, list) else [policy.approver_rules_json]
+
+        # Batch: collect all role codes and user ids first to minimize queries
+        role_codes = []
+        user_ids = []
         for rule in rules:
             rule_type = rule.get("type", "")
             rule_value = rule.get("value", "")
-            if rule_type == "role":
-                users = (await db.execute(
-                    select(User)
-                    .join(UserRole, UserRole.user_id == User.id)
-                    .join(Role, Role.id == UserRole.role_id)
-                    .where(User.tenant_id == tenant_id, Role.code == rule_value, User.is_active == True)
-                )).scalars().all()
-                for u in users:
-                    if u.id not in approver_ids:
-                        approver_ids.append(u.id)
-                        approver_names.append(u.real_name or u.username)
-            elif rule_type == "user":
-                u = (await db.execute(
-                    select(User).where(User.id == rule_value, User.tenant_id == tenant_id)
-                )).scalar_one_or_none()
-                if u and u.id not in approver_ids:
+            if rule_type == "role" and rule_value:
+                role_codes.append(rule_value)
+            elif rule_type == "user" and rule_value:
+                user_ids.append(rule_value)
+
+        # Single query for all role-based approvers
+        if role_codes:
+            role_users = (await db.execute(
+                select(User)
+                .join(UserRole, UserRole.user_id == User.id)
+                .join(Role, Role.id == UserRole.role_id)
+                .where(User.tenant_id == tenant_id, Role.code.in_(role_codes), User.is_active == True)
+            )).scalars().all()
+            for u in role_users:
+                if u.id not in approver_ids:
                     approver_ids.append(u.id)
                     approver_names.append(u.real_name or u.username)
-            elif rule_type == "department_leader":
-                # Resolve submitter's department leader
-                try:
-                    from app.domains.auth.models import UserDepartment
-                    from app.domains.admin.models import Department
-                    # We don't have current user here, so skip in this context
-                except Exception as e:
-                    logger.warning("Department leader resolution failed: %s", e)
+
+        # Single query for all user-based approvers
+        if user_ids:
+            direct_users = (await db.execute(
+                select(User).where(User.id.in_(user_ids), User.tenant_id == tenant_id)
+            )).scalars().all()
+            for u in direct_users:
+                if u.id not in approver_ids:
+                    approver_ids.append(u.id)
+                    approver_names.append(u.real_name or u.username)
 
         if approver_ids:
             return approver_ids, approver_names, policy.approval_mode or "sequential"
@@ -480,6 +488,7 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
 async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: ApprovalFlow):
     """Update biz object status when approval is fully approved."""
     try:
+        updated = False
         if flow.biz_type == "quote_version":
             from app.domains.quote.models import QuoteVersion
             ver = (await db.execute(
@@ -487,7 +496,7 @@ async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: Approva
             )).scalar_one_or_none()
             if ver:
                 ver.status = "approved"
-                await db.commit()
+                updated = True
         elif flow.biz_type == "contract_version":
             from app.domains.contract.models import ContractVersion
             ver = (await db.execute(
@@ -495,7 +504,7 @@ async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: Approva
             )).scalar_one_or_none()
             if ver:
                 ver.status = "approved"
-                await db.commit()
+                updated = True
         elif flow.biz_type == "change_request":
             from app.domains.change.models import ChangeRequest
             cr = (await db.execute(
@@ -503,7 +512,9 @@ async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: Approva
             )).scalar_one_or_none()
             if cr:
                 cr.status = "approved"
-                await db.commit()
+                updated = True
+        if updated:
+            await db.commit()
     except Exception as e:
         logger.warning("Approval completion callback failed for %s/%s: %s", flow.biz_type, flow.biz_id, e)
 

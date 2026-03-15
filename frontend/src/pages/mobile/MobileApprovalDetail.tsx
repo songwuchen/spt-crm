@@ -5,9 +5,8 @@ import { message, Modal, Input, Select } from 'antd'
 import { approvalApi } from '@/api/approval'
 import { aiApi } from '@/api/ai'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import type { ApprovalFlowItem, AiResultItem } from '@/api/types'
-import { userApi } from '@/api/user'
 import client from '@/api/client'
 
 const bizTypeLabels: Record<string, string> = {
@@ -62,10 +61,7 @@ export default function MobileApprovalDetail() {
   const [delegateUserId, setDelegateUserId] = useState('')
   const [delegateReason, setDelegateReason] = useState('')
 
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   useEffect(() => {
     if (!id) return

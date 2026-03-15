@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react'
 import { Form, Input, Select, Button, message } from 'antd'
 import { useParams, useNavigate } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
-import { userApi } from '@/api/user'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
 
 const defaultSources = [
@@ -27,10 +26,7 @@ export default function LeadForm() {
   const industryDict = useDataDict('industry', defaultIndustries)
   const budgetDict = useDataDict('budget_range', defaultBudgets)
 
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   useEffect(() => {
     if (id) {

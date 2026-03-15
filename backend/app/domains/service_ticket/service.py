@@ -11,6 +11,7 @@ from app.domains.service_ticket.schemas import (
     ServiceTicketCreate, ServiceTicketUpdate, RenewalCreate, RenewalUpdate,
 )
 from app.domains.audit.service import log_action
+from app.common.code_generator import generate_code
 
 # SLA targets per priority: (respond_hours, resolve_hours)
 SLA_TARGETS = {
@@ -20,12 +21,6 @@ SLA_TARGETS = {
     "low": (8, 72),
 }
 
-
-def _generate_ticket_no() -> str:
-    now = datetime.now(timezone.utc)
-    import random
-    seq = random.randint(1000, 9999)
-    return f"SRV-{now.strftime('%Y%m%d')}-{seq}"
 
 
 # ==================== ServiceTicket ====================
@@ -85,7 +80,7 @@ async def create_ticket(db: AsyncSession, tenant_id: str, data: ServiceTicketCre
     respond_h, resolve_h = SLA_TARGETS.get(priority, SLA_TARGETS["medium"])
     ticket = ServiceTicket(
         id=generate_uuid(), tenant_id=tenant_id,
-        ticket_no=_generate_ticket_no(),
+        ticket_no=await generate_code(db, tenant_id, "service_ticket"),
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
         sla_respond_by=now + timedelta(hours=respond_h),
         sla_resolve_by=now + timedelta(hours=resolve_h),

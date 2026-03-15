@@ -10,6 +10,7 @@ from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR
 from app.domains.project.models import OpportunityProject, ProjectStageHistory
 from app.domains.project.schemas import ProjectCreate, ProjectUpdate
 from app.domains.audit.service import log_action
+from app.common.code_generator import generate_code
 
 logger = logging.getLogger("spt_crm.project")
 
@@ -175,27 +176,6 @@ async def check_gate_rules(db: AsyncSession, tenant_id: str, project: Opportunit
     return failed
 
 
-def _generate_project_code() -> str:
-    now = datetime.now(timezone.utc)
-    import random
-    seq = random.randint(1000, 9999)
-    return f"PRJ-{now.strftime('%Y%m%d')}-{seq}"
-
-
-async def _unique_project_code(db: AsyncSession, tenant_id: str) -> str:
-    """Generate a unique project code with collision retry."""
-    for _ in range(10):
-        code = _generate_project_code()
-        exists = (await db.execute(
-            select(func.count(OpportunityProject.id)).where(
-                OpportunityProject.tenant_id == tenant_id,
-                OpportunityProject.project_code == code,
-            )
-        )).scalar()
-        if not exists:
-            return code
-    return _generate_project_code()  # fallback
-
 
 async def list_projects(
     db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20,
@@ -241,7 +221,7 @@ async def get_project(db: AsyncSession, tenant_id: str, project_id: str) -> Oppo
 async def create_project(db: AsyncSession, tenant_id: str, data: ProjectCreate, user: dict) -> OpportunityProject:
     project = OpportunityProject(
         id=generate_uuid(), tenant_id=tenant_id,
-        project_code=await _unique_project_code(db, tenant_id),
+        project_code=await generate_code(db, tenant_id, "project"),
         owner_id=user["sub"], owner_name=user.get("real_name") or user.get("username"),
         **data.model_dump(),
     )

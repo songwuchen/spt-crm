@@ -11,6 +11,7 @@ from app.domains.customer.models import Customer
 from app.domains.customer.schemas import (
     CustomerCreate, CustomerUpdate, CustomerOut,
     ContactCreate, ContactUpdate, ContactOut,
+    RelationCreate, ShareCreate, BatchReleaseRequest,
 )
 from app.domains.customer import service
 
@@ -171,12 +172,12 @@ async def claim_from_pool(
 
 @router.post("/batch_release")
 async def batch_release(
-    body: dict,
+    body: BatchReleaseRequest,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("customer:edit")),
 ):
-    ids = body.get("customer_ids", [])
+    ids = body.customer_ids
     released = await service.batch_release_to_pool(db, tenant_id, ids, current_user)
     return ok({"released": released})
 
@@ -512,13 +513,13 @@ async def list_relations(
 @router.post("/{customer_id}/relations")
 async def create_relation(
     customer_id: str,
-    body: dict,
+    body: RelationCreate,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("customer:edit")),
 ):
-    body["from_customer_id"] = customer_id
-    r = await service.create_relation(db, tenant_id, body, current_user)
+    data = {"from_customer_id": customer_id, **body.model_dump()}
+    r = await service.create_relation(db, tenant_id, data, current_user)
     return ok({"id": r.id, "relation_type": r.relation_type})
 
 
@@ -555,14 +556,13 @@ async def list_shares(
 @router.post("/{customer_id}/shares")
 async def create_share(
     customer_id: str,
-    body: dict,
+    body: ShareCreate,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("customer:edit")),
 ):
-    body["biz_type"] = "customer"
-    body["biz_id"] = customer_id
-    s = await service.create_share(db, tenant_id, body, current_user)
+    data = {"biz_type": "customer", "biz_id": customer_id, **body.model_dump()}
+    s = await service.create_share(db, tenant_id, data, current_user)
     return ok({"id": s.id, "shared_to_name": s.shared_to_name})
 
 

@@ -2,11 +2,9 @@ import { useState, useEffect } from 'react'
 import { Table, Button, Modal, Form, Input, InputNumber, Select, Tag, Space, DatePicker, message } from 'antd'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { renewalApi } from '@/api/renewal'
-import { customerApi } from '@/api/customer'
-import { userApi } from '@/api/user'
+import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
 import type { RenewalItem } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import dayjs from 'dayjs'
 
 const statusConfig: Record<string, { label: string; color: string }> = {
@@ -31,15 +29,9 @@ export default function RenewalList() {
   const [statusFilter, setStatusFilter] = useState('')
   const [form] = Form.useForm()
 
-  const customerSelect = useRemoteSelect(async (kw) => {
-    const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((c: any) => ({ label: c.name, value: c.id }))
-  })
+  const customerSelect = useCustomerSelect()
 
-  const userSelect = useRemoteSelect(async (kw) => {
-    const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
-    return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
-  })
+  const userSelect = useUserSelect()
 
   const fetch = async () => {
     setLoading(true)
