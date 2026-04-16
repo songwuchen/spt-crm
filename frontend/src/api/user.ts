@@ -19,6 +19,22 @@ export const userApi = {
     client.post<unknown, ApiResponse<UserItem>>('/api/admin/v1/tenant/users', data),
   update: (id: string, data: Record<string, unknown>) =>
     client.put<unknown, ApiResponse<UserItem>>(`/api/admin/v1/tenant/users/${id}`, data),
+  delete: (id: string) =>
+    client.delete<unknown, ApiResponse<null>>(`/api/admin/v1/tenant/users/${id}`),
+  importCsv: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return client.post<unknown, ApiResponse<{ success: number; failed: { row: number; reason: string }[]; total: number }>>(
+      '/api/admin/v1/tenant/users/import',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    )
+  },
+  exportCsv: (keyword?: string) =>
+    client.get('/api/admin/v1/tenant/users/export', {
+      params: keyword ? { keyword } : {},
+      responseType: 'blob',
+    }),
 }
 
 export const roleApi = {

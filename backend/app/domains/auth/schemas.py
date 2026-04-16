@@ -43,3 +43,9 @@ class UpdateProfileRequest(BaseModel):
 
 class TotpVerifyRequest(BaseModel):
     code: str
+
+
+class DingTalkCallbackRequest(BaseModel):
+    code: str
+    redirect_uri: str
+    state: Optional[str] = None

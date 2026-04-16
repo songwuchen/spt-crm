@@ -57,8 +57,8 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
     dump = data.model_dump()
     if not dump.get("customer_code"):
         dump["customer_code"] = await generate_code(db, tenant_id, "customer")
-    # Resolve owner_name from owner_id if provided
-    owner_id = dump.pop("owner_id", None)
+    # Resolve owner_name from owner_id if provided; default to creator
+    owner_id = dump.pop("owner_id", None) or user.get("sub")
     owner_name = None
     if owner_id:
         from app.domains.admin.models import User

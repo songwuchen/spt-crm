@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Table, Button, Modal, Form, Input, Select, TreeSelect, Space, message, Switch } from 'antd'
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
+import { useState, useEffect, useRef } from 'react'
+import { Table, Button, Modal, Form, Input, Select, TreeSelect, Space, message, Switch, Popconfirm, Upload, Alert } from 'antd'
+import { PlusOutlined, SearchOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { userApi, roleApi } from '@/api/user'
 import { departmentApi } from '@/api/department'
 import type { Role, Department } from '@/api/types'
@@ -48,6 +48,13 @@ export default function UserList() {
   const [editingUser, setEditingUser] = useState<UserItem | null>(null)
   const [form] = Form.useForm()
 
+  // Import state
+  const [importModal, setImportModal] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ success: number; failed: { row: number; reason: string }[]; total: number } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const fetchData = async (page = pageNo, kw = keyword) => {
     setLoading(true)
     try {
@@ -83,6 +90,52 @@ export default function UserList() {
     }
     setModal(false); form.resetFields(); setEditingUser(null)
     fetchData()
+  }
+
+  const handleDelete = async (userId: string) => {
+    await userApi.delete(userId)
+    message.success('用户已删除')
+    fetchData()
+  }
+
+  const handleExport = async () => {
+    try {
+      const res = await userApi.exportCsv(keyword || undefined) as unknown as Blob
+      const url = URL.createObjectURL(res)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'users.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      message.error('导出失败')
+    }
+  }
+
+  const handleImport = async () => {
+    if (!importFile) { message.warning('请选择CSV文件'); return }
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const res = await userApi.importCsv(importFile)
+      setImportResult(res.data)
+      if (res.data.failed.length === 0) {
+        message.success(`成功导入 ${res.data.success} 个用户`)
+        setImportModal(false)
+        setImportFile(null)
+        fetchData()
+      }
+    } catch {
+      message.error('导入失败')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const openImportModal = () => {
+    setImportFile(null)
+    setImportResult(null)
+    setImportModal(true)
   }
 
   const columns = [
@@ -135,18 +188,30 @@ export default function UserList() {
         </div>
       ),
     },
-    { title: '', width: 80,
+    { title: '', width: 120,
       render: (_: unknown, record: UserItem) => (
-        <a className="text-primary text-xs font-bold uppercase tracking-widest" onClick={() => {
-          setEditingUser(record)
-          form.setFieldsValue({
-            real_name: record.real_name, phone: record.phone, email: record.email,
-            is_active: record.is_active,
-            role_ids: roles.filter((r) => record.roles.includes(r.code)).map((r) => r.id),
-            department_ids: deptFlat.filter((d) => record.departments.includes(d.name)).map((d) => d.id),
-          })
-          setModal(true)
-        }}>编辑</a>
+        <Space size={8}>
+          <a className="text-primary text-xs font-bold uppercase tracking-widest" onClick={() => {
+            setEditingUser(record)
+            form.setFieldsValue({
+              real_name: record.real_name, phone: record.phone, email: record.email,
+              is_active: record.is_active,
+              role_ids: roles.filter((r) => record.roles.includes(r.code)).map((r) => r.id),
+              department_ids: deptFlat.filter((d) => record.departments.includes(d.name)).map((d) => d.id),
+            })
+            setModal(true)
+          }}>编辑</a>
+          <Popconfirm
+            title="确认删除该用户？"
+            description="删除后不可恢复"
+            okText="删除"
+            okButtonProps={{ danger: true }}
+            cancelText="取消"
+            onConfirm={() => handleDelete(record.id)}
+          >
+            <a className="text-red-500 text-xs font-bold uppercase tracking-widest">删除</a>
+          </Popconfirm>
+        </Space>
       ),
     },
   ]
@@ -159,11 +224,15 @@ export default function UserList() {
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">用户管理</h1>
           <p className="text-sm text-slate-500 mt-0.5">管理系统用户账号和权限</p>
         </div>
-        <Button type="primary" icon={<PlusOutlined />}
-          onClick={() => { setEditingUser(null); form.resetFields(); setModal(true) }}
-          className="shadow-lg shadow-primary/20 font-bold">
-          新建用户
-        </Button>
+        <Space>
+          <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          <Button icon={<UploadOutlined />} onClick={openImportModal}>批量导入</Button>
+          <Button type="primary" icon={<PlusOutlined />}
+            onClick={() => { setEditingUser(null); form.resetFields(); setModal(true) }}
+            className="shadow-lg shadow-primary/20 font-bold">
+            新建用户
+          </Button>
+        </Space>
       </div>
 
       {/* Filters */}
@@ -198,6 +267,7 @@ export default function UserList() {
         />
       </div>
 
+      {/* Create / Edit Modal */}
       <Modal title={editingUser ? '编辑用户' : '新建用户'} open={modal} onOk={handleSubmit}
         onCancel={() => { setModal(false); setEditingUser(null); form.resetFields() }} width={500}>
         <Form form={form} layout="vertical">
@@ -227,6 +297,63 @@ export default function UserList() {
             <Form.Item name="is_active" label="启用" valuePropName="checked"><Switch /></Form.Item>
           )}
         </Form>
+      </Modal>
+
+      {/* Import Modal */}
+      <Modal
+        title="批量导入用户"
+        open={importModal}
+        onOk={handleImport}
+        onCancel={() => { setImportModal(false); setImportFile(null); setImportResult(null) }}
+        okText="开始导入"
+        confirmLoading={importing}
+        width={520}
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-slate-500">
+            请上传CSV文件，文件需包含以下列（第一行为标题行）：
+            <div className="mt-2 bg-slate-50 rounded p-2 text-xs font-mono text-slate-700 break-all">
+              username, password, real_name, phone, email, role_codes, department_names
+            </div>
+            <div className="mt-1 text-xs text-slate-400">
+              role_codes 和 department_names 可用英文逗号分隔多个值
+            </div>
+          </div>
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) { setImportFile(f); setImportResult(null) }
+              }}
+            />
+            <Button icon={<UploadOutlined />} onClick={() => fileInputRef.current?.click()}>
+              选择CSV文件
+            </Button>
+            {importFile && (
+              <span className="ml-2 text-sm text-slate-600">{importFile.name}</span>
+            )}
+          </div>
+          {importResult && (
+            <div className="space-y-2">
+              <Alert
+                type={importResult.failed.length === 0 ? 'success' : 'warning'}
+                message={`导入完成：成功 ${importResult.success} 条，失败 ${importResult.failed.length} 条`}
+                showIcon
+              />
+              {importResult.failed.length > 0 && (
+                <div className="max-h-40 overflow-y-auto bg-red-50 rounded p-2">
+                  {importResult.failed.map((f, i) => (
+                    <div key={i} className="text-xs text-red-600">第 {f.row} 行：{f.reason}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   )

@@ -1,3 +1,6 @@
+import re
+import csv
+import io
 import bcrypt
 from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -197,6 +200,81 @@ async def update_user(db: AsyncSession, tenant_id: str, user_id: str, data: User
     await db.commit()
     await db.refresh(user)
     return user
+
+
+async def delete_user(db: AsyncSession, tenant_id: str, user_id: str, current_user_id: str):
+    user = (await db.execute(
+        select(User).where(User.id == user_id, User.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not user:
+        raise BusinessException(code=NOT_FOUND, message="用户不存在")
+    if user_id == current_user_id:
+        raise BusinessException(message="不能删除当前登录用户")
+    await db.execute(delete(UserRole).where(UserRole.user_id == user_id, UserRole.tenant_id == tenant_id))
+    await db.execute(delete(UserDepartment).where(UserDepartment.user_id == user_id, UserDepartment.tenant_id == tenant_id))
+    await db.delete(user)
+    await db.commit()
+
+
+async def import_users(db: AsyncSession, tenant_id: str, rows: list) -> dict:
+    all_roles = (await db.execute(select(Role).where(Role.tenant_id == tenant_id))).scalars().all()
+    role_map = {r.code: r.id for r in all_roles}
+
+    all_depts = (await db.execute(select(Department).where(Department.tenant_id == tenant_id))).scalars().all()
+    dept_map = {d.name: d.id for d in all_depts}
+
+    success = 0
+    failed = []
+
+    for i, row in enumerate(rows):
+        try:
+            username = (row.get("username") or "").strip()
+            password = (row.get("password") or "").strip()
+            real_name = (row.get("real_name") or "").strip()
+
+            if not username or not password or not real_name:
+                failed.append({"row": i + 2, "reason": "用户名、密码和姓名不能为空"})
+                continue
+
+            existing = (await db.execute(
+                select(User).where(User.username == username, User.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if existing:
+                failed.append({"row": i + 2, "reason": f"用户名 {username} 已存在"})
+                continue
+
+            role_ids = []
+            for code in re.split(r'[;,]', row.get("role_codes") or ""):
+                code = code.strip()
+                if code and code in role_map:
+                    role_ids.append(role_map[code])
+
+            dept_ids = []
+            for name in re.split(r'[;,]', row.get("department_names") or ""):
+                name = name.strip()
+                if name and name in dept_map:
+                    dept_ids.append(dept_map[name])
+
+            user = User(
+                id=generate_uuid(), tenant_id=tenant_id,
+                username=username,
+                password_hash=bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
+                real_name=real_name,
+                phone=(row.get("phone") or "").strip() or None,
+                email=(row.get("email") or "").strip() or None,
+            )
+            db.add(user)
+            for rid in role_ids:
+                db.add(UserRole(id=generate_uuid(), tenant_id=tenant_id, user_id=user.id, role_id=rid))
+            for did in dept_ids:
+                db.add(UserDepartment(id=generate_uuid(), tenant_id=tenant_id, user_id=user.id, department_id=did))
+            await db.flush()
+            success += 1
+        except Exception as e:
+            failed.append({"row": i + 2, "reason": str(e)})
+
+    await db.commit()
+    return {"success": success, "failed": failed, "total": len(rows)}
 
 
 async def reset_password(db: AsyncSession, tenant_id: str, user_id: str, new_password: str):

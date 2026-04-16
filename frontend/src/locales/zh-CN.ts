@@ -105,6 +105,7 @@ const zhCN = {
     settings: '系统配置',
     apiDocs: 'API 文档',
     systemHealth: '系统健康',
+    dingTalk: '钉钉集成',
     profile: '个人中心',
   },
 

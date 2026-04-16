@@ -89,6 +89,7 @@ const enUS = {
     settings: 'Settings',
     apiDocs: 'API Docs',
     systemHealth: 'System Health',
+    dingTalk: 'DingTalk',
     profile: 'Profile',
   },
   customer: {

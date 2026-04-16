@@ -1,14 +1,31 @@
-from fastapi import APIRouter, Depends, Query
+import csv
+import io
+from typing import Optional
+from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
+from app.common.exceptions import BusinessException
+from app.domains.admin.models import IntegrationEndpoint
+from app.database import generate_uuid
 from app.domains.organization.schemas import (
     DepartmentCreate, DepartmentUpdate, DepartmentOut,
     UserCreate, UserUpdate, UserOut, ResetPassword,
     RoleCreate, RoleOut, GrantPermissions,
 )
 from app.domains.organization import service
+
+
+class DingTalkConfigBody(BaseModel):
+    app_key: str
+    app_secret: str
+    default_password: Optional[str] = "Changeme@123"
+    root_dept_id: Optional[int] = 1
+    login_enabled: Optional[bool] = False
 
 router = APIRouter(prefix="/api/admin/v1/tenant", tags=["组织管理"])
 
@@ -91,16 +108,51 @@ async def create_user(
     return ok({"id": user.id, "username": user.username, "real_name": user.real_name})
 
 
-@router.put("/users/{user_id}")
-async def update_user(
-    user_id: str,
-    body: UserUpdate,
+@router.get("/users/export")
+async def export_users(
+    keyword: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("user:view")),
+):
+    items, _ = await service.list_users(db, tenant_id, 1, 10000, keyword)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["username", "real_name", "phone", "email", "role_codes", "department_names", "status"])
+    for u in items:
+        writer.writerow([
+            u.username,
+            u.real_name,
+            u.phone or "",
+            u.email or "",
+            ",".join(ur.role.code for ur in u.user_roles),
+            ",".join(ud.department.name for ud in u.user_departments),
+            "active" if u.is_active else "inactive",
+        ])
+    content = "\ufeff" + buf.getvalue()
+    return StreamingResponse(
+        io.BytesIO(content.encode("utf-8")),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=users.csv"},
+    )
+
+
+@router.post("/users/import")
+async def import_users(
+    file: UploadFile = File(...),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("user:manage")),
 ):
-    user = await service.update_user(db, tenant_id, user_id, body)
-    return ok({"id": user.id, "username": user.username, "real_name": user.real_name})
+    content = await file.read()
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = content.decode("gbk", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+    rows = list(reader)
+    result = await service.import_users(db, tenant_id, rows)
+    return ok(result)
 
 
 @router.get("/users/{user_id}")
@@ -117,6 +169,29 @@ async def get_user(
         "roles": [ur.role.code for ur in u.user_roles],
         "departments": [ud.department.name for ud in u.user_departments],
     })
+
+
+@router.put("/users/{user_id}")
+async def update_user(
+    user_id: str,
+    body: UserUpdate,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("user:manage")),
+):
+    user = await service.update_user(db, tenant_id, user_id, body)
+    return ok({"id": user.id, "username": user.username, "real_name": user.real_name})
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("user:manage")),
+):
+    await service.delete_user(db, tenant_id, user_id, current_user["user_id"])
+    return ok()
 
 
 @router.post("/users/{user_id}/reset_password")
@@ -190,3 +265,135 @@ async def list_permissions(
 ):
     perms = await service.list_permissions(db)
     return ok([{"id": p.id, "code": p.code, "name": p.name, "group_name": p.group_name} for p in perms])
+
+
+# ==================== DingTalk OA Integration ====================
+
+_DT_OA_CODE = "dingtalk_oa"
+
+
+async def _get_dt_endpoint(db: AsyncSession, tenant_id: str) -> Optional[IntegrationEndpoint]:
+    return (await db.execute(
+        select(IntegrationEndpoint).where(
+            IntegrationEndpoint.tenant_id == tenant_id,
+            IntegrationEndpoint.system_code == _DT_OA_CODE,
+        )
+    )).scalar_one_or_none()
+
+
+@router.get("/dingtalk/config")
+async def get_dingtalk_config(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    ep = await _get_dt_endpoint(db, tenant_id)
+    if not ep:
+        return ok(None)
+    cfg = ep.auth_config_json or {}
+    return ok({
+        "app_key": cfg.get("app_key", ""),
+        "app_secret": "******" if cfg.get("app_secret") else "",
+        "default_password": cfg.get("default_password", "Changeme@123"),
+        "root_dept_id": cfg.get("root_dept_id", 1),
+        "login_enabled": cfg.get("login_enabled", False),
+        "status": ep.status,
+    })
+
+
+@router.post("/dingtalk/config")
+async def save_dingtalk_config(
+    body: DingTalkConfigBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    ep = await _get_dt_endpoint(db, tenant_id)
+    cfg = {
+        "app_key": body.app_key,
+        "app_secret": body.app_secret,
+        "default_password": body.default_password or "Changeme@123",
+        "root_dept_id": body.root_dept_id or 1,
+        "login_enabled": body.login_enabled or False,
+    }
+    if ep:
+        # preserve existing secret if masked value sent
+        if body.app_secret == "******":
+            cfg["app_secret"] = (ep.auth_config_json or {}).get("app_secret", "")
+        ep.auth_config_json = cfg
+        ep.status = "active"
+    else:
+        ep = IntegrationEndpoint(
+            id=generate_uuid(), tenant_id=tenant_id,
+            system_code=_DT_OA_CODE, name="钉钉组织架构同步",
+            base_url="", auth_type="appkey",
+            auth_config_json=cfg, status="active",
+        )
+        db.add(ep)
+    await db.commit()
+    return ok({"saved": True})
+
+
+@router.post("/dingtalk/test")
+async def test_dingtalk(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    from app.common.dingtalk_sync import get_access_token, fetch_all_departments
+    ep = await _get_dt_endpoint(db, tenant_id)
+    if not ep:
+        raise BusinessException(message="请先配置钉钉参数")
+    cfg = ep.auth_config_json or {}
+    app_key = cfg.get("app_key", "")
+    app_secret = cfg.get("app_secret", "")
+    if not app_key or not app_secret:
+        raise BusinessException(message="AppKey 或 AppSecret 未配置")
+    try:
+        token = await get_access_token(app_key, app_secret)
+        depts = await fetch_all_departments(token)
+        return ok({"connected": True, "dept_count": len(depts)})
+    except Exception as e:
+        return ok({"connected": False, "error": str(e)})
+
+
+@router.post("/dingtalk/sync/departments")
+async def dingtalk_sync_departments(
+    sync_leaders: bool = Query(True),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    from app.common.dingtalk_sync import get_access_token, sync_departments
+    ep = await _get_dt_endpoint(db, tenant_id)
+    if not ep:
+        raise BusinessException(message="请先配置钉钉参数")
+    cfg = ep.auth_config_json or {}
+    try:
+        token = await get_access_token(cfg["app_key"], cfg["app_secret"])
+        result = await sync_departments(db, tenant_id, token, sync_leaders=sync_leaders)
+        return ok(result)
+    except Exception as e:
+        raise BusinessException(message=f"同步部门失败: {e}")
+
+
+@router.post("/dingtalk/sync/users")
+async def dingtalk_sync_users(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    from app.common.dingtalk_sync import get_access_token, sync_users
+    ep = await _get_dt_endpoint(db, tenant_id)
+    if not ep:
+        raise BusinessException(message="请先配置钉钉参数")
+    cfg = ep.auth_config_json or {}
+    try:
+        token = await get_access_token(cfg["app_key"], cfg["app_secret"])
+        result = await sync_users(
+            db, tenant_id, token,
+            default_password=cfg.get("default_password", "Changeme@123"),
+        )
+        return ok(result)
+    except Exception as e:
+        raise BusinessException(message=f"同步用户失败: {e}")

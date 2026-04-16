@@ -4,6 +4,10 @@ import type { ApiResponse, TokenResponse, UserInfo, LoginRequest } from './types
 export const authApi = {
   login: (data: LoginRequest) =>
     client.post<unknown, ApiResponse<TokenResponse>>('/api/v1/auth/login', data),
+  dingtalkConfig: () =>
+    client.get<unknown, ApiResponse<{ login_enabled: boolean; app_key: string }>>('/api/v1/auth/dingtalk/config'),
+  dingtalkCallback: (data: { code: string; redirect_uri: string; state?: string }) =>
+    client.post<unknown, ApiResponse<TokenResponse>>('/api/v1/auth/dingtalk/callback', data),
   refresh: (refresh_token: string) =>
     client.post<unknown, ApiResponse<TokenResponse>>('/api/v1/auth/refresh', { refresh_token }),
   me: () =>
