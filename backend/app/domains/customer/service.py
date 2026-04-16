@@ -61,7 +61,7 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
     owner_id = dump.pop("owner_id", None) or user.get("sub")
     owner_name = None
     if owner_id:
-        from app.domains.admin.models import User
+        from app.domains.auth.models import User
         owner = (await db.execute(
             select(User).where(User.id == owner_id, User.tenant_id == tenant_id)
         )).scalar_one_or_none()
@@ -88,7 +88,7 @@ async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, da
     if "owner_id" in update_data:
         new_owner_id = update_data["owner_id"]
         if new_owner_id:
-            from app.domains.admin.models import User
+            from app.domains.auth.models import User
             owner = (await db.execute(
                 select(User).where(User.id == new_owner_id, User.tenant_id == tenant_id)
             )).scalar_one_or_none()
