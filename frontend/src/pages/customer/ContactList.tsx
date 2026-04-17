@@ -6,6 +6,7 @@ import { contactApi } from '@/api/contact'
 import type { Contact } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePageSize } from '@/hooks/usePageSize'
 
 const roleTypeLabels: Record<string, string> = {
   decision_maker: '决策人',
@@ -33,12 +34,13 @@ export default function ContactList() {
   const [pageNo, setPageNo] = useState(1)
   const [keyword, setKeyword] = useState('')
   const [roleType, setRoleType] = useState<string | undefined>()
+  const [pageSize, setPageSize] = usePageSize('contacts')
 
   const fetchData = async (page = pageNo, kw = keyword, rt = roleType) => {
     setLoading(true)
     try {
       const res = await contactApi.listAll({
-        pageNo: page, pageSize: 20,
+        pageNo: page, pageSize,
         keyword: kw || undefined, role_type: rt,
       })
       setData(res.data.items)
@@ -126,8 +128,10 @@ export default function ContactList() {
           loading={loading}
           scroll={{ x: 900 }}
           pagination={{
-            current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
+            current: pageNo, total, pageSize, showTotal: (t) => `共 ${t} 条`,
+            showSizeChanger: true, pageSizeOptions: ['20', '50', '100'],
             onChange: (p) => { setPageNo(p); fetchData(p) },
+            onShowSizeChange: (_current, size) => { setPageSize(size); setPageNo(1); fetchData(1) },
           }}
         />
       </div>

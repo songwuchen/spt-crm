@@ -90,6 +90,7 @@ const enUS = {
     apiDocs: 'API Docs',
     systemHealth: 'System Health',
     dingTalk: 'DingTalk',
+    dataManage: 'Data Management',
     profile: 'Profile',
   },
   customer: {

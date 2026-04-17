@@ -45,6 +45,7 @@ const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
       { key: '/admin/api-docs', icon: 'api', labelKey: 'nav.apiDocs', permission: 'role:manage' },
       { key: '/admin/system-health', icon: 'monitor_heart', labelKey: 'nav.systemHealth', permission: 'role:manage' },
       { key: '/admin/dingtalk', icon: 'phonelink_ring', labelKey: 'nav.dingTalk', permission: 'role:manage' },
+      { key: '/admin/data-manage', icon: 'delete_sweep', labelKey: 'nav.dataManage', permission: 'role:manage' },
     ],
   },
 ]
@@ -75,6 +76,7 @@ function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/admin\/api-docs/)) return '/admin/api-docs'
   if (pathname.match(/^\/admin\/system-health/)) return '/admin/system-health'
   if (pathname.match(/^\/admin\/dingtalk/)) return '/admin/dingtalk'
+  if (pathname.match(/^\/admin\/data-manage/)) return '/admin/data-manage'
   return '/'
 }
 

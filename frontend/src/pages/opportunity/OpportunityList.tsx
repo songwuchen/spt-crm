@@ -14,6 +14,7 @@ import { opportunityStatusMap as statusMap } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
+import { usePageSize } from '@/hooks/usePageSize'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
 
@@ -38,6 +39,7 @@ export default function OpportunityList() {
   const [batchTransferModal, setBatchTransferModal] = useState(false)
   const [transferForm] = Form.useForm()
   const userSelect = useUserSelect()
+  const [pageSize, setPageSize] = usePageSize('opportunities')
 
   const handleBatchStageChange = async () => {
     const results = await Promise.allSettled(
@@ -82,7 +84,7 @@ export default function OpportunityList() {
     setLoading(true)
     try {
       const res = await projectApi.list({
-        pageNo: page, pageSize: 20,
+        pageNo: page, pageSize,
         keyword: kw || undefined, stage_code: sc, status: st,
       })
       setData(res.data.items)
@@ -249,8 +251,10 @@ export default function OpportunityList() {
         <Table rowKey="id" columns={visibleColumns} dataSource={data} loading={loading} scroll={{ x: 1200 }}
           rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys) }}
           pagination={{
-            current: pageNo, total, pageSize: 20, showTotal: (n) => t('common.totalCount', { count: n }),
+            current: pageNo, total, pageSize, showTotal: (n) => t('common.totalCount', { count: n }),
+            showSizeChanger: true, pageSizeOptions: ['20', '50', '100'],
             onChange: (p) => { setPageNo(p); fetchData(p) },
+            onShowSizeChange: (_current, size) => { setPageSize(size); setPageNo(1); fetchData(1) },
           }}
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
         />

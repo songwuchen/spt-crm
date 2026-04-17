@@ -13,6 +13,7 @@ import { t } from '@/locales'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
+import { usePageSize } from '@/hooks/usePageSize'
 import { useCountdownConfirm } from '@/hooks/useCountdownConfirm'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
@@ -52,6 +53,7 @@ export default function CustomerList() {
   const [messageSending, setMessageSending] = useState(false)
   const [showMap, setShowMap] = useState(false)
   const [showTagCloud, setShowTagCloud] = useState(false)
+  const [pageSize, setPageSize] = usePageSize('customers')
   const [regionData, setRegionData] = useState<{ region: string; count: number }[]>([])
 
   useEffect(() => {
@@ -135,7 +137,7 @@ export default function CustomerList() {
     setLoading(true)
     try {
       const res = await customerApi.list({
-        pageNo: page, pageSize: 20,
+        pageNo: page, pageSize,
         keyword: kw || undefined, industry: ind, region: reg || undefined,
       })
       setData(res.data.items)
@@ -358,8 +360,10 @@ export default function CustomerList() {
           scroll={{ x: 1100 }}
           rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
           pagination={{
-            current: pageNo, total, pageSize: 20, showTotal: (tot) => t('common.totalCount', { count: tot }),
+            current: pageNo, total, pageSize, showTotal: (tot) => t('common.totalCount', { count: tot }),
+            showSizeChanger: true, pageSizeOptions: ['20', '50', '100'],
             onChange: (p) => { setPageNo(p); fetchData(p) },
+            onShowSizeChange: (_current, size) => { setPageSize(size); setPageNo(1); fetchData(1) },
           }}
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
         />

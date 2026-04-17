@@ -73,6 +73,7 @@ const CalendarPage = lazy(() => import('@/pages/calendar/CalendarPage'))
 const ApiDocsPage = lazy(() => import('@/pages/admin/ApiDocsPage'))
 const SystemHealthPage = lazy(() => import('@/pages/admin/SystemHealthPage'))
 const DingTalkPage = lazy(() => import('@/pages/admin/settings/DingTalkPage'))
+const DataManagePage = lazy(() => import('@/pages/admin/settings/DataManagePage'))
 const ProductReport = lazy(() => import('@/pages/report/ProductReport'))
 const CustomerLifecycleReport = lazy(() => import('@/pages/report/CustomerLifecycleReport'))
 const TeamPerformanceReport = lazy(() => import('@/pages/report/TeamPerformanceReport'))
@@ -146,6 +147,7 @@ export const router = createBrowserRouter([
       { path: 'admin/api-docs', element: <Guard permission="role:manage"><ApiDocsPage /></Guard> },
       { path: 'admin/system-health', element: <Guard permission="role:manage"><SystemHealthPage /></Guard> },
       { path: 'admin/dingtalk', element: <Guard permission="role:manage"><DingTalkPage /></Guard> },
+      { path: 'admin/data-manage', element: <Guard permission="role:manage"><DataManagePage /></Guard> },
       { path: 'dashboard/shared/:token', element: <Lazy><DashboardSnapshot /></Lazy> },
       { path: '*', element: <Lazy><NotFound /></Lazy> },
     ],

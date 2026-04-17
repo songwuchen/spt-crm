@@ -5,6 +5,7 @@ import { userApi, roleApi } from '@/api/user'
 import { departmentApi } from '@/api/department'
 import type { Role, Department } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePageSize } from '@/hooks/usePageSize'
 
 interface UserItem {
   id: string; username: string; real_name: string
@@ -41,6 +42,7 @@ export default function UserList() {
   const [loading, setLoading] = useState(false)
   const [pageNo, setPageNo] = useState(1)
   const [keyword, setKeyword] = useState('')
+  const [pageSize, setPageSize] = usePageSize('users')
   const [roles, setRoles] = useState<Role[]>([])
   const [deptTree, setDeptTree] = useState<Department[]>([])
   const [deptFlat, setDeptFlat] = useState<{ id: string; name: string }[]>([])
@@ -58,7 +60,7 @@ export default function UserList() {
   const fetchData = async (page = pageNo, kw = keyword) => {
     setLoading(true)
     try {
-      const res = await userApi.list({ pageNo: page, pageSize: 20, keyword: kw || undefined })
+      const res = await userApi.list({ pageNo: page, pageSize, keyword: kw || undefined })
       setData(res.data.items)
       setTotal(res.data.total)
     } finally { setLoading(false) }
@@ -260,8 +262,10 @@ export default function UserList() {
         <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
           scroll={{ x: 1000 }}
           pagination={{
-            current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
+            current: pageNo, total, pageSize, showTotal: (t) => `共 ${t} 条`,
+            showSizeChanger: true, pageSizeOptions: ['20', '50', '100'],
             onChange: (p) => { setPageNo(p); fetchData(p) },
+            onShowSizeChange: (_current, size) => { setPageSize(size); setPageNo(1); fetchData(1) },
           }}
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
         />

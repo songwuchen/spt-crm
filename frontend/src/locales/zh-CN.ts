@@ -106,6 +106,7 @@ const zhCN = {
     apiDocs: 'API 文档',
     systemHealth: '系统健康',
     dingTalk: '钉钉集成',
+    dataManage: '数据管理',
     profile: '个人中心',
   },
 

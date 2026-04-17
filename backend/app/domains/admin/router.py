@@ -1,16 +1,18 @@
+import asyncio
 import io
 import json
-from datetime import date, datetime
+import logging
+from datetime import date, datetime, timezone
 from typing import Optional, Union
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, inspect as sa_inspect
+from sqlalchemy import select, func, delete as sa_delete, inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
-from app.database import generate_uuid as gen_id
+from app.database import generate_uuid as gen_id, async_session_factory
 from app.domains.admin import service
 from app.domains.admin.models import DocTemplate, EmailTemplate, CustomFieldDef
 from app.common.exceptions import BusinessException
@@ -1305,3 +1307,324 @@ async def permanently_delete_record(
     await db.delete(record)
     await db.commit()
     return ok(None)
+
+
+# ==================== Customer Data Purge ====================
+
+_purge_logger = logging.getLogger("purge")
+
+# In-memory task tracking: tenant_id -> task info dict
+_purge_tasks: dict[str, dict] = {}
+
+
+class PurgeScheduleBody(BaseModel):
+    delay_seconds: int = Field(default=300, ge=60, le=3600)
+
+
+async def _execute_purge(tenant_id: str, task_id: str, user_id: str, user_name: str | None):
+    """Background coroutine: run the actual purge after the asyncio.sleep completes."""
+    task_info = _purge_tasks.get(tenant_id)
+    if not task_info or task_info["task_id"] != task_id:
+        return  # was cancelled or replaced
+
+    task_info["status"] = "executing"
+
+    try:
+        async with async_session_factory() as db:
+            # Import all related models
+            from app.domains.customer.models import Customer, Contact, CustomerRelation, AclShare
+            from app.domains.project.models import OpportunityProject
+            from app.domains.quote.models import Quote, QuoteVersion, QuoteLine, CostSnapshot, QuoteSendLog
+            from app.domains.contract.models import Contract
+            from app.domains.solution.models import Solution
+            from app.domains.delivery.models import DeliveryMilestone
+            from app.domains.payment.models import PaymentPlan, Invoice, PaymentRecord
+            from app.domains.change.models import ChangeRequest
+            from app.domains.service_ticket.models import ServiceTicket, RenewalOpportunity
+            from app.domains.activity.models import Activity
+
+            # Collect customer IDs first
+            cust_ids_result = await db.execute(
+                select(Customer.id).where(Customer.tenant_id == tenant_id)
+            )
+            customer_ids = [row[0] for row in cust_ids_result.all()]
+
+            deleted_counts: dict[str, int] = {}
+
+            if customer_ids:
+                # Delete related records that reference customer_id
+                for label, model, fk_col in [
+                    ("contacts", Contact, Contact.customer_id),
+                    ("customer_relations_from", CustomerRelation, CustomerRelation.from_customer_id),
+                    ("customer_relations_to", CustomerRelation, CustomerRelation.to_customer_id),
+                    ("service_tickets", ServiceTicket, ServiceTicket.customer_id),
+                    ("renewal_opportunities", RenewalOpportunity, RenewalOpportunity.customer_id),
+                ]:
+                    result = await db.execute(
+                        sa_delete(model).where(
+                            model.tenant_id == tenant_id,
+                            fk_col.in_(customer_ids),
+                        )
+                    )
+                    deleted_counts[label] = deleted_counts.get(label, 0) + result.rowcount
+
+                # Projects linked to customers
+                proj_ids_result = await db.execute(
+                    select(OpportunityProject.id).where(
+                        OpportunityProject.tenant_id == tenant_id,
+                        OpportunityProject.customer_id.in_(customer_ids),
+                    )
+                )
+                project_ids = [row[0] for row in proj_ids_result.all()]
+
+                if project_ids:
+                    # Collect quote IDs for sub-table deletion
+                    quote_ids_result = await db.execute(
+                        select(Quote.id).where(
+                            Quote.tenant_id == tenant_id,
+                            Quote.project_id.in_(project_ids),
+                        )
+                    )
+                    quote_ids = [row[0] for row in quote_ids_result.all()]
+
+                    if quote_ids:
+                        # Collect quote version IDs
+                        qv_ids_result = await db.execute(
+                            select(QuoteVersion.id).where(
+                                QuoteVersion.tenant_id == tenant_id,
+                                QuoteVersion.quote_id.in_(quote_ids),
+                            )
+                        )
+                        qv_ids = [row[0] for row in qv_ids_result.all()]
+
+                        if qv_ids:
+                            # Delete quote lines and cost snapshots (ref quote_version_id)
+                            for label, model in [
+                                ("quote_lines", QuoteLine),
+                                ("cost_snapshots", CostSnapshot),
+                            ]:
+                                result = await db.execute(
+                                    sa_delete(model).where(
+                                        model.tenant_id == tenant_id,
+                                        model.quote_version_id.in_(qv_ids),
+                                    )
+                                )
+                                deleted_counts[label] = result.rowcount
+
+                        # Delete quote versions and send logs (ref quote_id)
+                        for label, model, fk in [
+                            ("quote_versions", QuoteVersion, QuoteVersion.quote_id),
+                            ("quote_send_logs", QuoteSendLog, QuoteSendLog.quote_id),
+                        ]:
+                            result = await db.execute(
+                                sa_delete(model).where(
+                                    model.tenant_id == tenant_id,
+                                    fk.in_(quote_ids),
+                                )
+                            )
+                            deleted_counts[label] = result.rowcount
+
+                    # Delete project-related records that have project_id
+                    for label, model in [
+                        ("quotes", Quote),
+                        ("contracts", Contract),
+                        ("solutions", Solution),
+                        ("delivery_milestones", DeliveryMilestone),
+                        ("payment_plans", PaymentPlan),
+                        ("invoices", Invoice),
+                        ("payment_records", PaymentRecord),
+                        ("change_requests", ChangeRequest),
+                    ]:
+                        result = await db.execute(
+                            sa_delete(model).where(
+                                model.tenant_id == tenant_id,
+                                model.project_id.in_(project_ids),
+                            )
+                        )
+                        deleted_counts[label] = result.rowcount
+
+                    # Delete projects themselves
+                    result = await db.execute(
+                        sa_delete(OpportunityProject).where(
+                            OpportunityProject.tenant_id == tenant_id,
+                            OpportunityProject.customer_id.in_(customer_ids),
+                        )
+                    )
+                    deleted_counts["projects"] = result.rowcount
+
+                # Delete ACL shares for customers
+                result = await db.execute(
+                    sa_delete(AclShare).where(
+                        AclShare.tenant_id == tenant_id,
+                        AclShare.biz_type == "customer",
+                        AclShare.biz_id.in_(customer_ids),
+                    )
+                )
+                deleted_counts["acl_shares"] = result.rowcount
+
+                # Delete activities linked to customers
+                result = await db.execute(
+                    sa_delete(Activity).where(
+                        Activity.tenant_id == tenant_id,
+                        Activity.biz_type == "customer",
+                        Activity.biz_id.in_(customer_ids),
+                    )
+                )
+                deleted_counts["activities"] = result.rowcount
+
+                # Finally delete all customers
+                result = await db.execute(
+                    sa_delete(Customer).where(Customer.tenant_id == tenant_id)
+                )
+                deleted_counts["customers"] = result.rowcount
+
+            await db.commit()
+
+            # Write audit log for completion
+            from app.domains.audit.service import log_action
+            async with async_session_factory() as audit_db:
+                await log_action(
+                    audit_db, tenant_id=tenant_id,
+                    user_id=user_id, user_name=user_name,
+                    action="purge_completed", resource_type="customer",
+                    summary=f"客户数据清空完成，共删除 {deleted_counts.get('customers', 0)} 个客户及相关数据",
+                    detail={"deleted_counts": deleted_counts},
+                )
+
+        task_info["status"] = "completed"
+        task_info["completed_at"] = datetime.now(timezone.utc).isoformat()
+        task_info["deleted_counts"] = deleted_counts
+        _purge_logger.info("Purge completed for tenant %s: %s", tenant_id, deleted_counts)
+
+    except asyncio.CancelledError:
+        task_info["status"] = "cancelled"
+        _purge_logger.info("Purge cancelled for tenant %s", tenant_id)
+    except Exception as exc:
+        task_info["status"] = "failed"
+        task_info["error"] = str(exc)
+        _purge_logger.exception("Purge failed for tenant %s", tenant_id)
+
+
+async def _purge_delay_then_execute(
+    tenant_id: str, task_id: str, delay_seconds: int,
+    user_id: str, user_name: str | None,
+):
+    """Sleep for delay, then run the purge."""
+    try:
+        await asyncio.sleep(delay_seconds)
+        await _execute_purge(tenant_id, task_id, user_id, user_name)
+    except asyncio.CancelledError:
+        task_info = _purge_tasks.get(tenant_id)
+        if task_info and task_info["task_id"] == task_id:
+            task_info["status"] = "cancelled"
+
+
+@router.post("/api/admin/v1/tenant/customers/purge")
+async def schedule_purge(
+    body: PurgeScheduleBody = PurgeScheduleBody(),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("role:manage")),
+):
+    """Schedule a delayed purge of all customer data for this tenant."""
+    existing = _purge_tasks.get(tenant_id)
+    if existing and existing["status"] in ("scheduled", "executing"):
+        raise BusinessException(code=400, message="已有清空任务正在进行中，请先取消或等待完成")
+
+    task_id = gen_id()
+    now = datetime.now(timezone.utc)
+    execute_at = datetime.fromtimestamp(now.timestamp() + body.delay_seconds, tz=timezone.utc)
+
+    user_id = current_user["user_id"]
+    user_name = current_user.get("real_name")
+
+    # Create the background asyncio task
+    loop_task = asyncio.create_task(
+        _purge_delay_then_execute(tenant_id, task_id, body.delay_seconds, user_id, user_name)
+    )
+
+    _purge_tasks[tenant_id] = {
+        "task_id": task_id,
+        "status": "scheduled",
+        "asyncio_task": loop_task,
+        "scheduled_at": now.isoformat(),
+        "execute_at": execute_at.isoformat(),
+        "delay_seconds": body.delay_seconds,
+        "user_id": user_id,
+        "user_name": user_name,
+    }
+
+    # Audit log for scheduling
+    from app.domains.audit.service import log_action
+    await log_action(
+        db, tenant_id=tenant_id,
+        user_id=user_id, user_name=user_name,
+        action="purge_scheduled", resource_type="customer",
+        summary=f"计划清空全部客户数据，延迟 {body.delay_seconds} 秒后执行",
+        detail={"task_id": task_id, "delay_seconds": body.delay_seconds,
+                "execute_at": execute_at.isoformat()},
+    )
+
+    return ok({
+        "task_id": task_id,
+        "status": "scheduled",
+        "scheduled_at": now.isoformat(),
+        "execute_at": execute_at.isoformat(),
+        "delay_seconds": body.delay_seconds,
+    })
+
+
+@router.get("/api/admin/v1/tenant/customers/purge/status")
+async def purge_status(
+    tenant_id: str = Depends(get_tenant_id),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """Get the current purge task status for this tenant."""
+    task_info = _purge_tasks.get(tenant_id)
+    if not task_info:
+        return ok({"status": "idle"})
+
+    result = {
+        "task_id": task_info["task_id"],
+        "status": task_info["status"],
+        "scheduled_at": task_info.get("scheduled_at"),
+        "execute_at": task_info.get("execute_at"),
+        "delay_seconds": task_info.get("delay_seconds"),
+        "completed_at": task_info.get("completed_at"),
+        "deleted_counts": task_info.get("deleted_counts"),
+        "error": task_info.get("error"),
+    }
+    return ok(result)
+
+
+@router.post("/api/admin/v1/tenant/customers/purge/cancel")
+async def cancel_purge(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("role:manage")),
+):
+    """Cancel a scheduled purge before it executes."""
+    task_info = _purge_tasks.get(tenant_id)
+    if not task_info or task_info["status"] != "scheduled":
+        raise BusinessException(code=400, message="没有可取消的清空任务")
+
+    # Cancel the asyncio task
+    asyncio_task = task_info.get("asyncio_task")
+    if asyncio_task and not asyncio_task.done():
+        asyncio_task.cancel()
+
+    task_info["status"] = "cancelled"
+
+    # Audit log
+    from app.domains.audit.service import log_action
+    user_id = current_user["user_id"]
+    user_name = current_user.get("real_name")
+    await log_action(
+        db, tenant_id=tenant_id,
+        user_id=user_id, user_name=user_name,
+        action="purge_cancelled", resource_type="customer",
+        summary="取消了客户数据清空任务",
+        detail={"task_id": task_info["task_id"]},
+    )
+
+    return ok({"status": "cancelled", "task_id": task_info["task_id"]})

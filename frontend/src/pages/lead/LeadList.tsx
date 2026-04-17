@@ -11,6 +11,7 @@ import { leadStatusConfig as statusConfig } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
+import { usePageSize } from '@/hooks/usePageSize'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
 import { t } from '@/locales'
@@ -49,6 +50,7 @@ export default function LeadList() {
   const keyword = searchParams.get('keyword') || ''
   const status = searchParams.get('status') || undefined
   const source = searchParams.get('source') || undefined
+  const [pageSize, setPageSize] = usePageSize('leads')
 
   const updateParams = (updates: Record<string, string | undefined>) => {
     setSearchParams((prev) => {
@@ -120,7 +122,7 @@ export default function LeadList() {
   const fetchData = async (page = pageNo, kw = keyword, st = status, src = source) => {
     setLoading(true)
     try {
-      const res = await leadApi.list({ pageNo: page, pageSize: 20, keyword: kw || undefined, status: st, source: src })
+      const res = await leadApi.list({ pageNo: page, pageSize, keyword: kw || undefined, status: st, source: src })
       setData(res.data.items)
       setTotal(res.data.total)
     } finally {
@@ -313,8 +315,10 @@ export default function LeadList() {
           scroll={{ x: 1050 }}
           rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
           pagination={{
-            current: pageNo, total, pageSize: 20, showTotal: (total) => t('common.totalCount', { count: total }),
+            current: pageNo, total, pageSize, showTotal: (total) => t('common.totalCount', { count: total }),
+            showSizeChanger: true, pageSizeOptions: ['20', '50', '100'],
             onChange: (p) => { setPageNo(p); fetchData(p) },
+            onShowSizeChange: (_current, size) => { setPageSize(size); setPageNo(1); fetchData(1) },
           }}
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
         />
