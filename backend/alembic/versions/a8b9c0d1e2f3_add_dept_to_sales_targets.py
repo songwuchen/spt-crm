@@ -1,14 +1,14 @@
 """add department_id to sales_targets
 
 Revision ID: a8b9c0d1e2f3
-Revises: w4x5y6z7a8b9
+Revises: y6z7a8b9c0d1
 Create Date: 2026-04-16
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "a8b9c0d1e2f3"
-down_revision = "w4x5y6z7a8b9"
+down_revision = "y6z7a8b9c0d1"
 branch_labels = None
 depends_on = None
 
