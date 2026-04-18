@@ -1,10 +1,14 @@
 """Standalone contact list — cross-customer contact search and management."""
-from fastapi import APIRouter, Depends, Query
+import csv
+import io
+
+from fastapi import APIRouter, Depends, Query, UploadFile, File
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions
 from app.common.schemas import ok
+from app.database import generate_uuid
 from app.domains.customer.models import Contact, Customer
 
 router = APIRouter(prefix="/api/v1/contacts", tags=["联系人"])
@@ -66,4 +70,79 @@ async def list_contacts(
             "created_at": c.created_at.isoformat() if c.created_at else "",
         } for c in items],
         "total": total, "pageNo": pageNo, "pageSize": pageSize,
+    })
+
+
+@router.post("/import")
+async def import_contacts(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("contact:create")),
+):
+    """Import contacts from CSV file. Matches customers by name."""
+    content = (await file.read()).decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(content))
+
+    # Pre-fetch all customer name -> id mapping for this tenant
+    cust_rows = (await db.execute(
+        select(Customer.id, Customer.name).where(
+            Customer.tenant_id == tenant_id,
+            Customer.is_deleted == False,
+        )
+    )).all()
+    cust_map: dict[str, str] = {r[1].strip(): r[0] for r in cust_rows}
+
+    success = 0
+    errors: list[dict] = []
+    valid_role_types = {"decision_maker", "influencer", "user", "finance", "procurement"}
+
+    for idx, row in enumerate(reader, start=2):  # row 1 is header
+        customer_name = (row.get("customer_name") or "").strip()
+        name = (row.get("name") or "").strip()
+
+        if not customer_name:
+            errors.append({"row": idx, "reason": "缺少 customer_name"})
+            continue
+        if not name:
+            errors.append({"row": idx, "reason": "缺少 name"})
+            continue
+
+        customer_id = cust_map.get(customer_name)
+        if not customer_id:
+            errors.append({"row": idx, "reason": f"未找到客户: {customer_name}"})
+            continue
+
+        role_type = (row.get("role_type") or "").strip() or None
+        if role_type and role_type not in valid_role_types:
+            errors.append({"row": idx, "reason": f"无效的角色类型: {role_type}"})
+            continue
+
+        is_primary_raw = (row.get("is_primary") or "").strip().lower()
+        is_primary = is_primary_raw in ("true", "1", "是", "yes")
+
+        contact = Contact(
+            id=generate_uuid(),
+            tenant_id=tenant_id,
+            customer_id=customer_id,
+            name=name,
+            title=(row.get("title") or "").strip() or None,
+            role_type=role_type,
+            phone=(row.get("phone") or "").strip() or None,
+            mobile=(row.get("mobile") or "").strip() or None,
+            email=(row.get("email") or "").strip() or None,
+            is_primary=is_primary,
+            remark=(row.get("remark") or "").strip() or None,
+        )
+        db.add(contact)
+        success += 1
+
+    if success > 0:
+        await db.commit()
+
+    return ok({
+        "success": success,
+        "failed": len(errors),
+        "total": success + len(errors),
+        "errors": errors,
     })

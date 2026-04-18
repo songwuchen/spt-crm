@@ -911,8 +911,10 @@ async def global_search(
 # ---- Sales Targets ----
 
 class SalesTargetBody(BaseModel):
-    user_id: str
+    user_id: Optional[str] = None
     user_name: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
     year: int = Field(..., ge=2020, le=2100)
     month: int = Field(..., ge=1, le=12)
     target_amount: float = Field(..., ge=0)
@@ -924,6 +926,8 @@ async def list_targets(
     year: int = Query(...),
     month: int = Query(None),
     user_id: str = Query(None),
+    department_id: str = Query(None),
+    target_type: str = Query(None),  # "user" or "department"
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
@@ -933,9 +937,16 @@ async def list_targets(
         q = q.where(SalesTarget.month == month)
     if user_id:
         q = q.where(SalesTarget.user_id == user_id)
+    if department_id:
+        q = q.where(SalesTarget.department_id == department_id)
+    if target_type == "user":
+        q = q.where(SalesTarget.user_id.isnot(None), SalesTarget.department_id.is_(None))
+    elif target_type == "department":
+        q = q.where(SalesTarget.department_id.isnot(None))
     items = (await db.execute(q.order_by(SalesTarget.month, SalesTarget.user_name))).scalars().all()
     return ok([{
         "id": t.id, "user_id": t.user_id, "user_name": t.user_name,
+        "department_id": t.department_id, "department_name": t.department_name,
         "year": t.year, "month": t.month,
         "target_amount": float(t.target_amount), "target_count": t.target_count,
     } for t in items])
@@ -948,19 +959,41 @@ async def upsert_target(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:manage")),
 ):
-    """Create or update a sales target (upsert by user+year+month)."""
-    existing = (await db.execute(
-        select(SalesTarget).where(
-            SalesTarget.tenant_id == tenant_id,
-            SalesTarget.user_id == body.user_id,
-            SalesTarget.year == body.year,
-            SalesTarget.month == body.month,
-        )
-    )).scalar()
+    """Create or update a sales target (upsert by user+year+month or department+year+month)."""
+    from app.common.exceptions import BusinessException
+    if body.user_id and body.department_id:
+        raise BusinessException("不能同时设置用户和部门")
+    if not body.user_id and not body.department_id:
+        raise BusinessException("必须指定用户或部门")
+
+    if body.department_id:
+        # Department-level target
+        existing = (await db.execute(
+            select(SalesTarget).where(
+                SalesTarget.tenant_id == tenant_id,
+                SalesTarget.department_id == body.department_id,
+                SalesTarget.year == body.year,
+                SalesTarget.month == body.month,
+            )
+        )).scalar()
+    else:
+        # User-level target
+        existing = (await db.execute(
+            select(SalesTarget).where(
+                SalesTarget.tenant_id == tenant_id,
+                SalesTarget.user_id == body.user_id,
+                SalesTarget.year == body.year,
+                SalesTarget.month == body.month,
+            )
+        )).scalar()
+
     if existing:
         existing.target_amount = body.target_amount
         existing.target_count = body.target_count
-        existing.user_name = body.user_name or existing.user_name
+        if body.user_id:
+            existing.user_name = body.user_name or existing.user_name
+        if body.department_id:
+            existing.department_name = body.department_name or existing.department_name
         await db.commit()
         await db.refresh(existing)
         t = existing
@@ -968,13 +1001,17 @@ async def upsert_target(
         t = SalesTarget(
             tenant_id=tenant_id,
             user_id=body.user_id, user_name=body.user_name,
+            department_id=body.department_id, department_name=body.department_name,
             year=body.year, month=body.month,
             target_amount=body.target_amount, target_count=body.target_count,
         )
         db.add(t)
         await db.commit()
         await db.refresh(t)
-    return ok({"id": t.id, "user_id": t.user_id, "year": t.year, "month": t.month, "target_amount": float(t.target_amount)})
+    return ok({
+        "id": t.id, "user_id": t.user_id, "department_id": t.department_id,
+        "year": t.year, "month": t.month, "target_amount": float(t.target_amount),
+    })
 
 
 @router.delete("/targets/{target_id}")
@@ -999,11 +1036,14 @@ async def delete_target(
 async def target_achievement(
     year: int = Query(...),
     month: int = Query(None),
+    target_type: str = Query(None),  # "user" or "department"
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    """Get target vs actual achievement for all users."""
+    """Get target vs actual achievement for users and/or departments."""
+    from app.domains.organization.models import UserDepartment
+
     # Get targets
     tq = select(SalesTarget).where(SalesTarget.tenant_id == tenant_id, SalesTarget.year == year)
     if month:
@@ -1027,32 +1067,80 @@ async def target_achievement(
     actuals = {r.owner_id: {"actual_amount": float(r.actual_amount), "actual_count": r.actual_count, "owner_name": r.owner_name}
                for r in (await db.execute(aq)).all()}
 
-    # Merge
-    user_targets: dict = {}
-    for t in targets:
-        key = t.user_id
-        if key not in user_targets:
-            user_targets[key] = {"user_id": t.user_id, "user_name": t.user_name, "target_amount": 0, "target_count": 0}
-        user_targets[key]["target_amount"] += float(t.target_amount)
-        user_targets[key]["target_count"] += (t.target_count or 0)
-
     result = []
-    all_users = set(list(user_targets.keys()) + list(actuals.keys()))
-    for uid in all_users:
-        t = user_targets.get(uid, {"user_id": uid, "user_name": actuals.get(uid, {}).get("owner_name", ""), "target_amount": 0, "target_count": 0})
-        a = actuals.get(uid, {"actual_amount": 0, "actual_count": 0})
-        target_amt = t["target_amount"]
-        actual_amt = a["actual_amount"]
-        rate = round(actual_amt / target_amt * 100, 1) if target_amt > 0 else 0
-        result.append({
-            "user_id": uid,
-            "user_name": t["user_name"],
-            "target_amount": target_amt,
-            "target_count": t["target_count"],
-            "actual_amount": actual_amt,
-            "actual_count": a["actual_count"],
-            "achievement_rate": rate,
-        })
+
+    # ---- User-level achievements ----
+    if target_type != "department":
+        user_targets: dict = {}
+        for t in targets:
+            if not t.user_id or t.department_id:
+                continue
+            key = t.user_id
+            if key not in user_targets:
+                user_targets[key] = {"user_id": t.user_id, "user_name": t.user_name, "target_amount": 0, "target_count": 0}
+            user_targets[key]["target_amount"] += float(t.target_amount)
+            user_targets[key]["target_count"] += (t.target_count or 0)
+
+        all_users = set(list(user_targets.keys()) + list(actuals.keys()))
+        for uid in all_users:
+            t_data = user_targets.get(uid, {"user_id": uid, "user_name": actuals.get(uid, {}).get("owner_name", ""), "target_amount": 0, "target_count": 0})
+            a = actuals.get(uid, {"actual_amount": 0, "actual_count": 0})
+            target_amt = t_data["target_amount"]
+            actual_amt = a["actual_amount"]
+            rate = round(actual_amt / target_amt * 100, 1) if target_amt > 0 else 0
+            result.append({
+                "type": "user",
+                "user_id": uid,
+                "user_name": t_data["user_name"],
+                "target_amount": target_amt,
+                "target_count": t_data["target_count"],
+                "actual_amount": actual_amt,
+                "actual_count": a["actual_count"],
+                "achievement_rate": rate,
+            })
+
+    # ---- Department-level achievements ----
+    if target_type != "user":
+        dept_targets: dict = {}
+        for t in targets:
+            if not t.department_id:
+                continue
+            key = t.department_id
+            if key not in dept_targets:
+                dept_targets[key] = {"department_id": t.department_id, "department_name": t.department_name, "target_amount": 0, "target_count": 0}
+            dept_targets[key]["target_amount"] += float(t.target_amount)
+            dept_targets[key]["target_count"] += (t.target_count or 0)
+
+        if dept_targets:
+            # Find users in each department via UserDepartment junction
+            dept_ids = list(dept_targets.keys())
+            ud_rows = (await db.execute(
+                select(UserDepartment.department_id, UserDepartment.user_id).where(
+                    UserDepartment.tenant_id == tenant_id,
+                    UserDepartment.department_id.in_(dept_ids),
+                )
+            )).all()
+            dept_user_map: dict[str, list[str]] = {}
+            for row in ud_rows:
+                dept_user_map.setdefault(row.department_id, []).append(row.user_id)
+
+            for did, dt in dept_targets.items():
+                user_ids = dept_user_map.get(did, [])
+                actual_amt = sum(actuals.get(uid, {}).get("actual_amount", 0) for uid in user_ids)
+                actual_cnt = sum(actuals.get(uid, {}).get("actual_count", 0) for uid in user_ids)
+                target_amt = dt["target_amount"]
+                rate = round(actual_amt / target_amt * 100, 1) if target_amt > 0 else 0
+                result.append({
+                    "type": "department",
+                    "department_id": did,
+                    "department_name": dt["department_name"],
+                    "target_amount": target_amt,
+                    "target_count": dt["target_count"],
+                    "actual_amount": actual_amt,
+                    "actual_count": actual_cnt,
+                    "achievement_rate": rate,
+                })
+
     result.sort(key=lambda x: x["achievement_rate"], reverse=True)
     return ok(result)
 

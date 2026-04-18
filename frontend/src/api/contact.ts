@@ -12,4 +12,13 @@ export const contactApi = {
     client.put<unknown, ApiResponse<Contact>>(`/api/v1/customers/${customerId}/contacts/${contactId}`, data),
   delete: (customerId: string, contactId: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/customers/${customerId}/contacts/${contactId}`),
+  importCsv: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return client.post<unknown, ApiResponse<{ success: number; failed: number; total: number; errors: { row: number; reason: string }[] }>>(
+      '/api/v1/contacts/import',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    )
+  },
 }
