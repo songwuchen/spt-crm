@@ -184,7 +184,7 @@ export default function ContractDetail() {
 
       {/* Signing Workflow Stepper */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
-        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">签章流程</div>
+        <div className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">签章流程</div>
         <Steps
           size="small"
           current={
@@ -236,10 +236,10 @@ export default function ContractDetail() {
         {/* Approval tasks detail */}
         {approvalFlow?.tasks && approvalFlow.tasks.length > 0 && (
           <div className="mt-4 pt-4 border-t border-slate-100">
-            <div className="text-xs font-bold text-slate-400 mb-2">审批记录</div>
+            <div className="text-sm font-bold text-slate-400 mb-2">审批记录</div>
             <div className="flex flex-wrap gap-2">
               {approvalFlow.tasks.map((t) => (
-                <div key={t.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
+                <div key={t.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${
                   t.status === 'approved' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
                   t.status === 'rejected' ? 'bg-red-50 border-red-200 text-red-700' :
                   t.status === 'pending' ? 'bg-blue-50 border-blue-200 text-blue-700' :
@@ -270,7 +270,7 @@ export default function ContractDetail() {
 
         {contract.payment_terms_json && (
           <div className="mt-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">付款条款</h4>
+            <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">付款条款</h4>
             <div className="bg-slate-50 p-3 rounded-lg">
               {typeof contract.payment_terms_json === 'object' && !Array.isArray(contract.payment_terms_json) ? (
                 <Descriptions column={1} size="small" bordered>
@@ -279,14 +279,14 @@ export default function ContractDetail() {
                   ))}
                 </Descriptions>
               ) : (
-                <div className="text-xs text-slate-700">{JSON.stringify(contract.payment_terms_json, null, 2)}</div>
+                <div className="text-sm text-slate-700">{JSON.stringify(contract.payment_terms_json, null, 2)}</div>
               )}
             </div>
           </div>
         )}
         {contract.delivery_terms_json && (
           <div className="mt-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">交付条款</h4>
+            <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">交付条款</h4>
             <div className="bg-slate-50 p-3 rounded-lg">
               {typeof contract.delivery_terms_json === 'object' && !Array.isArray(contract.delivery_terms_json) ? (
                 <Descriptions column={1} size="small" bordered>
@@ -295,7 +295,7 @@ export default function ContractDetail() {
                   ))}
                 </Descriptions>
               ) : (
-                <div className="text-xs text-slate-700">{JSON.stringify(contract.delivery_terms_json, null, 2)}</div>
+                <div className="text-sm text-slate-700">{JSON.stringify(contract.delivery_terms_json, null, 2)}</div>
               )}
             </div>
           </div>
@@ -306,7 +306,7 @@ export default function ContractDetail() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">版本</span>
+            <span className="text-sm font-bold uppercase tracking-wider text-slate-400">版本</span>
             <Select
               value={selectedVersionId}
               onChange={fetchVersion}
@@ -333,8 +333,8 @@ export default function ContractDetail() {
 
         {currentVersion?.key_clauses_json && (
           <div className="mt-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">结构化条款</h4>
-            <pre className="bg-slate-50 p-3 rounded-lg text-xs text-slate-700 overflow-auto">
+            <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">结构化条款</h4>
+            <pre className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700 overflow-auto">
               {JSON.stringify(currentVersion.key_clauses_json, null, 2)}
             </pre>
           </div>
@@ -359,7 +359,7 @@ export default function ContractDetail() {
             children: (
               <div className="pb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="text-xs text-slate-400">AI 将从交付周期、违约条款、知识产权、付款条件等维度分析合同风险</div>
+                  <div className="text-sm text-slate-400">AI 将从交付周期、违约条款、知识产权、付款条件等维度分析合同风险</div>
                   <Button type="primary" size="small" icon={<RobotOutlined />} onClick={handleAiAnalyze} loading={aiLoading}>
                     {aiResult ? '重新分析' : '开始分析'}
                   </Button>
@@ -373,7 +373,7 @@ export default function ContractDetail() {
                     {/* Risk Level */}
                     {aiResult.risk_level && (
                       <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold uppercase text-slate-400">综合风险</span>
+                        <span className="text-sm font-bold uppercase text-slate-400">综合风险</span>
                         <span className={`px-3 py-1 rounded-full text-sm font-bold ${
                           aiResult.risk_level === 'H' ? 'bg-red-50 text-red-600 border border-red-200' :
                           aiResult.risk_level === 'M' ? 'bg-amber-50 text-amber-600 border border-amber-200' :
@@ -387,7 +387,7 @@ export default function ContractDetail() {
                     {/* Clause Risk Items */}
                     {Array.isArray(aiResult.clauses) && (
                       <div>
-                        <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">条款风险清单</h4>
+                        <h4 className="text-sm font-bold uppercase text-slate-400 mb-2">条款风险清单</h4>
                         <div className="space-y-2">
                           {aiResult.clauses.map((c, i) => {
                             const riskConfig: Record<string, { bg: string; border: string; icon: string; label: string; iconColor: string }> = {
@@ -416,7 +416,7 @@ export default function ContractDetail() {
                     {/* Overall Comment */}
                     {aiResult.overall_comment && (
                       <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                        <div className="text-xs font-bold uppercase text-blue-400 mb-1">AI 综合建议</div>
+                        <div className="text-sm font-bold uppercase text-blue-400 mb-1">AI 综合建议</div>
                         <div className="text-sm text-blue-800">{String(aiResult.overall_comment)}</div>
                       </div>
                     )}
@@ -479,7 +479,7 @@ export default function ContractDetail() {
               options={userSelect.options}
               onSearch={userSelect.onSearch}
               onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
-            <div className="text-xs text-slate-400 mt-1">多选时将按选择顺序依次审批</div>
+            <div className="text-sm text-slate-400 mt-1">多选时将按选择顺序依次审批</div>
           </div>
         </div>
       </Modal>

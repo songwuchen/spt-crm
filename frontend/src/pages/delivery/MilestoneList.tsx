@@ -123,7 +123,7 @@ export default function MilestoneList() {
           }}
           columns={[
             { title: '编号', dataIndex: 'milestone_code', width: 120,
-              render: (v: string) => <span className="font-mono text-xs font-bold">{v || '-'}</span>,
+              render: (v: string) => <span className="font-mono text-sm font-bold">{v || '-'}</span>,
             },
             { title: '名称', dataIndex: 'name', width: 200,
               render: (v: string, r: DeliveryMilestone) => (

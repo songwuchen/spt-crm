@@ -148,8 +148,8 @@ export default function SalesTargetPage() {
       render: (_: unknown, r: Achievement) => {
         const gap = r.target_amount - r.actual_amount
         return gap > 0
-          ? <span className="text-rose-500 text-xs font-bold">差 {gap.toLocaleString()}</span>
-          : <span className="text-emerald-500 text-xs font-bold">超额 {Math.abs(gap).toLocaleString()}</span>
+          ? <span className="text-rose-500 text-sm font-bold">差 {gap.toLocaleString()}</span>
+          : <span className="text-emerald-500 text-sm font-bold">超额 {Math.abs(gap).toLocaleString()}</span>
       },
     },
   ]
@@ -169,7 +169,7 @@ export default function SalesTargetPage() {
       render: (v: number | null) => v ?? '-' },
     { title: '', key: 'actions', width: 60,
       render: (_: unknown, r: TargetRow) => (
-        <a className="text-rose-500 text-xs" onClick={() => handleDelete(r.id)}><DeleteOutlined /></a>
+        <a className="text-rose-500 text-sm" onClick={() => handleDelete(r.id)}><DeleteOutlined /></a>
       ),
     },
   ]

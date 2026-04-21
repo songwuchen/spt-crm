@@ -58,7 +58,7 @@ export default function ProductReport() {
           { label: '引用总次数', value: totalCitations, color: 'text-indigo-600' },
         ].map(kpi => (
           <div key={kpi.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-            <div className="text-xs font-bold text-slate-400 uppercase">{kpi.label}</div>
+            <div className="text-sm font-bold text-slate-400 uppercase">{kpi.label}</div>
             <div className={`text-2xl font-black mt-1 ${kpi.color}`}>{kpi.value}</div>
           </div>
         ))}
@@ -104,7 +104,7 @@ export default function ProductReport() {
         <Table rowKey="product_code" dataSource={products} loading={loading} size="small"
           pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
           columns={[
-            { title: '产品编码', dataIndex: 'product_code', width: 120, render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+            { title: '产品编码', dataIndex: 'product_code', width: 120, render: (v: string) => <span className="font-mono text-sm">{v}</span> },
             { title: '名称', dataIndex: 'name', width: 200 },
             { title: '单价', dataIndex: 'unit_price', width: 100, render: (v: number | null) => v != null ? `¥${v.toLocaleString()}` : '-' },
             { title: '引用次数', dataIndex: 'usage_count', width: 100, sorter: (a: ProductStat, b: ProductStat) => a.usage_count - b.usage_count,

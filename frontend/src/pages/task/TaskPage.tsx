@@ -181,7 +181,7 @@ export default function TaskPage() {
             { title: '负责人', dataIndex: 'assignee_name', width: 80 },
             { title: '', key: 'actions', width: 60,
               render: (_, r: TaskItem) => (
-                <a className="text-rose-500 text-xs" onClick={() => handleDelete(r.id)}><DeleteOutlined /></a>
+                <a className="text-rose-500 text-sm" onClick={() => handleDelete(r.id)}><DeleteOutlined /></a>
               ),
             },
           ]}
@@ -216,7 +216,7 @@ export default function TaskPage() {
               onSearch={userSelect.onSearch} onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
           </Form.Item>
         </Form>
-        <p className="text-xs text-slate-400">将选中的 {selectedIds.length} 项任务分配给指定负责人</p>
+        <p className="text-sm text-slate-400">将选中的 {selectedIds.length} 项任务分配给指定负责人</p>
       </Modal>
     </div>
   )

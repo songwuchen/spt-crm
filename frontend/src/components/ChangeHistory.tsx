@@ -108,7 +108,7 @@ export default function ChangeHistory({ resourceType, resourceId }: Props) {
       <Timeline items={items} />
       {total > 20 && (
         <div className="text-center">
-          <a className="text-xs text-primary" onClick={() => { const next = page + 1; setPage(next); fetchLogs(next) }}>
+          <a className="text-sm text-primary" onClick={() => { const next = page + 1; setPage(next); fetchLogs(next) }}>
             加载更多...
           </a>
         </div>

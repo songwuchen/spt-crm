@@ -166,7 +166,7 @@ export default function OpportunityDetail() {
                 <Tag color={r.severity === 'H' ? 'red' : r.severity === 'M' ? 'orange' : 'green'}>{r.severity}</Tag>
                 <div>
                   <div className="font-semibold text-sm">[{r.category}] {r.description}</div>
-                  <div className="text-xs text-slate-400 mt-1">缓解措施：{r.mitigation}</div>
+                  <div className="text-sm text-slate-400 mt-1">缓解措施：{r.mitigation}</div>
                 </div>
               </div>
             ))}
@@ -216,7 +216,7 @@ export default function OpportunityDetail() {
           width: 520,
           content: (
             <div className="space-y-2 mt-2">
-              <div className="text-xs text-slate-400 mb-3">
+              <div className="text-sm text-slate-400 mb-3">
                 以下 {gateErr.gateData.failed_rules.length} 项校验未通过，请逐一修复后重试：
               </div>
               {gateErr.gateData.failed_rules.map((r: { name: string; message: string; fix_action?: string }, i: number) => (
@@ -224,10 +224,10 @@ export default function OpportunityDetail() {
                   <span className="material-symbols-outlined text-amber-500 mt-0.5" style={{ fontSize: 18 }}>warning</span>
                   <div className="flex-1">
                     <div className="text-sm font-bold text-slate-800">{r.name}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">{r.message}</div>
+                    <div className="text-sm text-slate-500 mt-0.5">{r.message}</div>
                     {r.fix_action && fixHandlers[r.fix_action] && (
                       <button
-                        className="text-xs text-blue-600 hover:text-blue-800 mt-1 underline cursor-pointer bg-transparent border-0 p-0"
+                        className="text-sm text-blue-600 hover:text-blue-800 mt-1 underline cursor-pointer bg-transparent border-0 p-0"
                         onClick={() => { Modal.destroyAll(); fixHandlers[r.fix_action!]() }}
                       >
                         → {fixLabels[r.fix_action] || '去修复'}
@@ -421,7 +421,7 @@ export default function OpportunityDetail() {
                 )}
               </div>
               <div className="flex items-center gap-4 text-sm text-slate-500">
-                <span className="font-mono text-xs text-slate-400">#{project.project_code}</span>
+                <span className="font-mono text-sm text-slate-400">#{project.project_code}</span>
                 {customer && (
                   <span className="flex items-center gap-1">
                     <span className="material-symbols-outlined text-sm">business</span> {customer.name}
@@ -487,7 +487,7 @@ export default function OpportunityDetail() {
         {/* Left: Profile */}
         <div className="col-span-3">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-0">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">项目画像</h3>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">项目画像</h3>
             <InfoField label="预期金额" value={project.amount_expect != null ? `¥${Number(project.amount_expect).toLocaleString()}` : undefined} />
             <InfoField label="成交概率" value={project.probability != null ? `${project.probability}%` : undefined} />
             <InfoField label="预期成交日" value={project.close_date_expect} />
@@ -499,7 +499,7 @@ export default function OpportunityDetail() {
           {/* Health Score */}
           {healthScore && (
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mt-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">健康度</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">健康度</h3>
               <div className="flex items-center gap-3 mb-4">
                 <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-black text-white ${
                   healthScore.level === 'healthy' ? 'bg-emerald-500' :
@@ -556,7 +556,7 @@ export default function OpportunityDetail() {
           {/* Similar Projects */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mt-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">相似商机</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">相似商机</h3>
               <Button size="small" loading={similarLoading} onClick={async () => {
                 setSimilarLoading(true)
                 try {
@@ -566,20 +566,20 @@ export default function OpportunityDetail() {
                 } catch { message.error('查询失败') }
                 finally { setSimilarLoading(false) }
               }}>
-                <span className="material-symbols-outlined text-xs mr-1">auto_awesome</span>
+                <span className="material-symbols-outlined text-sm mr-1">auto_awesome</span>
                 AI 匹配
               </Button>
             </div>
             {similarProjects === null ? (
-              <p className="text-xs text-slate-400 text-center py-2">点击"AI 匹配"查找相似商机</p>
+              <p className="text-sm text-slate-400 text-center py-2">点击"AI 匹配"查找相似商机</p>
             ) : similarProjects.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-2">暂无匹配结果</p>
+              <p className="text-sm text-slate-400 text-center py-2">暂无匹配结果</p>
             ) : (
               <div className="space-y-2">
                 {similarProjects.map((p, i) => (
                   <div key={i} className="bg-slate-50 rounded-lg px-3 py-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700">{p.name}</span>
+                      <span className="text-sm font-bold text-slate-700">{p.name}</span>
                       <span className="text-[10px] font-extrabold text-primary">{p.similarity_score}%</span>
                     </div>
                     <div className="text-[10px] text-slate-500 mt-0.5">{p.reason}</div>
@@ -596,14 +596,14 @@ export default function OpportunityDetail() {
 
           {/* Stage History */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mt-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">阶段历史</h3>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">阶段历史</h3>
             {history.length === 0 ? (
-              <p className="text-xs text-slate-400">暂无阶段变更</p>
+              <p className="text-sm text-slate-400">暂无阶段变更</p>
             ) : (
               <Timeline items={history.map((h) => ({
                 children: (
                   <div>
-                    <div className="text-xs font-bold text-slate-700">
+                    <div className="text-sm font-bold text-slate-700">
                       {h.from_stage} → {h.to_stage}
                     </div>
                     {h.note && <div className="text-[11px] text-slate-500">{h.note}</div>}
@@ -644,8 +644,8 @@ export default function OpportunityDetail() {
                         { title: '创建时间', dataIndex: 'created_at', render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
                         { title: '', key: 'actions', render: (_: unknown, r: SolutionItem) => (
                           <Space size={4}>
-                            <a onClick={() => navigate(`/opportunities/${id}/solutions/${r.id}`)} className="text-primary text-xs font-bold">查看</a>
-                            <a className="text-rose-500 text-xs font-bold" onClick={() => {
+                            <a onClick={() => navigate(`/opportunities/${id}/solutions/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
+                            <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
                                 title: '确认删除', content: `确定要删除方案「${r.solution_no}」？`, okType: 'danger',
                                 onOk: async () => { await solutionApi.delete(r.id); message.success('已删除'); solutionApi.listByProject(id!).then((res) => setSolutions(res.data)) },
@@ -692,8 +692,8 @@ export default function OpportunityDetail() {
                         { title: '创建时间', dataIndex: 'created_at', render: (v) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
                         { title: '', key: 'actions', render: (_, r) => (
                           <Space size={4}>
-                            <a onClick={() => navigate(`/opportunities/${id}/quotes/${r.id}`)} className="text-primary text-xs font-bold">查看</a>
-                            <a className="text-rose-500 text-xs font-bold" onClick={() => {
+                            <a onClick={() => navigate(`/opportunities/${id}/quotes/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
+                            <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
                                 title: '确认删除', content: `确定要删除报价「${r.quote_no}」？`, okType: 'danger',
                                 onOk: async () => { await quoteApi.delete(r.id); message.success('已删除'); quoteApi.listByProject(id!).then((res) => setQuotes(res.data)) },
@@ -740,8 +740,8 @@ export default function OpportunityDetail() {
                         { title: '签署日期', dataIndex: 'signed_date', render: (v) => v || '-' },
                         { title: '', key: 'actions', render: (_, r) => (
                           <Space size={4}>
-                            <a onClick={() => navigate(`/opportunities/${id}/contracts/${r.id}`)} className="text-primary text-xs font-bold">查看</a>
-                            <a className="text-rose-500 text-xs font-bold" onClick={() => {
+                            <a onClick={() => navigate(`/opportunities/${id}/contracts/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
+                            <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
                                 title: '确认删除', content: `确定要删除合同「${r.contract_no}」？`, okType: 'danger',
                                 onOk: async () => { await contractApi.delete(r.id); message.success('已删除'); contractApi.listByProject(id!).then((res) => setContracts(res.data)) },
@@ -768,7 +768,7 @@ export default function OpportunityDetail() {
                       return (
                         <div className="bg-white rounded-xl border border-slate-200 p-4">
                           <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">交付进度</h4>
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400">交付进度</h4>
                             <span className="text-sm font-extrabold text-slate-700">{pct}%</span>
                           </div>
                           <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden mb-3">
@@ -797,7 +797,7 @@ export default function OpportunityDetail() {
                             </div>
                           </div>
                           {delayed > 0 && (
-                            <div className="mt-3 flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                            <div className="mt-3 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                               <span className="material-symbols-outlined text-sm">warning</span>
                               {delayed} 个里程碑已延迟，请关注交付风险
                             </div>
@@ -809,7 +809,7 @@ export default function OpportunityDetail() {
                     {/* Gantt Chart */}
                     {milestones.length > 0 && (
                       <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">里程碑甘特图</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">里程碑甘特图</h4>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                           <MilestoneGantt milestones={milestones} />
                         </div>
@@ -819,7 +819,7 @@ export default function OpportunityDetail() {
                     {/* Milestones */}
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">交付里程碑</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400">交付里程碑</h4>
                         <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => openMilestoneModal()}>新建里程碑</Button>
                       </div>
                       <Table rowKey="id" dataSource={milestones} pagination={false} size="small"
@@ -836,8 +836,8 @@ export default function OpportunityDetail() {
                           { title: '来源', dataIndex: 'source_type' },
                           { title: '', key: 'actions', width: 100, render: (_: unknown, r: DeliveryMilestone) => (
                             <Space size={4}>
-                              <a className="text-primary text-xs font-bold" onClick={() => openMilestoneModal(r)}>编辑</a>
-                              <a className="text-rose-500 text-xs font-bold" onClick={() => {
+                              <a className="text-primary text-sm font-bold" onClick={() => openMilestoneModal(r)}>编辑</a>
+                              <a className="text-rose-500 text-sm font-bold" onClick={() => {
                                 Modal.confirm({
                                   title: '确认删除', okType: 'danger',
                                   onOk: async () => { await deliveryApi.deleteMilestone(r.id); message.success('已删除'); deliveryApi.listMilestones(id!).then((res) => setMilestones(res.data)) },
@@ -852,7 +852,7 @@ export default function OpportunityDetail() {
                     {/* ERP Order Links */}
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">ERP 订单映射</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400">ERP 订单映射</h4>
                         <Button size="small" icon={<PlusOutlined />} onClick={() => { erpForm.resetFields(); setErpModal(true) }}>新建映射</Button>
                       </div>
                       <Table rowKey="id" dataSource={orderLinks} pagination={false} size="small"
@@ -867,7 +867,7 @@ export default function OpportunityDetail() {
                           { title: '备注', dataIndex: 'remark', ellipsis: true },
                           { title: '创建时间', dataIndex: 'created_at', render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
                           { title: '', key: 'actions', width: 60, render: (_: unknown, r: ErpOrderLink) => (
-                            <a className="text-rose-500 text-xs font-bold" onClick={() => {
+                            <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
                                 title: '确认删除', okType: 'danger',
                                 onOk: async () => { await deliveryApi.deleteOrderLink(r.id); message.success('已删除'); deliveryApi.listOrderLinks(id!).then((res) => setOrderLinks(res.data)) },
@@ -889,11 +889,11 @@ export default function OpportunityDetail() {
                     {(plans.length > 0 || records.length > 0) && (
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">回款概览</h4>
+                          <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400">回款概览</h4>
                           <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
-                            <button className={`px-3 py-1 text-xs font-bold ${paymentView === 'chart' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                            <button className={`px-3 py-1 text-sm font-bold ${paymentView === 'chart' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
                               onClick={() => setPaymentView('chart')}>图表</button>
-                            <button className={`px-3 py-1 text-xs font-bold ${paymentView === 'gantt' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                            <button className={`px-3 py-1 text-sm font-bold ${paymentView === 'gantt' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
                               onClick={() => setPaymentView('gantt')}>甘特图</button>
                           </div>
                         </div>
@@ -909,7 +909,7 @@ export default function OpportunityDetail() {
 
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">回款计划</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400">回款计划</h4>
                         <Button size="small" icon={<PlusOutlined />} onClick={() => openPlanModal()}>新建计划</Button>
                       </div>
                       <Table rowKey="id" dataSource={plans} pagination={false} size="small"
@@ -923,14 +923,14 @@ export default function OpportunityDetail() {
                             return <Tag color={c[v]}>{l[v] || v}</Tag>
                           }},
                           { title: '', key: 'actions', width: 60, render: (_: unknown, r: PaymentPlanItem) => (
-                            <a className="text-primary text-xs font-bold" onClick={() => openPlanModal(r)}>编辑</a>
+                            <a className="text-primary text-sm font-bold" onClick={() => openPlanModal(r)}>编辑</a>
                           )},
                         ]}
                       />
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">发票</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400">发票</h4>
                         <Button size="small" icon={<PlusOutlined />} onClick={() => openInvoiceModal()}>新建发票</Button>
                       </div>
                       <Table rowKey="id" dataSource={invoices} pagination={false} size="small"
@@ -943,14 +943,14 @@ export default function OpportunityDetail() {
                             return <Tag color={v === 'issued' ? 'success' : 'error'}>{l[v] || v}</Tag>
                           }},
                           { title: '', key: 'actions', width: 60, render: (_: unknown, r: InvoiceItem) => (
-                            <a className="text-primary text-xs font-bold" onClick={() => openInvoiceModal(r)}>编辑</a>
+                            <a className="text-primary text-sm font-bold" onClick={() => openInvoiceModal(r)}>编辑</a>
                           )},
                         ]}
                       />
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">到账记录</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400">到账记录</h4>
                         <Button size="small" icon={<PlusOutlined />} onClick={() => openRecordModal()}>新建记录</Button>
                       </div>
                       <Table rowKey="id" dataSource={records} pagination={false} size="small"
@@ -997,8 +997,8 @@ export default function OpportunityDetail() {
                         { title: '创建时间', dataIndex: 'created_at', render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
                         { title: '', key: 'actions', width: 100, render: (_: unknown, r: ChangeRequestItem) => (
                           <Space size={4}>
-                            <a className="text-primary text-xs font-bold" onClick={() => openChangeDetail(r)}>查看</a>
-                            <a className="text-rose-500 text-xs font-bold" onClick={() => {
+                            <a className="text-primary text-sm font-bold" onClick={() => openChangeDetail(r)}>查看</a>
+                            <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
                                 title: '确认删除', content: `确定要删除变更单「${r.change_no}」？`, okType: 'danger',
                                 onOk: async () => { await changeApi.delete(r.id); message.success('已删除'); changeApi.listByProject(id!).then((res) => setChangeRequests(res.data)) },
@@ -1040,7 +1040,7 @@ export default function OpportunityDetail() {
               },
               {
                 key: 'shares',
-                label: <span className="font-semibold">共享 <span className="ml-1 text-xs text-slate-400">{shares.length}</span></span>,
+                label: <span className="font-semibold">共享 <span className="ml-1 text-sm text-slate-400">{shares.length}</span></span>,
                 children: (
                   <div className="py-4">
                     <div className="flex justify-end mb-3">
@@ -1061,7 +1061,7 @@ export default function OpportunityDetail() {
                       { title: '权限', dataIndex: 'permission', width: 80, render: (v: string) => <Tag color={v === 'edit' ? 'blue' : undefined}>{v === 'edit' ? '编辑' : '查看'}</Tag> },
                       { title: '共享人', dataIndex: 'shared_by_name', width: 100 },
                       { title: '', key: 'actions', width: 60, render: (_: unknown, record: AclShareItem) => (
-                        <a className="text-xs text-rose-500" onClick={async () => {
+                        <a className="text-sm text-rose-500" onClick={async () => {
                           await projectApi.deleteShare(id!, record.id)
                           message.success('已取消共享')
                           projectApi.listShares(id!).then((r) => setShares(r.data))
@@ -1219,7 +1219,7 @@ export default function OpportunityDetail() {
             <div className="mb-4 p-3 bg-slate-50 rounded-lg">
               <div className="flex items-center justify-between">
                 <span className="font-mono font-bold text-primary">{editingChange.change_no}</span>
-                <span className="text-xs text-slate-400">
+                <span className="text-sm text-slate-400">
                   {editingChange.created_by_name} · {editingChange.created_at ? new Date(editingChange.created_at).toLocaleString('zh-CN') : ''}
                 </span>
               </div>
@@ -1246,7 +1246,7 @@ export default function OpportunityDetail() {
             </Form>
             <div className="mt-2">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">影响评估</h4>
+                <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400">影响评估</h4>
                 <Button size="small" type="primary" onClick={async () => {
                   try {
                     const res = await changeApi.estimateImpact(editingChange.id)
@@ -1279,7 +1279,7 @@ export default function OpportunityDetail() {
                   {((editingChange.impact_json as Record<string, unknown>).risk_summary as string[])?.length > 0 && (
                     <div className="space-y-1">
                       {((editingChange.impact_json as Record<string, unknown>).risk_summary as string[]).map((r: string, i: number) => (
-                        <div key={i} className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                        <div key={i} className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
                           <span className="material-symbols-outlined text-sm mt-px">warning</span>
                           {r}
                         </div>
@@ -1292,7 +1292,7 @@ export default function OpportunityDetail() {
                       <div className="text-[10px] font-bold uppercase text-slate-400 mb-1">受影响里程碑</div>
                       <div className="space-y-1">
                         {((editingChange.impact_json as Record<string, unknown>).affected_milestones as Array<Record<string, string>>).map((m) => (
-                          <div key={m.id} className="flex items-center justify-between text-xs bg-slate-50 rounded px-3 py-1.5">
+                          <div key={m.id} className="flex items-center justify-between text-sm bg-slate-50 rounded px-3 py-1.5">
                             <span className="font-semibold text-slate-700">{m.name || m.code}</span>
                             <span className="text-slate-400">{m.plan_date || '未设定日期'}</span>
                           </div>

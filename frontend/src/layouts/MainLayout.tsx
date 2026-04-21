@@ -156,7 +156,7 @@ export default function MainLayout() {
       </Sider>
       <Layout className="bg-bg-light dark:!bg-slate-900" style={{ height: '100vh', overflow: 'hidden' }}>
         {!online && (
-          <div className="bg-amber-500 text-white text-xs font-bold text-center py-1 px-2 flex items-center justify-center gap-1">
+          <div className="bg-amber-500 text-white text-sm font-bold text-center py-1 px-2 flex items-center justify-center gap-1">
             <span className="material-symbols-outlined" style={{ fontSize: 14 }}>cloud_off</span>
             网络已断开 — 部分功能可能不可用
           </div>

@@ -161,7 +161,7 @@ export default function MobileFollowUp() {
                 style={activityType !== t.key ? { border: '1px solid #e2e8f0' } : {}}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{t.icon}</span>
-                <span className="text-xs font-medium">{t.label}</span>
+                <span className="text-sm font-medium">{t.label}</span>
               </button>
             ))}
           </div>
@@ -200,7 +200,7 @@ export default function MobileFollowUp() {
                 />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-slate-900">{opt.label}</p>
-                  <p className="text-xs text-slate-500">{opt.desc}</p>
+                  <p className="text-sm text-slate-500">{opt.desc}</p>
                 </div>
                 <span className={`material-symbols-outlined ${opt.color}`}>{opt.icon}</span>
               </label>
@@ -258,7 +258,7 @@ export default function MobileFollowUp() {
               <span className="material-symbols-outlined" style={{ fontSize: 18 }}>description</span>
               AI 生成摘要
             </div>
-            <p className="text-xs leading-relaxed text-slate-700">{aiSummary}</p>
+            <p className="text-sm leading-relaxed text-slate-700">{aiSummary}</p>
           </div>
         )}
       </div>

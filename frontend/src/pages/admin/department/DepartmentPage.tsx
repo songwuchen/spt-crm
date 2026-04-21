@@ -100,7 +100,7 @@ export default function DepartmentPage() {
                 <span className="material-symbols-outlined text-primary">account_tree</span>
                 <h3 className="text-sm font-bold text-slate-900">组织架构</h3>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">
+              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-sm font-bold">
                 {countNodes(tree)} 个部门
               </span>
             </div>
@@ -121,7 +121,7 @@ export default function DepartmentPage() {
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <span className="material-symbols-outlined text-4xl text-slate-200 mb-3">account_tree</span>
                   <p className="text-sm text-slate-400">暂无部门数据</p>
-                  <p className="text-xs text-slate-300 mt-1">点击上方按钮创建第一个部门</p>
+                  <p className="text-sm text-slate-300 mt-1">点击上方按钮创建第一个部门</p>
                 </div>
               )}
             </div>
@@ -174,7 +174,7 @@ export default function DepartmentPage() {
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <span className="material-symbols-outlined text-5xl text-slate-200 mb-3">touch_app</span>
                 <p className="text-sm text-slate-400">请从左侧选择部门</p>
-                <p className="text-xs text-slate-300 mt-1">选择部门后可查看详情和管理操作</p>
+                <p className="text-sm text-slate-300 mt-1">选择部门后可查看详情和管理操作</p>
               </div>
             )}
           </div>

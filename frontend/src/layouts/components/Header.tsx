@@ -216,7 +216,7 @@ export default function Header() {
           }}
           placement="bottomRight"
         >
-          <button className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-100 text-xs font-bold text-slate-500 transition-colors">
+          <button className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-100 text-sm font-bold text-slate-500 transition-colors">
             <span className="material-symbols-outlined text-base">translate</span>
             <span className="hidden sm:inline">{locale === 'zh-CN' ? '中文' : 'EN'}</span>
           </button>

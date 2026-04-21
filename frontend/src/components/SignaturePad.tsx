@@ -94,7 +94,7 @@ export default function SignaturePad({ onSave, onCancel, width = 500, height = 2
           onTouchEnd={stopDraw}
         />
       </div>
-      <div className="text-xs text-slate-400 mb-3">在上方区域手写签名</div>
+      <div className="text-sm text-slate-400 mb-3">在上方区域手写签名</div>
       <Space>
         <Button onClick={clear}>清除</Button>
         <Button onClick={onCancel}>取消</Button>

@@ -39,17 +39,17 @@ export default function MobileCustomerForm() {
 
       <div className="space-y-3">
         <div>
-          <label className="text-xs font-bold text-slate-500 mb-1 block">客户名称 *</label>
+          <label className="text-sm font-bold text-slate-500 mb-1 block">客户名称 *</label>
           <input className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm"
             placeholder="请输入客户名称" value={form.name} onChange={e => update('name', e.target.value)} />
         </div>
         <div>
-          <label className="text-xs font-bold text-slate-500 mb-1 block">简称</label>
+          <label className="text-sm font-bold text-slate-500 mb-1 block">简称</label>
           <input className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm"
             placeholder="简称" value={form.short_name} onChange={e => update('short_name', e.target.value)} />
         </div>
         <div>
-          <label className="text-xs font-bold text-slate-500 mb-1 block">行业</label>
+          <label className="text-sm font-bold text-slate-500 mb-1 block">行业</label>
           <select className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white"
             value={form.industry} onChange={e => update('industry', e.target.value)}>
             <option value="">请选择</option>
@@ -57,13 +57,13 @@ export default function MobileCustomerForm() {
           </select>
         </div>
         <div>
-          <label className="text-xs font-bold text-slate-500 mb-1 block">地区</label>
+          <label className="text-sm font-bold text-slate-500 mb-1 block">地区</label>
           <input className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm"
             placeholder="如：华东/上海" value={form.region} onChange={e => update('region', e.target.value)} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-bold text-slate-500 mb-1 block">来源</label>
+            <label className="text-sm font-bold text-slate-500 mb-1 block">来源</label>
             <select className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white"
               value={form.source} onChange={e => update('source', e.target.value)}>
               <option value="">请选择</option>
@@ -73,7 +73,7 @@ export default function MobileCustomerForm() {
             </select>
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-500 mb-1 block">级别</label>
+            <label className="text-sm font-bold text-slate-500 mb-1 block">级别</label>
             <select className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white"
               value={form.level} onChange={e => update('level', e.target.value)}>
               {['A', 'B', 'C', 'D'].map(l => <option key={l} value={l}>{l}</option>)}

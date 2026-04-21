@@ -140,13 +140,13 @@ export default function NotificationCenter() {
         const d = new Date(v)
         const diff = Date.now() - d.getTime()
         const mins = Math.floor(diff / 60000)
-        if (mins < 1) return <span className="text-xs text-slate-500">刚刚</span>
-        if (mins < 60) return <span className="text-xs text-slate-500">{mins}分钟前</span>
+        if (mins < 1) return <span className="text-sm text-slate-500">刚刚</span>
+        if (mins < 60) return <span className="text-sm text-slate-500">{mins}分钟前</span>
         const hours = Math.floor(mins / 60)
-        if (hours < 24) return <span className="text-xs text-slate-500">{hours}小时前</span>
+        if (hours < 24) return <span className="text-sm text-slate-500">{hours}小时前</span>
         const days = Math.floor(hours / 24)
-        if (days < 7) return <span className="text-xs text-slate-500">{days}天前</span>
-        return <span className="text-xs text-slate-500">{d.toLocaleDateString('zh-CN')}</span>
+        if (days < 7) return <span className="text-sm text-slate-500">{days}天前</span>
+        return <span className="text-sm text-slate-500">{d.toLocaleDateString('zh-CN')}</span>
       },
     },
     {
@@ -188,7 +188,7 @@ export default function NotificationCenter() {
             const tl = typeLabels[type] || typeLabels.system
             return (
               <button key={type} onClick={() => { setFilter(type); setUnreadOnly(true) }}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:border-primary/30 text-xs font-bold text-slate-600 flex items-center gap-1.5 transition-colors">
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:border-primary/30 text-sm font-bold text-slate-600 flex items-center gap-1.5 transition-colors">
                 <Tag color={tl.color} className="!m-0 !text-[10px]">{tl.label}</Tag>
                 <span className="text-red-500">{s.unread}</span>
               </button>
@@ -231,7 +231,7 @@ export default function NotificationCenter() {
           children: (
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 max-w-lg">
               <h3 className="text-sm font-bold text-slate-900 mb-4">通知订阅设置</h3>
-              <p className="text-xs text-slate-500 mb-4">选择您希望接收的通知类型，关闭后将不再推送对应消息。</p>
+              <p className="text-sm text-slate-500 mb-4">选择您希望接收的通知类型，关闭后将不再推送对应消息。</p>
               <div className="space-y-3">
                 {prefTypes.map((t) => (
                   <div key={t.key} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">

@@ -146,7 +146,7 @@ export default function ProfilePage() {
             <p className="text-sm text-slate-500 mt-1">@{user?.username}</p>
             <div className="flex justify-center gap-2 mt-3">
               {user?.roles?.map((r) => (
-                <span key={r} className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-bold">{r}</span>
+                <span key={r} className="px-2 py-0.5 rounded bg-primary/10 text-primary text-sm font-bold">{r}</span>
               ))}
             </div>
             <Divider className="my-4" />
@@ -161,7 +161,7 @@ export default function ProfilePage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">租户ID</span>
-                <span className="font-mono text-xs text-slate-400">{user?.tenant_id}</span>
+                <span className="font-mono text-sm text-slate-400">{user?.tenant_id}</span>
               </div>
             </div>
           </div>
@@ -224,7 +224,7 @@ export default function ProfilePage() {
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">当前</span>
                           )}
                         </div>
-                        <div className="text-xs text-slate-400 truncate">
+                        <div className="text-sm text-slate-400 truncate">
                           IP: {s.ip || '-'} · {s.last_active_at ? new Date(s.last_active_at).toLocaleString('zh-CN') : '-'}
                         </div>
                       </div>
@@ -247,7 +247,7 @@ export default function ProfilePage() {
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <SafetyOutlined /> 二步验证 (2FA)
               </h3>
-              <span className={`px-2 py-0.5 rounded text-xs font-bold ${totpEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+              <span className={`px-2 py-0.5 rounded text-sm font-bold ${totpEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                 {totpEnabled ? '已启用' : '未启用'}
               </span>
             </div>
@@ -271,8 +271,8 @@ export default function ProfilePage() {
                     <QRCode value={totpSetupData.uri} size={160} />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs text-slate-400 mb-1">手动输入密钥：</p>
-                    <code className="text-xs bg-slate-50 px-2 py-1 rounded border break-all">{totpSetupData.secret}</code>
+                    <p className="text-sm text-slate-400 mb-1">手动输入密钥：</p>
+                    <code className="text-sm bg-slate-50 px-2 py-1 rounded border break-all">{totpSetupData.secret}</code>
                     <div className="mt-4 flex gap-2">
                       <Input value={totpCode} onChange={(e) => setTotpCode(e.target.value)}
                         placeholder="6位验证码" maxLength={6} style={{ width: 140 }} />
@@ -369,7 +369,7 @@ export default function ProfilePage() {
                   <Input.Password placeholder="再次输入新密码" />
                 </Form.Item>
               </div>
-              <p className="text-xs text-slate-400 mb-3">密码需包含大小写字母和数字，修改后其他设备将自动下线</p>
+              <p className="text-sm text-slate-400 mb-3">密码需包含大小写字母和数字，修改后其他设备将自动下线</p>
               <div className="flex justify-end">
                 <Button type="primary" danger icon={<LockOutlined />} loading={pwdLoading} onClick={handlePasswordChange}>
                   修改密码

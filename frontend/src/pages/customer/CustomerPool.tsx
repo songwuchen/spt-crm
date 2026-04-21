@@ -112,7 +112,7 @@ export default function CustomerPool() {
       {/* Stats bar */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="bg-white border border-slate-200 rounded-lg px-4 py-2">
-          <span className="text-xs text-slate-500">总数</span>
+          <span className="text-sm text-slate-500">总数</span>
           <span className="ml-2 text-lg font-black text-slate-900">{total}</span>
         </div>
         {Object.entries(levelCounts).filter(([k]) => k !== '-').map(([lv, cnt]) => (

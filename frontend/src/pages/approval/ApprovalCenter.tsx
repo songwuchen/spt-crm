@@ -267,7 +267,7 @@ export default function ApprovalCenter() {
     },
     {
       title: '进度', key: 'progress', width: 100,
-      render: (_, r) => <span className="text-xs text-slate-500">{r.flow.current_node}/{r.flow.total_nodes} 节点</span>,
+      render: (_, r) => <span className="text-sm text-slate-500">{r.flow.current_node}/{r.flow.total_nodes} 节点</span>,
     },
     {
       title: '发起时间', dataIndex: ['flow', 'created_at'], width: 160,
@@ -324,7 +324,7 @@ export default function ApprovalCenter() {
     },
     {
       title: '进度', key: 'progress', width: 100,
-      render: (_, r) => <span className="text-xs text-slate-500">{r.current_node}/{r.total_nodes} 节点</span>,
+      render: (_, r) => <span className="text-sm text-slate-500">{r.current_node}/{r.total_nodes} 节点</span>,
     },
     {
       title: '发起时间', dataIndex: 'created_at', width: 160,
@@ -389,7 +389,7 @@ export default function ApprovalCenter() {
                       <Button size="small" danger icon={<CloseCircleOutlined />}
                         disabled={selectedRowKeys.length === 0} loading={submitting}
                         onClick={() => handleBulkDecide('rejected')}>批量驳回</Button>
-                      {selectedRowKeys.length > 0 && <span className="text-xs text-slate-400 self-center">已选 {selectedRowKeys.length}/{filteredPending.length} 项</span>}
+                      {selectedRowKeys.length > 0 && <span className="text-sm text-slate-400 self-center">已选 {selectedRowKeys.length}/{filteredPending.length} 项</span>}
                     </div>
                   )}
                   <Table rowKey="id" columns={pendingColumns} dataSource={filteredPending}
@@ -483,7 +483,7 @@ export default function ApprovalCenter() {
           <div className="py-2">
             <div className="mb-3 p-3 bg-slate-50 rounded-lg">
               <div className="text-sm font-bold text-slate-800">{currentTask.flow?.title || '审批申请'}</div>
-              <div className="text-xs text-slate-500 mt-1">
+              <div className="text-sm text-slate-500 mt-1">
                 类型: {bizTypeLabels[currentTask.flow?.biz_type] || currentTask.flow?.biz_type} ·
                 发起人: {currentTask.flow?.submitted_by_name} ·
                 节点 {currentTask.node_order}/{currentTask.flow?.total_nodes}
@@ -547,12 +547,12 @@ export default function ApprovalCenter() {
             {/* Business Detail */}
             {detailFlow.biz_detail && Object.keys(detailFlow.biz_detail).length > 0 && (
               <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-2">业务信息</h4>
+                <h4 className="text-sm font-bold uppercase tracking-wider text-blue-400 mb-2">业务信息</h4>
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(detailFlow.biz_detail).map(([k, v]) => (
                     <div key={k} className="flex justify-between">
-                      <span className="text-xs text-slate-500">{k}</span>
-                      <span className="text-xs font-semibold text-slate-800">{v}</span>
+                      <span className="text-sm text-slate-500">{k}</span>
+                      <span className="text-sm font-semibold text-slate-800">{v}</span>
                     </div>
                   ))}
                 </div>
@@ -560,7 +560,7 @@ export default function ApprovalCenter() {
             )}
 
             {/* Approval Timeline */}
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">审批流程</h4>
+            <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">审批流程</h4>
             <div className="space-y-3">
               {(detailFlow.tasks || []).map((task) => {
                 const isApproved = task.status === 'approved'
@@ -590,7 +590,7 @@ export default function ApprovalCenter() {
                         </Tag>
                       </div>
                       {task.comment && (
-                        <div className="text-xs text-slate-500 mt-1">意见: {task.comment}</div>
+                        <div className="text-sm text-slate-500 mt-1">意见: {task.comment}</div>
                       )}
                       {task.decided_at && (
                         <div className="text-[11px] text-slate-400 mt-0.5">{task.decided_at}</div>

@@ -63,7 +63,7 @@ export default function MobileWorkbench() {
         <h1 className="text-xl font-extrabold text-slate-900">
           你好，{user?.real_name || user?.username}
         </h1>
-        <p className="text-xs text-slate-500 mt-0.5">
+        <p className="text-sm text-slate-500 mt-0.5">
           {myOv && myOv.my_pending_leads > 0 ? `有 ${myOv.my_pending_leads} 条待跟进线索` : '暂无待办'}
         </p>
       </div>
@@ -96,7 +96,7 @@ export default function MobileWorkbench() {
 
       {/* Quick Actions */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-4">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">快捷操作</h3>
+        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">快捷操作</h3>
         <div className="grid grid-cols-4 gap-2">
           {[
             { icon: 'add_business', label: '新客户', path: '/m/customers/new', color: 'text-blue-600 bg-blue-50' },
@@ -118,7 +118,7 @@ export default function MobileWorkbench() {
       {/* Stalled Projects */}
       {myOv && myOv.stalled_projects.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-4">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">待跟进商机</h3>
+          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">待跟进商机</h3>
           <div className="space-y-2">
             {myOv.stalled_projects.map((p) => (
               <div key={p.id} onClick={() => navigate(`/m/opportunities`)}
@@ -128,7 +128,7 @@ export default function MobileWorkbench() {
                   <div className="text-sm font-bold text-slate-800 truncate">{p.name}</div>
                   <div className="text-[10px] text-slate-500">{p.stage_code}</div>
                 </div>
-                <span className="text-xs font-bold text-amber-600">{p.days_stalled}天</span>
+                <span className="text-sm font-bold text-amber-600">{p.days_stalled}天</span>
               </div>
             ))}
           </div>
@@ -143,7 +143,7 @@ export default function MobileWorkbench() {
           </div>
           <div className="flex-1">
             <div className="text-sm font-bold text-slate-800">待跟进线索</div>
-            <div className="text-xs text-slate-500">{myOv?.my_pending_leads || stats.pending_leads} 条需要处理</div>
+            <div className="text-sm text-slate-500">{myOv?.my_pending_leads || stats.pending_leads} 条需要处理</div>
           </div>
           <span className="text-2xl font-black text-amber-600">{myOv?.my_pending_leads || stats.pending_leads}</span>
         </div>
@@ -153,7 +153,7 @@ export default function MobileWorkbench() {
           </div>
           <div className="flex-1">
             <div className="text-sm font-bold text-slate-800">未关闭工单</div>
-            <div className="text-xs text-slate-500">{myOv?.my_open_tickets || stats.ticket_open} 个需要关注</div>
+            <div className="text-sm text-slate-500">{myOv?.my_open_tickets || stats.ticket_open} 个需要关注</div>
           </div>
           <span className="text-2xl font-black text-red-500">{myOv?.my_open_tickets || stats.ticket_open}</span>
         </div>

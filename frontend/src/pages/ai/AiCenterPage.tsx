@@ -113,7 +113,7 @@ export default function AiCenterPage() {
     {
       title: '关联业务', key: 'biz', width: 120,
       render: (_, r) => r.biz_type ? (
-        <span className="text-xs text-slate-500">{bizTypeLabels[r.biz_type] || r.biz_type}</span>
+        <span className="text-sm text-slate-500">{bizTypeLabels[r.biz_type] || r.biz_type}</span>
       ) : '-',
     },
     {
@@ -127,7 +127,7 @@ export default function AiCenterPage() {
     {
       title: 'Token', key: 'tokens', width: 120,
       render: (_, r) => (r.token_in || r.token_out) ? (
-        <span className="text-xs text-slate-500">{r.token_in || 0} / {r.token_out || 0}</span>
+        <span className="text-sm text-slate-500">{r.token_in || 0} / {r.token_out || 0}</span>
       ) : '-',
     },
     {
@@ -168,12 +168,12 @@ export default function AiCenterPage() {
       title: '', key: 'actions', width: 120,
       render: (_, r) => (
         <Space size={4}>
-          <a className="text-primary text-xs font-bold" onClick={() => {
+          <a className="text-primary text-sm font-bold" onClick={() => {
             setEditingTemplate(r)
             templateForm.setFieldsValue(r)
             setTemplateModal(true)
           }}>编辑</a>
-          <a className="text-rose-500 text-xs font-bold" onClick={() => handleDeleteTemplate(r.id)}>删除</a>
+          <a className="text-rose-500 text-sm font-bold" onClick={() => handleDeleteTemplate(r.id)}>删除</a>
         </Space>
       ),
     },
@@ -200,7 +200,7 @@ export default function AiCenterPage() {
             </div>
             <div>
               <div className="text-2xl font-black text-slate-900">{card.value}</div>
-              <div className="text-xs text-slate-400 font-bold">{card.label}</div>
+              <div className="text-sm text-slate-400 font-bold">{card.label}</div>
             </div>
           </div>
         ))}
@@ -261,7 +261,7 @@ export default function AiCenterPage() {
                 <Tag color="blue">{taskTypeLabels[selectedTask.task_type] || selectedTask.task_type}</Tag>
                 <Tag color={statusColors[selectedTask.status]}>{statusLabels[selectedTask.status] || selectedTask.status}</Tag>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 mt-2">
+              <div className="grid grid-cols-2 gap-2 text-sm text-slate-500 mt-2">
                 <div>关联: {selectedTask.biz_type ? `${bizTypeLabels[selectedTask.biz_type] || selectedTask.biz_type}` : '无'}</div>
                 <div>模型: {selectedTask.model_name || '-'}</div>
                 <div>Token: {selectedTask.token_in || 0} in / {selectedTask.token_out || 0} out</div>
@@ -270,33 +270,33 @@ export default function AiCenterPage() {
                 <div>重试: {selectedTask.retry_count} 次</div>
               </div>
               {selectedTask.error_message && (
-                <div className="mt-2 p-2 bg-red-50 rounded text-xs text-red-600">{selectedTask.error_message}</div>
+                <div className="mt-2 p-2 bg-red-50 rounded text-sm text-red-600">{selectedTask.error_message}</div>
               )}
             </div>
 
             {selectedTask.input_ref_json && (
               <div className="mb-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">输入参考</h4>
-                <pre className="bg-slate-50 p-3 rounded-lg text-xs text-slate-700 overflow-auto max-h-40">
+                <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">输入参考</h4>
+                <pre className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700 overflow-auto max-h-40">
                   {JSON.stringify(selectedTask.input_ref_json, null, 2)}
                 </pre>
               </div>
             )}
 
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">执行结果</h4>
+            <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">执行结果</h4>
             {resultLoading ? (
               <div className="flex justify-center py-8"><Spin /></div>
             ) : taskResult ? (
               <div>
                 {taskResult.risk_level && (
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-bold text-slate-500">风险等级:</span>
+                    <span className="text-sm font-bold text-slate-500">风险等级:</span>
                     <Tag color={taskResult.risk_level === 'H' ? 'error' : taskResult.risk_level === 'M' ? 'warning' : 'success'}>
                       {taskResult.risk_level}
                     </Tag>
                     {taskResult.quality_score != null && (
                       <>
-                        <span className="text-xs font-bold text-slate-500 ml-2">质量分:</span>
+                        <span className="text-sm font-bold text-slate-500 ml-2">质量分:</span>
                         <span className="text-sm font-bold">{taskResult.quality_score}</span>
                       </>
                     )}
@@ -306,7 +306,7 @@ export default function AiCenterPage() {
                   {taskResult.result_json && typeof taskResult.result_json === 'object' && !Array.isArray(taskResult.result_json) ? (
                     <div className="space-y-2">
                       {Object.entries(taskResult.result_json as Record<string, unknown>).map(([key, val]) => (
-                        <div key={key} className="text-xs">
+                        <div key={key} className="text-sm">
                           <span className="font-bold text-slate-500">{key}:</span>{' '}
                           {typeof val === 'object' && val !== null ? (
                             Array.isArray(val) ? (
@@ -325,21 +325,21 @@ export default function AiCenterPage() {
                       ))}
                     </div>
                   ) : Array.isArray(taskResult.result_json) ? (
-                    <ul className="list-disc list-inside space-y-1 text-xs text-slate-700">
+                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-700">
                       {(taskResult.result_json as unknown[]).map((item, i) => (
                         <li key={i}>{typeof item === 'object' ? JSON.stringify(item) : String(item)}</li>
                       ))}
                     </ul>
                   ) : (
-                    <div className="text-xs text-slate-700 whitespace-pre-wrap">{JSON.stringify(taskResult.result_json, null, 2)}</div>
+                    <div className="text-sm text-slate-700 whitespace-pre-wrap">{JSON.stringify(taskResult.result_json, null, 2)}</div>
                   )}
                 </div>
                 {taskResult.evidence_json && (
                   <div className="mt-3">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">证据</h4>
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">证据</h4>
                     <div className="bg-slate-50 p-3 rounded-lg overflow-auto max-h-40">
                       {Array.isArray(taskResult.evidence_json) ? (
-                        <ul className="list-decimal list-inside space-y-1 text-xs text-slate-700">
+                        <ul className="list-decimal list-inside space-y-1 text-sm text-slate-700">
                           {(taskResult.evidence_json as unknown[]).map((item, i) => (
                             <li key={i}>{typeof item === 'object' ? JSON.stringify(item) : String(item)}</li>
                           ))}
@@ -347,11 +347,11 @@ export default function AiCenterPage() {
                       ) : typeof taskResult.evidence_json === 'object' ? (
                         <div className="space-y-1">
                           {Object.entries(taskResult.evidence_json as Record<string, unknown>).map(([k, v]) => (
-                            <div key={k} className="text-xs"><span className="font-bold text-slate-500">{k}:</span> <span className="text-slate-700">{typeof v === 'object' ? JSON.stringify(v) : String(v ?? '-')}</span></div>
+                            <div key={k} className="text-sm"><span className="font-bold text-slate-500">{k}:</span> <span className="text-slate-700">{typeof v === 'object' ? JSON.stringify(v) : String(v ?? '-')}</span></div>
                           ))}
                         </div>
                       ) : (
-                        <div className="text-xs text-slate-700 whitespace-pre-wrap">{JSON.stringify(taskResult.evidence_json, null, 2)}</div>
+                        <div className="text-sm text-slate-700 whitespace-pre-wrap">{JSON.stringify(taskResult.evidence_json, null, 2)}</div>
                       )}
                     </div>
                   </div>

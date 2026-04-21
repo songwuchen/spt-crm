@@ -383,7 +383,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-bold text-slate-700">我的快照</span>
                   <button onClick={() => { setSnapshotsPopover(false); setShareModalOpen(true) }}
-                    className="text-xs text-primary font-bold hover:underline">+ 新建快照</button>
+                    className="text-sm text-primary font-bold hover:underline">+ 新建快照</button>
                 </div>
                 {snapshots.length === 0 ? (
                   <div className="text-center text-slate-400 text-sm py-4">暂无快照</div>
@@ -480,34 +480,34 @@ export default function Dashboard() {
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <div className="text-center">
                       <div className="text-2xl font-black text-slate-900">{myOv.my_customer_count}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">我的客户</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">我的客户</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-black text-slate-900">{myOv.my_active_projects}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">进行中商机</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">进行中商机</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-black text-primary">{myOv.my_pipeline > 0 ? `¥${(myOv.my_pipeline / 10000).toFixed(1)}万` : '¥0'}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">我的管线</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">我的管线</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-black text-emerald-600">{myOv.my_won_month}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">本月赢单</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">本月赢单</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-black text-amber-600">{myOv.my_pending_leads}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">待跟进线索</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">待跟进线索</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-black text-red-500">{myOv.my_open_tickets}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">处理中工单</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">处理中工单</div>
                     </div>
                   </div>
                   {(myOv.stalled_projects.length > 0 || myOv.expiring_contracts.length > 0) && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-primary/10 dark:border-slate-700">
                       {myOv.stalled_projects.length > 0 && (
                         <div>
-                          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">待跟进商机</div>
+                          <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">待跟进商机</div>
                           <div className="space-y-1.5">
                             {myOv.stalled_projects.map((p) => (
                               <div key={p.id} role="button" tabIndex={0} onClick={() => navigate(`/opportunities/${p.id}`)}
@@ -515,7 +515,7 @@ export default function Dashboard() {
                                 className="flex items-center gap-2 p-2 rounded-lg bg-white/70 dark:bg-slate-700/50 border border-amber-100 dark:border-slate-600 cursor-pointer hover:shadow-sm transition-shadow">
                                 <span className="material-symbols-outlined text-amber-500 text-base">schedule</span>
                                 <span className="text-sm font-medium text-slate-800 flex-1 truncate">{p.name}</span>
-                                <span className="text-xs font-bold text-amber-600">{p.days_stalled}天未更新</span>
+                                <span className="text-sm font-bold text-amber-600">{p.days_stalled}天未更新</span>
                               </div>
                             ))}
                           </div>
@@ -523,13 +523,13 @@ export default function Dashboard() {
                       )}
                       {myOv.expiring_contracts.length > 0 && (
                         <div>
-                          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">我的合同</div>
+                          <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">我的合同</div>
                           <div className="space-y-1.5">
                             {myOv.expiring_contracts.map((c) => (
                               <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/70 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-600">
                                 <span className="material-symbols-outlined text-blue-500 text-base">description</span>
                                 <span className="text-sm font-medium text-slate-800 flex-1 truncate">{c.contract_no}</span>
-                                <span className="text-xs text-slate-500">¥{c.amount_total?.toLocaleString()}</span>
+                                <span className="text-sm text-slate-500">¥{c.amount_total?.toLocaleString()}</span>
                               </div>
                             ))}
                           </div>
@@ -587,7 +587,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-2 mb-4">
                     <span className="material-symbols-outlined text-amber-500">pending_actions</span>
                     <h3 className="text-sm font-bold text-slate-900">待我审批</h3>
-                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">{pendingApprovals.length}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-sm font-bold">{pendingApprovals.length}</span>
                     <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
                   </div>
                   <div className="space-y-2">
@@ -596,17 +596,17 @@ export default function Dashboard() {
                         <span className="material-symbols-outlined text-amber-500">task_alt</span>
                         <div className="flex-1">
                           <div className="text-sm font-bold text-slate-800">{item.flow?.title || item.flow?.biz_type}</div>
-                          <div className="text-xs text-slate-500">
+                          <div className="text-sm text-slate-500">
                             提交人: {item.flow?.submitted_by_name} · 节点 {item.node_order}/{item.flow?.total_nodes}
                           </div>
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => handleApprove(item.id)}
-                            className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors">
+                            className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-sm font-bold hover:bg-emerald-600 transition-colors">
                             通过
                           </button>
                           <button onClick={() => handleReject(item.id)}
-                            className="px-3 py-1.5 bg-white text-red-500 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">
+                            className="px-3 py-1.5 bg-white text-red-500 border border-red-200 rounded-lg text-sm font-bold hover:bg-red-50 transition-colors">
                             驳回
                           </button>
                         </div>
@@ -625,7 +625,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-2 mb-4">
                     <span className="material-symbols-outlined text-red-500">notifications_active</span>
                     <h3 className="text-sm font-bold text-slate-900">风险预警</h3>
-                    <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-bold">{alerts.length}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-sm font-bold">{alerts.length}</span>
                     <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -689,11 +689,11 @@ export default function Dashboard() {
                     <div>
                       <div className="grid grid-cols-2 gap-4 mb-4">
                         <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-                          <div className="text-xs text-emerald-600 font-bold mb-1">已回款</div>
+                          <div className="text-sm text-emerald-600 font-bold mb-1">已回款</div>
                           <div className="text-xl font-black text-emerald-700">¥{(paymentOv.total_received / 10000).toFixed(1)}万</div>
                         </div>
                         <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
-                          <div className="text-xs text-blue-600 font-bold mb-1">计划总额</div>
+                          <div className="text-sm text-blue-600 font-bold mb-1">计划总额</div>
                           <div className="text-xl font-black text-blue-700">¥{(paymentOv.total_planned / 10000).toFixed(1)}万</div>
                         </div>
                       </div>
@@ -713,8 +713,8 @@ export default function Dashboard() {
                       </div>
                       <div className="mt-4">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-slate-500">回款进度</span>
-                          <span className="text-xs font-bold text-emerald-600">{paymentOv.collection_rate}%</span>
+                          <span className="text-sm text-slate-500">回款进度</span>
+                          <span className="text-sm font-bold text-emerald-600">{paymentOv.collection_rate}%</span>
                         </div>
                         <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
                           <div className="h-full bg-emerald-500 rounded-full transition-all"
@@ -786,7 +786,7 @@ export default function Dashboard() {
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">审批人排行</div>
                       <div className="flex flex-wrap gap-2">
                         {approvalStats.top_approvers.slice(0, 5).map((a, i) => (
-                          <span key={i} className="px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-lg text-xs">
+                          <span key={i} className="px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-lg text-sm">
                             <span className="font-bold text-slate-700">{a.name}</span>
                             <span className="text-slate-400 ml-1">{a.count}次</span>
                           </span>
@@ -814,7 +814,7 @@ export default function Dashboard() {
                       <span className="material-symbols-outlined text-primary">calendar_today</span>
                       <h3 className="text-sm font-bold text-slate-900">今日任务</h3>
                     </div>
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-sm font-bold">
                       {stats.pending_leads + stats.monthly_new_customers} 项
                     </span>
                   </div>
@@ -881,13 +881,13 @@ export default function Dashboard() {
         okText="创建并复制链接" width={420}>
         <div className="space-y-4 py-2">
           <div>
-            <label className="text-xs font-bold text-slate-500 block mb-1">快照标题</label>
+            <label className="text-sm font-bold text-slate-500 block mb-1">快照标题</label>
             <Input value={shareTitle} onChange={(e) => setShareTitle(e.target.value)}
               placeholder={`工作台快照 ${new Date().toLocaleDateString('zh-CN')}`}
               maxLength={200} />
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-500 block mb-1">有效期</label>
+            <label className="text-sm font-bold text-slate-500 block mb-1">有效期</label>
             <Select value={shareExpires} onChange={setShareExpires} style={{ width: '100%' }}
               options={[
                 { value: 0, label: '永久有效' },
@@ -897,7 +897,7 @@ export default function Dashboard() {
                 { value: 720, label: '30天' },
               ]} />
           </div>
-          <p className="text-xs text-slate-400">快照保存当前看板数据的静态副本，分享给同事查看。</p>
+          <p className="text-sm text-slate-400">快照保存当前看板数据的静态副本，分享给同事查看。</p>
         </div>
       </Modal>
 

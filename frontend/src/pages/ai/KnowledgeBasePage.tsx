@@ -202,15 +202,15 @@ export default function KnowledgeBasePage() {
                     },
                     {
                       title: '创建时间', dataIndex: 'created_at', width: 120,
-                      render: (v: string) => v ? <span className="text-xs text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-',
+                      render: (v: string) => v ? <span className="text-sm text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-',
                     },
                     {
                       title: '', key: 'actions', width: 140, fixed: 'right',
                       render: (_, r) => (
                         <Space size={0}>
-                          <a onClick={() => handleViewDetail(r.id)} className="text-primary text-xs font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
-                          <a onClick={() => handleEdit(r)} className="text-slate-500 text-xs font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
-                          <a onClick={() => handleDelete(r)} className="text-xs font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600">{t('common.delete')}</a>
+                          <a onClick={() => handleViewDetail(r.id)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
+                          <a onClick={() => handleEdit(r)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
+                          <a onClick={() => handleDelete(r)} className="text-sm font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600">{t('common.delete')}</a>
                         </Space>
                       ),
                     },
@@ -244,7 +244,7 @@ export default function KnowledgeBasePage() {
                     <div key={r.chunk_id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-400">#{i + 1}</span>
+                          <span className="text-sm font-bold text-slate-400">#{i + 1}</span>
                           <a onClick={() => handleViewDetail(r.document_id)} className="text-sm font-bold text-primary hover:underline">{r.doc_title}</a>
                           <span className="text-[11px] text-slate-400">片段 {r.chunk_index + 1}</span>
                         </div>
@@ -302,8 +302,8 @@ export default function KnowledgeBasePage() {
               <Tag color={docTypeColors[detailDoc.doc_type] || 'default'}>
                 {docTypeOptions.find(o => o.value === detailDoc.doc_type)?.label || detailDoc.doc_type}
               </Tag>
-              <span className="text-xs text-slate-500">{detailDoc.chunk_count} 个片段</span>
-              <span className="text-xs text-slate-400">创建于 {new Date(detailDoc.created_at).toLocaleDateString('zh-CN')}</span>
+              <span className="text-sm text-slate-500">{detailDoc.chunk_count} 个片段</span>
+              <span className="text-sm text-slate-400">创建于 {new Date(detailDoc.created_at).toLocaleDateString('zh-CN')}</span>
             </div>
             <div className="bg-slate-50 rounded-lg p-4 max-h-96 overflow-y-auto">
               <pre className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{detailDoc.content_text}</pre>

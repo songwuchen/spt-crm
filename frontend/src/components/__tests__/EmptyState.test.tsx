@@ -25,7 +25,8 @@ describe('EmptyState', () => {
   })
 
   it('does not render description when not provided', () => {
-    const { container } = render(<EmptyState />)
-    expect(container.querySelectorAll('.text-xs')).toHaveLength(0)
+    render(<EmptyState />)
+    // Only the title element should exist, no description text
+    expect(screen.queryByText('请添加数据后重试')).not.toBeInTheDocument()
   })
 })

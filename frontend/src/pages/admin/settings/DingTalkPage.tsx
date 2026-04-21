@@ -163,7 +163,7 @@ export default function DingTalkPage() {
         <div className="flex items-center gap-2 mb-4">
           <ApiOutlined className="text-blue-500 text-lg" />
           <span className="font-bold text-slate-800">应用配置</span>
-          <span className="text-xs text-slate-400 ml-2">企业内部应用（H5/小程序）的 AppKey 和 AppSecret</span>
+          <span className="text-sm text-slate-400 ml-2">企业内部应用（H5/小程序）的 AppKey 和 AppSecret</span>
         </div>
 
         <Form form={form} layout="vertical">
@@ -199,9 +199,9 @@ export default function DingTalkPage() {
               <Form.Item name="login_enabled" valuePropName="checked" className="mb-0">
                 <Switch />
               </Form.Item>
-              <span className="text-xs text-slate-400">开启后登录页将显示「钉钉一键登录」按钮</span>
+              <span className="text-sm text-slate-400">开启后登录页将显示「钉钉一键登录」按钮</span>
             </div>
-            <div className="mt-3 bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 space-y-1">
+            <div className="mt-3 bg-amber-50 border border-amber-100 rounded-lg p-3 text-sm text-amber-700 space-y-1">
               <div className="font-semibold">配置 OAuth 回调地址</div>
               <div>请在钉钉开放平台 → 应用 → 安全设置 → 登录与分享，添加以下回调地址：</div>
               <div className="font-mono bg-white rounded px-2 py-1 border border-amber-200 select-all">
@@ -243,7 +243,7 @@ export default function DingTalkPage() {
           <SyncOutlined className="text-emerald-500 text-lg" />
           <span className="font-bold text-slate-800">数据同步</span>
         </div>
-        <p className="text-xs text-slate-400 mb-5">建议先同步部门，再同步用户（用户同步时会自动关联部门和设置主管）</p>
+        <p className="text-sm text-slate-400 mb-5">建议先同步部门，再同步用户（用户同步时会自动关联部门和设置主管）</p>
 
         {/* Sync Departments */}
         <div className="border border-slate-100 rounded-lg p-4 mb-4">
@@ -253,7 +253,7 @@ export default function DingTalkPage() {
                 <ApartmentOutlined className="text-blue-500" />
                 <span className="font-semibold text-slate-700">同步部门</span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-sm text-slate-400">
                 从钉钉拉取全部部门，按层级结构创建或更新本地部门。同时同步部门主管（若本地已有对应用户）。
               </p>
             </div>
@@ -288,7 +288,7 @@ export default function DingTalkPage() {
                 <TeamOutlined className="text-emerald-500" />
                 <span className="font-semibold text-slate-700">同步用户 & 部门主管</span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-sm text-slate-400">
                 从钉钉拉取全部员工，按手机号匹配本地用户。未匹配的新员工将以默认密码创建账号，同时更新各部门主管。
               </p>
             </div>
@@ -316,7 +316,7 @@ export default function DingTalkPage() {
               {userResult.failed.length > 0 && (
                 <div className="max-h-36 overflow-y-auto bg-red-50 rounded p-2">
                   {userResult.failed.map((f, i) => (
-                    <div key={i} className="text-xs text-red-600">
+                    <div key={i} className="text-sm text-red-600">
                       <span className="font-mono mr-2">{f.userid}</span>{f.reason}
                     </div>
                   ))}
@@ -333,7 +333,7 @@ export default function DingTalkPage() {
           <UserOutlined className="text-blue-500" />
           <span className="font-semibold text-blue-700 text-sm">使用说明</span>
         </div>
-        <ul className="text-xs text-blue-600 space-y-1 list-disc list-inside">
+        <ul className="text-sm text-blue-600 space-y-1 list-disc list-inside">
           <li>需在钉钉开放平台创建「企业内部应用」，获取 AppKey 和 AppSecret</li>
           <li>应用需开通「通讯录」权限：成员管理（只读）+ 部门管理（只读）</li>
           <li>启用一键登录还需在应用「登录与分享」中添加 OAuth 回调地址（见上方提示）</li>

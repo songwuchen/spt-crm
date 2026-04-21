@@ -122,8 +122,8 @@ export default function CalendarPage() {
               onClick={() => setTypeFilter(typeFilter === type ? '' : type)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter(typeFilter === type ? '' : type) } }}>
               <span className="material-symbols-outlined text-base text-slate-400">{tl.icon}</span>
-              <span className="text-xs font-bold text-slate-700">{tl.label}</span>
-              <span className="text-xs font-black text-primary">{count}</span>
+              <span className="text-sm font-bold text-slate-700">{tl.label}</span>
+              <span className="text-sm font-black text-primary">{count}</span>
             </div>
           ) : null
         })}
@@ -147,10 +147,10 @@ export default function CalendarPage() {
 
       {/* Legend */}
       <div className="flex gap-4 mt-4 flex-wrap">
-        <div className="flex items-center gap-1.5"><Badge color="#3b82f6" /><span className="text-xs text-slate-500">跟进计划</span></div>
-        <div className="flex items-center gap-1.5"><Badge color="#f59e0b" /><span className="text-xs text-slate-500">回款到期</span></div>
-        <div className="flex items-center gap-1.5"><Badge color="#ef4444" /><span className="text-xs text-slate-500">合同到期</span></div>
-        <div className="flex items-center gap-1.5"><Badge color="#8b5cf6" /><span className="text-xs text-slate-500">里程碑</span></div>
+        <div className="flex items-center gap-1.5"><Badge color="#3b82f6" /><span className="text-sm text-slate-500">跟进计划</span></div>
+        <div className="flex items-center gap-1.5"><Badge color="#f59e0b" /><span className="text-sm text-slate-500">回款到期</span></div>
+        <div className="flex items-center gap-1.5"><Badge color="#ef4444" /><span className="text-sm text-slate-500">合同到期</span></div>
+        <div className="flex items-center gap-1.5"><Badge color="#8b5cf6" /><span className="text-sm text-slate-500">里程碑</span></div>
       </div>
 
       {/* Event Detail Drawer */}

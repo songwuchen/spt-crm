@@ -140,7 +140,7 @@ export default function NotificationBell() {
             <h3 className="text-sm font-bold text-slate-900">通知</h3>
             {unread > 0 && (
               <button onClick={handleMarkAllRead}
-                className="text-xs font-semibold text-primary hover:underline bg-transparent border-none cursor-pointer">
+                className="text-sm font-semibold text-primary hover:underline bg-transparent border-none cursor-pointer">
                 全部已读
               </button>
             )}
@@ -192,7 +192,7 @@ export default function NotificationBell() {
             <div className="border-t border-slate-100 px-4 py-2 text-center">
               <button
                 onClick={() => { setOpen(false); navigate('/notifications') }}
-                className="text-xs font-semibold text-primary hover:underline bg-transparent border-none cursor-pointer"
+                className="text-sm font-semibold text-primary hover:underline bg-transparent border-none cursor-pointer"
               >
                 查看全部通知
               </button>

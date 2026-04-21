@@ -90,14 +90,14 @@ export default function AttachmentPanel({ bizType, bizId }: Props) {
     { title: '操作', width: 140, render: (_: unknown, record: AttachmentItem) => (
       <div className="flex gap-3">
         {isPreviewable(record.content_type, record.original_name) && (
-          <a onClick={() => setPreviewItem(record)} className="text-primary text-xs">
+          <a onClick={() => setPreviewItem(record)} className="text-primary text-sm">
             <EyeOutlined /> 预览
           </a>
         )}
-        <a href={attachmentApi.downloadUrl(record.id)} target="_blank" rel="noreferrer" className="text-xs">
+        <a href={attachmentApi.downloadUrl(record.id)} target="_blank" rel="noreferrer" className="text-sm">
           <DownloadOutlined /> 下载
         </a>
-        <a onClick={() => handleDelete(record)} className="text-rose-500 text-xs">
+        <a onClick={() => handleDelete(record)} className="text-rose-500 text-sm">
           <DeleteOutlined />
         </a>
       </div>

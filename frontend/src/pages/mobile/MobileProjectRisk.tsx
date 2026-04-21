@@ -176,7 +176,7 @@ export default function MobileProjectRisk() {
                 </div>
                 <p className="text-sm text-slate-600 leading-relaxed">{risk.description}</p>
                 {risk.evidence_link && (
-                  <a className="flex items-center text-primary text-xs font-bold gap-1 mt-2 cursor-pointer"
+                  <a className="flex items-center text-primary text-sm font-bold gap-1 mt-2 cursor-pointer"
                     onClick={(e) => { e.preventDefault(); navigate(risk.evidence_link!) }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 14 }}>link</span>
                     查看证据
@@ -208,7 +208,7 @@ export default function MobileProjectRisk() {
                   <button
                     disabled={creatingIdx === i}
                     onClick={() => handleCreateTask(typeof action === 'string' ? action : action.text, i)}
-                    className="bg-primary text-white text-xs font-bold px-3 py-2 rounded-lg shrink-0 border-0 cursor-pointer active:scale-95 transition-transform disabled:opacity-50"
+                    className="bg-primary text-white text-sm font-bold px-3 py-2 rounded-lg shrink-0 border-0 cursor-pointer active:scale-95 transition-transform disabled:opacity-50"
                   >
                     {creatingIdx === i ? '创建中...' : '创建任务'}
                   </button>

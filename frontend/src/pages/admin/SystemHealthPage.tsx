@@ -103,19 +103,19 @@ export default function SystemHealthPage() {
               <div className="grid grid-cols-4 gap-4 mb-4">
                 <div className="text-center">
                   <div className="text-2xl font-black text-slate-900">{pool.pool_size}</div>
-                  <div className="text-xs text-slate-500">池大小</div>
+                  <div className="text-sm text-slate-500">池大小</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-black text-blue-600">{pool.checked_out}</div>
-                  <div className="text-xs text-slate-500">使用中</div>
+                  <div className="text-sm text-slate-500">使用中</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-black text-emerald-600">{pool.checked_in}</div>
-                  <div className="text-xs text-slate-500">空闲</div>
+                  <div className="text-sm text-slate-500">空闲</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-black text-amber-600">{pool.overflow}</div>
-                  <div className="text-xs text-slate-500">溢出</div>
+                  <div className="text-sm text-slate-500">溢出</div>
                 </div>
               </div>
               <Progress percent={poolUsage} strokeColor={poolUsage < 60 ? '#10b981' : poolUsage < 85 ? '#f59e0b' : '#ef4444'} />
@@ -128,7 +128,7 @@ export default function SystemHealthPage() {
               {Object.entries(data.table_counts).map(([key, count]) => (
                 <div key={key} className="bg-slate-50 rounded-xl p-4 text-center border border-slate-100">
                   <div className="text-2xl font-black text-slate-900">{count >= 0 ? count.toLocaleString() : <Tag color="red">ERR</Tag>}</div>
-                  <div className="text-xs text-slate-500 mt-1">{TABLE_LABELS[key] || key}</div>
+                  <div className="text-sm text-slate-500 mt-1">{TABLE_LABELS[key] || key}</div>
                 </div>
               ))}
             </div>

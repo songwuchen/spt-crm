@@ -63,7 +63,7 @@ export default function TeamPerformanceReport() {
           { label: '平均赢单率', value: `${(avgWinRate * 100).toFixed(0)}%`, color: 'text-indigo-600' },
         ].map(kpi => (
           <div key={kpi.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-            <div className="text-xs font-bold text-slate-400 uppercase">{kpi.label}</div>
+            <div className="text-sm font-bold text-slate-400 uppercase">{kpi.label}</div>
             <div className={`text-2xl font-black mt-1 ${kpi.color}`}>{kpi.value}</div>
           </div>
         ))}
@@ -98,7 +98,7 @@ export default function TeamPerformanceReport() {
             { title: '排名', key: 'rank', width: 60, render: (_: unknown, __: unknown, i: number) => {
               const colors = ['#f59e0b', '#94a3b8', '#cd7f32']
               return i < 3 ? (
-                <span className="inline-flex w-6 h-6 rounded-full items-center justify-center text-white text-xs font-bold" style={{ background: colors[i] }}>{i + 1}</span>
+                <span className="inline-flex w-6 h-6 rounded-full items-center justify-center text-white text-sm font-bold" style={{ background: colors[i] }}>{i + 1}</span>
               ) : <span className="text-slate-500 text-sm">{i + 1}</span>
             }},
             { title: '姓名', dataIndex: 'user_name', width: 120 },
@@ -114,7 +114,7 @@ export default function TeamPerformanceReport() {
                 <div className="flex items-center gap-2">
                   <Progress percent={Math.round(v * 100)} size="small" showInfo={false}
                     strokeColor={v >= 0.5 ? '#10b981' : v >= 0.3 ? '#f59e0b' : '#ef4444'} className="flex-1" />
-                  <span className="text-xs font-bold w-10 text-right">{(v * 100).toFixed(0)}%</span>
+                  <span className="text-sm font-bold w-10 text-right">{(v * 100).toFixed(0)}%</span>
                 </div>
               ),
             },

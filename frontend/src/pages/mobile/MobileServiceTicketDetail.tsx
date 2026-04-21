@@ -58,7 +58,7 @@ export default function MobileServiceTicketDetail() {
       {/* Header card */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-4">
         <h2 className="text-base font-bold text-slate-900 mb-2">{ticket.title}</h2>
-        <div className="flex items-center gap-3 text-xs text-slate-500">
+        <div className="flex items-center gap-3 text-sm text-slate-500">
           <span className={`font-bold ${pc.color}`}>优先级: {pc.label}</span>
           <span>类型: {ticket.type}</span>
         </div>

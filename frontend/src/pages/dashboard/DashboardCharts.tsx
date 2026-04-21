@@ -152,7 +152,7 @@ export function WinLossChart() {
       <div className="flex items-center gap-2 mb-4">
         <span className="material-symbols-outlined text-emerald-500">pie_chart</span>
         <h3 className="text-sm font-bold text-slate-900">赢单/丢单</h3>
-        <span className="ml-auto text-xs font-bold text-emerald-600">赢率 {data.win_rate}%</span>
+        <span className="ml-auto text-sm font-bold text-emerald-600">赢率 {data.win_rate}%</span>
       </div>
       {(data.won_count + data.lost_count) > 0 ? (
         <Pie
@@ -243,7 +243,7 @@ export function ContractExpiryPanel() {
           <span className="material-symbols-outlined text-red-500">event_busy</span>
           <h3 className="text-sm font-bold text-slate-900">合同到期预警</h3>
           {items.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-bold">{items.length}</span>
+            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-sm font-bold">{items.length}</span>
           )}
         </div>
         <Select size="small" value={days} onChange={setDays} style={{ width: 100 }}
@@ -281,7 +281,7 @@ export function ContractExpiryPanel() {
                   <div className="text-[11px] text-slate-500 truncate">{item.project_name} · {item.owner_name || '-'}</div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-xs font-bold text-slate-700">¥{(item.amount_total / 10000).toFixed(1)}万</div>
+                  <div className="text-sm font-bold text-slate-700">¥{(item.amount_total / 10000).toFixed(1)}万</div>
                   <div className={`text-[10px] font-bold ${u.text}`}>
                     {item.days_left < 0 ? `已过期${Math.abs(item.days_left)}天` : `${item.days_left}天后到期`}
                   </div>

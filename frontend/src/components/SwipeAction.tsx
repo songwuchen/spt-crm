@@ -66,7 +66,7 @@ export default function SwipeAction({ children, actions = [], onLongPress }: Swi
             <button
               key={i}
               onClick={() => { action.onClick(); setOffset(0) }}
-              className="h-full flex items-center justify-center text-white text-xs font-bold"
+              className="h-full flex items-center justify-center text-white text-sm font-bold"
               style={{ width: 72, backgroundColor: action.color }}
             >
               {action.label}

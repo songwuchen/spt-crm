@@ -122,11 +122,11 @@ export default function ProductList() {
 
   const columns: ColumnsType<ProductItem> = [
     { title: '编码', dataIndex: 'product_code', width: 120,
-      render: (v) => <span className="font-mono text-xs font-bold text-primary">{v}</span> },
+      render: (v) => <span className="font-mono text-sm font-bold text-primary">{v}</span> },
     { title: '名称', dataIndex: 'name', width: 200,
       render: (v) => <span className="font-semibold text-slate-800">{v}</span> },
     { title: '分类', dataIndex: 'category_id', width: 140,
-      render: (v) => v ? <span className="text-xs text-slate-600">{getCatPath(v)}</span> : '-' },
+      render: (v) => v ? <span className="text-sm text-slate-600">{getCatPath(v)}</span> : '-' },
     { title: '类型', dataIndex: 'item_type', width: 80,
       render: (v) => v ? <Tag color="blue">{itemTypeLabels[v] || v}</Tag> : '-' },
     { title: '规格', dataIndex: 'spec', width: 150, ellipsis: true },
@@ -137,16 +137,16 @@ export default function ProductList() {
       render: (v) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
     { title: '交期(天)', dataIndex: 'leadtime_days', width: 80 },
     { title: '引用', dataIndex: 'usage_count', width: 60, align: 'center',
-      render: (v) => v ? <span className="text-xs font-bold text-amber-600">{v}次</span> : <span className="text-slate-300">-</span> },
+      render: (v) => v ? <span className="text-sm font-bold text-amber-600">{v}次</span> : <span className="text-slate-300">-</span> },
     { title: '状态', dataIndex: 'is_active', width: 70,
       render: (v) => v ? <Tag color="success">启用</Tag> : <Tag>停用</Tag> },
     { title: '', key: 'actions', width: 100,
       render: (_, r) => (
         <Space size={4}>
-          <a className="text-primary text-xs font-bold" onClick={() => {
+          <a className="text-primary text-sm font-bold" onClick={() => {
             setEditingProduct(r); form.setFieldsValue(r); setProductModal(true)
           }}><EditOutlined /></a>
-          <a className="text-rose-500 text-xs font-bold" onClick={() => handleDelete(r.id)}><DeleteOutlined /></a>
+          <a className="text-rose-500 text-sm font-bold" onClick={() => handleDelete(r.id)}><DeleteOutlined /></a>
         </Space>
       ),
     },
@@ -202,16 +202,16 @@ export default function ProductList() {
                     { title: '分类名称', dataIndex: 'name', width: 200,
                       render: (v: string) => <span className="font-semibold text-slate-800">{v}</span> },
                     { title: '上级分类', dataIndex: 'parent_id', width: 140,
-                      render: (v: string | null) => v ? <span className="text-xs text-slate-600">{catMap[v] || '-'}</span> : <span className="text-slate-300">顶级</span> },
+                      render: (v: string | null) => v ? <span className="text-sm text-slate-600">{catMap[v] || '-'}</span> : <span className="text-slate-300">顶级</span> },
                     { title: '描述', dataIndex: 'description', width: 300 },
                     { title: '排序', dataIndex: 'sort_order', width: 80 },
                     { title: '', key: 'actions', width: 100,
                       render: (_: unknown, r: Category) => (
                         <Space size={4}>
-                          <a className="text-primary text-xs font-bold" onClick={() => {
+                          <a className="text-primary text-sm font-bold" onClick={() => {
                             setEditingCat(r); catForm.setFieldsValue(r); setCatModal(true)
                           }}><EditOutlined /></a>
-                          <a className="text-rose-500 text-xs font-bold" onClick={() => handleDeleteCat(r.id)}><DeleteOutlined /></a>
+                          <a className="text-rose-500 text-sm font-bold" onClick={() => handleDeleteCat(r.id)}><DeleteOutlined /></a>
                         </Space>
                       ),
                     },

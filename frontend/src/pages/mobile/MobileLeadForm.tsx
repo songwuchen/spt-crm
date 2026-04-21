@@ -42,36 +42,36 @@ export default function MobileLeadForm() {
 
       <div className="p-4 space-y-4">
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">线索标题 *</label>
+          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">线索标题 *</label>
           <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
             placeholder="输入线索标题" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm" />
         </div>
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">公司名称</label>
+          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">公司名称</label>
           <input value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })}
             placeholder="输入公司名称" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">联系人</label>
+            <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">联系人</label>
             <input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })}
               placeholder="姓名" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">电话</label>
+            <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">电话</label>
             <input value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
               placeholder="电话号码" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm" />
           </div>
         </div>
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">来源</label>
+          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">来源</label>
           <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}
             className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm">
             {sources.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">备注</label>
+          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">备注</label>
           <textarea value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })}
             placeholder="其他信息" rows={3}
             className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none" />

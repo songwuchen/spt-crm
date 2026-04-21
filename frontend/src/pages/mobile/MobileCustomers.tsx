@@ -70,7 +70,7 @@ export default function MobileCustomers() {
       ) : (
         <div className="space-y-2">
           {selectedIds.size > 0 && (
-            <div className="bg-blue-50 rounded-lg p-2 text-xs text-blue-700 flex items-center justify-between">
+            <div className="bg-blue-50 rounded-lg p-2 text-sm text-blue-700 flex items-center justify-between">
               <span>已选 {selectedIds.size} 项</span>
               <button onClick={() => setSelectedIds(new Set())} className="text-blue-500 font-bold">取消</button>
             </div>
@@ -95,7 +95,7 @@ export default function MobileCustomers() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-900 truncate">{c.name}</div>
-                  <div className="text-xs text-slate-500 truncate">
+                  <div className="text-sm text-slate-500 truncate">
                     {[c.industry, c.region].filter(Boolean).join(' · ') || '-'}
                   </div>
                 </div>

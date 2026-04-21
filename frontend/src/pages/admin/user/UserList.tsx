@@ -144,7 +144,7 @@ export default function UserList() {
     { title: '用户', key: 'user', width: 200,
       render: (_: unknown, record: UserItem) => (
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+          <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
             {(record.real_name || record.username).slice(0, 2)}
           </div>
           <div>
@@ -186,14 +186,14 @@ export default function UserList() {
       render: (v: boolean) => (
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${v ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-          <span className="text-xs font-medium text-slate-600">{v ? '启用' : '停用'}</span>
+          <span className="text-sm font-medium text-slate-600">{v ? '启用' : '停用'}</span>
         </div>
       ),
     },
     { title: '', width: 120,
       render: (_: unknown, record: UserItem) => (
         <Space size={8}>
-          <a className="text-primary text-xs font-bold uppercase tracking-widest" onClick={() => {
+          <a className="text-primary text-sm font-bold uppercase tracking-widest" onClick={() => {
             setEditingUser(record)
             form.setFieldsValue({
               real_name: record.real_name, phone: record.phone, email: record.email,
@@ -211,7 +211,7 @@ export default function UserList() {
             cancelText="取消"
             onConfirm={() => handleDelete(record.id)}
           >
-            <a className="text-red-500 text-xs font-bold uppercase tracking-widest">删除</a>
+            <a className="text-red-500 text-sm font-bold uppercase tracking-widest">删除</a>
           </Popconfirm>
         </Space>
       ),
@@ -316,10 +316,10 @@ export default function UserList() {
         <div className="space-y-4">
           <div className="text-sm text-slate-500">
             请上传CSV文件，文件需包含以下列（第一行为标题行）：
-            <div className="mt-2 bg-slate-50 rounded p-2 text-xs font-mono text-slate-700 break-all">
+            <div className="mt-2 bg-slate-50 rounded p-2 text-sm font-mono text-slate-700 break-all">
               username, password, real_name, phone, email, role_codes, department_names
             </div>
-            <div className="mt-1 text-xs text-slate-400">
+            <div className="mt-1 text-sm text-slate-400">
               role_codes 和 department_names 可用英文逗号分隔多个值
             </div>
           </div>
@@ -351,7 +351,7 @@ export default function UserList() {
               {importResult.failed.length > 0 && (
                 <div className="max-h-40 overflow-y-auto bg-red-50 rounded p-2">
                   {importResult.failed.map((f, i) => (
-                    <div key={i} className="text-xs text-red-600">第 {f.row} 行：{f.reason}</div>
+                    <div key={i} className="text-sm text-red-600">第 {f.row} 行：{f.reason}</div>
                   ))}
                 </div>
               )}

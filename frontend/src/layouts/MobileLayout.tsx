@@ -29,8 +29,8 @@ export default function MobileLayout() {
     <div className="flex flex-col min-h-screen bg-slate-50">
       {/* Offline Banner */}
       {offline && (
-        <div className="bg-amber-500 text-white text-xs font-bold text-center py-1 px-2">
-          <span className="material-symbols-outlined text-xs align-middle mr-1" style={{ fontSize: 14 }}>cloud_off</span>
+        <div className="bg-amber-500 text-white text-sm font-bold text-center py-1 px-2">
+          <span className="material-symbols-outlined text-sm align-middle mr-1" style={{ fontSize: 14 }}>cloud_off</span>
           离线模式 — 部分数据可能不是最新的
         </div>
       )}
@@ -38,13 +38,13 @@ export default function MobileLayout() {
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 h-12 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-white text-xs font-black">S</span>
+            <span className="text-white text-sm font-black">S</span>
           </div>
           <span className="font-bold text-sm text-slate-900">SPT-CRM</span>
         </div>
         <div className="flex items-center gap-3">
           <NotificationBell />
-          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
             {(user?.real_name || user?.username || 'U').slice(0, 1)}
           </div>
         </div>

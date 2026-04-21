@@ -203,7 +203,7 @@ export default function CustomerList() {
       render: (v) => (
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${v === 'active' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-          <span className="text-xs font-medium text-slate-600">{v === 'active' ? '活跃' : '不活跃'}</span>
+          <span className="text-sm font-medium text-slate-600">{v === 'active' ? '活跃' : '不活跃'}</span>
         </div>
       ),
     },
@@ -215,13 +215,13 @@ export default function CustomerList() {
     { title: t('common.owner'), dataIndex: 'owner_name', width: 100,
       render: (v) => v || <span className="text-slate-300">-</span> },
     { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, responsive: ['xl'],
-      render: (v) => v ? <span className="text-xs text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-' },
+      render: (v) => v ? <span className="text-sm text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-' },
     { title: '', key: 'actions', width: 150, fixed: 'right',
       render: (_, record) => (
         <Space size={0}>
-          <a onClick={() => navigate(`/customers/${record.id}`)} className="text-primary text-xs font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
-          <a onClick={() => navigate(`/customers/${record.id}/edit`)} className="text-slate-500 text-xs font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
-          <a className="text-xs font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
+          <a onClick={() => navigate(`/customers/${record.id}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
+          <a onClick={() => navigate(`/customers/${record.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
+          <a className="text-sm font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
             dangerConfirm({
               title: t('common.confirmDelete'),
               content: t('customer.deleteConfirm', { name: record.name }),

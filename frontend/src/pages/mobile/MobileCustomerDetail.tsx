@@ -94,7 +94,7 @@ export default function MobileCustomerDetail() {
       <div className="flex gap-1 mb-4 bg-slate-100 rounded-lg p-1">
         {(['info', 'contacts', 'activities'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-2 rounded-md text-xs font-bold transition-colors ${tab === t ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>
+            className={`flex-1 py-2 rounded-md text-sm font-bold transition-colors ${tab === t ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>
             {t === 'info' ? '基本信息' : t === 'contacts' ? '联系人' : '互动记录'}
           </button>
         ))}
@@ -103,21 +103,21 @@ export default function MobileCustomerDetail() {
       {tab === 'info' && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
           {customer.short_name && (
-            <div className="flex justify-between"><span className="text-xs text-slate-400">简称</span><span className="text-sm text-slate-700">{customer.short_name}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-slate-400">简称</span><span className="text-sm text-slate-700">{customer.short_name}</span></div>
           )}
           {customer.industry && (
-            <div className="flex justify-between"><span className="text-xs text-slate-400">行业</span><span className="text-sm text-slate-700">{customer.industry}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-slate-400">行业</span><span className="text-sm text-slate-700">{customer.industry}</span></div>
           )}
           {customer.region && (
-            <div className="flex justify-between"><span className="text-xs text-slate-400">区域</span><span className="text-sm text-slate-700">{customer.region}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-slate-400">区域</span><span className="text-sm text-slate-700">{customer.region}</span></div>
           )}
-          <div className="flex justify-between"><span className="text-xs text-slate-400">负责人</span><span className="text-sm text-slate-700">{customer.owner_name || '-'}</span></div>
+          <div className="flex justify-between"><span className="text-sm text-slate-400">负责人</span><span className="text-sm text-slate-700">{customer.owner_name || '-'}</span></div>
           {customer.source && (
-            <div className="flex justify-between"><span className="text-xs text-slate-400">来源</span><span className="text-sm text-slate-700">{customer.source}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-slate-400">来源</span><span className="text-sm text-slate-700">{customer.source}</span></div>
           )}
-          <div className="flex justify-between"><span className="text-xs text-slate-400">创建时间</span><span className="text-xs text-slate-500">{new Date(customer.created_at).toLocaleDateString('zh-CN')}</span></div>
+          <div className="flex justify-between"><span className="text-sm text-slate-400">创建时间</span><span className="text-sm text-slate-500">{new Date(customer.created_at).toLocaleDateString('zh-CN')}</span></div>
           {customer.remark && (
-            <div><span className="text-xs text-slate-400 block mb-1">备注</span><p className="text-sm text-slate-700">{customer.remark}</p></div>
+            <div><span className="text-sm text-slate-400 block mb-1">备注</span><p className="text-sm text-slate-700">{customer.remark}</p></div>
           )}
         </div>
       )}
@@ -133,9 +133,9 @@ export default function MobileCustomerDetail() {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-bold text-slate-800">{c.name}</span>
                     {c.is_primary && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1 rounded">主要</span>}
-                    {c.title && <span className="text-xs text-slate-500">{c.title}</span>}
+                    {c.title && <span className="text-sm text-slate-500">{c.title}</span>}
                   </div>
-                  <div className="flex gap-3 text-xs text-slate-500">
+                  <div className="flex gap-3 text-sm text-slate-500">
                     {c.phone && <span>{c.phone}</span>}
                     {c.mobile && <span>{c.mobile}</span>}
                     {c.email && <span>{c.email}</span>}
@@ -161,7 +161,7 @@ export default function MobileCustomerDetail() {
                     </span>
                     <span className="text-sm font-bold text-slate-800 flex-1 truncate">{a.subject || a.content?.slice(0, 30) || '-'}</span>
                   </div>
-                  {a.content && <p className="text-xs text-slate-600 mb-1 line-clamp-2">{a.content}</p>}
+                  {a.content && <p className="text-sm text-slate-600 mb-1 line-clamp-2">{a.content}</p>}
                   <div className="text-[10px] text-slate-400">
                     {a.created_by_name || ''} &middot; {a.created_at ? new Date(a.created_at).toLocaleDateString('zh-CN') : ''}
                   </div>

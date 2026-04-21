@@ -56,12 +56,12 @@ export default function MobilePayments() {
       {/* Status filter */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
         <button onClick={() => setFilterStatus(null)}
-          className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${!filterStatus ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}>
+          className={`px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap ${!filterStatus ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}>
           全部 {plans.length}
         </button>
         {Object.entries(statusConfig).map(([key, sc]) => (
           <button key={key} onClick={() => setFilterStatus(filterStatus === key ? null : key)}
-            className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${filterStatus === key ? 'bg-primary text-white' : `${sc.bg} ${sc.color}`}`}>
+            className={`px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap ${filterStatus === key ? 'bg-primary text-white' : `${sc.bg} ${sc.color}`}`}>
             {sc.label} {plans.filter(p => p.status === key).length}
           </button>
         ))}

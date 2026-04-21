@@ -128,7 +128,7 @@ export default function SolutionDetail() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">版本</span>
+            <span className="text-sm font-bold uppercase tracking-wider text-slate-400">版本</span>
             <Select
               value={selectedVersionId}
               onChange={fetchVersion}
@@ -166,17 +166,17 @@ export default function SolutionDetail() {
 
             {currentVersion.summary && (
               <div className="mb-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">方案概要</h4>
+                <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">方案概要</h4>
                 <p className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700 whitespace-pre-wrap">{currentVersion.summary}</p>
               </div>
             )}
 
             {currentVersion.config_json && (
               <div className="mb-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">配置/选型清单</h4>
+                <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">配置/选型清单</h4>
                 <div className="bg-slate-50 p-3 rounded-lg overflow-auto">
                   {Array.isArray(currentVersion.config_json) ? (
-                    <table className="w-full text-xs">
+                    <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200">
                           {currentVersion.config_json.length > 0 && Object.keys(currentVersion.config_json[0] as Record<string, unknown>).map((k) => (
@@ -197,14 +197,14 @@ export default function SolutionDetail() {
                   ) : typeof currentVersion.config_json === 'object' ? (
                     <div className="space-y-1">
                       {Object.entries(currentVersion.config_json as Record<string, unknown>).map(([k, v]) => (
-                        <div key={k} className="flex gap-2 text-xs">
+                        <div key={k} className="flex gap-2 text-sm">
                           <span className="font-bold text-slate-500 min-w-[80px]">{k}:</span>
                           <span className="text-slate-700">{typeof v === 'object' ? JSON.stringify(v) : String(v ?? '-')}</span>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-xs text-slate-700">{JSON.stringify(currentVersion.config_json, null, 2)}</div>
+                    <div className="text-sm text-slate-700">{JSON.stringify(currentVersion.config_json, null, 2)}</div>
                   )}
                 </div>
               </div>
@@ -212,12 +212,12 @@ export default function SolutionDetail() {
 
             {currentVersion.risk_list_json && (
               <div className="mb-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">风险清单</h4>
+                <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">风险清单</h4>
                 <div className="bg-slate-50 p-3 rounded-lg overflow-auto">
                   {Array.isArray(currentVersion.risk_list_json) ? (
                     <div className="space-y-2">
                       {(currentVersion.risk_list_json as Record<string, unknown>[]).map((risk, i) => (
-                        <div key={i} className="bg-white p-3 rounded-lg border border-slate-200 text-xs">
+                        <div key={i} className="bg-white p-3 rounded-lg border border-slate-200 text-sm">
                           <div className="flex items-center gap-2 mb-1">
                             <Tag color={(risk.severity as string) === 'H' ? 'red' : (risk.severity as string) === 'M' ? 'orange' : 'green'}>
                               {String(risk.severity || risk.level || `R${i + 1}`)}
@@ -231,7 +231,7 @@ export default function SolutionDetail() {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-xs text-slate-700">{JSON.stringify(currentVersion.risk_list_json, null, 2)}</div>
+                    <div className="text-sm text-slate-700">{JSON.stringify(currentVersion.risk_list_json, null, 2)}</div>
                   )}
                 </div>
               </div>
@@ -247,11 +247,11 @@ export default function SolutionDetail() {
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">配置/选型清单 (JSON)</label>
-              <TextArea rows={6} value={editConfigJson} onChange={(e) => setEditConfigJson(e.target.value)} placeholder='{"items": [...]}' className="font-mono text-xs" />
+              <TextArea rows={6} value={editConfigJson} onChange={(e) => setEditConfigJson(e.target.value)} placeholder='{"items": [...]}' className="font-mono text-sm" />
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">风险清单 (JSON)</label>
-              <TextArea rows={6} value={editRiskJson} onChange={(e) => setEditRiskJson(e.target.value)} placeholder='{"risks": [...]}' className="font-mono text-xs" />
+              <TextArea rows={6} value={editRiskJson} onChange={(e) => setEditRiskJson(e.target.value)} placeholder='{"risks": [...]}' className="font-mono text-sm" />
             </div>
           </div>
         )}
@@ -309,8 +309,8 @@ export default function SolutionDetail() {
                 rowKey="field"
                 columns={[
                   { title: '字段', dataIndex: 'label', width: 120 },
-                  { title: `V${compareV1}`, dataIndex: 'v1', render: (v: string) => <span className="text-xs bg-red-50 px-1.5 py-0.5 rounded">{v || '-'}</span> },
-                  { title: `V${compareV2}`, dataIndex: 'v2', render: (v: string) => <span className="text-xs bg-green-50 px-1.5 py-0.5 rounded">{v || '-'}</span> },
+                  { title: `V${compareV1}`, dataIndex: 'v1', render: (v: string) => <span className="text-sm bg-red-50 px-1.5 py-0.5 rounded">{v || '-'}</span> },
+                  { title: `V${compareV2}`, dataIndex: 'v2', render: (v: string) => <span className="text-sm bg-green-50 px-1.5 py-0.5 rounded">{v || '-'}</span> },
                 ]}
               />
             ) : (

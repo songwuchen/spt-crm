@@ -21,7 +21,7 @@ function StatCard({ title, value, icon, sub }: { title: string; value: string | 
       </div>
       <div>
         <div className="text-2xl font-extrabold text-slate-900 tracking-tight">{value}</div>
-        <div className="text-xs text-slate-500 mt-0.5">{title}</div>
+        <div className="text-sm text-slate-500 mt-0.5">{title}</div>
         {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
       </div>
     </div>
@@ -155,7 +155,7 @@ export default function PlatformTenants() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
         <div className="flex items-center justify-between p-4 border-b border-slate-100">
           <h3 className="text-sm font-bold text-slate-900">租户列表</h3>
-          <span className="text-xs text-slate-400">{tenants.length} 个租户</span>
+          <span className="text-sm text-slate-400">{tenants.length} 个租户</span>
         </div>
         <Table rowKey="id" dataSource={tenants} loading={loading} size="small" pagination={{ pageSize: 20 }}
           columns={[
@@ -198,8 +198,8 @@ export default function PlatformTenants() {
         <Table rowKey="id" dataSource={plans} size="small" pagination={false}
           columns={[
             { title: '名称', dataIndex: 'name', width: 150 },
-            { title: '定价', dataIndex: 'pricing_json', render: (v: unknown) => v ? <pre className="text-xs text-slate-600 whitespace-pre-wrap max-w-xs">{JSON.stringify(v, null, 2)}</pre> : '-' },
-            { title: '限额', dataIndex: 'limits_json', render: (v: unknown) => v ? <pre className="text-xs text-slate-600 whitespace-pre-wrap max-w-xs">{JSON.stringify(v, null, 2)}</pre> : '-' },
+            { title: '定价', dataIndex: 'pricing_json', render: (v: unknown) => v ? <pre className="text-sm text-slate-600 whitespace-pre-wrap max-w-xs">{JSON.stringify(v, null, 2)}</pre> : '-' },
+            { title: '限额', dataIndex: 'limits_json', render: (v: unknown) => v ? <pre className="text-sm text-slate-600 whitespace-pre-wrap max-w-xs">{JSON.stringify(v, null, 2)}</pre> : '-' },
             { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => <Tag color={v === 'active' ? 'success' : 'default'}>{v}</Tag> },
             { title: '创建时间', dataIndex: 'created_at', width: 130, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
           ]}

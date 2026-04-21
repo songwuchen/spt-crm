@@ -66,7 +66,7 @@ export default function MobileProfile() {
         </div>
         <div className="flex-1">
           <div className="text-lg font-extrabold text-slate-900">{user?.real_name || user?.username}</div>
-          <div className="text-xs text-slate-500">{user?.roles?.join(', ') || '-'}</div>
+          <div className="text-sm text-slate-500">{user?.roles?.join(', ') || '-'}</div>
         </div>
       </div>
 
@@ -107,22 +107,22 @@ export default function MobileProfile() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-500 mb-1 block">原密码</label>
+                <label className="text-sm font-bold text-slate-500 mb-1 block">原密码</label>
                 <input type="password" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                   value={pwdForm.old_password} onChange={e => setPwdForm({ ...pwdForm, old_password: e.target.value })} />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-500 mb-1 block">新密码</label>
+                <label className="text-sm font-bold text-slate-500 mb-1 block">新密码</label>
                 <input type="password" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                   placeholder="至少8位，含大小写字母和数字"
                   value={pwdForm.new_password} onChange={e => setPwdForm({ ...pwdForm, new_password: e.target.value })} />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-500 mb-1 block">确认新密码</label>
+                <label className="text-sm font-bold text-slate-500 mb-1 block">确认新密码</label>
                 <input type="password" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                   value={pwdForm.confirm} onChange={e => setPwdForm({ ...pwdForm, confirm: e.target.value })} />
               </div>
-              {pwdError && <div className="text-xs text-red-500 font-medium">{pwdError}</div>}
+              {pwdError && <div className="text-sm text-red-500 font-medium">{pwdError}</div>}
               <button
                 onClick={handleChangePassword}
                 disabled={pwdLoading}

@@ -146,19 +146,19 @@ export default function FollowUpPage() {
           expandable={{
             expandedRowRender: (record: ActivityItem) => record.content ? (
               <div className="text-sm text-slate-600 whitespace-pre-wrap">{record.content}</div>
-            ) : <span className="text-slate-400 text-xs">无详细内容</span>,
+            ) : <span className="text-slate-400 text-sm">无详细内容</span>,
             rowExpandable: () => true,
           }}
           columns={[
             { title: '时间', dataIndex: 'created_at', width: 150,
-              render: (v: string) => <span className="text-xs text-slate-500 tabular-nums">{v ? new Date(v).toLocaleString('zh-CN') : '-'}</span>,
+              render: (v: string) => <span className="text-sm text-slate-500 tabular-nums">{v ? new Date(v).toLocaleString('zh-CN') : '-'}</span>,
             },
             { title: '类型', dataIndex: 'activity_type', width: 80,
               render: (v: string) => {
                 const cfg = activityTypeConfig[v]
                 return cfg ? (
                   <Tag color={cfg.color}>
-                    <span className="material-symbols-outlined text-xs mr-0.5" style={{ verticalAlign: 'text-bottom' }}>{cfg.icon}</span>
+                    <span className="material-symbols-outlined text-sm mr-0.5" style={{ verticalAlign: 'text-bottom' }}>{cfg.icon}</span>
                     {cfg.label}
                   </Tag>
                 ) : v
@@ -172,9 +172,9 @@ export default function FollowUpPage() {
                 <div>
                   <Tag color={bizTypeColors[r.biz_type]}>{bizTypeLabels[r.biz_type] || r.biz_type}</Tag>
                   {r.biz_name ? (
-                    <a className="text-xs text-primary cursor-pointer ml-1" onClick={() => navigate(bizTypeUrl(r.biz_type, r.biz_id))}>{r.biz_name}</a>
+                    <a className="text-sm text-primary cursor-pointer ml-1" onClick={() => navigate(bizTypeUrl(r.biz_type, r.biz_id))}>{r.biz_name}</a>
                   ) : (
-                    <a className="text-xs text-primary cursor-pointer ml-1" onClick={() => navigate(bizTypeUrl(r.biz_type, r.biz_id))}>查看</a>
+                    <a className="text-sm text-primary cursor-pointer ml-1" onClick={() => navigate(bizTypeUrl(r.biz_type, r.biz_id))}>查看</a>
                   )}
                 </div>
               ),
@@ -186,11 +186,11 @@ export default function FollowUpPage() {
               render: (v: string | null) => {
                 if (!v) return <span className="text-slate-300">-</span>
                 const isOverdue = new Date(v) < new Date(new Date().toDateString())
-                return <span className={`text-xs font-bold ${isOverdue ? 'text-red-500' : 'text-slate-600'}`}>{v}</span>
+                return <span className={`text-sm font-bold ${isOverdue ? 'text-red-500' : 'text-slate-600'}`}>{v}</span>
               },
             },
             { title: '记录人', dataIndex: 'created_by_name', width: 90, responsive: ['lg'] as any,
-              render: (v: string) => <span className="text-xs text-slate-500">{v || '-'}</span>,
+              render: (v: string) => <span className="text-sm text-slate-500">{v || '-'}</span>,
             },
           ]}
         />

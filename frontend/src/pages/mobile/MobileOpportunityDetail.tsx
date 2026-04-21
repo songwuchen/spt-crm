@@ -91,7 +91,7 @@ export default function MobileOpportunityDetail() {
       <div className="flex gap-1 mb-4 bg-slate-100 rounded-lg p-1">
         {(['info', 'activities'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-2 rounded-md text-xs font-bold transition-colors ${tab === t ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>
+            className={`flex-1 py-2 rounded-md text-sm font-bold transition-colors ${tab === t ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>
             {t === 'info' ? '基本信息' : '互动记录'}
           </button>
         ))}
@@ -100,34 +100,34 @@ export default function MobileOpportunityDetail() {
       {tab === 'info' && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
           <div className="flex justify-between">
-            <span className="text-xs text-slate-400">状态</span>
+            <span className="text-sm text-slate-400">状态</span>
             <span className="text-sm text-slate-700">
               {project.status === 'active' ? '进行中' : project.status === 'won' ? '赢单' : project.status === 'lost' ? '丢单' : '暂停'}
             </span>
           </div>
           {project.customer_name && (
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">客户</span>
+              <span className="text-sm text-slate-400">客户</span>
               <span className="text-sm font-bold text-slate-800">{project.customer_name}</span>
             </div>
           )}
           <div className="flex justify-between">
-            <span className="text-xs text-slate-400">负责人</span>
+            <span className="text-sm text-slate-400">负责人</span>
             <span className="text-sm text-slate-700">{project.owner_name || '-'}</span>
           </div>
           {project.expected_close_date && (
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">预计关单</span>
+              <span className="text-sm text-slate-400">预计关单</span>
               <span className="text-sm text-slate-700">{project.expected_close_date}</span>
             </div>
           )}
           <div className="flex justify-between">
-            <span className="text-xs text-slate-400">创建时间</span>
-            <span className="text-xs text-slate-500">{project.created_at ? new Date(project.created_at).toLocaleDateString('zh-CN') : '-'}</span>
+            <span className="text-sm text-slate-400">创建时间</span>
+            <span className="text-sm text-slate-500">{project.created_at ? new Date(project.created_at).toLocaleDateString('zh-CN') : '-'}</span>
           </div>
           {project.competitors_json && project.competitors_json.length > 0 && (
             <div>
-              <span className="text-xs text-slate-400 block mb-1">竞争对手</span>
+              <span className="text-sm text-slate-400 block mb-1">竞争对手</span>
               <div className="flex flex-wrap gap-1">
                 {project.competitors_json.map((c, i) => (
                   <span key={i} className="px-2 py-0.5 bg-red-50 text-red-600 rounded text-[10px] font-bold">{c}</span>
@@ -137,7 +137,7 @@ export default function MobileOpportunityDetail() {
           )}
           {project.requirements_json?.summary && (
             <div>
-              <span className="text-xs text-slate-400 block mb-1">需求摘要</span>
+              <span className="text-sm text-slate-400 block mb-1">需求摘要</span>
               <p className="text-sm text-slate-700 whitespace-pre-wrap">{project.requirements_json.summary}</p>
             </div>
           )}

@@ -44,7 +44,7 @@ export default function MobileProducts() {
             { label: '全部', value: undefined },
           ].map((f) => (
             <button key={String(f.value)} onClick={() => setFilterActive(f.value)}
-              className={`px-3 py-2 rounded-lg text-xs font-bold ${
+              className={`px-3 py-2 rounded-lg text-sm font-bold ${
                 filterActive === f.value ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
               }`}>{f.label}</button>
           ))}
@@ -67,11 +67,11 @@ export default function MobileProducts() {
               <div className="text-right shrink-0 ml-2">
                 {p.unit_price != null ? (
                   <span className="text-sm font-black text-slate-900">¥{Number(p.unit_price).toLocaleString()}</span>
-                ) : <span className="text-xs text-slate-400">-</span>}
+                ) : <span className="text-sm text-slate-400">-</span>}
                 {p.unit && <span className="text-[10px] text-slate-400">/{p.unit}</span>}
               </div>
             </div>
-            {p.spec && <p className="text-xs text-slate-500 mb-1 truncate">{p.spec}</p>}
+            {p.spec && <p className="text-sm text-slate-500 mb-1 truncate">{p.spec}</p>}
             <div className="flex items-center gap-2 text-[10px]">
               <span className={`px-1.5 py-0.5 rounded font-bold ${p.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
                 {p.is_active ? '在售' : '停售'}

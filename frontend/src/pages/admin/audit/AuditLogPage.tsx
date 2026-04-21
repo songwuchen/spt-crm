@@ -58,10 +58,10 @@ function DiffView({ detail }: { detail: Record<string, unknown> }) {
     return (
       <div className="space-y-1.5">
         {changes.map((c, i) => (
-          <div key={i} className="flex items-start gap-2 text-xs">
+          <div key={i} className="flex items-start gap-2 text-sm">
             <span className="font-bold text-slate-600 min-w-[80px]">{c.field}</span>
             <span className="text-red-500 line-through">{String(c.old ?? '-')}</span>
-            <span className="material-symbols-outlined text-xs text-slate-400">arrow_forward</span>
+            <span className="material-symbols-outlined text-sm text-slate-400">arrow_forward</span>
             <span className="text-emerald-600 font-medium">{String(c.new ?? '-')}</span>
           </div>
         ))}
@@ -69,7 +69,7 @@ function DiffView({ detail }: { detail: Record<string, unknown> }) {
     )
   }
   return (
-    <pre className="text-xs text-slate-600 bg-slate-50 p-3 rounded-lg overflow-auto max-h-40">
+    <pre className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg overflow-auto max-h-40">
       {JSON.stringify(detail, null, 2)}
     </pre>
   )
@@ -160,7 +160,7 @@ function DailyTrendChart({ daily }: { daily: Array<{ date: string; count: number
     return { points: line, areaPath: area, maxCount: max, width: w, height: h, labels: lbls }
   }, [daily])
 
-  if (daily.length < 2) return <div className="text-center text-slate-400 text-xs py-8">数据不足</div>
+  if (daily.length < 2) return <div className="text-center text-slate-400 text-sm py-8">数据不足</div>
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
@@ -230,7 +230,7 @@ function ResourceActionMatrix({ matrix, actionCfg }: {
     return { resources: res, actions: acts, grid: map, maxVal: mx }
   }, [matrix])
 
-  if (resources.length === 0) return <div className="text-center text-slate-400 text-xs py-4">暂无数据</div>
+  if (resources.length === 0) return <div className="text-center text-slate-400 text-sm py-4">暂无数据</div>
 
   const getColor = (count: number) => {
     if (count === 0) return 'bg-slate-50'
@@ -298,7 +298,7 @@ function TimelineView({ data, actionCfg }: { data: AuditLog[]; actionCfg: typeof
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cfg?.bg || 'bg-slate-100'} ${cfg?.text || 'text-slate-500'}`}>
                   {cfg?.label || log.action}
                 </span>
-                <span className="text-xs text-slate-500">{resourceLabels[log.resource_type] || log.resource_type}</span>
+                <span className="text-sm text-slate-500">{resourceLabels[log.resource_type] || log.resource_type}</span>
               </div>
               <div className="text-sm text-slate-600 mt-0.5">{log.summary}</div>
               <div className="text-[11px] text-slate-400 mt-0.5">
@@ -391,7 +391,7 @@ export default function AuditLogPage() {
   const columns = [
     { title: '时间', dataIndex: 'created_at', width: 170,
       render: (v: string) => v ? (
-        <span className="text-xs text-slate-500 tabular-nums">{new Date(v).toLocaleString('zh-CN')}</span>
+        <span className="text-sm text-slate-500 tabular-nums">{new Date(v).toLocaleString('zh-CN')}</span>
       ) : '-',
     },
     { title: '操作人', dataIndex: 'user_name', width: 100,
@@ -404,7 +404,7 @@ export default function AuditLogPage() {
         const cfg = actionConfig[v]
         return cfg ? (
           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-            <span className="material-symbols-outlined text-xs">{cfg.icon}</span>
+            <span className="material-symbols-outlined text-sm">{cfg.icon}</span>
             {cfg.label}
           </span>
         ) : v
@@ -412,7 +412,7 @@ export default function AuditLogPage() {
     },
     { title: '资源类型', dataIndex: 'resource_type', width: 90, responsive: ['lg'] as any,
       render: (v: string) => (
-        <span className="text-xs text-slate-600">{resourceLabels[v] || v}</span>
+        <span className="text-sm text-slate-600">{resourceLabels[v] || v}</span>
       ),
     },
     { title: '摘要', dataIndex: 'summary',
@@ -422,7 +422,7 @@ export default function AuditLogPage() {
     },
     { title: 'IP', dataIndex: 'ip', width: 120, responsive: ['xl'] as any,
       render: (v: string) => v ? (
-        <span className="text-xs font-mono text-slate-400">{v}</span>
+        <span className="text-sm font-mono text-slate-400">{v}</span>
       ) : <span className="text-slate-300">-</span>,
     },
     { title: '资源ID', dataIndex: 'resource_id', width: 100, responsive: ['xl'] as any,
@@ -453,24 +453,24 @@ export default function AuditLogPage() {
           {/* Summary Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">总操作数</div>
+              <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">总操作数</div>
               <div className="text-2xl font-black text-slate-900 mt-1">{stats.total.toLocaleString()}</div>
               <div className="text-[10px] text-slate-400 mt-0.5">近 {stats.days} 天</div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">日均操作</div>
+              <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">日均操作</div>
               <div className="text-2xl font-black text-primary mt-1">
                 {stats.daily.length > 0 ? Math.round(stats.total / stats.daily.length) : 0}
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5">活跃 {stats.daily.length} 天</div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">操作类型</div>
+              <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">操作类型</div>
               <div className="text-2xl font-black text-slate-900 mt-1">{stats.by_action.length}</div>
               <div className="text-[10px] text-slate-400 mt-0.5">种操作</div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">活跃用户</div>
+              <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">活跃用户</div>
               <div className="text-2xl font-black text-slate-900 mt-1">{stats.top_operators.length}</div>
               <div className="text-[10px] text-slate-400 mt-0.5">位操作员</div>
             </div>
@@ -480,17 +480,17 @@ export default function AuditLogPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Activity Heatmap */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">活动热力图</h4>
+              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">活动热力图</h4>
               {stats.daily.length > 0 ? (
                 <ActivityHeatmap daily={stats.daily} />
               ) : (
-                <div className="text-center text-slate-400 text-xs py-8">暂无数据</div>
+                <div className="text-center text-slate-400 text-sm py-8">暂无数据</div>
               )}
             </div>
 
             {/* Action Distribution */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">操作类型分布</h4>
+              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">操作类型分布</h4>
               <div className="space-y-2">
                 {stats.by_action.slice(0, 6).map((a) => {
                   const cfg = actionConfig[a.action]
@@ -513,7 +513,7 @@ export default function AuditLogPage() {
 
             {/* Top Operators */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">活跃用户</h4>
+              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">活跃用户</h4>
               <div className="space-y-2">
                 {stats.top_operators.slice(0, 5).map((op, i) => (
                   <div key={op.user_id} className="flex items-center gap-2">
@@ -521,7 +521,7 @@ export default function AuditLogPage() {
                       i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-white' : i === 2 ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-500'
                     }`}>{i + 1}</span>
                     <span className="text-sm font-medium text-slate-700 flex-1 truncate">{op.user_name}</span>
-                    <span className="text-xs font-bold text-slate-500">{op.count} 次</span>
+                    <span className="text-sm font-bold text-slate-500">{op.count} 次</span>
                   </div>
                 ))}
               </div>
@@ -531,27 +531,27 @@ export default function AuditLogPage() {
           {/* Daily Trend + Hourly + Resource-Action Matrix */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">每日操作趋势</h4>
+              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">每日操作趋势</h4>
               {stats.daily.length >= 2 ? (
                 <DailyTrendChart daily={stats.daily} />
               ) : (
-                <div className="text-center text-slate-400 text-xs py-8">数据不足</div>
+                <div className="text-center text-slate-400 text-sm py-8">数据不足</div>
               )}
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">小时分布</h4>
+              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">小时分布</h4>
               {stats.hourly && stats.hourly.length > 0 ? (
                 <HourlyChart hourly={stats.hourly} />
               ) : (
-                <div className="text-center text-slate-400 text-xs py-8">暂无数据</div>
+                <div className="text-center text-slate-400 text-sm py-8">暂无数据</div>
               )}
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">资源-操作矩阵</h4>
+              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">资源-操作矩阵</h4>
               {stats.resource_action_matrix && stats.resource_action_matrix.length > 0 ? (
                 <ResourceActionMatrix matrix={stats.resource_action_matrix} actionCfg={actionConfig} />
               ) : (
-                <div className="text-center text-slate-400 text-xs py-8">暂无数据</div>
+                <div className="text-center text-slate-400 text-sm py-8">暂无数据</div>
               )}
             </div>
           </div>
@@ -559,14 +559,14 @@ export default function AuditLogPage() {
           {/* Resource Type Distribution */}
           {stats.by_resource.length > 0 && (
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">资源类型分布</h4>
+              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">资源类型分布</h4>
               <div className="flex flex-wrap gap-2">
                 {stats.by_resource.map((r) => {
                   const pct = Math.round((r.count / stats.total) * 100)
                   return (
                     <div key={r.resource_type}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
-                      <span className="text-xs font-bold text-slate-700">{resourceLabels[r.resource_type] || r.resource_type}</span>
+                      <span className="text-sm font-bold text-slate-700">{resourceLabels[r.resource_type] || r.resource_type}</span>
                       <span className="text-[10px] font-bold text-primary">{r.count}</span>
                       <span className="text-[10px] text-slate-400">({pct}%)</span>
                     </div>
@@ -640,7 +640,7 @@ export default function AuditLogPage() {
             expandable={{
               expandedRowRender: (record: AuditLog) => record.detail ? (
                 <DiffView detail={record.detail} />
-              ) : <span className="text-slate-400 text-xs">无详细信息</span>,
+              ) : <span className="text-slate-400 text-sm">无详细信息</span>,
               rowExpandable: () => true,
             }}
             pagination={{
@@ -655,7 +655,7 @@ export default function AuditLogPage() {
             <TimelineView data={data} actionCfg={actionConfig} />
             <div className="px-4 pb-3 flex justify-end">
               <Button size="small" disabled={pageNo <= 1} onClick={() => { setPageNo(pageNo - 1); fetchData(pageNo - 1) }}>上一页</Button>
-              <span className="text-xs text-slate-500 mx-3 self-center">{pageNo} / {Math.ceil(total / 20) || 1}</span>
+              <span className="text-sm text-slate-500 mx-3 self-center">{pageNo} / {Math.ceil(total / 20) || 1}</span>
               <Button size="small" disabled={pageNo * 20 >= total} onClick={() => { setPageNo(pageNo + 1); fetchData(pageNo + 1) }}>下一页</Button>
             </div>
           </div>

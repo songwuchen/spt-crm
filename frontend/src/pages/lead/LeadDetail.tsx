@@ -196,7 +196,7 @@ export default function LeadDetail() {
                       isCurrent ? 'bg-primary/10 text-primary' : isActive ? 'text-emerald-600' : 'text-slate-300'
                     }`}>
                       <span className="material-symbols-outlined text-lg">{step.icon}</span>
-                      <span className="text-xs font-bold uppercase tracking-wider">{step.label}</span>
+                      <span className="text-sm font-bold uppercase tracking-wider">{step.label}</span>
                     </div>
                     {idx < qualifySteps.length - 1 && (
                       <div className={`w-12 h-0.5 mx-1 rounded ${isActive && idx < currentStepIdx ? 'bg-emerald-300' : 'bg-slate-200'}`} />
@@ -218,7 +218,7 @@ export default function LeadDetail() {
 
           {/* Lead Info */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-0">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">线索信息</h3>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">线索信息</h3>
             <InfoField label="联系人" value={lead.contact_name} />
             <InfoField label="联系电话" value={lead.contact_phone} />
             <InfoField label="联系邮箱" value={lead.contact_email} />
@@ -227,7 +227,7 @@ export default function LeadDetail() {
             <InfoField label="负责人" value={lead.owner_name} />
             {lead.converted_customer_id && (
               <InfoField label="转化客户" value={
-                <a onClick={() => navigate(`/customers/${lead.converted_customer_id}`)} className="text-primary font-bold text-xs hover:underline">
+                <a onClick={() => navigate(`/customers/${lead.converted_customer_id}`)} className="text-primary font-bold text-sm hover:underline">
                   查看客户详情
                 </a>
               } />
@@ -321,9 +321,9 @@ export default function LeadDetail() {
               <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="material-symbols-outlined text-primary text-sm">analytics</span>
-                  <span className="text-xs font-bold text-slate-800">评分分析</span>
+                  <span className="text-sm font-bold text-slate-800">评分分析</span>
                 </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
+                <p className="text-sm text-slate-500 leading-relaxed">
                   {(lead.score ?? 0) >= 80
                     ? '该线索评分优异，建议尽快安排转化跟进，避免错失高价值客户。'
                     : (lead.score ?? 0) >= 60
@@ -339,16 +339,16 @@ export default function LeadDetail() {
                 <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="material-symbols-outlined text-amber-500 text-sm">lightbulb</span>
-                    <span className="text-xs font-bold text-slate-800">建议操作</span>
+                    <span className="text-sm font-bold text-slate-800">建议操作</span>
                   </div>
-                  <p className="text-xs text-slate-500 leading-relaxed mb-3">
+                  <p className="text-sm text-slate-500 leading-relaxed mb-3">
                     {lead.status === 'new'
                       ? '新线索建议48小时内完成首次联系，可通过电话或邮件确认基本意向。'
                       : '跟进中线索建议定期更新进展，及时记录客户反馈和需求变化。'}
                   </p>
                   <button
                     onClick={lead.status === 'new' ? () => navigate(`/leads/${id}/edit`) : handleQualify}
-                    className="w-full py-2 bg-white border border-primary text-primary rounded-lg text-xs font-bold hover:bg-primary hover:text-white transition-colors"
+                    className="w-full py-2 bg-white border border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary hover:text-white transition-colors"
                   >
                     {lead.status === 'new' ? '开始跟进' : '立即转化'}
                   </button>
@@ -360,14 +360,14 @@ export default function LeadDetail() {
                 <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span>
-                    <span className="text-xs font-bold text-slate-800">已转化</span>
+                    <span className="text-sm font-bold text-slate-800">已转化</span>
                   </div>
-                  <p className="text-xs text-slate-500 leading-relaxed mb-3">
+                  <p className="text-sm text-slate-500 leading-relaxed mb-3">
                     该线索已成功转化为客户，可前往客户详情页查看完整信息。
                   </p>
                   <button
                     onClick={() => navigate(`/customers/${lead.converted_customer_id}`)}
-                    className="w-full py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors"
+                    className="w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors"
                   >
                     查看客户详情
                   </button>
@@ -379,9 +379,9 @@ export default function LeadDetail() {
                 <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="material-symbols-outlined text-slate-500 text-sm">payments</span>
-                    <span className="text-xs font-bold text-slate-800">预算洞察</span>
+                    <span className="text-sm font-bold text-slate-800">预算洞察</span>
                   </div>
-                  <p className="text-xs text-slate-500 leading-relaxed">
+                  <p className="text-sm text-slate-500 leading-relaxed">
                     客户预算范围 <span className="font-bold text-slate-700">{lead.budget_range}</span>，
                     建议匹配相应价位的产品方案。
                   </p>

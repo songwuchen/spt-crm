@@ -210,7 +210,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
         {swimlane !== 'none' && (
           <div className="flex items-center gap-2 mb-2 mt-4 first:mt-0">
             <span className="text-sm font-bold text-slate-700">{group.label}</span>
-            <span className="text-xs text-slate-400">({group.cards.length})</span>
+            <span className="text-sm text-slate-400">({group.cards.length})</span>
             <div className="flex-1 h-px bg-slate-200" />
           </div>
         )}
@@ -243,7 +243,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
               <div className="px-3 py-3 rounded-t-xl" style={{ background: color.headerBg }}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-black uppercase tracking-wider" style={{ color: color.text }}>{stage}</span>
+                    <span className="text-sm font-black uppercase tracking-wider" style={{ color: color.text }}>{stage}</span>
                     <span className="text-[11px] font-semibold" style={{ color: color.text }}>{stageLabels[stage]}</span>
                   </div>
                   <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-white"
@@ -256,7 +256,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
 
               {/* Drop zone indicator */}
               {isValidDrop && (
-                <div className="mx-2 mt-2 py-2 rounded-lg border-2 border-dashed text-center text-xs font-bold"
+                <div className="mx-2 mt-2 py-2 rounded-lg border-2 border-dashed text-center text-sm font-bold"
                   style={{ borderColor: color.text, color: color.text, opacity: 0.6 }}>
                   放置到 {stageLabels[stage]}
                 </div>
@@ -318,7 +318,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
                   )
                 })}
                 {laneCards.length === 0 && !isValidDrop && (
-                  <div className="text-center py-8 text-slate-300 text-xs">暂无商机</div>
+                  <div className="text-center py-8 text-slate-300 text-sm">暂无商机</div>
                 )}
               </div>
             </div>

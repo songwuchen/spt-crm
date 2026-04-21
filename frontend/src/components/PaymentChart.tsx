@@ -74,7 +74,7 @@ export default function PaymentChart({ plans, records }: Props) {
       {/* Bar chart */}
       {months.length > 0 && (
         <div>
-          <div className="text-xs font-bold text-slate-500 uppercase mb-3">月度回款对比</div>
+          <div className="text-sm font-bold text-slate-500 uppercase mb-3">月度回款对比</div>
           <div className="space-y-3">
             {months.map((m) => {
               const planPct = (m.plan / maxValue) * 100
@@ -84,7 +84,7 @@ export default function PaymentChart({ plans, records }: Props) {
                 <div key={m.month} className="flex items-center gap-3">
                   {/* Month label */}
                   <div className="w-[50px] flex-shrink-0 text-right">
-                    <span className="text-xs font-bold text-slate-600">{monthLabel}</span>
+                    <span className="text-sm font-bold text-slate-600">{monthLabel}</span>
                   </div>
 
                   {/* Bars */}

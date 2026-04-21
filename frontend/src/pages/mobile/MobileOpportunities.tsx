@@ -46,7 +46,7 @@ export default function MobileOpportunities() {
       <div className="flex gap-2 overflow-x-auto mb-3 pb-1" style={{ scrollbarWidth: 'none' }}>
         <button
           onClick={() => setActiveStage(null)}
-          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border-0 cursor-pointer transition-colors ${
+          className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-bold border-0 cursor-pointer transition-colors ${
             !activeStage ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
           }`}
         >
@@ -58,7 +58,7 @@ export default function MobileOpportunities() {
             <button
               key={s}
               onClick={() => setActiveStage(activeStage === s ? null : s)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border-0 cursor-pointer transition-colors ${
+              className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-bold border-0 cursor-pointer transition-colors ${
                 activeStage === s ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
               }`}
             >
@@ -86,7 +86,7 @@ export default function MobileOpportunities() {
                   {stageLabels[p.stage_code]}
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-xs text-slate-500">
+              <div className="flex items-center gap-3 text-sm text-slate-500">
                 {p.amount_expect && <span>¥{Number(p.amount_expect).toLocaleString()}</span>}
                 {p.owner_name && <span>{p.owner_name}</span>}
               </div>
@@ -101,7 +101,7 @@ export default function MobileOpportunities() {
         <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
           {groupedByStage.map((g) => (
             <div key={g.stage} className="shrink-0 w-60">
-              <div className={`px-3 py-1.5 rounded-t-lg text-xs font-bold border ${stageColors[g.stage]}`}>
+              <div className={`px-3 py-1.5 rounded-t-lg text-sm font-bold border ${stageColors[g.stage]}`}>
                 {g.label} <span className="ml-1 opacity-60">({g.items.length})</span>
               </div>
               <div className="bg-slate-50 rounded-b-lg border border-t-0 border-slate-200 p-2 space-y-2 min-h-[200px]">
@@ -111,7 +111,7 @@ export default function MobileOpportunities() {
                     onClick={() => navigate(`/m/opportunities/${p.id}`)}
                     className="bg-white rounded-lg border border-slate-100 p-2.5 shadow-sm active:bg-slate-50 cursor-pointer"
                   >
-                    <div className="text-xs font-bold text-slate-800 truncate mb-1">{p.name}</div>
+                    <div className="text-sm font-bold text-slate-800 truncate mb-1">{p.name}</div>
                     <div className="flex items-center justify-between text-[10px] text-slate-500">
                       <span>{p.amount_expect ? `¥${Number(p.amount_expect).toLocaleString()}` : '-'}</span>
                       <span>{p.owner_name || '-'}</span>

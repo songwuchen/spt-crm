@@ -167,7 +167,7 @@ function FlowPreview({
   if (resolvedNames.length === 0) {
     return (
       <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-        <Text type="secondary" className="text-xs">添加审批人后可预览审批流程</Text>
+        <Text type="secondary" className="text-sm">添加审批人后可预览审批流程</Text>
       </div>
     )
   }
@@ -176,13 +176,13 @@ function FlowPreview({
 
   return (
     <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-      <div className="text-xs font-medium text-slate-500 mb-3">流程预览</div>
+      <div className="text-sm font-medium text-slate-500 mb-3">流程预览</div>
       <div className="overflow-x-auto">
         {isParallel ? (
           /* Parallel / Any-one: fork-join layout */
           <div className="flex items-center gap-0 min-w-fit">
             {/* Start node */}
-            <div className="flex-shrink-0 flex items-center justify-center w-14 h-7 rounded-full bg-blue-500 text-white text-xs font-bold">
+            <div className="flex-shrink-0 flex items-center justify-center w-14 h-7 rounded-full bg-blue-500 text-white text-sm font-bold">
               提交
             </div>
             {/* Fork arrow */}
@@ -194,7 +194,7 @@ function FlowPreview({
               {resolvedNames.map((name, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
-                  <span className="text-xs text-slate-700 whitespace-nowrap">{name}</span>
+                  <span className="text-sm text-slate-700 whitespace-nowrap">{name}</span>
                 </div>
               ))}
             </div>
@@ -204,7 +204,7 @@ function FlowPreview({
             </div>
             {/* End node */}
             <div className="flex-shrink-0 flex flex-col items-center">
-              <div className="flex items-center justify-center w-14 h-7 rounded-full bg-emerald-500 text-white text-xs font-bold">
+              <div className="flex items-center justify-center w-14 h-7 rounded-full bg-emerald-500 text-white text-sm font-bold">
                 完成
               </div>
               <span className="text-[10px] text-slate-400 mt-0.5">
@@ -215,7 +215,7 @@ function FlowPreview({
         ) : (
           /* Sequential: linear chain */
           <div className="flex items-center gap-0 min-w-fit">
-            <div className="flex-shrink-0 flex items-center justify-center w-14 h-7 rounded-full bg-blue-500 text-white text-xs font-bold">
+            <div className="flex-shrink-0 flex items-center justify-center w-14 h-7 rounded-full bg-blue-500 text-white text-sm font-bold">
               提交
             </div>
             {resolvedNames.map((name, i) => (
@@ -223,7 +223,7 @@ function FlowPreview({
                 <div className="w-6 flex items-center justify-center text-slate-400">
                   <span className="text-sm">→</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-3 h-7 rounded-full bg-amber-100 border border-amber-300 text-xs text-slate-700 whitespace-nowrap">
+                <div className="flex items-center gap-1.5 px-3 h-7 rounded-full bg-amber-100 border border-amber-300 text-sm text-slate-700 whitespace-nowrap">
                   <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
                   {name}
                 </div>
@@ -232,7 +232,7 @@ function FlowPreview({
             <div className="w-6 flex items-center justify-center text-slate-400 flex-shrink-0">
               <span className="text-sm">→</span>
             </div>
-            <div className="flex-shrink-0 flex items-center justify-center w-14 h-7 rounded-full bg-emerald-500 text-white text-xs font-bold">
+            <div className="flex-shrink-0 flex items-center justify-center w-14 h-7 rounded-full bg-emerald-500 text-white text-sm font-bold">
               完成
             </div>
           </div>
@@ -410,7 +410,7 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
     >
       {/* Mode toggle */}
       <div className="flex justify-end mb-2">
-        <Link onClick={jsonMode ? switchToVisual : switchToJson} className="text-xs flex items-center gap-1">
+        <Link onClick={jsonMode ? switchToVisual : switchToJson} className="text-sm flex items-center gap-1">
           <SwapOutlined />
           {jsonMode ? '切换到可视化编辑' : '切换到JSON模式'}
         </Link>
@@ -462,7 +462,7 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
                 添加条件
               </Button>
               {conditionRows.length === 0 && (
-                <div className="text-xs text-slate-400 mt-1">未设置条件，表示所有情况都匹配</div>
+                <div className="text-sm text-slate-400 mt-1">未设置条件，表示所有情况都匹配</div>
               )}
             </div>
 
@@ -484,7 +484,7 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
                       options={users.map(u => ({ value: u.id, label: u.real_name }))} />
                   )}
                   {row.type === 'department_leader' && (
-                    <Text type="secondary" className="flex-1 text-xs">自动解析提交人的部门领导</Text>
+                    <Text type="secondary" className="flex-1 text-sm">自动解析提交人的部门领导</Text>
                   )}
                   <Button type="text" danger icon={<DeleteOutlined />} size="small" onClick={() => removeApprover(i)} />
                 </div>

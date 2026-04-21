@@ -44,18 +44,18 @@ export default function MobileContracts() {
           <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
         </button>
         <h1 className="text-lg font-extrabold text-slate-900">合同列表</h1>
-        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-bold">{contracts.length}</span>
+        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-sm font-bold">{contracts.length}</span>
       </div>
 
       {/* Status filter bar */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
         <button onClick={() => setFilterStatus(null)}
-          className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${
+          className={`px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
             !filterStatus ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
           }`}>全部 {contracts.length}</button>
         {Object.entries(statusConfig).map(([key, sc]) => (
           <button key={key} onClick={() => setFilterStatus(filterStatus === key ? null : key)}
-            className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${
+            className={`px-3 py-1 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
               filterStatus === key ? 'bg-primary text-white' : `${sc.bg} ${sc.color}`
             }`}>{sc.label} {statusCounts[key] || 0}</button>
         ))}
@@ -77,7 +77,7 @@ export default function MobileContracts() {
                   <span className="text-sm font-bold text-slate-900">{c.contract_no}</span>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${sc.bg} ${sc.color}`}>{sc.label}</span>
                 </div>
-                {c.title && <div className="text-xs text-slate-600 mb-1">{c.title}</div>}
+                {c.title && <div className="text-sm text-slate-600 mb-1">{c.title}</div>}
                 <div className="flex items-center justify-between">
                   <div>
                     {c.amount_total != null && (
@@ -90,7 +90,7 @@ export default function MobileContracts() {
                   </div>
                   {daysLeft !== null && c.status === 'signed' && (
                     <div className={`text-right ${daysLeft < 0 ? 'text-red-600' : daysLeft <= 30 ? 'text-amber-600' : 'text-slate-500'}`}>
-                      <div className="text-xs font-bold">
+                      <div className="text-sm font-bold">
                         {daysLeft < 0 ? `已过期${Math.abs(daysLeft)}天` : `${daysLeft}天后到期`}
                       </div>
                       <div className="text-[10px]">{c.end_date}</div>

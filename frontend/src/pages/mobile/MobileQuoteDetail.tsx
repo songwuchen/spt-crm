@@ -132,7 +132,7 @@ export default function MobileQuoteDetail() {
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1 mb-3">
           {(['lines', 'info'] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
-              className={`flex-1 py-2 rounded-md text-xs font-bold transition-colors ${
+              className={`flex-1 py-2 rounded-md text-sm font-bold transition-colors ${
                 tab === t ? 'bg-white text-primary shadow-sm' : 'text-slate-500'
               }`}>
               {t === 'lines' ? `行项目 (${lines.length})` : '版本信息'}
@@ -164,7 +164,7 @@ export default function MobileQuoteDetail() {
                     </span>
                   </div>
                   <p className="text-sm font-bold text-slate-800 mb-1">{l.item_name || '-'}</p>
-                  {l.spec && <p className="text-xs text-slate-500 mb-1">{l.spec}</p>}
+                  {l.spec && <p className="text-sm text-slate-500 mb-1">{l.spec}</p>}
                   <div className="flex items-center gap-3 text-[10px] text-slate-400">
                     {l.qty != null && <span>数量: {l.qty} {l.unit || ''}</span>}
                     {l.unit_price != null && <span>单价: ¥{Number(l.unit_price).toLocaleString()}</span>}
@@ -173,7 +173,7 @@ export default function MobileQuoteDetail() {
                 </div>
               ))}
               <div className="bg-primary/5 rounded-xl border border-primary/10 p-3 flex justify-between items-center">
-                <span className="text-xs font-bold text-slate-500">行合计</span>
+                <span className="text-sm font-bold text-slate-500">行合计</span>
                 <span className="text-lg font-black text-slate-900">¥{lineTotal.toLocaleString()}</span>
               </div>
             </>
@@ -186,52 +186,52 @@ export default function MobileQuoteDetail() {
         <div className="px-4 pb-28">
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">版本</span>
+              <span className="text-sm text-slate-400">版本</span>
               <span className="text-sm font-bold text-slate-700">V{currentVersion.version_no} {currentVersion.title || ''}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">状态</span>
+              <span className="text-sm text-slate-400">状态</span>
               <span className="text-sm text-slate-700">{currentVersion.status}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">总价</span>
+              <span className="text-sm text-slate-400">总价</span>
               <span className="text-sm font-bold text-slate-800">
                 {currentVersion.price_total != null ? `¥${Number(currentVersion.price_total).toLocaleString()}` : '-'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">税率</span>
+              <span className="text-sm text-slate-400">税率</span>
               <span className="text-sm text-slate-700">
                 {currentVersion.tax_rate != null ? `${(Number(currentVersion.tax_rate) * 100).toFixed(1)}%` : '-'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">毛利率</span>
+              <span className="text-sm text-slate-400">毛利率</span>
               <span className="text-sm text-slate-700">
                 {currentVersion.margin_rate != null ? `${(Number(currentVersion.margin_rate) * 100).toFixed(1)}%` : '-'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">折扣</span>
+              <span className="text-sm text-slate-400">折扣</span>
               <span className="text-sm text-slate-700">
                 {currentVersion.discount_total != null ? `¥${Number(currentVersion.discount_total).toLocaleString()}` : '-'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">交期承诺</span>
+              <span className="text-sm text-slate-400">交期承诺</span>
               <span className="text-sm text-slate-700">{currentVersion.delivery_promise_date || '-'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">有效天数</span>
+              <span className="text-sm text-slate-400">有效天数</span>
               <span className="text-sm text-slate-700">{currentVersion.validity_days ?? '-'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">创建人</span>
+              <span className="text-sm text-slate-400">创建人</span>
               <span className="text-sm text-slate-700">{quote.created_by_name || '-'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-xs text-slate-400">创建时间</span>
-              <span className="text-xs text-slate-500">
+              <span className="text-sm text-slate-400">创建时间</span>
+              <span className="text-sm text-slate-500">
                 {quote.created_at ? new Date(quote.created_at).toLocaleString('zh-CN') : '-'}
               </span>
             </div>

@@ -106,19 +106,19 @@ export default function ApiDocsPage() {
         <div className="flex-1 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <div className="mb-4 bg-slate-50 rounded-lg p-4 border border-slate-200">
             <h3 className="text-sm font-bold text-slate-700 mb-2">认证方式</h3>
-            <p className="text-xs text-slate-600">
-              所有 API 请求需在 Header 中携带 <code className="bg-slate-200 px-1 rounded text-xs">Authorization: Bearer &lt;token&gt;</code>。
-              通过 <code className="bg-slate-200 px-1 rounded text-xs">POST /api/v1/auth/login</code> 获取 Token。
+            <p className="text-sm text-slate-600">
+              所有 API 请求需在 Header 中携带 <code className="bg-slate-200 px-1 rounded text-sm">Authorization: Bearer &lt;token&gt;</code>。
+              通过 <code className="bg-slate-200 px-1 rounded text-sm">POST /api/v1/auth/login</code> 获取 Token。
             </p>
             <h3 className="text-sm font-bold text-slate-700 mt-3 mb-2">响应格式</h3>
-            <pre className="text-xs bg-slate-100 p-3 rounded-lg overflow-x-auto">
+            <pre className="text-sm bg-slate-100 p-3 rounded-lg overflow-x-auto">
 {`{
   "code": 0,
   "message": "ok",
   "data": { ... }
 }`}
             </pre>
-            <p className="text-xs text-slate-500 mt-2">code=0 表示成功，非零为错误码。分页接口 data 包含 items, total, pageNo, pageSize。</p>
+            <p className="text-sm text-slate-500 mt-2">code=0 表示成功，非零为错误码。分页接口 data 包含 items, total, pageNo, pageSize。</p>
           </div>
 
           <Collapse
@@ -131,8 +131,8 @@ export default function ApiDocsPage() {
                   {g.endpoints.map((ep, i) => (
                     <div key={i} className="flex items-center gap-3 py-1.5 border-b border-slate-50 last:border-0">
                       <Tag color={methodColors[ep.method]} className="font-mono text-[10px] min-w-[50px] text-center">{ep.method}</Tag>
-                      <code className="text-xs text-slate-700 font-mono flex-shrink-0">{ep.path}</code>
-                      <span className="text-xs text-slate-500 ml-auto">{ep.desc}</span>
+                      <code className="text-sm text-slate-700 font-mono flex-shrink-0">{ep.path}</code>
+                      <span className="text-sm text-slate-500 ml-auto">{ep.desc}</span>
                     </div>
                   ))}
                 </div>

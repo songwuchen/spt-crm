@@ -52,7 +52,7 @@ export default function PullToRefresh({ onRefresh, children, threshold = 60 }: P
       style={{ height: '100%' }}
     >
       <div
-        className="flex items-center justify-center text-xs text-slate-400 transition-all overflow-hidden"
+        className="flex items-center justify-center text-sm text-slate-400 transition-all overflow-hidden"
         style={{ height: pullDistance > 0 || refreshing ? Math.max(pullDistance, refreshing ? 40 : 0) : 0 }}
       >
         {refreshing ? (

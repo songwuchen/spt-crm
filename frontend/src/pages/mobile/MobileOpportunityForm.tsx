@@ -47,12 +47,12 @@ export default function MobileOpportunityForm() {
 
       <div className="p-4 space-y-4">
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">商机名称 *</label>
+          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">商机名称 *</label>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="输入商机名称" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm" />
         </div>
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">客户 *</label>
+          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">客户 *</label>
           <select value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })}
             className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm">
             <option value="">请选择客户</option>
@@ -61,12 +61,12 @@ export default function MobileOpportunityForm() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">预期金额</label>
+            <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">预期金额</label>
             <input value={form.amount_expect} onChange={(e) => setForm({ ...form, amount_expect: e.target.value })}
               placeholder="0.00" type="number" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm" />
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">阶段</label>
+            <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">阶段</label>
             <select value={form.stage} onChange={(e) => setForm({ ...form, stage: e.target.value })}
               className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm">
               <option value="S1">S1 线索确认</option>
@@ -76,7 +76,7 @@ export default function MobileOpportunityForm() {
           </div>
         </div>
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">备注</label>
+          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">备注</label>
           <textarea value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })}
             placeholder="其他信息" rows={3}
             className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none" />

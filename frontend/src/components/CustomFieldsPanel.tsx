@@ -46,7 +46,7 @@ export default function CustomFieldsPanel({ entityType, values, onChange, readOn
 
   return (
     <div className="space-y-3">
-      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">自定义字段</div>
+      <div className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">自定义字段</div>
       {fields.map((f) => {
         const val = localValues[f.field_key]
         return (

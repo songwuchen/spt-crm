@@ -77,7 +77,7 @@ export default function MobileCalendar() {
             const isSelected = dateStr === selectedDate
             return (
               <button key={day} onClick={() => setSelectedDate(isSelected ? null : dateStr)}
-                className={`relative h-10 rounded-lg text-xs font-medium transition-colors ${
+                className={`relative h-10 rounded-lg text-sm font-medium transition-colors ${
                   isSelected ? 'bg-primary text-white' : isToday ? 'bg-primary/10 text-primary font-bold' : 'text-slate-700 active:bg-slate-50'
                 }`}>
                 {day}
@@ -111,7 +111,7 @@ export default function MobileCalendar() {
       {/* Selected date events */}
       {selectedDate && (
         <div>
-          <div className="text-xs font-bold text-slate-500 mb-2">{dayjs(selectedDate).format('M月D日')} 的日程</div>
+          <div className="text-sm font-bold text-slate-500 mb-2">{dayjs(selectedDate).format('M月D日')} 的日程</div>
           {selectedEvents.length === 0 ? (
             <div className="text-center py-6 text-slate-400 text-sm">当日无日程</div>
           ) : (

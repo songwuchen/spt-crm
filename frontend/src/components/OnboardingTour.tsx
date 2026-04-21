@@ -116,7 +116,7 @@ export default function OnboardingTour() {
         </div>
         <p className="text-sm text-slate-500 mb-3">{current.content}</p>
         <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-400">{step + 1} / {filteredSteps.length}</span>
+          <span className="text-sm text-slate-400">{step + 1} / {filteredSteps.length}</span>
           <div className="flex gap-2">
             <Button size="small" onClick={finish}>跳过</Button>
             <Button size="small" type="primary" onClick={next}>

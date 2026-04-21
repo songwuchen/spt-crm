@@ -26,7 +26,7 @@ interface CustomFieldItem { id: string; entity_type: string; field_key: string; 
 
 function JsonCell({ value }: { value: unknown }) {
   if (!value) return <span className="text-slate-300">-</span>
-  return <pre className="text-xs text-slate-600 whitespace-pre-wrap max-w-xs">{JSON.stringify(value, null, 2)}</pre>
+  return <pre className="text-sm text-slate-600 whitespace-pre-wrap max-w-xs">{JSON.stringify(value, null, 2)}</pre>
 }
 
 export default function SettingsPage() {
@@ -300,7 +300,7 @@ export default function SettingsPage() {
                   { title: 'Gate规则', dataIndex: 'gate_rules_json', render: (v: unknown) => <JsonCell value={v} /> },
                   { title: '启用', dataIndex: 'enabled', width: 80, render: (v: boolean) => v ? <span className="text-emerald-500 font-bold">是</span> : <span className="text-slate-400">否</span> },
                   { title: '', width: 80, render: (_: unknown, r: StageConfig) => (
-                    <a className="text-primary text-xs font-bold" onClick={() => {
+                    <a className="text-primary text-sm font-bold" onClick={() => {
                       setStageForm({ stage_code: r.stage_code, name: r.name, gate_rules_json: r.gate_rules_json ? JSON.stringify(r.gate_rules_json, null, 2) : '' })
                       setStageModal(true)
                     }}>编辑</a>
@@ -355,8 +355,8 @@ export default function SettingsPage() {
                   )},
                   { title: '', width: 100, render: (_: unknown, r: ApprovalPolicyItem) => (
                     <Space size="middle">
-                      <a className="text-primary text-xs font-bold" onClick={() => openApEdit(r)}>编辑</a>
-                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                      <a className="text-primary text-sm font-bold" onClick={() => openApEdit(r)}>编辑</a>
+                      <a className={`text-rose-500 text-sm font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
                         setDeletingId(r.id)
                         try {
                           await settingsApi.deleteApprovalPolicy(r.id)
@@ -389,13 +389,13 @@ export default function SettingsPage() {
                   { title: '创建人', dataIndex: 'created_by_name', width: 100 },
                   { title: '', width: 100, render: (_: unknown, r: DocTemplateItem) => (
                     <Space size="middle">
-                      <a className="text-primary text-xs font-bold" onClick={() => {
+                      <a className="text-primary text-sm font-bold" onClick={() => {
                         setDtEditingId(r.id)
                         setDtForm({ doc_type: r.doc_type, name: r.name, description: r.description || '',
                           content_json: r.content_json ? JSON.stringify(r.content_json, null, 2) : '', is_default: r.is_default })
                         setDtModal(true)
                       }}>编辑</a>
-                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                      <a className={`text-rose-500 text-sm font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
                         setDeletingId(r.id); try { await settingsApi.deleteDocTemplate(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') } finally { setDeletingId(null) }
                       }}>删除</a>
                     </Space>
@@ -415,7 +415,7 @@ export default function SettingsPage() {
                   }}>新增模板</Button>
                 </div>
                 <Table rowKey="id" dataSource={emailTemplates} size="small" pagination={false} columns={[
-                  { title: '编码', dataIndex: 'code', width: 140, render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+                  { title: '编码', dataIndex: 'code', width: 140, render: (v: string) => <span className="font-mono text-sm">{v}</span> },
                   { title: '名称', dataIndex: 'name', width: 160 },
                   { title: '主题', dataIndex: 'subject', ellipsis: true },
                   { title: '启用', dataIndex: 'enabled', width: 60, render: (v: boolean, r: EmailTemplateItem) => (
@@ -425,14 +425,14 @@ export default function SettingsPage() {
                   )},
                   { title: '', width: 100, render: (_: unknown, r: EmailTemplateItem) => (
                     <Space size="middle">
-                      <a className="text-primary text-xs font-bold" onClick={() => {
+                      <a className="text-primary text-sm font-bold" onClick={() => {
                         setEtEditingId(r.id)
                         setEtForm({ code: r.code, name: r.name, subject: r.subject || '',
                           body_html: r.body_html || '', variables_json: r.variables_json ? JSON.stringify(r.variables_json, null, 2) : '',
                           enabled: r.enabled })
                         setEtModal(true)
                       }}>编辑</a>
-                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                      <a className={`text-rose-500 text-sm font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
                         setDeletingId(r.id); try { await settingsApi.deleteEmailTemplate(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') } finally { setDeletingId(null) }
                       }}>删除</a>
                     </Space>
@@ -447,7 +447,7 @@ export default function SettingsPage() {
             children: (
               <div className="pb-6">
                 <div className="flex justify-between mb-3">
-                  <div className="text-xs text-slate-400">
+                  <div className="text-sm text-slate-400">
                     可用变量: {ntVariables.map(v => <Tag key={v.key} className="text-[10px]">{`{{${v.key}}}`} {v.label}</Tag>)}
                   </div>
                   <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
@@ -465,12 +465,12 @@ export default function SettingsPage() {
                   )},
                   { title: '', width: 100, render: (_: unknown, r: any) => (
                     <Space size="middle">
-                      <a className="text-primary text-xs font-bold" onClick={() => {
+                      <a className="text-primary text-sm font-bold" onClick={() => {
                         setNtEditingId(r.id)
                         setNtForm({ event_type: r.event_type, title_template: r.title_template, content_template: r.content_template || '', is_active: r.is_active })
                         setNtModal(true)
                       }}>编辑</a>
-                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                      <a className={`text-rose-500 text-sm font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
                         setDeletingId(r.id); try { await client.delete(`/api/v1/notification_templates/${r.id}`); message.success('已删除'); fetchAll() } catch { message.error('删除失败') } finally { setDeletingId(null) }
                       }}>删除</a>
                     </Space>
@@ -503,7 +503,7 @@ export default function SettingsPage() {
                   }}>新增集成</Button>
                 </div>
                 <Table rowKey="id" dataSource={integrations} size="small" pagination={false} columns={[
-                  { title: '系统', dataIndex: 'system_code', width: 120, render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+                  { title: '系统', dataIndex: 'system_code', width: 120, render: (v: string) => <span className="font-mono text-sm">{v}</span> },
                   { title: '名称', dataIndex: 'name', width: 150 },
                   { title: 'URL', dataIndex: 'base_url', ellipsis: true },
                   { title: '认证', dataIndex: 'auth_type', width: 100 },
@@ -512,13 +512,13 @@ export default function SettingsPage() {
                   )},
                   { title: '', width: 180, render: (_: unknown, r: Integration) => (
                     <Space size="middle">
-                      <a className="text-emerald-600 text-xs font-bold" onClick={async () => {
+                      <a className="text-emerald-600 text-sm font-bold" onClick={async () => {
                         try {
                           const res = await settingsApi.testIntegration(r.id) as { data: { connected: boolean; error?: string } }
                           if (res.data?.connected) { message.success('连接成功') } else { message.warning(`连接失败: ${res.data?.error || '无法连接'}`) }
                         } catch { message.error('测试连接失败') }
                       }}>测试</a>
-                      <a className="text-primary text-xs font-bold" onClick={() => {
+                      <a className="text-primary text-sm font-bold" onClick={() => {
                         setIntEditingId(r.id)
                         setIntForm({
                           system_code: r.system_code, name: r.name || '', base_url: r.base_url || '',
@@ -527,7 +527,7 @@ export default function SettingsPage() {
                         })
                         setIntModal(true)
                       }}>编辑</a>
-                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                      <a className={`text-rose-500 text-sm font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
                         setDeletingId(r.id); try { await settingsApi.deleteIntegration(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') } finally { setDeletingId(null) }
                       }}>删除</a>
                     </Space>
@@ -553,7 +553,7 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-2 gap-6">
                   {/* Cost Progress */}
                   <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">费用预算 ({currentPeriod})</div>
+                    <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">费用预算 ({currentPeriod})</div>
                     {aiBudget ? (
                       <>
                         <Progress
@@ -572,7 +572,7 @@ export default function SettingsPage() {
                   </div>
                   {/* Token Progress */}
                   <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Token 配额 ({currentPeriod})</div>
+                    <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Token 配额 ({currentPeriod})</div>
                     {aiBudget ? (
                       <>
                         <Progress
@@ -593,7 +593,7 @@ export default function SettingsPage() {
                 {aiBudget && (
                   <div className="mt-4 flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${aiBudget.hard_limit ? 'bg-red-500' : 'bg-emerald-500'}`} />
-                    <span className="text-xs text-slate-500">
+                    <span className="text-sm text-slate-500">
                       {aiBudget.hard_limit ? '硬限制模式：超出预算将阻止 AI 请求' : '软限制模式：超出预算仅记录，不阻止'}
                     </span>
                   </div>
@@ -648,8 +648,8 @@ export default function SettingsPage() {
                         setCfEditingId(r.id)
                         setCfForm({ entity_type: r.entity_type, field_key: r.field_key, field_label: r.field_label, field_type: r.field_type, options_json: r.options_json ? JSON.stringify(r.options_json) : '', required: r.required, sort_order: r.sort_order, enabled: r.enabled })
                         setCfModal(true)
-                      }} className="text-primary text-xs font-bold">编辑</a>
-                      <a className={`text-rose-500 text-xs font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
+                      }} className="text-primary text-sm font-bold">编辑</a>
+                      <a className={`text-rose-500 text-sm font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
                         setDeletingId(r.id); try { await settingsApi.deleteCustomField(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') } finally { setDeletingId(null) }
                       }}>删除</a>
                     </Space>
@@ -711,7 +711,7 @@ export default function SettingsPage() {
                     }
                     return (
                       <div key={table} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg border border-slate-100">
-                        <span className="text-xs text-slate-500">{labelMap[table] || table}</span>
+                        <span className="text-sm text-slate-500">{labelMap[table] || table}</span>
                         <span className="text-sm font-black text-slate-800">{count.toLocaleString()}</span>
                       </div>
                     )
@@ -808,17 +808,17 @@ export default function SettingsPage() {
                     <div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-center">
                         <div className="text-2xl font-black text-slate-900">{auditResult.total_checked}</div>
-                        <div className="text-xs text-slate-500 mt-1">检查总数</div>
+                        <div className="text-sm text-slate-500 mt-1">检查总数</div>
                       </div>
                       <div className={`rounded-xl p-4 border text-center ${auditResult.tampered_count === 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
                         <div className={`text-2xl font-black ${auditResult.tampered_count === 0 ? 'text-emerald-700' : 'text-red-600'}`}>{auditResult.tampered_count}</div>
-                        <div className={`text-xs mt-1 ${auditResult.tampered_count === 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                        <div className={`text-sm mt-1 ${auditResult.tampered_count === 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                           {auditResult.tampered_count === 0 ? '无异常' : '疑似篡改'}
                         </div>
                       </div>
                       <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-center">
                         <div className="text-2xl font-black text-slate-900">{auditResult.no_hash}</div>
-                        <div className="text-xs text-slate-500 mt-1">无哈希记录</div>
+                        <div className="text-sm text-slate-500 mt-1">无哈希记录</div>
                       </div>
                     </div>
 
@@ -826,7 +826,7 @@ export default function SettingsPage() {
                       <div>
                         <h4 className="text-sm font-bold text-red-600 mb-2">异常记录 (前50条)</h4>
                         <Table rowKey="id" dataSource={auditResult.tampered} size="small" pagination={false} columns={[
-                          { title: 'ID', dataIndex: 'id', width: 280, render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+                          { title: 'ID', dataIndex: 'id', width: 280, render: (v: string) => <span className="font-mono text-sm">{v}</span> },
                           { title: '时间', dataIndex: 'created_at', width: 180 },
                           { title: '摘要', dataIndex: 'summary' },
                         ]} />
@@ -972,7 +972,7 @@ export default function SettingsPage() {
             <label className="text-sm font-medium text-slate-700 mb-1 block">邮件内容</label>
             <div className="flex gap-0 border border-slate-200 rounded-lg overflow-hidden" style={{ height: 280 }}>
               <div className="flex-1 flex flex-col">
-                <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500">HTML 编辑</div>
+                <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-sm font-bold text-slate-500">HTML 编辑</div>
                 <div className="flex gap-1 px-2 py-1 bg-slate-50 border-b border-slate-200">
                   {[
                     { label: 'B', tag: '<strong>', end: '</strong>' },
@@ -982,7 +982,7 @@ export default function SettingsPage() {
                     { label: 'Link', tag: '<a href="">', end: '</a>' },
                     { label: 'Img', tag: '<img src="" alt="" />', end: '' },
                   ].map((btn) => (
-                    <button key={btn.label} type="button" className="px-2 py-0.5 text-xs rounded border border-slate-200 hover:bg-slate-100 text-slate-600"
+                    <button key={btn.label} type="button" className="px-2 py-0.5 text-sm rounded border border-slate-200 hover:bg-slate-100 text-slate-600"
                       onClick={() => {
                         const ins = btn.end ? `${btn.tag}文本${btn.end}` : btn.tag
                         setEtForm({ ...etForm, body_html: (etForm.body_html || '') + ins })
@@ -1000,7 +1000,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="flex-1 flex flex-col border-l border-slate-200">
-                <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500">预览</div>
+                <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 text-sm font-bold text-slate-500">预览</div>
                 <div className="flex-1 p-3 overflow-auto text-sm"
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(etForm.body_html || '<span class="text-slate-300">邮件预览区域</span>') }} />
               </div>
@@ -1021,7 +1021,7 @@ export default function SettingsPage() {
                 try {
                   const vars = JSON.parse(etForm.variables_json)
                   if (Array.isArray(vars)) return (
-                    <div className="text-xs text-slate-400">
+                    <div className="text-sm text-slate-400">
                       可用变量：{vars.map((v: any) => <Tag key={v.name} className="text-[10px]">{`{{${v.name}}}`}</Tag>)}
                     </div>
                   )
@@ -1073,7 +1073,7 @@ export default function SettingsPage() {
               onChange={(e) => setNtForm({ ...ntForm, content_template: e.target.value })}
               placeholder="详细内容，可使用 {{variable}} 变量" />
           </div>
-          <div className="text-xs text-slate-400">
+          <div className="text-sm text-slate-400">
             可用变量: {ntVariables.map(v => <Tag key={v.key} className="text-[10px]">{`{{${v.key}}}`} {v.label}</Tag>)}
           </div>
         </div>
@@ -1123,7 +1123,7 @@ export default function SettingsPage() {
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">认证配置 (JSON)</label>
             <TextArea rows={5} value={intForm.auth_config_json} onChange={(e) => setIntForm({ ...intForm, auth_config_json: e.target.value })}
-              className="font-mono text-xs"
+              className="font-mono text-sm"
               placeholder={intForm.auth_type === 'apikey' ? '{"api_key": "your-key", "header_name": "X-API-Key"}'
                 : intForm.auth_type === 'basic' ? '{"username": "user", "password": "pass"}'
                 : '{"token_url": "https://...", "client_id": "xxx", "client_secret": "xxx"}'} />
@@ -1257,11 +1257,11 @@ function HealthCheckTab() {
                 <div className={`text-lg font-black mt-2 ${isOk ? 'text-emerald-700' : 'text-red-600'}`}>
                   {isOk ? '正常' : '异常'}
                 </div>
-                <div className="text-xs text-slate-400 mt-1">状态: {item.status}</div>
+                <div className="text-sm text-slate-400 mt-1">状态: {item.status}</div>
               </div>
             )
           })}
-          <div className="col-span-2 text-xs text-slate-400">
+          <div className="col-span-2 text-sm text-slate-400">
             最后检查: {health.checked_at}
           </div>
         </div>
@@ -1298,20 +1298,20 @@ function RateLimitTab() {
         <>
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-              <div className="text-xs font-bold text-slate-400 mb-1">限流阈值</div>
+              <div className="text-sm font-bold text-slate-400 mb-1">限流阈值</div>
               <div className="text-2xl font-black text-slate-900">{stats.rpm_limit} <span className="text-sm font-normal text-slate-400">RPM</span></div>
             </div>
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-              <div className="text-xs font-bold text-slate-400 mb-1">活跃客户端</div>
+              <div className="text-sm font-bold text-slate-400 mb-1">活跃客户端</div>
               <div className="text-2xl font-black text-primary">{stats.active_clients}</div>
             </div>
             <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-              <div className="text-xs font-bold text-slate-400 mb-1">累计拒绝</div>
+              <div className="text-sm font-bold text-slate-400 mb-1">累计拒绝</div>
               <div className={`text-2xl font-black ${stats.total_rejected > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{stats.total_rejected}</div>
             </div>
           </div>
           <Table rowKey="ip" dataSource={stats.clients} size="small" pagination={false} columns={[
-            { title: 'IP', dataIndex: 'ip', width: 150, render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+            { title: 'IP', dataIndex: 'ip', width: 150, render: (v: string) => <span className="font-mono text-sm">{v}</span> },
             { title: '请求数', dataIndex: 'requests', width: 80 },
             { title: '使用率', dataIndex: 'usage_pct', width: 200, render: (v: number) => (
               <div className="flex items-center gap-2">
@@ -1319,7 +1319,7 @@ function RateLimitTab() {
                   <div className={`h-full rounded-full ${v >= 90 ? 'bg-red-500' : v >= 70 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                     style={{ width: `${Math.min(100, v)}%` }} />
                 </div>
-                <span className="text-xs text-slate-500 w-12 text-right">{v}%</span>
+                <span className="text-sm text-slate-500 w-12 text-right">{v}%</span>
               </div>
             )},
             { title: '被拒绝', dataIndex: 'rejected', width: 80, render: (v: number) => (
@@ -1395,12 +1395,12 @@ function DataDictTab() {
         { title: '启用', dataIndex: 'enabled', width: 60, render: (v: boolean) => v ? <span className="text-emerald-500 font-bold">是</span> : <span className="text-slate-400">否</span> },
         { title: '操作', width: 120, render: (_: unknown, r: any) => (
           <Space size="small">
-            <a className="text-primary text-xs font-bold" onClick={() => {
+            <a className="text-primary text-sm font-bold" onClick={() => {
               setEditId(r.id)
               setForm({ dict_type: r.dict_type, dict_code: r.dict_code, dict_label: r.dict_label, sort_order: r.sort_order, color: r.color || '', enabled: r.enabled })
               setModal(true)
             }}>编辑</a>
-            <a className="text-red-500 text-xs font-bold" onClick={() => handleDelete(r.id)}>删除</a>
+            <a className="text-red-500 text-sm font-bold" onClick={() => handleDelete(r.id)}>删除</a>
           </Space>
         )},
       ]} />
@@ -1617,7 +1617,7 @@ function ReportScheduleTab() {
               <Button size="small" danger icon={<DeleteOutlined />} onClick={() => removeSchedule(idx)} />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">接收人ID (逗号分隔):</span>
+              <span className="text-sm text-slate-500">接收人ID (逗号分隔):</span>
               <Input size="small" value={(sched.recipient_ids || []).join(',')}
                 onChange={(e) => updateSchedule(idx, { recipient_ids: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
                 placeholder="user-id-1, user-id-2" style={{ flex: 1 }} />
@@ -1696,8 +1696,8 @@ function RecycleBinTab() {
           { title: '删除时间', dataIndex: 'deleted_at', width: 180, render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-' },
           { title: '操作', width: 160, render: (_: unknown, r: any) => (
             <Space size="small">
-              <a className="text-primary text-xs font-bold" onClick={() => handleRestore(r.biz_type, r.id)}>恢复</a>
-              <a className="text-red-500 text-xs font-bold" onClick={() => handlePermanentDelete(r.biz_type, r.id)}>永久删除</a>
+              <a className="text-primary text-sm font-bold" onClick={() => handleRestore(r.biz_type, r.id)}>恢复</a>
+              <a className="text-red-500 text-sm font-bold" onClick={() => handlePermanentDelete(r.biz_type, r.id)}>永久删除</a>
             </Space>
           )},
         ]}

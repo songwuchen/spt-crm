@@ -51,10 +51,10 @@ export default function MobileNotifications() {
     <div className="min-h-screen bg-slate-50">
       <div className="bg-white px-4 pt-3 pb-2 border-b border-slate-100 flex items-center justify-between">
         <h1 className="text-lg font-bold text-slate-900">
-          通知 {unreadCount > 0 && <span className="text-xs text-red-500 font-bold ml-1">({unreadCount})</span>}
+          通知 {unreadCount > 0 && <span className="text-sm text-red-500 font-bold ml-1">({unreadCount})</span>}
         </h1>
         {unreadCount > 0 && (
-          <button onClick={handleMarkAllRead} className="text-xs text-primary font-bold">全部已读</button>
+          <button onClick={handleMarkAllRead} className="text-sm text-primary font-bold">全部已读</button>
         )}
       </div>
 
@@ -77,7 +77,7 @@ export default function MobileNotifications() {
                     {!n.is_read && <span className="w-2 h-2 rounded-full bg-primary shrink-0" />}
                   </div>
                   <p className="text-sm text-slate-800 font-medium">{n.title}</p>
-                  {n.content && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{n.content}</p>}
+                  {n.content && <p className="text-sm text-slate-500 mt-1 line-clamp-2">{n.content}</p>}
                   <span className="text-[10px] text-slate-400 mt-1 block">
                     {n.created_at ? new Date(n.created_at).toLocaleString('zh-CN') : ''}
                   </span>

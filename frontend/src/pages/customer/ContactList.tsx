@@ -183,7 +183,7 @@ export default function ContactList() {
           cancelText="取消"
           onConfirm={() => handleDelete(record.customer_id, record.id)}
         >
-          <a className="text-red-500 text-xs font-bold uppercase tracking-widest"><DeleteOutlined /> 删除</a>
+          <a className="text-red-500 text-sm font-bold uppercase tracking-widest"><DeleteOutlined /> 删除</a>
         </Popconfirm>
       ),
     } as ColumnsType<ContactItem>[number]] : []),
@@ -313,10 +313,10 @@ export default function ContactList() {
         <div className="space-y-4">
           <div className="text-sm text-slate-500">
             请上传CSV文件，文件需包含以下列（第一行为标题行）：
-            <div className="mt-2 bg-slate-50 rounded p-2 text-xs font-mono text-slate-700 break-all">
+            <div className="mt-2 bg-slate-50 rounded p-2 text-sm font-mono text-slate-700 break-all">
               customer_name, name, title, role_type, phone, mobile, email, is_primary, remark
             </div>
-            <div className="mt-1 text-xs text-slate-400">
+            <div className="mt-1 text-sm text-slate-400">
               customer_name 必须与系统中客户名称完全匹配；role_type 可选值：decision_maker, influencer, user, finance, procurement；is_primary 可填 true/1/是
             </div>
           </div>
@@ -348,7 +348,7 @@ export default function ContactList() {
               {importResult.errors.length > 0 && (
                 <div className="max-h-40 overflow-y-auto bg-red-50 rounded p-2">
                   {importResult.errors.map((f, i) => (
-                    <div key={i} className="text-xs text-red-600">第 {f.row} 行：{f.reason}</div>
+                    <div key={i} className="text-sm text-red-600">第 {f.row} 行：{f.reason}</div>
                   ))}
                 </div>
               )}

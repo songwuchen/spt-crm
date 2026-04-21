@@ -139,29 +139,29 @@ export default function PaymentPage() {
       {overview && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
-            <div className="text-xs font-bold text-slate-400 uppercase">计划总额</div>
+            <div className="text-sm font-bold text-slate-400 uppercase">计划总额</div>
             <div className="text-xl font-black text-slate-900 mt-1">¥{(overview.total_planned / 10000).toFixed(1)}万</div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
-            <div className="text-xs font-bold text-slate-400 uppercase">已回款</div>
+            <div className="text-sm font-bold text-slate-400 uppercase">已回款</div>
             <div className="text-xl font-black text-emerald-600 mt-1">¥{(overview.total_received / 10000).toFixed(1)}万</div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
-            <div className="text-xs font-bold text-slate-400 uppercase">回款率</div>
+            <div className="text-sm font-bold text-slate-400 uppercase">回款率</div>
             <div className={`text-xl font-black mt-1 ${overview.collection_rate >= 80 ? 'text-emerald-600' : overview.collection_rate >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
               {overview.collection_rate}%
             </div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
-            <div className="text-xs font-bold text-slate-400 uppercase">逾期笔数</div>
+            <div className="text-sm font-bold text-slate-400 uppercase">逾期笔数</div>
             <div className={`text-xl font-black mt-1 ${overview.overdue_count > 0 ? 'text-red-500' : 'text-slate-900'}`}>{overview.overdue_count}</div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
-            <div className="text-xs font-bold text-slate-400 uppercase">逾期金额</div>
+            <div className="text-sm font-bold text-slate-400 uppercase">逾期金额</div>
             <div className="text-xl font-black text-red-500 mt-1">¥{(overview.overdue_amount / 10000).toFixed(1)}万</div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
-            <div className="text-xs font-bold text-slate-400 uppercase">30天内到期</div>
+            <div className="text-sm font-bold text-slate-400 uppercase">30天内到期</div>
             <div className="text-xl font-black text-amber-600 mt-1">¥{(overview.upcoming_30d_amount / 10000).toFixed(1)}万</div>
           </div>
         </div>
@@ -247,7 +247,7 @@ export default function PaymentPage() {
                       render: (v: number | null) => v != null ? <span className="font-bold text-emerald-600">¥{v.toLocaleString()}</span> : '-' },
                     { title: '渠道', dataIndex: 'channel', width: 100 },
                     { title: '凭证号', dataIndex: 'reference_no', width: 140,
-                      render: (v: string) => v ? <span className="font-mono text-xs">{v}</span> : '-' },
+                      render: (v: string) => v ? <span className="font-mono text-sm">{v}</span> : '-' },
                     { title: '记录人', dataIndex: 'created_by_name', width: 90, responsive: ['lg'] as any },
                     { title: '备注', dataIndex: 'remark', ellipsis: true, responsive: ['lg'] as any },
                     { title: '操作', key: 'action', width: 70, render: (_: unknown, r: RecordRow) => (

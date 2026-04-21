@@ -48,24 +48,24 @@ export default function BatchProgress({ tasks, onComplete, onCancel }: BatchProg
         <span className="text-sm font-bold text-slate-800">
           {running ? '批量处理中...' : '处理完成'}
         </span>
-        <span className="text-xs text-slate-400">{current}/{tasks.length}</span>
+        <span className="text-sm text-slate-400">{current}/{tasks.length}</span>
       </div>
       <Progress percent={pct} size="small"
         status={failCount > 0 ? 'exception' : running ? 'active' : 'success'} />
-      <div className="flex items-center gap-3 mt-2 text-xs">
+      <div className="flex items-center gap-3 mt-2 text-sm">
         <span className="text-emerald-600 font-bold">成功 {successCount}</span>
         {failCount > 0 && <span className="text-red-500 font-bold">失败 {failCount}</span>}
       </div>
       {running && current < tasks.length && (
-        <div className="text-xs text-slate-400 mt-1 truncate">
+        <div className="text-sm text-slate-400 mt-1 truncate">
           正在处理: {tasks[current - 1]?.label || ''}
         </div>
       )}
       <div className="flex justify-end mt-2">
         {running ? (
-          <button className="text-xs text-rose-500 font-bold hover:underline" onClick={() => { setCancelled(true); onCancel?.() }}>取消</button>
+          <button className="text-sm text-rose-500 font-bold hover:underline" onClick={() => { setCancelled(true); onCancel?.() }}>取消</button>
         ) : (
-          <button className="text-xs text-blue-600 font-bold hover:underline" onClick={() => onComplete(results)}>关闭</button>
+          <button className="text-sm text-blue-600 font-bold hover:underline" onClick={() => onComplete(results)}>关闭</button>
         )}
       </div>
     </div>

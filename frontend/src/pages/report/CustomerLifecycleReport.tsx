@@ -66,7 +66,7 @@ export default function CustomerLifecycleReport() {
           { label: '覆盖地区', value: regionStats.length, color: 'text-indigo-600' },
         ].map(kpi => (
           <div key={kpi.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-            <div className="text-xs font-bold text-slate-400 uppercase">{kpi.label}</div>
+            <div className="text-sm font-bold text-slate-400 uppercase">{kpi.label}</div>
             <div className={`text-2xl font-black mt-1 ${kpi.color}`}>{kpi.value}</div>
           </div>
         ))}

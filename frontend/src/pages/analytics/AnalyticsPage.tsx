@@ -250,7 +250,7 @@ export default function AnalyticsPage() {
                   <span className="material-symbols-outlined" style={{ fontSize: 20 }}>payments</span>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-400 font-bold">已回款</div>
+                  <div className="text-sm text-slate-400 font-bold">已回款</div>
                   <div className="text-xl font-black text-slate-900">¥{(payment.total_received / 10000).toFixed(0)}万</div>
                   <div className="text-[10px] text-emerald-600 font-bold">回款率 {payment.collection_rate}%</div>
                 </div>
@@ -262,7 +262,7 @@ export default function AnalyticsPage() {
                   <span className="material-symbols-outlined" style={{ fontSize: 20 }}>warning</span>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-400 font-bold">逾期回款</div>
+                  <div className="text-sm text-slate-400 font-bold">逾期回款</div>
                   <div className="text-xl font-black text-red-600">¥{(payment.overdue_amount / 10000).toFixed(0)}万</div>
                   <div className="text-[10px] text-red-500 font-bold">{payment.overdue_count} 笔逾期</div>
                 </div>
@@ -278,7 +278,7 @@ export default function AnalyticsPage() {
                   <span className="material-symbols-outlined" style={{ fontSize: 20 }}>flag</span>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-400 font-bold">里程碑完成</div>
+                  <div className="text-sm text-slate-400 font-bold">里程碑完成</div>
                   <div className="text-xl font-black text-slate-900">{milestones.completed}/{milestones.total}</div>
                   <div className="text-[10px] text-blue-600 font-bold">完成率 {milestones.completion_rate}%</div>
                 </div>
@@ -290,7 +290,7 @@ export default function AnalyticsPage() {
                   <span className="material-symbols-outlined" style={{ fontSize: 20 }}>schedule</span>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-400 font-bold">延期里程碑</div>
+                  <div className="text-sm text-slate-400 font-bold">延期里程碑</div>
                   <div className="text-xl font-black text-amber-600">{milestones.delayed}</div>
                   <div className="text-[10px] text-slate-400 font-bold">进行中 {milestones.in_progress}</div>
                 </div>
@@ -320,7 +320,7 @@ export default function AnalyticsPage() {
           ) : (
             <div className="text-center py-8 text-slate-400 text-sm">暂无数据</div>
           )}
-          <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between text-xs text-slate-400">
+          <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between text-sm text-slate-400">
             <span>总商机: {funnel.reduce((a, b) => a + b.count, 0)}</span>
             <span>总金额: ¥{(funnel.reduce((a, b) => a + b.amount, 0) / 10000).toFixed(0)}万</span>
           </div>
@@ -358,7 +358,7 @@ export default function AnalyticsPage() {
                     <span className="text-sm font-bold text-slate-800">赢单</span>
                   </div>
                   <div className="text-2xl font-black text-emerald-600">{winLoss.won_count}</div>
-                  <div className="text-xs text-slate-400">¥{(winLoss.won_amount / 10000).toFixed(0)}万</div>
+                  <div className="text-sm text-slate-400">¥{(winLoss.won_amount / 10000).toFixed(0)}万</div>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
@@ -366,7 +366,7 @@ export default function AnalyticsPage() {
                     <span className="text-sm font-bold text-slate-800">丢单</span>
                   </div>
                   <div className="text-2xl font-black text-red-500">{winLoss.lost_count}</div>
-                  <div className="text-xs text-slate-400">¥{(winLoss.lost_amount / 10000).toFixed(0)}万</div>
+                  <div className="text-sm text-slate-400">¥{(winLoss.lost_amount / 10000).toFixed(0)}万</div>
                 </div>
               </div>
             </div>
@@ -576,13 +576,13 @@ export default function AnalyticsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
-                  <th className="text-left py-2 px-2 text-xs font-bold text-slate-400 w-10">排名</th>
-                  <th className="text-left py-2 px-2 text-xs font-bold text-slate-400">销售</th>
-                  <th className="text-right py-2 px-2 text-xs font-bold text-slate-400">赢单数</th>
-                  <th className="text-right py-2 px-2 text-xs font-bold text-slate-400">赢单金额</th>
-                  <th className="text-right py-2 px-2 text-xs font-bold text-slate-400">跟进中</th>
-                  <th className="text-right py-2 px-2 text-xs font-bold text-slate-400">管线金额</th>
-                  <th className="py-2 px-2 text-xs font-bold text-slate-400 w-40">赢单占比</th>
+                  <th className="text-left py-2 px-2 text-sm font-bold text-slate-400 w-10">排名</th>
+                  <th className="text-left py-2 px-2 text-sm font-bold text-slate-400">销售</th>
+                  <th className="text-right py-2 px-2 text-sm font-bold text-slate-400">赢单数</th>
+                  <th className="text-right py-2 px-2 text-sm font-bold text-slate-400">赢单金额</th>
+                  <th className="text-right py-2 px-2 text-sm font-bold text-slate-400">跟进中</th>
+                  <th className="text-right py-2 px-2 text-sm font-bold text-slate-400">管线金额</th>
+                  <th className="py-2 px-2 text-sm font-bold text-slate-400 w-40">赢单占比</th>
                 </tr>
               </thead>
               <tbody>
@@ -661,23 +661,23 @@ export default function AnalyticsPage() {
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">赢率加权预测</h3>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                <div className="text-xs text-blue-500 font-bold">管线总额</div>
+                <div className="text-sm text-blue-500 font-bold">管线总额</div>
                 <div className="text-2xl font-black text-blue-700">¥{forecast.pipeline_total.toLocaleString()}</div>
               </div>
               <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
-                <div className="text-xs text-emerald-500 font-bold">加权预测</div>
+                <div className="text-sm text-emerald-500 font-bold">加权预测</div>
                 <div className="text-2xl font-black text-emerald-700">¥{forecast.weighted_total.toLocaleString()}</div>
               </div>
             </div>
             <div className="space-y-2">
               {forecast.stages.map((s) => (
                 <div key={s.stage} className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-slate-500 w-8">{s.stage}</span>
+                  <span className="text-sm font-bold text-slate-500 w-8">{s.stage}</span>
                   <div className="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden">
                     <div className="bg-primary h-full rounded-full transition-all" style={{ width: `${s.probability * 100}%` }} />
                   </div>
-                  <span className="text-xs text-slate-500 w-10 text-right">{(s.probability * 100).toFixed(0)}%</span>
-                  <span className="text-xs font-bold text-slate-700 w-24 text-right">¥{s.weighted_amount.toLocaleString()}</span>
+                  <span className="text-sm text-slate-500 w-10 text-right">{(s.probability * 100).toFixed(0)}%</span>
+                  <span className="text-sm font-bold text-slate-700 w-24 text-right">¥{s.weighted_amount.toLocaleString()}</span>
                   <span className="text-[10px] text-slate-400 w-12 text-right">{s.count} 个</span>
                 </div>
               ))}
@@ -694,7 +694,7 @@ export default function AnalyticsPage() {
               const maxAvg = Math.max(...stageDuration.map(x => x.avg_days), 1)
               return (
                 <div key={s.stage} className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-slate-500 w-8">{s.stage}</span>
+                  <span className="text-sm font-bold text-slate-500 w-8">{s.stage}</span>
                   <div className="flex-1 bg-slate-100 rounded-full h-6 overflow-hidden relative">
                     <div className={`h-full rounded-full transition-all ${s.avg_days > 30 ? 'bg-red-400' : s.avg_days > 14 ? 'bg-amber-400' : 'bg-emerald-400'}`}
                       style={{ width: `${(s.avg_days / maxAvg) * 100}%` }} />

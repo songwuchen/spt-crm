@@ -34,7 +34,7 @@ function ScoreBar({ score }: { score: number }) {
       <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all ${getColor(score)}`} style={{ width: `${score}%` }} />
       </div>
-      <span className={`text-xs font-black tabular-nums ${getLabel(score)}`}>{score}</span>
+      <span className={`text-sm font-black tabular-nums ${getLabel(score)}`}>{score}</span>
     </div>
   )
 }
@@ -160,7 +160,7 @@ export default function LeadList() {
     },
     { title: t('lead.source'), dataIndex: 'source', width: 90, responsive: ['lg'],
       render: (v: string) => v ? (
-        <span className="text-xs text-slate-600">{sourceLabels[v] || v}</span>
+        <span className="text-sm text-slate-600">{sourceLabels[v] || v}</span>
       ) : <span className="text-slate-300">-</span>,
     },
     { title: t('lead.score'), dataIndex: 'score', width: 140,
@@ -183,16 +183,16 @@ export default function LeadList() {
       ) : <span className="text-slate-300">-</span>,
     },
     { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, responsive: ['xl'],
-      render: (v) => v ? <span className="text-xs text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-',
+      render: (v) => v ? <span className="text-sm text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-',
     },
     { title: '', key: 'actions', width: 160, fixed: 'right',
       render: (_, record) => (
         <Space size={0}>
-          <a onClick={() => navigate(`/leads/${record.id}`)} className="text-primary text-xs font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
+          <a onClick={() => navigate(`/leads/${record.id}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
           {record.status !== 'qualified' && record.status !== 'discarded' && (
-            <a onClick={() => navigate(`/leads/${record.id}/edit`)} className="text-slate-500 text-xs font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
+            <a onClick={() => navigate(`/leads/${record.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
           )}
-          <a className="text-xs font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
+          <a className="text-sm font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
             Modal.confirm({
               title: t('common.confirmDelete'), content: t('lead.deleteConfirm', { name: record.title }),
               okType: 'danger',
@@ -333,7 +333,7 @@ export default function LeadList() {
               onSearch={userSelect.onSearch} onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
           </Form.Item>
         </Form>
-        <p className="text-xs text-slate-400">{t('lead.assignTo', { count: selectedRowKeys.length })}</p>
+        <p className="text-sm text-slate-400">{t('lead.assignTo', { count: selectedRowKeys.length })}</p>
       </Modal>
     </div>
   )

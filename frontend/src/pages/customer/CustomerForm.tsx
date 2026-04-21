@@ -103,17 +103,17 @@ export default function CustomerForm() {
                     <div key={c.id} className="flex items-center gap-2 text-sm">
                       <a onClick={() => navigate(`/customers/${c.id}`)} className="text-primary font-bold hover:underline">{c.name}</a>
                       {c.match_type === 'phone' && (
-                        <span className="text-orange-500 text-xs bg-orange-50 px-1.5 py-0.5 rounded">
+                        <span className="text-orange-500 text-sm bg-orange-50 px-1.5 py-0.5 rounded">
                           电话匹配: {c.match_contact} {c.match_phone}
                         </span>
                       )}
                       {c.match_type === 'name' && (
-                        <span className="text-blue-500 text-xs bg-blue-50 px-1.5 py-0.5 rounded">名称匹配</span>
+                        <span className="text-blue-500 text-sm bg-blue-50 px-1.5 py-0.5 rounded">名称匹配</span>
                       )}
-                      {c.industry && <span className="text-slate-400 text-xs">{c.industry}</span>}
-                      {c.owner_name && <span className="text-slate-400 text-xs">负责人: {c.owner_name}</span>}
+                      {c.industry && <span className="text-slate-400 text-sm">{c.industry}</span>}
+                      {c.owner_name && <span className="text-slate-400 text-sm">负责人: {c.owner_name}</span>}
                       {!isEdit && (
-                        <a onClick={() => navigate(`/customers/${c.id}`)} className="text-xs text-emerald-600 hover:underline">查看并合并</a>
+                        <a onClick={() => navigate(`/customers/${c.id}`)} className="text-sm text-emerald-600 hover:underline">查看并合并</a>
                       )}
                     </div>
                   ))}

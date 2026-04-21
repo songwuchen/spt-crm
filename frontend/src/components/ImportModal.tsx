@@ -124,7 +124,7 @@ export default function ImportModal({
   const columns = preview?.headers.map((h, i) => ({
     title: () => (
       <div className="space-y-1">
-        <div className="text-xs font-bold truncate">{h}</div>
+        <div className="text-sm font-bold truncate">{h}</div>
         {expectedHeaders && (
           <Select size="small" className="w-full" allowClear
             placeholder="映射到..."
@@ -270,23 +270,23 @@ export default function ImportModal({
           <div className="flex justify-center gap-6 mb-4">
             <div>
               <div className="text-2xl font-black text-emerald-600">{result.created}</div>
-              <div className="text-xs text-slate-500">成功导入</div>
+              <div className="text-sm text-slate-500">成功导入</div>
             </div>
             {result.skipped > 0 && (
               <div>
                 <div className="text-2xl font-black text-amber-600">{result.skipped}</div>
-                <div className="text-xs text-slate-500">重复跳过</div>
+                <div className="text-sm text-slate-500">重复跳过</div>
               </div>
             )}
             {result.errors.length > 0 && (
               <div>
                 <div className="text-2xl font-black text-red-600">{result.errors.length}</div>
-                <div className="text-xs text-slate-500">导入失败</div>
+                <div className="text-sm text-slate-500">导入失败</div>
               </div>
             )}
           </div>
           {result.errors.length > 0 && (
-            <div className="text-left bg-red-50 rounded-lg p-3 max-h-40 overflow-auto text-xs text-red-700">
+            <div className="text-left bg-red-50 rounded-lg p-3 max-h-40 overflow-auto text-sm text-red-700">
               {result.errors.map((e, i) => <div key={i}>{e}</div>)}
             </div>
           )}

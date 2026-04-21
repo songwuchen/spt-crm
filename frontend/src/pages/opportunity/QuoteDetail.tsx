@@ -274,10 +274,10 @@ export default function QuoteDetail() {
     { title: '', key: 'actions', width: 100,
       render: (_, r) => (
         <Space size={4}>
-          <a className="text-primary text-xs font-bold" onClick={() => {
+          <a className="text-primary text-sm font-bold" onClick={() => {
             setEditingLine(r); form.setFieldsValue(r); setLineModal(true)
           }}>编辑</a>
-          <a className="text-rose-500 text-xs font-bold" onClick={() => {
+          <a className="text-rose-500 text-sm font-bold" onClick={() => {
             Modal.confirm({
               title: '确认删除', content: `确定要删除行项目 #${r.line_no}？`, okType: 'danger',
               onOk: async () => { await quoteApi.deleteLine(r.id); message.success('已删除'); fetchVersion(selectedVersionId) },
@@ -340,7 +340,7 @@ export default function QuoteDetail() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">版本</span>
+            <span className="text-sm font-bold uppercase tracking-wider text-slate-400">版本</span>
             <Select
               value={selectedVersionId}
               onChange={handleVersionChange}
@@ -455,7 +455,7 @@ export default function QuoteDetail() {
                   {/* Risk Level */}
                   {aiResult.risk_level && (
                     <div className="flex items-center gap-3 mb-2">
-                      <span className="text-xs font-bold uppercase text-slate-400">风险等级</span>
+                      <span className="text-sm font-bold uppercase text-slate-400">风险等级</span>
                       <span className={`px-3 py-1 rounded-full text-sm font-bold ${
                         aiResult.risk_level === 'H' ? 'bg-red-50 text-red-600 border border-red-200' :
                         aiResult.risk_level === 'M' ? 'bg-amber-50 text-amber-600 border border-amber-200' :
@@ -469,7 +469,7 @@ export default function QuoteDetail() {
                   {/* Review Items */}
                   {Array.isArray(aiResult.review_items) && (
                     <div>
-                      <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">审核项目</h4>
+                      <h4 className="text-sm font-bold uppercase text-slate-400 mb-2">审核项目</h4>
                       <div className="space-y-2">
                         {aiResult.review_items.map((ri, i) => (
                           <div key={i} className={`p-3 rounded-lg border ${
@@ -499,7 +499,7 @@ export default function QuoteDetail() {
                   {/* Overall Comment */}
                   {aiResult.overall_comment && (
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                      <div className="text-xs font-bold uppercase text-blue-400 mb-1">AI 综合评价</div>
+                      <div className="text-sm font-bold uppercase text-blue-400 mb-1">AI 综合评价</div>
                       <div className="text-sm text-blue-800">{String(aiResult.overall_comment)}</div>
                     </div>
                   )}
@@ -618,7 +618,7 @@ export default function QuoteDetail() {
           <div>
             {Object.keys(compareResult.header_changes || {}).length > 0 && (
               <div className="mb-4">
-                <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">汇总变更</h4>
+                <h4 className="text-sm font-bold text-slate-500 uppercase mb-2">汇总变更</h4>
                 <div className="grid grid-cols-3 gap-2">
                   {Object.entries(compareResult.header_changes).map(([field, change]: [string, any]) => {
                     const fieldLabels: Record<string, string> = {
@@ -662,7 +662,7 @@ export default function QuoteDetail() {
               </div>
             )}
 
-            <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">行项目变更</h4>
+            <h4 className="text-sm font-bold text-slate-500 uppercase mb-2">行项目变更</h4>
             <Table rowKey="key" dataSource={compareResult.line_diffs} size="small" pagination={false}
               columns={[
                 { title: '品名', dataIndex: 'item_name', width: 160,
@@ -687,22 +687,22 @@ export default function QuoteDetail() {
                 },
                 { title: '数量', key: 'qty', width: 120,
                   render: (_: unknown, r: any) => r.changes?.qty ? (
-                    <span className="text-xs">{r.changes.qty.a} → <b>{r.changes.qty.b}</b></span>
+                    <span className="text-sm">{r.changes.qty.a} → <b>{r.changes.qty.b}</b></span>
                   ) : <span className="text-slate-300">{r.a?.qty || r.b?.qty || '-'}</span>,
                 },
                 { title: '单价', key: 'unit_price', width: 130,
                   render: (_: unknown, r: any) => r.changes?.unit_price ? (
-                    <span className="text-xs">¥{r.changes.unit_price.a} → <b>¥{r.changes.unit_price.b}</b></span>
+                    <span className="text-sm">¥{r.changes.unit_price.a} → <b>¥{r.changes.unit_price.b}</b></span>
                   ) : <span className="text-slate-300">{r.a?.unit_price != null ? `¥${r.a.unit_price}` : (r.b?.unit_price != null ? `¥${r.b.unit_price}` : '-')}</span>,
                 },
                 { title: '行合计', key: 'line_total', width: 130,
                   render: (_: unknown, r: any) => r.changes?.line_total ? (
-                    <span className="text-xs">¥{Number(r.changes.line_total.a).toLocaleString()} → <b>¥{Number(r.changes.line_total.b).toLocaleString()}</b></span>
+                    <span className="text-sm">¥{Number(r.changes.line_total.a).toLocaleString()} → <b>¥{Number(r.changes.line_total.b).toLocaleString()}</b></span>
                   ) : <span className="text-slate-300">{r.a?.line_total != null ? `¥${Number(r.a.line_total).toLocaleString()}` : '-'}</span>,
                 },
                 { title: '成本', key: 'cost_est', width: 130,
                   render: (_: unknown, r: any) => r.changes?.cost_est ? (
-                    <span className="text-xs">¥{r.changes.cost_est.a} → <b>¥{r.changes.cost_est.b}</b></span>
+                    <span className="text-sm">¥{r.changes.cost_est.a} → <b>¥{r.changes.cost_est.b}</b></span>
                   ) : <span className="text-slate-300">{r.a?.cost_est != null ? `¥${r.a.cost_est}` : '-'}</span>,
                 },
               ]}
@@ -726,7 +726,7 @@ export default function QuoteDetail() {
               options={userSelect.options}
               onSearch={userSelect.onSearch}
               onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
-            <div className="text-xs text-slate-400 mt-1">多选时将按选择顺序依次审批</div>
+            <div className="text-sm text-slate-400 mt-1">多选时将按选择顺序依次审批</div>
           </div>
         </div>
       </Modal>
@@ -761,7 +761,7 @@ export default function QuoteDetail() {
                       {s.snapshot_type === 'manual' ? '手动' : s.snapshot_type === 'approval' ? '审批' : s.snapshot_type} ·
                       {s.created_by_name || '系统'} · {s.created_at ? new Date(s.created_at).toLocaleString('zh-CN') : ''}
                     </div>
-                    {s.note && <div className="text-xs text-slate-500 mt-1">{s.note}</div>}
+                    {s.note && <div className="text-sm text-slate-500 mt-1">{s.note}</div>}
                   </div>
                   <Tag>{(s.line_snapshot_json as unknown[])?.length || 0} 行</Tag>
                 </div>
@@ -778,7 +778,7 @@ export default function QuoteDetail() {
           <Form.Item name="note" label="备注">
             <Input.TextArea placeholder="快照备注说明" rows={2} />
           </Form.Item>
-          <div className="mb-2 text-xs font-bold text-slate-500 uppercase">成本分解（可选）</div>
+          <div className="mb-2 text-sm font-bold text-slate-500 uppercase">成本分解（可选）</div>
           <div className="grid grid-cols-3 gap-3">
             {Object.entries(BREAKDOWN_LABELS).map(([k, label]) => (
               <Form.Item key={k} name={`bd_${k}`} label={label}>
@@ -798,7 +798,7 @@ export default function QuoteDetail() {
           scroll={{ y: 320 }}
           columns={[
             { title: '编码', dataIndex: 'product_code', width: 100,
-              render: (v: string) => <span className="font-mono text-xs">{v}</span> },
+              render: (v: string) => <span className="font-mono text-sm">{v}</span> },
             { title: '名称', dataIndex: 'name', width: 160,
               render: (v: string) => <span className="font-semibold">{v}</span> },
             { title: '规格', dataIndex: 'spec', width: 120, ellipsis: true },

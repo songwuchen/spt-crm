@@ -130,17 +130,17 @@ export default function CustomerDetail() {
     { title: '主要', dataIndex: 'is_primary', width: 70,
       render: (v) => v ? (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold">
-          <span className="material-symbols-outlined text-xs">star</span> 主要
+          <span className="material-symbols-outlined text-sm">star</span> 主要
         </span>
       ) : null,
     },
     { title: '', width: 100,
       render: (_, record) => (
         <Space size={4}>
-          <a className="text-primary text-xs font-bold" onClick={() => {
+          <a className="text-primary text-sm font-bold" onClick={() => {
             setEditingContact(record); form.setFieldsValue(record); setContactModal(true)
           }}>编辑</a>
-          <a className="text-rose-500 text-xs font-bold" onClick={() => {
+          <a className="text-rose-500 text-sm font-bold" onClick={() => {
             Modal.confirm({
               title: '确认删除', content: `确定要删除联系人「${record.name}」？`, okType: 'danger',
               onOk: async () => { await contactApi.delete(id!, record.id); message.success('已删除'); fetchContacts() },
@@ -174,7 +174,7 @@ export default function CustomerDetail() {
                 )}
                 <div className="flex items-center gap-1.5">
                   <span className={`w-2 h-2 rounded-full ${customer.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                  <span className="text-xs font-medium text-slate-500">
+                  <span className="text-sm font-medium text-slate-500">
                     {customer.status === 'active' ? '活跃' : '不活跃'}
                   </span>
                 </div>
@@ -186,7 +186,7 @@ export default function CustomerDetail() {
                     const next = (customer.tags_json || []).filter((t: string) => t !== tag)
                     await customerApi.update(id!, { tags_json: next })
                     fetchCustomer()
-                  }} className="text-xs">{tag}</Tag>
+                  }} className="text-sm">{tag}</Tag>
                 ))}
                 <Popover trigger="click" content={
                   <Input size="small" placeholder="输入标签回车" style={{ width: 120 }}
@@ -215,7 +215,7 @@ export default function CustomerDetail() {
                   </span>
                 )}
                 {customer.customer_code && (
-                  <span className="font-mono text-xs text-slate-400">#{customer.customer_code}</span>
+                  <span className="font-mono text-sm text-slate-400">#{customer.customer_code}</span>
                 )}
               </div>
             </div>
@@ -268,9 +268,9 @@ export default function CustomerDetail() {
               </div>
             </div>
             {s.amount != null && s.amount > 0 && (
-              <div className="text-xs text-slate-500">{s.amountLabel}: <span className="font-bold">¥{Number(s.amount).toLocaleString()}</span></div>
+              <div className="text-sm text-slate-500">{s.amountLabel}: <span className="font-bold">¥{Number(s.amount).toLocaleString()}</span></div>
             )}
-            {s.sub && <div className="text-xs text-amber-600 mt-1">{s.sub}</div>}
+            {s.sub && <div className="text-sm text-amber-600 mt-1">{s.sub}</div>}
           </div>
         ))}
       </div>
@@ -299,7 +299,7 @@ export default function CustomerDetail() {
           <div className="grid grid-cols-4 gap-3">
             {Object.entries(health.breakdown).map(([key, b]) => (
               <div key={key} className="text-center">
-                <div className="text-xs font-bold text-slate-500">{b.score}/{b.max}</div>
+                <div className="text-sm font-bold text-slate-500">{b.score}/{b.max}</div>
                 <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1 mb-1">
                   <div className="h-full bg-primary rounded-full" style={{ width: `${(b.score / b.max) * 100}%` }} />
                 </div>
@@ -320,7 +320,7 @@ export default function CustomerDetail() {
             <div>
               <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">赢单率</div>
               <div className="text-xl font-black text-slate-900">{((stats.win_rate || 0) * 100).toFixed(1)}%</div>
-              <div className="text-xs text-slate-500">
+              <div className="text-sm text-slate-500">
                 赢 <span className="font-bold text-emerald-600">{stats.won_count || 0}</span> / 丢 <span className="font-bold text-red-500">{stats.lost_count || 0}</span>
               </div>
             </div>
@@ -353,7 +353,7 @@ export default function CustomerDetail() {
         {/* Left: Customer Portrait */}
         <div className="col-span-3">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-0">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">客户画像</h3>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">客户画像</h3>
             <InfoField label="简称" value={customer.short_name} />
             <InfoField label="企业规模" value={customer.scale_level} />
             <InfoField label="详细地址" value={customer.address} />
@@ -449,8 +449,8 @@ export default function CustomerDetail() {
                               <div key={r.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${t.color}`}>{t.label}</span>
                                 <a onClick={() => navigate(`/customers/${relatedId}`)} className="text-sm font-bold text-primary hover:underline flex-1">{relatedName}</a>
-                                {r.note && <span className="text-xs text-slate-400">{r.note}</span>}
-                                <a className="text-rose-500 text-xs font-bold" onClick={async () => {
+                                {r.note && <span className="text-sm text-slate-400">{r.note}</span>}
+                                <a className="text-rose-500 text-sm font-bold" onClick={async () => {
                                   await customerApi.deleteRelation(id!, r.id); message.success('已删除'); fetchRelations()
                                 }}>删除</a>
                               </div>
@@ -485,7 +485,7 @@ export default function CustomerDetail() {
                           { title: '权限', dataIndex: 'permission', width: 80, render: (v: string) => v === 'edit' ? <Tag color="blue">编辑</Tag> : <Tag>查看</Tag> },
                           { title: '共享人', dataIndex: 'shared_by_name', width: 100 },
                           { title: '', width: 60, render: (_: unknown, r: any) => (
-                            <a className="text-rose-500 text-xs font-bold" onClick={async () => {
+                            <a className="text-rose-500 text-sm font-bold" onClick={async () => {
                               await customerApi.deleteShare(id!, r.id); message.success('已删除'); fetchShares()
                             }}>删除</a>
                           )},
@@ -523,7 +523,7 @@ export default function CustomerDetail() {
                             render: (v) => (
                               <div className="flex items-center gap-1.5">
                                 <span className={`w-2 h-2 rounded-full ${v === 'active' ? 'bg-blue-500' : v === 'won' ? 'bg-emerald-500' : v === 'lost' ? 'bg-red-500' : 'bg-slate-400'}`} />
-                                <span className="text-xs">{v === 'active' ? '进行中' : v === 'won' ? '赢单' : v === 'lost' ? '丢单' : '暂停'}</span>
+                                <span className="text-sm">{v === 'active' ? '进行中' : v === 'won' ? '赢单' : v === 'lost' ? '丢单' : '暂停'}</span>
                               </div>
                             ),
                           },
@@ -542,7 +542,7 @@ export default function CustomerDetail() {
                       ) : (
                         <Table rowKey="id" dataSource={tickets} size="small" pagination={false} columns={[
                           { title: '工单号', dataIndex: 'ticket_no', width: 140,
-                            render: (v: string) => <span className="font-mono text-xs font-bold">{v}</span> },
+                            render: (v: string) => <span className="font-mono text-sm font-bold">{v}</span> },
                           { title: '类型', dataIndex: 'type', width: 90 },
                           { title: '状态', dataIndex: 'status', width: 90,
                             render: (v: string) => {

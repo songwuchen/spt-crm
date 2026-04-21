@@ -206,7 +206,7 @@ export default function ServiceTicketDetail() {
                     <div className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3">{ticket.satisfaction_comment}</div>
                   )}
                   {ticket.satisfaction_at && (
-                    <div className="text-xs text-slate-400 mt-2">评价时间: {new Date(ticket.satisfaction_at).toLocaleString('zh-CN')}</div>
+                    <div className="text-sm text-slate-400 mt-2">评价时间: {new Date(ticket.satisfaction_at).toLocaleString('zh-CN')}</div>
                   )}
                 </div>
               ) : (
@@ -250,11 +250,11 @@ export default function ServiceTicketDetail() {
                     {kbResults.map((r) => (
                       <div key={r.id} className="border border-slate-100 rounded-lg p-3 hover:bg-slate-50">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono text-xs text-slate-400">{r.ticket_no}</span>
+                          <span className="font-mono text-sm text-slate-400">{r.ticket_no}</span>
                           <Tag className="text-[10px]">{typeLabels[r.type] || r.type}</Tag>
                         </div>
-                        <div className="text-xs text-slate-500 mb-1">{r.description}</div>
-                        <div className="text-xs text-emerald-700 bg-emerald-50 rounded p-2 mt-1">
+                        <div className="text-sm text-slate-500 mb-1">{r.description}</div>
+                        <div className="text-sm text-emerald-700 bg-emerald-50 rounded p-2 mt-1">
                           <span className="font-bold">解决方案: </span>{r.resolution}
                         </div>
                       </div>
@@ -324,7 +324,7 @@ export default function ServiceTicketDetail() {
                 <span className="material-symbols-outlined text-purple-500" style={{ fontSize: 18 }}>psychology</span>
                 AI 摘要
               </h3>
-              <pre className="bg-slate-50 p-3 rounded-lg text-xs text-slate-700 overflow-auto">
+              <pre className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700 overflow-auto">
                 {JSON.stringify(ticket.ai_summary_json, null, 2)}
               </pre>
             </div>

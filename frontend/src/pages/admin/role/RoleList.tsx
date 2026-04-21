@@ -157,12 +157,12 @@ export default function RoleList() {
     { title: '', width: 180,
       render: (_: unknown, record: Role) => (
         <Space size={8}>
-          <a className="text-primary text-xs font-bold uppercase tracking-widest flex items-center gap-1" onClick={() => openPermMatrix(record)}>
+          <a className="text-primary text-sm font-bold uppercase tracking-widest flex items-center gap-1" onClick={() => openPermMatrix(record)}>
             <span className="material-symbols-outlined text-sm">tune</span>
             配置权限
           </a>
           {!record.is_system && (
-            <a className="text-rose-500 text-xs font-bold flex items-center gap-0.5" onClick={() => handleDeleteRole(record)}>
+            <a className="text-rose-500 text-sm font-bold flex items-center gap-0.5" onClick={() => handleDeleteRole(record)}>
               <DeleteOutlined style={{ fontSize: 12 }} />
               删除
             </a>
@@ -242,7 +242,7 @@ export default function RoleList() {
                     indeterminate={indeterminate}
                     onChange={() => toggleGroup(perms)}
                   />
-                  <span className="text-xs font-bold uppercase tracking-widest text-slate-500">{group}</span>
+                  <span className="text-sm font-bold uppercase tracking-widest text-slate-500">{group}</span>
                   <span className="text-[10px] text-slate-400 ml-auto">{checkedCount}/{groupIds.length}</span>
                 </div>
                 <div className="p-3 grid grid-cols-4 gap-2">
@@ -267,7 +267,7 @@ export default function RoleList() {
                             }
                           }}
                         />
-                        <span className="text-xs font-medium truncate">
+                        <span className="text-sm font-medium truncate">
                           {actionLabels[action] || p.name}
                         </span>
                       </label>

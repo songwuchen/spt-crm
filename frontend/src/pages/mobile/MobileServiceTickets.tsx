@@ -61,7 +61,7 @@ export default function MobileServiceTickets() {
       <div className="bg-white px-4 py-2 border-b border-slate-100 flex gap-2 overflow-x-auto">
         {statuses.map((s) => (
           <button key={s} onClick={() => { setFilterStatus(s); fetchTickets(s) }}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+            className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-bold transition-colors ${
               filterStatus === s ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
             }`}>
             {s === 'all' ? '全部' : statusLabels[s]?.label || s}
@@ -82,13 +82,13 @@ export default function MobileServiceTickets() {
             <div key={t.id} onClick={() => navigate(`/m/service-tickets/${t.id}`)}
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 active:bg-slate-50">
               <div className="flex items-center justify-between mb-2">
-                <span className="font-mono text-xs font-bold text-primary">{t.ticket_no}</span>
+                <span className="font-mono text-sm font-bold text-primary">{t.ticket_no}</span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${st.color} ${st.bg}`}>
                   {st.label}
                 </span>
               </div>
               <p className="text-sm text-slate-700 line-clamp-2 mb-2">{t.description || '-'}</p>
-              <div className="flex items-center justify-between text-xs text-slate-400">
+              <div className="flex items-center justify-between text-sm text-slate-400">
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
                     <span className={`material-symbols-outlined ${pri.color}`} style={{ fontSize: 14 }}>{pri.icon}</span>

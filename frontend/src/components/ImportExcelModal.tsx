@@ -63,7 +63,7 @@ export default function ImportExcelModal({ open, onClose, onSuccess, apiUrl, tit
           <p>第一行为表头，从第二行开始为数据。列顺序：</p>
           <div className="flex flex-wrap gap-1 mt-1">
             {templateColumns.map((col, i) => (
-              <span key={i} className="px-1.5 py-0.5 bg-blue-100 rounded text-xs font-mono">{col}</span>
+              <span key={i} className="px-1.5 py-0.5 bg-blue-100 rounded text-sm font-mono">{col}</span>
             ))}
           </div>
         </div>
@@ -77,7 +77,7 @@ export default function ImportExcelModal({ open, onClose, onSuccess, apiUrl, tit
         >
           <p className="ant-upload-drag-icon"><FileExcelOutlined style={{ fontSize: 32, color: '#10b981' }} /></p>
           <p className="ant-upload-text text-sm">点击或拖拽 Excel 文件到此区域</p>
-          <p className="ant-upload-hint text-xs text-slate-400">支持 .xlsx / .xls 格式</p>
+          <p className="ant-upload-hint text-sm text-slate-400">支持 .xlsx / .xls 格式</p>
         </Upload.Dragger>
 
         {result && (
@@ -90,7 +90,7 @@ export default function ImportExcelModal({ open, onClose, onSuccess, apiUrl, tit
               )}
             </div>
             {result.errors.length > 0 && (
-              <div className="max-h-32 overflow-y-auto text-xs text-red-600 space-y-0.5">
+              <div className="max-h-32 overflow-y-auto text-sm text-red-600 space-y-0.5">
                 {result.errors.map((e, i) => <div key={i}>{e}</div>)}
               </div>
             )}

@@ -147,7 +147,7 @@ export default function OpportunityList() {
       render: (_, r) => r.probability != null ? (
         <div className="flex items-center gap-2">
           <Progress percent={r.probability} size="small" showInfo={false} strokeColor="#6366f1" className="flex-1 m-0" />
-          <span className="text-xs font-bold text-slate-600 w-8 text-right">{r.probability}%</span>
+          <span className="text-sm font-bold text-slate-600 w-8 text-right">{r.probability}%</span>
         </div>
       ) : <span className="text-slate-300">-</span>,
     },
@@ -164,7 +164,7 @@ export default function OpportunityList() {
         return (
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${s.dot}`} />
-            <span className="text-xs font-medium text-slate-600">{s.label}</span>
+            <span className="text-sm font-medium text-slate-600">{s.label}</span>
           </div>
         )
       },
@@ -174,9 +174,9 @@ export default function OpportunityList() {
     { title: '', key: 'actions', width: 150, fixed: 'right',
       render: (_, r) => (
         <Space size={0}>
-          <a onClick={() => navigate(`/opportunities/${r.id}`)} className="text-primary text-xs font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
-          <a onClick={() => navigate(`/opportunities/${r.id}/edit`)} className="text-slate-500 text-xs font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
-          <a className="text-xs font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
+          <a onClick={() => navigate(`/opportunities/${r.id}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
+          <a onClick={() => navigate(`/opportunities/${r.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
+          <a className="text-sm font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
             Modal.confirm({
               title: t('common.confirmDelete'), content: t('opportunity.deleteConfirm', { name: r.name }), okType: 'danger',
               onOk: async () => { await projectApi.delete(r.id); message.success(t('common.deleted')); fetchData() },

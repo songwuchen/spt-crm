@@ -67,7 +67,7 @@ export default function MobileSearch() {
           </div>
           {query && (
             <button onClick={() => { setQuery(''); setResults([]); setSearched(false) }}
-              className="text-xs text-slate-400 shrink-0">清除</button>
+              className="text-sm text-slate-400 shrink-0">清除</button>
           )}
         </div>
       </div>
@@ -92,7 +92,7 @@ export default function MobileSearch() {
                     <span className={`material-symbols-outlined ${cfg.color}`} style={{ fontSize: 20 }}>{cfg.icon}</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-bold text-slate-800 truncate">{r.title}</div>
-                      {r.subtitle && <div className="text-xs text-slate-400 truncate">{r.subtitle}</div>}
+                      {r.subtitle && <div className="text-sm text-slate-400 truncate">{r.subtitle}</div>}
                     </div>
                     <span className="material-symbols-outlined text-slate-300" style={{ fontSize: 16 }}>chevron_right</span>
                   </div>

@@ -38,7 +38,7 @@ export default function CustomerTagCloud({ tags, onClick }: Props) {
         const sizeClass = ratio > 0.75 ? 'text-lg px-4 py-2' :
           ratio > 0.5 ? 'text-base px-3 py-1.5' :
           ratio > 0.25 ? 'text-sm px-2.5 py-1' :
-          'text-xs px-2 py-0.5'
+          'text-sm px-2 py-0.5'
         const colorClass = TAG_COLORS[i % TAG_COLORS.length]
         return (
           <button

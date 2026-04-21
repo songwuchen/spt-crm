@@ -84,7 +84,7 @@ export default function MilestoneGantt({ milestones }: Props) {
             {/* Label */}
             <div className="w-[140px] flex-shrink-0 pr-3 text-right">
               <Tooltip title={`${m.milestone_code} · ${STATUS_LABELS[m.status] || m.status}`}>
-                <span className="text-xs font-semibold text-slate-700 truncate block">{m.name || m.milestone_code}</span>
+                <span className="text-sm font-semibold text-slate-700 truncate block">{m.name || m.milestone_code}</span>
               </Tooltip>
             </div>
 

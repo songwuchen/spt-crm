@@ -80,7 +80,7 @@ export default function SavedViewSelect({ page, currentFilters, onApply }: Props
               <div className="border-t border-slate-100 p-1">
                 {views.map((v) => (
                   <div key={v.id} className="flex items-center justify-between px-2 py-0.5">
-                    <span className="text-xs text-slate-400 truncate">{v.name}</span>
+                    <span className="text-sm text-slate-400 truncate">{v.name}</span>
                     <Popconfirm title="删除此视图？" onConfirm={() => handleDelete(v.id)} okText="确定" cancelText="取消">
                       <DeleteOutlined className="text-slate-300 hover:text-red-500 cursor-pointer" style={{ fontSize: 11 }} />
                     </Popconfirm>

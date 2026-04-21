@@ -103,7 +103,7 @@ export default function RenewalList() {
       render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
     { title: '', key: 'actions', width: 80,
       render: (_: unknown, r: RenewalItem) => (
-        <a className="text-primary text-xs font-bold" onClick={() => openEdit(r)}>编辑</a>
+        <a className="text-primary text-sm font-bold" onClick={() => openEdit(r)}>编辑</a>
       ),
     },
   ]
@@ -124,19 +124,19 @@ export default function RenewalList() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex gap-4">
           <div className="px-3 py-2 bg-white rounded-lg border border-slate-200 shadow-sm">
-            <span className="text-xs text-slate-400">总数</span>
+            <span className="text-sm text-slate-400">总数</span>
             <span className="ml-2 text-sm font-black text-slate-800">{total}</span>
           </div>
           <div className="px-3 py-2 bg-white rounded-lg border border-slate-200 shadow-sm">
-            <span className="text-xs text-slate-400">跟进中</span>
+            <span className="text-sm text-slate-400">跟进中</span>
             <span className="ml-2 text-sm font-black text-blue-600">{openCount}</span>
           </div>
           <div className="px-3 py-2 bg-white rounded-lg border border-slate-200 shadow-sm">
-            <span className="text-xs text-slate-400">赢单</span>
+            <span className="text-sm text-slate-400">赢单</span>
             <span className="ml-2 text-sm font-black text-emerald-600">{wonCount}</span>
           </div>
           <div className="px-3 py-2 bg-white rounded-lg border border-slate-200 shadow-sm">
-            <span className="text-xs text-slate-400">赢单额</span>
+            <span className="text-sm text-slate-400">赢单额</span>
             <span className="ml-2 text-sm font-black text-amber-600">¥{(wonAmount / 10000).toFixed(1)}万</span>
           </div>
         </div>

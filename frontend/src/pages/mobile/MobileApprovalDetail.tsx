@@ -186,12 +186,12 @@ export default function MobileApprovalDetail() {
           <div className="flex items-center gap-2 mt-0.5">
             <p className="text-primary text-base font-bold">{statusText}</p>
             {flow.approval_mode && flow.approval_mode !== 'sequential' && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-bold">
+              <span className="text-sm px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-bold">
                 {modeLabels[flow.approval_mode] || flow.approval_mode}
               </span>
             )}
           </div>
-          <p className="text-slate-500 text-xs mt-0.5">
+          <p className="text-slate-500 text-sm mt-0.5">
             {flow.submitted_by_name || '未知'} 发起 · 节点 {flow.current_node}/{flow.total_nodes}
             {flow.revision_no && flow.revision_no > 1 && ` · 第${flow.revision_no}次提交`}
           </p>
@@ -200,7 +200,7 @@ export default function MobileApprovalDetail() {
 
       {/* Key Information */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 mb-4">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">关键信息</h3>
+        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">关键信息</h3>
         <div className="space-y-2">
           {keyInfo.map((item, i) => (
             <div key={item.label} className={`flex justify-between items-center py-1.5 ${i > 0 ? 'border-t border-slate-50 pt-2.5' : ''}`}>
@@ -216,7 +216,7 @@ export default function MobileApprovalDetail() {
 
       {/* Approval Nodes */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 mb-4">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">审批节点</h3>
+        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">审批节点</h3>
         <div className="space-y-2">
           {(flow.tasks || []).map((task) => (
             <div key={task.id} className="flex items-center gap-3 py-1.5">
@@ -233,9 +233,9 @@ export default function MobileApprovalDetail() {
               </span>
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-medium text-slate-800">{task.assignee_name || '审批人'}</span>
-                {task.comment && <p className="text-xs text-slate-500 truncate">{task.comment}</p>}
+                {task.comment && <p className="text-sm text-slate-500 truncate">{task.comment}</p>}
               </div>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+              <span className={`text-sm font-bold px-2 py-0.5 rounded-full ${
                 task.status === 'approved' ? 'bg-green-50 text-green-600' :
                 task.status === 'rejected' ? 'bg-red-50 text-red-600' :
                 task.status === 'pending' ? 'bg-amber-50 text-amber-600' :
@@ -264,7 +264,7 @@ export default function MobileApprovalDetail() {
                     <span className={`material-symbols-outlined ${cfg.iconColor} mt-0.5`}>{cfg.icon}</span>
                     <div>
                       <p className={`text-sm font-bold ${cfg.titleColor}`}>{risk.title}</p>
-                      <p className={`text-xs mt-1 leading-relaxed ${cfg.descColor}`}>{risk.description}</p>
+                      <p className={`text-sm mt-1 leading-relaxed ${cfg.descColor}`}>{risk.description}</p>
                     </div>
                   </div>
                 </div>

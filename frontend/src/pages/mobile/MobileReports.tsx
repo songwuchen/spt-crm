@@ -65,7 +65,7 @@ export default function MobileReports() {
       {approvalStats && (
         <div className="px-4 mb-4">
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">审批SLA</div>
+            <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">审批SLA</div>
             <div className="grid grid-cols-4 gap-2 text-center">
               <div>
                 <div className="text-lg font-black text-slate-900">{approvalStats.total_flows}</div>
@@ -92,14 +92,14 @@ export default function MobileReports() {
 
       {/* Report Links */}
       <div className="px-4 space-y-2 pb-20">
-        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">详细报表</div>
+        <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">详细报表</div>
         {reportLinks.map((r) => (
           <button key={r.path} onClick={() => navigate(r.path)}
             className="w-full bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3 text-left active:bg-slate-50">
             <span className="material-symbols-outlined text-primary" style={{ fontSize: 24 }}>{r.icon}</span>
             <div className="flex-1">
               <div className="text-sm font-bold text-slate-800">{r.label}</div>
-              <div className="text-xs text-slate-400">{r.desc}</div>
+              <div className="text-sm text-slate-400">{r.desc}</div>
             </div>
             <span className="material-symbols-outlined text-slate-300" style={{ fontSize: 16 }}>chevron_right</span>
           </button>

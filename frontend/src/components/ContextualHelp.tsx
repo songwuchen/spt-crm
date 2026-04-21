@@ -27,7 +27,7 @@ export default function ContextualHelp() {
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
             </button>
           </div>
-          <p className="text-xs text-slate-500 leading-relaxed">{tip.content}</p>
+          <p className="text-sm text-slate-500 leading-relaxed">{tip.content}</p>
         </div>
       )}
       <button

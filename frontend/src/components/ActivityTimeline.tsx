@@ -115,7 +115,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
         <div className="mb-6 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-indigo-100 p-4">
           <div className="flex items-center gap-2 mb-2">
             <span className="material-symbols-outlined text-indigo-500" style={{ fontSize: 18 }}>auto_awesome</span>
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-500">AI 智能总结</span>
+            <span className="text-sm font-bold uppercase tracking-wider text-indigo-500">AI 智能总结</span>
           </div>
           <p className="text-sm text-slate-700 mb-3">{aiSummary.summary}</p>
           {aiSummary.key_points?.length > 0 && (
@@ -123,7 +123,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
               <div className="text-[10px] font-bold uppercase text-indigo-400 mb-1">关键要点</div>
               <ul className="space-y-1">
                 {aiSummary.key_points.map((p, i) => (
-                  <li key={i} className="text-xs text-slate-600 flex items-start gap-2">
+                  <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
                     <span className="text-indigo-400 mt-0.5">•</span>{p}
                   </li>
                 ))}
@@ -131,7 +131,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
             </div>
           )}
           {aiSummary.suggestion && (
-            <div className="bg-white/60 rounded-lg px-3 py-2 text-xs text-slate-600">
+            <div className="bg-white/60 rounded-lg px-3 py-2 text-sm text-slate-600">
               <span className="font-bold text-indigo-500">建议: </span>{aiSummary.suggestion}
             </div>
           )}
@@ -172,10 +172,10 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
                         <span className="text-sm font-bold text-slate-800">{item.subject}</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-400">
+                    <div className="flex items-center gap-3 text-sm text-slate-400">
                       {item.contact_name && (
                         <span className="flex items-center gap-1">
-                          <span className="material-symbols-outlined text-xs">person</span>
+                          <span className="material-symbols-outlined text-sm">person</span>
                           {item.contact_name}
                         </span>
                       )}
@@ -187,7 +187,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
                   )}
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-xs text-slate-400">{item.created_by_name || '系统'}</span>
+                      <span className="text-sm text-slate-400">{item.created_by_name || '系统'}</span>
                       {(item as any).mentions_json?.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-[10px] text-blue-500">
                           <span className="material-symbols-outlined" style={{ fontSize: 12 }}>alternate_email</span>
@@ -203,7 +203,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
                     </div>
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                      className="text-xs text-slate-400 hover:text-primary"
+                      className="text-sm text-slate-400 hover:text-primary"
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                         {isExpanded ? 'expand_less' : 'attach_file'}
@@ -271,7 +271,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
               onSearch={mentionSelect.onSearch}
               onDropdownVisibleChange={mentionSelect.onDropdownVisibleChange}
             />
-            <div className="text-xs text-slate-400 mt-0.5">被@的同事将收到通知</div>
+            <div className="text-sm text-slate-400 mt-0.5">被@的同事将收到通知</div>
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">下次跟进日期</label>

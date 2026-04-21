@@ -65,7 +65,7 @@ export default function MobileApprovals() {
         </div>
         <div>
           <div className="text-2xl font-black text-primary">{pending.length}</div>
-          <div className="text-xs text-primary/70 font-medium">待审批</div>
+          <div className="text-sm text-primary/70 font-medium">待审批</div>
         </div>
       </div>
 
@@ -94,20 +94,20 @@ export default function MobileApprovals() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-slate-500">
+                    <span className="text-sm text-slate-500">
                       {bizTypeLabels[item.flow?.biz_type] || item.flow?.biz_type}
                     </span>
-                    <span className="text-xs text-slate-300">·</span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-sm text-slate-300">·</span>
+                    <span className="text-sm text-slate-500">
                       {item.flow?.submitted_by_name || '未知'} 发起
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-xs text-slate-400">
+                    <span className="text-sm text-slate-400">
                       节点 {item.node_order}/{item.flow?.total_nodes || '-'}
                     </span>
-                    <span className="text-xs text-slate-300">·</span>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-sm text-slate-300">·</span>
+                    <span className="text-sm text-slate-400">
                       {new Date(item.created_at).toLocaleDateString()}
                     </span>
                   </div>

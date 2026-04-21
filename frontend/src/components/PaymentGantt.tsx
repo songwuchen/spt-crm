@@ -78,7 +78,7 @@ export default function PaymentGantt({ plans, records }: Props) {
         return (
           <div key={p.id} className="flex items-center h-10 group hover:bg-slate-50 rounded">
             <div className="w-[160px] flex-shrink-0 pr-3 text-right">
-              <div className="text-xs font-semibold text-slate-700 truncate">{p.plan_no}</div>
+              <div className="text-sm font-semibold text-slate-700 truncate">{p.plan_no}</div>
               <div className="text-[10px] text-slate-400">¥{(p.amount || 0).toLocaleString()}</div>
             </div>
 

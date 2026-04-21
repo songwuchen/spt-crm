@@ -80,7 +80,7 @@ export default function DashboardSnapshot() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded text-xs font-bold border border-amber-100">
+          <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded text-sm font-bold border border-amber-100">
             只读快照
           </span>
           <button onClick={() => navigate('/')}
@@ -123,11 +123,11 @@ export default function DashboardSnapshot() {
             <div className="space-y-2">
               {funnel.map((f, i) => (
                 <div key={f.stage} className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-slate-500 w-8">{f.stage}</span>
+                  <span className="text-sm font-bold text-slate-500 w-8">{f.stage}</span>
                   <div className="flex-1 h-7 bg-slate-100 rounded-full overflow-hidden relative">
                     <div className={`h-full ${stageColors[i % stageColors.length]} rounded-full transition-all`}
                       style={{ width: `${Math.max((f.count / funnelMax) * 100, 4)}%` }} />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-600">
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-600">
                       {f.count} · ¥{(f.amount / 10000).toFixed(0)}万
                     </span>
                   </div>
@@ -147,11 +147,11 @@ export default function DashboardSnapshot() {
           {paymentOv ? (
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-                <div className="text-xs text-emerald-600 font-bold mb-1">已回款</div>
+                <div className="text-sm text-emerald-600 font-bold mb-1">已回款</div>
                 <div className="text-xl font-black text-emerald-700">¥{(paymentOv.total_received / 10000).toFixed(1)}万</div>
               </div>
               <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
-                <div className="text-xs text-blue-600 font-bold mb-1">计划总额</div>
+                <div className="text-sm text-blue-600 font-bold mb-1">计划总额</div>
                 <div className="text-xl font-black text-blue-700">¥{(paymentOv.total_planned / 10000).toFixed(1)}万</div>
               </div>
               <div className="text-center p-2 rounded-lg bg-slate-50">
@@ -207,12 +207,12 @@ export default function DashboardSnapshot() {
             <div className="space-y-2">
               {leaderboard.slice(0, 5).map((l, i) => (
                 <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-slate-50">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-black ${
                     i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-white' : i === 2 ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-500'
                   }`}>{i + 1}</span>
                   <span className="flex-1 text-sm font-bold text-slate-800">{l.owner_name}</span>
                   <span className="text-sm font-bold text-emerald-600">{l.won_count}单</span>
-                  <span className="text-xs text-slate-500">¥{(l.won_amount / 10000).toFixed(0)}万</span>
+                  <span className="text-sm text-slate-500">¥{(l.won_amount / 10000).toFixed(0)}万</span>
                 </div>
               ))}
             </div>

@@ -253,7 +253,7 @@ export default function CustomerRelationGraph({ customerId, customerName, contac
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-4 text-xs">
+        <div className="flex items-center gap-4 text-sm">
           <span className="text-slate-400 font-bold uppercase">图例:</span>
           {relations.length > 0 && Object.entries(RELATION_LABELS).map(([k, v]) => {
             if (!relations.some((r) => r.relation_type === k)) return null
@@ -281,7 +281,7 @@ export default function CustomerRelationGraph({ customerId, customerName, contac
             </>
           )}
         </div>
-        <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
+        <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer select-none">
           <input type="checkbox" checked={showContacts} onChange={(e) => setShowContacts(e.target.checked)}
             className="rounded border-slate-300" />
           显示联系人决策链
