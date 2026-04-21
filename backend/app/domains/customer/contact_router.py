@@ -3,11 +3,13 @@ import csv
 import io
 
 from fastapi import APIRouter, Depends, Query, UploadFile, File
+from openpyxl import load_workbook
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions
 from app.common.schemas import ok
+from app.common.export import build_excel, excel_response
 from app.database import generate_uuid
 from app.domains.customer.models import Contact, Customer
 
@@ -73,6 +75,55 @@ async def list_contacts(
     })
 
 
+@router.get("/export")
+async def export_contacts(
+    keyword: str = Query(None),
+    role_type: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("contact:view")),
+):
+    """Export contacts as Excel file."""
+    q = select(Contact).where(Contact.tenant_id == tenant_id)
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.where(
+            (Contact.name.ilike(like)) | (Contact.phone.ilike(like)) |
+            (Contact.mobile.ilike(like)) | (Contact.email.ilike(like))
+        )
+    if role_type:
+        q = q.where(Contact.role_type == role_type)
+
+    items = (await db.execute(q.order_by(Contact.created_at.desc()))).scalars().all()
+
+    # Batch-fetch customer names
+    cust_ids = list({c.customer_id for c in items if c.customer_id})
+    cust_map: dict[str, str] = {}
+    if cust_ids:
+        rows = (await db.execute(
+            select(Customer.id, Customer.name).where(Customer.id.in_(cust_ids))
+        )).all()
+        cust_map = {r[0]: r[1] for r in rows}
+
+    headers = ["customer_name", "name", "title", "role_type", "phone", "mobile", "email", "is_primary", "remark"]
+    data_rows = []
+    for c in items:
+        data_rows.append([
+            cust_map.get(c.customer_id, ""),
+            c.name or "",
+            c.title or "",
+            c.role_type or "",
+            c.phone or "",
+            c.mobile or "",
+            c.email or "",
+            "true" if c.is_primary else "false",
+            c.remark or "",
+        ])
+
+    buf = build_excel("联系人列表", headers, data_rows)
+    return excel_response(buf, "contacts.xlsx")
+
+
 @router.post("/import")
 async def import_contacts(
     file: UploadFile = File(...),
@@ -80,9 +131,27 @@ async def import_contacts(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("contact:create")),
 ):
-    """Import contacts from CSV file. Matches customers by name."""
-    content = (await file.read()).decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(content))
+    """Import contacts from CSV or Excel file. Matches customers by name."""
+    content = await file.read()
+    fname = (file.filename or "").lower()
+
+    if fname.endswith((".xlsx", ".xls")):
+        wb = load_workbook(io.BytesIO(content), read_only=True)
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+        if not all_rows:
+            return ok({"success": 0, "failed": 0, "total": 0, "errors": []})
+        headers_row = [str(c).strip() if c else "" for c in all_rows[0]]
+        rows_iter = []
+        for row in all_rows[1:]:
+            if not row or not any(row):
+                continue
+            cells = [str(c).strip() if c is not None else "" for c in row]
+            rows_iter.append(dict(zip(headers_row, cells)))
+    else:
+        text = content.decode("utf-8-sig")
+        rows_iter = list(csv.DictReader(io.StringIO(text)))
 
     # Pre-fetch all customer name -> id mapping for this tenant
     cust_rows = (await db.execute(
@@ -97,7 +166,7 @@ async def import_contacts(
     errors: list[dict] = []
     valid_role_types = {"decision_maker", "influencer", "user", "finance", "procurement"}
 
-    for idx, row in enumerate(reader, start=2):  # row 1 is header
+    for idx, row in enumerate(rows_iter, start=2):  # row 1 is header
         customer_name = (row.get("customer_name") or "").strip()
         name = (row.get("name") or "").strip()
 

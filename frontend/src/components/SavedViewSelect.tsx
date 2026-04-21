@@ -15,6 +15,7 @@ interface Props {
 
 export default function SavedViewSelect({ page, currentFilters, onApply }: Props) {
   const [views, setViews] = useState<SavedView[]>([])
+  const [selectedViewId, setSelectedViewId] = useState<string | undefined>(undefined)
   const [saveName, setSaveName] = useState('')
   const [saving, setSaving] = useState(false)
   const [showSave, setShowSave] = useState(false)
@@ -60,10 +61,14 @@ export default function SavedViewSelect({ page, currentFilters, onApply }: Props
         <Select
           placeholder="快捷筛选"
           allowClear
+          value={selectedViewId}
           style={{ width: 150 }}
           onChange={(val) => {
-            const v = views.find((v) => v.id === val)
-            if (v) onApply(v.filters)
+            setSelectedViewId(val)
+            if (val) {
+              const v = views.find((v) => v.id === val)
+              if (v) onApply(v.filters)
+            }
           }}
           options={views.map((v) => ({
             label: (

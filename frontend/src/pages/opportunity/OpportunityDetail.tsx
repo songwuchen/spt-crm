@@ -195,6 +195,7 @@ export default function OpportunityDetail() {
     } catch (err: unknown) {
       const gateErr = err as Error & { gateData?: { failed_rules?: { name: string; message: string; fix_action?: string }[] } }
       if (gateErr.gateData?.failed_rules) {
+        const failedRules = gateErr.gateData.failed_rules
         const fixLabels: Record<string, string> = {
           link_customer: '关联客户',
           edit_project: '编辑项目',
@@ -212,14 +213,14 @@ export default function OpportunityDetail() {
           create_contract: () => handleCreateContract(),
         }
         Modal.warning({
-          title: 'Gate 校验未通过',
+          title: `阶段推进失败 — 缺少 ${failedRules.length} 项必要条件`,
           width: 520,
           content: (
             <div className="space-y-2 mt-2">
               <div className="text-sm text-slate-400 mb-3">
-                以下 {gateErr.gateData.failed_rules.length} 项校验未通过，请逐一修复后重试：
+                以下条件未满足，请逐一完成后重试：
               </div>
-              {gateErr.gateData.failed_rules.map((r: { name: string; message: string; fix_action?: string }, i: number) => (
+              {failedRules.map((r: { name: string; message: string; fix_action?: string }, i: number) => (
                 <div key={i} className="flex items-start gap-2 p-3 bg-amber-50 rounded-lg border border-amber-100">
                   <span className="material-symbols-outlined text-amber-500 mt-0.5" style={{ fontSize: 18 }}>warning</span>
                   <div className="flex-1">
@@ -239,6 +240,8 @@ export default function OpportunityDetail() {
             </div>
           ),
         })
+      } else {
+        message.error(gateErr.message || '阶段推进失败')
       }
     }
   }

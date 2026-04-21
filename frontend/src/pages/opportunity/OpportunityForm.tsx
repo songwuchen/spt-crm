@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Form, Input, Select, Button, Card, InputNumber, DatePicker, message } from 'antd'
 import { useParams, useNavigate } from 'react-router-dom'
 import { projectApi } from '@/api/project'
+import { customerApi } from '@/api/customer'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useDataDict } from '@/hooks/useDataDict'
@@ -41,6 +42,18 @@ export default function OpportunityForm() {
           ...d,
           close_date_expect: d.close_date_expect ? dayjs(d.close_date_expect) : undefined,
         })
+        // Seed display names for Select components
+        if (d.owner_id && d.owner_name) {
+          userSelect.setInitialOption({ label: d.owner_name, value: d.owner_id })
+        }
+        if (d.customer_id) {
+          const cid = d.customer_id
+          customerApi.get(cid).then((r) => {
+            if (r.data?.name) {
+              customerSelect.setInitialOption({ label: r.data.name, value: cid })
+            }
+          }).catch(() => {})
+        }
       }).catch(() => message.error('加载商机数据失败'))
     } else {
       const restored = restoreDraft()

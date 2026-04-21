@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Table, Input, Select, Tag, Button, Modal, Form, Switch, Space, Popconfirm, Alert, message } from 'antd'
-import { SearchOutlined, PhoneOutlined, MailOutlined, PlusOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
+import { SearchOutlined, PhoneOutlined, MailOutlined, PlusOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { contactApi } from '@/api/contact'
 import { customerApi } from '@/api/customer'
@@ -119,12 +119,30 @@ export default function ContactList() {
     setImportModal(true)
   }
 
+  // Export
+  const handleExport = async () => {
+    try {
+      const res = await contactApi.exportExcel({
+        keyword: keyword || undefined,
+        role_type: roleType,
+      }) as unknown as Blob
+      const url = URL.createObjectURL(res)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'contacts.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      message.error('导出失败')
+    }
+  }
+
   const handleImport = async () => {
-    if (!importFile) { message.warning('请选择CSV文件'); return }
+    if (!importFile) { message.warning('请选择文件'); return }
     setImporting(true)
     setImportResult(null)
     try {
-      const res = await contactApi.importCsv(importFile)
+      const res = await contactApi.importFile(importFile)
       setImportResult(res.data)
       if (res.data.errors.length === 0) {
         message.success(`成功导入 ${res.data.success} 个联系人`)
@@ -197,6 +215,9 @@ export default function ContactList() {
           <p className="text-sm text-slate-500 mt-0.5">跨客户搜索和管理所有联系人</p>
         </div>
         <Space>
+          {hasPermission('contact:view') && (
+            <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
+          )}
           {hasPermission('contact:create') && (
             <Button icon={<UploadOutlined />} onClick={openImportModal}>导入</Button>
           )}
@@ -312,7 +333,7 @@ export default function ContactList() {
       >
         <div className="space-y-4">
           <div className="text-sm text-slate-500">
-            请上传CSV文件，文件需包含以下列（第一行为标题行）：
+            请上传 CSV 或 Excel (.xlsx) 文件，文件需包含以下列（第一行为标题行）：
             <div className="mt-2 bg-slate-50 rounded p-2 text-sm font-mono text-slate-700 break-all">
               customer_name, name, title, role_type, phone, mobile, email, is_primary, remark
             </div>
@@ -324,7 +345,7 @@ export default function ContactList() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx,.xls"
               style={{ display: 'none' }}
               onChange={(e) => {
                 const f = e.target.files?.[0]
@@ -332,7 +353,7 @@ export default function ContactList() {
               }}
             />
             <Button icon={<UploadOutlined />} onClick={() => fileInputRef.current?.click()}>
-              选择CSV文件
+              选择文件
             </Button>
             {importFile && (
               <span className="ml-2 text-sm text-slate-600">{importFile.name}</span>

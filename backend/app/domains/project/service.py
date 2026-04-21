@@ -444,7 +444,9 @@ async def advance_stage(db: AsyncSession, tenant_id: str, project_id: str, to_st
     if not force:
         failed = await check_gate_rules(db, tenant_id, project, to_stage)
         if failed:
-            raise BusinessException(code=42201, message="gate_check_failed", detail={"pass": False, "failed_rules": failed})
+            missing_names = [r["name"] for r in failed]
+            summary = f"Gate 校验未通过，缺少: {', '.join(missing_names)}"
+            raise BusinessException(code=42201, message=summary, detail={"pass": False, "failed_rules": failed})
 
         # Approval check — block if pending/rejected approvals exist
         blocked_approvals = await _check_pending_approvals(db, tenant_id, project_id)

@@ -6,6 +6,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useAutoSave } from '@/hooks/useAutoSave'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
 const defaultLevels = ['A', 'B', 'C', 'D'].map(l => ({ label: l, value: l }))
@@ -29,6 +30,7 @@ export default function CustomerForm() {
   const scaleDict = useDataDict('scale_level', defaultScales)
   const sourceDict = useDataDict('customer_source', defaultSources)
 
+  const currentUser = useAuthStore((s) => s.user)
   const userSelect = useUserSelect()
 
   const [similarCustomers, setSimilarCustomers] = useState<{ id: string; name: string; short_name?: string; industry?: string; owner_name?: string; match_type?: string; match_phone?: string; match_contact?: string }[]>([])
@@ -63,6 +65,11 @@ export default function CustomerForm() {
     } else {
       const restored = restoreDraft()
       if (restored) message.info('已恢复上次未保存的草稿')
+      // Pre-fill current user as owner for new customers
+      if (currentUser) {
+        form.setFieldsValue({ owner_id: currentUser.id })
+        userSelect.setInitialOption({ label: currentUser.real_name || currentUser.username, value: currentUser.id })
+      }
     }
     return () => { if (dupTimerRef.current) clearTimeout(dupTimerRef.current) }
   }, [id])
@@ -70,11 +77,12 @@ export default function CustomerForm() {
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true)
     try {
+      const payload = { ...values, owner_id: values.owner_id || null } as any
       if (isEdit) {
-        await customerApi.update(id!, values)
+        await customerApi.update(id!, payload)
         message.success('客户已更新')
       } else {
-        await customerApi.create(values)
+        await customerApi.create(payload)
         message.success('客户已创建')
       }
       clearDraft()
