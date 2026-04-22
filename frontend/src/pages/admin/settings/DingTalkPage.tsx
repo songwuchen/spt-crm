@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Button, Form, Input, InputNumber, Switch, message, Alert, Spin, Divider, Tag } from 'antd'
+import { useState, useEffect, useRef } from 'react'
+import { Button, Form, Input, InputNumber, Switch, message, Alert, Spin, Divider, Tag, Progress } from 'antd'
 import {
   CheckCircleOutlined, CloseCircleOutlined, SyncOutlined,
   ApiOutlined, TeamOutlined, ApartmentOutlined, UserOutlined, LoginOutlined,
@@ -33,6 +33,22 @@ interface SyncUserResult {
   failed: { userid: string; reason: string }[]
 }
 
+type SyncKind = 'dingtalk_departments' | 'dingtalk_users'
+type SyncStatus = 'running' | 'completed' | 'failed'
+
+interface SyncTaskStatus<R> {
+  id: string
+  kind: SyncKind
+  status: SyncStatus
+  phase: string
+  processed: number
+  total: number
+  result: R | null
+  error: string | null
+  started_at: number
+  finished_at: number | null
+}
+
 const api = {
   getConfig: () => client.get<unknown, ApiResponse<DingTalkConfig | null>>('/api/admin/v1/tenant/dingtalk/config'),
   saveConfig: (data: Partial<DingTalkConfig>) =>
@@ -40,9 +56,13 @@ const api = {
   testConnection: () =>
     client.post<unknown, ApiResponse<{ connected: boolean; dept_count?: number; error?: string }>>('/api/admin/v1/tenant/dingtalk/test'),
   syncDepts: (syncLeaders = true) =>
-    client.post<unknown, ApiResponse<SyncDeptResult>>(`/api/admin/v1/tenant/dingtalk/sync/departments?sync_leaders=${syncLeaders}`),
+    client.post<unknown, ApiResponse<{ task_id: string; reused: boolean }>>(`/api/admin/v1/tenant/dingtalk/sync/departments?sync_leaders=${syncLeaders}`),
   syncUsers: () =>
-    client.post<unknown, ApiResponse<SyncUserResult>>('/api/admin/v1/tenant/dingtalk/sync/users'),
+    client.post<unknown, ApiResponse<{ task_id: string; reused: boolean }>>('/api/admin/v1/tenant/dingtalk/sync/users'),
+  taskStatus: <R,>(taskId: string) =>
+    client.get<unknown, ApiResponse<SyncTaskStatus<R>>>(`/api/admin/v1/tenant/dingtalk/sync/tasks/${taskId}`),
+  activeTask: (kind: SyncKind) =>
+    client.get<unknown, ApiResponse<{ task_id: string | null }>>(`/api/admin/v1/tenant/dingtalk/sync/active?kind=${kind}`),
 }
 
 export default function DingTalkPage() {
@@ -57,10 +77,85 @@ export default function DingTalkPage() {
   const [testResult, setTestResult] = useState<{ connected: boolean; dept_count?: number; error?: string } | null>(null)
   const [deptResult, setDeptResult] = useState<SyncDeptResult | null>(null)
   const [userResult, setUserResult] = useState<SyncUserResult | null>(null)
+  const [deptProgress, setDeptProgress] = useState<SyncTaskStatus<SyncDeptResult> | null>(null)
+  const [userProgress, setUserProgress] = useState<SyncTaskStatus<SyncUserResult> | null>(null)
+
+  // Track active poll timers so unmount/re-click cancels them cleanly
+  const deptPollRef = useRef<number | null>(null)
+  const userPollRef = useRef<number | null>(null)
 
   useEffect(() => {
     loadConfig()
+    // Resume any sync left running from a previous page load (e.g. user refreshed mid-sync)
+    ;(async () => {
+      try {
+        const [d, u] = await Promise.all([
+          api.activeTask('dingtalk_departments'),
+          api.activeTask('dingtalk_users'),
+        ])
+        if (d.data?.task_id) {
+          setSyncingDepts(true)
+          pollTask<SyncDeptResult>(d.data.task_id, 'dept')
+        }
+        if (u.data?.task_id) {
+          setSyncingUsers(true)
+          pollTask<SyncUserResult>(u.data.task_id, 'user')
+        }
+      } catch { /* silently ignore */ }
+    })()
+    return () => {
+      if (deptPollRef.current) window.clearTimeout(deptPollRef.current)
+      if (userPollRef.current) window.clearTimeout(userPollRef.current)
+    }
   }, [])
+
+  const pollTask = <R,>(taskId: string, target: 'dept' | 'user') => {
+    const tick = async () => {
+      try {
+        const res = await api.taskStatus<R>(taskId)
+        const t = res.data
+        if (target === 'dept') setDeptProgress(t as SyncTaskStatus<SyncDeptResult>)
+        else setUserProgress(t as SyncTaskStatus<SyncUserResult>)
+
+        if (t.status === 'running') {
+          const ref = target === 'dept' ? deptPollRef : userPollRef
+          ref.current = window.setTimeout(tick, 1500)
+          return
+        }
+
+        // Finished — commit result and stop loading
+        if (target === 'dept') {
+          setSyncingDepts(false)
+          if (t.status === 'completed' && t.result) {
+            const r = t.result as unknown as SyncDeptResult
+            setDeptResult(r)
+            message.success(`部门同步完成：新建 ${r.created}，更新 ${r.updated}`)
+          } else {
+            message.error(t.error || '同步部门失败')
+          }
+        } else {
+          setSyncingUsers(false)
+          if (t.status === 'completed' && t.result) {
+            const r = t.result as unknown as SyncUserResult
+            setUserResult(r)
+            if (r.failed.length === 0) {
+              message.success(`用户同步完成：新建 ${r.created}，更新 ${r.updated}`)
+            } else {
+              message.warning(`用户同步完成：新建 ${r.created}，更新 ${r.updated}，失败 ${r.failed.length}`)
+            }
+          } else {
+            message.error(t.error || '同步用户失败')
+          }
+        }
+      } catch (e: any) {
+        // Task may have been GC'd or network blipped — stop polling and show the raw error
+        if (target === 'dept') setSyncingDepts(false)
+        else setSyncingUsers(false)
+        message.error(e?.response?.data?.message || '查询同步状态失败')
+      }
+    }
+    void tick()
+  }
 
   const loadConfig = async () => {
     setLoading(true)
@@ -116,34 +211,42 @@ export default function DingTalkPage() {
   const handleSyncDepts = async () => {
     setSyncingDepts(true)
     setDeptResult(null)
+    setDeptProgress(null)
     try {
       const res = await api.syncDepts(true)
-      setDeptResult(res.data)
-      message.success(`部门同步完成：新建 ${res.data.created}，更新 ${res.data.updated}`)
+      if (res.data.reused) message.info('已有同步任务在运行，继续显示其进度')
+      pollTask<SyncDeptResult>(res.data.task_id, 'dept')
     } catch (e: any) {
-      message.error(e?.response?.data?.message || '同步部门失败')
-    } finally {
       setSyncingDepts(false)
+      message.error(e?.response?.data?.message || '启动同步失败')
     }
   }
 
   const handleSyncUsers = async () => {
     setSyncingUsers(true)
     setUserResult(null)
+    setUserProgress(null)
     try {
       const res = await api.syncUsers()
-      setUserResult(res.data)
-      const { created, updated, failed } = res.data
-      if (failed.length === 0) {
-        message.success(`用户同步完成：新建 ${created}，更新 ${updated}`)
-      } else {
-        message.warning(`用户同步完成：新建 ${created}，更新 ${updated}，失败 ${failed.length}`)
-      }
+      if (res.data.reused) message.info('已有同步任务在运行，继续显示其进度')
+      pollTask<SyncUserResult>(res.data.task_id, 'user')
     } catch (e: any) {
-      message.error(e?.response?.data?.message || '同步用户失败')
-    } finally {
       setSyncingUsers(false)
+      message.error(e?.response?.data?.message || '启动同步失败')
     }
+  }
+
+  const renderProgress = (t: SyncTaskStatus<unknown> | null) => {
+    if (!t || t.status !== 'running') return null
+    const pct = t.total > 0 ? Math.floor((t.processed / t.total) * 100) : 0
+    return (
+      <div className="mt-3">
+        <div className="text-xs text-slate-500 mb-1">
+          {t.phase}{t.total > 0 ? ` ${t.processed}/${t.total}` : ''}
+        </div>
+        <Progress percent={pct} status="active" size="small" />
+      </div>
+    )
   }
 
   if (loading) {
@@ -268,6 +371,7 @@ export default function DingTalkPage() {
               开始同步
             </Button>
           </div>
+          {renderProgress(deptProgress)}
           {deptResult && (
             <div className="mt-3 flex flex-wrap gap-2">
               <Tag color="green">新建 {deptResult.created} 个</Tag>
@@ -303,6 +407,7 @@ export default function DingTalkPage() {
               开始同步
             </Button>
           </div>
+          {renderProgress(userProgress)}
           {userResult && (
             <div className="mt-3 space-y-2">
               <div className="flex flex-wrap gap-2">

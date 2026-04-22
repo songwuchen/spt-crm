@@ -357,6 +357,49 @@ async def test_dingtalk(
         return ok({"connected": False, "error": str(e)})
 
 
+async def _run_sync_departments_bg(task_id: str, tenant_id: str, cfg: dict, sync_leaders: bool) -> None:
+    """Background runner: owns its own DB session; reports progress via sync_tasks store."""
+    from app.common.dingtalk_sync import get_access_token, sync_departments
+    from app.common import sync_tasks
+    from app.database import async_session_factory
+
+    async def _cb(phase: str, processed: int, total: int) -> None:
+        await sync_tasks.update_progress(task_id, phase, processed, total)
+
+    try:
+        token = await get_access_token(cfg["app_key"], cfg["app_secret"])
+        async with async_session_factory() as bg_db:
+            result = await sync_departments(
+                bg_db, tenant_id, token,
+                sync_leaders=sync_leaders,
+                progress_cb=_cb,
+            )
+        await sync_tasks.finish_task(task_id, result)
+    except Exception as e:
+        await sync_tasks.fail_task(task_id, f"同步部门失败: {e}")
+
+
+async def _run_sync_users_bg(task_id: str, tenant_id: str, cfg: dict) -> None:
+    from app.common.dingtalk_sync import get_access_token, sync_users
+    from app.common import sync_tasks
+    from app.database import async_session_factory
+
+    async def _cb(phase: str, processed: int, total: int) -> None:
+        await sync_tasks.update_progress(task_id, phase, processed, total)
+
+    try:
+        token = await get_access_token(cfg["app_key"], cfg["app_secret"])
+        async with async_session_factory() as bg_db:
+            result = await sync_users(
+                bg_db, tenant_id, token,
+                default_password=cfg.get("default_password", "Changeme@123"),
+                progress_cb=_cb,
+            )
+        await sync_tasks.finish_task(task_id, result)
+    except Exception as e:
+        await sync_tasks.fail_task(task_id, f"同步用户失败: {e}")
+
+
 @router.post("/dingtalk/sync/departments")
 async def dingtalk_sync_departments(
     sync_leaders: bool = Query(True),
@@ -364,17 +407,23 @@ async def dingtalk_sync_departments(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:manage")),
 ):
-    from app.common.dingtalk_sync import get_access_token, sync_departments
+    """Kick off department sync in background; returns task_id for status polling."""
+    import asyncio
+    from app.common import sync_tasks
+
     ep = await _get_dt_endpoint(db, tenant_id)
     if not ep:
         raise BusinessException(message="请先配置钉钉参数")
     cfg = ep.auth_config_json or {}
-    try:
-        token = await get_access_token(cfg["app_key"], cfg["app_secret"])
-        result = await sync_departments(db, tenant_id, token, sync_leaders=sync_leaders)
-        return ok(result)
-    except Exception as e:
-        raise BusinessException(message=f"同步部门失败: {e}")
+
+    # If a sync is already running for this tenant, reuse it so double-clicks don't double-fetch
+    existing = sync_tasks.get_active_for_tenant(tenant_id, kind="dingtalk_departments")
+    if existing:
+        return ok({"task_id": existing, "reused": True})
+
+    task_id = await sync_tasks.create_task(tenant_id, "dingtalk_departments")
+    asyncio.create_task(_run_sync_departments_bg(task_id, tenant_id, cfg, sync_leaders))
+    return ok({"task_id": task_id, "reused": False})
 
 
 @router.post("/dingtalk/sync/users")
@@ -383,17 +432,59 @@ async def dingtalk_sync_users(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:manage")),
 ):
-    from app.common.dingtalk_sync import get_access_token, sync_users
+    """Kick off user sync in background; returns task_id for status polling."""
+    import asyncio
+    from app.common import sync_tasks
+
     ep = await _get_dt_endpoint(db, tenant_id)
     if not ep:
         raise BusinessException(message="请先配置钉钉参数")
     cfg = ep.auth_config_json or {}
-    try:
-        token = await get_access_token(cfg["app_key"], cfg["app_secret"])
-        result = await sync_users(
-            db, tenant_id, token,
-            default_password=cfg.get("default_password", "Changeme@123"),
-        )
-        return ok(result)
-    except Exception as e:
-        raise BusinessException(message=f"同步用户失败: {e}")
+
+    existing = sync_tasks.get_active_for_tenant(tenant_id, kind="dingtalk_users")
+    if existing:
+        return ok({"task_id": existing, "reused": True})
+
+    task_id = await sync_tasks.create_task(tenant_id, "dingtalk_users")
+    asyncio.create_task(_run_sync_users_bg(task_id, tenant_id, cfg))
+    return ok({"task_id": task_id, "reused": False})
+
+
+@router.get("/dingtalk/sync/tasks/{task_id}")
+async def dingtalk_sync_task_status(
+    task_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    _user=Depends(require_permissions("role:manage")),
+):
+    from app.common import sync_tasks
+
+    t = sync_tasks.get_task(task_id)
+    if not t:
+        raise BusinessException(code=40400, message="同步任务不存在或已过期")
+    # Don't leak other tenants' tasks
+    if t.get("tenant_id") != tenant_id:
+        raise BusinessException(code=40300, message="无权访问此任务")
+    return ok({
+        "id": t["id"],
+        "kind": t["kind"],
+        "status": t["status"],
+        "phase": t["phase"],
+        "processed": t["processed"],
+        "total": t["total"],
+        "result": t["result"],
+        "error": t["error"],
+        "started_at": t["started_at"],
+        "finished_at": t["finished_at"],
+    })
+
+
+@router.get("/dingtalk/sync/active")
+async def dingtalk_sync_active(
+    kind: Optional[str] = Query(None, pattern="^(dingtalk_departments|dingtalk_users)$"),
+    tenant_id: str = Depends(get_tenant_id),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """Return the task_id of any running sync for this tenant — lets UI resume after refresh."""
+    from app.common import sync_tasks
+
+    return ok({"task_id": sync_tasks.get_active_for_tenant(tenant_id, kind=kind)})
