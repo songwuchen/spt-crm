@@ -4,12 +4,18 @@ Idempotent: inserts customer_type + industry entries for every existing tenant,
 skipping codes that already exist. Industry entries replace legacy generic values
 by disabling any prior industry dict_codes that are not in the new list.
 
-Run: python -m scripts.seed_lead_dicts
+Run:
+  python -m scripts.seed_lead_dicts                 # auto-discover tenants
+  python -m scripts.seed_lead_dicts <tenant_id>     # explicit tenant
+
+Discovery: prefers platform_tenants, falls back to distinct tenant_ids in users
+(platform_tenants may be empty in setups that never ran the full seed).
 """
 import asyncio
+import sys
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.database import async_session_factory
 from app.domains.admin.models import DataDictionary
@@ -98,15 +104,35 @@ async def seed_for_tenant(session, tenant_id: str) -> dict:
     return stats
 
 
+async def _discover_tenant_ids(session) -> list[tuple[str, str]]:
+    """Return [(tenant_id, display_name), ...]. Prefer platform_tenants; else fall back to users.
+
+    Raw SQL for the fallback avoids importing User (which pulls in a web of
+    mapper relationships that need all sibling models loaded before use).
+    """
+    tenants = (await session.execute(select(PlatformTenant))).scalars().all()
+    if tenants:
+        return [(t.id, getattr(t, "name", "?") or "?") for t in tenants]
+
+    rows = (await session.execute(text("SELECT DISTINCT tenant_id FROM users"))).all()
+    return [(r[0], "(discovered from users)") for r in rows if r[0]]
+
+
 async def main():
+    explicit = sys.argv[1] if len(sys.argv) > 1 else None
     async with async_session_factory() as session:
-        tenants = (await session.execute(select(PlatformTenant))).scalars().all()
-        if not tenants:
+        if explicit:
+            tenant_pairs = [(explicit, "(explicit)")]
+        else:
+            tenant_pairs = await _discover_tenant_ids(session)
+
+        if not tenant_pairs:
             print("No tenants found; skipping.")
             return
-        for t in tenants:
-            stats = await seed_for_tenant(session, t.id)
-            print(f"[tenant={t.id} name={getattr(t, 'name', '?')}] {stats}")
+
+        for tid, name in tenant_pairs:
+            stats = await seed_for_tenant(session, tid)
+            print(f"[tenant={tid} name={name}] {stats}")
         await session.commit()
         print("Done.")
 
