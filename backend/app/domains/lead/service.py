@@ -16,6 +16,12 @@ logger = logging.getLogger("spt_crm.lead")
 
 
 
+def _derived_region(lead: Lead) -> str | None:
+    """Concat province/city/district into a single display string."""
+    parts = [p for p in (lead.province, lead.city, lead.district) if p]
+    return "".join(parts) if parts else None
+
+
 def _compute_score(lead: Lead) -> int:
     """Basic rule-based scoring per requirements: source, industry, demand, budget, contact."""
     score = 0
@@ -44,6 +50,9 @@ def _compute_score(lead: Lead) -> int:
 async def list_leads(
     db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20,
     keyword: str | None = None, status: str | None = None, owner_id: str | None = None,
+    customer_type: str | None = None, category: str | None = None,
+    country_type: str | None = None, province: str | None = None,
+    department_id: str | None = None, industry: str | None = None,
 ):
     base = select(Lead).where(Lead.tenant_id == tenant_id, Lead.is_deleted == False)
     if keyword:
@@ -52,6 +61,18 @@ async def list_leads(
         base = base.where(Lead.status == status)
     if owner_id:
         base = base.where(Lead.owner_id == owner_id)
+    if customer_type:
+        base = base.where(Lead.customer_type == customer_type)
+    if category:
+        base = base.where(Lead.category == category)
+    if country_type:
+        base = base.where(Lead.country_type == country_type)
+    if province:
+        base = base.where(Lead.province == province)
+    if department_id:
+        base = base.where(Lead.department_id == department_id)
+    if industry:
+        base = base.where(Lead.industry == industry)
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
     items = (await db.execute(
@@ -109,11 +130,12 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
     if lead.status == "discarded":
         raise BusinessException(code=LEAD_ALREADY_DISCARDED, message="线索已废弃，无法转化")
 
-    # Create customer from lead
+    # Create customer from lead — carry over geographic fields so sales keeps context on conversion
     customer = Customer(
         id=generate_uuid(), tenant_id=tenant_id,
         name=lead.company_name or lead.title,
-        industry=lead.industry, region=lead.region,
+        industry=lead.industry,
+        region=_derived_region(lead) or lead.region,
         source=lead.source, owner_id=lead.owner_id, owner_name=lead.owner_name,
     )
     db.add(customer)

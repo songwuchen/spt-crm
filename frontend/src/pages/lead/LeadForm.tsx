@@ -5,14 +5,23 @@ import { leadApi } from '@/api/lead'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
+import RegionCascader from '@/components/RegionCascader'
+import DepartmentSelect from '@/components/DepartmentSelect'
 
 const defaultSources = [
   { label: '展会', value: 'expo' }, { label: '转介绍', value: 'referral' },
   { label: '广告', value: 'ad' }, { label: '官网/入站', value: 'inbound' },
   { label: '合作伙伴', value: 'partner' }, { label: '电话', value: 'call' },
 ]
-const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
 const defaultBudgets = ['10万以下', '10-50万', '50-100万', '100-500万', '500万以上'].map(b => ({ label: b, value: b }))
+const categoryOptions = [
+  { label: '自报', value: 'self_reported' },
+  { label: '分发', value: 'distributed' },
+]
+const countryOptions = [
+  { label: '国内', value: 'domestic' },
+  { label: '国外', value: 'overseas' },
+]
 
 export default function LeadForm() {
   const { id } = useParams<{ id: string }>()
@@ -23,14 +32,19 @@ export default function LeadForm() {
   usePageTitle(isEdit ? '编辑线索' : '新建线索')
 
   const sourceDict = useDataDict('lead_source', defaultSources)
-  const industryDict = useDataDict('industry', defaultIndustries)
+  const industryDict = useDataDict('industry')
+  const customerTypeDict = useDataDict('customer_type')
   const budgetDict = useDataDict('budget_range', defaultBudgets)
 
   const userSelect = useUserSelect()
+  const [countryType, setCountryType] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     if (id) {
-      leadApi.get(id).then((res) => form.setFieldsValue(res.data)).catch(() => message.error('加载线索数据失败'))
+      leadApi.get(id).then((res) => {
+        form.setFieldsValue(res.data)
+        setCountryType(res.data.country_type)
+      }).catch(() => message.error('加载线索数据失败'))
     }
   }, [id])
 
@@ -75,14 +89,22 @@ export default function LeadForm() {
               <Form.Item name="company_name" label="公司名称">
                 <Input placeholder="请输入公司名称" />
               </Form.Item>
+              <Form.Item name="customer_type" label="客户类型">
+                <Select placeholder="请选择客户类型" allowClear showSearch optionFilterProp="label"
+                  options={customerTypeDict.options} loading={customerTypeDict.loading} />
+              </Form.Item>
+              <Form.Item name="industry" label="行业">
+                <Select placeholder="请选择行业" allowClear showSearch optionFilterProp="label"
+                  options={industryDict.options} loading={industryDict.loading} />
+              </Form.Item>
               <Form.Item name="source" label="线索来源">
                 <Select placeholder="请选择来源" allowClear options={sourceDict.options} loading={sourceDict.loading} />
               </Form.Item>
-              <Form.Item name="industry" label="行业">
-                <Select placeholder="请选择行业" allowClear options={industryDict.options} loading={industryDict.loading} />
+              <Form.Item name="category" label="类别" tooltip="自报=自行开发；分发=领导指派">
+                <Select placeholder="请选择类别" allowClear options={categoryOptions} />
               </Form.Item>
-              <Form.Item name="region" label="区域">
-                <Input placeholder="请输入区域" />
+              <Form.Item name="department_id" label="部门">
+                <DepartmentSelect />
               </Form.Item>
               <Form.Item name="budget_range" label="预算范围">
                 <Select placeholder="请选择预算范围" allowClear options={budgetDict.options} loading={budgetDict.loading} />
@@ -93,6 +115,46 @@ export default function LeadForm() {
                   options={userSelect.options}
                   onSearch={userSelect.onSearch}
                   onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
+              </Form.Item>
+            </div>
+          </div>
+
+          {/* Location */}
+          <div className="mb-6">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">项目地址</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+              <Form.Item name="country_type" label="国别">
+                <Select placeholder="请选择国别" allowClear options={countryOptions} onChange={(v) => setCountryType(v)} />
+              </Form.Item>
+              {countryType === 'overseas' ? (
+                <Form.Item name="country_name" label="国家">
+                  <Input placeholder="请输入国家名称" />
+                </Form.Item>
+              ) : (
+                <Form.Item
+                  label="省/市/区县"
+                  shouldUpdate={(prev, curr) =>
+                    prev.province !== curr.province || prev.city !== curr.city || prev.district !== curr.district
+                  }
+                >
+                  {({ getFieldValue, setFieldsValue }) => (
+                    <RegionCascader
+                      value={{
+                        province: getFieldValue('province'),
+                        city: getFieldValue('city'),
+                        district: getFieldValue('district'),
+                      }}
+                      onChange={(v) => setFieldsValue({ province: v.province, city: v.city, district: v.district })}
+                    />
+                  )}
+                </Form.Item>
+              )}
+              {/* Hidden inputs so Form collects province/city/district on submit */}
+              <Form.Item name="province" hidden><Input /></Form.Item>
+              <Form.Item name="city" hidden><Input /></Form.Item>
+              <Form.Item name="district" hidden><Input /></Form.Item>
+              <Form.Item name="region" label="详细地址/备注地点" className="col-span-2">
+                <Input placeholder="可补充详细地址，如厂区、街道等" />
               </Form.Item>
             </div>
           </div>

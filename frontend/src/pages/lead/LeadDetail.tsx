@@ -10,6 +10,19 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { leadStatusConfig as statusConfig } from '@/constants/labels'
+import { useDataDict } from '@/hooks/useDataDict'
+
+const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
+const countryLabels: Record<string, string> = { domestic: '国内', overseas: '国外' }
+
+function formatLocation(lead: Lead): string | undefined {
+  if (lead.country_type === 'overseas') {
+    return `国外${lead.country_name ? ' · ' + lead.country_name : ''}`
+  }
+  const parts = [lead.province, lead.city, lead.district].filter(Boolean)
+  if (parts.length > 0) return parts.join(' · ')
+  return lead.region || undefined
+}
 
 const qualifySteps = [
   { key: 'new', label: '新建', icon: 'add_circle' },
@@ -58,6 +71,8 @@ export default function LeadDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [lead, setLead] = useState<Lead | null>(null)
+  const customerTypeDict = useDataDict('customer_type')
+  const industryDict = useDataDict('industry')
 
   const fetchLead = async () => {
     try {
@@ -137,12 +152,13 @@ export default function LeadDetail() {
                 )}
                 {lead.industry && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">factory</span> {lead.industry}
+                    <span className="material-symbols-outlined text-sm">factory</span>
+                    {industryDict.options.find(o => o.value === lead.industry)?.label || lead.industry}
                   </span>
                 )}
-                {lead.region && (
+                {formatLocation(lead) && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">location_on</span> {lead.region}
+                    <span className="material-symbols-outlined text-sm">location_on</span> {formatLocation(lead)}
                   </span>
                 )}
               </div>
@@ -223,6 +239,9 @@ export default function LeadDetail() {
             <InfoField label="联系电话" value={lead.contact_phone} />
             <InfoField label="联系邮箱" value={lead.contact_email} />
             <InfoField label="来源" value={lead.source ? (sourceLabels[lead.source] || lead.source) : undefined} />
+            <InfoField label="客户类型" value={lead.customer_type ? (customerTypeDict.options.find(o => o.value === lead.customer_type)?.label || lead.customer_type) : undefined} />
+            <InfoField label="类别" value={lead.category ? categoryLabels[lead.category] : undefined} />
+            <InfoField label="国别" value={lead.country_type ? (lead.country_type === 'overseas' && lead.country_name ? `${countryLabels.overseas} · ${lead.country_name}` : countryLabels[lead.country_type]) : undefined} />
             <InfoField label="预算范围" value={lead.budget_range} />
             <InfoField label="负责人" value={lead.owner_name} />
             {lead.converted_customer_id && (

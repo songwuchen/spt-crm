@@ -71,6 +71,9 @@ export interface Contact {
   remark?: string
 }
 
+export type LeadCategory = 'self_reported' | 'distributed'
+export type LeadCountryType = 'domestic' | 'overseas'
+
 export interface Lead {
   id: string
   lead_code?: string
@@ -84,7 +87,15 @@ export interface Lead {
   source_detail_json?: Record<string, unknown>
   demand_summary?: string
   industry?: string
+  customer_type?: string
+  category?: LeadCategory
+  country_type?: LeadCountryType
+  country_name?: string
   region?: string
+  province?: string
+  city?: string
+  district?: string
+  department_id?: string
   budget_range?: string
   owner_id?: string
   owner_name?: string

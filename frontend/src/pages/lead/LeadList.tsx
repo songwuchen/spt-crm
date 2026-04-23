@@ -10,11 +10,16 @@ import type { ColumnsType } from 'antd/es/table'
 import { leadStatusConfig as statusConfig } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
+import { useDataDict } from '@/hooks/useDataDict'
 import { useColumnConfig } from '@/hooks/useColumnConfig'
 import { usePageSize } from '@/hooks/usePageSize'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
+import DepartmentSelect from '@/components/DepartmentSelect'
 import { t } from '@/locales'
+
+const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
+const countryLabels: Record<string, string> = { domestic: '国内', overseas: '国外' }
 
 function ScoreBar({ score }: { score: number }) {
   const getColor = (s: number) => {
@@ -50,7 +55,14 @@ export default function LeadList() {
   const keyword = searchParams.get('keyword') || ''
   const status = searchParams.get('status') || undefined
   const source = searchParams.get('source') || undefined
+  const customerType = searchParams.get('customer_type') || undefined
+  const category = searchParams.get('category') || undefined
+  const countryType = searchParams.get('country_type') || undefined
+  const departmentId = searchParams.get('department_id') || undefined
+  const industry = searchParams.get('industry') || undefined
   const [pageSize, setPageSize] = usePageSize('leads')
+  const customerTypeDict = useDataDict('customer_type')
+  const industryDict = useDataDict('industry')
 
   const updateParams = (updates: Record<string, string | undefined>) => {
     setSearchParams((prev) => {
@@ -66,6 +78,11 @@ export default function LeadList() {
   const setKeyword = (v: string) => updateParams({ keyword: v || undefined })
   const setStatus = (v: string | undefined) => updateParams({ status: v, page: undefined })
   const setSource = (v: string | undefined) => updateParams({ source: v, page: undefined })
+  const setCustomerType = (v: string | undefined) => updateParams({ customer_type: v, page: undefined })
+  const setCategory = (v: string | undefined) => updateParams({ category: v, page: undefined })
+  const setCountryType = (v: string | undefined) => updateParams({ country_type: v, page: undefined })
+  const setDepartmentId = (v: string | undefined) => updateParams({ department_id: v, page: undefined })
+  const setIndustry = (v: string | undefined) => updateParams({ industry: v, page: undefined })
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [assignModal, setAssignModal] = useState(false)
   const [assignForm] = Form.useForm()
@@ -119,10 +136,19 @@ export default function LeadList() {
     })
   }
 
-  const fetchData = async (page = pageNo, kw = keyword, st = status, src = source) => {
+  const fetchData = async (page = pageNo) => {
     setLoading(true)
     try {
-      const res = await leadApi.list({ pageNo: page, pageSize, keyword: kw || undefined, status: st, source: src })
+      const res = await leadApi.list({
+        pageNo: page, pageSize,
+        keyword: keyword || undefined,
+        status, source,
+        customer_type: customerType,
+        category,
+        country_type: countryType,
+        department_id: departmentId,
+        industry,
+      })
       setData(res.data.items)
       setTotal(res.data.total)
     } finally {
@@ -130,7 +156,7 @@ export default function LeadList() {
     }
   }
 
-  useEffect(() => { fetchData(pageNo, keyword, status, source) }, [searchParams])
+  useEffect(() => { fetchData(pageNo) }, [searchParams])
 
   const doSearch = () => { updateParams({ page: undefined }) }
 
@@ -162,6 +188,33 @@ export default function LeadList() {
       render: (v: string) => v ? (
         <span className="text-sm text-slate-600">{sourceLabels[v] || v}</span>
       ) : <span className="text-slate-300">-</span>,
+    },
+    { title: '客户类型', dataIndex: 'customer_type', key: 'customer_type', width: 140, responsive: ['xl'],
+      render: (v: string) => {
+        if (!v) return <span className="text-slate-300">-</span>
+        const label = customerTypeDict.options.find(o => o.value === v)?.label || v
+        return <span className="text-sm text-slate-600">{label}</span>
+      },
+    },
+    { title: '行业', dataIndex: 'industry', key: 'industry', width: 140, responsive: ['xl'],
+      render: (v: string) => {
+        if (!v) return <span className="text-slate-300">-</span>
+        const label = industryDict.options.find(o => o.value === v)?.label || v
+        return <span className="text-sm text-slate-600">{label}</span>
+      },
+    },
+    { title: '类别', dataIndex: 'category', key: 'category', width: 80, responsive: ['xl'],
+      render: (v: string) => v ? <span className="text-sm text-slate-600">{categoryLabels[v] || v}</span> : <span className="text-slate-300">-</span>,
+    },
+    { title: '地区', key: 'location', width: 160, responsive: ['xl'],
+      render: (_, r) => {
+        if (r.country_type === 'overseas') {
+          return <span className="text-sm text-slate-600">{countryLabels.overseas}{r.country_name ? ` · ${r.country_name}` : ''}</span>
+        }
+        const parts = [r.province, r.city, r.district].filter(Boolean)
+        if (parts.length > 0) return <span className="text-sm text-slate-600">{parts.join(' · ')}</span>
+        return r.region ? <span className="text-sm text-slate-600">{r.region}</span> : <span className="text-slate-300">-</span>
+      },
     },
     { title: t('lead.score'), dataIndex: 'score', width: 140,
       render: (v: number) => <ScoreBar score={v ?? 0} />,
@@ -290,6 +343,44 @@ export default function LeadList() {
             onChange={(v) => setSource(v)}
             options={Object.entries(sourceLabels).map(([k, v]) => ({ label: v, value: k }))}
           />
+          <Select
+            placeholder="客户类型"
+            allowClear
+            style={{ width: 180 }}
+            value={customerType}
+            onChange={setCustomerType}
+            options={customerTypeDict.options}
+            loading={customerTypeDict.loading}
+          />
+          <Select
+            placeholder="行业"
+            allowClear
+            showSearch optionFilterProp="label"
+            style={{ width: 180 }}
+            value={industry}
+            onChange={setIndustry}
+            options={industryDict.options}
+            loading={industryDict.loading}
+          />
+          <Select
+            placeholder="类别"
+            allowClear
+            style={{ width: 110 }}
+            value={category}
+            onChange={setCategory}
+            options={[{ label: '自报', value: 'self_reported' }, { label: '分发', value: 'distributed' }]}
+          />
+          <Select
+            placeholder="国别"
+            allowClear
+            style={{ width: 110 }}
+            value={countryType}
+            onChange={setCountryType}
+            options={[{ label: '国内', value: 'domestic' }, { label: '国外', value: 'overseas' }]}
+          />
+          <div style={{ width: 180 }}>
+            <DepartmentSelect value={departmentId} onChange={setDepartmentId} placeholder="部门" />
+          </div>
           <Button onClick={doSearch}>
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             {t('common.filter')}
@@ -297,9 +388,19 @@ export default function LeadList() {
           <ColumnConfigDropdown allColumnKeys={allColumnKeys} hiddenKeys={hiddenKeys} onChange={setColumnConfig} />
           <SavedViewSelect
             page="leads"
-            currentFilters={{ keyword, status, source }}
+            currentFilters={{ keyword, status, source, customer_type: customerType, category, country_type: countryType, department_id: departmentId, industry }}
             onApply={(f) => {
-              updateParams({ keyword: f.keyword || undefined, status: f.status || undefined, source: f.source || undefined, page: undefined })
+              updateParams({
+                keyword: f.keyword || undefined,
+                status: f.status || undefined,
+                source: f.source || undefined,
+                customer_type: f.customer_type || undefined,
+                category: f.category || undefined,
+                country_type: f.country_type || undefined,
+                department_id: f.department_id || undefined,
+                industry: f.industry || undefined,
+                page: undefined,
+              })
             }}
           />
         </div>

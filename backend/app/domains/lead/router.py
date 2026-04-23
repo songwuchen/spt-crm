@@ -20,7 +20,16 @@ def _lead_dict(l) -> dict:
         "contact_email": l.contact_email, "contact_raw_json": l.contact_raw_json,
         "source": l.source, "source_detail_json": l.source_detail_json,
         "demand_summary": l.demand_summary,
-        "industry": l.industry, "region": l.region,
+        "industry": l.industry,
+        "customer_type": l.customer_type,
+        "category": l.category,
+        "country_type": l.country_type,
+        "country_name": l.country_name,
+        "region": l.region,
+        "province": l.province,
+        "city": l.city,
+        "district": l.district,
+        "department_id": l.department_id,
         "budget_range": l.budget_range,
         "owner_id": l.owner_id, "owner_name": l.owner_name,
         "status": l.status, "score": l.score,
@@ -38,13 +47,23 @@ async def list_leads(
     keyword: str = Query(None),
     status: str = Query(None),
     owner_id: str = Query(None),
+    customer_type: str = Query(None),
+    category: str = Query(None),
+    country_type: str = Query(None),
+    province: str = Query(None),
+    department_id: str = Query(None),
+    industry: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("lead:view")),
     data_scope: str | None = Depends(get_data_scope),
 ):
     effective_owner = owner_id or data_scope
-    items, total = await service.list_leads(db, tenant_id, pageNo, pageSize, keyword, status, effective_owner)
+    items, total = await service.list_leads(
+        db, tenant_id, pageNo, pageSize, keyword, status, effective_owner,
+        customer_type=customer_type, category=category, country_type=country_type,
+        province=province, department_id=department_id, industry=industry,
+    )
     return ok({"items": [_lead_dict(l) for l in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
@@ -59,13 +78,25 @@ async def export_leads_excel(
 ):
     from app.config import settings
     items, _ = await service.list_leads(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, status, owner_id)
-    headers = ["线索编码", "标题", "公司名称", "联系人", "联系电话", "邮箱", "来源", "行业", "地区", "负责人", "状态", "评分", "创建时间"]
+    headers = [
+        "线索编码", "标题", "公司名称", "联系人", "联系电话", "邮箱",
+        "来源", "类别", "客户类型", "行业", "国别", "国家",
+        "省", "市", "区县", "地区", "负责人", "状态", "评分", "创建时间",
+    ]
+    category_label = {"self_reported": "自报", "distributed": "分发"}
+    country_label = {"domestic": "国内", "overseas": "国外"}
     rows = []
     for l in items:
         rows.append([
             l.lead_code or "", l.title or "", l.company_name or "",
             l.contact_name or "", l.contact_phone or "", l.contact_email or "",
-            l.source or "", l.industry or "", l.region or "",
+            l.source or "",
+            category_label.get(l.category or "", l.category or ""),
+            l.customer_type or "",
+            l.industry or "",
+            country_label.get(l.country_type or "", l.country_type or ""),
+            l.country_name or "",
+            l.province or "", l.city or "", l.district or "", l.region or "",
             l.owner_name or "", l.status or "", l.score or "",
             l.created_at.strftime("%Y-%m-%d %H:%M") if l.created_at else "",
         ])
