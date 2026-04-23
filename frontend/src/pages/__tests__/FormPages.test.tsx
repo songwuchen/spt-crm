@@ -31,6 +31,14 @@ vi.mock('@/api/user', () => ({
   userApi: { list: vi.fn().mockResolvedValue({ data: { items: [], total: 0 } }) },
 }))
 
+vi.mock('@/api/department', () => ({
+  departmentApi: { tree: vi.fn().mockResolvedValue({ data: [] }) },
+}))
+
+vi.mock('@/api/settings', () => ({
+  settingsApi: { listDataDict: vi.fn().mockResolvedValue({ data: [] }) },
+}))
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
   return { ...actual, useNavigate: () => vi.fn(), useParams: () => ({}) }
