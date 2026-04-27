@@ -46,6 +46,9 @@ test-results/
 /*.png
 /tmp_*
 
+# Local-only project notes (contains internal infra info)
+/CLAUDE.md
+
 # Uploads
 uploads/
 
