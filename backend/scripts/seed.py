@@ -25,27 +25,25 @@ TENANT_ID = "00000000-0000-0000-0000-000000000001"
 
 
 async def seed():
-    from sqlalchemy import text, select
+    # Per-row upsert. Safe to re-run on every deploy: missing permissions, roles,
+    # demo customers / projects / stages / feature toggles are added; existing rows
+    # are left alone (so operator edits — passwords, customized stage gates,
+    # toggle states, real customer data sharing a demo name — are not clobbered).
+    from sqlalchemy import select
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     async with async_session_factory() as db:
-        # Check if already seeded
-        from app.domains.customer.models import Customer
-        existing = (await db.execute(
-            select(Customer).where(Customer.tenant_id == TENANT_ID).limit(1)
-        )).scalar_one_or_none()
-        if existing:
-            print("Database already has data — skipping seed.")
-            return
-
-        # ---- Admin User + Role + Permissions ----
         import bcrypt
+        from app.domains.customer.models import Customer
         from app.domains.auth.models import User, Role, Permission, UserRole, RolePermission
 
+        added = {"permissions": 0, "perm_updates": 0, "roles": 0, "role_perms": 0,
+                 "users": 0, "user_roles": 0, "customers": 0, "projects": 0,
+                 "stages": 0, "feature_toggles": 0}
+
         admin_user_id = "00000000-0000-0000-0000-000000000010"
-        admin_role_id = generate_uuid()
 
         # Permissions — complete list matching all require_permissions() in routers
         perm_codes = [
@@ -124,105 +122,176 @@ async def seed():
             ("tenant:view", "查看租户", "平台"),
             ("tenant:manage", "管理租户", "平台"),
         ]
-        perm_ids = {}
+        # ---- Permissions (global, keyed by code) ----
+        existing_perms = {p.code: p for p in (await db.execute(select(Permission))).scalars().all()}
         for code, name, group in perm_codes:
-            pid = generate_uuid()
-            db.add(Permission(id=pid, code=code, name=name, group_name=group))
-            perm_ids[code] = pid
-
-        # Admin role with all permissions
-        db.add(Role(
-            id=admin_role_id, tenant_id=TENANT_ID,
-            code="admin", name="系统管理员", description="拥有全部权限", is_system=True,
-        ))
+            perm = existing_perms.get(code)
+            if perm is None:
+                perm = Permission(id=generate_uuid(), code=code, name=name, group_name=group)
+                db.add(perm)
+                existing_perms[code] = perm
+                added["permissions"] += 1
+            elif perm.name != name or perm.group_name != group:
+                perm.name = name
+                perm.group_name = group
+                added["perm_updates"] += 1
         await db.flush()
 
-        for code, pid in perm_ids.items():
+        # ---- Admin role (per tenant, keyed by tenant_id + code) ----
+        admin_role = (await db.execute(
+            select(Role).where(Role.tenant_id == TENANT_ID, Role.code == "admin")
+        )).scalar_one_or_none()
+        if admin_role is None:
+            admin_role = Role(
+                id=generate_uuid(), tenant_id=TENANT_ID,
+                code="admin", name="系统管理员", description="拥有全部权限", is_system=True,
+            )
+            db.add(admin_role)
+            added["roles"] += 1
+        await db.flush()
+
+        # ---- Role permissions (additive only) ----
+        existing_rp = {rp.permission_id for rp in (await db.execute(
+            select(RolePermission).where(
+                RolePermission.tenant_id == TENANT_ID,
+                RolePermission.role_id == admin_role.id,
+            )
+        )).scalars().all()}
+        for code, perm in existing_perms.items():
+            if perm.id in existing_rp:
+                continue
             db.add(RolePermission(
                 id=generate_uuid(), tenant_id=TENANT_ID,
-                role_id=admin_role_id, permission_id=pid,
+                role_id=admin_role.id, permission_id=perm.id,
             ))
+            existing_rp.add(perm.id)
+            added["role_perms"] += 1
 
-        # Admin user
-        hashed = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode()
-        db.add(User(
-            id=admin_user_id, tenant_id=TENANT_ID,
-            username="admin", password_hash=hashed,
-            real_name="管理员", is_active=True,
-        ))
+        # ---- Admin user (don't reset password if exists) ----
+        admin = (await db.execute(
+            select(User).where(User.id == admin_user_id)
+        )).scalar_one_or_none()
+        if admin is None:
+            db.add(User(
+                id=admin_user_id, tenant_id=TENANT_ID,
+                username="admin",
+                password_hash=bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode(),
+                real_name="管理员", is_active=True,
+            ))
+            added["users"] += 1
         await db.flush()
 
-        db.add(UserRole(
-            id=generate_uuid(), tenant_id=TENANT_ID,
-            user_id=admin_user_id, role_id=admin_role_id,
-        ))
+        # ---- User-role assignment ----
+        ur_exists = (await db.execute(
+            select(UserRole).where(
+                UserRole.user_id == admin_user_id,
+                UserRole.role_id == admin_role.id,
+            )
+        )).scalar_one_or_none()
+        if ur_exists is None:
+            db.add(UserRole(
+                id=generate_uuid(), tenant_id=TENANT_ID,
+                user_id=admin_user_id, role_id=admin_role.id,
+            ))
+            added["user_roles"] += 1
         await db.flush()
 
-        # ---- Customers ----
-        customers = []
-        for i, (name, industry, level) in enumerate([
+        # ---- Demo customers (keyed by tenant + name + source='seed' so we never
+        # confuse demo data with real customers an operator may have created) ----
+        demo_customers = [
             ("华锐精密制造", "Machinery", "A"),
             ("中科自动化", "Automation", "A"),
             ("鼎信电子", "Electronics", "B"),
             ("远航新材料", "Materials", "B"),
             ("瑞德工业", "Manufacturing", "C"),
-        ]):
-            c = Customer(
-                id=generate_uuid(), tenant_id=TENANT_ID,
-                name=name, industry=industry, level=level,
-                source="seed", status="active",
+        ]
+        existing_demo = {c.name: c for c in (await db.execute(
+            select(Customer).where(
+                Customer.tenant_id == TENANT_ID,
+                Customer.source == "seed",
             )
-            db.add(c)
-            customers.append(c)
-
+        )).scalars().all()}
+        customers = []
+        for name, industry, level in demo_customers:
+            cust = existing_demo.get(name)
+            if cust is None:
+                cust = Customer(
+                    id=generate_uuid(), tenant_id=TENANT_ID,
+                    name=name, industry=industry, level=level,
+                    source="seed", status="active",
+                )
+                db.add(cust)
+                added["customers"] += 1
+            customers.append(cust)
         await db.flush()
 
-        # ---- Projects ----
+        # ---- Demo projects (keyed by project_code) ----
         from app.domains.project.models import OpportunityProject
-        projects = []
-        stages = ["S1", "S2", "S3", "S4", "S5"]
+        stages_seq = ["S1", "S2", "S3", "S4", "S5"]
         amounts = [200000, 500000, 800000, 150000, 1200000]
-        for i, cust in enumerate(customers):
-            p = OpportunityProject(
-                id=generate_uuid(), tenant_id=TENANT_ID,
-                project_code=f"PRJ-SEED-{i+1:04d}",
-                name=f"{cust.name}-CRM升级项目",
-                customer_id=cust.id,
-                stage_code=stages[i % len(stages)],
-                amount_expect=amounts[i],
-                probability=30 + i * 15,
-                status="open",
+        existing_projects = {p.project_code for p in (await db.execute(
+            select(OpportunityProject).where(
+                OpportunityProject.tenant_id == TENANT_ID,
+                OpportunityProject.project_code.like("PRJ-SEED-%"),
             )
-            db.add(p)
-            projects.append(p)
+        )).scalars().all()}
+        for i, cust in enumerate(customers):
+            code = f"PRJ-SEED-{i+1:04d}"
+            if code in existing_projects:
+                continue
+            db.add(OpportunityProject(
+                id=generate_uuid(), tenant_id=TENANT_ID,
+                project_code=code, name=f"{cust.name}-CRM升级项目",
+                customer_id=cust.id,
+                stage_code=stages_seq[i % len(stages_seq)],
+                amount_expect=amounts[i], probability=30 + i * 15,
+                status="open",
+            ))
+            added["projects"] += 1
 
-        await db.flush()
-
-        # ---- Stage Definitions ----
+        # ---- Stage Definitions (keyed by tenant_id + stage_code) ----
         from app.domains.admin.models import StageDefinition
+        existing_stages = {s.stage_code for s in (await db.execute(
+            select(StageDefinition).where(StageDefinition.tenant_id == TENANT_ID)
+        )).scalars().all()}
         for code, name in [
             ("S1", "线索确认"), ("S2", "需求分析"), ("S3", "方案制定"),
             ("S4", "商务谈判"), ("S5", "合同签订"), ("S6", "交付执行"),
         ]:
+            if code in existing_stages:
+                continue
             db.add(StageDefinition(
                 id=generate_uuid(), tenant_id=TENANT_ID,
                 stage_code=code, name=name, sort_order=int(code[1]),
                 gate_rules_json={},
             ))
+            added["stages"] += 1
 
-        # ---- Feature Toggles ----
+        # ---- Feature Toggles (keyed by tenant_id + feature_code) ----
+        # Don't overwrite — operator may have flipped a toggle deliberately.
         from app.domains.admin.models import TenantFeatureToggle
+        existing_toggles = {t.feature_code for t in (await db.execute(
+            select(TenantFeatureToggle).where(TenantFeatureToggle.tenant_id == TENANT_ID)
+        )).scalars().all()}
         for code, enabled in [
             ("ai_center", True), ("field_masking", False),
             ("attachment_classification", True), ("webhook_events", True),
         ]:
+            if code in existing_toggles:
+                continue
             db.add(TenantFeatureToggle(
                 id=generate_uuid(), tenant_id=TENANT_ID,
                 feature_code=code, enabled=enabled,
             ))
+            added["feature_toggles"] += 1
 
         await db.commit()
-        print(f"Seeded {len(customers)} customers, {len(projects)} projects, stage configs, feature toggles.")
+
+        print("Seed sync complete:")
+        for k, v in added.items():
+            print(f"  {k:16s} +{v}")
+        if added["users"] == 1:
+            print("  Admin: admin / admin123  (CHANGE THIS PASSWORD IMMEDIATELY)")
 
 
 if __name__ == "__main__":

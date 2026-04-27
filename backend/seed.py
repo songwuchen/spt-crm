@@ -180,83 +180,133 @@ DEMO_DEPT_ID = "00000000-0000-0000-0000-000000000020"
 
 
 async def seed():
-    # Create all tables
+    # Per-row upsert. Safe to run on every deploy: missing permissions/roles/mappings
+    # are added; existing rows are not touched (so password resets, tenant-customized
+    # role names, and removed permissions persist across upgrades).
+    #
+    # Keep create_all for first-time bootstrap when alembic hasn't run yet — it's
+    # a no-op against a schema already created by migrations.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     async with async_session_factory() as session:
-        # Check if already seeded
-        existing = (await session.execute(select(PlatformTenant).where(PlatformTenant.id == DEMO_TENANT_ID))).scalar()
-        if existing:
-            print("Seed data already exists, skipping.")
-            return
+        added = {"permissions": 0, "perm_updates": 0, "tenants": 0, "roles": 0,
+                 "role_perms": 0, "users": 0, "user_roles": 0, "departments": 0}
 
-        # 1. Create permissions
-        perm_map = {}  # code -> id
+        # 1. Permissions (global, keyed by code). Insert missing; update display name/group if changed.
+        existing_perms = {p.code: p for p in (await session.execute(select(Permission))).scalars().all()}
         for code, name, group in PERMISSIONS:
-            pid = _id()
-            perm_map[code] = pid
-            session.add(Permission(id=pid, code=code, name=name, group_name=group))
+            perm = existing_perms.get(code)
+            if perm is None:
+                perm = Permission(id=_id(), code=code, name=name, group_name=group)
+                session.add(perm)
+                existing_perms[code] = perm
+                added["permissions"] += 1
+            elif perm.name != name or perm.group_name != group:
+                perm.name = name
+                perm.group_name = group
+                added["perm_updates"] += 1
 
-        # 2. Create demo tenant
-        session.add(PlatformTenant(
-            id=DEMO_TENANT_ID,
-            name="演示租户",
-            code="demo",
-            plan="pro",
-            is_active=True,
-            contact_name="管理员",
-            contact_email="admin@demo.com",
-        ))
+        # 2. Demo tenant (only insert; existing tenant config is operator-owned).
+        tenant = (await session.execute(
+            select(PlatformTenant).where(PlatformTenant.id == DEMO_TENANT_ID)
+        )).scalar_one_or_none()
+        if tenant is None:
+            session.add(PlatformTenant(
+                id=DEMO_TENANT_ID, name="演示租户", code="demo", plan="pro",
+                is_active=True, contact_name="管理员", contact_email="admin@demo.com",
+            ))
+            added["tenants"] += 1
 
-        # 3. Create roles for demo tenant
-        role_map = {}  # code -> id
+        await session.flush()  # ensure newly added perms/tenant get IDs before FK refs
+
+        # 3. Roles per tenant (keyed by tenant_id + code). Insert missing; never overwrite
+        # name/description so tenants can customize system roles in the UI.
+        existing_roles = {r.code: r for r in (await session.execute(
+            select(Role).where(Role.tenant_id == DEMO_TENANT_ID)
+        )).scalars().all()}
         for code, info in ROLES.items():
-            rid = _id()
-            role_map[code] = rid
-            session.add(Role(
-                id=rid, tenant_id=DEMO_TENANT_ID,
+            if code in existing_roles:
+                continue
+            role = Role(
+                id=_id(), tenant_id=DEMO_TENANT_ID,
                 code=code, name=info["name"],
                 description=info["description"], is_system=info["is_system"],
-            ))
-            # Role-permission mapping
+            )
+            session.add(role)
+            existing_roles[code] = role
+            added["roles"] += 1
+
+        await session.flush()
+
+        # 4. Role-permission mappings (keyed by role_id + permission_id). Additive only:
+        # we don't delete grants that were removed from ROLES, since admins may have
+        # widened permissions intentionally.
+        rp_pairs = {(rp.role_id, rp.permission_id) for rp in (await session.execute(
+            select(RolePermission).where(RolePermission.tenant_id == DEMO_TENANT_ID)
+        )).scalars().all()}
+        for code, info in ROLES.items():
+            role = existing_roles[code]
             for perm_code in info["permissions"]:
+                perm = existing_perms.get(perm_code)
+                if perm is None:
+                    print(f"  ! role {code} references undefined permission {perm_code}, skipping")
+                    continue
+                if (role.id, perm.id) in rp_pairs:
+                    continue
                 session.add(RolePermission(
                     id=_id(), tenant_id=DEMO_TENANT_ID,
-                    role_id=rid, permission_id=perm_map[perm_code],
+                    role_id=role.id, permission_id=perm.id,
                 ))
+                rp_pairs.add((role.id, perm.id))
+                added["role_perms"] += 1
 
-        # 4. Create admin user
-        session.add(User(
-            id=DEMO_ADMIN_ID,
-            tenant_id=DEMO_TENANT_ID,
-            username="admin",
-            password_hash=bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode(),
-            real_name="系统管理员",
-            email="admin@demo.com",
-            is_active=True,
-        ))
+        # 5. Admin user. Don't touch existing — operator may have changed the password.
+        admin = (await session.execute(
+            select(User).where(User.id == DEMO_ADMIN_ID)
+        )).scalar_one_or_none()
+        if admin is None:
+            session.add(User(
+                id=DEMO_ADMIN_ID, tenant_id=DEMO_TENANT_ID,
+                username="admin",
+                password_hash=bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode(),
+                real_name="系统管理员", email="admin@demo.com", is_active=True,
+            ))
+            added["users"] += 1
 
-        # 5. Assign tenant_admin role to admin
-        session.add(UserRole(
-            id=_id(), tenant_id=DEMO_TENANT_ID,
-            user_id=DEMO_ADMIN_ID, role_id=role_map["tenant_admin"],
-        ))
+        # 6. Admin's tenant_admin role assignment.
+        tenant_admin_role = existing_roles["tenant_admin"]
+        ur_exists = (await session.execute(
+            select(UserRole).where(
+                UserRole.user_id == DEMO_ADMIN_ID,
+                UserRole.role_id == tenant_admin_role.id,
+            )
+        )).scalar_one_or_none()
+        if ur_exists is None:
+            session.add(UserRole(
+                id=_id(), tenant_id=DEMO_TENANT_ID,
+                user_id=DEMO_ADMIN_ID, role_id=tenant_admin_role.id,
+            ))
+            added["user_roles"] += 1
 
-        # 6. Create root department
-        session.add(Department(
-            id=DEMO_DEPT_ID,
-            tenant_id=DEMO_TENANT_ID,
-            name="演示租户",
-            parent_id=None,
-            path="/",
-            sort_order=0,
-        ))
+        # 7. Root department.
+        dept = (await session.execute(
+            select(Department).where(Department.id == DEMO_DEPT_ID)
+        )).scalar_one_or_none()
+        if dept is None:
+            session.add(Department(
+                id=DEMO_DEPT_ID, tenant_id=DEMO_TENANT_ID,
+                name="演示租户", parent_id=None, path="/", sort_order=0,
+            ))
+            added["departments"] += 1
 
         await session.commit()
-        print("Seed data created successfully!")
-        print("  Tenant: demo (演示租户)")
-        print("  Admin: admin / admin123")
+
+        print("Seed sync complete:")
+        for k, v in added.items():
+            print(f"  {k:14s} +{v}")
+        if added["users"] == 1:
+            print("  Admin: admin / admin123  (CHANGE THIS PASSWORD IMMEDIATELY)")
 
 
 if __name__ == "__main__":
