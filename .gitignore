@@ -38,6 +38,13 @@ Thumbs.db
 .coverage
 htmlcov/
 .mypy_cache/
+playwright-report/
+test-results/
+
+# Repo-root debug artifacts (anchored with leading / so subdir PNGs in
+# h5_ui_design_reference/ and frontend assets stay tracked)
+/*.png
+/tmp_*
 
 # Uploads
 uploads/
