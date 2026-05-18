@@ -544,24 +544,51 @@ export default function QuoteDetail() {
             <Input placeholder="请输入规格描述" />
           </Form.Item>
           <div className="grid grid-cols-3 gap-4">
-            <Form.Item name="qty" label="数量">
-              <InputNumber className="w-full" min={0} precision={2} />
+            <Form.Item name="qty" label="数量" rules={[{ required: true, message: '请输入数量' }]}>
+              <InputNumber className="w-full" min={0.0001} precision={2} placeholder="必填" />
             </Form.Item>
             <Form.Item name="unit" label="单位">
               <Input placeholder="台/套/件" />
             </Form.Item>
-            <Form.Item name="unit_price" label="单价">
-              <InputNumber className="w-full" min={0} precision={2} />
+            <Form.Item name="unit_price" label="单价" rules={[{ required: true, message: '请输入单价' }]}>
+              <InputNumber className="w-full" min={0} precision={2} placeholder="必填" />
             </Form.Item>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Form.Item name="cost_est" label="估计成本">
+            <Form.Item name="cost_est" label="估计成本" extra="单件估计成本（可手填或从产品目录带入）">
               <InputNumber className="w-full" min={0} precision={2} />
             </Form.Item>
             <Form.Item name="leadtime_days" label="交期(天)">
               <InputNumber className="w-full" min={0} />
             </Form.Item>
           </div>
+          <Form.Item shouldUpdate={(prev, curr) =>
+            prev.qty !== curr.qty || prev.unit_price !== curr.unit_price || prev.cost_est !== curr.cost_est}>
+            {({ getFieldValue }) => {
+              const qty = Number(getFieldValue('qty')) || 0
+              const unitPrice = Number(getFieldValue('unit_price')) || 0
+              const costEst = Number(getFieldValue('cost_est')) || 0
+              const lineTotal = qty * unitPrice
+              const costTotal = qty * costEst
+              const margin = lineTotal > 0 ? (lineTotal - costTotal) / lineTotal : null
+              return (
+                <div className="grid grid-cols-2 gap-4 bg-slate-50 rounded-lg p-3 border border-slate-100">
+                  <div>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase">行合计 (数量 × 单价)</div>
+                    <div className="text-base font-bold text-slate-800">
+                      {lineTotal > 0 ? `¥${lineTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '-'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase">毛利率 ((单价 − 成本) ÷ 单价)</div>
+                    <div className={`text-base font-bold ${margin == null ? 'text-slate-300' : margin >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                      {margin != null ? `${(margin * 100).toFixed(1)}%` : '-'}
+                    </div>
+                  </div>
+                </div>
+              )
+            }}
+          </Form.Item>
         </Form>
       </Modal>
 

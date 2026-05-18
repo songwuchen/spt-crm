@@ -26,6 +26,7 @@ export default function CustomerForm() {
   usePageTitle(isEdit ? '编辑客户' : '新建客户')
 
   const industryDict = useDataDict('industry', defaultIndustries)
+  const industryMap = Object.fromEntries(industryDict.options.map((o) => [o.value, o.label]))
   const levelDict = useDataDict('customer_level', defaultLevels)
   const scaleDict = useDataDict('scale_level', defaultScales)
   const sourceDict = useDataDict('customer_source', defaultSources)
@@ -118,7 +119,7 @@ export default function CustomerForm() {
                       {c.match_type === 'name' && (
                         <span className="text-blue-500 text-sm bg-blue-50 px-1.5 py-0.5 rounded">名称匹配</span>
                       )}
-                      {c.industry && <span className="text-slate-400 text-sm">{c.industry}</span>}
+                      {c.industry && <span className="text-slate-400 text-sm">{industryMap[c.industry] || c.industry}</span>}
                       {c.owner_name && <span className="text-slate-400 text-sm">负责人: {c.owner_name}</span>}
                       {!isEdit && (
                         <a onClick={() => navigate(`/customers/${c.id}`)} className="text-sm text-emerald-600 hover:underline">查看并合并</a>

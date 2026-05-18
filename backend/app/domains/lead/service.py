@@ -91,11 +91,23 @@ async def get_lead(db: AsyncSession, tenant_id: str, lead_id: str) -> Lead:
 
 
 async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: dict) -> Lead:
+    payload = data.model_dump()
+    # If user picked an owner in the form, look up that user's name; otherwise fall back to creator.
+    chosen_owner_id = payload.pop("owner_id", None)
+    if chosen_owner_id:
+        from app.domains.auth.models import User as AuthUser
+        owner = (await db.execute(select(AuthUser).where(AuthUser.id == chosen_owner_id))).scalar_one_or_none()
+        owner_id = chosen_owner_id
+        owner_name = (owner.real_name or owner.username) if owner else None
+    else:
+        owner_id = user["sub"]
+        owner_name = user.get("real_name") or user.get("username")
+
     lead = Lead(
         id=generate_uuid(), tenant_id=tenant_id,
         lead_code=await generate_code(db, tenant_id, "lead"),
-        owner_id=user["sub"], owner_name=user.get("real_name") or user.get("username"),
-        **data.model_dump(),
+        owner_id=owner_id, owner_name=owner_name,
+        **payload,
     )
     lead.score = _compute_score(lead)
     db.add(lead)
@@ -110,7 +122,14 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
 
 async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: LeadUpdate, user: dict) -> Lead:
     lead = await get_lead(db, tenant_id, lead_id)
-    for field, val in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    # When owner changes, refresh owner_name to match
+    if "owner_id" in payload and payload["owner_id"] and payload["owner_id"] != lead.owner_id:
+        from app.domains.auth.models import User as AuthUser
+        new_owner = (await db.execute(select(AuthUser).where(AuthUser.id == payload["owner_id"]))).scalar_one_or_none()
+        if new_owner:
+            lead.owner_name = new_owner.real_name or new_owner.username
+    for field, val in payload.items():
         setattr(lead, field, val)
     lead.score = _compute_score(lead)
     await db.commit()

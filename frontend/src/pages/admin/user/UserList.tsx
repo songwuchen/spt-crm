@@ -57,6 +57,12 @@ export default function UserList() {
   const [importResult, setImportResult] = useState<{ success: number; failed: { row: number; reason: string }[]; total: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Reset password state
+  const [resetModal, setResetModal] = useState(false)
+  const [resetTarget, setResetTarget] = useState<UserItem | null>(null)
+  const [resetForm] = Form.useForm()
+  const [resetting, setResetting] = useState(false)
+
   const fetchData = async (page = pageNo, kw = keyword) => {
     setLoading(true)
     try {
@@ -140,6 +146,27 @@ export default function UserList() {
     setImportModal(true)
   }
 
+  const openResetPassword = (user: UserItem) => {
+    setResetTarget(user)
+    resetForm.resetFields()
+    setResetModal(true)
+  }
+
+  const handleResetPassword = async () => {
+    if (!resetTarget) return
+    const values = await resetForm.validateFields()
+    setResetting(true)
+    try {
+      await userApi.resetPassword(resetTarget.id, values.new_password)
+      message.success(`已重置 ${resetTarget.real_name || resetTarget.username} 的密码`)
+      setResetModal(false)
+      setResetTarget(null)
+      resetForm.resetFields()
+    } finally {
+      setResetting(false)
+    }
+  }
+
   const columns = [
     { title: '用户', key: 'user', width: 200,
       render: (_: unknown, record: UserItem) => (
@@ -190,7 +217,7 @@ export default function UserList() {
         </div>
       ),
     },
-    { title: '', width: 120,
+    { title: '', width: 180,
       render: (_: unknown, record: UserItem) => (
         <Space size={8}>
           <a className="text-primary text-sm font-bold uppercase tracking-widest" onClick={() => {
@@ -203,6 +230,9 @@ export default function UserList() {
             })
             setModal(true)
           }}>编辑</a>
+          <a className="text-amber-600 text-sm font-bold uppercase tracking-widest" onClick={() => openResetPassword(record)}>
+            重置密码
+          </a>
           <Popconfirm
             title="确认删除该用户？"
             description="删除后不可恢复"
@@ -300,6 +330,63 @@ export default function UserList() {
           {editingUser && (
             <Form.Item name="is_active" label="启用" valuePropName="checked"><Switch /></Form.Item>
           )}
+        </Form>
+      </Modal>
+
+      {/* Reset Password Modal */}
+      <Modal
+        title="重置用户密码"
+        open={resetModal}
+        onOk={handleResetPassword}
+        confirmLoading={resetting}
+        onCancel={() => { setResetModal(false); setResetTarget(null); resetForm.resetFields() }}
+        okText="重置"
+        okButtonProps={{ danger: true }}
+        width={440}
+      >
+        {resetTarget && (
+          <div className="mb-3 p-3 bg-amber-50 rounded-lg text-sm text-amber-700 border border-amber-100">
+            将为用户 <b>{resetTarget.real_name || resetTarget.username}</b> (<span className="font-mono">{resetTarget.username}</span>) 重置密码。重置后该用户原密码将立即失效。
+          </div>
+        )}
+        <Form form={resetForm} layout="vertical">
+          <Form.Item
+            name="new_password"
+            label="新密码"
+            rules={[
+              { required: true, message: '请输入新密码' },
+              { min: 8, message: '密码长度不能少于 8 位' },
+              {
+                validator: (_r, v) => {
+                  if (!v) return Promise.resolve()
+                  const hasUpper = /[A-Z]/.test(v)
+                  const hasLower = /[a-z]/.test(v)
+                  const hasDigit = /\d/.test(v)
+                  return hasUpper && hasLower && hasDigit
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('密码必须包含大小写字母和数字'))
+                },
+              },
+            ]}
+          >
+            <Input.Password placeholder="至少 8 位，含大小写字母和数字" autoComplete="new-password" />
+          </Form.Item>
+          <Form.Item
+            name="confirm_password"
+            label="确认密码"
+            dependencies={['new_password']}
+            rules={[
+              { required: true, message: '请再次输入新密码' },
+              ({ getFieldValue }) => ({
+                validator(_r, v) {
+                  if (!v || getFieldValue('new_password') === v) return Promise.resolve()
+                  return Promise.reject(new Error('两次输入的密码不一致'))
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="再次输入新密码" autoComplete="new-password" />
+          </Form.Item>
         </Form>
       </Modal>
 

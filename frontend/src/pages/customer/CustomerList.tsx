@@ -62,6 +62,7 @@ export default function CustomerList() {
     }
   }, [showMap])
   const industryDict = useDataDict('industry', defaultIndustries)
+  const industryMap = Object.fromEntries(industryDict.options.map((o) => [o.value, o.label]))
   const dangerConfirm = useCountdownConfirm()
   const userSelect = useUserSelect()
 
@@ -181,7 +182,7 @@ export default function CustomerList() {
       ),
     },
     { title: t('customer.industry'), dataIndex: 'industry', width: 120,
-      render: (v) => v || <span className="text-slate-300">-</span> },
+      render: (v) => v ? (industryMap[v] || v) : <span className="text-slate-300">-</span> },
     { title: t('customer.level'), dataIndex: 'scale_level', width: 80, responsive: ['lg'],
       render: (v) => v || <span className="text-slate-300">-</span> },
     { title: t('customer.region'), dataIndex: 'region', width: 100,

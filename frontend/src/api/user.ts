@@ -35,6 +35,8 @@ export const userApi = {
       params: keyword ? { keyword } : {},
       responseType: 'blob',
     }),
+  resetPassword: (id: string, newPassword: string) =>
+    client.post<unknown, ApiResponse<null>>(`/api/admin/v1/tenant/users/${id}/reset_password`, { new_password: newPassword }),
 }
 
 export const roleApi = {

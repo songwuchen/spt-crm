@@ -27,9 +27,9 @@ class QuoteLineCreate(BaseModel):
     item_name: Optional[str] = Field(None, max_length=200)
     item_code: Optional[str] = Field(None, max_length=100)
     spec: Optional[str] = Field(None, max_length=500)
-    qty: Optional[float] = Field(None, gt=0)
+    qty: float = Field(..., gt=0, description="数量（必填）")
     unit: Optional[str] = Field(None, max_length=20)
-    unit_price: Optional[float] = Field(None, ge=0)
+    unit_price: float = Field(..., ge=0, description="单价（必填）")
     cost_est: Optional[float] = Field(None, ge=0)
     leadtime_days: Optional[int] = Field(None, ge=0)
 

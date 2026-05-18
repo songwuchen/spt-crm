@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Table, Select, DatePicker, Input, Button, message, Segmented } from 'antd'
-import { SearchOutlined, DownloadOutlined, UnorderedListOutlined, FieldTimeOutlined } from '@ant-design/icons'
+import { SearchOutlined, DownloadOutlined, UnorderedListOutlined, FieldTimeOutlined, ReloadOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import client from '@/api/client'
 import type { AuditLog, PageData, ApiResponse } from '@/api/types'
@@ -16,14 +16,31 @@ const actionConfig: Record<string, { label: string; bg: string; text: string; bo
   qualify: { label: '转化', bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-100', icon: 'swap_horiz' },
   discard: { label: '废弃', bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200', icon: 'block' },
   advance: { label: '推进', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', icon: 'arrow_forward' },
+  advance_stage: { label: '推进阶段', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', icon: 'arrow_forward' },
   rollback: { label: '回退', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', icon: 'arrow_back' },
+  rollback_stage: { label: '回退阶段', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', icon: 'arrow_back' },
   approve: { label: '审批', bg: 'bg-green-50', text: 'text-green-600', border: 'border-green-100', icon: 'check_circle' },
   reject: { label: '驳回', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100', icon: 'cancel' },
   sign: { label: '签署', bg: 'bg-cyan-50', text: 'text-cyan-600', border: 'border-cyan-100', icon: 'draw' },
+  login: { label: '登录', bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100', icon: 'login' },
+  login_failed: { label: '登录失败', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100', icon: 'error' },
+  merge: { label: '合并', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', icon: 'merge' },
+  new_version: { label: '新建版本', bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100', icon: 'difference' },
+  send_quote: { label: '发送报价', bg: 'bg-cyan-50', text: 'text-cyan-600', border: 'border-cyan-100', icon: 'send' },
+  batch_message: { label: '群发消息', bg: 'bg-cyan-50', text: 'text-cyan-600', border: 'border-cyan-100', icon: 'campaign' },
+  submit_approval: { label: '提交审批', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', icon: 'approval' },
+  withdraw_approval: { label: '撤回审批', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', icon: 'undo' },
+  delegate_approval: { label: '转交审批', bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-100', icon: 'forward' },
+  claim_from_pool: { label: '从公海领取', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', icon: 'pan_tool' },
+  release_to_pool: { label: '释放到公海', bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200', icon: 'waves' },
+  purge_scheduled: { label: '计划清理', bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200', icon: 'event' },
+  purge_completed: { label: '清理完成', bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200', icon: 'task_alt' },
+  purge_cancelled: { label: '取消清理', bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200', icon: 'block' },
 }
 
 const resourceLabels: Record<string, string> = {
   customer: '客户',
+  customer_relation: '客户关系',
   contact: '联系人',
   lead: '线索',
   user: '用户',
@@ -36,9 +53,20 @@ const resourceLabels: Record<string, string> = {
   solution_version: '方案版本',
   service_ticket: '工单',
   renewal: '续约',
+  renewal_opportunity: '续约商机',
   approval: '审批',
   attachment: '附件',
   share: '共享',
+  auth: '认证',
+  activity: '活动',
+  ai_prompt_template: 'AI提示词',
+  ai_task: 'AI任务',
+  change_request: '变更申请',
+  delivery_milestone: '交付里程碑',
+  erp_order_link: 'ERP订单',
+  invoice: '发票',
+  payment_plan: '收款计划',
+  payment_record: '收款记录',
 }
 
 interface AuditStats {
@@ -373,14 +401,14 @@ export default function AuditLogPage() {
 
   const handleExport = () => {
     const qs = buildExportQs()
-    downloadFile(`/api/v1/audit_logs/export${qs}`, `审计日志_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    downloadFile(`/api/v1/audit_logs/export${qs}`, `操作日志_${new Date().toISOString().slice(0, 10)}.xlsx`)
     message.success('正在导出...')
   }
 
   const handleExportCsv = () => {
     const qs = buildExportQs()
     const fmt = qs ? `${qs}&format=csv` : '?format=csv'
-    downloadFile(`/api/v1/audit_logs/export${fmt}`, `审计日志_${new Date().toISOString().slice(0, 10)}.csv`)
+    downloadFile(`/api/v1/audit_logs/export${fmt}`, `操作日志_${new Date().toISOString().slice(0, 10)}.csv`)
     message.success('正在导出CSV...')
   }
 
@@ -437,14 +465,17 @@ export default function AuditLogPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">审计日志</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">操作日志</h1>
           <p className="text-sm text-slate-500 mt-0.5">查看系统操作记录和变更历史</p>
         </div>
-        <button onClick={() => setShowStats(!showStats)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold hover:bg-slate-200 transition-colors border-0 cursor-pointer">
-          <span className="material-symbols-outlined text-base">{showStats ? 'visibility_off' : 'bar_chart'}</span>
-          {showStats ? '隐藏统计' : '显示统计'}
-        </button>
+        <div className="flex gap-2">
+          <Button icon={<ReloadOutlined />} onClick={() => { fetchStats(); fetchData(pageNo) }}>刷新统计</Button>
+          <button onClick={() => setShowStats(!showStats)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold hover:bg-slate-200 transition-colors border-0 cursor-pointer">
+            <span className="material-symbols-outlined text-base">{showStats ? 'visibility_off' : 'bar_chart'}</span>
+            {showStats ? '隐藏统计' : '显示统计'}
+          </button>
+        </div>
       </div>
 
       {/* Statistics Panel */}

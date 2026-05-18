@@ -34,6 +34,7 @@ class LeadCreate(BaseModel):
     district: Optional[str] = Field(None, max_length=50)
     department_id: Optional[str] = Field(None, max_length=36)
     budget_range: Optional[str] = None
+    owner_id: Optional[str] = Field(None, max_length=36)
     remark: Optional[str] = Field(None, max_length=2000)
 
     @field_validator("contact_email")
@@ -70,6 +71,7 @@ class LeadUpdate(BaseModel):
     district: Optional[str] = Field(None, max_length=50)
     department_id: Optional[str] = Field(None, max_length=36)
     budget_range: Optional[str] = None
+    owner_id: Optional[str] = Field(None, max_length=36)
     status: Optional[str] = None
     remark: Optional[str] = Field(None, max_length=2000)
 

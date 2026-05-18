@@ -94,9 +94,9 @@ export default function Login() {
       setAuth(res.data.access_token, res.data.refresh_token)
       message.success('登录成功')
       navigate('/')
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '登录失败'
-      if (!msg.includes('请求失败')) message.error(msg)
+    } catch {
+      // 错误提示由 client.ts 响应拦截器统一弹出（如"用户名或密码错误"），
+      // 此处不再二次弹出，避免叠加 axios 的英文 "Request failed with status code 401"。
     } finally {
       setLoading(false)
     }

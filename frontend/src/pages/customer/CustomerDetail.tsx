@@ -19,6 +19,7 @@ import DetailSkeleton from '@/components/DetailSkeleton'
 import CustomerRelationGraph from '@/components/CustomerRelationGraph'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import { useUserSelect } from '@/hooks/useSelectOptions'
+import { useDataDict } from '@/hooks/useDataDict'
 import InternalNotes from '@/components/InternalNotes'
 import ContactOrgChart from '@/components/ContactOrgChart'
 
@@ -71,6 +72,8 @@ export default function CustomerDetail() {
   })
 
   const userSelect = useUserSelect()
+  const industryDict = useDataDict('industry')
+  const industryMap = Object.fromEntries(industryDict.options.map((o) => [o.value, o.label]))
 
   const fetchCustomer = async () => { const res = await customerApi.get(id!); setCustomer(res.data) }
   const fetchContacts = async () => { const res = await contactApi.list(id!); setContacts(res.data) }
@@ -206,7 +209,7 @@ export default function CustomerDetail() {
               <div className="flex items-center gap-4 text-sm text-slate-500">
                 {customer.industry && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">factory</span> {customer.industry}
+                    <span className="material-symbols-outlined text-sm">factory</span> {industryMap[customer.industry] || customer.industry}
                   </span>
                 )}
                 {customer.region && (
