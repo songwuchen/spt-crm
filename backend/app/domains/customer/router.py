@@ -54,11 +54,22 @@ async def list_customers(
 @router.post("")
 async def create_customer(
     body: CustomerCreate,
+    to_pool: bool = Query(False, description="若为 true，则创建到公海（无负责人，status=pool）"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("customer:create")),
 ):
+    if to_pool:
+        # Strip any owner the form might have included and post-mark as pool.
+        body = body.model_copy(update={"owner_id": None})
     c = await service.create_customer(db, tenant_id, body, current_user)
+    if to_pool:
+        # create_customer always assigns an owner (creator fallback) — flip it to pool state.
+        c.owner_id = None
+        c.owner_name = None
+        c.status = "pool"
+        await db.commit()
+        await db.refresh(c)
     return ok(_customer_dict(c))
 
 
@@ -123,6 +134,31 @@ async def list_pool_customers(
 ):
     items, total = await service.list_pool_customers(db, tenant_id, pageNo, pageSize, keyword, industry, region)
     return ok({"items": [_customer_dict(c) for c in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+
+
+@router.get("/pool/export/excel")
+async def export_pool_customers_excel(
+    keyword: str = Query(None),
+    industry: str = Query(None),
+    region: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    """Export pool customers to Excel."""
+    from app.config import settings
+    items, _ = await service.list_pool_customers(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, industry, region)
+    headers = ["客户编码", "客户名称", "简称", "行业", "规模", "地区", "地址", "来源", "级别", "释放时间"]
+    rows = []
+    for c in items:
+        rows.append([
+            c.customer_code, c.name, c.short_name or "", c.industry or "",
+            c.scale_level or "", c.region or "", c.address or "",
+            c.source or "", c.level or "",
+            c.updated_at.strftime("%Y-%m-%d %H:%M") if c.updated_at else "",
+        ])
+    buf = build_excel("客户公海", headers, rows)
+    return excel_response(buf, "customer_pool.xlsx")
 
 
 @router.post("/{customer_id}/release")
@@ -233,6 +269,7 @@ async def import_preview(
 @router.post("/import/excel")
 async def import_customers_excel(
     file: UploadFile = File(...),
+    to_pool: bool = Query(False, description="若为 true，则导入到公海（无负责人）"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("customer:create")),
@@ -303,11 +340,17 @@ async def import_customers_excel(
                 source=str(row[6]).strip() if len(row) > 6 and row[6] else None,
                 level=str(row[7]).strip() if len(row) > 7 and row[7] else None,
             )
-            await service.create_customer(db, tenant_id, data, current_user)
+            c = await service.create_customer(db, tenant_id, data, current_user)
+            if to_pool:
+                c.owner_id = None
+                c.owner_name = None
+                c.status = "pool"
             created += 1
             existing_names.add(name)  # prevent duplicates within same batch
         except Exception as e:
             errors.append(f"第{idx}行: {str(e)[:80]}")
+    if to_pool:
+        await db.commit()
     return ok({"created": created, "skipped": skipped, "errors": errors})
 
 
@@ -675,14 +718,19 @@ async def batch_transfer(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("customer:edit")),
 ):
-    """Batch transfer customers to a new owner."""
-    from sqlalchemy import update
+    """Batch transfer customers to a new owner. Also lifts pool customers back to active
+    so this endpoint doubles as 'assign from pool to salesperson'."""
+    from sqlalchemy import update, case
     result = await db.execute(
         update(Customer).where(
             Customer.tenant_id == tenant_id,
             Customer.id.in_(body.ids),
             Customer.is_deleted == False,
-        ).values(owner_id=body.owner_id, owner_name=body.owner_name)
+        ).values(
+            owner_id=body.owner_id,
+            owner_name=body.owner_name,
+            status=case((Customer.status == "pool", "active"), else_=Customer.status),
+        )
     )
     await db.commit()
     return ok({"updated": result.rowcount})

@@ -13,6 +13,10 @@ class ProjectCreate(BaseModel):
     competitors_json: Optional[dict] = None
     key_requirements_json: Optional[dict] = None
     risk_level: Optional[str] = None
+    has_guarantee: Optional[bool] = None
+    has_weight_requirement: Optional[bool] = None
+    uses_idle_equipment: Optional[bool] = None
+    payment_method: Optional[str] = Field(None, max_length=64)
     remark: Optional[str] = Field(None, max_length=2000)
 
     @field_validator("risk_level")
@@ -32,6 +36,10 @@ class ProjectUpdate(BaseModel):
     competitors_json: Optional[dict] = None
     key_requirements_json: Optional[dict] = None
     risk_level: Optional[str] = None
+    has_guarantee: Optional[bool] = None
+    has_weight_requirement: Optional[bool] = None
+    uses_idle_equipment: Optional[bool] = None
+    payment_method: Optional[str] = Field(None, max_length=64)
     status: Optional[str] = None
     remark: Optional[str] = Field(None, max_length=2000)
 

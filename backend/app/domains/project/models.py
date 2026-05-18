@@ -21,6 +21,11 @@ class OpportunityProject(TenantScopedBase):
     owner_name: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(16), default="active")  # active/won/lost/suspended
     remark: Mapped[str | None] = mapped_column(Text)
+    # Business-specific flags (issue #18)
+    has_guarantee: Mapped[bool | None] = mapped_column(Boolean)
+    has_weight_requirement: Mapped[bool | None] = mapped_column(Boolean)
+    uses_idle_equipment: Mapped[bool | None] = mapped_column(Boolean)
+    payment_method: Mapped[str | None] = mapped_column(String(64))
     custom_fields_json: Mapped[dict | None] = mapped_column(JSON)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 

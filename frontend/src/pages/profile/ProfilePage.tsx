@@ -137,14 +137,15 @@ export default function ProfilePage() {
         <p className="text-sm text-slate-500 mt-1">管理个人信息和账户安全</p>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
-        {/* Left: Avatar + Info */}
-        <div className="col-span-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left column: identity card + 高频自助 */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* Identity card */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 text-center">
             <Avatar size={80} icon={<UserOutlined />} className="bg-primary/10 text-primary border-4 border-white shadow-lg mb-4" />
             <h2 className="text-xl font-bold text-slate-900">{user?.real_name || user?.username}</h2>
             <p className="text-sm text-slate-500 mt-1">@{user?.username}</p>
-            <div className="flex justify-center gap-2 mt-3">
+            <div className="flex justify-center gap-2 mt-3 flex-wrap">
               {user?.roles?.map((r) => (
                 <span key={r} className="px-2 py-0.5 rounded bg-primary/10 text-primary text-sm font-bold">{r}</span>
               ))}
@@ -161,28 +162,23 @@ export default function ProfilePage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">租户ID</span>
-                <span className="font-mono text-sm text-slate-400">{user?.tenant_id}</span>
+                <span className="font-mono text-sm text-slate-400 truncate ml-2 max-w-[160px]">{user?.tenant_id}</span>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Right: Forms + Sessions */}
-        <div className="col-span-8 space-y-6">
           {/* Profile Edit */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
               <UserOutlined /> 基本信息
             </h3>
             <Form form={profileForm} layout="vertical" initialValues={{ real_name: user?.real_name, phone: user?.phone, email: user?.email }}>
-              <div className="grid grid-cols-2 gap-4">
-                <Form.Item name="real_name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
-                  <Input placeholder="请输入姓名" />
-                </Form.Item>
-                <Form.Item name="phone" label="手机号">
-                  <Input placeholder="请输入手机号" />
-                </Form.Item>
-              </div>
+              <Form.Item name="real_name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
+                <Input placeholder="请输入姓名" />
+              </Form.Item>
+              <Form.Item name="phone" label="手机号">
+                <Input placeholder="请输入手机号" />
+              </Form.Item>
               <Form.Item name="email" label="邮箱">
                 <Input placeholder="请输入邮箱" />
               </Form.Item>
@@ -192,6 +188,106 @@ export default function ProfilePage() {
                 </Button>
               </div>
             </Form>
+          </div>
+
+          {/* Password Change — moved up so it's visible without scrolling */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <LockOutlined /> 修改密码
+            </h3>
+            <Form form={pwdForm} layout="vertical">
+              <Form.Item name="old_password" label="当前密码" rules={[{ required: true, message: '请输入当前密码' }]}>
+                <Input.Password placeholder="请输入当前密码" />
+              </Form.Item>
+              <Form.Item name="new_password" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 8, message: '密码至少8位' }]}>
+                <Input.Password placeholder="请输入新密码" />
+              </Form.Item>
+              <Form.Item name="confirm_password" label="确认新密码" rules={[{ required: true, message: '请确认新密码' }]}>
+                <Input.Password placeholder="再次输入新密码" />
+              </Form.Item>
+              <p className="text-sm text-slate-400 mb-3">密码需包含大小写字母和数字，修改后其他设备将自动下线</p>
+              <div className="flex justify-end">
+                <Button type="primary" danger icon={<LockOutlined />} loading={pwdLoading} onClick={handlePasswordChange}>
+                  修改密码
+                </Button>
+              </div>
+            </Form>
+          </div>
+        </div>
+
+        {/* Right column: 安全 + 通知 */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* 2FA Setup */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <SafetyOutlined /> 二步验证 (2FA)
+              </h3>
+              <span className={`px-2 py-0.5 rounded text-sm font-bold ${totpEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                {totpEnabled ? '已启用' : '未启用'}
+              </span>
+            </div>
+            {!totpEnabled && !totpSetupData && (
+              <div>
+                <p className="text-sm text-slate-500 mb-3">启用二步验证后，登录时需要输入 Google Authenticator 等应用生成的验证码</p>
+                <Button onClick={async () => {
+                  setTotpLoading(true)
+                  try {
+                    const res = await authApi.totpSetup()
+                    setTotpSetupData(res.data)
+                  } finally { setTotpLoading(false) }
+                }} loading={totpLoading}>开始设置</Button>
+              </div>
+            )}
+            {!totpEnabled && totpSetupData && (
+              <div>
+                <p className="text-sm text-slate-500 mb-3">使用 Google Authenticator 扫描二维码，然后输入6位验证码确认</p>
+                <div className="flex items-start gap-6 flex-wrap">
+                  <div className="bg-white p-2 rounded-lg border border-slate-200">
+                    <QRCode value={totpSetupData.uri} size={160} />
+                  </div>
+                  <div className="flex-1 min-w-[220px]">
+                    <p className="text-sm text-slate-400 mb-1">手动输入密钥：</p>
+                    <code className="text-sm bg-slate-50 px-2 py-1 rounded border break-all">{totpSetupData.secret}</code>
+                    <div className="mt-4 flex gap-2 flex-wrap">
+                      <Input value={totpCode} onChange={(e) => setTotpCode(e.target.value)}
+                        placeholder="6位验证码" maxLength={6} style={{ width: 140 }} />
+                      <Button type="primary" loading={totpLoading} onClick={async () => {
+                        if (!totpCode || totpCode.length !== 6) { message.warning('请输入6位验证码'); return }
+                        setTotpLoading(true)
+                        try {
+                          await authApi.totpEnable(totpCode)
+                          message.success('二步验证已启用')
+                          setTotpEnabled(true)
+                          setTotpSetupData(null)
+                          setTotpCode('')
+                        } finally { setTotpLoading(false) }
+                      }}>验证并启用</Button>
+                      <Button onClick={() => { setTotpSetupData(null); setTotpCode('') }}>取消</Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {totpEnabled && (
+              <div>
+                <p className="text-sm text-slate-500 mb-3">二步验证已启用。禁用需要输入密码确认。</p>
+                <div className="flex gap-2 items-end flex-wrap">
+                  <Input.Password value={disablePwd} onChange={(e) => setDisablePwd(e.target.value)}
+                    placeholder="输入密码确认" style={{ width: 200 }} />
+                  <Button danger loading={totpLoading} onClick={async () => {
+                    if (!disablePwd) { message.warning('请输入密码'); return }
+                    setTotpLoading(true)
+                    try {
+                      await authApi.totpDisable(disablePwd)
+                      message.success('二步验证已禁用')
+                      setTotpEnabled(false)
+                      setDisablePwd('')
+                    } finally { setTotpLoading(false) }
+                  }}>禁用二步验证</Button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Active Sessions */}
@@ -241,79 +337,6 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* 2FA Setup */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <SafetyOutlined /> 二步验证 (2FA)
-              </h3>
-              <span className={`px-2 py-0.5 rounded text-sm font-bold ${totpEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                {totpEnabled ? '已启用' : '未启用'}
-              </span>
-            </div>
-            {!totpEnabled && !totpSetupData && (
-              <div>
-                <p className="text-sm text-slate-500 mb-3">启用二步验证后，登录时需要输入 Google Authenticator 等应用生成的验证码</p>
-                <Button onClick={async () => {
-                  setTotpLoading(true)
-                  try {
-                    const res = await authApi.totpSetup()
-                    setTotpSetupData(res.data)
-                  } finally { setTotpLoading(false) }
-                }} loading={totpLoading}>开始设置</Button>
-              </div>
-            )}
-            {!totpEnabled && totpSetupData && (
-              <div>
-                <p className="text-sm text-slate-500 mb-3">使用 Google Authenticator 扫描二维码，然后输入6位验证码确认</p>
-                <div className="flex items-start gap-6">
-                  <div className="bg-white p-2 rounded-lg border border-slate-200">
-                    <QRCode value={totpSetupData.uri} size={160} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-slate-400 mb-1">手动输入密钥：</p>
-                    <code className="text-sm bg-slate-50 px-2 py-1 rounded border break-all">{totpSetupData.secret}</code>
-                    <div className="mt-4 flex gap-2">
-                      <Input value={totpCode} onChange={(e) => setTotpCode(e.target.value)}
-                        placeholder="6位验证码" maxLength={6} style={{ width: 140 }} />
-                      <Button type="primary" loading={totpLoading} onClick={async () => {
-                        if (!totpCode || totpCode.length !== 6) { message.warning('请输入6位验证码'); return }
-                        setTotpLoading(true)
-                        try {
-                          await authApi.totpEnable(totpCode)
-                          message.success('二步验证已启用')
-                          setTotpEnabled(true)
-                          setTotpSetupData(null)
-                          setTotpCode('')
-                        } finally { setTotpLoading(false) }
-                      }}>验证并启用</Button>
-                      <Button onClick={() => { setTotpSetupData(null); setTotpCode('') }}>取消</Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {totpEnabled && (
-              <div>
-                <p className="text-sm text-slate-500 mb-3">二步验证已启用。禁用需要输入密码确认。</p>
-                <div className="flex gap-2 items-end">
-                  <Input.Password value={disablePwd} onChange={(e) => setDisablePwd(e.target.value)}
-                    placeholder="输入密码确认" style={{ width: 200 }} />
-                  <Button danger loading={totpLoading} onClick={async () => {
-                    if (!disablePwd) { message.warning('请输入密码'); return }
-                    setTotpLoading(true)
-                    try {
-                      await authApi.totpDisable(disablePwd)
-                      message.success('二步验证已禁用')
-                      setTotpEnabled(false)
-                      setDisablePwd('')
-                    } finally { setTotpLoading(false) }
-                  }}>禁用二步验证</Button>
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Notification Preferences */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -350,32 +373,6 @@ export default function ProfilePage() {
                 })}
               </div>
             )}
-          </div>
-
-          {/* Password Change */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <LockOutlined /> 修改密码
-            </h3>
-            <Form form={pwdForm} layout="vertical">
-              <Form.Item name="old_password" label="当前密码" rules={[{ required: true, message: '请输入当前密码' }]}>
-                <Input.Password placeholder="请输入当前密码" />
-              </Form.Item>
-              <div className="grid grid-cols-2 gap-4">
-                <Form.Item name="new_password" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 8, message: '密码至少8位' }]}>
-                  <Input.Password placeholder="请输入新密码" />
-                </Form.Item>
-                <Form.Item name="confirm_password" label="确认新密码" rules={[{ required: true, message: '请确认新密码' }]}>
-                  <Input.Password placeholder="再次输入新密码" />
-                </Form.Item>
-              </div>
-              <p className="text-sm text-slate-400 mb-3">密码需包含大小写字母和数字，修改后其他设备将自动下线</p>
-              <div className="flex justify-end">
-                <Button type="primary" danger icon={<LockOutlined />} loading={pwdLoading} onClick={handlePasswordChange}>
-                  修改密码
-                </Button>
-              </div>
-            </Form>
           </div>
         </div>
       </div>

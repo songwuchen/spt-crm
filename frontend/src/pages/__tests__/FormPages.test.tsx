@@ -41,7 +41,12 @@ vi.mock('@/api/settings', () => ({
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
-  return { ...actual, useNavigate: () => vi.fn(), useParams: () => ({}) }
+  return {
+    ...actual,
+    useNavigate: () => vi.fn(),
+    useParams: () => ({}),
+    useSearchParams: () => [new URLSearchParams(), vi.fn()],
+  }
 })
 
 import LeadForm from '../lead/LeadForm'

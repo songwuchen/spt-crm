@@ -6,8 +6,12 @@ export const customerApi = {
     client.get<unknown, ApiResponse<PageData<Customer>>>('/api/v1/customers', { params }),
   get: (id: string) =>
     client.get<unknown, ApiResponse<Customer>>(`/api/v1/customers/${id}`),
-  create: (data: Partial<Customer>) =>
-    client.post<unknown, ApiResponse<Customer>>('/api/v1/customers', data),
+  create: (data: Partial<Customer>, toPool?: boolean) =>
+    client.post<unknown, ApiResponse<Customer>>(
+      '/api/v1/customers',
+      data,
+      toPool ? { params: { to_pool: true } } : undefined,
+    ),
   update: (id: string, data: Partial<Customer>) =>
     client.put<unknown, ApiResponse<Customer>>(`/api/v1/customers/${id}`, data),
   delete: (id: string) =>

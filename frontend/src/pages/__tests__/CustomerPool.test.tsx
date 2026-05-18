@@ -5,6 +5,8 @@ vi.mock('@/api/customer', () => ({
   customerApi: {
     listPool: vi.fn(),
     claim: vi.fn(),
+    delete: vi.fn(),
+    batchTransfer: vi.fn(),
   },
 }))
 
@@ -33,7 +35,7 @@ describe('CustomerPool', () => {
   it('renders page title and description', () => {
     render(<CustomerPool />)
     expect(screen.getByText('客户公海')).toBeInTheDocument()
-    expect(screen.getByText('无人负责的客户，可自由领取跟进')).toBeInTheDocument()
+    expect(screen.getByText(/无人负责的客户/)).toBeInTheDocument()
   })
 
   it('loads and displays pool customers', async () => {

@@ -495,6 +495,10 @@ export default function OpportunityDetail() {
             <InfoField label="成交概率" value={project.probability != null ? `${project.probability}%` : undefined} />
             <InfoField label="预期成交日" value={project.close_date_expect} />
             <InfoField label="风险等级" value={project.risk_level ? riskLabels[project.risk_level] : undefined} />
+            <InfoField label="付款方式" value={(project as any).payment_method || undefined} />
+            <InfoField label="是否有保函" value={(project as any).has_guarantee == null ? undefined : ((project as any).has_guarantee ? '是' : '否')} />
+            <InfoField label="是否有重量要求" value={(project as any).has_weight_requirement == null ? undefined : ((project as any).has_weight_requirement ? '是' : '否')} />
+            <InfoField label="是否使用呆滞设备" value={(project as any).uses_idle_equipment == null ? undefined : ((project as any).uses_idle_equipment ? '是' : '否')} />
             <InfoField label="状态" value={project.status} />
             <InfoField label="备注" value={project.remark} />
           </div>

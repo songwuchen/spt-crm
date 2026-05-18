@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Form, Input, Select, Button, Card, Alert, message } from 'antd'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
@@ -20,10 +20,12 @@ const defaultSources = [
 export default function CustomerForm() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const toPool = searchParams.get('pool') === '1'
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const isEdit = !!id
-  usePageTitle(isEdit ? '编辑客户' : '新建客户')
+  usePageTitle(isEdit ? '编辑客户' : toPool ? '新建公海客户' : '新建客户')
 
   const industryDict = useDataDict('industry', defaultIndustries)
   const industryMap = Object.fromEntries(industryDict.options.map((o) => [o.value, o.label]))
@@ -66,8 +68,8 @@ export default function CustomerForm() {
     } else {
       const restored = restoreDraft()
       if (restored) message.info('已恢复上次未保存的草稿')
-      // Pre-fill current user as owner for new customers
-      if (currentUser) {
+      // Pre-fill current user as owner for normal customers; pool customers stay unassigned.
+      if (currentUser && !toPool) {
         form.setFieldsValue({ owner_id: currentUser.id })
         userSelect.setInitialOption({ label: currentUser.real_name || currentUser.username, value: currentUser.id })
       }
@@ -78,16 +80,16 @@ export default function CustomerForm() {
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true)
     try {
-      const payload = { ...values, owner_id: values.owner_id || null } as any
+      const payload = { ...values, owner_id: toPool ? null : (values.owner_id || null) } as any
       if (isEdit) {
         await customerApi.update(id!, payload)
         message.success('客户已更新')
       } else {
-        await customerApi.create(payload)
-        message.success('客户已创建')
+        await customerApi.create(payload, toPool)
+        message.success(toPool ? '已新建到公海' : '客户已创建')
       }
       clearDraft()
-      navigate('/customers')
+      navigate(toPool ? '/customers/pool' : '/customers')
     } catch {
       message.error('保存失败，请重试')
     } finally {
@@ -158,13 +160,20 @@ export default function CustomerForm() {
           <Form.Item name="level" label="客户级别">
             <Select placeholder="请选择级别" allowClear options={levelDict.options} loading={levelDict.loading} />
           </Form.Item>
-          <Form.Item name="owner_id" label="负责人">
-            <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
-              loading={userSelect.loading}
-              options={userSelect.options}
-              onSearch={userSelect.onSearch}
-              onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
-          </Form.Item>
+          {!toPool && (
+            <Form.Item name="owner_id" label="负责人">
+              <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
+                loading={userSelect.loading}
+                options={userSelect.options}
+                onSearch={userSelect.onSearch}
+                onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
+            </Form.Item>
+          )}
+          {toPool && (
+            <Alert type="info" showIcon className="mb-4"
+              message="新建到公海"
+              description="该客户将进入公海池（无负责人），后续可由销售员领取或由管理员分配。" />
+          )}
           {isEdit && (
             <Form.Item name="status" label="状态">
               <Select options={[

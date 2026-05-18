@@ -181,7 +181,13 @@ run_seed() {
         log "Seeding database (production: permissions, roles, admin user)..."
         dc run --rm backend python seed.py
     fi
-    ok "Seed complete. Both seed scripts are idempotent — safe to re-run."
+
+    # Lead classification data dictionary (issue #17): customer_type + industry options.
+    # Idempotent — safe on every install/upgrade.
+    log "Seeding lead classification dictionary (customer_type + industry)..."
+    dc run --rm backend python -m scripts.seed_lead_dicts
+
+    ok "Seed complete. All seed scripts are idempotent — safe to re-run."
 }
 
 backup_db() {

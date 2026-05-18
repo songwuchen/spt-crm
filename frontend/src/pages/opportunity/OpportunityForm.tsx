@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Form, Input, Select, Button, Card, InputNumber, DatePicker, message } from 'antd'
+import { Form, Input, Select, Button, Card, InputNumber, DatePicker, Switch, Alert, message } from 'antd'
 import { useParams, useNavigate } from 'react-router-dom'
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
@@ -7,6 +7,7 @@ import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useAutoSave } from '@/hooks/useAutoSave'
+import AttachmentPanel from '@/components/AttachmentPanel'
 import dayjs from 'dayjs'
 
 const defaultRiskOptions = [
@@ -15,6 +16,15 @@ const defaultRiskOptions = [
 const defaultStatusOptions = [
   { label: '进行中', value: 'active' }, { label: '赢单', value: 'won' },
   { label: '丢单', value: 'lost' }, { label: '暂停', value: 'suspended' },
+]
+const defaultPaymentMethods = [
+  { label: '电汇 TT', value: 'tt' },
+  { label: '信用证 L/C', value: 'lc' },
+  { label: '银行承兑汇票', value: 'bank_acceptance' },
+  { label: '商业承兑汇票', value: 'commercial_acceptance' },
+  { label: '分期付款', value: 'installment' },
+  { label: '货到付款', value: 'cash_on_delivery' },
+  { label: '其他', value: 'other' },
 ]
 
 export default function OpportunityForm() {
@@ -27,6 +37,7 @@ export default function OpportunityForm() {
 
   const riskDict = useDataDict('risk_level', defaultRiskOptions)
   const statusDict = useDataDict('project_status', defaultStatusOptions)
+  const paymentMethodDict = useDataDict('payment_method', defaultPaymentMethods)
 
   const customerSelect = useCustomerSelect()
 
@@ -110,9 +121,25 @@ export default function OpportunityForm() {
           <Form.Item name="close_date_expect" label="预期成交日期">
             <DatePicker className="w-full" />
           </Form.Item>
-          <Form.Item name="risk_level" label="风险等级">
-            <Select placeholder="请选择风险等级" allowClear options={riskDict.options} loading={riskDict.loading} />
-          </Form.Item>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Form.Item name="risk_level" label="风险等级">
+              <Select placeholder="请选择风险等级" allowClear options={riskDict.options} loading={riskDict.loading} />
+            </Form.Item>
+            <Form.Item name="payment_method" label="付款方式">
+              <Select placeholder="请选择付款方式" allowClear options={paymentMethodDict.options} loading={paymentMethodDict.loading} />
+            </Form.Item>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Form.Item name="has_guarantee" label="是否有保函" valuePropName="checked" tooltip="项目是否需要银行保函">
+              <Switch checkedChildren="是" unCheckedChildren="否" />
+            </Form.Item>
+            <Form.Item name="has_weight_requirement" label="是否有重量要求" valuePropName="checked" tooltip="项目对设备重量是否有特殊要求">
+              <Switch checkedChildren="是" unCheckedChildren="否" />
+            </Form.Item>
+            <Form.Item name="uses_idle_equipment" label="是否使用呆滞设备" valuePropName="checked" tooltip="是否使用库存呆滞设备">
+              <Switch checkedChildren="是" unCheckedChildren="否" />
+            </Form.Item>
+          </div>
           <Form.Item name="owner_id" label="负责人">
             <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
               loading={userSelect.loading}
@@ -134,6 +161,20 @@ export default function OpportunityForm() {
           </Form.Item>
         </Form>
       </Card>
+
+      {isEdit ? (
+        <Card className="mt-4" title="附件">
+          <AttachmentPanel bizType="project" bizId={id!} />
+        </Card>
+      ) : (
+        <Alert
+          className="mt-4"
+          type="info"
+          showIcon
+          message="附件需保存后再上传"
+          description="商机创建成功后，请在编辑页面或商机详情中的「附件」面板上传相关文件（保函扫描件、技术规格书等）。"
+        />
+      )}
     </div>
   )
 }

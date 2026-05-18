@@ -8,6 +8,7 @@ import client from '@/api/client'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import ApprovalPolicyModal from './ApprovalPolicyModal'
+import GateRulesEditor, { type GateRule, validateGateRules } from '@/components/GateRulesEditor'
 
 const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, { ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'img', 'hr'], ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'target'] })
 
@@ -69,7 +70,7 @@ export default function SettingsPage() {
 
   // Stage edit
   const [stageModal, setStageModal] = useState(false)
-  const [stageForm, setStageForm] = useState({ stage_code: '', name: '', gate_rules_json: '' })
+  const [stageForm, setStageForm] = useState<{ stage_code: string; name: string; gate_rules: GateRule[] }>({ stage_code: '', name: '', gate_rules: [] })
 
   // Margin create
   const [marginModal, setMarginModal] = useState(false)
@@ -132,13 +133,12 @@ export default function SettingsPage() {
   useEffect(() => { fetchAll() }, [])
 
   const handleSaveStage = async () => {
-    let gateJson = null
-    if (stageForm.gate_rules_json) {
-      try { gateJson = JSON.parse(stageForm.gate_rules_json) } catch { message.error('Gate规则JSON格式错误'); return }
-    }
+    const err = validateGateRules(stageForm.gate_rules)
+    if (err) { message.error(err); return }
     try {
       await settingsApi.updateStage(stageForm.stage_code, {
-        name: stageForm.name, gate_rules_json: gateJson,
+        name: stageForm.name,
+        gate_rules_json: stageForm.gate_rules.length > 0 ? stageForm.gate_rules : null,
       })
       message.success('阶段已保存')
       setStageModal(false)
@@ -291,7 +291,7 @@ export default function SettingsPage() {
               <div className="pb-6">
                 <div className="flex justify-end mb-3">
                   <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
-                    setStageForm({ stage_code: '', name: '', gate_rules_json: '' }); setStageModal(true)
+                    setStageForm({ stage_code: '', name: '', gate_rules: [] }); setStageModal(true)
                   }}>配置阶段</Button>
                 </div>
                 <Table rowKey="id" dataSource={stages} size="small" pagination={false} columns={[
@@ -301,7 +301,8 @@ export default function SettingsPage() {
                   { title: '启用', dataIndex: 'enabled', width: 80, render: (v: boolean) => v ? <span className="text-emerald-500 font-bold">是</span> : <span className="text-slate-400">否</span> },
                   { title: '', width: 80, render: (_: unknown, r: StageConfig) => (
                     <a className="text-primary text-sm font-bold" onClick={() => {
-                      setStageForm({ stage_code: r.stage_code, name: r.name, gate_rules_json: r.gate_rules_json ? JSON.stringify(r.gate_rules_json, null, 2) : '' })
+                      const rules = Array.isArray(r.gate_rules_json) ? (r.gate_rules_json as unknown as GateRule[]) : []
+                      setStageForm({ stage_code: r.stage_code, name: r.name, gate_rules: rules })
                       setStageModal(true)
                     }}>编辑</a>
                   )},
@@ -850,20 +851,27 @@ export default function SettingsPage() {
       </div>
 
       {/* Stage Modal */}
-      <Modal title="配置阶段Gate" open={stageModal} onOk={handleSaveStage} onCancel={() => setStageModal(false)}>
+      <Modal title="配置阶段 Gate" open={stageModal} onOk={handleSaveStage} onCancel={() => setStageModal(false)} width={720}>
         <div className="space-y-4 py-2">
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">阶段代码</label>
-            <Input value={stageForm.stage_code} onChange={(e) => setStageForm({ ...stageForm, stage_code: e.target.value })} placeholder="S1" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">阶段代码</label>
+              <Input value={stageForm.stage_code} onChange={(e) => setStageForm({ ...stageForm, stage_code: e.target.value })} placeholder="S1" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">阶段名称</label>
+              <Input value={stageForm.name} onChange={(e) => setStageForm({ ...stageForm, name: e.target.value })} placeholder="线索确认" />
+            </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">名称</label>
-            <Input value={stageForm.name} onChange={(e) => setStageForm({ ...stageForm, name: e.target.value })} placeholder="线索确认" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">Gate规则 (JSON)</label>
-            <TextArea rows={6} value={stageForm.gate_rules_json} onChange={(e) => setStageForm({ ...stageForm, gate_rules_json: e.target.value })}
-              placeholder='[{"code":"HAS_CUSTOMER","name":"已关联客户","message":"请先关联客户"}]' />
+            <label className="text-sm font-medium text-slate-700 mb-2 block">
+              Gate 规则
+              <span className="text-[11px] text-slate-400 ml-2 font-normal">推进到该阶段时执行的检查列表，全部通过才允许推进。</span>
+            </label>
+            <GateRulesEditor
+              value={stageForm.gate_rules}
+              onChange={(rules) => setStageForm({ ...stageForm, gate_rules: rules })}
+            />
           </div>
         </div>
       </Modal>
