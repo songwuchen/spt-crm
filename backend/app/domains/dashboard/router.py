@@ -411,6 +411,7 @@ async def top_customers(
             OpportunityProject, OpportunityProject.customer_id == Customer.id
         ).where(
             Customer.tenant_id == tenant_id,
+            OpportunityProject.tenant_id == tenant_id,
             OpportunityProject.status == "active",
         ).group_by(Customer.id, Customer.name)
         .order_by(func.sum(OpportunityProject.amount_expect).desc())
@@ -1950,13 +1951,16 @@ async def list_snapshots(
 async def get_snapshot(
     token: str,
     db: AsyncSession = Depends(get_db),
-    _user=Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     import json
     from app.common.exceptions import BusinessException
 
     snap = (await db.execute(
-        select(DashboardSnapshot).where(DashboardSnapshot.share_token == token)
+        select(DashboardSnapshot).where(
+            DashboardSnapshot.share_token == token,
+            DashboardSnapshot.tenant_id == current_user["tenant_id"],
+        )
     )).scalar_one_or_none()
     if not snap:
         raise BusinessException(code=404, message="快照不存在")
@@ -1984,6 +1988,7 @@ async def delete_snapshot(
     snap = (await db.execute(
         select(DashboardSnapshot).where(
             DashboardSnapshot.id == snapshot_id,
+            DashboardSnapshot.tenant_id == current_user["tenant_id"],
             DashboardSnapshot.created_by == current_user["sub"],
         )
     )).scalar_one_or_none()

@@ -283,7 +283,7 @@ async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data
         try:
             from app.domains.approval.service import auto_trigger_approval
             c = (await db.execute(
-                select(Contract).where(Contract.id == version.contract_id)
+                select(Contract).where(Contract.id == version.contract_id, Contract.tenant_id == tenant_id)
             )).scalar_one_or_none()
             title = f"合同审批: {c.contract_no if c else ''} V{version.version_no}"
             await auto_trigger_approval(db, tenant_id, "contract_version", version_id, title, user)

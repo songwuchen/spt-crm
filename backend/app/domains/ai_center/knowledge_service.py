@@ -145,6 +145,7 @@ async def search_chunks(
         .join(KnowledgeDocument, KnowledgeChunk.document_id == KnowledgeDocument.id)
         .where(
             KnowledgeChunk.tenant_id == tenant_id,
+            KnowledgeDocument.tenant_id == tenant_id,
             KnowledgeDocument.is_deleted == False,
             KnowledgeDocument.status == "active",
         )

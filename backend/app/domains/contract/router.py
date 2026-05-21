@@ -215,7 +215,7 @@ async def create_renewal_from_contract(
 
     # Get project info for customer_id
     project = (await db.execute(
-        select(OpportunityProject).where(OpportunityProject.id == contract.project_id)
+        select(OpportunityProject).where(OpportunityProject.id == contract.project_id, OpportunityProject.tenant_id == tenant_id)
     )).scalar_one_or_none()
 
     customer_id = project.customer_id if project else None

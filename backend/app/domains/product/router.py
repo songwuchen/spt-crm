@@ -108,7 +108,7 @@ async def list_products(
     if codes:
         rows = (await db.execute(
             select(QuoteLine.item_code, func.count(QuoteLine.id).label("cnt"))
-            .where(QuoteLine.item_code.in_(codes))
+            .where(QuoteLine.tenant_id == tenant_id, QuoteLine.item_code.in_(codes))
             .group_by(QuoteLine.item_code)
         )).all()
         usage_map = {r.item_code: r.cnt for r in rows}

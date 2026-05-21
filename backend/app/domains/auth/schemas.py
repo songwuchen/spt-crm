@@ -6,6 +6,7 @@ class LoginRequest(BaseModel):
     username: str
     password: str
     totp_code: Optional[str] = None
+    tenant_code: Optional[str] = None  # optional; disambiguates same username across tenants
 
 
 class TokenResponse(BaseModel):

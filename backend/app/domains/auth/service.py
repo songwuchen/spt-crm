@@ -12,15 +12,26 @@ MAX_LOGIN_FAILURES = 5
 LOCKOUT_WINDOW_MINUTES = 15
 
 
-async def _check_lockout(db: AsyncSession, username: str) -> None:
-    """Check if account is locked due to too many failed login attempts."""
+async def _check_lockout(db: AsyncSession, username: str, client_ip: str = "") -> None:
+    """Check if too many failed login attempts happened recently.
+
+    Scoped by client IP (the failed-login audit row records ``... from <ip>``) so that
+    failures originating from one source cannot lock out a user signing in from elsewhere.
+    This matters because usernames are NOT globally unique across tenants — without IP
+    scoping an attacker could lock out a same-named user in another tenant.
+    """
     try:
         from app.domains.audit.models import AuditLog
         since = datetime.now(timezone.utc) - timedelta(minutes=LOCKOUT_WINDOW_MINUTES)
+        # The failed-login summary is "登录失败: <username> from <ip>".
+        if client_ip:
+            summary_match = AuditLog.summary.ilike(f"%: {username} from {client_ip}%")
+        else:
+            summary_match = AuditLog.summary.ilike(f"%: {username} from %")
         count = (await db.execute(
             select(func.count(AuditLog.id)).where(
                 AuditLog.action == "login_failed",
-                AuditLog.summary.ilike(f"%{username}%"),
+                summary_match,
                 AuditLog.created_at >= since,
             )
         )).scalar() or 0
@@ -35,14 +46,39 @@ async def _check_lockout(db: AsyncSession, username: str) -> None:
         pass  # If audit table unavailable, skip lockout check
 
 
-async def authenticate(db: AsyncSession, username: str, password: str, tenant_code: str | None = None) -> User:
-    await _check_lockout(db, username)
+async def authenticate(
+    db: AsyncSession,
+    username: str,
+    password: str,
+    tenant_code: str | None = None,
+    client_ip: str = "",
+) -> User:
+    """Authenticate a user by username/password.
+
+    Usernames are unique only within a tenant, not globally. When a ``tenant_code`` is
+    supplied the lookup is scoped to that tenant. Otherwise we verify the password against
+    every active user holding that username and require an unambiguous single match — this
+    prevents silently logging into the wrong tenant (and avoids a raw MultipleResultsFound
+    crash) when two tenants happen to share a username.
+    """
+    await _check_lockout(db, username, client_ip)
     query = select(User).where(User.username == username, User.is_active == True)
-    result = await db.execute(query)
-    user = result.scalar_one_or_none()
-    if not user or not bcrypt.checkpw(password.encode(), user.password_hash.encode()):
+    if tenant_code:
+        from app.domains.tenant.models import PlatformTenant
+        tenant = (await db.execute(
+            select(PlatformTenant).where(PlatformTenant.code == tenant_code)
+        )).scalar_one_or_none()
+        if not tenant:
+            raise BusinessException(code=UNAUTHORIZED, message="用户名或密码错误")
+        query = query.where(User.tenant_id == tenant.id)
+
+    candidates = (await db.execute(query)).scalars().all()
+    matched = [u for u in candidates if bcrypt.checkpw(password.encode(), u.password_hash.encode())]
+    if not matched:
         raise BusinessException(code=UNAUTHORIZED, message="用户名或密码错误")
-    return user
+    if len(matched) > 1:
+        raise BusinessException(code=UNAUTHORIZED, message="该账号存在于多个租户，请提供租户标识后重新登录")
+    return matched[0]
 
 
 async def get_user_permissions(db: AsyncSession, user_id: str, tenant_id: str) -> list[str]:

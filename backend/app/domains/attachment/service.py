@@ -45,7 +45,7 @@ async def list_by_biz(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: s
         AttachmentLink.biz_id == biz_id,
     )
     result = await db.execute(
-        select(Attachment).where(Attachment.id.in_(link_q)).order_by(Attachment.created_at.desc())
+        select(Attachment).where(Attachment.id.in_(link_q), Attachment.tenant_id == tenant_id).order_by(Attachment.created_at.desc())
     )
     return list(result.scalars().all())
 
