@@ -251,7 +251,7 @@ async def run_analysis(
         if p.customer_id:
             from app.domains.customer.models import Customer
             cust = (await db.execute(
-                select(Customer.name).where(Customer.id == p.customer_id)
+                select(Customer.name).where(Customer.id == p.customer_id, Customer.tenant_id == tenant_id)
             )).scalar_one_or_none()
             customer_name = cust or ""
         entity_data = {
@@ -285,7 +285,7 @@ async def run_analysis(
         )).scalar_one_or_none()
         if not qv:
             raise BusinessException(code=NOT_FOUND, message="报价版本不存在")
-        q = (await db.execute(select(Quote).where(Quote.id == qv.quote_id))).scalar_one_or_none()
+        q = (await db.execute(select(Quote).where(Quote.id == qv.quote_id, Quote.tenant_id == tenant_id))).scalar_one_or_none()
         line_count = (await db.execute(
             select(func.count(QuoteLine.id)).where(QuoteLine.quote_version_id == qv.id, QuoteLine.tenant_id == tenant_id)
         )).scalar() or 0
@@ -306,7 +306,7 @@ async def run_analysis(
         )).scalar_one_or_none()
         if not cv:
             raise BusinessException(code=NOT_FOUND, message="合同版本不存在")
-        c = (await db.execute(select(Contract).where(Contract.id == cv.contract_id))).scalar_one_or_none()
+        c = (await db.execute(select(Contract).where(Contract.id == cv.contract_id, Contract.tenant_id == tenant_id))).scalar_one_or_none()
         entity_data = {
             "contract_no": c.contract_no if c else "",
             "amount_total": float(c.amount_total) if c and c.amount_total else 0,

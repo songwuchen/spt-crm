@@ -43,6 +43,7 @@ async def list_views(page: str, current_user: dict = Depends(get_current_user), 
     user_id = current_user["sub"]
     items = (await db.execute(
         select(SavedView).where(
+            SavedView.tenant_id == current_user["tenant_id"],
             SavedView.user_id == user_id,
             SavedView.page == page,
         ).order_by(SavedView.is_default.desc(), SavedView.created_at.desc())
@@ -63,6 +64,7 @@ async def create_view(body: SavedViewCreate, current_user: dict = Depends(get_cu
     if body.is_default:
         existing = (await db.execute(
             select(SavedView).where(
+                SavedView.tenant_id == tenant_id,
                 SavedView.user_id == user_id, SavedView.page == body.page,
                 SavedView.is_default == True,
             )
@@ -83,7 +85,7 @@ async def create_view(body: SavedViewCreate, current_user: dict = Depends(get_cu
 async def update_view(view_id: str, body: SavedViewUpdate, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     from app.common.exceptions import BusinessException
     view = (await db.execute(
-        select(SavedView).where(SavedView.id == view_id, SavedView.user_id == current_user["sub"])
+        select(SavedView).where(SavedView.id == view_id, SavedView.tenant_id == current_user["tenant_id"], SavedView.user_id == current_user["sub"])
     )).scalar_one_or_none()
     if not view:
         raise BusinessException(code=404, message="视图不存在")
@@ -101,7 +103,7 @@ async def update_view(view_id: str, body: SavedViewUpdate, current_user: dict = 
 async def delete_view(view_id: str, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     from app.common.exceptions import BusinessException
     view = (await db.execute(
-        select(SavedView).where(SavedView.id == view_id, SavedView.user_id == current_user["sub"])
+        select(SavedView).where(SavedView.id == view_id, SavedView.tenant_id == current_user["tenant_id"], SavedView.user_id == current_user["sub"])
     )).scalar_one_or_none()
     if not view:
         raise BusinessException(code=404, message="视图不存在")

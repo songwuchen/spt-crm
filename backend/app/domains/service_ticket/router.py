@@ -186,7 +186,7 @@ async def list_renewals(
     cust_names: dict[str, str] = {}
     if cust_ids:
         rows = (await db.execute(
-            select(Customer.id, Customer.name).where(Customer.id.in_(cust_ids))
+            select(Customer.id, Customer.name).where(Customer.id.in_(cust_ids), Customer.tenant_id == tenant_id)
         )).all()
         cust_names = {r.id: r.name for r in rows}
     result = []

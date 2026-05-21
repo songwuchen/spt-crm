@@ -58,7 +58,7 @@ async def list_contacts(
     cust_map: dict[str, str] = {}
     if cust_ids:
         rows = (await db.execute(
-            select(Customer.id, Customer.name).where(Customer.id.in_(cust_ids))
+            select(Customer.id, Customer.name).where(Customer.id.in_(cust_ids), Customer.tenant_id == tenant_id)
         )).all()
         cust_map = {r[0]: r[1] for r in rows}
 
@@ -101,7 +101,7 @@ async def export_contacts(
     cust_map: dict[str, str] = {}
     if cust_ids:
         rows = (await db.execute(
-            select(Customer.id, Customer.name).where(Customer.id.in_(cust_ids))
+            select(Customer.id, Customer.name).where(Customer.id.in_(cust_ids), Customer.tenant_id == tenant_id)
         )).all()
         cust_map = {r[0]: r[1] for r in rows}
 

@@ -137,7 +137,10 @@ async def check_upcoming_payments(db: AsyncSession) -> int:
             continue
 
         project = (await db.execute(
-            select(OpportunityProject).where(OpportunityProject.id == plan.project_id)
+            select(OpportunityProject).where(
+                OpportunityProject.id == plan.project_id,
+                OpportunityProject.tenant_id == plan.tenant_id,
+            )
         )).scalar_one_or_none()
 
         if not project or not project.owner_id:
@@ -211,7 +214,10 @@ async def check_expiring_contracts(db: AsyncSession) -> int:
             continue
 
         project = (await db.execute(
-            select(OpportunityProject).where(OpportunityProject.id == ver.project_id)
+            select(OpportunityProject).where(
+                OpportunityProject.id == ver.project_id,
+                OpportunityProject.tenant_id == ver.tenant_id,
+            )
         )).scalar_one_or_none()
 
         if not project or not project.owner_id:

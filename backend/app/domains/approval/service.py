@@ -452,16 +452,16 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
             try:
                 if flow.biz_type == "quote_version":
                     from app.domains.quote.models import QuoteVersion, Quote
-                    ver = (await db.execute(select(QuoteVersion).where(QuoteVersion.id == flow.biz_id))).scalar_one_or_none()
+                    ver = (await db.execute(select(QuoteVersion).where(QuoteVersion.id == flow.biz_id, QuoteVersion.tenant_id == tenant_id))).scalar_one_or_none()
                     if ver:
-                        q = (await db.execute(select(Quote).where(Quote.id == ver.quote_id))).scalar_one_or_none()
+                        q = (await db.execute(select(Quote).where(Quote.id == ver.quote_id, Quote.tenant_id == tenant_id))).scalar_one_or_none()
                         if q:
                             activity_biz_id = q.project_id
                 elif flow.biz_type == "contract_version":
                     from app.domains.contract.models import ContractVersion, Contract
-                    ver = (await db.execute(select(ContractVersion).where(ContractVersion.id == flow.biz_id))).scalar_one_or_none()
+                    ver = (await db.execute(select(ContractVersion).where(ContractVersion.id == flow.biz_id, ContractVersion.tenant_id == tenant_id))).scalar_one_or_none()
                     if ver:
-                        c = (await db.execute(select(Contract).where(Contract.id == ver.contract_id))).scalar_one_or_none()
+                        c = (await db.execute(select(Contract).where(Contract.id == ver.contract_id, Contract.tenant_id == tenant_id))).scalar_one_or_none()
                         if c:
                             activity_biz_id = c.project_id
             except Exception as e:
@@ -469,7 +469,7 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
         elif flow.biz_type == "change_request":
             try:
                 from app.domains.change.models import ChangeRequest
-                cr = (await db.execute(select(ChangeRequest).where(ChangeRequest.id == flow.biz_id))).scalar_one_or_none()
+                cr = (await db.execute(select(ChangeRequest).where(ChangeRequest.id == flow.biz_id, ChangeRequest.tenant_id == tenant_id))).scalar_one_or_none()
                 if cr:
                     activity_biz_id = cr.project_id
             except Exception as e:
@@ -817,7 +817,7 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
                 detail["margin_rate"] = f"{float(ver.margin_rate) * 100:.1f}%" if ver.margin_rate is not None else "-"
                 detail["price_total"] = f"¥{float(ver.price_total):,.2f}" if ver.price_total is not None else "-"
                 detail["version_no"] = ver.version_no
-                q = (await db.execute(select(Quote).where(Quote.id == ver.quote_id))).scalar_one_or_none()
+                q = (await db.execute(select(Quote).where(Quote.id == ver.quote_id, Quote.tenant_id == tenant_id))).scalar_one_or_none()
                 if q:
                     detail["quote_no"] = q.quote_no
         elif biz_type == "contract_version":
@@ -827,7 +827,7 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
             )).scalar_one_or_none()
             if ver:
                 detail["version_no"] = ver.version_no
-                c = (await db.execute(select(Contract).where(Contract.id == ver.contract_id))).scalar_one_or_none()
+                c = (await db.execute(select(Contract).where(Contract.id == ver.contract_id, Contract.tenant_id == tenant_id))).scalar_one_or_none()
                 if c:
                     detail["contract_no"] = c.contract_no
                     detail["amount_total"] = f"¥{float(c.amount_total):,.2f}" if c.amount_total is not None else "-"

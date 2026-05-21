@@ -644,7 +644,7 @@ async def check_similar(
         cust_ids = [m.customer_id for m in phone_matches if m.customer_id not in seen_ids]
         if cust_ids:
             custs = (await db.execute(
-                select(Customer).where(Customer.id.in_(cust_ids), Customer.is_deleted == False)
+                select(Customer).where(Customer.id.in_(cust_ids), Customer.tenant_id == tenant_id, Customer.is_deleted == False)
             )).scalars().all()
             cust_map = {c.id: c for c in custs}
             for m in phone_matches:

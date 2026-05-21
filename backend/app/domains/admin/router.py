@@ -936,7 +936,7 @@ async def restore_data(
             record["tenant_id"] = tenant_id
             # Check if record already exists
             existing = (await db.execute(
-                select(model_cls).where(model_cls.id == record["id"])
+                select(model_cls).where(model_cls.id == record["id"], model_cls.tenant_id == tenant_id)
             )).scalar_one_or_none()
             if existing:
                 skip += 1

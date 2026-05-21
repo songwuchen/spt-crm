@@ -96,7 +96,7 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     chosen_owner_id = payload.pop("owner_id", None)
     if chosen_owner_id:
         from app.domains.auth.models import User as AuthUser
-        owner = (await db.execute(select(AuthUser).where(AuthUser.id == chosen_owner_id))).scalar_one_or_none()
+        owner = (await db.execute(select(AuthUser).where(AuthUser.id == chosen_owner_id, AuthUser.tenant_id == tenant_id))).scalar_one_or_none()
         owner_id = chosen_owner_id
         owner_name = (owner.real_name or owner.username) if owner else None
     else:
@@ -126,7 +126,7 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     # When owner changes, refresh owner_name to match
     if "owner_id" in payload and payload["owner_id"] and payload["owner_id"] != lead.owner_id:
         from app.domains.auth.models import User as AuthUser
-        new_owner = (await db.execute(select(AuthUser).where(AuthUser.id == payload["owner_id"]))).scalar_one_or_none()
+        new_owner = (await db.execute(select(AuthUser).where(AuthUser.id == payload["owner_id"], AuthUser.tenant_id == tenant_id))).scalar_one_or_none()
         if new_owner:
             lead.owner_name = new_owner.real_name or new_owner.username
     for field, val in payload.items():

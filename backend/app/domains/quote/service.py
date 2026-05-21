@@ -16,16 +16,16 @@ logger = logging.getLogger("spt_crm.quote")
 
 
 
-async def _recalc_totals(db: AsyncSession, version_id: str):
+async def _recalc_totals(db: AsyncSession, tenant_id: str, version_id: str):
     """Recalculate version totals from line items."""
     version = (await db.execute(
-        select(QuoteVersion).where(QuoteVersion.id == version_id)
+        select(QuoteVersion).where(QuoteVersion.id == version_id, QuoteVersion.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not version:
         return
 
     lines = (await db.execute(
-        select(QuoteLine).where(QuoteLine.quote_version_id == version_id)
+        select(QuoteLine).where(QuoteLine.quote_version_id == version_id, QuoteLine.tenant_id == tenant_id)
     )).scalars().all()
 
     price_total = sum(float(l.line_total or 0) for l in lines)
@@ -206,7 +206,7 @@ async def new_version(db: AsyncSession, tenant_id: str, quote_id: str, user: dic
     await db.commit()
     await db.refresh(new_ver)
 
-    await _recalc_totals(db, new_ver.id)
+    await _recalc_totals(db, tenant_id, new_ver.id)
     await db.commit()
     await db.refresh(new_ver)
 
@@ -241,7 +241,7 @@ async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(version, field, val)
 
-    await _recalc_totals(db, version_id)
+    await _recalc_totals(db, tenant_id, version_id)
     await db.commit()
     await db.refresh(version)
 
@@ -250,7 +250,7 @@ async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data
     if new_status == "submitted" and old_status != "submitted":
         try:
             from app.domains.approval.service import auto_trigger_approval
-            q = (await db.execute(select(Quote).where(Quote.id == version.quote_id))).scalar_one_or_none()
+            q = (await db.execute(select(Quote).where(Quote.id == version.quote_id, Quote.tenant_id == tenant_id))).scalar_one_or_none()
             title = f"报价审批: {q.quote_no if q else ''} V{version.version_no}"
             await auto_trigger_approval(db, tenant_id, "quote_version", version_id, title, user)
         except Exception as e:
@@ -291,7 +291,7 @@ async def add_line(db: AsyncSession, tenant_id: str, version_id: str, data: Quot
     db.add(line)
     await db.flush()
 
-    await _recalc_totals(db, version_id)
+    await _recalc_totals(db, tenant_id, version_id)
     await db.commit()
     await db.refresh(line)
     return line
@@ -311,7 +311,7 @@ async def update_line(db: AsyncSession, tenant_id: str, line_id: str, data: Quot
     unit_price = float(line.unit_price or 0)
     line.line_total = round(qty * unit_price, 2)
 
-    await _recalc_totals(db, line.quote_version_id)
+    await _recalc_totals(db, tenant_id, line.quote_version_id)
     await db.commit()
     await db.refresh(line)
     return line
@@ -326,7 +326,7 @@ async def delete_line(db: AsyncSession, tenant_id: str, line_id: str, user: dict
 
     version_id = line.quote_version_id
     await db.delete(line)
-    await _recalc_totals(db, version_id)
+    await _recalc_totals(db, tenant_id, version_id)
     await db.commit()
 
 

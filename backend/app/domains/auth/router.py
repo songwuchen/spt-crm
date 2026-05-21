@@ -36,7 +36,7 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
     user_agent = request.headers.get("User-Agent", "")
 
     try:
-        user = await authenticate(db, body.username, body.password)
+        user = await authenticate(db, body.username, body.password, tenant_code=body.tenant_code, client_ip=client_ip)
     except Exception as e:
         try:
             await log_action(
@@ -116,7 +116,7 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     # Check if session is still active
     if old_jti:
         session = (await db.execute(
-            select(LoginSession).where(LoginSession.token_jti == old_jti, LoginSession.is_active == True)
+            select(LoginSession).where(LoginSession.token_jti == old_jti, LoginSession.tenant_id == tenant_id, LoginSession.is_active == True)
         )).scalar_one_or_none()
         if not session:
             from app.common.exceptions import BusinessException
@@ -146,7 +146,7 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
 async def me(current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     from app.domains.auth.models import User
 
-    user = (await db.execute(select(User).where(User.id == current_user["sub"]))).scalar_one_or_none()
+    user = (await db.execute(select(User).where(User.id == current_user["sub"], User.tenant_id == current_user["tenant_id"]))).scalar_one_or_none()
     if not user:
         return ok(None)
 
@@ -168,7 +168,7 @@ async def me(current_user: dict = Depends(get_current_user), db: AsyncSession = 
 async def update_profile(body: UpdateProfileRequest, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     from app.domains.auth.models import User
 
-    user = (await db.execute(select(User).where(User.id == current_user["sub"]))).scalar_one_or_none()
+    user = (await db.execute(select(User).where(User.id == current_user["sub"], User.tenant_id == current_user["tenant_id"]))).scalar_one_or_none()
     if not user:
         from app.common.exceptions import BusinessException
         raise BusinessException(code=404, message="用户不存在")
@@ -189,6 +189,7 @@ async def login_history(current_user: dict = Depends(get_current_user), db: Asyn
     user_id = current_user["sub"]
     items = (await db.execute(
         select(AuditLog).where(
+            AuditLog.tenant_id == current_user["tenant_id"],
             AuditLog.user_id == user_id,
             AuditLog.resource_type == "auth",
             AuditLog.action == "login",
@@ -274,7 +275,7 @@ async def change_password(body: ChangePasswordRequest, current_user: dict = Depe
     from app.domains.auth.models import User, LoginSession
     from app.common.exceptions import BusinessException
 
-    user = (await db.execute(select(User).where(User.id == current_user["sub"]))).scalar_one_or_none()
+    user = (await db.execute(select(User).where(User.id == current_user["sub"], User.tenant_id == current_user["tenant_id"]))).scalar_one_or_none()
     if not user:
         raise BusinessException(code=404, message="用户不存在")
 
@@ -314,7 +315,7 @@ async def totp_setup(current_user: dict = Depends(get_current_user), db: AsyncSe
     import pyotp
     from app.domains.auth.models import User
 
-    user = (await db.execute(select(User).where(User.id == current_user["sub"]))).scalar_one_or_none()
+    user = (await db.execute(select(User).where(User.id == current_user["sub"], User.tenant_id == current_user["tenant_id"]))).scalar_one_or_none()
     if not user:
         raise BusinessException(code=404, message="用户不存在")
 
@@ -336,7 +337,7 @@ async def totp_enable(body: TotpVerifyRequest, current_user: dict = Depends(get_
     import pyotp
     from app.domains.auth.models import User
 
-    user = (await db.execute(select(User).where(User.id == current_user["sub"]))).scalar_one_or_none()
+    user = (await db.execute(select(User).where(User.id == current_user["sub"], User.tenant_id == current_user["tenant_id"]))).scalar_one_or_none()
     if not user or not user.totp_secret:
         raise BusinessException(code=400, message="请先调用 setup 获取密钥")
 
@@ -355,7 +356,7 @@ async def totp_disable(body: ChangePasswordRequest, current_user: dict = Depends
     import bcrypt
     from app.domains.auth.models import User
 
-    user = (await db.execute(select(User).where(User.id == current_user["sub"]))).scalar_one_or_none()
+    user = (await db.execute(select(User).where(User.id == current_user["sub"], User.tenant_id == current_user["tenant_id"]))).scalar_one_or_none()
     if not user:
         raise BusinessException(code=404, message="用户不存在")
 
@@ -372,7 +373,7 @@ async def totp_disable(body: ChangePasswordRequest, current_user: dict = Depends
 async def totp_status(current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Check if 2FA is enabled."""
     from app.domains.auth.models import User
-    user = (await db.execute(select(User).where(User.id == current_user["sub"]))).scalar_one_or_none()
+    user = (await db.execute(select(User).where(User.id == current_user["sub"], User.tenant_id == current_user["tenant_id"]))).scalar_one_or_none()
     return ok({"enabled": bool(user and user.totp_enabled)})
 
 
@@ -389,7 +390,7 @@ async def dingtalk_sso_config(db: AsyncSession = Depends(get_db)):
     ep = (await db.execute(
         sa_select(IntegrationEndpoint).where(
             IntegrationEndpoint.system_code == "dingtalk_oa",
-        )
+        ).order_by(IntegrationEndpoint.created_at).limit(1)
     )).scalar_one_or_none()
 
     if not ep:
@@ -422,7 +423,7 @@ async def dingtalk_sso_callback(
     ep = (await db.execute(
         sa_select(IntegrationEndpoint).where(
             IntegrationEndpoint.system_code == "dingtalk_oa",
-        )
+        ).order_by(IntegrationEndpoint.created_at).limit(1)
     )).scalar_one_or_none()
 
     if not ep:
@@ -447,17 +448,18 @@ async def dingtalk_sso_callback(
     open_id: str = user_info.get("openId", "")
     nick: str = user_info.get("nick", "")
 
-    # Match local user by phone
+    # Match local user by phone — scoped to the tenant that owns this DingTalk integration,
+    # so a phone/openId can only authenticate into that tenant (no cross-tenant SSO bypass).
     user: User | None = None
     if mobile:
         user = (await db.execute(
-            sa_select(User).where(User.phone == mobile)
+            sa_select(User).where(User.phone == mobile, User.tenant_id == ep.tenant_id)
         )).scalar_one_or_none()
 
     # Fallback: match by username = DingTalk openId (set during sync)
     if not user and open_id:
         user = (await db.execute(
-            sa_select(User).where(User.username == open_id)
+            sa_select(User).where(User.username == open_id, User.tenant_id == ep.tenant_id)
         )).scalar_one_or_none()
 
     if not user:
