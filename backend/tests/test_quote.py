@@ -36,7 +36,7 @@ async def test_quote_full_flow(client: AsyncClient, auth_headers: dict):
 
     # Add line item
     line_resp = await client.post(f"/api/v1/quote_versions/{version_id}/lines", json={
-        "product_name": "CRM License", "quantity": 10, "unit_price": 5000,
+        "item_name": "CRM License", "qty": 10, "unit_price": 5000,
     }, headers=h)
     assert line_resp.json()["code"] == 0
 

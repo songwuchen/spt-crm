@@ -47,10 +47,10 @@ async def test_full_business_flow(client: AsyncClient, auth_headers: dict):
 
     # 5. Add line items
     await client.post(f"/api/v1/quote_versions/{ver_id}/lines", json={
-        "product_name": "CRM System", "quantity": 1, "unit_price": 300000,
+        "item_name": "CRM System", "qty": 1, "unit_price": 300000,
     }, headers=h)
     await client.post(f"/api/v1/quote_versions/{ver_id}/lines", json={
-        "product_name": "Implementation", "quantity": 1, "unit_price": 200000,
+        "item_name": "Implementation", "qty": 1, "unit_price": 200000,
     }, headers=h)
 
     # 6. Convert quote to contract
