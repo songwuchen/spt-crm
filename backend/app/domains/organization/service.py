@@ -3,6 +3,7 @@ import csv
 import io
 import bcrypt
 from sqlalchemy import select, func, delete
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
@@ -149,12 +150,40 @@ async def list_users(db: AsyncSession, tenant_id: str, page_no: int = 1, page_si
     return items, total
 
 
+async def _validate_role_dept_ids(
+    db: AsyncSession, tenant_id: str,
+    role_ids: list[str] | None, department_ids: list[str] | None,
+) -> None:
+    """Ensure every role/department id belongs to this tenant before linking it to a user.
+
+    Prevents cross-tenant role injection (a caller attaching another tenant's role, which
+    would leak that role's permissions) and surfaces a clean error instead of a downstream
+    FK IntegrityError when an id does not exist at all.
+    """
+    if role_ids:
+        valid = set((await db.execute(
+            select(Role.id).where(Role.id.in_(role_ids), Role.tenant_id == tenant_id)
+        )).scalars().all())
+        invalid = set(role_ids) - valid
+        if invalid:
+            raise BusinessException(message=f"角色不存在或不属于当前租户: {', '.join(invalid)}")
+    if department_ids:
+        valid = set((await db.execute(
+            select(Department.id).where(Department.id.in_(department_ids), Department.tenant_id == tenant_id)
+        )).scalars().all())
+        invalid = set(department_ids) - valid
+        if invalid:
+            raise BusinessException(message=f"部门不存在或不属于当前租户: {', '.join(invalid)}")
+
+
 async def create_user(db: AsyncSession, tenant_id: str, data: UserCreate) -> User:
     existing = (await db.execute(
         select(User).where(User.username == data.username, User.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if existing:
         raise BusinessException(code=DUPLICATE_ENTRY, message=f"用户名 {data.username} 已存在")
+
+    await _validate_role_dept_ids(db, tenant_id, data.role_ids, data.department_ids)
 
     user = User(
         id=generate_uuid(), tenant_id=tenant_id,
@@ -168,7 +197,13 @@ async def create_user(db: AsyncSession, tenant_id: str, data: UserCreate) -> Use
     for did in data.department_ids:
         db.add(UserDepartment(id=generate_uuid(), tenant_id=tenant_id, user_id=user.id, department_id=did))
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Lost a race against a concurrent create with the same (tenant_id, username);
+        # the uq_user_tenant_username constraint protected the data — return a clean message.
+        await db.rollback()
+        raise BusinessException(code=DUPLICATE_ENTRY, message=f"用户名 {data.username} 已存在")
     await db.refresh(user)
     return user
 
@@ -183,6 +218,8 @@ async def update_user(db: AsyncSession, tenant_id: str, user_id: str, data: User
     update_data = data.model_dump(exclude_unset=True)
     role_ids = update_data.pop("role_ids", None)
     department_ids = update_data.pop("department_ids", None)
+
+    await _validate_role_dept_ids(db, tenant_id, role_ids, department_ids)
 
     for field, val in update_data.items():
         setattr(user, field, val)
