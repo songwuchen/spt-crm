@@ -125,7 +125,8 @@ async def import_leads_excel(
         try:
             data = LeadCreate(
                 title=str(row[0]).strip(),
-                company_name=str(row[1]).strip() if len(row) > 1 and row[1] else None,
+                # company_name is required; fall back to the title when the column is blank
+                company_name=str(row[1]).strip() if len(row) > 1 and row[1] else str(row[0]).strip(),
                 contact_name=str(row[2]).strip() if len(row) > 2 and row[2] else None,
                 contact_phone=str(row[3]).strip() if len(row) > 3 and row[3] else None,
                 contact_email=str(row[4]).strip() if len(row) > 4 and row[4] else None,
@@ -235,7 +236,8 @@ async def public_lead_capture(
     title = body.company_name or body.contact_name or "网页表单线索"
     data = LeadCreate(
         title=title,
-        company_name=body.company_name,
+        # company_name is required; fall back to the derived title for anonymous submissions
+        company_name=body.company_name or title,
         contact_name=body.contact_name,
         contact_phone=body.contact_phone,
         contact_email=body.contact_email,

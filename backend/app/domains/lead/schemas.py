@@ -15,7 +15,7 @@ def _validate_email(v: Optional[str]) -> Optional[str]:
 
 class LeadCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
-    company_name: Optional[str] = Field(None, max_length=200)
+    company_name: str = Field(..., min_length=1, max_length=200)
     contact_name: Optional[str] = Field(None, max_length=100)
     contact_phone: Optional[str] = Field(None, max_length=20)
     contact_email: Optional[str] = Field(None, max_length=200)
@@ -52,7 +52,7 @@ class LeadCreate(BaseModel):
 
 class LeadUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
-    company_name: Optional[str] = Field(None, max_length=200)
+    company_name: Optional[str] = Field(None, min_length=1, max_length=200)
     contact_name: Optional[str] = Field(None, max_length=100)
     contact_phone: Optional[str] = Field(None, max_length=20)
     contact_email: Optional[str] = Field(None, max_length=200)

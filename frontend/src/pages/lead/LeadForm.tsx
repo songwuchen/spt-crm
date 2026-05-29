@@ -86,7 +86,7 @@ export default function LeadForm() {
               <Form.Item name="title" label="线索标题" rules={[{ required: true, message: '请输入线索标题' }]} className="col-span-2">
                 <Input placeholder="请输入线索标题" />
               </Form.Item>
-              <Form.Item name="company_name" label="公司名称">
+              <Form.Item name="company_name" label="公司名称" rules={[{ required: true, message: '请输入公司名称' }]}>
                 <Input placeholder="请输入公司名称" />
               </Form.Item>
               <Form.Item name="customer_type" label="客户类型">

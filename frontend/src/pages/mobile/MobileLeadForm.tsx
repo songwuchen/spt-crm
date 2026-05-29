@@ -20,6 +20,7 @@ export default function MobileLeadForm() {
 
   const handleSubmit = async () => {
     if (!form.title.trim()) { message.warning('请输入线索标题'); return }
+    if (!form.company_name.trim()) { message.warning('请输入公司名称'); return }
     setLoading(true)
     try {
       await leadApi.create(form as any)
@@ -47,7 +48,7 @@ export default function MobileLeadForm() {
             placeholder="输入线索标题" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm" />
         </div>
         <div>
-          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">公司名称</label>
+          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">公司名称 *</label>
           <input value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })}
             placeholder="输入公司名称" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm" />
         </div>
