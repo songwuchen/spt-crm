@@ -58,6 +58,36 @@ class ProjectUpdate(BaseModel):
         return v
 
 
+class ProjectMemberAdd(BaseModel):
+    user_id: str = Field(..., min_length=1)
+    user_name: Optional[str] = None
+    member_role: Optional[str] = Field(None, max_length=32)  # presale/business/delivery/finance/pm
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
+    permission: Optional[str] = "view"
+
+    @field_validator("permission")
+    @classmethod
+    def validate_permission(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ("view", "edit"):
+            raise ValueError("权限必须为 view/edit")
+        return v
+
+
+class ProjectMemberUpdate(BaseModel):
+    member_role: Optional[str] = Field(None, max_length=32)
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
+    permission: Optional[str] = None
+
+    @field_validator("permission")
+    @classmethod
+    def validate_permission(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ("view", "edit"):
+            raise ValueError("权限必须为 view/edit")
+        return v
+
+
 class StageAdvance(BaseModel):
     to_stage: str
     note: Optional[str] = None

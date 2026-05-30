@@ -9,6 +9,10 @@ class ContractCreate(BaseModel):
     end_date: Optional[date] = None
     payment_terms_json: Optional[dict] = None
     delivery_terms_json: Optional[dict] = None
+    assignee_id: Optional[str] = None
+    assignee_name: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
 
 
 class ContractUpdate(BaseModel):
@@ -17,6 +21,10 @@ class ContractUpdate(BaseModel):
     end_date: Optional[date] = None
     payment_terms_json: Optional[dict] = None
     delivery_terms_json: Optional[dict] = None
+    assignee_id: Optional[str] = None
+    assignee_name: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
 
 
 class ContractVersionUpdate(BaseModel):

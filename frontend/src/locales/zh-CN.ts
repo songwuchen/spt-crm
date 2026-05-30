@@ -83,6 +83,8 @@ const zhCN = {
     opportunities: '商机管理',
     kanban: '看板视图',
     products: '产品目录',
+    orders: '订单管理',
+    tenders: '标书管理',
     followUps: '跟进记录',
     payments: '回款管理',
     serviceTickets: '售后工单',

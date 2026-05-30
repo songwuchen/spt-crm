@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, Query, Header as FastAPIHeader, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -53,6 +55,9 @@ async def list_leads(
     province: str = Query(None),
     department_id: str = Query(None),
     industry: str = Query(None),
+    company_name: str = Query(None),
+    start_date: date = Query(None),
+    end_date: date = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("lead:view")),
@@ -63,6 +68,7 @@ async def list_leads(
         db, tenant_id, pageNo, pageSize, keyword, status, effective_owner,
         customer_type=customer_type, category=category, country_type=country_type,
         province=province, department_id=department_id, industry=industry,
+        company_name=company_name, start_date=start_date, end_date=end_date,
     )
     return ok({"items": [_lead_dict(l) for l in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
@@ -72,12 +78,18 @@ async def export_leads_excel(
     keyword: str = Query(None),
     status: str = Query(None),
     owner_id: str = Query(None),
+    company_name: str = Query(None),
+    start_date: date = Query(None),
+    end_date: date = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("lead:view")),
 ):
     from app.config import settings
-    items, _ = await service.list_leads(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, status, owner_id)
+    items, _ = await service.list_leads(
+        db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, status, owner_id,
+        company_name=company_name, start_date=start_date, end_date=end_date,
+    )
     headers = [
         "线索编码", "标题", "公司名称", "联系人", "联系电话", "邮箱",
         "来源", "类别", "客户类型", "行业", "国别", "国家",

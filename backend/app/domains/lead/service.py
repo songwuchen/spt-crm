@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,10 +54,18 @@ async def list_leads(
     customer_type: str | None = None, category: str | None = None,
     country_type: str | None = None, province: str | None = None,
     department_id: str | None = None, industry: str | None = None,
+    company_name: str | None = None,
+    start_date=None, end_date=None,
 ):
     base = select(Lead).where(Lead.tenant_id == tenant_id, Lead.is_deleted == False)
     if keyword:
         base = base.where(Lead.title.ilike(f"%{keyword}%") | Lead.company_name.ilike(f"%{keyword}%") | Lead.lead_code.ilike(f"%{keyword}%"))
+    if company_name:
+        base = base.where(Lead.company_name.ilike(f"%{company_name}%"))
+    if start_date:
+        base = base.where(Lead.created_at >= datetime.combine(start_date, datetime.min.time()))
+    if end_date:
+        base = base.where(Lead.created_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time()))
     if status:
         base = base.where(Lead.status == status)
     if owner_id:

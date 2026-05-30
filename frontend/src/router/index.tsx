@@ -68,6 +68,8 @@ const MobileLeads = lazy(() => import('@/pages/mobile/MobileLeads'))
 const NotificationCenter = lazy(() => import('@/pages/notification/NotificationCenter'))
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
 const ProductList = lazy(() => import('@/pages/product/ProductList'))
+const OrderList = lazy(() => import('@/pages/order/OrderList'))
+const TenderList = lazy(() => import('@/pages/tender/TenderList'))
 const TaskPage = lazy(() => import('@/pages/task/TaskPage'))
 const CalendarPage = lazy(() => import('@/pages/calendar/CalendarPage'))
 const ApiDocsPage = lazy(() => import('@/pages/admin/ApiDocsPage'))
@@ -124,6 +126,8 @@ export const router = createBrowserRouter([
       { path: 'follow-ups', element: <Guard permission="customer:view"><FollowUpPage /></Guard> },
       { path: 'payments', element: <Guard permission="payment:view"><PaymentPage /></Guard> },
       { path: 'products', element: <Guard permission="product:view"><ProductList /></Guard> },
+      { path: 'orders', element: <Guard permission="order:view"><OrderList /></Guard> },
+      { path: 'tenders', element: <Guard permission="tender:view"><TenderList /></Guard> },
       { path: 'tasks', element: <Lazy><TaskPage /></Lazy> },
       { path: 'calendar', element: <Lazy><CalendarPage /></Lazy> },
       { path: 'analytics', element: <Guard permission="project:view"><AnalyticsPage /></Guard> },

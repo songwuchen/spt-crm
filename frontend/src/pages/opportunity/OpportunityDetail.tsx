@@ -20,13 +20,23 @@ import MilestoneGantt from '@/components/MilestoneGantt'
 import PaymentChart from '@/components/PaymentChart'
 import PaymentGantt from '@/components/PaymentGantt'
 import { roleApi } from '@/api/user'
-import type { OpportunityProject, ProjectStageHistory, QuoteItem, ContractItem, SolutionItem, DeliveryMilestone, ErpOrderLink, PaymentPlanItem, PaymentRecordItem, InvoiceItem, ChangeRequestItem, Customer, AclShareItem } from '@/api/types'
+import type { OpportunityProject, ProjectStageHistory, QuoteItem, ContractItem, SolutionItem, DeliveryMilestone, ErpOrderLink, PaymentPlanItem, PaymentRecordItem, InvoiceItem, ChangeRequestItem, Customer, AclShareItem, ProjectMember } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
+import DepartmentSelect from '@/components/DepartmentSelect'
 import InternalNotes from '@/components/InternalNotes'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
+
+const MEMBER_ROLE_OPTIONS = [
+  { value: 'presale', label: '售前' },
+  { value: 'business', label: '商务' },
+  { value: 'delivery', label: '交付' },
+  { value: 'finance', label: '财务' },
+  { value: 'pm', label: '项目经理' },
+]
+const MEMBER_ROLE_LABEL: Record<string, string> = Object.fromEntries(MEMBER_ROLE_OPTIONS.map(o => [o.value, o.label]))
 
 function InfoField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -57,6 +67,15 @@ export default function OpportunityDetail() {
   const [shareRoleList, setShareRoleList] = useState<{ id: string; name: string }[]>([])
 
   const shareUserSelect = useUserSelect()
+
+  // Project members (多部门 / 多人协作)
+  const [members, setMembers] = useState<ProjectMember[]>([])
+  const [memberModal, setMemberModal] = useState(false)
+  const [editingMember, setEditingMember] = useState<ProjectMember | null>(null)
+  const [memberForm] = Form.useForm()
+  const memberUserSelect = useUserSelect()
+  // assignee picker shared across sub-module modals
+  const assigneeUserSelect = useUserSelect()
 
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [advanceModal, setAdvanceModal] = useState(false)
@@ -136,6 +155,44 @@ export default function OpportunityDetail() {
     deliveryApi.listOrderLinks(id).then(guard(setOrderLinks)).catch(() => {})
     projectApi.health(id).then(guard(setHealthScore)).catch(() => {})
     projectApi.listShares(id).then(guard(setShares)).catch(() => {})
+    projectApi.listMembers(id).then(guard(setMembers)).catch(() => {})
+  }
+
+  const openMemberModal = (m: ProjectMember | null) => {
+    setEditingMember(m)
+    memberForm.resetFields()
+    if (m) {
+      memberForm.setFieldsValue({
+        user_id: m.user_id, member_role: m.member_role,
+        department_id: m.department_id, permission: m.permission,
+      })
+      if (m.user_id && m.user_name) memberUserSelect.setInitialOption({ label: m.user_name, value: m.user_id })
+    } else {
+      memberForm.setFieldsValue({ permission: 'edit' })
+    }
+    setMemberModal(true)
+  }
+
+  const handleMemberSave = async () => {
+    const vals = await memberForm.validateFields()
+    const userName = memberUserSelect.options.find((o) => o.value === vals.user_id)?.label
+    try {
+      if (editingMember) {
+        await projectApi.updateMember(id!, editingMember.id, {
+          member_role: vals.member_role, department_id: vals.department_id, permission: vals.permission,
+        })
+        message.success('成员已更新')
+      } else {
+        await projectApi.addMember(id!, { ...vals, user_name: userName })
+        message.success('成员已添加')
+      }
+      setMemberModal(false)
+      setEditingMember(null)
+      projectApi.listMembers(id!).then((r) => setMembers(r.data))
+    } catch (e: any) {
+      if (e?.errorFields) return
+      message.error('保存失败')
+    }
   }
 
   useEffect(() => {
@@ -274,12 +331,15 @@ export default function OpportunityDetail() {
       actual_date: m.actual_date ? dayjs(m.actual_date) : null,
       status: m.status,
       note: m.note,
+      assignee_id: m.assignee_id,
     } : { milestone_code: '', name: '', status: 'not_start' })
+    if (m?.assignee_id && m.assignee_name) assigneeUserSelect.setInitialOption({ label: m.assignee_name, value: m.assignee_id })
     setMilestoneModal(true)
   }
   const handleMilestoneSave = async () => {
     const values = await milestoneForm.validateFields()
-    const data = { ...values, plan_date: values.plan_date?.format('YYYY-MM-DD'), actual_date: values.actual_date?.format('YYYY-MM-DD') }
+    const data = { ...values, plan_date: values.plan_date?.format('YYYY-MM-DD'), actual_date: values.actual_date?.format('YYYY-MM-DD'),
+      assignee_name: assigneeUserSelect.options.find((o) => o.value === values.assignee_id)?.label }
     if (editingMilestone) {
       await deliveryApi.updateMilestone(editingMilestone.id, data)
       message.success('里程碑已更新')
@@ -295,13 +355,15 @@ export default function OpportunityDetail() {
   // Plan handlers
   const openPlanModal = (p?: PaymentPlanItem) => {
     setEditingPlan(p || null)
-    planForm.setFieldsValue(p ? { plan_no: p.plan_no, due_date: p.due_date ? dayjs(p.due_date) : null, amount: p.amount, status: p.status, remark: p.remark }
+    planForm.setFieldsValue(p ? { plan_no: p.plan_no, due_date: p.due_date ? dayjs(p.due_date) : null, amount: p.amount, status: p.status, remark: p.remark, assignee_id: p.assignee_id }
       : { plan_no: `PP-${Date.now().toString(36).toUpperCase()}`, status: 'pending' })
+    if (p?.assignee_id && p.assignee_name) assigneeUserSelect.setInitialOption({ label: p.assignee_name, value: p.assignee_id })
     setPlanModal(true)
   }
   const handlePlanSave = async () => {
     const values = await planForm.validateFields()
-    const data = { ...values, due_date: values.due_date?.format('YYYY-MM-DD') }
+    const data = { ...values, due_date: values.due_date?.format('YYYY-MM-DD'),
+      assignee_name: assigneeUserSelect.options.find((o) => o.value === values.assignee_id)?.label }
     if (editingPlan) {
       await paymentApi.updatePlan(editingPlan.id, data)
       message.success('回款计划已更新')
@@ -381,7 +443,8 @@ export default function OpportunityDetail() {
   // Change create handler
   const handleChangeCreate = async () => {
     const values = await changeCreateForm.validateFields()
-    await changeApi.create(id!, values)
+    const data = { ...values, assignee_name: assigneeUserSelect.options.find((o) => o.value === values.assignee_id)?.label }
+    await changeApi.create(id!, data)
     message.success('变更单已创建')
     setChangeCreateModal(false)
     changeCreateForm.resetFields()
@@ -840,6 +903,7 @@ export default function OpportunityDetail() {
                             const l: Record<string, string> = { not_start: '未开始', doing: '进行中', done: '已完成', delayed: '已延迟', pending: '待开始', in_progress: '进行中', completed: '已完成' }
                             return <Tag color={c[v]}>{l[v] || v}</Tag>
                           }},
+                          { title: '负责人', dataIndex: 'assignee_name', render: (v: string) => v || '-' },
                           { title: '来源', dataIndex: 'source_type' },
                           { title: '', key: 'actions', width: 100, render: (_: unknown, r: DeliveryMilestone) => (
                             <Space size={4}>
@@ -929,6 +993,7 @@ export default function OpportunityDetail() {
                             const l: Record<string, string> = { pending: '待回款', paid: '已回款', overdue: '已逾期' }
                             return <Tag color={c[v]}>{l[v] || v}</Tag>
                           }},
+                          { title: '负责人', dataIndex: 'assignee_name', render: (v: string) => v || '-' },
                           { title: '', key: 'actions', width: 60, render: (_: unknown, r: PaymentPlanItem) => (
                             <a className="text-primary text-sm font-bold" onClick={() => openPlanModal(r)}>编辑</a>
                           )},
@@ -1000,6 +1065,7 @@ export default function OpportunityDetail() {
                           const l: Record<string, string> = { draft: '草稿', reviewing: '评审中', approved: '已通过', rejected: '已驳回', implemented: '已实施' }
                           return <Tag color={c[v]}>{l[v] || v}</Tag>
                         }},
+                        { title: '负责人', dataIndex: 'assignee_name', render: (v: string) => v || '-' },
                         { title: '创建人', dataIndex: 'created_by_name' },
                         { title: '创建时间', dataIndex: 'created_at', render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
                         { title: '', key: 'actions', width: 100, render: (_: unknown, r: ChangeRequestItem) => (
@@ -1042,6 +1108,35 @@ export default function OpportunityDetail() {
                 children: (
                   <div className="py-4">
                     <AttachmentPanel bizType="project" bizId={id!} />
+                  </div>
+                ),
+              },
+              {
+                key: 'members',
+                label: <span className="font-semibold">团队成员 <span className="ml-1 text-sm text-slate-400">{members.length}</span></span>,
+                children: (
+                  <div className="py-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-xs text-slate-500">多部门/多人协作：为不同部门成员分配查看或编辑权限</div>
+                      <Button size="small" icon={<PlusOutlined />} onClick={() => openMemberModal(null)}>添加成员</Button>
+                    </div>
+                    <Table size="small" rowKey="id" dataSource={members} pagination={false} columns={[
+                      { title: '成员', dataIndex: 'user_name', width: 130, render: (v: string) => <span className="font-bold text-sm">{v || '-'}</span> },
+                      { title: '角色', dataIndex: 'member_role', width: 90, render: (v: string) => v ? <Tag>{MEMBER_ROLE_LABEL[v] || v}</Tag> : '-' },
+                      { title: '部门', dataIndex: 'department_name', width: 120, render: (v: string) => v || '-' },
+                      { title: '权限', dataIndex: 'permission', width: 80, render: (v: string) => <Tag color={v === 'edit' ? 'blue' : undefined}>{v === 'edit' ? '编辑' : '查看'}</Tag> },
+                      { title: '添加人', dataIndex: 'added_by_name', width: 100, render: (v: string) => v || '-' },
+                      { title: '', key: 'actions', width: 110, render: (_: unknown, record: ProjectMember) => (
+                        <Space size={0}>
+                          <a className="text-sm text-primary px-1" onClick={() => openMemberModal(record)}>编辑</a>
+                          <a className="text-sm text-rose-500 px-1" onClick={async () => {
+                            await projectApi.removeMember(id!, record.id)
+                            message.success('已移除')
+                            projectApi.listMembers(id!).then((r) => setMembers(r.data))
+                          }}>移除</a>
+                        </Space>
+                      ) },
+                    ]} />
                   </div>
                 ),
               },
@@ -1135,6 +1230,11 @@ export default function OpportunityDetail() {
               <Input placeholder="备注" />
             </Form.Item>
           </div>
+          <Form.Item name="assignee_id" label="负责人">
+            <Select showSearch filterOption={false} allowClear placeholder="搜索用户"
+              options={assigneeUserSelect.options} loading={assigneeUserSelect.loading}
+              onSearch={assigneeUserSelect.onSearch} onDropdownVisibleChange={assigneeUserSelect.onDropdownVisibleChange} />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -1157,6 +1257,11 @@ export default function OpportunityDetail() {
             <Select options={[
               { value: 'pending', label: '待回款' }, { value: 'paid', label: '已回款' }, { value: 'overdue', label: '已逾期' },
             ]} />
+          </Form.Item>
+          <Form.Item name="assignee_id" label="负责人">
+            <Select showSearch filterOption={false} allowClear placeholder="搜索用户"
+              options={assigneeUserSelect.options} loading={assigneeUserSelect.loading}
+              onSearch={assigneeUserSelect.onSearch} onDropdownVisibleChange={assigneeUserSelect.onDropdownVisibleChange} />
           </Form.Item>
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={2} />
@@ -1331,6 +1436,11 @@ export default function OpportunityDetail() {
           <Form.Item name="reason" label="变更原因">
             <Input.TextArea rows={3} placeholder="描述变更原因..." />
           </Form.Item>
+          <Form.Item name="assignee_id" label="负责人">
+            <Select showSearch filterOption={false} allowClear placeholder="搜索用户"
+              options={assigneeUserSelect.options} loading={assigneeUserSelect.loading}
+              onSearch={assigneeUserSelect.onSearch} onDropdownVisibleChange={assigneeUserSelect.onDropdownVisibleChange} />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -1346,6 +1456,32 @@ export default function OpportunityDetail() {
           </Form.Item>
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={2} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Member Modal */}
+      <Modal title={editingMember ? '编辑成员' : '添加团队成员'} open={memberModal}
+        onOk={handleMemberSave} onCancel={() => { setMemberModal(false); setEditingMember(null) }} width={480}>
+        <Form form={memberForm} layout="vertical">
+          <Form.Item name="user_id" label="成员" rules={[{ required: true, message: '请选择成员' }]}>
+            <Select
+              showSearch filterOption={false} placeholder="搜索用户"
+              options={memberUserSelect.options} loading={memberUserSelect.loading}
+              onSearch={memberUserSelect.onSearch} onDropdownVisibleChange={memberUserSelect.onDropdownVisibleChange}
+              disabled={!!editingMember}
+            />
+          </Form.Item>
+          <div className="grid grid-cols-2 gap-4">
+            <Form.Item name="member_role" label="角色">
+              <Select allowClear options={MEMBER_ROLE_OPTIONS} placeholder="选择角色" />
+            </Form.Item>
+            <Form.Item name="permission" label="权限">
+              <Select options={[{ value: 'view', label: '查看' }, { value: 'edit', label: '编辑' }]} />
+            </Form.Item>
+          </div>
+          <Form.Item name="department_id" label="部门">
+            <DepartmentSelect placeholder="选择部门（选填）" />
           </Form.Item>
         </Form>
       </Modal>

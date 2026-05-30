@@ -28,6 +28,8 @@ def _ms_dict(m) -> dict:
         "actual_date": str(m.actual_date) if m.actual_date else None,
         "status": m.status, "source_type": m.source_type,
         "sort_order": m.sort_order, "note": m.note,
+        "assignee_id": m.assignee_id, "assignee_name": m.assignee_name,
+        "department_id": m.department_id, "department_name": m.department_name,
         "created_at": m.created_at.isoformat() if m.created_at else "",
     }
 

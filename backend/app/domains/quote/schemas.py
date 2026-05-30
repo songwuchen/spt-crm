@@ -6,10 +6,18 @@ class QuoteCreate(BaseModel):
     title: Optional[str] = Field(None, max_length=200)
     validity_days: Optional[int] = Field(30, ge=1, le=365)
     terms_summary_json: Optional[dict] = None
+    assignee_id: Optional[str] = None
+    assignee_name: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
 
 
 class QuoteUpdate(BaseModel):
     status: Optional[str] = None
+    assignee_id: Optional[str] = None
+    assignee_name: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
 
 
 class QuoteVersionUpdate(BaseModel):

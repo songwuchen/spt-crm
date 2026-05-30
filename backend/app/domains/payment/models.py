@@ -28,6 +28,11 @@ class PaymentPlan(TenantScopedBase):
     trigger_milestone_code: Mapped[str | None] = mapped_column(String(32))
     status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/paid/overdue
     remark: Mapped[str | None] = mapped_column(Text)
+    # 子模块负责人（多部门/多人协作）
+    assignee_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    assignee_name: Mapped[str | None] = mapped_column(String(100))
+    department_id: Mapped[str | None] = mapped_column(String(36))
+    department_name: Mapped[str | None] = mapped_column(String(100))
 
 
 class PaymentRecord(TenantScopedBase):

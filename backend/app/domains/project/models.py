@@ -39,3 +39,19 @@ class ProjectStageHistory(TenantScopedBase):
     changed_by_id: Mapped[str | None] = mapped_column(String(36))
     changed_by_name: Mapped[str | None] = mapped_column(String(100))
     note: Mapped[str | None] = mapped_column(Text)
+
+
+class ProjectMember(TenantScopedBase):
+    """商机团队成员：支持多部门、多人协作。一个商机可有多名成员，
+    各自带角色(售前/商务/交付/财务/项目经理)、所属部门与读写权限。"""
+    __tablename__ = "project_members"
+
+    project_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    user_name: Mapped[str | None] = mapped_column(String(100))
+    member_role: Mapped[str | None] = mapped_column(String(32))  # presale/business/delivery/finance/pm
+    department_id: Mapped[str | None] = mapped_column(String(36))
+    department_name: Mapped[str | None] = mapped_column(String(100))
+    permission: Mapped[str] = mapped_column(String(16), default="view")  # view/edit
+    added_by_id: Mapped[str | None] = mapped_column(String(36))
+    added_by_name: Mapped[str | None] = mapped_column(String(100))

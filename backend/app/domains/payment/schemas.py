@@ -25,6 +25,10 @@ class PaymentPlanCreate(BaseModel):
     amount: Optional[float] = Field(None, ge=0)
     trigger_milestone_code: Optional[str] = Field(None, max_length=32)
     remark: Optional[str] = Field(None, max_length=1000)
+    assignee_id: Optional[str] = None
+    assignee_name: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
 
 
 class PaymentPlanUpdate(BaseModel):
@@ -33,6 +37,10 @@ class PaymentPlanUpdate(BaseModel):
     trigger_milestone_code: Optional[str] = Field(None, max_length=32)
     status: Optional[str] = None
     remark: Optional[str] = Field(None, max_length=1000)
+    assignee_id: Optional[str] = None
+    assignee_name: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
 
 
 class PaymentRecordCreate(BaseModel):

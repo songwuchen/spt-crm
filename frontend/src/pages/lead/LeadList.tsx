@@ -16,7 +16,10 @@ import { usePageSize } from '@/hooks/usePageSize'
 import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
 import DepartmentSelect from '@/components/DepartmentSelect'
+import dayjs from 'dayjs'
 import { t } from '@/locales'
+
+const { RangePicker } = DatePicker
 
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
 const countryLabels: Record<string, string> = { domestic: '国内', overseas: '国外' }
@@ -60,6 +63,9 @@ export default function LeadList() {
   const countryType = searchParams.get('country_type') || undefined
   const departmentId = searchParams.get('department_id') || undefined
   const industry = searchParams.get('industry') || undefined
+  const companyName = searchParams.get('company_name') || ''
+  const startDate = searchParams.get('start_date') || undefined
+  const endDate = searchParams.get('end_date') || undefined
   const [pageSize, setPageSize] = usePageSize('leads')
   const customerTypeDict = useDataDict('customer_type')
   const industryDict = useDataDict('industry')
@@ -83,6 +89,12 @@ export default function LeadList() {
   const setCountryType = (v: string | undefined) => updateParams({ country_type: v, page: undefined })
   const setDepartmentId = (v: string | undefined) => updateParams({ department_id: v, page: undefined })
   const setIndustry = (v: string | undefined) => updateParams({ industry: v, page: undefined })
+  const setCompanyName = (v: string) => updateParams({ company_name: v || undefined })
+  const setDateRange = (dr: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null) => updateParams({
+    start_date: dr?.[0] ? dr[0].format('YYYY-MM-DD') : undefined,
+    end_date: dr?.[1] ? dr[1].format('YYYY-MM-DD') : undefined,
+    page: undefined,
+  })
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [assignModal, setAssignModal] = useState(false)
   const [assignForm] = Form.useForm()
@@ -148,6 +160,9 @@ export default function LeadList() {
         country_type: countryType,
         department_id: departmentId,
         industry,
+        company_name: companyName || undefined,
+        start_date: startDate,
+        end_date: endDate,
       })
       setData(res.data.items)
       setTotal(res.data.total)
@@ -290,7 +305,16 @@ export default function LeadList() {
           }}>
             <Button icon={<UploadOutlined />}>{t('common.import')}</Button>
           </Upload>
-          <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/leads/export/excel', 'leads.xlsx')}>{t('common.export')}</Button>
+          <Button icon={<DownloadOutlined />} onClick={() => {
+            const qs = new URLSearchParams()
+            if (keyword) qs.set('keyword', keyword)
+            if (status) qs.set('status', status)
+            if (companyName) qs.set('company_name', companyName)
+            if (startDate) qs.set('start_date', startDate)
+            if (endDate) qs.set('end_date', endDate)
+            const q = qs.toString()
+            downloadFile(`/api/v1/leads/export/excel${q ? `?${q}` : ''}`, 'leads.xlsx')
+          }}>{t('common.export')}</Button>
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -326,6 +350,20 @@ export default function LeadList() {
             allowClear
             style={{ width: 220, background: '#f1f5f9', borderColor: 'transparent' }}
             className="rounded-lg"
+          />
+          <Input
+            placeholder="公司名称"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            onPressEnter={doSearch}
+            allowClear
+            style={{ width: 180 }}
+          />
+          <RangePicker
+            value={startDate && endDate ? [dayjs(startDate), dayjs(endDate)] : undefined}
+            onChange={(dr) => setDateRange(dr as [dayjs.Dayjs | null, dayjs.Dayjs | null] | null)}
+            placeholder={['创建起始', '创建结束']}
+            style={{ width: 240 }}
           />
           <Select
             placeholder={t('lead.status')}
@@ -388,7 +426,7 @@ export default function LeadList() {
           <ColumnConfigDropdown allColumnKeys={allColumnKeys} hiddenKeys={hiddenKeys} onChange={setColumnConfig} />
           <SavedViewSelect
             page="leads"
-            currentFilters={{ keyword, status, source, customer_type: customerType, category, country_type: countryType, department_id: departmentId, industry }}
+            currentFilters={{ keyword, status, source, customer_type: customerType, category, country_type: countryType, department_id: departmentId, industry, company_name: companyName, start_date: startDate, end_date: endDate }}
             onApply={(f) => {
               updateParams({
                 keyword: f.keyword || undefined,
@@ -399,6 +437,9 @@ export default function LeadList() {
                 country_type: f.country_type || undefined,
                 department_id: f.department_id || undefined,
                 industry: f.industry || undefined,
+                company_name: f.company_name || undefined,
+                start_date: f.start_date || undefined,
+                end_date: f.end_date || undefined,
                 page: undefined,
               })
             }}

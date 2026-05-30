@@ -15,6 +15,8 @@ def _solution_dict(s) -> dict:
         "id": s.id, "project_id": s.project_id, "solution_no": s.solution_no,
         "current_version_no": s.current_version_no, "status": s.status,
         "created_by_id": s.created_by_id, "created_by_name": s.created_by_name,
+        "assignee_id": s.assignee_id, "assignee_name": s.assignee_name,
+        "department_id": s.department_id, "department_name": s.department_name,
         "created_at": s.created_at.isoformat() if s.created_at else "",
         "updated_at": s.updated_at.isoformat() if s.updated_at else "",
     }

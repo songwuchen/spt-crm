@@ -20,6 +20,8 @@ def _cr_dict(c) -> dict:
         "reason": c.reason, "impact_json": c.impact_json,
         "status": c.status,
         "created_by_id": c.created_by_id, "created_by_name": c.created_by_name,
+        "assignee_id": c.assignee_id, "assignee_name": c.assignee_name,
+        "department_id": c.department_id, "department_name": c.department_name,
         "created_at": c.created_at.isoformat() if c.created_at else "",
         "updated_at": c.updated_at.isoformat() if c.updated_at else "",
     }
