@@ -13,6 +13,11 @@ class Solution(TenantScopedBase):
     status: Mapped[str] = mapped_column(String(16), default="draft")  # draft/reviewing/approved/obsolete
     created_by_id: Mapped[str | None] = mapped_column(String(36))
     created_by_name: Mapped[str | None] = mapped_column(String(100))
+    # 子模块负责人（多部门/多人协作）
+    assignee_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    assignee_name: Mapped[str | None] = mapped_column(String(100))
+    department_id: Mapped[str | None] = mapped_column(String(36))
+    department_name: Mapped[str | None] = mapped_column(String(100))
 
 
 class SolutionVersion(TenantScopedBase):

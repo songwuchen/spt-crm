@@ -35,6 +35,8 @@ def _plan_dict(p) -> dict:
         "amount": float(p.amount) if p.amount is not None else None,
         "trigger_milestone_code": p.trigger_milestone_code,
         "status": p.status, "remark": p.remark,
+        "assignee_id": p.assignee_id, "assignee_name": p.assignee_name,
+        "department_id": p.department_id, "department_name": p.department_name,
         "created_at": p.created_at.isoformat() if p.created_at else "",
     }
 

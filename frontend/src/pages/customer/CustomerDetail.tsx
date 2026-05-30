@@ -10,10 +10,11 @@ import { roleApi } from '@/api/user'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import ChangeHistory from '@/components/ChangeHistory'
-import type { Customer, Contact, OpportunityProject } from '@/api/types'
+import type { Customer, Contact, OpportunityProject, CustomerReport } from '@/api/types'
 import { sourceLabels, stageLabels, stageColors } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import client from '@/api/client'
+import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import CustomerRelationGraph from '@/components/CustomerRelationGraph'
@@ -36,6 +37,19 @@ function InfoField({ label, value }: { label: string; value: React.ReactNode }) 
     <div className="py-3 border-b border-slate-50 last:border-0">
       <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</div>
       <div className="text-sm font-semibold text-slate-700">{value || <span className="text-slate-300">-</span>}</div>
+    </div>
+  )
+}
+
+function ReportSection({ title, dataSource, columns }: { title: string; dataSource: any[]; columns: ColumnsType<any> }) {
+  return (
+    <div>
+      <div className="text-sm font-bold text-slate-800 mb-2">{title}</div>
+      {dataSource.length === 0 ? (
+        <div className="text-slate-300 text-xs py-2">暂无数据</div>
+      ) : (
+        <Table rowKey="id" size="small" pagination={false} dataSource={dataSource} columns={columns} />
+      )}
     </div>
   )
 }
@@ -65,6 +79,7 @@ export default function CustomerDetail() {
   const [mergeModal, setMergeModal] = useState(false)
   const [mergeTargetId, setMergeTargetId] = useState<string | undefined>()
   const [health, setHealth] = useState<{ score: number; grade: string; breakdown: Record<string, { score: number; max: number; detail: string }> } | null>(null)
+  const [report, setReport] = useState<CustomerReport | null>(null)
 
   const customerSelect = useRemoteSelect(async (kw) => {
     const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
@@ -96,6 +111,7 @@ export default function CustomerDetail() {
     const load = async () => {
       fetchCustomer(); fetchContacts(); fetchRelations(); fetchShares(); fetchStats(); fetchProjects(); fetchTickets()
       customerApi.health(id).then(r => { if (!cancelled) setHealth(r.data) }).catch(() => {})
+      customerApi.report(id).then((r) => { if (!cancelled) setReport(r.data) }).catch(() => {})
       customerApi.list({ pageNo: 1, pageSize: 100 }).then((r) => { if (!cancelled) setAllCustomers(r.data.items) }).catch(() => {})
     }
     load()
@@ -591,6 +607,73 @@ export default function CustomerDetail() {
                   children: (
                     <div className="py-4">
                       <ChangeHistory resourceType="customer" resourceId={id!} />
+                    </div>
+                  ),
+                },
+                {
+                  key: 'report',
+                  label: <span className="font-semibold">客户报告</span>,
+                  children: (
+                    <div className="pb-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="text-sm text-slate-500">该客户关联的商机 / 报价 / 合同 / 订单 / 标书 / 回款 / 工单 / 交付</div>
+                        <Button
+                          icon={<span className="material-symbols-outlined text-sm mr-1">download</span>}
+                          onClick={() => downloadFile(`/api/v1/customers/${id}/report/export`, `客户报告_${customer.name}.xlsx`)}
+                        >
+                          导出Excel
+                        </Button>
+                      </div>
+                      {!report ? (
+                        <div className="text-center py-8 text-slate-400 text-sm">加载中…</div>
+                      ) : (
+                        <div className="space-y-6">
+                          <ReportSection title={`商机 (${report.projects.length})`} dataSource={report.projects} columns={[
+                            { title: '项目编码', dataIndex: 'project_code', width: 150 },
+                            { title: '名称', dataIndex: 'name' },
+                            { title: '阶段', dataIndex: 'stage_code', width: 80, render: (v: string) => `${v || ''} ${stageLabels[v] || ''}` },
+                            { title: '预期金额', dataIndex: 'amount_expect', width: 120, align: 'right' as const, render: (v: number) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
+                            { title: '状态', dataIndex: 'status', width: 80 },
+                          ]} />
+                          <ReportSection title={`报价 (${report.quotes.length})`} dataSource={report.quotes} columns={[
+                            { title: '报价单号', dataIndex: 'quote_no', width: 170 },
+                            { title: '版本', dataIndex: 'current_version_no', width: 70 },
+                            { title: '金额', dataIndex: 'amount', width: 120, align: 'right' as const, render: (v: number) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
+                            { title: '状态', dataIndex: 'status', width: 80 },
+                          ]} />
+                          <ReportSection title={`合同 (${report.contracts.length})`} dataSource={report.contracts} columns={[
+                            { title: '合同编号', dataIndex: 'contract_no', width: 170 },
+                            { title: '状态', dataIndex: 'status', width: 80 },
+                            { title: '签约日期', dataIndex: 'signed_date', width: 110 },
+                            { title: '金额', dataIndex: 'amount_total', width: 120, align: 'right' as const, render: (v: number) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
+                          ]} />
+                          <ReportSection title={`订单 (${report.orders.length})`} dataSource={report.orders} columns={[
+                            { title: '订单号', dataIndex: 'order_no', width: 160 },
+                            { title: '标题', dataIndex: 'title' },
+                            { title: '金额', dataIndex: 'amount', width: 120, align: 'right' as const, render: (v: number, r: any) => v != null ? `${r.currency || ''} ${Number(v).toLocaleString()}` : '-' },
+                            { title: '状态', dataIndex: 'status', width: 90 },
+                            { title: '交付日期', dataIndex: 'delivery_date', width: 110 },
+                          ]} />
+                          <ReportSection title={`标书 (${report.tenders.length})`} dataSource={report.tenders} columns={[
+                            { title: '标书号', dataIndex: 'tender_no', width: 160 },
+                            { title: '标题', dataIndex: 'title' },
+                            { title: '投标金额', dataIndex: 'bid_amount', width: 120, align: 'right' as const, render: (v: number) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
+                            { title: '状态', dataIndex: 'status', width: 90 },
+                          ]} />
+                          <ReportSection title={`回款记录 (${report.payment_records.length})`} dataSource={report.payment_records} columns={[
+                            { title: '收款日期', dataIndex: 'received_date', width: 120 },
+                            { title: '金额', dataIndex: 'amount', width: 120, align: 'right' as const, render: (v: number) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
+                            { title: '渠道', dataIndex: 'channel', width: 120 },
+                            { title: '参考号', dataIndex: 'reference_no' },
+                          ]} />
+                          <ReportSection title={`工单 (${report.tickets.length})`} dataSource={report.tickets} columns={[
+                            { title: '工单号', dataIndex: 'ticket_no', width: 150 },
+                            { title: '类型', dataIndex: 'type', width: 100 },
+                            { title: '状态', dataIndex: 'status', width: 100 },
+                            { title: '优先级', dataIndex: 'priority', width: 90 },
+                          ]} />
+                        </div>
+                      )}
                     </div>
                   ),
                 },

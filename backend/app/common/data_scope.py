@@ -48,7 +48,7 @@ async def apply_data_scope(
 
     # 3. Shared via ACL
     try:
-        from app.domains.outbox.models import AclShare
+        from app.domains.customer.models import AclShare
         shared_biz_ids_q = select(AclShare.biz_id).where(
             AclShare.tenant_id == tenant_id,
             AclShare.biz_type == biz_type,
@@ -58,6 +58,18 @@ async def apply_data_scope(
             ),
         )
         conditions.append(model.id.in_(shared_biz_ids_q))
+    except (ImportError, Exception):
+        pass
+
+    # 3b. Project membership: a user can see opportunities they're a member of
+    try:
+        if getattr(model, "__tablename__", "") == "opportunity_projects":
+            from app.domains.project.models import ProjectMember
+            member_pids_q = select(ProjectMember.project_id).where(
+                ProjectMember.tenant_id == tenant_id,
+                ProjectMember.user_id == user_id,
+            )
+            conditions.append(model.id.in_(member_pids_q))
     except (ImportError, Exception):
         pass
 

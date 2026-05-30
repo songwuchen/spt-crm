@@ -1,5 +1,5 @@
 import client from './client'
-import type { ApiResponse, PageData, Customer } from './types'
+import type { ApiResponse, PageData, Customer, CustomerReport } from './types'
 
 export const customerApi = {
   list: (params: Record<string, unknown>) =>
@@ -30,6 +30,10 @@ export const customerApi = {
   // Stats
   stats: (id: string) =>
     client.get<unknown, ApiResponse<Record<string, number>>>(`/api/v1/customers/${id}/stats`),
+
+  // Related-entities report (商机/报价/合同/订单/标书/回款/工单/交付)
+  report: (id: string) =>
+    client.get<unknown, ApiResponse<CustomerReport>>(`/api/v1/customers/${id}/report`),
 
   // Relations
   listRelations: (id: string) =>

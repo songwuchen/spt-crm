@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
 from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR
-from app.domains.project.models import OpportunityProject, ProjectStageHistory
-from app.domains.project.schemas import ProjectCreate, ProjectUpdate
+from app.domains.project.models import OpportunityProject, ProjectStageHistory, ProjectMember
+from app.domains.project.schemas import ProjectCreate, ProjectUpdate, ProjectMemberAdd, ProjectMemberUpdate
 from app.domains.audit.service import log_action
 from app.common.code_generator import generate_code
 
@@ -714,3 +714,98 @@ async def list_stage_history(db: AsyncSession, tenant_id: str, project_id: str):
         ).order_by(ProjectStageHistory.created_at.desc())
     )
     return result.scalars().all()
+
+
+# ==================== Project Members (多部门/多人协作) ====================
+
+async def list_members(db: AsyncSession, tenant_id: str, project_id: str):
+    result = await db.execute(
+        select(ProjectMember).where(
+            ProjectMember.tenant_id == tenant_id,
+            ProjectMember.project_id == project_id,
+        ).order_by(ProjectMember.created_at)
+    )
+    return result.scalars().all()
+
+
+async def add_member(db: AsyncSession, tenant_id: str, project_id: str, data: ProjectMemberAdd, user: dict) -> ProjectMember:
+    # 404 if project missing
+    await get_project(db, tenant_id, project_id)
+
+    # De-dupe / upsert: one row per (project, user)
+    existing = (await db.execute(
+        select(ProjectMember).where(
+            ProjectMember.tenant_id == tenant_id,
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == data.user_id,
+        )
+    )).scalar_one_or_none()
+
+    if existing:
+        for field in ("user_name", "member_role", "department_id", "department_name", "permission"):
+            val = getattr(data, field, None)
+            if val is not None:
+                setattr(existing, field, val)
+        await db.commit()
+        await db.refresh(existing)
+        member = existing
+        action = "update_member"
+    else:
+        member = ProjectMember(
+            id=generate_uuid(), tenant_id=tenant_id,
+            project_id=project_id,
+            user_id=data.user_id, user_name=data.user_name,
+            member_role=data.member_role,
+            department_id=data.department_id, department_name=data.department_name,
+            permission=data.permission or "view",
+            added_by_id=user["sub"], added_by_name=user.get("real_name") or user.get("username"),
+        )
+        db.add(member)
+        await db.commit()
+        await db.refresh(member)
+        action = "add_member"
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action=action, resource_type="project", resource_id=project_id,
+                     summary=f"商机成员: {member.user_name or member.user_id}")
+    return member
+
+
+async def update_member(db: AsyncSession, tenant_id: str, project_id: str, member_id: str, data: ProjectMemberUpdate, user: dict) -> ProjectMember:
+    member = (await db.execute(
+        select(ProjectMember).where(
+            ProjectMember.id == member_id,
+            ProjectMember.tenant_id == tenant_id,
+            ProjectMember.project_id == project_id,
+        )
+    )).scalar_one_or_none()
+    if not member:
+        raise BusinessException(code=NOT_FOUND, message="成员不存在")
+    for field, val in data.model_dump(exclude_unset=True).items():
+        setattr(member, field, val)
+    await db.commit()
+    await db.refresh(member)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="update_member", resource_type="project", resource_id=project_id,
+                     summary=f"更新商机成员: {member.user_name or member.user_id}")
+    return member
+
+
+async def remove_member(db: AsyncSession, tenant_id: str, project_id: str, member_id: str, user: dict):
+    member = (await db.execute(
+        select(ProjectMember).where(
+            ProjectMember.id == member_id,
+            ProjectMember.tenant_id == tenant_id,
+            ProjectMember.project_id == project_id,
+        )
+    )).scalar_one_or_none()
+    if not member:
+        raise BusinessException(code=NOT_FOUND, message="成员不存在")
+    member_name = member.user_name or member.user_id
+    await db.delete(member)
+    await db.commit()
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="remove_member", resource_type="project", resource_id=project_id,
+                     summary=f"移除商机成员: {member_name}")

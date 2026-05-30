@@ -44,6 +44,8 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, dat
         payment_terms_json=data.payment_terms_json,
         delivery_terms_json=data.delivery_terms_json,
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
+        assignee_id=data.assignee_id, assignee_name=data.assignee_name,
+        department_id=data.department_id, department_name=data.department_name,
     )
     db.add(contract)
 

@@ -67,6 +67,8 @@ const enUS = {
     opportunities: 'Opportunities',
     kanban: 'Kanban',
     products: 'Products',
+    orders: 'Orders',
+    tenders: 'Tenders',
     followUps: 'Follow-ups',
     payments: 'Payments',
     serviceTickets: 'Service Tickets',

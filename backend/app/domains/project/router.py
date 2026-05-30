@@ -8,7 +8,10 @@ from app.dependencies import get_db, get_tenant_id, require_permissions, get_dat
 from app.common.schemas import ok
 from app.common.export import build_excel, excel_response
 from app.domains.project import service
-from app.domains.project.schemas import ProjectCreate, ProjectUpdate, StageAdvance, StageRollback
+from app.domains.project.schemas import (
+    ProjectCreate, ProjectUpdate, StageAdvance, StageRollback,
+    ProjectMemberAdd, ProjectMemberUpdate,
+)
 
 router = APIRouter(prefix="/api/v1/projects", tags=["商机项目"])
 
@@ -59,8 +62,14 @@ async def list_projects(
     _user=Depends(require_permissions("project:view")),
     data_scope: str | None = Depends(get_data_scope),
 ):
-    effective_owner = owner_id or data_scope
-    items, total = await service.list_projects(db, tenant_id, pageNo, pageSize, keyword, stage_code, customer_id, status, effective_owner)
+    # data_scope is None for admins (data:view_all) -> skip scope so they see everything.
+    # For non-admins, pass current_user so the data scope (owner/member/share) applies, and
+    # any explicit owner_id query param still narrows further.
+    scope_user = None if data_scope is None else _user
+    items, total = await service.list_projects(
+        db, tenant_id, pageNo, pageSize, keyword, stage_code, customer_id, status,
+        owner_id=owner_id, current_user=scope_user,
+    )
     return ok({"items": [_project_dict(p) for p in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
@@ -351,4 +360,65 @@ async def delete_project_share(
 ):
     from app.domains.customer.service import delete_share
     await delete_share(db, tenant_id, share_id, current_user)
+    return ok()
+
+
+# ---- Project Members (多部门 / 多人协作) ----
+def _member_dict(m) -> dict:
+    return {
+        "id": m.id, "project_id": m.project_id,
+        "user_id": m.user_id, "user_name": m.user_name,
+        "member_role": m.member_role,
+        "department_id": m.department_id, "department_name": m.department_name,
+        "permission": m.permission,
+        "added_by_id": m.added_by_id, "added_by_name": m.added_by_name,
+        "created_at": m.created_at.isoformat() if m.created_at else "",
+    }
+
+
+@router.get("/{project_id}/members")
+async def list_project_members(
+    project_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:view")),
+):
+    items = await service.list_members(db, tenant_id, project_id)
+    return ok([_member_dict(m) for m in items])
+
+
+@router.post("/{project_id}/members")
+async def add_project_member(
+    project_id: str,
+    body: ProjectMemberAdd,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("project:edit")),
+):
+    m = await service.add_member(db, tenant_id, project_id, body, current_user)
+    return ok(_member_dict(m))
+
+
+@router.put("/{project_id}/members/{member_id}")
+async def update_project_member(
+    project_id: str,
+    member_id: str,
+    body: ProjectMemberUpdate,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("project:edit")),
+):
+    m = await service.update_member(db, tenant_id, project_id, member_id, body, current_user)
+    return ok(_member_dict(m))
+
+
+@router.delete("/{project_id}/members/{member_id}")
+async def remove_project_member(
+    project_id: str,
+    member_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("project:edit")),
+):
+    await service.remove_member(db, tenant_id, project_id, member_id, current_user)
     return ok()

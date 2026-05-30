@@ -1,5 +1,5 @@
 import client from './client'
-import type { ApiResponse, PageData, OpportunityProject, ProjectStageHistory, ProjectHealthScore, AclShareItem } from './types'
+import type { ApiResponse, PageData, OpportunityProject, ProjectStageHistory, ProjectHealthScore, AclShareItem, ProjectMember } from './types'
 
 export const projectApi = {
   list: (params: Record<string, unknown>) =>
@@ -27,4 +27,13 @@ export const projectApi = {
     client.post<unknown, ApiResponse<{ id: string }>>(`/api/v1/projects/${id}/shares`, data),
   deleteShare: (id: string, shareId: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/projects/${id}/shares/${shareId}`),
+  // Members (多部门 / 多人协作)
+  listMembers: (id: string) =>
+    client.get<unknown, ApiResponse<ProjectMember[]>>(`/api/v1/projects/${id}/members`),
+  addMember: (id: string, data: Record<string, unknown>) =>
+    client.post<unknown, ApiResponse<ProjectMember>>(`/api/v1/projects/${id}/members`, data),
+  updateMember: (id: string, memberId: string, data: Record<string, unknown>) =>
+    client.put<unknown, ApiResponse<ProjectMember>>(`/api/v1/projects/${id}/members/${memberId}`, data),
+  removeMember: (id: string, memberId: string) =>
+    client.delete<unknown, ApiResponse<void>>(`/api/v1/projects/${id}/members/${memberId}`),
 }

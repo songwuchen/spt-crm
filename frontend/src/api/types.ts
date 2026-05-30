@@ -189,6 +189,10 @@ export interface QuoteItem {
   status: string
   created_by_id?: string
   created_by_name?: string
+  assignee_id?: string
+  assignee_name?: string
+  department_id?: string
+  department_name?: string
   created_at: string
   updated_at: string
   // Joined from get detail
@@ -243,6 +247,10 @@ export interface ContractItem {
   delivery_terms_json?: Record<string, unknown>
   created_by_id?: string
   created_by_name?: string
+  assignee_id?: string
+  assignee_name?: string
+  department_id?: string
+  department_name?: string
   created_at: string
   updated_at: string
   versions?: ContractVersion[]
@@ -309,6 +317,10 @@ export interface SolutionItem {
   status: string
   created_by_id?: string
   created_by_name?: string
+  assignee_id?: string
+  assignee_name?: string
+  department_id?: string
+  department_name?: string
   created_at: string
   updated_at: string
   // Joined from get detail
@@ -353,6 +365,10 @@ export interface DeliveryMilestone {
   source_type: string
   sort_order: number
   note?: string
+  assignee_id?: string
+  assignee_name?: string
+  department_id?: string
+  department_name?: string
   created_at: string
 }
 
@@ -381,6 +397,10 @@ export interface PaymentPlanItem {
   trigger_milestone_code?: string
   status: string
   remark?: string
+  assignee_id?: string
+  assignee_name?: string
+  department_id?: string
+  department_name?: string
   created_at: string
 }
 
@@ -412,6 +432,10 @@ export interface ChangeRequestItem {
   status: string
   created_by_id?: string
   created_by_name?: string
+  assignee_id?: string
+  assignee_name?: string
+  department_id?: string
+  department_name?: string
   created_at: string
   updated_at: string
 }
@@ -579,6 +603,72 @@ export interface AclShareItem {
   permission: string
   shared_by_name?: string
   created_at: string
+}
+
+export interface ProjectMember {
+  id: string
+  project_id: string
+  user_id: string
+  user_name?: string
+  member_role?: string
+  department_id?: string
+  department_name?: string
+  permission: string
+  added_by_id?: string
+  added_by_name?: string
+  created_at: string
+}
+
+export interface Order {
+  id: string
+  order_no: string
+  customer_id: string
+  project_id?: string
+  contract_id?: string
+  title?: string
+  amount?: number
+  currency?: string
+  status: string
+  order_date?: string
+  delivery_date?: string
+  owner_id?: string
+  owner_name?: string
+  remark?: string
+  created_at: string
+  updated_at?: string
+}
+
+export interface Tender {
+  id: string
+  tender_no: string
+  customer_id: string
+  project_id?: string
+  title: string
+  bid_amount?: number
+  budget_amount?: number
+  status: string
+  submit_date?: string
+  open_date?: string
+  result?: string
+  owner_id?: string
+  owner_name?: string
+  remark?: string
+  created_at: string
+  updated_at?: string
+}
+
+export interface CustomerReport {
+  customer: { id: string; name: string; customer_code?: string }
+  summary: Record<string, number>
+  projects: Array<{ id: string; project_code: string; name: string; stage_code?: string; amount_expect?: number; status?: string; created_at?: string }>
+  quotes: Array<{ id: string; quote_no: string; project_id?: string; current_version_no?: number; status?: string; amount?: number; created_at?: string }>
+  contracts: Array<{ id: string; contract_no: string; project_id?: string; status?: string; signed_date?: string; amount_total?: number; created_at?: string }>
+  orders: Array<{ id: string; order_no: string; title?: string; amount?: number; currency?: string; status?: string; order_date?: string; delivery_date?: string }>
+  tenders: Array<{ id: string; tender_no: string; title?: string; bid_amount?: number; budget_amount?: number; status?: string; result?: string; submit_date?: string; open_date?: string }>
+  payment_plans: Array<{ id: string; plan_no?: string; due_date?: string; amount?: number; status?: string }>
+  payment_records: Array<{ id: string; received_date?: string; amount?: number; channel?: string; reference_no?: string }>
+  tickets: Array<{ id: string; ticket_no: string; type?: string; status?: string; priority?: string; created_at?: string }>
+  deliveries: Array<{ id: string; milestone_code: string; name?: string; plan_date?: string; actual_date?: string; status?: string }>
 }
 
 // Shared enum label maps

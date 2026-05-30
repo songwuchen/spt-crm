@@ -16,6 +16,8 @@ def _quote_dict(q) -> dict:
         "id": q.id, "project_id": q.project_id, "quote_no": q.quote_no,
         "current_version_no": q.current_version_no, "status": q.status,
         "created_by_id": q.created_by_id, "created_by_name": q.created_by_name,
+        "assignee_id": q.assignee_id, "assignee_name": q.assignee_name,
+        "department_id": q.department_id, "department_name": q.department_name,
         "created_at": q.created_at.isoformat() if q.created_at else "",
         "updated_at": q.updated_at.isoformat() if q.updated_at else "",
     }

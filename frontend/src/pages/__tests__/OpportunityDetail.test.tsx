@@ -24,6 +24,10 @@ vi.mock('@/api/project', () => ({
     stageHistory: vi.fn(),
     health: vi.fn(),
     listShares: vi.fn(),
+    listMembers: vi.fn(),
+    addMember: vi.fn(),
+    updateMember: vi.fn(),
+    removeMember: vi.fn(),
     advance: vi.fn(),
     rollback: vi.fn(),
   },
@@ -140,6 +144,7 @@ describe('OpportunityDetail', () => {
       data: { score: 75, dimensions: [{ name: '进度', score: 80 }], risks: [] },
     })
     ;(projectApi.listShares as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
+    ;(projectApi.listMembers as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(customerApi.get as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: { id: 'cust-1', name: 'Test Corp', industry: 'Machinery', level: 'A' },
     })

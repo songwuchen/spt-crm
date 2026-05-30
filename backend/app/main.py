@@ -36,6 +36,8 @@ from app.domains.admin.router import router as admin_console_router
 from app.domains.notification.router import router as notification_router
 from app.domains.outbox.router import router as outbox_router
 from app.domains.product.router import router as product_router
+from app.domains.order.router import router as order_router
+from app.domains.tender.router import router as tender_router
 from app.domains.task.router import router as task_router
 from app.domains.dashboard.saved_view import router as saved_view_router
 from app.domains.customer.contact_router import router as contact_router
@@ -128,6 +130,8 @@ app.include_router(admin_console_router)
 app.include_router(notification_router)
 app.include_router(outbox_router)
 app.include_router(product_router)
+app.include_router(order_router)
+app.include_router(tender_router)
 app.include_router(task_router)
 app.include_router(lead_public_router)
 app.include_router(saved_view_router)

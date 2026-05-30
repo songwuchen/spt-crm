@@ -22,6 +22,10 @@ class MilestoneCreate(BaseModel):
     plan_date: Optional[date] = None
     sort_order: Optional[int] = 0
     note: Optional[str] = None
+    assignee_id: Optional[str] = None
+    assignee_name: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
 
 
 class MilestoneUpdate(BaseModel):
@@ -32,3 +36,7 @@ class MilestoneUpdate(BaseModel):
     source_type: Optional[str] = None
     sort_order: Optional[int] = None
     note: Optional[str] = None
+    assignee_id: Optional[str] = None
+    assignee_name: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None

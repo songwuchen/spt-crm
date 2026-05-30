@@ -7,6 +7,10 @@ class ChangeRequestCreate(BaseModel):
     reason: Optional[str] = None
     from_version_ref_json: Optional[dict] = None
     impact_json: Optional[dict] = None
+    assignee_id: Optional[str] = None
+    assignee_name: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
 
 
 class ChangeRequestUpdate(BaseModel):
@@ -15,3 +19,7 @@ class ChangeRequestUpdate(BaseModel):
     to_version_ref_json: Optional[dict] = None
     impact_json: Optional[dict] = None
     status: Optional[str] = None
+    assignee_id: Optional[str] = None
+    assignee_name: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None

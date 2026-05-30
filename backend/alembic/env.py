@@ -21,7 +21,7 @@ from app.domains.customer.models import Customer, Contact, CustomerRelation, Acl
 from app.domains.lead.models import Lead
 from app.domains.attachment.models import Attachment, AttachmentLink
 from app.domains.audit.models import AuditLog
-from app.domains.project.models import OpportunityProject, ProjectStageHistory
+from app.domains.project.models import OpportunityProject, ProjectStageHistory, ProjectMember
 from app.domains.quote.models import Quote, QuoteVersion, QuoteLine, CostSnapshot, QuoteSendLog
 from app.domains.contract.models import Contract, ContractVersion
 from app.domains.solution.models import Solution, SolutionVersion
@@ -29,6 +29,8 @@ from app.domains.delivery.models import ErpOrderLink, DeliveryMilestone
 from app.domains.payment.models import Invoice, PaymentPlan, PaymentRecord
 from app.domains.change.models import ChangeRequest
 from app.domains.service_ticket.models import ServiceTicket, RenewalOpportunity
+from app.domains.order.models import Order
+from app.domains.tender.models import Tender
 from app.domains.activity.models import Activity
 from app.domains.ai_center.models import AiTask, AiResult, AiPromptTemplate
 from app.domains.approval.models import ApprovalFlow, ApprovalTask

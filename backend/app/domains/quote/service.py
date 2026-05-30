@@ -66,6 +66,8 @@ async def create_quote(db: AsyncSession, tenant_id: str, project_id: str, data: 
         project_id=project_id, quote_no=await generate_code(db, tenant_id, "quote"),
         current_version_no=1,
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
+        assignee_id=data.assignee_id, assignee_name=data.assignee_name,
+        department_id=data.department_id, department_name=data.department_name,
     )
     db.add(quote)
 

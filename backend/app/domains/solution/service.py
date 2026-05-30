@@ -43,6 +43,8 @@ async def create_solution(db: AsyncSession, tenant_id: str, project_id: str, dat
         project_id=project_id, solution_no=_generate_solution_no(),
         current_version_no=1,
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
+        assignee_id=data.assignee_id, assignee_name=data.assignee_name,
+        department_id=data.department_id, department_name=data.department_name,
     )
     db.add(solution)
 

@@ -6,7 +6,7 @@ import io
 
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions, get_data_scope
 from app.common.schemas import ok
-from app.common.export import build_excel, build_template, excel_response
+from app.common.export import build_excel, build_excel_multi, build_template, excel_response
 from app.domains.customer.models import Customer
 from app.domains.customer.schemas import (
     CustomerCreate, CustomerUpdate, CustomerOut,
@@ -452,6 +452,239 @@ async def customer_stats(
         "win_rate": round(win_rate, 3),
         "collection_rate": round(collection_rate, 3),
     })
+
+
+async def _gather_customer_report(db: AsyncSession, tenant_id: str, customer_id: str) -> dict:
+    """Collect a customer's related business entities (商机/报价/合同/订单/标书/回款/工单/交付)."""
+    from sqlalchemy import func
+    from app.domains.project.models import OpportunityProject
+    from app.domains.quote.models import Quote, QuoteVersion
+    from app.domains.contract.models import Contract
+    from app.domains.service_ticket.models import ServiceTicket
+    from app.domains.payment.models import PaymentPlan, PaymentRecord
+    from app.domains.delivery.models import DeliveryMilestone
+    from app.domains.order.models import Order
+    from app.domains.tender.models import Tender
+
+    customer = await service.get_customer(db, tenant_id, customer_id)
+
+    projects = (await db.execute(
+        select(OpportunityProject).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.customer_id == customer_id,
+            OpportunityProject.is_deleted == False,
+        ).order_by(OpportunityProject.created_at.desc())
+    )).scalars().all()
+    proj_ids = [p.id for p in projects]
+
+    quotes, contracts, plans, records, deliveries = [], [], [], [], []
+    if proj_ids:
+        quotes = (await db.execute(
+            select(Quote).where(Quote.tenant_id == tenant_id, Quote.project_id.in_(proj_ids))
+            .order_by(Quote.created_at.desc())
+        )).scalars().all()
+        contracts = (await db.execute(
+            select(Contract).where(Contract.tenant_id == tenant_id, Contract.project_id.in_(proj_ids))
+            .order_by(Contract.created_at.desc())
+        )).scalars().all()
+        plans = (await db.execute(
+            select(PaymentPlan).where(PaymentPlan.tenant_id == tenant_id, PaymentPlan.project_id.in_(proj_ids))
+        )).scalars().all()
+        records = (await db.execute(
+            select(PaymentRecord).where(PaymentRecord.tenant_id == tenant_id, PaymentRecord.project_id.in_(proj_ids))
+        )).scalars().all()
+        deliveries = (await db.execute(
+            select(DeliveryMilestone).where(DeliveryMilestone.tenant_id == tenant_id, DeliveryMilestone.project_id.in_(proj_ids))
+            .order_by(DeliveryMilestone.sort_order)
+        )).scalars().all()
+
+    # current-version amount lookup for quotes
+    quote_amount: dict[str, float] = {}
+    if quotes:
+        qv_rows = (await db.execute(
+            select(QuoteVersion.quote_id, QuoteVersion.version_no, QuoteVersion.price_total)
+            .where(QuoteVersion.tenant_id == tenant_id, QuoteVersion.quote_id.in_([q.id for q in quotes]))
+        )).all()
+        cur_ver = {q.id: q.current_version_no for q in quotes}
+        for qid, vno, price in qv_rows:
+            if cur_ver.get(qid) == vno and price is not None:
+                quote_amount[qid] = float(price)
+
+    orders = (await db.execute(
+        select(Order).where(Order.tenant_id == tenant_id, Order.customer_id == customer_id, Order.is_deleted == False)
+        .order_by(Order.created_at.desc())
+    )).scalars().all()
+    tenders = (await db.execute(
+        select(Tender).where(Tender.tenant_id == tenant_id, Tender.customer_id == customer_id, Tender.is_deleted == False)
+        .order_by(Tender.created_at.desc())
+    )).scalars().all()
+    tickets = (await db.execute(
+        select(ServiceTicket).where(ServiceTicket.tenant_id == tenant_id, ServiceTicket.customer_id == customer_id)
+        .order_by(ServiceTicket.created_at.desc())
+    )).scalars().all()
+
+    return {
+        "customer": customer,
+        "projects": projects,
+        "quotes": quotes,
+        "quote_amount": quote_amount,
+        "contracts": contracts,
+        "orders": orders,
+        "tenders": tenders,
+        "payment_plans": plans,
+        "payment_records": records,
+        "tickets": tickets,
+        "deliveries": deliveries,
+    }
+
+
+@router.get("/{customer_id}/report")
+async def customer_report(
+    customer_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    """客户关联报表：商机/报价/合同/订单/标书/回款/工单/交付 的明细 + 汇总。"""
+    data = await _gather_customer_report(db, tenant_id, customer_id)
+
+    c = data["customer"]
+    projects = data["projects"]
+    quotes = data["quotes"]
+    qa = data["quote_amount"]
+    contracts = data["contracts"]
+    orders = data["orders"]
+    tenders = data["tenders"]
+    plans = data["payment_plans"]
+    records = data["payment_records"]
+    tickets = data["tickets"]
+    deliveries = data["deliveries"]
+
+    def _f(v):
+        return float(v) if v is not None else None
+
+    summary = {
+        "project_count": len(projects),
+        "quote_count": len(quotes),
+        "contract_count": len(contracts),
+        "contract_amount": sum(_f(x.amount_total) or 0 for x in contracts if x.status == "signed"),
+        "order_count": len(orders),
+        "order_amount": sum(_f(o.amount) or 0 for o in orders),
+        "tender_count": len(tenders),
+        "tender_won": sum(1 for t in tenders if t.status == "won"),
+        "payment_plan_total": sum(_f(p.amount) or 0 for p in plans),
+        "payment_received_total": sum(_f(r.amount) or 0 for r in records),
+        "ticket_count": len(tickets),
+        "delivery_count": len(deliveries),
+    }
+
+    return ok({
+        "customer": {"id": c.id, "name": c.name, "customer_code": c.customer_code},
+        "summary": summary,
+        "projects": [{
+            "id": p.id, "project_code": p.project_code, "name": p.name,
+            "stage_code": p.stage_code, "amount_expect": _f(p.amount_expect),
+            "status": p.status,
+            "created_at": p.created_at.isoformat() if p.created_at else "",
+        } for p in projects],
+        "quotes": [{
+            "id": q.id, "quote_no": q.quote_no, "project_id": q.project_id,
+            "current_version_no": q.current_version_no, "status": q.status,
+            "amount": qa.get(q.id),
+            "created_at": q.created_at.isoformat() if q.created_at else "",
+        } for q in quotes],
+        "contracts": [{
+            "id": x.id, "contract_no": x.contract_no, "project_id": x.project_id,
+            "status": x.status, "signed_date": str(x.signed_date) if x.signed_date else None,
+            "amount_total": _f(x.amount_total),
+            "created_at": x.created_at.isoformat() if x.created_at else "",
+        } for x in contracts],
+        "orders": [{
+            "id": o.id, "order_no": o.order_no, "title": o.title,
+            "amount": _f(o.amount), "currency": o.currency, "status": o.status,
+            "order_date": str(o.order_date) if o.order_date else None,
+            "delivery_date": str(o.delivery_date) if o.delivery_date else None,
+        } for o in orders],
+        "tenders": [{
+            "id": t.id, "tender_no": t.tender_no, "title": t.title,
+            "bid_amount": _f(t.bid_amount), "budget_amount": _f(t.budget_amount),
+            "status": t.status, "result": t.result,
+            "submit_date": str(t.submit_date) if t.submit_date else None,
+            "open_date": str(t.open_date) if t.open_date else None,
+        } for t in tenders],
+        "payment_plans": [{
+            "id": p.id, "plan_no": p.plan_no, "due_date": str(p.due_date) if p.due_date else None,
+            "amount": _f(p.amount), "status": p.status,
+        } for p in plans],
+        "payment_records": [{
+            "id": r.id, "received_date": str(r.received_date) if r.received_date else None,
+            "amount": _f(r.amount), "channel": r.channel, "reference_no": r.reference_no,
+        } for r in records],
+        "tickets": [{
+            "id": t.id, "ticket_no": t.ticket_no, "type": t.type, "status": t.status,
+            "priority": t.priority,
+            "created_at": t.created_at.isoformat() if t.created_at else "",
+        } for t in tickets],
+        "deliveries": [{
+            "id": d.id, "milestone_code": d.milestone_code, "name": d.name,
+            "plan_date": str(d.plan_date) if d.plan_date else None,
+            "actual_date": str(d.actual_date) if d.actual_date else None,
+            "status": d.status,
+        } for d in deliveries],
+    })
+
+
+@router.get("/{customer_id}/report/export")
+async def export_customer_report(
+    customer_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    """导出客户关联报表为多 Sheet Excel。"""
+    data = await _gather_customer_report(db, tenant_id, customer_id)
+    qa = data["quote_amount"]
+
+    def _f(v):
+        return float(v) if v is not None else ""
+
+    def _dt(v):
+        return v.strftime("%Y-%m-%d %H:%M") if v else ""
+
+    sheets = [
+        ("商机", ["项目编码", "名称", "阶段", "预期金额", "状态", "创建时间"],
+         [[p.project_code, p.name or "", p.stage_code or "", _f(p.amount_expect), p.status or "", _dt(p.created_at)]
+          for p in data["projects"]]),
+        ("报价", ["报价单号", "版本", "金额", "状态", "创建时间"],
+         [[q.quote_no, q.current_version_no, qa.get(q.id, ""), q.status or "", _dt(q.created_at)]
+          for q in data["quotes"]]),
+        ("合同", ["合同编号", "状态", "签约日期", "金额", "创建时间"],
+         [[x.contract_no, x.status or "", str(x.signed_date) if x.signed_date else "", _f(x.amount_total), _dt(x.created_at)]
+          for x in data["contracts"]]),
+        ("订单", ["订单号", "标题", "金额", "币种", "状态", "下单日期", "交付日期", "负责人"],
+         [[o.order_no, o.title or "", _f(o.amount), o.currency or "", o.status or "",
+           str(o.order_date) if o.order_date else "", str(o.delivery_date) if o.delivery_date else "", o.owner_name or ""]
+          for o in data["orders"]]),
+        ("标书", ["标书号", "标题", "投标金额", "预算金额", "状态", "提交日期", "开标日期", "结果", "负责人"],
+         [[t.tender_no, t.title or "", _f(t.bid_amount), _f(t.budget_amount), t.status or "",
+           str(t.submit_date) if t.submit_date else "", str(t.open_date) if t.open_date else "", t.result or "", t.owner_name or ""]
+          for t in data["tenders"]]),
+        ("回款计划", ["计划号", "到期日", "金额", "状态"],
+         [[p.plan_no, str(p.due_date) if p.due_date else "", _f(p.amount), p.status or ""]
+          for p in data["payment_plans"]]),
+        ("回款记录", ["收款日期", "金额", "渠道", "参考号"],
+         [[str(r.received_date) if r.received_date else "", _f(r.amount), r.channel or "", r.reference_no or ""]
+          for r in data["payment_records"]]),
+        ("工单", ["工单号", "类型", "状态", "优先级", "创建时间"],
+         [[t.ticket_no, t.type or "", t.status or "", t.priority or "", _dt(t.created_at)]
+          for t in data["tickets"]]),
+        ("交付", ["里程碑", "名称", "计划日期", "实际日期", "状态"],
+         [[d.milestone_code, d.name or "", str(d.plan_date) if d.plan_date else "",
+           str(d.actual_date) if d.actual_date else "", d.status or ""]
+          for d in data["deliveries"]]),
+    ]
+    buf = build_excel_multi(sheets)
+    return excel_response(buf, f"customer_report_{customer_id}.xlsx")
 
 
 @router.delete("/{customer_id}")

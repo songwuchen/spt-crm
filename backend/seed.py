@@ -15,7 +15,7 @@ from app.domains.customer.models import Customer, Contact
 from app.domains.lead.models import Lead
 from app.domains.attachment.models import Attachment, AttachmentLink
 from app.domains.audit.models import AuditLog
-from app.domains.project.models import OpportunityProject, ProjectStageHistory
+from app.domains.project.models import OpportunityProject, ProjectStageHistory, ProjectMember
 from app.domains.quote.models import Quote, QuoteVersion, QuoteLine
 from app.domains.contract.models import Contract, ContractVersion
 from app.domains.solution.models import Solution, SolutionVersion
@@ -24,6 +24,8 @@ from app.domains.payment.models import Invoice, PaymentPlan, PaymentRecord
 from app.domains.change.models import ChangeRequest
 from app.domains.service_ticket.models import ServiceTicket, RenewalOpportunity
 from app.domains.product.models import Product, ProductCategory
+from app.domains.order.models import Order
+from app.domains.tender.models import Tender
 
 
 def _id():
@@ -102,6 +104,16 @@ PERMISSIONS = [
     ("product:create", "创建产品", "产品管理"),
     ("product:edit", "编辑产品", "产品管理"),
     ("product:delete", "删除产品", "产品管理"),
+    # Order
+    ("order:view", "查看订单", "订单管理"),
+    ("order:create", "创建订单", "订单管理"),
+    ("order:edit", "编辑订单", "订单管理"),
+    ("order:delete", "删除订单", "订单管理"),
+    # Tender
+    ("tender:view", "查看标书", "标书管理"),
+    ("tender:create", "创建标书", "标书管理"),
+    ("tender:edit", "编辑标书", "标书管理"),
+    ("tender:delete", "删除标书", "标书管理"),
     # Task
     ("task:view", "查看任务", "任务管理"),
     ("task:create", "创建任务", "任务管理"),
@@ -144,6 +156,8 @@ ROLES = {
             "change:view", "change:create", "change:edit", "change:delete",
             "service:view", "service:create", "service:edit",
             "product:view", "product:create", "product:edit", "product:delete",
+            "order:view", "order:create", "order:edit", "order:delete",
+            "tender:view", "tender:create", "tender:edit", "tender:delete",
             "task:view", "task:create", "task:edit", "task:delete",
             "notification:view", "notification:manage",
             "attachment:upload", "attachment:download",
@@ -167,6 +181,8 @@ ROLES = {
             "service:view", "service:create",
             "contract:view",
             "product:view",
+            "order:view", "order:create", "order:edit",
+            "tender:view", "tender:create", "tender:edit",
             "task:view", "task:create", "task:edit",
             "notification:view", "notification:manage",
             "attachment:upload", "attachment:download",

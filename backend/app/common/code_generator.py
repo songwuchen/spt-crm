@@ -45,6 +45,8 @@ PREFIXES = {
     "payment_plan":   "PP",
     "service_ticket": "SRV",
     "change":         "CR",
+    "order":          "ORD",
+    "tender":         "TND",
 }
 
 
