@@ -184,21 +184,30 @@ async def compare_versions(
         if val1 != val2:
             diffs.append({"field": field, "label": label, "v1": val1, "v2": val2})
 
-    # Compare config_json keys
-    cfg1 = ver1.config_json or {}
-    cfg2 = ver2.config_json or {}
-    all_keys = set(list(cfg1.keys()) + list(cfg2.keys()))
-    for key in sorted(all_keys):
-        v1_val = cfg1.get(key)
-        v2_val = cfg2.get(key)
-        if v1_val != v2_val:
-            diffs.append({"field": f"config.{key}", "label": f"配置.{key}", "v1": str(v1_val), "v2": str(v2_val)})
+    # Compare config: dict shapes diff per-key; list shapes diff as a whole.
+    cfg1 = ver1.config_json
+    cfg2 = ver2.config_json
+    if isinstance(cfg1, dict) or isinstance(cfg2, dict):
+        d1 = cfg1 if isinstance(cfg1, dict) else {}
+        d2 = cfg2 if isinstance(cfg2, dict) else {}
+        all_keys = set(list(d1.keys()) + list(d2.keys()))
+        for key in sorted(all_keys):
+            v1_val = d1.get(key)
+            v2_val = d2.get(key)
+            if v1_val != v2_val:
+                diffs.append({"field": f"config.{key}", "label": f"配置.{key}", "v1": str(v1_val), "v2": str(v2_val)})
+    elif (cfg1 or None) != (cfg2 or None):
+        n1 = len(cfg1) if isinstance(cfg1, list) else 0
+        n2 = len(cfg2) if isinstance(cfg2, list) else 0
+        diffs.append({"field": "config_list", "label": "配置/选型清单", "v1": f"{n1} 项", "v2": f"{n2} 项"})
 
     # Compare risk lists
     risks1 = ver1.risk_list_json or []
     risks2 = ver2.risk_list_json or []
     if risks1 != risks2:
-        diffs.append({"field": "risk_list", "label": "风险清单", "v1": str(len(risks1)) + " 项", "v2": str(len(risks2)) + " 项"})
+        n1 = len(risks1) if isinstance(risks1, (list, dict)) else 0
+        n2 = len(risks2) if isinstance(risks2, (list, dict)) else 0
+        diffs.append({"field": "risk_list", "label": "风险清单", "v1": str(n1) + " 项", "v2": str(n2) + " 项"})
 
     return ok({
         "version1": _version_dict(ver1),

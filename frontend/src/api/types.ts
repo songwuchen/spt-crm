@@ -334,8 +334,8 @@ export interface SolutionVersion {
   version_no: number
   title?: string
   summary?: string
-  config_json?: Record<string, unknown>
-  risk_list_json?: Record<string, unknown>
+  config_json?: Record<string, unknown> | unknown[]
+  risk_list_json?: Record<string, unknown> | unknown[]
   ai_insights_json?: Record<string, unknown>
   doc_attachment_id?: string
   status: string
