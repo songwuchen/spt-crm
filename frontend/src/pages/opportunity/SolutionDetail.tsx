@@ -8,6 +8,10 @@ import type { SolutionItem, SolutionVersion } from '@/api/types'
 import { solutionStatusLabels as statusLabels, solutionStatusColors as statusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
+import SolutionConfigEditor, { normalizeConfig, serializeConfig } from '@/components/SolutionConfigEditor'
+import type { ConfigRow } from '@/components/SolutionConfigEditor'
+import SolutionRiskEditor, { normalizeRisks, serializeRisks } from '@/components/SolutionRiskEditor'
+import type { RiskRow } from '@/components/SolutionRiskEditor'
 
 const { TextArea } = Input
 
@@ -21,8 +25,9 @@ export default function SolutionDetail() {
   const [selectedVersionId, setSelectedVersionId] = useState<string>('')
   const [editing, setEditing] = useState(false)
   const [editSummary, setEditSummary] = useState('')
-  const [editConfigJson, setEditConfigJson] = useState('')
-  const [editRiskJson, setEditRiskJson] = useState('')
+  const [editConfigCols, setEditConfigCols] = useState<string[]>([])
+  const [editConfigRows, setEditConfigRows] = useState<ConfigRow[]>([])
+  const [editRisks, setEditRisks] = useState<RiskRow[]>([])
   const [compareModal, setCompareModal] = useState(false)
   const [compareV1, setCompareV1] = useState<number>(0)
   const [compareV2, setCompareV2] = useState<number>(0)
@@ -57,8 +62,10 @@ export default function SolutionDetail() {
   const startEdit = () => {
     if (!currentVersion) return
     setEditSummary(currentVersion.summary || '')
-    setEditConfigJson(currentVersion.config_json ? JSON.stringify(currentVersion.config_json, null, 2) : '')
-    setEditRiskJson(currentVersion.risk_list_json ? JSON.stringify(currentVersion.risk_list_json, null, 2) : '')
+    const cfg = normalizeConfig(currentVersion.config_json)
+    setEditConfigCols(cfg.columns)
+    setEditConfigRows(cfg.rows)
+    setEditRisks(normalizeRisks(currentVersion.risk_list_json))
     setEditing(true)
   }
 
@@ -66,17 +73,17 @@ export default function SolutionDetail() {
 
   const saveEdit = async () => {
     try {
-      const payload: Record<string, unknown> = { summary: editSummary }
-      if (editConfigJson.trim()) payload.config_json = JSON.parse(editConfigJson)
-      else payload.config_json = null
-      if (editRiskJson.trim()) payload.risk_list_json = JSON.parse(editRiskJson)
-      else payload.risk_list_json = null
+      const payload: Record<string, unknown> = {
+        summary: editSummary,
+        config_json: serializeConfig(editConfigCols, editConfigRows),
+        risk_list_json: serializeRisks(editRisks),
+      }
       await solutionApi.updateVersion(selectedVersionId, payload)
       message.success('版本已更新')
       setEditing(false)
       fetchVersion(selectedVersionId)
     } catch {
-      message.error('JSON 格式错误，请检查')
+      message.error('保存失败，请稍后重试')
     }
   }
 
@@ -246,12 +253,16 @@ export default function SolutionDetail() {
               <TextArea rows={3} value={editSummary} onChange={(e) => setEditSummary(e.target.value)} placeholder="输入方案概要说明..." />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">配置/选型清单 (JSON)</label>
-              <TextArea rows={6} value={editConfigJson} onChange={(e) => setEditConfigJson(e.target.value)} placeholder='{"items": [...]}' className="font-mono text-sm" />
+              <label className="text-sm font-medium text-slate-700 mb-1 block">配置/选型清单</label>
+              <SolutionConfigEditor
+                columns={editConfigCols}
+                rows={editConfigRows}
+                onChange={(cols, rows) => { setEditConfigCols(cols); setEditConfigRows(rows) }}
+              />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">风险清单 (JSON)</label>
-              <TextArea rows={6} value={editRiskJson} onChange={(e) => setEditRiskJson(e.target.value)} placeholder='{"risks": [...]}' className="font-mono text-sm" />
+              <label className="text-sm font-medium text-slate-700 mb-1 block">风险清单</label>
+              <SolutionRiskEditor value={editRisks} onChange={setEditRisks} />
             </div>
           </div>
         )}
