@@ -83,8 +83,12 @@ export default function SolutionConfigEditor({ columns, rows, onChange }: Props)
     onChange(cols, next)
   }
 
-  const renameColumn = (oldName: string, newName: string) => {
-    const nextCols = cols.map((c) => (c === oldName ? newName : c))
+  // Operate on columns by index (not name): names are mutable and may collide
+  // mid-edit, and an index key keeps the header input from remounting (which
+  // would drop focus) while the user types a new column name.
+  const renameColumn = (colIdx: number, newName: string) => {
+    const oldName = cols[colIdx]
+    const nextCols = cols.map((c, i) => (i === colIdx ? newName : c))
     const nextRows = rows.map((r) => {
       const { [oldName]: oldVal, ...rest } = r
       return { ...rest, [newName]: oldVal ?? '' }
@@ -99,10 +103,11 @@ export default function SolutionConfigEditor({ columns, rows, onChange }: Props)
     onChange([...cols, name], rows.map((r) => ({ ...r, [name]: '' })))
   }
 
-  const removeColumn = (col: string) => {
-    const nextCols = cols.filter((c) => c !== col)
+  const removeColumn = (colIdx: number) => {
+    const target = cols[colIdx]
+    const nextCols = cols.filter((_, i) => i !== colIdx)
     const nextRows = rows.map((r) => {
-      const { [col]: _drop, ...rest } = r
+      const { [target]: _drop, ...rest } = r
       return rest
     })
     onChange(nextCols, nextRows)
@@ -122,15 +127,15 @@ export default function SolutionConfigEditor({ columns, rows, onChange }: Props)
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
-              {cols.map((col) => (
-                <th key={col} className="p-1.5 text-left font-bold text-slate-500 min-w-[140px]">
+              {cols.map((col, ci) => (
+                <th key={ci} className="p-1.5 text-left font-bold text-slate-500 min-w-[140px]">
                   <div className="flex items-center gap-1">
                     <Input
                       size="small"
                       value={col}
                       variant="borderless"
                       className="font-bold !px-1"
-                      onChange={(e) => renameColumn(col, e.target.value)}
+                      onChange={(e) => renameColumn(ci, e.target.value)}
                     />
                     <Tooltip title="删除该列">
                       <Button
@@ -139,7 +144,7 @@ export default function SolutionConfigEditor({ columns, rows, onChange }: Props)
                         danger
                         disabled={cols.length <= 1}
                         icon={<DeleteOutlined />}
-                        onClick={() => removeColumn(col)}
+                        onClick={() => removeColumn(ci)}
                       />
                     </Tooltip>
                   </div>
@@ -162,8 +167,8 @@ export default function SolutionConfigEditor({ columns, rows, onChange }: Props)
             )}
             {rows.map((row, rowIdx) => (
               <tr key={rowIdx} className="border-b border-slate-100 last:border-0">
-                {cols.map((col) => (
-                  <td key={col} className="p-1">
+                {cols.map((col, ci) => (
+                  <td key={ci} className="p-1">
                     <Input
                       size="small"
                       variant="borderless"
