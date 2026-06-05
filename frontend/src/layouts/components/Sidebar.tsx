@@ -24,6 +24,10 @@ const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
       { key: '/tenders', icon: 'fact_check', labelKey: 'nav.tenders', permission: 'tender:view' },
       { key: '/follow-ups', icon: 'contact_phone', labelKey: 'nav.followUps', permission: 'customer:view' },
       { key: '/payments', icon: 'account_balance', labelKey: 'nav.payments', permission: 'payment:view' },
+      { key: '/commissions', icon: 'paid', labelKey: 'nav.commissions', permission: 'commission:view' },
+      { key: '/collection', icon: 'request_quote', labelKey: 'nav.collection', permission: 'collection:view' },
+      { key: '/guarantees', icon: 'verified_user', labelKey: 'nav.guarantees', permission: 'guarantee:view' },
+      { key: '/equipment-profile', icon: 'precision_manufacturing', labelKey: 'nav.equipmentProfile', permission: 'customer:view' },
       { key: '/service-tickets', icon: 'confirmation_number', labelKey: 'nav.serviceTickets', permission: 'service:view' },
       { key: '/sales-targets', icon: 'flag', labelKey: 'nav.salesTargets', permission: 'project:view' },
       { key: '/analytics', icon: 'analytics', labelKey: 'nav.analytics', permission: 'project:view' },
@@ -63,6 +67,10 @@ function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/tenders/)) return '/tenders'
   if (pathname.match(/^\/follow-ups/)) return '/follow-ups'
   if (pathname.match(/^\/payments/)) return '/payments'
+  if (pathname.match(/^\/commissions/)) return '/commissions'
+  if (pathname.match(/^\/collection/)) return '/collection'
+  if (pathname.match(/^\/guarantees/)) return '/guarantees'
+  if (pathname.match(/^\/equipment-profile/)) return '/equipment-profile'
   if (pathname.match(/^\/service-tickets/)) return '/service-tickets'
   if (pathname.match(/^\/sales-targets/)) return '/sales-targets'
   if (pathname.match(/^\/analytics/)) return '/analytics'

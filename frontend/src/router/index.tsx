@@ -69,6 +69,10 @@ const NotificationCenter = lazy(() => import('@/pages/notification/NotificationC
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
 const ProductList = lazy(() => import('@/pages/product/ProductList'))
 const OrderList = lazy(() => import('@/pages/order/OrderList'))
+const CommissionPage = lazy(() => import('@/pages/commission/CommissionPage'))
+const CollectionPage = lazy(() => import('@/pages/collection/CollectionPage'))
+const GuaranteePage = lazy(() => import('@/pages/guarantee/GuaranteePage'))
+const EquipmentProfilePage = lazy(() => import('@/pages/equipment/EquipmentProfilePage'))
 const TenderList = lazy(() => import('@/pages/tender/TenderList'))
 const TaskPage = lazy(() => import('@/pages/task/TaskPage'))
 const CalendarPage = lazy(() => import('@/pages/calendar/CalendarPage'))
@@ -125,6 +129,10 @@ export const router = createBrowserRouter([
       { path: 'renewals', element: <Guard permission="service:view"><RenewalList /></Guard> },
       { path: 'follow-ups', element: <Guard permission="customer:view"><FollowUpPage /></Guard> },
       { path: 'payments', element: <Guard permission="payment:view"><PaymentPage /></Guard> },
+      { path: 'commissions', element: <Guard permission="commission:view"><CommissionPage /></Guard> },
+      { path: 'collection', element: <Guard permission="collection:view"><CollectionPage /></Guard> },
+      { path: 'guarantees', element: <Guard permission="guarantee:view"><GuaranteePage /></Guard> },
+      { path: 'equipment-profile', element: <Guard permission="customer:view"><EquipmentProfilePage /></Guard> },
       { path: 'products', element: <Guard permission="product:view"><ProductList /></Guard> },
       { path: 'orders', element: <Guard permission="order:view"><OrderList /></Guard> },
       { path: 'tenders', element: <Guard permission="tender:view"><TenderList /></Guard> },

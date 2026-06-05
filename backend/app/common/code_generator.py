@@ -47,6 +47,9 @@ PREFIXES = {
     "change":         "CR",
     "order":          "ORD",
     "tender":         "TND",
+    "commission":     "CM",
+    "debt_transfer":  "DT",
+    "guarantee":      "GT",
 }
 
 

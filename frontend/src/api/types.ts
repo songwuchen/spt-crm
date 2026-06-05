@@ -657,6 +657,199 @@ export interface Tender {
   updated_at?: string
 }
 
+export interface Commission {
+  id: string
+  record_no: string
+  project_id?: string
+  contract_id?: string
+  customer_id?: string
+  customer_name?: string
+  owner_id?: string
+  owner_name?: string
+  department_id?: string
+  department_name?: string
+  signed_date?: string
+  contract_amount: number
+  received_amount: number
+  deduction_freight: number
+  deduction_service: number
+  deduction_entertain: number
+  deduction_rebate: number
+  commission_rate: number
+  settle_rate: number
+  accrued_amount: number
+  paid_amount: number
+  current_amount: number
+  status: string
+  remark?: string
+  created_by_name?: string
+  created_at: string
+}
+
+export interface CommissionPayout {
+  id: string
+  commission_id: string
+  paid_at?: string
+  amount: number
+  method?: string
+  remark?: string
+  created_by_name?: string
+  created_at: string
+}
+
+export interface CommissionRule {
+  id: string
+  name: string
+  scope_type: string
+  department_id?: string
+  department_name?: string
+  rate: number
+  min_amount?: number
+  enabled: boolean
+  sort_order: number
+  remark?: string
+}
+
+export interface CommissionSummary {
+  owner_id?: string
+  owner_name: string
+  count: number
+  contract_total: number
+  received_total: number
+  accrued_total: number
+  paid_total: number
+  payable_total: number
+}
+
+export interface ArAgingRow {
+  customer_id?: string
+  customer_name: string
+  owner_id?: string
+  owner_name?: string
+  contract_total: number
+  received_total: number
+  outstanding: number
+  d0_30: number
+  d31_60: number
+  d61_90: number
+  d91_180: number
+  d180p: number
+}
+
+export interface ArAgingReport {
+  summary: Record<string, number>
+  buckets: string[]
+  rows: ArAgingRow[]
+}
+
+export interface DebtTransfer {
+  id: string
+  transfer_no: string
+  customer_id?: string
+  customer_name?: string
+  transfer_type: string
+  from_department_name?: string
+  from_owner_name?: string
+  to_department_id?: string
+  to_department_name?: string
+  debt_amount?: number
+  contact?: string
+  contact_phone?: string
+  debt_note?: string
+  reason?: string
+  deadline?: string
+  assess_date?: string
+  commitment?: string
+  status: string
+  claimed_by_name?: string
+  claimed_department_name?: string
+  claimed_at?: string
+  created_by_name?: string
+  created_at: string
+}
+
+export interface CollectionFollowUp {
+  id: string
+  customer_id?: string
+  customer_name?: string
+  transfer_id?: string
+  follow_date?: string
+  method?: string
+  feedback?: string
+  expected_date?: string
+  amount_promised?: number
+  next_action?: string
+  created_by_name?: string
+  created_at: string
+}
+
+export interface Guarantee {
+  id: string
+  guarantee_no: string
+  type: string
+  direction: string
+  contract_id?: string
+  project_id?: string
+  customer_id?: string
+  customer_name?: string
+  amount?: number
+  issuer?: string
+  fee?: number
+  rate?: number
+  effective_date?: string
+  expiry_date?: string
+  return_date?: string
+  status: string
+  owner_id?: string
+  owner_name?: string
+  remark?: string
+  created_by_name?: string
+  created_at: string
+}
+
+export interface GuaranteeSummary {
+  by_status: Record<string, { count: number; amount: number }>
+  active_amount: number
+  expiring_30d: number
+}
+
+export interface CustomerEquipment {
+  id: string
+  customer_id: string
+  customer_name?: string
+  name: string
+  category?: string
+  spec?: string
+  supplier?: string
+  is_competitor: boolean
+  usage_years?: number
+  quantity?: number
+  condition?: string
+  replace_plan_date?: string
+  spare_usage?: string
+  remark?: string
+  created_by_name?: string
+  created_at: string
+}
+
+export interface CustomerProcessSurvey {
+  id: string
+  customer_id: string
+  customer_name?: string
+  industry?: string
+  main_products?: string
+  annual_output?: string
+  branch_info?: string
+  process_desc?: string
+  pain_points?: string
+  survey_date?: string
+  owner_id?: string
+  owner_name?: string
+  remark?: string
+  created_by_name?: string
+  created_at: string
+}
+
 export interface CustomerReport {
   customer: { id: string; name: string; customer_code?: string }
   summary: Record<string, number>
