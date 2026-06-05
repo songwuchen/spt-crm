@@ -73,6 +73,7 @@ const CommissionPage = lazy(() => import('@/pages/commission/CommissionPage'))
 const CollectionPage = lazy(() => import('@/pages/collection/CollectionPage'))
 const GuaranteePage = lazy(() => import('@/pages/guarantee/GuaranteePage'))
 const EquipmentProfilePage = lazy(() => import('@/pages/equipment/EquipmentProfilePage'))
+const MeasurementPage = lazy(() => import('@/pages/measurement/MeasurementPage'))
 const TenderList = lazy(() => import('@/pages/tender/TenderList'))
 const TaskPage = lazy(() => import('@/pages/task/TaskPage'))
 const CalendarPage = lazy(() => import('@/pages/calendar/CalendarPage'))
@@ -133,6 +134,7 @@ export const router = createBrowserRouter([
       { path: 'collection', element: <Guard permission="collection:view"><CollectionPage /></Guard> },
       { path: 'guarantees', element: <Guard permission="guarantee:view"><GuaranteePage /></Guard> },
       { path: 'equipment-profile', element: <Guard permission="customer:view"><EquipmentProfilePage /></Guard> },
+      { path: 'measurements', element: <Guard permission="service:view"><MeasurementPage /></Guard> },
       { path: 'products', element: <Guard permission="product:view"><ProductList /></Guard> },
       { path: 'orders', element: <Guard permission="order:view"><OrderList /></Guard> },
       { path: 'tenders', element: <Guard permission="tender:view"><TenderList /></Guard> },

@@ -76,6 +76,7 @@ const enUS = {
     guarantees: 'Guarantees',
     equipmentProfile: 'Equipment Profile',
     serviceTickets: 'Service Tickets',
+    measurements: 'Field Measurements',
     salesTargets: 'Sales Targets',
     renewals: 'Renewals',
     analytics: 'Analytics',

@@ -42,6 +42,7 @@ from app.domains.commission.router import router as commission_router
 from app.domains.collection.router import router as collection_router
 from app.domains.guarantee.router import router as guarantee_router
 from app.domains.equipment.router import router as equipment_router
+from app.domains.measurement.router import router as measurement_router
 from app.domains.task.router import router as task_router
 from app.domains.dashboard.saved_view import router as saved_view_router
 from app.domains.customer.contact_router import router as contact_router
@@ -140,6 +141,7 @@ app.include_router(commission_router)
 app.include_router(collection_router)
 app.include_router(guarantee_router)
 app.include_router(equipment_router)
+app.include_router(measurement_router)
 app.include_router(task_router)
 app.include_router(lead_public_router)
 app.include_router(saved_view_router)

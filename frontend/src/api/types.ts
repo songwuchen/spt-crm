@@ -850,6 +850,47 @@ export interface CustomerProcessSurvey {
   created_at: string
 }
 
+export interface ServiceMeasurement {
+  id: string
+  record_no: string
+  ticket_id?: string
+  customer_id?: string
+  customer_name?: string
+  service_date?: string
+  engineer_id?: string
+  engineer_name?: string
+  industry?: string
+  equipment_name?: string
+  equipment_model?: string
+  product_no?: string
+  motor_power_kw?: number
+  amplitude_mm?: number
+  material_name?: string
+  layer_thickness_mm?: number
+  feed_size_mm?: number
+  screen_efficiency?: number
+  throughput_tph?: number
+  source_temp_c?: number
+  ambient_temp_c?: number
+  running_current_a?: number
+  daily_run_hours?: number
+  service_rating?: string
+  product_rating?: string
+  result_desc?: string
+  issues?: string
+  remark?: string
+  created_by_name?: string
+  created_at: string
+}
+
+export interface MeasurementModelStat {
+  equipment_model: string
+  count: number
+  avg_efficiency?: number
+  avg_throughput?: number
+  avg_current?: number
+}
+
 export interface CustomerReport {
   customer: { id: string; name: string; customer_code?: string }
   summary: Record<string, number>
