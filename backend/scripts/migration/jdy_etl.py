@@ -597,6 +597,64 @@ async def _flush_acts(conn, ins, ins_map):
         await conn.executemany("insert into _migration_map(source_form,source_id,target_table,target_id) values($1,$2,$3,$4) on conflict do nothing", ins_map)
 
 # =================================================================
+# PHASE: relink  (attach orphan migrated projects to existing customers by name)
+# =================================================================
+async def _orphan_projects(conn):
+    """Migrated projects with a 公司名称 but no linked customer."""
+    return await conn.fetch(
+        """select id, custom_fields_json->>'公司名称' as company
+           from opportunity_projects
+           where tenant_id=$1 and customer_id is null
+             and custom_fields_json is not null
+             and (custom_fields_json->>'公司名称') is not null
+             and (custom_fields_json->>'公司名称') <> ''""", TENANT)
+
+
+async def phase_relink_preview(conn, c, limit):
+    cust, _, _ = await load_masters(conn)
+    rows = await _orphan_projects(conn)
+    matched = unmatched = 0
+    samples_m, samples_u = [], []
+    for r in rows:
+        company = r["company"]
+        if norm(company) in cust:
+            matched += 1
+            if len(samples_m) < 5:
+                samples_m.append(company)
+        else:
+            unmatched += 1
+            if len(samples_u) < 5:
+                samples_u.append(company)
+    total = len(rows)
+    print(f"[relink-preview] orphan_projects={total} would_match={matched} "
+          f"({(matched/total*100 if total else 0):.1f}%) would_NOT_match={unmatched}", flush=True)
+    print("  sample matched:   " + " | ".join(samples_m), flush=True)
+    print("  sample unmatched: " + " | ".join(samples_u), flush=True)
+
+
+async def phase_relink_apply(conn, c, limit):
+    """Link orphan projects to existing customers (by normalized name). Existing-only;
+    does NOT create new customers. Idempotent (only touches customer_id IS NULL)."""
+    cust, _, _ = await load_masters(conn)
+    rows = await _orphan_projects(conn)
+    updates = []
+    for r in rows:
+        cid = cust.get(norm(r["company"]))
+        if cid:
+            updates.append((cid, r["id"]))
+    n = 0
+    for i in range(0, len(updates), 500):
+        chunk = updates[i:i + 500]
+        async with conn.transaction():
+            await conn.executemany(
+                "update opportunity_projects set customer_id=$1 where id=$2 and customer_id is null", chunk)
+        n += len(chunk)
+        print(f"  ... relinked {n}", flush=True)
+    print(f"[relink-apply] orphan_projects={len(rows)} relinked={len(updates)} "
+          f"still_unmatched={len(rows)-len(updates)}", flush=True)
+
+
+# =================================================================
 async def phase_counts(conn, c, limit):
     for k, (app, form) in FORM.items():
         try:
@@ -618,6 +676,8 @@ PHASES = {
     "invoices": phase_invoices,
     "service": phase_service,
     "activities": phase_activities,
+    "relink-preview": phase_relink_preview,
+    "relink-apply": phase_relink_apply,
     "counts": phase_counts,
 }
 
