@@ -50,6 +50,7 @@ PREFIXES = {
     "commission":     "CM",
     "debt_transfer":  "DT",
     "guarantee":      "GT",
+    "measurement":    "MS",
 }
 
 

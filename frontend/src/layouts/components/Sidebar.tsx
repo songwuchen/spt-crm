@@ -29,6 +29,7 @@ const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
       { key: '/guarantees', icon: 'verified_user', labelKey: 'nav.guarantees', permission: 'guarantee:view' },
       { key: '/equipment-profile', icon: 'precision_manufacturing', labelKey: 'nav.equipmentProfile', permission: 'customer:view' },
       { key: '/service-tickets', icon: 'confirmation_number', labelKey: 'nav.serviceTickets', permission: 'service:view' },
+      { key: '/measurements', icon: 'monitoring', labelKey: 'nav.measurements', permission: 'service:view' },
       { key: '/sales-targets', icon: 'flag', labelKey: 'nav.salesTargets', permission: 'project:view' },
       { key: '/analytics', icon: 'analytics', labelKey: 'nav.analytics', permission: 'project:view' },
       { key: '/calendar', icon: 'calendar_month', labelKey: 'nav.calendar' },
@@ -72,6 +73,7 @@ function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/guarantees/)) return '/guarantees'
   if (pathname.match(/^\/equipment-profile/)) return '/equipment-profile'
   if (pathname.match(/^\/service-tickets/)) return '/service-tickets'
+  if (pathname.match(/^\/measurements/)) return '/measurements'
   if (pathname.match(/^\/sales-targets/)) return '/sales-targets'
   if (pathname.match(/^\/analytics/)) return '/analytics'
   if (pathname.match(/^\/calendar/)) return '/calendar'

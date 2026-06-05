@@ -92,6 +92,7 @@ const zhCN = {
     guarantees: '保函管理',
     equipmentProfile: '工艺设备档案',
     serviceTickets: '售后工单',
+    measurements: '售后实测数据',
     salesTargets: '销售目标',
     renewals: '续约管理',
     analytics: '报表中心',
