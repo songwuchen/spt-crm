@@ -138,8 +138,16 @@ print(call("GET", "/openapi/v1/customers", "status=active&page=1").json())
 | `crm.contact.read` | 读取联系人 |
 | `crm.project.read` | 读取商机项目 |
 | `crm.contract.read` | 读取合同 |
+| `crm.quote.read` | 读取报价 |
+| `crm.order.read` | 读取订单 |
+| `crm.payment.read` | 读取回款记录 |
+| `crm.product.read` | 读取产品 |
+| `crm.service.read` | 读取售后工单 |
+| `crm.delivery.read` | 读取交付里程碑 |
 | `crm.event.read` | 拉取业务事件 |
-| `crm.lead.write` | 创建线索（写入，需 `Idempotency-Key`） |
+| `crm.lead.write` | 创建 / 转化 / 废弃线索（写入，需 `Idempotency-Key`） |
+| `crm.activity.write` | 创建跟进/活动记录（写入，需 `Idempotency-Key`） |
+| `crm.customer.write` | 创建客户（写入，需 `Idempotency-Key`） |
 
 ---
 
@@ -293,6 +301,45 @@ curl -X POST "https://192.168.0.42:8410/openapi/v1/leads" \
 { "code": 0, "message": "success", "traceId": "...",
   "data": { "id": "...", "lead_code": "L2026...", "title": "官网询盘-振动筛",
             "company_name": "示例矿业", "status": "new", "owner_name": "开放平台（待分配）" } }
+```
+
+### 5.7 其他只读资源
+均为 offset 分页，沿用统一响应格式。
+
+| 方法 | 路径 | Scope | 主要查询参数 | 关键字段 |
+|---|---|---|---|---|
+| GET | `/quotes` `/quotes/{id}` | `crm.quote.read` | `project_id`/`status` | `quote_no`, `project_id`, `status`, `current_version_no` |
+| GET | `/orders` `/orders/{id}` | `crm.order.read` | `customer_id`/`status` | `order_no`, `customer_id`, `project_id`, `contract_id`, `amount`, `currency`, `status`, `order_date`, `delivery_date` |
+| GET | `/payments` | `crm.payment.read` | `project_id` | `project_id`, `amount`, `received_date`, `channel`, `reference_no`, `matched_plan_id` |
+| GET | `/products` `/products/{id}` | `crm.product.read` | `keyword`/`is_active` | `product_code`, `name`, `item_type`, `spec`, `unit`, `unit_price`, `leadtime_days`, `is_active`（**不含成本价**） |
+| GET | `/service-tickets` `/service-tickets/{id}` | `crm.service.read` | `customer_id`/`status` | `ticket_no`, `customer_id`, `project_id`, `type`, `priority`, `status`, `description`, `resolution`, `satisfaction_score` |
+| GET | `/milestones` | `crm.delivery.read` | `project_id` | `project_id`, `milestone_code`, `name`, `status`, `plan_date`, `actual_date`, `source_type` |
+
+### 5.8 其他写入接口（均需 `Idempotency-Key`）
+
+| 方法 | 路径 | Scope | 说明 |
+|---|---|---|---|
+| POST | `/leads/{id}/qualify` | `crm.lead.write` | 转化线索为客户；返回 `{lead_id, customer_id, customer_name}` |
+| POST | `/leads/{id}/discard` | `crm.lead.write` | 废弃线索 |
+| POST | `/activities` | `crm.activity.write` | 创建跟进/活动记录 |
+| POST | `/customers` | `crm.customer.write` | 创建客户（默认入公海、待分配） |
+
+`POST /activities` 请求体：
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `biz_type` | string | 是 | `customer` / `project` / `lead` |
+| `biz_id` | string | 是 | 关联业务对象 ID |
+| `activity_type` | string | 否 | `call`/`visit`/`meeting`/`email`/`note`（默认 `note`） |
+| `subject` / `content` | string | 否 | 主题 / 内容 |
+| `next_follow_date` | string(date) | 否 | 下次跟进日期 |
+
+`POST /customers` 请求体：`name`(必填)、`short_name`、`industry`、`region`、`address`、`website`、`source`、`level`(A/B/C/D)、`remark`。
+
+示例（创建活动）：
+```bash
+curl -X POST "https://192.168.0.42:8410/openapi/v1/activities" \
+  -H "X-API-Key: $KEY" -H "Idempotency-Key: $(uuidgen)" -H "Content-Type: application/json" \
+  -d '{"biz_type":"customer","biz_id":"<customer-id>","activity_type":"call","subject":"回访","content":"客户确认需求"}'
 ```
 
 ---

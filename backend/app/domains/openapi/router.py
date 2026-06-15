@@ -14,7 +14,7 @@ from app.dependencies import get_db
 from app.domains.openapi import service, dto
 from app.domains.openapi.auth import get_openapi_context, require_scope, OpenApiContext
 from app.domains.openapi.errors import OpenApiException, CRM_NOT_FOUND
-from app.domains.openapi.schemas import OpenLeadCreate
+from app.domains.openapi.schemas import OpenLeadCreate, OpenActivityCreate, OpenCustomerCreate
 from app.domains.openapi.idempotency import run_idempotent
 
 router = APIRouter(prefix="/openapi/v1", tags=["开放平台"])
@@ -161,6 +161,132 @@ async def get_contract(
     return _ok(request, dto.contract_to_dto(row))
 
 
+# ---------------------------------------------------------------- products
+@router.get("/products")
+async def list_products(
+    request: Request,
+    keyword: str | None = Query(None), is_active: bool | None = Query(None),
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
+    ctx: OpenApiContext = Depends(require_scope("crm.product.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows, total = await service.query_products(db, ctx.tenant_id, keyword=keyword, is_active=is_active, page=page, page_size=page_size)
+    return _page(request, [dto.product_to_dto(r) for r in rows], total, page, page_size)
+
+
+@router.get("/products/{product_id}")
+async def get_product(
+    request: Request, product_id: str,
+    ctx: OpenApiContext = Depends(require_scope("crm.product.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await service.get_product(db, ctx.tenant_id, product_id)
+    if not row:
+        raise OpenApiException(CRM_NOT_FOUND, "产品不存在", http_status=404, details={"id": product_id})
+    return _ok(request, dto.product_to_dto(row))
+
+
+# ------------------------------------------------------------------ orders
+@router.get("/orders")
+async def list_orders(
+    request: Request,
+    customer_id: str | None = Query(None), status: str | None = Query(None),
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
+    ctx: OpenApiContext = Depends(require_scope("crm.order.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows, total = await service.query_orders(db, ctx.tenant_id, customer_id=customer_id, status=status, page=page, page_size=page_size)
+    return _page(request, [dto.order_to_dto(r) for r in rows], total, page, page_size)
+
+
+@router.get("/orders/{order_id}")
+async def get_order(
+    request: Request, order_id: str,
+    ctx: OpenApiContext = Depends(require_scope("crm.order.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await service.get_order(db, ctx.tenant_id, order_id)
+    if not row:
+        raise OpenApiException(CRM_NOT_FOUND, "订单不存在", http_status=404, details={"id": order_id})
+    return _ok(request, dto.order_to_dto(row))
+
+
+# ------------------------------------------------------------------ quotes
+@router.get("/quotes")
+async def list_quotes(
+    request: Request,
+    project_id: str | None = Query(None), status: str | None = Query(None),
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
+    ctx: OpenApiContext = Depends(require_scope("crm.quote.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows, total = await service.query_quotes(db, ctx.tenant_id, project_id=project_id, status=status, page=page, page_size=page_size)
+    return _page(request, [dto.quote_to_dto(r) for r in rows], total, page, page_size)
+
+
+@router.get("/quotes/{quote_id}")
+async def get_quote(
+    request: Request, quote_id: str,
+    ctx: OpenApiContext = Depends(require_scope("crm.quote.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await service.get_quote(db, ctx.tenant_id, quote_id)
+    if not row:
+        raise OpenApiException(CRM_NOT_FOUND, "报价不存在", http_status=404, details={"id": quote_id})
+    return _ok(request, dto.quote_to_dto(row))
+
+
+# ---------------------------------------------------------------- payments
+@router.get("/payments")
+async def list_payments(
+    request: Request,
+    project_id: str | None = Query(None),
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
+    ctx: OpenApiContext = Depends(require_scope("crm.payment.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows, total = await service.query_payments(db, ctx.tenant_id, project_id=project_id, page=page, page_size=page_size)
+    return _page(request, [dto.payment_to_dto(r) for r in rows], total, page, page_size)
+
+
+# ----------------------------------------------------------- service tickets
+@router.get("/service-tickets")
+async def list_service_tickets(
+    request: Request,
+    customer_id: str | None = Query(None), status: str | None = Query(None),
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
+    ctx: OpenApiContext = Depends(require_scope("crm.service.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows, total = await service.query_service_tickets(db, ctx.tenant_id, customer_id=customer_id, status=status, page=page, page_size=page_size)
+    return _page(request, [dto.service_ticket_to_dto(r) for r in rows], total, page, page_size)
+
+
+@router.get("/service-tickets/{ticket_id}")
+async def get_service_ticket(
+    request: Request, ticket_id: str,
+    ctx: OpenApiContext = Depends(require_scope("crm.service.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await service.get_service_ticket(db, ctx.tenant_id, ticket_id)
+    if not row:
+        raise OpenApiException(CRM_NOT_FOUND, "工单不存在", http_status=404, details={"id": ticket_id})
+    return _ok(request, dto.service_ticket_to_dto(row))
+
+
+# ------------------------------------------------------- delivery milestones
+@router.get("/milestones")
+async def list_milestones(
+    request: Request,
+    project_id: str | None = Query(None),
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
+    ctx: OpenApiContext = Depends(require_scope("crm.delivery.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows, total = await service.query_milestones(db, ctx.tenant_id, project_id=project_id, page=page, page_size=page_size)
+    return _page(request, [dto.milestone_to_dto(r) for r in rows], total, page, page_size)
+
+
 # --------------------------------------------------------- leads (write)
 @router.post("/leads")
 async def create_lead(
@@ -175,6 +301,56 @@ async def create_lead(
 
     data = await run_idempotent(db, ctx, request, producer)
     return _ok(request, data)
+
+
+@router.post("/leads/{lead_id}/qualify")
+async def qualify_lead(
+    request: Request, lead_id: str,
+    ctx: OpenApiContext = Depends(require_scope("crm.lead.write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Convert a lead into a customer. Requires ``Idempotency-Key``."""
+    async def producer():
+        return await service.qualify_lead_from_openapi(db, ctx, lead_id)
+    return _ok(request, await run_idempotent(db, ctx, request, producer))
+
+
+@router.post("/leads/{lead_id}/discard")
+async def discard_lead(
+    request: Request, lead_id: str,
+    ctx: OpenApiContext = Depends(require_scope("crm.lead.write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Discard a lead. Requires ``Idempotency-Key``."""
+    async def producer():
+        return await service.discard_lead_from_openapi(db, ctx, lead_id)
+    return _ok(request, await run_idempotent(db, ctx, request, producer))
+
+
+# ------------------------------------------------------------- activities (write)
+@router.post("/activities")
+async def create_activity(
+    request: Request, body: OpenActivityCreate,
+    ctx: OpenApiContext = Depends(require_scope("crm.activity.write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Log a follow-up / activity. Requires ``Idempotency-Key``."""
+    async def producer():
+        return await service.create_activity_from_openapi(db, ctx, body)
+    return _ok(request, await run_idempotent(db, ctx, request, producer))
+
+
+# -------------------------------------------------------------- customers (write)
+@router.post("/customers")
+async def create_customer(
+    request: Request, body: OpenCustomerCreate,
+    ctx: OpenApiContext = Depends(require_scope("crm.customer.write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a customer (unassigned/public pool). Requires ``Idempotency-Key``."""
+    async def producer():
+        return await service.create_customer_from_openapi(db, ctx, body)
+    return _ok(request, await run_idempotent(db, ctx, request, producer))
 
 
 # ------------------------------------------------------------------ events

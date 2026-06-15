@@ -23,6 +23,13 @@ from app.domains.customer.models import Customer, Contact
 from app.domains.project.models import OpportunityProject
 from app.domains.contract.models import Contract
 from app.domains.lead.models import Lead
+from app.domains.product.models import Product
+from app.domains.order.models import Order
+from app.domains.quote.models import Quote
+from app.domains.payment.models import PaymentRecord
+from app.domains.service_ticket.models import ServiceTicket
+from app.domains.delivery.models import DeliveryMilestone
+from app.domains.activity.models import Activity
 from app.domains.outbox.models import OutboxEvent
 from app.domains.admin.models import WebhookSubscription
 
@@ -318,6 +325,88 @@ async def get_event(db: AsyncSession, tenant_id: str, event_id: str) -> OutboxEv
     )).scalar_one_or_none()
 
 
+# ===================================================== additional reads
+async def _paginate(db, base, order_col, page: int, page_size: int):
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
+    rows = (await db.execute(
+        base.order_by(order_col.desc()).offset((page - 1) * page_size).limit(page_size)
+    )).scalars().all()
+    return list(rows), total
+
+
+async def _get_one(db, model, tenant_id: str, obj_id: str):
+    return (await db.execute(
+        select(model).where(model.id == obj_id, model.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+
+
+async def query_products(db, tenant_id, *, keyword, is_active, page, page_size):
+    base = select(Product).where(Product.tenant_id == tenant_id)
+    if keyword:
+        base = base.where(or_(Product.name.ilike(f"%{keyword}%"), Product.product_code.ilike(f"%{keyword}%")))
+    if is_active is not None:
+        base = base.where(Product.is_active == is_active)
+    return await _paginate(db, base, Product.updated_at, page, page_size)
+
+
+async def get_product(db, tenant_id, obj_id):
+    return await _get_one(db, Product, tenant_id, obj_id)
+
+
+async def query_orders(db, tenant_id, *, customer_id, status, page, page_size):
+    base = select(Order).where(Order.tenant_id == tenant_id, Order.is_deleted == False)  # noqa: E712
+    if customer_id:
+        base = base.where(Order.customer_id == customer_id)
+    if status:
+        base = base.where(Order.status == status)
+    return await _paginate(db, base, Order.updated_at, page, page_size)
+
+
+async def get_order(db, tenant_id, obj_id):
+    o = await _get_one(db, Order, tenant_id, obj_id)
+    return o if (o and not o.is_deleted) else None
+
+
+async def query_quotes(db, tenant_id, *, project_id, status, page, page_size):
+    base = select(Quote).where(Quote.tenant_id == tenant_id)
+    if project_id:
+        base = base.where(Quote.project_id == project_id)
+    if status:
+        base = base.where(Quote.status == status)
+    return await _paginate(db, base, Quote.updated_at, page, page_size)
+
+
+async def get_quote(db, tenant_id, obj_id):
+    return await _get_one(db, Quote, tenant_id, obj_id)
+
+
+async def query_payments(db, tenant_id, *, project_id, page, page_size):
+    base = select(PaymentRecord).where(PaymentRecord.tenant_id == tenant_id)
+    if project_id:
+        base = base.where(PaymentRecord.project_id == project_id)
+    return await _paginate(db, base, PaymentRecord.created_at, page, page_size)
+
+
+async def query_service_tickets(db, tenant_id, *, customer_id, status, page, page_size):
+    base = select(ServiceTicket).where(ServiceTicket.tenant_id == tenant_id)
+    if customer_id:
+        base = base.where(ServiceTicket.customer_id == customer_id)
+    if status:
+        base = base.where(ServiceTicket.status == status)
+    return await _paginate(db, base, ServiceTicket.updated_at, page, page_size)
+
+
+async def get_service_ticket(db, tenant_id, obj_id):
+    return await _get_one(db, ServiceTicket, tenant_id, obj_id)
+
+
+async def query_milestones(db, tenant_id, *, project_id, page, page_size):
+    base = select(DeliveryMilestone).where(DeliveryMilestone.tenant_id == tenant_id)
+    if project_id:
+        base = base.where(DeliveryMilestone.project_id == project_id)
+    return await _paginate(db, base, DeliveryMilestone.sort_order, page, page_size)
+
+
 # ============================================================ writes (leads)
 async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
     """Create a lead from an external app. Reuses the internal lead service so all
@@ -339,6 +428,47 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
         lead.owner_name = "开放平台（待分配）"
         await db.commit()
         await db.refresh(lead)
+    return lead_to_dto(lead)
+
+
+def _pseudo_user(ctx) -> dict:
+    return {"sub": ctx.app_id, "username": f"openapi:{ctx.app_key}", "real_name": "开放平台"}
+
+
+async def create_activity_from_openapi(db: AsyncSession, ctx, data) -> dict:
+    """Log a follow-up/activity on a customer/project/lead via the internal service."""
+    from app.domains.activity.service import create_activity
+    from app.domains.activity.schemas import ActivityCreate
+    from app.domains.openapi.dto import activity_to_dto
+    payload = data.model_dump(exclude_unset=True)
+    act = await create_activity(db, ctx.tenant_id, ActivityCreate(**payload), _pseudo_user(ctx))
+    return activity_to_dto(act)
+
+
+async def create_customer_from_openapi(db: AsyncSession, ctx, data) -> dict:
+    """Create a customer (unassigned/public pool) via the internal service."""
+    from app.domains.customer.service import create_customer
+    from app.domains.customer.schemas import CustomerCreate
+    from app.domains.openapi.dto import customer_to_dto
+    payload = data.model_dump(exclude_unset=True)
+    customer = await create_customer(db, ctx.tenant_id, CustomerCreate(**payload), _pseudo_user(ctx))
+    if customer.owner_id == ctx.app_id:
+        customer.owner_id = None
+        customer.owner_name = "开放平台（待分配）"
+        await db.commit()
+        await db.refresh(customer)
+    return customer_to_dto(customer)
+
+
+async def qualify_lead_from_openapi(db: AsyncSession, ctx, lead_id: str) -> dict:
+    from app.domains.lead.service import qualify_lead
+    return await qualify_lead(db, ctx.tenant_id, lead_id, _pseudo_user(ctx))
+
+
+async def discard_lead_from_openapi(db: AsyncSession, ctx, lead_id: str) -> dict:
+    from app.domains.lead.service import discard_lead
+    from app.domains.openapi.dto import lead_to_dto
+    lead = await discard_lead(db, ctx.tenant_id, lead_id, _pseudo_user(ctx))
     return lead_to_dto(lead)
 
 

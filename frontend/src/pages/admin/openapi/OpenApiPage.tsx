@@ -422,8 +422,16 @@ const SCOPE_DESC: { scope: string; desc: string }[] = [
   { scope: 'crm.contact.read', desc: '读取联系人' },
   { scope: 'crm.project.read', desc: '读取商机项目' },
   { scope: 'crm.contract.read', desc: '读取合同' },
+  { scope: 'crm.quote.read', desc: '读取报价' },
+  { scope: 'crm.order.read', desc: '读取订单' },
+  { scope: 'crm.payment.read', desc: '读取回款记录' },
+  { scope: 'crm.product.read', desc: '读取产品' },
+  { scope: 'crm.service.read', desc: '读取售后工单' },
+  { scope: 'crm.delivery.read', desc: '读取交付里程碑' },
   { scope: 'crm.event.read', desc: '拉取业务事件' },
-  { scope: 'crm.lead.write', desc: '创建线索（写入，需 Idempotency-Key）' },
+  { scope: 'crm.lead.write', desc: '创建/转化/废弃线索（写入，需 Idempotency-Key）' },
+  { scope: 'crm.activity.write', desc: '创建跟进/活动记录（写入）' },
+  { scope: 'crm.customer.write', desc: '创建客户（写入）' },
 ]
 
 const ENDPOINTS = [
@@ -436,9 +444,19 @@ const ENDPOINTS = [
   { method: 'GET', path: '/openapi/v1/projects/{id}', desc: '商机详情' },
   { method: 'GET', path: '/openapi/v1/contracts', desc: '合同列表（project_id/status）' },
   { method: 'GET', path: '/openapi/v1/contracts/{id}', desc: '合同详情' },
+  { method: 'GET', path: '/openapi/v1/quotes', desc: '报价列表（project_id/status）' },
+  { method: 'GET', path: '/openapi/v1/orders', desc: '订单列表（customer_id/status）' },
+  { method: 'GET', path: '/openapi/v1/payments', desc: '回款记录（project_id）' },
+  { method: 'GET', path: '/openapi/v1/products', desc: '产品列表（keyword/is_active）' },
+  { method: 'GET', path: '/openapi/v1/service-tickets', desc: '售后工单（customer_id/status）' },
+  { method: 'GET', path: '/openapi/v1/milestones', desc: '交付里程碑（project_id）' },
   { method: 'GET', path: '/openapi/v1/events', desc: '事件拉取（游标 after_event_id + 时间范围）' },
   { method: 'GET', path: '/openapi/v1/events/{event_id}', desc: '单事件详情' },
-  { method: 'POST', path: '/openapi/v1/leads', desc: '创建线索（写入，需 Idempotency-Key 头）' },
+  { method: 'POST', path: '/openapi/v1/leads', desc: '创建线索（需 Idempotency-Key）' },
+  { method: 'POST', path: '/openapi/v1/leads/{id}/qualify', desc: '转化线索为客户（需 Idempotency-Key）' },
+  { method: 'POST', path: '/openapi/v1/leads/{id}/discard', desc: '废弃线索（需 Idempotency-Key）' },
+  { method: 'POST', path: '/openapi/v1/activities', desc: '创建跟进/活动（需 Idempotency-Key）' },
+  { method: 'POST', path: '/openapi/v1/customers', desc: '创建客户（需 Idempotency-Key）' },
 ]
 
 const EVENTS = [

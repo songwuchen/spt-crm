@@ -8,10 +8,20 @@ ALL_SCOPES = [
     "crm.contact.read",
     "crm.project.read",
     "crm.contract.read",
+    "crm.quote.read",
+    "crm.order.read",
+    "crm.payment.read",
+    "crm.product.read",
+    "crm.service.read",
+    "crm.delivery.read",
     "crm.event.read",
     # write scopes (require Idempotency-Key)
     "crm.lead.write",
+    "crm.activity.write",
+    "crm.customer.write",
 ]
+
+_ACTIVITY_BIZ_TYPES = {"customer", "project", "lead"}
 
 
 class OpenLeadCreate(BaseModel):
@@ -27,6 +37,43 @@ class OpenLeadCreate(BaseModel):
     region: Optional[str] = Field(None, max_length=200)
     budget_range: Optional[str] = Field(None, max_length=100)
     remark: Optional[str] = Field(None, max_length=2000)
+
+
+class OpenActivityCreate(BaseModel):
+    """External follow-up / activity record for POST /openapi/v1/activities."""
+    biz_type: str = Field(..., description="customer / project / lead")
+    biz_id: str = Field(..., max_length=36)
+    activity_type: str = Field("note", max_length=32)  # call/visit/meeting/email/note
+    subject: Optional[str] = Field(None, max_length=300)
+    content: Optional[str] = Field(None, max_length=4000)
+    next_follow_date: Optional[str] = None
+
+    @field_validator("biz_type")
+    @classmethod
+    def _check_biz_type(cls, v: str) -> str:
+        if v not in _ACTIVITY_BIZ_TYPES:
+            raise ValueError(f"biz_type must be one of {sorted(_ACTIVITY_BIZ_TYPES)}")
+        return v
+
+
+class OpenCustomerCreate(BaseModel):
+    """External customer-intake payload for POST /openapi/v1/customers."""
+    name: str = Field(..., min_length=1, max_length=200)
+    short_name: Optional[str] = Field(None, max_length=100)
+    industry: Optional[str] = Field(None, max_length=100)
+    region: Optional[str] = Field(None, max_length=100)
+    address: Optional[str] = Field(None, max_length=500)
+    website: Optional[str] = Field(None, max_length=500)
+    source: Optional[str] = Field(None, max_length=100)
+    level: Optional[str] = Field(None, max_length=8)
+    remark: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("level")
+    @classmethod
+    def _check_level(cls, v):
+        if v is not None and v not in ("A", "B", "C", "D"):
+            raise ValueError("level 必须为 A/B/C/D")
+        return v
 
 _AUTH_MODES = {"apikey", "hmac"}
 _STATUSES = {"enabled", "disabled"}

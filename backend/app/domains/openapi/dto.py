@@ -122,6 +122,122 @@ def lead_to_dto(l) -> dict:
     }
 
 
+# ------------------------------------------------------------------ products
+def product_to_dto(p) -> dict:
+    # NB: cost_price is internal — intentionally not exposed.
+    return {
+        "id": p.id,
+        "product_code": p.product_code,
+        "name": p.name,
+        "item_type": p.item_type,
+        "spec": p.spec,
+        "unit": p.unit,
+        "unit_price": _num(p.unit_price),
+        "leadtime_days": p.leadtime_days,
+        "is_active": bool(p.is_active),
+        "created_at": _iso(p.created_at),
+        "updated_at": _iso(p.updated_at),
+    }
+
+
+# -------------------------------------------------------------------- orders
+def order_to_dto(o) -> dict:
+    return {
+        "id": o.id,
+        "order_no": o.order_no,
+        "customer_id": o.customer_id,
+        "project_id": o.project_id,
+        "contract_id": o.contract_id,
+        "title": o.title,
+        "amount": _num(o.amount),
+        "currency": o.currency,
+        "status": o.status,
+        "order_date": _iso(o.order_date),
+        "delivery_date": _iso(o.delivery_date),
+        "owner_name": o.owner_name,
+        "created_at": _iso(o.created_at),
+        "updated_at": _iso(o.updated_at),
+    }
+
+
+# -------------------------------------------------------------------- quotes
+def quote_to_dto(q) -> dict:
+    return {
+        "id": q.id,
+        "quote_no": q.quote_no,
+        "project_id": q.project_id,
+        "status": q.status,
+        "current_version_no": q.current_version_no,
+        "created_at": _iso(q.created_at),
+        "updated_at": _iso(q.updated_at),
+    }
+
+
+# ------------------------------------------------------------------ payments
+def payment_to_dto(r) -> dict:
+    return {
+        "id": r.id,
+        "project_id": r.project_id,
+        "amount": _num(r.amount),
+        "received_date": _iso(r.received_date),
+        "channel": r.channel,
+        "reference_no": r.reference_no,
+        "matched_plan_id": r.matched_plan_id,
+        "created_at": _iso(r.created_at),
+        "updated_at": _iso(r.updated_at),
+    }
+
+
+# ------------------------------------------------------------- service tickets
+def service_ticket_to_dto(t) -> dict:
+    return {
+        "id": t.id,
+        "ticket_no": t.ticket_no,
+        "customer_id": t.customer_id,
+        "project_id": t.project_id,
+        "type": t.type,
+        "priority": t.priority,
+        "status": t.status,
+        "description": t.description,
+        "resolution": t.resolution,
+        "assigned_to_name": t.assigned_to_name,
+        "satisfaction_score": t.satisfaction_score,
+        "created_at": _iso(t.created_at),
+        "updated_at": _iso(t.updated_at),
+    }
+
+
+# ------------------------------------------------------------ delivery milestone
+def milestone_to_dto(m) -> dict:
+    return {
+        "id": m.id,
+        "project_id": m.project_id,
+        "milestone_code": m.milestone_code,
+        "name": m.name,
+        "status": m.status,
+        "plan_date": _iso(m.plan_date),
+        "actual_date": _iso(m.actual_date),
+        "source_type": m.source_type,
+        "created_at": _iso(m.created_at),
+        "updated_at": _iso(m.updated_at),
+    }
+
+
+# --------------------------------------------------------------- activities
+def activity_to_dto(a) -> dict:
+    return {
+        "id": a.id,
+        "biz_type": a.biz_type,
+        "biz_id": a.biz_id,
+        "activity_type": a.activity_type,
+        "subject": a.subject,
+        "content": a.content,
+        "next_follow_date": _iso(a.next_follow_date),
+        "created_by_name": a.created_by_name,
+        "created_at": _iso(a.created_at),
+    }
+
+
 # -------------------------------------------------------------------- events
 def event_to_dto(e) -> dict:
     return {
