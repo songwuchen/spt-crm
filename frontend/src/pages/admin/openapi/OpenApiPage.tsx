@@ -447,6 +447,9 @@ const ENDPOINTS = [
   { method: 'GET', path: '/openapi/v1/contracts/{id}', desc: '合同详情' },
   { method: 'GET', path: '/openapi/v1/quotes', desc: '报价列表（project_id/status）' },
   { method: 'GET', path: '/openapi/v1/quotes/{id}/lines', desc: '报价当前版本行项明细' },
+  { method: 'GET', path: '/openapi/v1/quotes/{id}/versions', desc: '报价版本历史' },
+  { method: 'GET', path: '/openapi/v1/contracts/{id}/versions', desc: '合同版本历史' },
+  { method: 'GET', path: '/openapi/v1/projects/{id}/stage-history', desc: '商机阶段变更历史' },
   { method: 'GET', path: '/openapi/v1/orders', desc: '订单列表（customer_id/status）' },
   { method: 'GET', path: '/openapi/v1/payments', desc: '回款记录（project_id）' },
   { method: 'GET', path: '/openapi/v1/products', desc: '产品列表（keyword/is_active）' },
@@ -473,7 +476,13 @@ function DocsTab() {
     <div className="space-y-4 max-w-4xl">
       <Alert
         type="success" showIcon
-        message="完整对接文档见仓库 docs/product/开放平台API文档.md，下方为快速参考。"
+        message={(
+          <span>
+            机器可读规范：<a href="/openapi/v1/docs" target="_blank" rel="noreferrer">Swagger UI</a>
+            {' / '}<a href="/openapi/v1/openapi.json" target="_blank" rel="noreferrer">openapi.json</a>
+            （可导入 Postman/代码生成）。完整对接文档见 docs/product/开放平台API文档.md，下方为快速参考。
+          </span>
+        )}
       />
       <div className="bg-white rounded-lg border border-slate-200 p-4">
         <h3 className="font-bold text-slate-800 mb-2">认证</h3>

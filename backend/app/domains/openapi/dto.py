@@ -189,6 +189,46 @@ def quote_line_to_dto(line) -> dict:
     }
 
 
+# ------------------------------------------------------------- quote versions
+def quote_version_to_dto(v) -> dict:
+    # NB: margin_rate is internal — intentionally not exposed.
+    return {
+        "version_no": v.version_no,
+        "title": v.title,
+        "status": v.status,
+        "price_total": _num(v.price_total),
+        "tax_rate": _num(v.tax_rate),
+        "tax_total": _num(v.tax_total),
+        "discount_total": _num(v.discount_total),
+        "delivery_promise_date": _iso(v.delivery_promise_date),
+        "validity_days": v.validity_days,
+        "created_at": _iso(v.created_at),
+    }
+
+
+# --------------------------------------------------------- contract versions
+def contract_version_to_dto(v) -> dict:
+    # NB: key_clauses / attachment id are internal — not exposed.
+    return {
+        "version_no": v.version_no,
+        "title": v.title,
+        "status": v.status,
+        "risk_level": v.risk_level,
+        "created_at": _iso(v.created_at),
+    }
+
+
+# ---------------------------------------------------------- stage history
+def stage_history_to_dto(h) -> dict:
+    return {
+        "from_stage": h.from_stage,
+        "to_stage": h.to_stage,
+        "changed_by_name": h.changed_by_name,
+        "note": h.note,
+        "created_at": _iso(h.created_at),
+    }
+
+
 # ------------------------------------------------------------------ payments
 def payment_to_dto(r) -> dict:
     return {

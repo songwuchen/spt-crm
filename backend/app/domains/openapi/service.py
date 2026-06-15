@@ -20,8 +20,8 @@ from app.domains.openapi.schemas import OpenApiAppCreate, OpenApiAppUpdate
 from app.domains.openapi.auth import hash_secret, generate_app_key, generate_secret
 
 from app.domains.customer.models import Customer, Contact
-from app.domains.project.models import OpportunityProject
-from app.domains.contract.models import Contract
+from app.domains.project.models import OpportunityProject, ProjectStageHistory
+from app.domains.contract.models import Contract, ContractVersion
 from app.domains.lead.models import Lead
 from app.domains.product.models import Product
 from app.domains.order.models import Order
@@ -415,6 +415,40 @@ async def query_payments(db, tenant_id, *, project_id, page, page_size):
     if project_id:
         base = base.where(PaymentRecord.project_id == project_id)
     return await _paginate(db, base, PaymentRecord.created_at, page, page_size)
+
+
+async def list_quote_versions(db, tenant_id, quote_id):
+    """Return version rows for a quote (newest first), or None if quote missing."""
+    if not await _get_one(db, Quote, tenant_id, quote_id):
+        return None
+    rows = (await db.execute(
+        select(QuoteVersion).where(
+            QuoteVersion.tenant_id == tenant_id, QuoteVersion.quote_id == quote_id,
+        ).order_by(QuoteVersion.version_no.desc())
+    )).scalars().all()
+    return list(rows)
+
+
+async def list_contract_versions(db, tenant_id, contract_id):
+    if not await _get_one(db, Contract, tenant_id, contract_id):
+        return None
+    rows = (await db.execute(
+        select(ContractVersion).where(
+            ContractVersion.tenant_id == tenant_id, ContractVersion.contract_id == contract_id,
+        ).order_by(ContractVersion.version_no.desc())
+    )).scalars().all()
+    return list(rows)
+
+
+async def list_stage_history(db, tenant_id, project_id):
+    if not await _get_one(db, OpportunityProject, tenant_id, project_id):
+        return None
+    rows = (await db.execute(
+        select(ProjectStageHistory).where(
+            ProjectStageHistory.tenant_id == tenant_id, ProjectStageHistory.project_id == project_id,
+        ).order_by(ProjectStageHistory.created_at.asc())
+    )).scalars().all()
+    return list(rows)
 
 
 async def query_service_tickets(db, tenant_id, *, customer_id, status, updated_since=None, page=1, page_size=20):

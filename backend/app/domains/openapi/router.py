@@ -8,6 +8,9 @@ services own.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request, Query
+from fastapi.openapi.utils import get_openapi
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db
@@ -41,6 +44,39 @@ def _page(request: Request, items: list, total: int, page: int, page_size: int):
 async def ping(request: Request, ctx: OpenApiContext = Depends(get_openapi_context)):
     """Connectivity / credential self-check."""
     return _ok(request, {"app_key": ctx.app_key, "scopes": ctx.scopes, "tenant_id": ctx.tenant_id})
+
+
+# ----------------------------------------------- machine-readable discovery
+_spec_cache: dict = {}
+
+
+@router.get("/openapi.json", include_in_schema=False)
+async def openapi_spec():
+    """OpenAPI 3 schema for the public surface only (no auth needed — discovery)."""
+    if "spec" not in _spec_cache:
+        public_routes = [
+            r for r in router.routes
+            if getattr(r, "path", "").startswith("/openapi/v1")
+            and not getattr(r, "path", "").endswith(("/openapi.json", "/docs"))
+        ]
+        schema = get_openapi(
+            title="SPT-CRM 开放平台 API",
+            version="v1",
+            description="对外开放接口。认证：请求头 X-API-Key（API Key 模式）或 X-App-Id/X-Timestamp/X-Signature（HMAC 模式）。写接口需 Idempotency-Key。",
+            routes=public_routes,
+        )
+        schema.setdefault("components", {}).setdefault("securitySchemes", {})["ApiKeyAuth"] = {
+            "type": "apiKey", "in": "header", "name": "X-API-Key",
+        }
+        schema["security"] = [{"ApiKeyAuth": []}]
+        _spec_cache["spec"] = schema
+    return JSONResponse(_spec_cache["spec"])
+
+
+@router.get("/docs", include_in_schema=False)
+async def openapi_docs():
+    """Swagger UI for partners."""
+    return get_swagger_ui_html(openapi_url="/openapi/v1/openapi.json", title="SPT-CRM 开放平台 API 文档")
 
 
 # --------------------------------------------------------------- customers
@@ -135,6 +171,18 @@ async def get_project(
     return _ok(request, dto.project_to_dto(row))
 
 
+@router.get("/projects/{project_id}/stage-history")
+async def list_stage_history(
+    request: Request, project_id: str,
+    ctx: OpenApiContext = Depends(require_scope("crm.project.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = await service.list_stage_history(db, ctx.tenant_id, project_id)
+    if rows is None:
+        raise OpenApiException(CRM_NOT_FOUND, "商机项目不存在", http_status=404, details={"id": project_id})
+    return _ok(request, {"items": [dto.stage_history_to_dto(h) for h in rows]})
+
+
 # --------------------------------------------------------------- contracts
 @router.get("/contracts")
 async def list_contracts(
@@ -163,6 +211,18 @@ async def get_contract(
     if not row:
         raise OpenApiException(CRM_NOT_FOUND, "合同不存在", http_status=404, details={"id": contract_id})
     return _ok(request, dto.contract_to_dto(row))
+
+
+@router.get("/contracts/{contract_id}/versions")
+async def list_contract_versions(
+    request: Request, contract_id: str,
+    ctx: OpenApiContext = Depends(require_scope("crm.contract.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = await service.list_contract_versions(db, ctx.tenant_id, contract_id)
+    if rows is None:
+        raise OpenApiException(CRM_NOT_FOUND, "合同不存在", http_status=404, details={"id": contract_id})
+    return _ok(request, {"items": [dto.contract_version_to_dto(v) for v in rows]})
 
 
 # ---------------------------------------------------------------- products
@@ -260,6 +320,18 @@ async def get_quote_lines(
         "price_total": float(version.price_total) if version and version.price_total else None,
         "items": [dto.quote_line_to_dto(li) for li in lines],
     })
+
+
+@router.get("/quotes/{quote_id}/versions")
+async def list_quote_versions(
+    request: Request, quote_id: str,
+    ctx: OpenApiContext = Depends(require_scope("crm.quote.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = await service.list_quote_versions(db, ctx.tenant_id, quote_id)
+    if rows is None:
+        raise OpenApiException(CRM_NOT_FOUND, "报价不存在", http_status=404, details={"id": quote_id})
+    return _ok(request, {"items": [dto.quote_version_to_dto(v) for v in rows]})
 
 
 # ---------------------------------------------------------------- payments

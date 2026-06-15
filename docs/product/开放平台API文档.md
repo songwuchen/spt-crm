@@ -17,6 +17,10 @@
 | 关联 ID | 每个响应回写 `X-Trace-Id`，响应体亦含 `traceId`，排障时请一并提供 |
 | 首版能力 | 客户 / 联系人 / 商机项目 / 合同 的只读查询 + 业务事件拉取 + Webhook |
 
+### 机器可读规范（推荐）
+- OpenAPI 3 schema：`GET /openapi/v1/openapi.json`（公开，无需认证，可直接导入 Postman / 代码生成工具）
+- 在线调试文档（Swagger UI）：浏览器打开 `https://<your-host>/openapi/v1/docs`
+
 ### 接入流程
 1. 联系 SPT-CRM 管理员，在「系统 → 开放平台 → 应用与密钥」中为你创建一个**应用**，选择认证方式（API Key 或 HMAC）并授予所需 **Scope**。
 2. 创建成功后系统会**一次性**展示 `App ID` 与 `Secret`，请立即保存（关闭后无法再查看，只能重置）。
@@ -313,6 +317,9 @@ curl -X POST "https://192.168.0.42:8410/openapi/v1/leads" \
 |---|---|---|---|---|
 | GET | `/quotes` `/quotes/{id}` | `crm.quote.read` | `project_id`/`status` | `quote_no`, `project_id`, `status`, `current_version_no` |
 | GET | `/quotes/{id}/lines` | `crm.quote.read` | — | 当前版本行项：`{quote_no, version_no, price_total, items:[{line_no,item_name,item_code,spec,qty,unit,unit_price,line_total}]}`（**不含成本**） |
+| GET | `/quotes/{id}/versions` | `crm.quote.read` | — | 报价版本历史（`version_no`,`status`,`price_total`,`delivery_promise_date`,`validity_days`；不含利润率） |
+| GET | `/contracts/{id}/versions` | `crm.contract.read` | — | 合同版本历史（`version_no`,`title`,`status`,`risk_level`） |
+| GET | `/projects/{id}/stage-history` | `crm.project.read` | — | 商机阶段变更历史（`from_stage`,`to_stage`,`changed_by_name`,`note`,`created_at`） |
 | GET | `/orders` `/orders/{id}` | `crm.order.read` | `customer_id`/`status` | `order_no`, `customer_id`, `project_id`, `contract_id`, `amount`, `currency`, `status`, `order_date`, `delivery_date` |
 | GET | `/payments` | `crm.payment.read` | `project_id` | `project_id`, `amount`, `received_date`, `channel`, `reference_no`, `matched_plan_id` |
 | GET | `/products` `/products/{id}` | `crm.product.read` | `keyword`/`is_active` | `product_code`, `name`, `item_type`, `spec`, `unit`, `unit_price`, `leadtime_days`, `is_active`（**不含成本价**） |
