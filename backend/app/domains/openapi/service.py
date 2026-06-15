@@ -549,6 +549,30 @@ async def create_service_ticket_from_openapi(db: AsyncSession, ctx, data) -> dic
     return service_ticket_to_dto(ticket)
 
 
+async def create_order_from_openapi(db: AsyncSession, ctx, data) -> dict:
+    """Create an order via the internal service; leave unassigned (pool)."""
+    from app.domains.order.service import create_order
+    from app.domains.order.schemas import OrderCreate
+    from app.domains.openapi.dto import order_to_dto
+    payload = data.model_dump(exclude_unset=True)
+    order = await create_order(db, ctx.tenant_id, OrderCreate(**payload), _pseudo_user(ctx))
+    if order.owner_id == ctx.app_id:
+        order.owner_id = None
+        order.owner_name = "开放平台（待分配）"
+        await db.commit()
+        await db.refresh(order)
+    return order_to_dto(order)
+
+
+async def update_order_status_from_openapi(db: AsyncSession, ctx, order_id: str, status: str) -> dict:
+    """Status write-back (e.g. ERP marks order shipped/completed)."""
+    from app.domains.order.service import update_order
+    from app.domains.order.schemas import OrderUpdate
+    from app.domains.openapi.dto import order_to_dto
+    order = await update_order(db, ctx.tenant_id, order_id, OrderUpdate(status=status), _pseudo_user(ctx))
+    return order_to_dto(order)
+
+
 # ============================================================ webhook ops
 def _compute_webhook_sig(secret: str, body: str) -> str:
     import hmac as _hmac, hashlib as _hashlib

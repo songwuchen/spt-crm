@@ -153,6 +153,7 @@ print(call("GET", "/openapi/v1/customers", "status=active&page=1").json())
 | `crm.activity.write` | 创建跟进/活动记录（写入，需 `Idempotency-Key`） |
 | `crm.customer.write` | 创建客户（写入，需 `Idempotency-Key`） |
 | `crm.service.write` | 创建售后工单（写入，需 `Idempotency-Key`） |
+| `crm.order.write` | 创建订单 / 写回订单状态（写入，需 `Idempotency-Key`） |
 
 > **增量同步**：`/customers` `/projects` `/contracts` `/quotes` `/orders` `/products` `/service-tickets` 列表均支持 `updated_since`（ISO 时间）参数，仅返回该时间之后更新的记录。建议对接方按"上次同步时间"轮询，避免全量拉取。
 
@@ -335,6 +336,8 @@ curl -X POST "https://192.168.0.42:8410/openapi/v1/leads" \
 | POST | `/activities` | `crm.activity.write` | 创建跟进/活动记录 |
 | POST | `/customers` | `crm.customer.write` | 创建客户（默认入公海、待分配） |
 | POST | `/service-tickets` | `crm.service.write` | 创建售后工单（自动套用 SLA 时限）；请求体：`type`(必填,fault/maintenance/training/spare/upgrade)、`customer_id`、`project_id`、`priority`(low/medium/high/critical)、`description` |
+| POST | `/orders` | `crm.order.write` | 创建订单；请求体：`customer_id`(必填)、`project_id`、`contract_id`、`title`、`amount`、`currency`、`status`、`order_date`、`delivery_date`、`remark` |
+| POST | `/orders/{id}/status` | `crm.order.write` | 写回订单状态（ERP→CRM）；请求体：`status`(draft/confirmed/producing/shipped/completed/cancelled) |
 
 `POST /activities` 请求体：
 | 字段 | 类型 | 必填 | 说明 |
@@ -371,6 +374,8 @@ curl -X POST "https://192.168.0.42:8410/openapi/v1/activities" \
 | `crm.contract.signed` | 合同签署 |
 | `crm.payment.received` | 回款到账 |
 | `crm.service_ticket.created` | 新建售后工单（含开放平台写入） |
+| `crm.order.created` | 新建订单（含开放平台写入） |
+| `crm.order.status_changed` | 订单状态变更 |
 
 > 不提供 `*.updated` 这类无业务语义的事件。事件带 `event_version`，破坏性变更会升版本。
 
@@ -401,6 +406,8 @@ curl -X POST "https://192.168.0.42:8410/openapi/v1/activities" \
 | `crm.contract.signed` | `contract_id`, `contract_no`, `project_id`, `amount_total`, `signed_date` |
 | `crm.payment.received` | `payment_record_id`, `project_id`, `amount` |
 | `crm.service_ticket.created` | `ticket_id`, `ticket_no`, `type`, `priority`, `customer_id` |
+| `crm.order.created` | `order_id`, `order_no`, `customer_id`, `amount`, `status` |
+| `crm.order.status_changed` | `order_id`, `order_no`, `from_status`, `to_status` |
 
 ---
 

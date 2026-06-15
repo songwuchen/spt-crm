@@ -82,7 +82,16 @@ async def run_idempotent(db: AsyncSession, ctx: OpenApiContext, request: Request
             CRM_IDEMPOTENCY_CONFLICT, "相同请求正在处理中，请稍后重试", http_status=409,
         )
 
-    data = await producer()
+    try:
+        data = await producer()
+    except Exception:
+        # Release the claim so the client can retry with the same key after a failure.
+        await db.rollback()
+        stuck = await _lookup(db, ctx.tenant_id, ctx.app_key, key)
+        if stuck and stuck.status == "processing":
+            await db.delete(stuck)
+            await db.commit()
+        raise
 
     rec.response_json = data
     rec.status = "completed"

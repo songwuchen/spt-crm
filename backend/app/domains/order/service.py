@@ -59,6 +59,11 @@ async def create_order(db: AsyncSession, tenant_id: str, data: OrderCreate, user
         **payload,
     )
     db.add(order)
+    from app.domains.outbox.service import emit_event
+    await emit_event(db, tenant_id, "crm.order.created", "order", order.id, {
+        "order_id": order.id, "order_no": order.order_no, "customer_id": order.customer_id,
+        "amount": float(order.amount) if order.amount else None, "status": order.status,
+    })
     await db.commit()
     await db.refresh(order)
 
@@ -70,8 +75,16 @@ async def create_order(db: AsyncSession, tenant_id: str, data: OrderCreate, user
 
 async def update_order(db: AsyncSession, tenant_id: str, order_id: str, data: OrderUpdate, user: dict) -> Order:
     order = await get_order(db, tenant_id, order_id)
-    for field, val in data.model_dump(exclude_unset=True).items():
+    dump = data.model_dump(exclude_unset=True)
+    old_status = order.status
+    for field, val in dump.items():
         setattr(order, field, val)
+    if "status" in dump and order.status != old_status:
+        from app.domains.outbox.service import emit_event
+        await emit_event(db, tenant_id, "crm.order.status_changed", "order", order.id, {
+            "order_id": order.id, "order_no": order.order_no,
+            "from_status": old_status, "to_status": order.status,
+        })
     await db.commit()
     await db.refresh(order)
 

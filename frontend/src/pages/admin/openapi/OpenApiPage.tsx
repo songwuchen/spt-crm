@@ -433,6 +433,7 @@ const SCOPE_DESC: { scope: string; desc: string }[] = [
   { scope: 'crm.activity.write', desc: '创建跟进/活动记录（写入）' },
   { scope: 'crm.customer.write', desc: '创建客户（写入）' },
   { scope: 'crm.service.write', desc: '创建售后工单（写入）' },
+  { scope: 'crm.order.write', desc: '创建订单 / 写回订单状态（写入）' },
 ]
 
 const ENDPOINTS = [
@@ -463,12 +464,14 @@ const ENDPOINTS = [
   { method: 'POST', path: '/openapi/v1/activities', desc: '创建跟进/活动（需 Idempotency-Key）' },
   { method: 'POST', path: '/openapi/v1/customers', desc: '创建客户（需 Idempotency-Key）' },
   { method: 'POST', path: '/openapi/v1/service-tickets', desc: '创建售后工单（需 Idempotency-Key）' },
+  { method: 'POST', path: '/openapi/v1/orders', desc: '创建订单（需 Idempotency-Key）' },
+  { method: 'POST', path: '/openapi/v1/orders/{id}/status', desc: '写回订单状态（需 Idempotency-Key）' },
 ]
 
 const EVENTS = [
   'crm.customer.created', 'crm.lead.created', 'crm.project.stage_advanced',
   'crm.project.won', 'crm.project.lost', 'crm.contract.signed', 'crm.payment.received',
-  'crm.service_ticket.created',
+  'crm.service_ticket.created', 'crm.order.created', 'crm.order.status_changed',
 ]
 
 function DocsTab() {

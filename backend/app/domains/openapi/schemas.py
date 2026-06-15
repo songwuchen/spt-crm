@@ -20,9 +20,11 @@ ALL_SCOPES = [
     "crm.activity.write",
     "crm.customer.write",
     "crm.service.write",
+    "crm.order.write",
 ]
 
 _ACTIVITY_BIZ_TYPES = {"customer", "project", "lead"}
+_ORDER_STATUSES = {"draft", "confirmed", "producing", "shipped", "completed", "cancelled"}
 
 
 class OpenLeadCreate(BaseModel):
@@ -84,6 +86,39 @@ class OpenServiceTicketCreate(BaseModel):
     project_id: Optional[str] = Field(None, max_length=36)
     priority: Optional[str] = Field("medium", max_length=16)  # low/medium/high/critical
     description: Optional[str] = Field(None, max_length=4000)
+
+
+class OpenOrderCreate(BaseModel):
+    """External order intake for POST /openapi/v1/orders."""
+    customer_id: str = Field(..., min_length=1, max_length=36)
+    project_id: Optional[str] = Field(None, max_length=36)
+    contract_id: Optional[str] = Field(None, max_length=36)
+    title: Optional[str] = Field(None, max_length=300)
+    amount: Optional[float] = Field(None, ge=0)
+    currency: Optional[str] = Field("CNY", max_length=8)
+    status: Optional[str] = Field("draft", max_length=16)
+    order_date: Optional[str] = None
+    delivery_date: Optional[str] = None
+    remark: Optional[str] = Field(None, max_length=2000)
+
+    @field_validator("status")
+    @classmethod
+    def _check_status(cls, v):
+        if v is not None and v not in _ORDER_STATUSES:
+            raise ValueError(f"status must be one of {sorted(_ORDER_STATUSES)}")
+        return v
+
+
+class OpenOrderStatusUpdate(BaseModel):
+    """Status write-back (ERP → CRM) for POST /openapi/v1/orders/{id}/status."""
+    status: str = Field(..., max_length=16)
+
+    @field_validator("status")
+    @classmethod
+    def _check_status(cls, v):
+        if v not in _ORDER_STATUSES:
+            raise ValueError(f"status must be one of {sorted(_ORDER_STATUSES)}")
+        return v
 
 _AUTH_MODES = {"apikey", "hmac"}
 _STATUSES = {"enabled", "disabled"}

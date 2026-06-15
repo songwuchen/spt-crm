@@ -14,11 +14,13 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db
+from app.common.exceptions import BusinessException
 from app.domains.openapi import service, dto
 from app.domains.openapi.auth import get_openapi_context, require_scope, OpenApiContext
 from app.domains.openapi.errors import OpenApiException, CRM_NOT_FOUND
 from app.domains.openapi.schemas import (
     OpenLeadCreate, OpenActivityCreate, OpenCustomerCreate, OpenServiceTicketCreate,
+    OpenOrderCreate, OpenOrderStatusUpdate,
 )
 from app.domains.openapi.idempotency import run_idempotent
 
@@ -463,6 +465,34 @@ async def create_service_ticket(
     async def producer():
         return await service.create_service_ticket_from_openapi(db, ctx, body)
     return _ok(request, await run_idempotent(db, ctx, request, producer))
+
+
+# ----------------------------------------------------------- orders (write)
+@router.post("/orders")
+async def create_order(
+    request: Request, body: OpenOrderCreate,
+    ctx: OpenApiContext = Depends(require_scope("crm.order.write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create an order. Requires ``Idempotency-Key``."""
+    async def producer():
+        return await service.create_order_from_openapi(db, ctx, body)
+    return _ok(request, await run_idempotent(db, ctx, request, producer))
+
+
+@router.post("/orders/{order_id}/status")
+async def update_order_status(
+    request: Request, order_id: str, body: OpenOrderStatusUpdate,
+    ctx: OpenApiContext = Depends(require_scope("crm.order.write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Write back an order's status (e.g. ERP → CRM). Requires ``Idempotency-Key``."""
+    async def producer():
+        return await service.update_order_status_from_openapi(db, ctx, order_id, body.status)
+    try:
+        return _ok(request, await run_idempotent(db, ctx, request, producer))
+    except BusinessException as e:
+        raise OpenApiException(CRM_NOT_FOUND, e.message, http_status=404, details={"id": order_id})
 
 
 # ------------------------------------------------------------------ events
