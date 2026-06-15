@@ -25,7 +25,7 @@ from app.domains.contract.models import Contract
 from app.domains.lead.models import Lead
 from app.domains.product.models import Product
 from app.domains.order.models import Order
-from app.domains.quote.models import Quote
+from app.domains.quote.models import Quote, QuoteVersion, QuoteLine
 from app.domains.payment.models import PaymentRecord
 from app.domains.service_ticket.models import ServiceTicket
 from app.domains.delivery.models import DeliveryMilestone
@@ -229,7 +229,7 @@ async def query_contacts(
 
 async def query_projects(
     db: AsyncSession, tenant_id: str, *, customer_id: str | None, stage_code: str | None,
-    status: str | None, page: int, page_size: int,
+    status: str | None, updated_since: str | None = None, page: int = 1, page_size: int = 20,
 ):
     base = select(OpportunityProject).where(
         OpportunityProject.tenant_id == tenant_id,
@@ -241,11 +241,10 @@ async def query_projects(
         base = base.where(OpportunityProject.stage_code == stage_code)
     if status:
         base = base.where(OpportunityProject.status == status)
-    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
-    rows = (await db.execute(
-        base.order_by(OpportunityProject.updated_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
-    return list(rows), total
+    dt = _parse_dt(updated_since)
+    if dt:
+        base = base.where(OpportunityProject.updated_at >= dt)
+    return await _paginate(db, base, OpportunityProject.updated_at, page, page_size)
 
 
 async def get_project(db: AsyncSession, tenant_id: str, project_id: str) -> OpportunityProject | None:
@@ -260,18 +259,17 @@ async def get_project(db: AsyncSession, tenant_id: str, project_id: str) -> Oppo
 
 async def query_contracts(
     db: AsyncSession, tenant_id: str, *, project_id: str | None, status: str | None,
-    page: int, page_size: int,
+    updated_since: str | None = None, page: int = 1, page_size: int = 20,
 ):
     base = select(Contract).where(Contract.tenant_id == tenant_id)
     if project_id:
         base = base.where(Contract.project_id == project_id)
     if status:
         base = base.where(Contract.status == status)
-    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
-    rows = (await db.execute(
-        base.order_by(Contract.updated_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    )).scalars().all()
-    return list(rows), total
+    dt = _parse_dt(updated_since)
+    if dt:
+        base = base.where(Contract.updated_at >= dt)
+    return await _paginate(db, base, Contract.updated_at, page, page_size)
 
 
 async def get_contract(db: AsyncSession, tenant_id: str, contract_id: str) -> Contract | None:
@@ -340,12 +338,15 @@ async def _get_one(db, model, tenant_id: str, obj_id: str):
     )).scalar_one_or_none()
 
 
-async def query_products(db, tenant_id, *, keyword, is_active, page, page_size):
+async def query_products(db, tenant_id, *, keyword, is_active, updated_since=None, page=1, page_size=20):
     base = select(Product).where(Product.tenant_id == tenant_id)
     if keyword:
         base = base.where(or_(Product.name.ilike(f"%{keyword}%"), Product.product_code.ilike(f"%{keyword}%")))
     if is_active is not None:
         base = base.where(Product.is_active == is_active)
+    dt = _parse_dt(updated_since)
+    if dt:
+        base = base.where(Product.updated_at >= dt)
     return await _paginate(db, base, Product.updated_at, page, page_size)
 
 
@@ -353,12 +354,15 @@ async def get_product(db, tenant_id, obj_id):
     return await _get_one(db, Product, tenant_id, obj_id)
 
 
-async def query_orders(db, tenant_id, *, customer_id, status, page, page_size):
+async def query_orders(db, tenant_id, *, customer_id, status, updated_since=None, page=1, page_size=20):
     base = select(Order).where(Order.tenant_id == tenant_id, Order.is_deleted == False)  # noqa: E712
     if customer_id:
         base = base.where(Order.customer_id == customer_id)
     if status:
         base = base.where(Order.status == status)
+    dt = _parse_dt(updated_since)
+    if dt:
+        base = base.where(Order.updated_at >= dt)
     return await _paginate(db, base, Order.updated_at, page, page_size)
 
 
@@ -367,17 +371,43 @@ async def get_order(db, tenant_id, obj_id):
     return o if (o and not o.is_deleted) else None
 
 
-async def query_quotes(db, tenant_id, *, project_id, status, page, page_size):
+async def query_quotes(db, tenant_id, *, project_id, status, updated_since=None, page=1, page_size=20):
     base = select(Quote).where(Quote.tenant_id == tenant_id)
     if project_id:
         base = base.where(Quote.project_id == project_id)
     if status:
         base = base.where(Quote.status == status)
+    dt = _parse_dt(updated_since)
+    if dt:
+        base = base.where(Quote.updated_at >= dt)
     return await _paginate(db, base, Quote.updated_at, page, page_size)
 
 
 async def get_quote(db, tenant_id, obj_id):
     return await _get_one(db, Quote, tenant_id, obj_id)
+
+
+async def get_quote_lines(db, tenant_id, quote_id):
+    """Return (quote, version, lines) for the quote's current version, or (None, None, [])."""
+    quote = await _get_one(db, Quote, tenant_id, quote_id)
+    if not quote:
+        return None, None, []
+    version = (await db.execute(
+        select(QuoteVersion).where(
+            QuoteVersion.tenant_id == tenant_id,
+            QuoteVersion.quote_id == quote.id,
+            QuoteVersion.version_no == quote.current_version_no,
+        )
+    )).scalar_one_or_none()
+    if not version:
+        return quote, None, []
+    lines = (await db.execute(
+        select(QuoteLine).where(
+            QuoteLine.tenant_id == tenant_id,
+            QuoteLine.quote_version_id == version.id,
+        ).order_by(QuoteLine.line_no.asc())
+    )).scalars().all()
+    return quote, version, list(lines)
 
 
 async def query_payments(db, tenant_id, *, project_id, page, page_size):
@@ -387,12 +417,15 @@ async def query_payments(db, tenant_id, *, project_id, page, page_size):
     return await _paginate(db, base, PaymentRecord.created_at, page, page_size)
 
 
-async def query_service_tickets(db, tenant_id, *, customer_id, status, page, page_size):
+async def query_service_tickets(db, tenant_id, *, customer_id, status, updated_since=None, page=1, page_size=20):
     base = select(ServiceTicket).where(ServiceTicket.tenant_id == tenant_id)
     if customer_id:
         base = base.where(ServiceTicket.customer_id == customer_id)
     if status:
         base = base.where(ServiceTicket.status == status)
+    dt = _parse_dt(updated_since)
+    if dt:
+        base = base.where(ServiceTicket.updated_at >= dt)
     return await _paginate(db, base, ServiceTicket.updated_at, page, page_size)
 
 
@@ -470,6 +503,16 @@ async def discard_lead_from_openapi(db: AsyncSession, ctx, lead_id: str) -> dict
     from app.domains.openapi.dto import lead_to_dto
     lead = await discard_lead(db, ctx.tenant_id, lead_id, _pseudo_user(ctx))
     return lead_to_dto(lead)
+
+
+async def create_service_ticket_from_openapi(db: AsyncSession, ctx, data) -> dict:
+    """Create a support ticket via the internal service (SLA timers + code apply)."""
+    from app.domains.service_ticket.service import create_ticket
+    from app.domains.service_ticket.schemas import ServiceTicketCreate
+    from app.domains.openapi.dto import service_ticket_to_dto
+    payload = data.model_dump(exclude_unset=True)
+    ticket = await create_ticket(db, ctx.tenant_id, ServiceTicketCreate(**payload), _pseudo_user(ctx))
+    return service_ticket_to_dto(ticket)
 
 
 # ============================================================ webhook ops

@@ -19,6 +19,7 @@ ALL_SCOPES = [
     "crm.lead.write",
     "crm.activity.write",
     "crm.customer.write",
+    "crm.service.write",
 ]
 
 _ACTIVITY_BIZ_TYPES = {"customer", "project", "lead"}
@@ -74,6 +75,15 @@ class OpenCustomerCreate(BaseModel):
         if v is not None and v not in ("A", "B", "C", "D"):
             raise ValueError("level 必须为 A/B/C/D")
         return v
+
+
+class OpenServiceTicketCreate(BaseModel):
+    """External support-ticket intake for POST /openapi/v1/service-tickets."""
+    type: str = Field(..., max_length=32, description="fault/maintenance/training/spare/upgrade")
+    customer_id: Optional[str] = Field(None, max_length=36)
+    project_id: Optional[str] = Field(None, max_length=36)
+    priority: Optional[str] = Field("medium", max_length=16)  # low/medium/high/critical
+    description: Optional[str] = Field(None, max_length=4000)
 
 _AUTH_MODES = {"apikey", "hmac"}
 _STATUSES = {"enabled", "disabled"}

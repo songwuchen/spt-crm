@@ -14,7 +14,9 @@ from app.dependencies import get_db
 from app.domains.openapi import service, dto
 from app.domains.openapi.auth import get_openapi_context, require_scope, OpenApiContext
 from app.domains.openapi.errors import OpenApiException, CRM_NOT_FOUND
-from app.domains.openapi.schemas import OpenLeadCreate, OpenActivityCreate, OpenCustomerCreate
+from app.domains.openapi.schemas import (
+    OpenLeadCreate, OpenActivityCreate, OpenCustomerCreate, OpenServiceTicketCreate,
+)
 from app.domains.openapi.idempotency import run_idempotent
 
 router = APIRouter(prefix="/openapi/v1", tags=["开放平台"])
@@ -109,13 +111,14 @@ async def list_projects(
     customer_id: str | None = Query(None),
     stage_code: str | None = Query(None),
     status: str | None = Query(None),
+    updated_since: str | None = Query(None, description="ISO 时间，增量同步"),
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
     ctx: OpenApiContext = Depends(require_scope("crm.project.read")),
     db: AsyncSession = Depends(get_db),
 ):
     rows, total = await service.query_projects(
         db, ctx.tenant_id, customer_id=customer_id, stage_code=stage_code,
-        status=status, page=page, page_size=page_size,
+        status=status, updated_since=updated_since, page=page, page_size=page_size,
     )
     return _page(request, [dto.project_to_dto(r) for r in rows], total, page, page_size)
 
@@ -138,13 +141,14 @@ async def list_contracts(
     request: Request,
     project_id: str | None = Query(None),
     status: str | None = Query(None),
+    updated_since: str | None = Query(None, description="ISO 时间，增量同步"),
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
     ctx: OpenApiContext = Depends(require_scope("crm.contract.read")),
     db: AsyncSession = Depends(get_db),
 ):
     rows, total = await service.query_contracts(
         db, ctx.tenant_id, project_id=project_id, status=status,
-        page=page, page_size=page_size,
+        updated_since=updated_since, page=page, page_size=page_size,
     )
     return _page(request, [dto.contract_to_dto(r) for r in rows], total, page, page_size)
 
@@ -166,11 +170,12 @@ async def get_contract(
 async def list_products(
     request: Request,
     keyword: str | None = Query(None), is_active: bool | None = Query(None),
+    updated_since: str | None = Query(None, description="ISO 时间，增量同步"),
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
     ctx: OpenApiContext = Depends(require_scope("crm.product.read")),
     db: AsyncSession = Depends(get_db),
 ):
-    rows, total = await service.query_products(db, ctx.tenant_id, keyword=keyword, is_active=is_active, page=page, page_size=page_size)
+    rows, total = await service.query_products(db, ctx.tenant_id, keyword=keyword, is_active=is_active, updated_since=updated_since, page=page, page_size=page_size)
     return _page(request, [dto.product_to_dto(r) for r in rows], total, page, page_size)
 
 
@@ -191,11 +196,12 @@ async def get_product(
 async def list_orders(
     request: Request,
     customer_id: str | None = Query(None), status: str | None = Query(None),
+    updated_since: str | None = Query(None, description="ISO 时间，增量同步"),
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
     ctx: OpenApiContext = Depends(require_scope("crm.order.read")),
     db: AsyncSession = Depends(get_db),
 ):
-    rows, total = await service.query_orders(db, ctx.tenant_id, customer_id=customer_id, status=status, page=page, page_size=page_size)
+    rows, total = await service.query_orders(db, ctx.tenant_id, customer_id=customer_id, status=status, updated_since=updated_since, page=page, page_size=page_size)
     return _page(request, [dto.order_to_dto(r) for r in rows], total, page, page_size)
 
 
@@ -216,11 +222,12 @@ async def get_order(
 async def list_quotes(
     request: Request,
     project_id: str | None = Query(None), status: str | None = Query(None),
+    updated_since: str | None = Query(None, description="ISO 时间，增量同步"),
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
     ctx: OpenApiContext = Depends(require_scope("crm.quote.read")),
     db: AsyncSession = Depends(get_db),
 ):
-    rows, total = await service.query_quotes(db, ctx.tenant_id, project_id=project_id, status=status, page=page, page_size=page_size)
+    rows, total = await service.query_quotes(db, ctx.tenant_id, project_id=project_id, status=status, updated_since=updated_since, page=page, page_size=page_size)
     return _page(request, [dto.quote_to_dto(r) for r in rows], total, page, page_size)
 
 
@@ -234,6 +241,25 @@ async def get_quote(
     if not row:
         raise OpenApiException(CRM_NOT_FOUND, "报价不存在", http_status=404, details={"id": quote_id})
     return _ok(request, dto.quote_to_dto(row))
+
+
+@router.get("/quotes/{quote_id}/lines")
+async def get_quote_lines(
+    request: Request, quote_id: str,
+    ctx: OpenApiContext = Depends(require_scope("crm.quote.read")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Line items of the quote's current version (for ERP order creation)."""
+    quote, version, lines = await service.get_quote_lines(db, ctx.tenant_id, quote_id)
+    if not quote:
+        raise OpenApiException(CRM_NOT_FOUND, "报价不存在", http_status=404, details={"id": quote_id})
+    return _ok(request, {
+        "quote_id": quote.id,
+        "quote_no": quote.quote_no,
+        "version_no": version.version_no if version else None,
+        "price_total": float(version.price_total) if version and version.price_total else None,
+        "items": [dto.quote_line_to_dto(li) for li in lines],
+    })
 
 
 # ---------------------------------------------------------------- payments
@@ -254,11 +280,12 @@ async def list_payments(
 async def list_service_tickets(
     request: Request,
     customer_id: str | None = Query(None), status: str | None = Query(None),
+    updated_since: str | None = Query(None, description="ISO 时间，增量同步"),
     page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=200),
     ctx: OpenApiContext = Depends(require_scope("crm.service.read")),
     db: AsyncSession = Depends(get_db),
 ):
-    rows, total = await service.query_service_tickets(db, ctx.tenant_id, customer_id=customer_id, status=status, page=page, page_size=page_size)
+    rows, total = await service.query_service_tickets(db, ctx.tenant_id, customer_id=customer_id, status=status, updated_since=updated_since, page=page, page_size=page_size)
     return _page(request, [dto.service_ticket_to_dto(r) for r in rows], total, page, page_size)
 
 
@@ -350,6 +377,19 @@ async def create_customer(
     """Create a customer (unassigned/public pool). Requires ``Idempotency-Key``."""
     async def producer():
         return await service.create_customer_from_openapi(db, ctx, body)
+    return _ok(request, await run_idempotent(db, ctx, request, producer))
+
+
+# --------------------------------------------------------- service tickets (write)
+@router.post("/service-tickets")
+async def create_service_ticket(
+    request: Request, body: OpenServiceTicketCreate,
+    ctx: OpenApiContext = Depends(require_scope("crm.service.write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a support ticket (SLA timers applied). Requires ``Idempotency-Key``."""
+    async def producer():
+        return await service.create_service_ticket_from_openapi(db, ctx, body)
     return _ok(request, await run_idempotent(db, ctx, request, producer))
 
 

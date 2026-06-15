@@ -173,6 +173,22 @@ def quote_to_dto(q) -> dict:
     }
 
 
+def quote_line_to_dto(line) -> dict:
+    # NB: cost_est is internal — intentionally not exposed.
+    return {
+        "line_no": line.line_no,
+        "item_type": line.item_type,
+        "item_name": line.item_name,
+        "item_code": line.item_code,
+        "spec": line.spec,
+        "qty": _num(line.qty),
+        "unit": line.unit,
+        "unit_price": _num(line.unit_price),
+        "line_total": _num(line.line_total),
+        "leadtime_days": line.leadtime_days,
+    }
+
+
 # ------------------------------------------------------------------ payments
 def payment_to_dto(r) -> dict:
     return {

@@ -432,6 +432,7 @@ const SCOPE_DESC: { scope: string; desc: string }[] = [
   { scope: 'crm.lead.write', desc: '创建/转化/废弃线索（写入，需 Idempotency-Key）' },
   { scope: 'crm.activity.write', desc: '创建跟进/活动记录（写入）' },
   { scope: 'crm.customer.write', desc: '创建客户（写入）' },
+  { scope: 'crm.service.write', desc: '创建售后工单（写入）' },
 ]
 
 const ENDPOINTS = [
@@ -445,6 +446,7 @@ const ENDPOINTS = [
   { method: 'GET', path: '/openapi/v1/contracts', desc: '合同列表（project_id/status）' },
   { method: 'GET', path: '/openapi/v1/contracts/{id}', desc: '合同详情' },
   { method: 'GET', path: '/openapi/v1/quotes', desc: '报价列表（project_id/status）' },
+  { method: 'GET', path: '/openapi/v1/quotes/{id}/lines', desc: '报价当前版本行项明细' },
   { method: 'GET', path: '/openapi/v1/orders', desc: '订单列表（customer_id/status）' },
   { method: 'GET', path: '/openapi/v1/payments', desc: '回款记录（project_id）' },
   { method: 'GET', path: '/openapi/v1/products', desc: '产品列表（keyword/is_active）' },
@@ -457,11 +459,13 @@ const ENDPOINTS = [
   { method: 'POST', path: '/openapi/v1/leads/{id}/discard', desc: '废弃线索（需 Idempotency-Key）' },
   { method: 'POST', path: '/openapi/v1/activities', desc: '创建跟进/活动（需 Idempotency-Key）' },
   { method: 'POST', path: '/openapi/v1/customers', desc: '创建客户（需 Idempotency-Key）' },
+  { method: 'POST', path: '/openapi/v1/service-tickets', desc: '创建售后工单（需 Idempotency-Key）' },
 ]
 
 const EVENTS = [
   'crm.customer.created', 'crm.lead.created', 'crm.project.stage_advanced',
   'crm.project.won', 'crm.project.lost', 'crm.contract.signed', 'crm.payment.received',
+  'crm.service_ticket.created',
 ]
 
 function DocsTab() {

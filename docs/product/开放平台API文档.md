@@ -148,6 +148,9 @@ print(call("GET", "/openapi/v1/customers", "status=active&page=1").json())
 | `crm.lead.write` | 创建 / 转化 / 废弃线索（写入，需 `Idempotency-Key`） |
 | `crm.activity.write` | 创建跟进/活动记录（写入，需 `Idempotency-Key`） |
 | `crm.customer.write` | 创建客户（写入，需 `Idempotency-Key`） |
+| `crm.service.write` | 创建售后工单（写入，需 `Idempotency-Key`） |
+
+> **增量同步**：`/customers` `/projects` `/contracts` `/quotes` `/orders` `/products` `/service-tickets` 列表均支持 `updated_since`（ISO 时间）参数，仅返回该时间之后更新的记录。建议对接方按"上次同步时间"轮询，避免全量拉取。
 
 ---
 
@@ -309,6 +312,7 @@ curl -X POST "https://192.168.0.42:8410/openapi/v1/leads" \
 | 方法 | 路径 | Scope | 主要查询参数 | 关键字段 |
 |---|---|---|---|---|
 | GET | `/quotes` `/quotes/{id}` | `crm.quote.read` | `project_id`/`status` | `quote_no`, `project_id`, `status`, `current_version_no` |
+| GET | `/quotes/{id}/lines` | `crm.quote.read` | — | 当前版本行项：`{quote_no, version_no, price_total, items:[{line_no,item_name,item_code,spec,qty,unit,unit_price,line_total}]}`（**不含成本**） |
 | GET | `/orders` `/orders/{id}` | `crm.order.read` | `customer_id`/`status` | `order_no`, `customer_id`, `project_id`, `contract_id`, `amount`, `currency`, `status`, `order_date`, `delivery_date` |
 | GET | `/payments` | `crm.payment.read` | `project_id` | `project_id`, `amount`, `received_date`, `channel`, `reference_no`, `matched_plan_id` |
 | GET | `/products` `/products/{id}` | `crm.product.read` | `keyword`/`is_active` | `product_code`, `name`, `item_type`, `spec`, `unit`, `unit_price`, `leadtime_days`, `is_active`（**不含成本价**） |
@@ -323,6 +327,7 @@ curl -X POST "https://192.168.0.42:8410/openapi/v1/leads" \
 | POST | `/leads/{id}/discard` | `crm.lead.write` | 废弃线索 |
 | POST | `/activities` | `crm.activity.write` | 创建跟进/活动记录 |
 | POST | `/customers` | `crm.customer.write` | 创建客户（默认入公海、待分配） |
+| POST | `/service-tickets` | `crm.service.write` | 创建售后工单（自动套用 SLA 时限）；请求体：`type`(必填,fault/maintenance/training/spare/upgrade)、`customer_id`、`project_id`、`priority`(low/medium/high/critical)、`description` |
 
 `POST /activities` 请求体：
 | 字段 | 类型 | 必填 | 说明 |
@@ -358,6 +363,7 @@ curl -X POST "https://192.168.0.42:8410/openapi/v1/activities" \
 | `crm.project.lost` | 商机丢单 |
 | `crm.contract.signed` | 合同签署 |
 | `crm.payment.received` | 回款到账 |
+| `crm.service_ticket.created` | 新建售后工单（含开放平台写入） |
 
 > 不提供 `*.updated` 这类无业务语义的事件。事件带 `event_version`，破坏性变更会升版本。
 
@@ -387,6 +393,7 @@ curl -X POST "https://192.168.0.42:8410/openapi/v1/activities" \
 | `crm.project.won` / `lost` | `project_id`, `project_code`, `name`, `status`, `amount_expect` |
 | `crm.contract.signed` | `contract_id`, `contract_no`, `project_id`, `amount_total`, `signed_date` |
 | `crm.payment.received` | `payment_record_id`, `project_id`, `amount` |
+| `crm.service_ticket.created` | `ticket_id`, `ticket_no`, `type`, `priority`, `customer_id` |
 
 ---
 

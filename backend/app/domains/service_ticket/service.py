@@ -87,6 +87,11 @@ async def create_ticket(db: AsyncSession, tenant_id: str, data: ServiceTicketCre
         **dump,
     )
     db.add(ticket)
+    from app.domains.outbox.service import emit_event
+    await emit_event(db, tenant_id, "crm.service_ticket.created", "service_ticket", ticket.id, {
+        "ticket_id": ticket.id, "ticket_no": ticket.ticket_no, "type": ticket.type,
+        "priority": ticket.priority, "customer_id": ticket.customer_id,
+    })
     await db.commit()
     await db.refresh(ticket)
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
