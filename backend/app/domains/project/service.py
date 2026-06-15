@@ -260,6 +260,14 @@ async def update_project(db: AsyncSession, tenant_id: str, project_id: str, data
         if old_val != val:
             changes[field] = {"old": old_val if not hasattr(old_val, 'isoformat') else str(old_val), "new": val}
         setattr(project, field, val)
+
+    if new_status and new_status in ("won", "lost"):
+        from app.domains.outbox.service import emit_event
+        await emit_event(db, tenant_id, f"crm.project.{new_status}", "project", project.id, {
+            "project_id": project.id, "project_code": project.project_code, "name": project.name,
+            "status": new_status,
+            "amount_expect": float(project.amount_expect) if project.amount_expect else None,
+        })
     await db.commit()
     await db.refresh(project)
 
@@ -472,6 +480,11 @@ async def advance_stage(db: AsyncSession, tenant_id: str, project_id: str, to_st
         note=note,
     )
     db.add(history)
+    from app.domains.outbox.service import emit_event
+    await emit_event(db, tenant_id, "crm.project.stage_advanced", "project", project_id, {
+        "project_id": project_id, "project_code": project.project_code,
+        "from_stage": from_stage, "to_stage": to_stage,
+    })
     await db.commit()
     await db.refresh(project)
 

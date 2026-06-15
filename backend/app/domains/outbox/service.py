@@ -27,6 +27,24 @@ async def enqueue_event(db: AsyncSession, tenant_id: str, data: OutboxEventCreat
     return event
 
 
+async def emit_event(
+    db: AsyncSession, tenant_id: str, event_type: str,
+    aggregate_type: str, aggregate_id: str, payload: dict | None = None,
+) -> OutboxEvent:
+    """Append a CRM business event in the SAME transaction as the caller.
+
+    Thin wrapper over :func:`enqueue_event` with the stable ``crm.*`` naming
+    convention. Only ``db.add`` — the caller's commit persists the business
+    change and the event together (outbox pattern). The event is then picked up
+    by ``app/workers/outbox_worker.py`` for webhook delivery and is readable via
+    ``GET /openapi/v1/events`` for reconciliation.
+    """
+    return await enqueue_event(db, tenant_id, OutboxEventCreate(
+        event_type=event_type, aggregate_type=aggregate_type,
+        aggregate_id=aggregate_id, payload_json=payload,
+    ))
+
+
 async def list_outbox_events(
     db: AsyncSession, tenant_id: str,
     status: str | None = None, aggregate_type: str | None = None,

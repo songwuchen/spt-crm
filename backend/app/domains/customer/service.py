@@ -72,6 +72,10 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
         **dump,
     )
     db.add(customer)
+    from app.domains.outbox.service import emit_event
+    await emit_event(db, tenant_id, "crm.customer.created", "customer", customer.id, {
+        "customer_id": customer.id, "customer_code": customer.customer_code, "name": customer.name,
+    })
     await db.commit()
     await db.refresh(customer)
 

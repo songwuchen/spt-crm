@@ -1,0 +1,73 @@
+from typing import Optional, List
+from pydantic import BaseModel, Field, field_validator
+
+
+# Full catalogue of scopes an app can be granted (first version: read-only).
+ALL_SCOPES = [
+    "crm.customer.read",
+    "crm.contact.read",
+    "crm.project.read",
+    "crm.contract.read",
+    "crm.event.read",
+]
+
+_AUTH_MODES = {"apikey", "hmac"}
+_STATUSES = {"enabled", "disabled"}
+
+
+class OpenApiAppCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=128)
+    app_type: str = Field("external_system", max_length=64)
+    auth_mode: str = "apikey"
+    scopes: List[str] = Field(default_factory=list)
+    rate_limit_per_minute: int = Field(600, ge=1, le=100000)
+    ip_whitelist: Optional[List[str]] = None
+    remark: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("auth_mode")
+    @classmethod
+    def _check_auth_mode(cls, v: str) -> str:
+        if v not in _AUTH_MODES:
+            raise ValueError(f"auth_mode must be one of {sorted(_AUTH_MODES)}")
+        return v
+
+    @field_validator("scopes")
+    @classmethod
+    def _check_scopes(cls, v: List[str]) -> List[str]:
+        bad = [s for s in v if s not in ALL_SCOPES]
+        if bad:
+            raise ValueError(f"unknown scopes: {bad}")
+        return v
+
+
+class OpenApiAppUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=128)
+    status: Optional[str] = None
+    auth_mode: Optional[str] = None
+    scopes: Optional[List[str]] = None
+    rate_limit_per_minute: Optional[int] = Field(None, ge=1, le=100000)
+    ip_whitelist: Optional[List[str]] = None
+    remark: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("status")
+    @classmethod
+    def _check_status(cls, v):
+        if v is not None and v not in _STATUSES:
+            raise ValueError(f"status must be one of {sorted(_STATUSES)}")
+        return v
+
+    @field_validator("auth_mode")
+    @classmethod
+    def _check_auth_mode(cls, v):
+        if v is not None and v not in _AUTH_MODES:
+            raise ValueError(f"auth_mode must be one of {sorted(_AUTH_MODES)}")
+        return v
+
+    @field_validator("scopes")
+    @classmethod
+    def _check_scopes(cls, v):
+        if v is not None:
+            bad = [s for s in v if s not in ALL_SCOPES]
+            if bad:
+                raise ValueError(f"unknown scopes: {bad}")
+        return v

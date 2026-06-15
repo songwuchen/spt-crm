@@ -78,6 +78,7 @@ const TenderList = lazy(() => import('@/pages/tender/TenderList'))
 const TaskPage = lazy(() => import('@/pages/task/TaskPage'))
 const CalendarPage = lazy(() => import('@/pages/calendar/CalendarPage'))
 const ApiDocsPage = lazy(() => import('@/pages/admin/ApiDocsPage'))
+const OpenApiPage = lazy(() => import('@/pages/admin/openapi/OpenApiPage'))
 const SystemHealthPage = lazy(() => import('@/pages/admin/SystemHealthPage'))
 const DingTalkPage = lazy(() => import('@/pages/admin/settings/DingTalkPage'))
 const DataManagePage = lazy(() => import('@/pages/admin/settings/DataManagePage'))
@@ -159,6 +160,7 @@ export const router = createBrowserRouter([
       { path: 'admin/settings', element: <Guard permission="role:manage"><SettingsPage /></Guard> },
       { path: 'platform/tenants', element: <Guard permission="role:manage"><PlatformTenants /></Guard> },
       { path: 'admin/api-docs', element: <Guard permission="role:manage"><ApiDocsPage /></Guard> },
+      { path: 'admin/openapi', element: <Guard permission="role:manage"><OpenApiPage /></Guard> },
       { path: 'admin/system-health', element: <Guard permission="role:manage"><SystemHealthPage /></Guard> },
       { path: 'admin/dingtalk', element: <Guard permission="role:manage"><DingTalkPage /></Guard> },
       { path: 'admin/data-manage', element: <Guard permission="role:manage"><DataManagePage /></Guard> },

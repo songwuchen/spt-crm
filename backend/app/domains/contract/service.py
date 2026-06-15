@@ -224,6 +224,13 @@ async def sign_contract(db: AsyncSession, tenant_id: str, contract_id: str, sign
     if current_version:
         current_version.status = "signed"
 
+    from app.domains.outbox.service import emit_event
+    await emit_event(db, tenant_id, "crm.contract.signed", "contract", contract.id, {
+        "contract_id": contract.id, "contract_no": contract.contract_no,
+        "project_id": contract.project_id,
+        "amount_total": float(contract.amount_total) if contract.amount_total else None,
+        "signed_date": parsed_signed_date.isoformat(),
+    })
     await db.commit()
     await db.refresh(contract)
 

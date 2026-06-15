@@ -111,6 +111,7 @@ const zhCN = {
     auditLog: '操作日志',
     settings: '系统配置',
     apiDocs: 'API 文档',
+    openApi: '开放平台',
     systemHealth: '系统健康',
     dingTalk: '钉钉集成',
     dataManage: '数据管理',

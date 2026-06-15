@@ -12,6 +12,8 @@ from app.middleware.error_handler import (
     validation_exception_handler,
     generic_exception_handler,
 )
+from app.domains.openapi.errors import OpenApiException
+from app.domains.openapi.middleware import OpenApiCallLogMiddleware
 
 from app.domains.auth.router import router as auth_router
 from app.domains.tenant.router import router as tenant_router
@@ -46,6 +48,8 @@ from app.domains.measurement.router import router as measurement_router
 from app.domains.task.router import router as task_router
 from app.domains.dashboard.saved_view import router as saved_view_router
 from app.domains.customer.contact_router import router as contact_router
+from app.domains.openapi.router import router as openapi_router
+from app.domains.openapi.admin_router import router as openapi_admin_router
 
 from app.config import settings
 from app.common.logging_config import setup_logging
@@ -88,6 +92,7 @@ app = FastAPI(
         {"name": "审计", "description": "操作日志"},
         {"name": "组织", "description": "部门管理"},
         {"name": "管理后台", "description": "系统管理 + 用户/角色"},
+        {"name": "开放平台", "description": "对外开放接口（应用密钥/HMAC 鉴权）"},
     ],
 )
 
@@ -105,10 +110,29 @@ app.add_middleware(
 app.add_middleware(TraceMiddleware)
 app.add_middleware(TenantMiddleware)
 app.add_middleware(RateLimitMiddleware, requests_per_minute=120)
+app.add_middleware(OpenApiCallLogMiddleware)
+
+
+async def openapi_exception_handler(request: Request, exc: OpenApiException):
+    """Render Open API errors with a stable string ``error_code`` for partners."""
+    from fastapi.responses import JSONResponse
+    request.state.openapi_error_code = exc.error_code
+    return JSONResponse(
+        status_code=exc.http_status,
+        content={
+            "code": 1,
+            "error_code": exc.error_code,
+            "message": exc.message,
+            "traceId": getattr(request.state, "trace_id", None),
+            "details": exc.details,
+        },
+    )
+
 
 # --- Exception handlers ---
 app.add_exception_handler(BusinessException, business_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(OpenApiException, openapi_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
 # --- Routers ---
@@ -146,6 +170,8 @@ app.include_router(task_router)
 app.include_router(lead_public_router)
 app.include_router(saved_view_router)
 app.include_router(contact_router)
+app.include_router(openapi_router)
+app.include_router(openapi_admin_router)
 
 
 @app.post("/api/v1/frontend-errors", tags=["系统"])

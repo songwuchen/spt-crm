@@ -95,6 +95,7 @@ const enUS = {
     auditLog: 'Audit Log',
     settings: 'Settings',
     apiDocs: 'API Docs',
+    openApi: 'Open Platform',
     systemHealth: 'System Health',
     dingTalk: 'DingTalk',
     dataManage: 'Data Management',

@@ -220,6 +220,11 @@ async def create_record(db: AsyncSession, tenant_id: str, project_id: str, data:
         **data.model_dump(exclude_unset=True),
     )
     db.add(rec)
+    from app.domains.outbox.service import emit_event
+    await emit_event(db, tenant_id, "crm.payment.received", "payment", rec.id, {
+        "payment_record_id": rec.id, "project_id": project_id,
+        "amount": float(data.amount) if data.amount is not None else None,
+    })
     await db.commit()
     await db.refresh(rec)
 
