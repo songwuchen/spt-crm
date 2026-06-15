@@ -1,14 +1,17 @@
 import hashlib
 import json
+import logging
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import generate_uuid
+from app.database import generate_uuid, async_session_factory
 from app.domains.audit.models import AuditLog
 from app.common.context import request_ip, request_trace_id, request_user_agent
+
+logger = logging.getLogger("spt_crm.audit")
 
 
 def _sanitize_for_json(obj):
@@ -40,21 +43,36 @@ async def log_action(
     action: str, resource_type: str, resource_id: str | None = None,
     summary: str | None = None, detail: dict | None = None, ip: str | None = None,
 ):
-    safe_detail = _sanitize_for_json(detail) if detail else detail
-    content_hash = _compute_content_hash(tenant_id, user_id, action, resource_type, resource_id, summary, safe_detail)
-    log = AuditLog(
-        id=generate_uuid(), tenant_id=tenant_id,
-        user_id=user_id, user_name=user_name,
-        action=action, resource_type=resource_type,
-        resource_id=resource_id, summary=summary,
-        detail=safe_detail,
-        ip=ip or request_ip.get(),
-        user_agent=request_user_agent.get(),
-        trace_id=request_trace_id.get(),
-        content_hash=content_hash,
-    )
-    db.add(log)
-    await db.commit()
+    """Write a tamper-evidence audit record. **Best-effort, never fatal.**
+
+    Audit logging is a side-effect, not a business invariant. It is written in its
+    OWN short-lived session (callers always commit the business change *before*
+    logging), so an audit failure can never poison the caller's transaction, expire
+    its freshly-loaded objects, or surface a 500 on an already-committed write. The
+    ``db`` argument is accepted for signature stability but intentionally not used
+    for the write.
+    """
+    try:
+        safe_detail = _sanitize_for_json(detail) if detail else detail
+        content_hash = _compute_content_hash(tenant_id, user_id, action, resource_type, resource_id, summary, safe_detail)
+        async with async_session_factory() as audit_db:
+            audit_db.add(AuditLog(
+                id=generate_uuid(), tenant_id=tenant_id,
+                user_id=user_id, user_name=user_name,
+                action=action, resource_type=resource_type,
+                resource_id=resource_id, summary=summary,
+                detail=safe_detail,
+                ip=ip or request_ip.get(),
+                user_agent=request_user_agent.get(),
+                trace_id=request_trace_id.get(),
+                content_hash=content_hash,
+            ))
+            await audit_db.commit()
+    except Exception:
+        logger.warning(
+            "audit log_action failed (non-fatal) for %s/%s id=%s",
+            resource_type, action, resource_id, exc_info=True,
+        )
 
 
 async def list_audit_logs(
