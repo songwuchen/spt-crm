@@ -250,6 +250,69 @@ function CallLogsTab() {
   )
 }
 
+// ============================================= Failed-event redeliver
+function FailedEventsSection() {
+  const [rows, setRows] = useState<any[]>([])
+  const [status, setStatus] = useState<string>('failed')
+  const [loading, setLoading] = useState(false)
+
+  const load = async (s = status) => {
+    setLoading(true)
+    try {
+      const res: any = await openApiApi.listEvents({ status: s, page_size: 50 })
+      setRows(res.data?.items || [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load('failed') }, [])
+
+  const redeliver = async (id: string) => {
+    await openApiApi.redeliverEvent(id)
+    message.success('已重新入队，稍后由投递服务重试')
+    load()
+  }
+
+  const columns = [
+    { title: '时间', dataIndex: 'created_at', render: (v: string) => v ? new Date(v).toLocaleString() : '' },
+    { title: '事件', dataIndex: 'event_type', render: (v: string) => <code className="text-xs">{v}</code> },
+    {
+      title: '状态', dataIndex: 'status',
+      render: (v: string) => <Tag color={v === 'failed' ? 'red' : v === 'published' ? 'green' : 'orange'}>{v}</Tag>,
+    },
+    { title: '重试次数', dataIndex: 'retry_count' },
+    { title: '错误', dataIndex: 'error_message', ellipsis: true, render: (v: string) => <span className="text-xs text-slate-500">{v}</span> },
+    {
+      title: '操作', key: 'action', width: 110,
+      render: (_: unknown, r: any) => (
+        <Popconfirm title="重新投递该事件？" onConfirm={() => redeliver(r.id)}>
+          <Button size="small">重新投递</Button>
+        </Popconfirm>
+      ),
+    },
+  ]
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-bold text-slate-800">事件投递</h3>
+        <Select
+          size="small" value={status} style={{ width: 140 }}
+          onChange={(v) => { setStatus(v); load(v) }}
+          options={[
+            { value: 'failed', label: '投递失败' },
+            { value: 'pending', label: '待投递' },
+            { value: 'published', label: '已投递' },
+          ]}
+        />
+      </div>
+      <Table rowKey="id" loading={loading} dataSource={rows} columns={columns} size="small"
+             pagination={{ pageSize: 10 }} />
+    </div>
+  )
+}
+
 // ========================================================== Webhooks tab
 function WebhooksTab() {
   const [rows, setRows] = useState<any[]>([])
@@ -289,6 +352,20 @@ function WebhooksTab() {
     load()
   }
 
+  const testPush = async (id: string) => {
+    const res: any = await openApiApi.testWebhook(id)
+    const r = res.data || {}
+    Modal[r.success ? 'success' : 'error']({
+      title: r.success ? '测试推送成功' : '测试推送失败',
+      content: (
+        <div className="text-sm">
+          <div>HTTP 状态码：{r.status_code}</div>
+          <div className="mt-1 break-all text-slate-500">响应：{r.response_body || '(空)'}</div>
+        </div>
+      ),
+    })
+  }
+
   const columns = [
     { title: '回调地址', dataIndex: 'target_url', render: (v: string) => <code className="text-xs">{v}</code> },
     {
@@ -297,11 +374,14 @@ function WebhooksTab() {
     },
     { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={v === 'active' ? 'green' : 'default'}>{v}</Tag> },
     {
-      title: '操作', key: 'action', width: 100,
+      title: '操作', key: 'action', width: 160,
       render: (_: unknown, r: any) => (
-        <Popconfirm title="确定删除该订阅？" onConfirm={() => remove(r.id)}>
-          <Button size="small" danger>删除</Button>
-        </Popconfirm>
+        <Space size="small">
+          <Button size="small" onClick={() => testPush(r.id)}>测试推送</Button>
+          <Popconfirm title="确定删除该订阅？" onConfirm={() => remove(r.id)}>
+            <Button size="small" danger>删除</Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ]
@@ -316,6 +396,8 @@ function WebhooksTab() {
         <Button type="primary" onClick={() => setModalOpen(true)}>新建订阅</Button>
       </div>
       <Table rowKey="id" loading={loading} dataSource={rows} columns={columns} size="small" pagination={false} />
+
+      <FailedEventsSection />
 
       <Modal title="新建 Webhook 订阅" open={modalOpen} onOk={submit} onCancel={() => setModalOpen(false)} destroyOnClose>
         <Form form={form} layout="vertical">
@@ -341,6 +423,7 @@ const SCOPE_DESC: { scope: string; desc: string }[] = [
   { scope: 'crm.project.read', desc: '读取商机项目' },
   { scope: 'crm.contract.read', desc: '读取合同' },
   { scope: 'crm.event.read', desc: '拉取业务事件' },
+  { scope: 'crm.lead.write', desc: '创建线索（写入，需 Idempotency-Key）' },
 ]
 
 const ENDPOINTS = [
@@ -355,11 +438,12 @@ const ENDPOINTS = [
   { method: 'GET', path: '/openapi/v1/contracts/{id}', desc: '合同详情' },
   { method: 'GET', path: '/openapi/v1/events', desc: '事件拉取（游标 after_event_id + 时间范围）' },
   { method: 'GET', path: '/openapi/v1/events/{event_id}', desc: '单事件详情' },
+  { method: 'POST', path: '/openapi/v1/leads', desc: '创建线索（写入，需 Idempotency-Key 头）' },
 ]
 
 const EVENTS = [
-  'crm.customer.created', 'crm.project.stage_advanced', 'crm.project.won',
-  'crm.project.lost', 'crm.contract.signed', 'crm.payment.received',
+  'crm.customer.created', 'crm.lead.created', 'crm.project.stage_advanced',
+  'crm.project.won', 'crm.project.lost', 'crm.contract.signed', 'crm.payment.received',
 ]
 
 function DocsTab() {

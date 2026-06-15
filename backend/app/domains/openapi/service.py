@@ -22,7 +22,9 @@ from app.domains.openapi.auth import hash_secret, generate_app_key, generate_sec
 from app.domains.customer.models import Customer, Contact
 from app.domains.project.models import OpportunityProject
 from app.domains.contract.models import Contract
+from app.domains.lead.models import Lead
 from app.domains.outbox.models import OutboxEvent
+from app.domains.admin.models import WebhookSubscription
 
 
 # ============================================================ app management
@@ -314,3 +316,74 @@ async def get_event(db: AsyncSession, tenant_id: str, event_id: str) -> OutboxEv
             OutboxEvent.id == event_id, OutboxEvent.tenant_id == tenant_id,
         )
     )).scalar_one_or_none()
+
+
+# ============================================================ writes (leads)
+async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
+    """Create a lead from an external app. Reuses the internal lead service so all
+    business rules (code generation, scoring, audit) apply. The lead is attributed
+    to the app and left unassigned (pool) for sales to claim."""
+    from app.domains.lead.service import create_lead
+    from app.domains.lead.schemas import LeadCreate
+    from app.domains.openapi.dto import lead_to_dto
+
+    pseudo_user = {
+        "sub": ctx.app_id,  # AuditLog.user_id is non-null; attribute to the app
+        "username": f"openapi:{ctx.app_key}",
+        "real_name": "开放平台",
+    }
+    lead = await create_lead(db, ctx.tenant_id, LeadCreate(**data.model_dump(exclude_unset=True)), pseudo_user)
+    # create_lead defaults owner to the creator (here the app id); de-own into the pool.
+    if lead.owner_id == ctx.app_id:
+        lead.owner_id = None
+        lead.owner_name = "开放平台（待分配）"
+        await db.commit()
+        await db.refresh(lead)
+    return lead_to_dto(lead)
+
+
+# ============================================================ webhook ops
+def _compute_webhook_sig(secret: str, body: str) -> str:
+    import hmac as _hmac, hashlib as _hashlib
+    return _hmac.new(secret.encode(), body.encode(), _hashlib.sha256).hexdigest()
+
+
+async def send_test_webhook(db: AsyncSession, tenant_id: str, subscription_id: str) -> dict:
+    """Send a signed sample event to a subscription's callback URL, matching the
+    format the outbox worker uses (so integrators can validate their receiver)."""
+    import json
+    import httpx
+    sub = (await db.execute(
+        select(WebhookSubscription).where(
+            WebhookSubscription.id == subscription_id,
+            WebhookSubscription.tenant_id == tenant_id,
+        )
+    )).scalar_one_or_none()
+    if not sub:
+        raise BusinessException(code=NOT_FOUND, message="订阅不存在")
+
+    payload = {
+        "event_id": "evt_test",
+        "event_type": "crm.webhook.test",
+        "aggregate_type": "webhook",
+        "aggregate_id": subscription_id,
+        "tenant_id": tenant_id,
+        "timestamp": datetime.now().isoformat(),
+        "data": {"message": "这是一条 SPT-CRM 开放平台测试推送"},
+    }
+    body = json.dumps(payload, ensure_ascii=False, default=str)
+    headers = {"Content-Type": "application/json"}
+    if sub.secret_token:
+        headers["X-Webhook-Signature"] = "sha256=" + _compute_webhook_sig(sub.secret_token, body)
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(sub.target_url, content=body, headers=headers)
+            return {
+                "status_code": resp.status_code,
+                "success": 200 <= resp.status_code < 300,
+                "response_body": resp.text[:500],
+            }
+    except httpx.TimeoutException:
+        return {"status_code": 0, "success": False, "response_body": "请求超时"}
+    except Exception as e:  # noqa: BLE001
+        return {"status_code": 0, "success": False, "response_body": str(e)[:300]}

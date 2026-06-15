@@ -14,6 +14,8 @@ from app.dependencies import get_db
 from app.domains.openapi import service, dto
 from app.domains.openapi.auth import get_openapi_context, require_scope, OpenApiContext
 from app.domains.openapi.errors import OpenApiException, CRM_NOT_FOUND
+from app.domains.openapi.schemas import OpenLeadCreate
+from app.domains.openapi.idempotency import run_idempotent
 
 router = APIRouter(prefix="/openapi/v1", tags=["开放平台"])
 
@@ -157,6 +159,22 @@ async def get_contract(
     if not row:
         raise OpenApiException(CRM_NOT_FOUND, "合同不存在", http_status=404, details={"id": contract_id})
     return _ok(request, dto.contract_to_dto(row))
+
+
+# --------------------------------------------------------- leads (write)
+@router.post("/leads")
+async def create_lead(
+    request: Request, body: OpenLeadCreate,
+    ctx: OpenApiContext = Depends(require_scope("crm.lead.write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a lead. **Requires** an ``Idempotency-Key`` header; replays with the
+    same key + body return the original result without creating a duplicate."""
+    async def producer():
+        return await service.create_lead_from_openapi(db, ctx, body)
+
+    data = await run_idempotent(db, ctx, request, producer)
+    return _ok(request, data)
 
 
 # ------------------------------------------------------------------ events

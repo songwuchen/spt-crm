@@ -21,4 +21,12 @@ export const openApiApi = {
     client.post('/api/admin/v1/tenant/webhooks', data),
   deleteWebhook: (id: string) =>
     client.delete(`/api/admin/v1/tenant/webhooks/${id}`),
+  testWebhook: (id: string) =>
+    client.post(`/api/admin/v1/tenant/openapi/webhooks/${id}/test`),
+
+  // Event delivery (test push / failed redelivery)
+  listEvents: (params?: Record<string, unknown>) =>
+    client.get('/api/admin/v1/tenant/openapi/events', { params }),
+  redeliverEvent: (id: string) =>
+    client.post(`/api/admin/v1/tenant/openapi/events/${id}/redeliver`),
 }

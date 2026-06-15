@@ -122,7 +122,8 @@ print(call("GET", "/openapi/v1/customers", "status=active&page=1").json())
 | 403 | `CRM_FORBIDDEN_SCOPE` | 应用未被授予该接口所需 Scope |
 | 429 | `CRM_RATE_LIMITED` | 触发限流（详见第 7 节） |
 | 404 | `CRM_NOT_FOUND` | 资源不存在 |
-| 400 | `CRM_VALIDATION_ERROR` | 查询/路径参数不合法 |
+| 400 | `CRM_VALIDATION_ERROR` | 查询/路径参数不合法，或写接口缺少 `Idempotency-Key` |
+| 409 | `CRM_IDEMPOTENCY_CONFLICT` | `Idempotency-Key` 被复用于不同请求 / 同一请求处理中 |
 | 500 | `CRM_INTERNAL_ERROR` | 服务端异常，可凭 traceId 反馈 |
 
 ---
@@ -138,6 +139,7 @@ print(call("GET", "/openapi/v1/customers", "status=active&page=1").json())
 | `crm.project.read` | 读取商机项目 |
 | `crm.contract.read` | 读取合同 |
 | `crm.event.read` | 拉取业务事件 |
+| `crm.lead.write` | 创建线索（写入，需 `Idempotency-Key`） |
 
 ---
 
@@ -256,6 +258,43 @@ curl -H "X-API-Key: $KEY" \
 
 `GET /events/{event_id}` — 单事件详情。
 
+### 5.6 创建线索（写入）
+`POST /leads` — Scope `crm.lead.write`
+
+**写入接口必须携带幂等头：**
+```
+Idempotency-Key: <你生成的唯一字符串，如 UUID>
+```
+- 同一 `Idempotency-Key` + 相同请求体重复调用 → 返回首次结果（响应含 `"idempotent_replay": true`），**不会重复创建**。
+- 同一 `Idempotency-Key` + 不同请求体 → `409 CRM_IDEMPOTENCY_CONFLICT`。
+- 幂等记录保留约 24 小时。
+
+请求体：
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `title` | string | 是 | 线索标题 |
+| `company_name` | string | 是 | 公司名称 |
+| `contact_name` / `contact_phone` / `contact_email` | string | 否 | 联系人信息 |
+| `source` | string | 否 | 来源（如 `partner`/`ad`/`inbound`） |
+| `demand_summary` | string | 否 | 需求描述 |
+| `industry` / `region` / `budget_range` / `remark` | string | 否 | 行业 / 区域 / 预算 / 备注 |
+
+> 通过开放平台创建的线索默认**进入公海（未分配）**，归属标记为「开放平台」，由销售认领；同时产生 `crm.lead.created` 事件。
+
+示例：
+```bash
+curl -X POST "https://192.168.0.42:8410/openapi/v1/leads" \
+  -H "X-API-Key: $KEY" \
+  -H "Idempotency-Key: 5f3c9b2a-..." \
+  -H "Content-Type: application/json" \
+  -d '{"title":"官网询盘-振动筛","company_name":"示例矿业","contact_phone":"139...","source":"inbound"}'
+```
+```json
+{ "code": 0, "message": "success", "traceId": "...",
+  "data": { "id": "...", "lead_code": "L2026...", "title": "官网询盘-振动筛",
+            "company_name": "示例矿业", "status": "new", "owner_name": "开放平台（待分配）" } }
+```
+
 ---
 
 ## 6. 事件中心
@@ -266,6 +305,7 @@ curl -H "X-API-Key: $KEY" \
 | event_type | 触发时机 |
 |---|---|
 | `crm.customer.created` | 新建客户 |
+| `crm.lead.created` | 新建线索（含开放平台写入） |
 | `crm.project.stage_advanced` | 商机阶段推进 |
 | `crm.project.won` | 商机赢单 |
 | `crm.project.lost` | 商机丢单 |
@@ -295,6 +335,7 @@ curl -H "X-API-Key: $KEY" \
 | 事件 | data 字段 |
 |---|---|
 | `crm.customer.created` | `customer_id`, `customer_code`, `name` |
+| `crm.lead.created` | `lead_id`, `lead_code`, `title`, `company_name`, `source` |
 | `crm.project.stage_advanced` | `project_id`, `project_code`, `from_stage`, `to_stage` |
 | `crm.project.won` / `lost` | `project_id`, `project_code`, `name`, `status`, `amount_expect` |
 | `crm.contract.signed` | `contract_id`, `contract_no`, `project_id`, `amount_total`, `signed_date` |
@@ -349,4 +390,4 @@ def verify(raw_body: bytes, header_sig: str, secret: str) -> bool:
 ## 9. 兼容性约定
 - 响应**新增字段**不视为破坏性变更，客户端应忽略未知字段。
 - 删除/改名/改语义属破坏性变更，会通过新版本路径 `/openapi/v2` 发布；事件破坏性变更升 `event_version`。
-- 当前所有接口为**只读**；写入类接口将在后续版本提供（届时启用 `Idempotency-Key`）。
+- 读取接口幂等天然安全；**写入接口**（如 `POST /leads`）必须携带 `Idempotency-Key`，可安全重试。后续将开放更多写入资源。

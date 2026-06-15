@@ -120,6 +120,11 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     )
     lead.score = _compute_score(lead)
     db.add(lead)
+    from app.domains.outbox.service import emit_event
+    await emit_event(db, tenant_id, "crm.lead.created", "lead", lead.id, {
+        "lead_id": lead.id, "lead_code": lead.lead_code, "title": lead.title,
+        "company_name": lead.company_name, "source": lead.source,
+    })
     await db.commit()
     await db.refresh(lead)
 

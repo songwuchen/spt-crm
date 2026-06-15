@@ -2,14 +2,31 @@ from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator
 
 
-# Full catalogue of scopes an app can be granted (first version: read-only).
+# Full catalogue of scopes an app can be granted.
 ALL_SCOPES = [
     "crm.customer.read",
     "crm.contact.read",
     "crm.project.read",
     "crm.contract.read",
     "crm.event.read",
+    # write scopes (require Idempotency-Key)
+    "crm.lead.write",
 ]
+
+
+class OpenLeadCreate(BaseModel):
+    """External lead-intake payload for POST /openapi/v1/leads."""
+    title: str = Field(..., min_length=1, max_length=200)
+    company_name: str = Field(..., min_length=1, max_length=200)
+    contact_name: Optional[str] = Field(None, max_length=100)
+    contact_phone: Optional[str] = Field(None, max_length=20)
+    contact_email: Optional[str] = Field(None, max_length=200)
+    source: Optional[str] = Field(None, max_length=100)
+    demand_summary: Optional[str] = Field(None, max_length=2000)
+    industry: Optional[str] = Field(None, max_length=100)
+    region: Optional[str] = Field(None, max_length=200)
+    budget_range: Optional[str] = Field(None, max_length=100)
+    remark: Optional[str] = Field(None, max_length=2000)
 
 _AUTH_MODES = {"apikey", "hmac"}
 _STATUSES = {"enabled", "disabled"}

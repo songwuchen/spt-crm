@@ -30,6 +30,23 @@ class OpenApiApp(TenantScopedBase):
     remark: Mapped[str | None] = mapped_column(String(500))
 
 
+class OpenApiIdempotencyKey(TenantScopedBase):
+    """Stores the outcome of a write request keyed by client ``Idempotency-Key``.
+
+    A replay with the same (tenant, app, key) returns the stored response instead
+    of re-executing. A same-key-but-different-body replay is a conflict.
+    """
+    __tablename__ = "openapi_idempotency_keys"
+
+    app_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    request_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    response_json: Mapped[dict | None] = mapped_column(JSON)
+    status_code: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), default="processing")  # processing | completed
+    expires_at: Mapped[str | None] = mapped_column(String(40))
+
+
 class OpenApiCallLog(TenantScopedBase):
     """Lightweight access log for Open API calls (metadata only, no request body)."""
     __tablename__ = "openapi_call_logs"

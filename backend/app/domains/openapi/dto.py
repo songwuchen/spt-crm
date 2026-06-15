@@ -102,6 +102,26 @@ def contract_to_dto(c) -> dict:
     }
 
 
+# --------------------------------------------------------------------- leads
+def lead_to_dto(l) -> dict:
+    return {
+        "id": l.id,
+        "lead_code": l.lead_code,
+        "title": l.title,
+        "company_name": l.company_name,
+        "contact_name": l.contact_name,
+        "contact_phone": l.contact_phone,
+        "contact_email": l.contact_email,
+        "source": l.source,
+        "industry": l.industry,
+        "region": l.region,
+        "status": l.status,
+        "owner_name": l.owner_name,
+        "created_at": _iso(l.created_at),
+        "updated_at": _iso(l.updated_at),
+    }
+
+
 # -------------------------------------------------------------------- events
 def event_to_dto(e) -> dict:
     return {
