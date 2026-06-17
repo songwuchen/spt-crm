@@ -80,8 +80,13 @@ export default function MobileFollowUp() {
         analysis_type: 'meeting_summary',
       })
       if (res.data?.result) {
-        const r = res.data.result as any
-        setAiSummary(r.summary || r.text || JSON.stringify(r))
+        const r = res.data.result as Record<string, unknown>
+        const pick = (...keys: string[]) => keys.map((k) => r[k]).find((v) => typeof v === 'string' && v) as string | undefined
+        const text =
+          pick('summary', 'text', 'overall_assessment', 'overall_comment', 'content') ||
+          Object.values(r).filter((v) => typeof v === 'string' && v).join('；') ||
+          '已生成摘要，请在 AI 任务中心查看详情'
+        setAiSummary(text)
       }
     } catch { message.error('AI 摘要生成失败') }
     finally { setAiLoading(false) }

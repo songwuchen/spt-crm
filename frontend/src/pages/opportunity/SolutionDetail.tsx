@@ -12,6 +12,7 @@ import SolutionConfigEditor, { normalizeConfig, serializeConfig } from '@/compon
 import type { ConfigRow } from '@/components/SolutionConfigEditor'
 import SolutionRiskEditor, { normalizeRisks, serializeRisks } from '@/components/SolutionRiskEditor'
 import type { RiskRow } from '@/components/SolutionRiskEditor'
+import DataView from '@/components/DataView'
 
 const { TextArea } = Input
 
@@ -182,37 +183,7 @@ export default function SolutionDetail() {
               <div className="mb-4">
                 <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">配置/选型清单</h4>
                 <div className="bg-slate-50 p-3 rounded-lg overflow-auto">
-                  {Array.isArray(currentVersion.config_json) ? (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200">
-                          {currentVersion.config_json.length > 0 && Object.keys(currentVersion.config_json[0] as Record<string, unknown>).map((k) => (
-                            <th key={k} className="text-left py-1.5 px-2 font-bold text-slate-500">{k}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(currentVersion.config_json as Record<string, unknown>[]).map((row, i) => (
-                          <tr key={i} className="border-b border-slate-100 last:border-0">
-                            {Object.values(row).map((v, j) => (
-                              <td key={j} className="py-1.5 px-2 text-slate-700">{String(v ?? '-')}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : typeof currentVersion.config_json === 'object' ? (
-                    <div className="space-y-1">
-                      {Object.entries(currentVersion.config_json as Record<string, unknown>).map(([k, v]) => (
-                        <div key={k} className="flex gap-2 text-sm">
-                          <span className="font-bold text-slate-500 min-w-[80px]">{k}:</span>
-                          <span className="text-slate-700">{typeof v === 'object' ? JSON.stringify(v) : String(v ?? '-')}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-slate-700">{JSON.stringify(currentVersion.config_json, null, 2)}</div>
-                  )}
+                  <DataView value={currentVersion.config_json} />
                 </div>
               </div>
             )}
@@ -238,7 +209,7 @@ export default function SolutionDetail() {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-sm text-slate-700">{JSON.stringify(currentVersion.risk_list_json, null, 2)}</div>
+                    <DataView value={currentVersion.risk_list_json} />
                   )}
                 </div>
               </div>

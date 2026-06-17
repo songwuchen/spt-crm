@@ -4,6 +4,16 @@ import { PlusOutlined, TeamOutlined, CloudOutlined, ThunderboltOutlined, Databas
 import { platformApi } from '@/api/platform'
 import type { PlatformTenant, TenantPlan, PlatformOverview } from '@/api/platform'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import DataView from '@/components/DataView'
+
+/** 接口可能返回数组或分页对象 {items:[...]}，统一成数组，避免 Table 收到非数组而崩溃 */
+function toArray<T>(data: unknown): T[] {
+  if (Array.isArray(data)) return data as T[]
+  if (data && typeof data === 'object' && Array.isArray((data as { items?: unknown }).items)) {
+    return (data as { items: T[] }).items
+  }
+  return []
+}
 
 const metricLabels: Record<string, { label: string; icon: React.ReactNode; unit: string; format: (v: number) => string }> = {
   user_active: { label: '活跃用户', icon: <TeamOutlined />, unit: '人', format: (v) => String(Math.round(v)) },
@@ -42,8 +52,8 @@ export default function PlatformTenants() {
   const fetchAll = () => {
     setLoading(true)
     Promise.all([
-      platformApi.listTenants().then(r => r.data && setTenants(r.data)).catch(() => {}),
-      platformApi.listPlans().then(r => r.data && setPlans(r.data)).catch(() => {}),
+      platformApi.listTenants().then(r => setTenants(toArray<PlatformTenant>(r.data))).catch(() => {}),
+      platformApi.listPlans().then(r => setPlans(toArray<TenantPlan>(r.data))).catch(() => {}),
       platformApi.getOverview().then(r => r.data && setOverview(r.data)).catch(() => {}),
     ]).finally(() => setLoading(false))
   }
@@ -99,7 +109,7 @@ export default function PlatformTenants() {
             value={overview.total_users}
             icon={<TeamOutlined />}
           />
-          {Object.entries(overview.usage_summary).slice(0, 2).map(([code, val]) => {
+          {Object.entries(overview.usage_summary || {}).slice(0, 2).map(([code, val]) => {
             const m = metricLabels[code]
             return m ? (
               <StatCard
@@ -115,7 +125,7 @@ export default function PlatformTenants() {
       )}
 
       {/* Per-Tenant Usage */}
-      {overview && Object.keys(overview.tenant_usage).length > 0 && (
+      {overview && Object.keys(overview.tenant_usage || {}).length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
           <div className="p-4 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-900">租户用量概览 ({overview.current_period})</h3>
@@ -198,8 +208,8 @@ export default function PlatformTenants() {
         <Table rowKey="id" dataSource={plans} size="small" pagination={false}
           columns={[
             { title: '名称', dataIndex: 'name', width: 150 },
-            { title: '定价', dataIndex: 'pricing_json', render: (v: unknown) => v ? <pre className="text-sm text-slate-600 whitespace-pre-wrap max-w-xs">{JSON.stringify(v, null, 2)}</pre> : '-' },
-            { title: '限额', dataIndex: 'limits_json', render: (v: unknown) => v ? <pre className="text-sm text-slate-600 whitespace-pre-wrap max-w-xs">{JSON.stringify(v, null, 2)}</pre> : '-' },
+            { title: '定价', dataIndex: 'pricing_json', render: (v: unknown) => <div className="max-w-xs"><DataView value={v} /></div> },
+            { title: '限额', dataIndex: 'limits_json', render: (v: unknown) => <div className="max-w-xs"><DataView value={v} /></div> },
             { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => <Tag color={v === 'active' ? 'success' : 'default'}>{v}</Tag> },
             { title: '创建时间', dataIndex: 'created_at', width: 130, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
           ]}

@@ -8,6 +8,8 @@ import { approvalApi } from '@/api/approval'
 import { aiApi } from '@/api/ai'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import SignaturePad from '@/components/SignaturePad'
+import DataView, { formatMoney } from '@/components/DataView'
+import { PaymentTermsView, ClauseTermsView } from '@/components/ContractTerms'
 import type { ContractItem, ContractVersion } from '@/api/types'
 import { riskLabels, riskColors } from '@/api/types'
 import { contractStatusColors } from '@/constants/labels'
@@ -261,7 +263,7 @@ export default function ContractDetail() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
         <Descriptions size="small" column={3} bordered>
           <Descriptions.Item label="合同金额">
-            <span className="font-bold text-lg">{contract.amount_total != null ? `¥${Number(contract.amount_total).toLocaleString()}` : '-'}</span>
+            <span className="font-bold text-lg">{formatMoney(contract.amount_total)}</span>
           </Descriptions.Item>
           <Descriptions.Item label="状态"><Tag color={statusColors[contract.status]}>{contract.status}</Tag></Descriptions.Item>
           <Descriptions.Item label="签署日期">{contract.signed_date || '-'}</Descriptions.Item>
@@ -271,33 +273,13 @@ export default function ContractDetail() {
         {contract.payment_terms_json && (
           <div className="mt-4">
             <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">付款条款</h4>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              {typeof contract.payment_terms_json === 'object' && !Array.isArray(contract.payment_terms_json) ? (
-                <Descriptions column={1} size="small" bordered>
-                  {Object.entries(contract.payment_terms_json as Record<string, unknown>).map(([k, v]) => (
-                    <Descriptions.Item key={k} label={k}>{String(v ?? '-')}</Descriptions.Item>
-                  ))}
-                </Descriptions>
-              ) : (
-                <div className="text-sm text-slate-700">{JSON.stringify(contract.payment_terms_json, null, 2)}</div>
-              )}
-            </div>
+            <PaymentTermsView value={contract.payment_terms_json} />
           </div>
         )}
         {contract.delivery_terms_json && (
           <div className="mt-4">
             <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">交付条款</h4>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              {typeof contract.delivery_terms_json === 'object' && !Array.isArray(contract.delivery_terms_json) ? (
-                <Descriptions column={1} size="small" bordered>
-                  {Object.entries(contract.delivery_terms_json as Record<string, unknown>).map(([k, v]) => (
-                    <Descriptions.Item key={k} label={k}>{String(v ?? '-')}</Descriptions.Item>
-                  ))}
-                </Descriptions>
-              ) : (
-                <div className="text-sm text-slate-700">{JSON.stringify(contract.delivery_terms_json, null, 2)}</div>
-              )}
-            </div>
+            <DataView value={contract.delivery_terms_json} />
           </div>
         )}
       </div>
@@ -334,9 +316,7 @@ export default function ContractDetail() {
         {currentVersion?.key_clauses_json && (
           <div className="mt-4">
             <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">结构化条款</h4>
-            <pre className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700 overflow-auto">
-              {JSON.stringify(currentVersion.key_clauses_json, null, 2)}
-            </pre>
+            <ClauseTermsView value={currentVersion.key_clauses_json} />
           </div>
         )}
       </div>

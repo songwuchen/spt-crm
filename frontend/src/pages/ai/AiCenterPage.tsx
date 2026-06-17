@@ -5,6 +5,7 @@ import { aiApi } from '@/api/ai'
 import type { AiTaskItem, AiResultItem, AiPromptTemplateItem } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import DataView from '@/components/DataView'
 
 const { TextArea } = Input
 
@@ -277,9 +278,7 @@ export default function AiCenterPage() {
             {selectedTask.input_ref_json && (
               <div className="mb-4">
                 <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">输入参考</h4>
-                <pre className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700 overflow-auto max-h-40">
-                  {JSON.stringify(selectedTask.input_ref_json, null, 2)}
-                </pre>
+                <DataView value={selectedTask.input_ref_json} />
               </div>
             )}
 
@@ -302,58 +301,11 @@ export default function AiCenterPage() {
                     )}
                   </div>
                 )}
-                <div className="bg-slate-50 p-3 rounded-lg overflow-auto max-h-60">
-                  {taskResult.result_json && typeof taskResult.result_json === 'object' && !Array.isArray(taskResult.result_json) ? (
-                    <div className="space-y-2">
-                      {Object.entries(taskResult.result_json as Record<string, unknown>).map(([key, val]) => (
-                        <div key={key} className="text-sm">
-                          <span className="font-bold text-slate-500">{key}:</span>{' '}
-                          {typeof val === 'object' && val !== null ? (
-                            Array.isArray(val) ? (
-                              <ul className="list-disc list-inside mt-1 ml-2 space-y-0.5">
-                                {(val as unknown[]).map((item, i) => (
-                                  <li key={i} className="text-slate-700">{typeof item === 'object' ? JSON.stringify(item) : String(item)}</li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <span className="text-slate-700">{JSON.stringify(val)}</span>
-                            )
-                          ) : (
-                            <span className="text-slate-700">{String(val ?? '-')}</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : Array.isArray(taskResult.result_json) ? (
-                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-700">
-                      {(taskResult.result_json as unknown[]).map((item, i) => (
-                        <li key={i}>{typeof item === 'object' ? JSON.stringify(item) : String(item)}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="text-sm text-slate-700 whitespace-pre-wrap">{JSON.stringify(taskResult.result_json, null, 2)}</div>
-                  )}
-                </div>
+                <DataView value={taskResult.result_json} />
                 {taskResult.evidence_json && (
                   <div className="mt-3">
                     <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">证据</h4>
-                    <div className="bg-slate-50 p-3 rounded-lg overflow-auto max-h-40">
-                      {Array.isArray(taskResult.evidence_json) ? (
-                        <ul className="list-decimal list-inside space-y-1 text-sm text-slate-700">
-                          {(taskResult.evidence_json as unknown[]).map((item, i) => (
-                            <li key={i}>{typeof item === 'object' ? JSON.stringify(item) : String(item)}</li>
-                          ))}
-                        </ul>
-                      ) : typeof taskResult.evidence_json === 'object' ? (
-                        <div className="space-y-1">
-                          {Object.entries(taskResult.evidence_json as Record<string, unknown>).map(([k, v]) => (
-                            <div key={k} className="text-sm"><span className="font-bold text-slate-500">{k}:</span> <span className="text-slate-700">{typeof v === 'object' ? JSON.stringify(v) : String(v ?? '-')}</span></div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-slate-700 whitespace-pre-wrap">{JSON.stringify(taskResult.evidence_json, null, 2)}</div>
-                      )}
-                    </div>
+                    <DataView value={taskResult.evidence_json} />
                   </div>
                 )}
               </div>

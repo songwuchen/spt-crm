@@ -13,6 +13,7 @@ import { useUserSelect } from '@/hooks/useSelectOptions'
 import SubscribeButton from '@/components/SubscribeButton'
 import SlaCountdown from '@/components/SlaCountdown'
 import InternalNotes from '@/components/InternalNotes'
+import DataView from '@/components/DataView'
 
 const { TextArea } = Input
 const statusFlow: Record<string, string[]> = {
@@ -324,9 +325,7 @@ export default function ServiceTicketDetail() {
                 <span className="material-symbols-outlined text-purple-500" style={{ fontSize: 18 }}>psychology</span>
                 AI 摘要
               </h3>
-              <pre className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700 overflow-auto">
-                {JSON.stringify(ticket.ai_summary_json, null, 2)}
-              </pre>
+              <DataView value={ticket.ai_summary_json} />
             </div>
           )}
         </div>

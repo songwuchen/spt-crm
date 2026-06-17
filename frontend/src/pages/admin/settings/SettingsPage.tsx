@@ -9,6 +9,7 @@ import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import ApprovalPolicyModal from './ApprovalPolicyModal'
 import GateRulesEditor, { type GateRule, validateGateRules } from '@/components/GateRulesEditor'
+import DataView from '@/components/DataView'
 
 const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, { ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'img', 'hr'], ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'target'] })
 
@@ -27,7 +28,7 @@ interface CustomFieldItem { id: string; entity_type: string; field_key: string; 
 
 function JsonCell({ value }: { value: unknown }) {
   if (!value) return <span className="text-slate-300">-</span>
-  return <pre className="text-sm text-slate-600 whitespace-pre-wrap max-w-xs">{JSON.stringify(value, null, 2)}</pre>
+  return <div className="max-w-xs"><DataView value={value} /></div>
 }
 
 export default function SettingsPage() {

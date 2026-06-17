@@ -6,6 +6,7 @@ import client from '@/api/client'
 import type { AuditLog, PageData, ApiResponse } from '@/api/types'
 import type { Dayjs } from 'dayjs'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import DataView from '@/components/DataView'
 
 const { RangePicker } = DatePicker
 
@@ -96,11 +97,7 @@ function DiffView({ detail }: { detail: Record<string, unknown> }) {
       </div>
     )
   }
-  return (
-    <pre className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg overflow-auto max-h-40">
-      {JSON.stringify(detail, null, 2)}
-    </pre>
-  )
+  return <DataView value={detail} />
 }
 
 const weekDayLabels = ['日', '一', '二', '三', '四', '五', '六']

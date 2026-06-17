@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Timeline, Spin, Tag } from 'antd'
 import client from '@/api/client'
 import type { ApiResponse } from '@/api/types'
+import DataView from '@/components/DataView'
 
 interface AuditEntry {
   id: string
@@ -33,12 +34,8 @@ function DetailDiff({ detail }: { detail: Record<string, unknown> }) {
   if (!detail || typeof detail !== 'object') return null
   const changes = detail.changes as Record<string, { old?: unknown; new?: unknown }>
   if (!changes || typeof changes !== 'object') {
-    // Fallback: display raw detail
-    return (
-      <pre className="text-[11px] text-slate-500 bg-slate-50 rounded p-2 mt-1 whitespace-pre-wrap max-h-32 overflow-auto">
-        {JSON.stringify(detail, null, 2)}
-      </pre>
-    )
+    // Fallback: 结构化渲染明细，而不是裸 JSON
+    return <div className="mt-1"><DataView value={detail} /></div>
   }
   const entries = Object.entries(changes)
   if (entries.length === 0) return null
