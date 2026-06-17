@@ -573,6 +573,68 @@ async def update_order_status_from_openapi(db: AsyncSession, ctx, order_id: str,
     return order_to_dto(order)
 
 
+def _to_date(value: str | None):
+    """Parse an ISO date or datetime string into a date; None on empty/invalid.
+    Accepts both '2026-06-01' and '2026-06-01T16:00:00.000Z' (JianDaoYun) forms."""
+    from datetime import date as _date, datetime as _dt
+    if not value:
+        return None
+    s = value.strip()
+    try:
+        return _date.fromisoformat(s[:10])
+    except ValueError:
+        try:
+            return _dt.fromisoformat(s.replace("Z", "+00:00")).date()
+        except ValueError:
+            return None
+
+
+async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
+    """Create a contract from an external app (e.g. 简道云 合同登记表).
+
+    Customer-centric and project-optional: builds the Contract row directly (the
+    internal create_contract forces a project and auto-generates its own number),
+    plus an initial V1 version so version-dependent reads/approvals stay consistent.
+    """
+    from app.common.code_generator import generate_code
+    from app.domains.audit.service import log_action
+    from app.domains.openapi.dto import contract_to_dto
+
+    pseudo = _pseudo_user(ctx)
+    contract = Contract(
+        id=generate_uuid(), tenant_id=ctx.tenant_id,
+        project_id=data.project_id,
+        customer_id=data.customer_id,
+        contract_no=data.contract_no or await generate_code(db, ctx.tenant_id, "contract"),
+        current_version_no=1,
+        status=data.status or "draft",
+        signed_date=_to_date(data.signed_date),
+        end_date=_to_date(data.end_date),
+        amount_total=data.amount_total,
+        payment_terms_json=data.payment_terms_json,
+        delivery_terms_json=data.delivery_terms_json,
+        custom_fields_json=data.custom_fields or None,
+        created_by_id=ctx.app_id, created_by_name="开放平台",
+    )
+    db.add(contract)
+
+    version = ContractVersion(
+        id=generate_uuid(), tenant_id=ctx.tenant_id,
+        contract_id=contract.id, version_no=1,
+        title=data.title or "V1",
+    )
+    db.add(version)
+    await db.commit()
+    await db.refresh(contract)
+
+    await log_action(
+        db, tenant_id=ctx.tenant_id, user_id=ctx.app_id, user_name="开放平台",
+        action="create", resource_type="contract", resource_id=contract.id,
+        summary=f"开放平台创建合同: {contract.contract_no}",
+    )
+    return contract_to_dto(contract)
+
+
 # ============================================================ webhook ops
 def _compute_webhook_sig(secret: str, body: str) -> str:
     import hmac as _hmac, hashlib as _hashlib

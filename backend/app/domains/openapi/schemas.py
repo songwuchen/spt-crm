@@ -21,10 +21,12 @@ ALL_SCOPES = [
     "crm.customer.write",
     "crm.service.write",
     "crm.order.write",
+    "crm.contract.write",
 ]
 
 _ACTIVITY_BIZ_TYPES = {"customer", "project", "lead"}
 _ORDER_STATUSES = {"draft", "confirmed", "producing", "shipped", "completed", "cancelled"}
+_CONTRACT_STATUSES = {"draft", "signed", "terminated"}
 
 
 class OpenLeadCreate(BaseModel):
@@ -106,6 +108,35 @@ class OpenOrderCreate(BaseModel):
     def _check_status(cls, v):
         if v is not None and v not in _ORDER_STATUSES:
             raise ValueError(f"status must be one of {sorted(_ORDER_STATUSES)}")
+        return v
+
+
+class OpenContractCreate(BaseModel):
+    """External contract intake for POST /openapi/v1/contracts.
+
+    Customer-centric: ``customer_id`` is required (resolve the customer first via
+    POST /customers or GET /customers). ``project_id`` is optional — externally
+    sourced contracts (e.g. 简道云 合同登记表) need not belong to a CRM project.
+    ``custom_fields`` carries tenant-defined extension fields (see custom_field_defs,
+    entity_type="contract") so new tenants can map extra columns without code changes.
+    """
+    customer_id: str = Field(..., min_length=1, max_length=36)
+    project_id: Optional[str] = Field(None, max_length=36)
+    contract_no: Optional[str] = Field(None, max_length=64)
+    title: Optional[str] = Field(None, max_length=300)
+    amount_total: Optional[float] = Field(None, ge=0)
+    status: Optional[str] = Field("draft", max_length=16)
+    signed_date: Optional[str] = None
+    end_date: Optional[str] = None
+    payment_terms_json: Optional[dict] = None
+    delivery_terms_json: Optional[dict] = None
+    custom_fields: Optional[dict] = None
+
+    @field_validator("status")
+    @classmethod
+    def _check_status(cls, v):
+        if v is not None and v not in _CONTRACT_STATUSES:
+            raise ValueError(f"status must be one of {sorted(_CONTRACT_STATUSES)}")
         return v
 
 

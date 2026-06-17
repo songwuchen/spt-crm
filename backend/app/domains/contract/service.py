@@ -247,14 +247,16 @@ async def sign_contract(db: AsyncSession, tenant_id: str, contract_id: str, sign
     except Exception as e:
         logger.warning("Auto-notify contract signed failed: %s", e)
 
-    # Auto-activity record on the project
-    try:
-        from app.common.auto_activity import record_activity
-        await record_activity(db, tenant_id, "project", contract.project_id, "system",
-                               f"签署合同: {contract.contract_no}", None,
-                               user["sub"], user.get("real_name") or user.get("username"))
-    except Exception as e:
-        logger.warning("Auto-activity record for contract sign failed: %s", e)
+    # Auto-activity record on the project (skip if the contract has no project,
+    # e.g. one ingested via the Open API where project_id is optional)
+    if contract.project_id:
+        try:
+            from app.common.auto_activity import record_activity
+            await record_activity(db, tenant_id, "project", contract.project_id, "system",
+                                   f"签署合同: {contract.contract_no}", None,
+                                   user["sub"], user.get("real_name") or user.get("username"))
+        except Exception as e:
+            logger.warning("Auto-activity record for contract sign failed: %s", e)
 
     return contract
 

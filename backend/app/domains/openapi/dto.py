@@ -92,11 +92,13 @@ def contract_to_dto(c) -> dict:
         "id": c.id,
         "contract_no": c.contract_no,
         "project_id": c.project_id,
+        "customer_id": getattr(c, "customer_id", None),
         "status": sm.map_status(sm.CONTRACT_STATUS, c.status),
         "amount_total": _num(c.amount_total),
         "current_version_no": c.current_version_no,
         "signed_date": _iso(c.signed_date),
         "end_date": _iso(c.end_date),
+        "custom_fields": getattr(c, "custom_fields_json", None),
         "created_at": _iso(c.created_at),
         "updated_at": _iso(c.updated_at),
     }

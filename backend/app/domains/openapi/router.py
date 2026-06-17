@@ -20,7 +20,7 @@ from app.domains.openapi.auth import get_openapi_context, require_scope, OpenApi
 from app.domains.openapi.errors import OpenApiException, CRM_NOT_FOUND
 from app.domains.openapi.schemas import (
     OpenLeadCreate, OpenActivityCreate, OpenCustomerCreate, OpenServiceTicketCreate,
-    OpenOrderCreate, OpenOrderStatusUpdate,
+    OpenOrderCreate, OpenOrderStatusUpdate, OpenContractCreate,
 )
 from app.domains.openapi.idempotency import run_idempotent
 
@@ -477,6 +477,19 @@ async def create_order(
     """Create an order. Requires ``Idempotency-Key``."""
     async def producer():
         return await service.create_order_from_openapi(db, ctx, body)
+    return _ok(request, await run_idempotent(db, ctx, request, producer))
+
+
+@router.post("/contracts")
+async def create_contract(
+    request: Request, body: OpenContractCreate,
+    ctx: OpenApiContext = Depends(require_scope("crm.contract.write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a contract (customer-centric; project optional). Tenant extension
+    fields go in ``custom_fields``. Requires ``Idempotency-Key``."""
+    async def producer():
+        return await service.create_contract_from_openapi(db, ctx, body)
     return _ok(request, await run_idempotent(db, ctx, request, producer))
 
 

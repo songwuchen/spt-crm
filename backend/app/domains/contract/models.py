@@ -7,7 +7,12 @@ from app.database import TenantScopedBase
 class Contract(TenantScopedBase):
     __tablename__ = "contracts"
 
-    project_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    # project_id is optional: internally a contract belongs to a project, but
+    # contracts ingested through the Open API (e.g. 简道云 合同登记表) are
+    # customer-centric and may have no CRM project — mirror the order/tender model.
+    project_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    # Direct customer link for externally-sourced contracts (no project chain).
+    customer_id: Mapped[str | None] = mapped_column(String(36), index=True)
     contract_no: Mapped[str] = mapped_column(String(64), nullable=False)
     from_quote_id: Mapped[str | None] = mapped_column(String(36), index=True)
     current_version_no: Mapped[int] = mapped_column(Integer, default=1)
@@ -24,6 +29,8 @@ class Contract(TenantScopedBase):
     assignee_name: Mapped[str | None] = mapped_column(String(100))
     department_id: Mapped[str | None] = mapped_column(String(36))
     department_name: Mapped[str | None] = mapped_column(String(100))
+    # Tenant-defined extension fields (see custom_field_defs, entity_type="contract").
+    custom_fields_json: Mapped[dict | None] = mapped_column(JSON)
 
 
 class ContractVersion(TenantScopedBase):
