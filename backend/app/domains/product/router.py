@@ -3,9 +3,12 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from openpyxl import load_workbook
 import io
+import csv
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
+from app.common.exceptions import BusinessException
+from app.common.export import build_excel, excel_response
 from app.domains.product import service
 from app.dependencies import get_current_user
 from app.domains.product.models import Product
@@ -165,6 +168,17 @@ async def delete_product(
     return ok()
 
 
+_PRODUCT_IMPORT_COLS = ["产品编码", "名称", "类型", "规格", "单位", "单价", "成本价", "交期(天)"]
+
+
+@router.get("/import/template")
+async def product_import_template(_user=Depends(require_permissions("product:view"))):
+    """下载产品导入 Excel 模板（表头 + 示例行，列顺序与导入一致）。"""
+    example = ["P-001", "示例产品", "成品", "Φ100×200", "台", 1200, 800, 15]
+    buf = build_excel("产品导入模板", _PRODUCT_IMPORT_COLS, [example])
+    return excel_response(buf, "products_template.xlsx")
+
+
 @router.post("/import/excel")
 async def import_products_excel(
     file: UploadFile = File(...),
@@ -172,12 +186,21 @@ async def import_products_excel(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("product:create")),
 ):
-    """Import products from Excel. Columns: product_code, name, item_type, spec, unit, unit_price, cost_price, leadtime_days."""
+    """从 Excel/CSV 导入产品。列顺序：产品编码, 名称, 类型, 规格, 单位, 单价, 成本价, 交期(天)。"""
     content = await file.read()
-    wb = load_workbook(io.BytesIO(content), read_only=True)
-    ws = wb.active
-    all_rows = list(ws.iter_rows(values_only=True))
-    wb.close()
+    fname = (file.filename or "").lower()
+    try:
+        if fname.endswith(".csv"):
+            text = content.decode("utf-8-sig", errors="replace")
+            all_rows = [tuple(r) for r in csv.reader(io.StringIO(text))]
+        else:
+            wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+            ws = wb.active
+            all_rows = list(ws.iter_rows(values_only=True)) if ws is not None else []
+            wb.close()
+    except Exception:
+        raise BusinessException(message="无法解析文件，请使用导入模板（.xlsx 或 .csv；旧版 .xls 请先另存为 .xlsx）")
+
     if len(all_rows) < 2:
         return ok({"created": 0, "skipped": 0, "errors": []})
 
@@ -243,6 +266,7 @@ async def import_products_excel(
             created += 1
             existing_codes.add(code)
         except Exception as e:
+            await db.rollback()  # 单行失败不污染会话，后续行可继续
             errors.append(f"第{idx}行: {str(e)[:80]}")
     return ok({"created": created, "skipped": skipped, "errors": errors})
 

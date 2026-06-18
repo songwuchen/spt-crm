@@ -301,6 +301,7 @@ export default function ProductList() {
         apiUrl="/api/v1/products/import/excel"
         title="导入产品"
         templateColumns={['产品编码', '名称', '类型', '规格', '单位', '单价', '成本价', '交期(天)']}
+        templateUrl="/api/v1/products/import/template"
       />
     </div>
   )

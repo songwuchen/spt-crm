@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { Modal, Button, message, Upload } from 'antd'
-import { UploadOutlined, FileExcelOutlined } from '@ant-design/icons'
+import { UploadOutlined, FileExcelOutlined, DownloadOutlined } from '@ant-design/icons'
 import client from '@/api/client'
 
 interface ImportExcelModalProps {
@@ -10,9 +10,10 @@ interface ImportExcelModalProps {
   apiUrl: string
   title?: string
   templateColumns: string[]
+  templateUrl?: string
 }
 
-export default function ImportExcelModal({ open, onClose, onSuccess, apiUrl, title = '导入Excel', templateColumns }: ImportExcelModalProps) {
+export default function ImportExcelModal({ open, onClose, onSuccess, apiUrl, title = '导入Excel', templateColumns, templateUrl }: ImportExcelModalProps) {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null)
@@ -48,6 +49,17 @@ export default function ImportExcelModal({ open, onClose, onSuccess, apiUrl, tit
     onClose()
   }
 
+  const downloadTemplate = async () => {
+    if (!templateUrl) return
+    try {
+      const res = await client.get(templateUrl, { responseType: 'blob' }) as unknown as Blob
+      const url = URL.createObjectURL(res)
+      const a = document.createElement('a')
+      a.href = url; a.download = 'import_template.xlsx'; a.click()
+      URL.revokeObjectURL(url)
+    } catch { message.error('模板下载失败') }
+  }
+
   return (
     <Modal title={title} open={open} onCancel={handleClose}
       footer={[
@@ -66,18 +78,23 @@ export default function ImportExcelModal({ open, onClose, onSuccess, apiUrl, tit
               <span key={i} className="px-1.5 py-0.5 bg-blue-100 rounded text-sm font-mono">{col}</span>
             ))}
           </div>
+          {templateUrl && (
+            <Button type="link" size="small" className="px-0 mt-1" icon={<DownloadOutlined />} onClick={downloadTemplate}>
+              下载导入模板
+            </Button>
+          )}
         </div>
 
         <Upload.Dragger
-          accept=".xlsx,.xls"
+          accept=".xlsx,.csv"
           maxCount={1}
           beforeUpload={(f) => { setFile(f); setResult(null); return false }}
           onRemove={() => { setFile(null); setResult(null) }}
           fileList={file ? [{ uid: '-1', name: file.name, status: 'done' } as any] : []}
         >
           <p className="ant-upload-drag-icon"><FileExcelOutlined style={{ fontSize: 32, color: '#10b981' }} /></p>
-          <p className="ant-upload-text text-sm">点击或拖拽 Excel 文件到此区域</p>
-          <p className="ant-upload-hint text-sm text-slate-400">支持 .xlsx / .xls 格式</p>
+          <p className="ant-upload-text text-sm">点击或拖拽文件到此区域</p>
+          <p className="ant-upload-hint text-sm text-slate-400">支持 .xlsx / .csv（旧版 .xls 请先另存为 .xlsx）</p>
         </Upload.Dragger>
 
         {result && (
