@@ -340,6 +340,15 @@ export default function ContactList() {
             <div className="mt-1 text-sm text-slate-400">
               customer_name 必须与系统中客户名称完全匹配；role_type 可选值：decision_maker, influencer, user, finance, procurement；is_primary 可填 true/1/是
             </div>
+            <Button type="link" size="small" className="px-0 mt-1" icon={<DownloadOutlined />} onClick={async () => {
+              try {
+                const res = await contactApi.downloadTemplate() as unknown as Blob
+                const url = URL.createObjectURL(res)
+                const a = document.createElement('a')
+                a.href = url; a.download = 'contacts_template.xlsx'; a.click()
+                URL.revokeObjectURL(url)
+              } catch { message.error('模板下载失败') }
+            }}>下载导入模板</Button>
           </div>
           <div>
             <input

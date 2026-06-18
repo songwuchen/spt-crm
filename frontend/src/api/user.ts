@@ -37,6 +37,8 @@ export const userApi = {
     }),
   resetPassword: (id: string, newPassword: string) =>
     client.post<unknown, ApiResponse<null>>(`/api/admin/v1/tenant/users/${id}/reset_password`, { new_password: newPassword }),
+  bulkRoles: (data: { user_ids: string[]; role_ids: string[]; mode: 'replace' | 'add' }) =>
+    client.post<unknown, ApiResponse<{ updated: number }>>('/api/admin/v1/tenant/users/bulk_roles', data),
 }
 
 export const roleApi = {

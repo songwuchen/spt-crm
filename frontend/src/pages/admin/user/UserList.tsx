@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Button, Modal, Form, Input, Select, TreeSelect, Space, message, Switch, Popconfirm, Upload, Alert } from 'antd'
+import { Table, Button, Modal, Form, Input, Select, TreeSelect, Space, message, Switch, Popconfirm, Upload, Alert, Radio } from 'antd'
 import { PlusOutlined, SearchOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { userApi, roleApi } from '@/api/user'
 import { departmentApi } from '@/api/department'
@@ -62,6 +62,27 @@ export default function UserList() {
   const [resetTarget, setResetTarget] = useState<UserItem | null>(null)
   const [resetForm] = Form.useForm()
   const [resetting, setResetting] = useState(false)
+
+  // 批量改角色
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [bulkModal, setBulkModal] = useState(false)
+  const [bulkRoleIds, setBulkRoleIds] = useState<string[]>([])
+  const [bulkMode, setBulkMode] = useState<'replace' | 'add'>('replace')
+  const [bulkSaving, setBulkSaving] = useState(false)
+
+  const doBulkRoles = async () => {
+    setBulkSaving(true)
+    try {
+      const res = await userApi.bulkRoles({ user_ids: selectedRowKeys as string[], role_ids: bulkRoleIds, mode: bulkMode })
+      message.success(`已更新 ${res.data.updated} 个用户的角色`)
+      setBulkModal(false); setBulkRoleIds([]); setSelectedRowKeys([])
+      fetchData()
+    } catch {
+      message.error('批量更新失败')
+    } finally {
+      setBulkSaving(false)
+    }
+  }
 
   const fetchData = async (page = pageNo, kw = keyword) => {
     setLoading(true)
@@ -257,6 +278,11 @@ export default function UserList() {
           <p className="text-sm text-slate-500 mt-0.5">管理系统用户账号和权限</p>
         </div>
         <Space>
+          {selectedRowKeys.length > 0 && (
+            <Button type="primary" ghost onClick={() => { setBulkRoleIds([]); setBulkMode('replace'); setBulkModal(true) }}>
+              批量改角色 ({selectedRowKeys.length})
+            </Button>
+          )}
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出</Button>
           <Button icon={<UploadOutlined />} onClick={openImportModal}>批量导入</Button>
           <Button type="primary" icon={<PlusOutlined />}
@@ -291,6 +317,7 @@ export default function UserList() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
           scroll={{ x: 1000 }}
+          rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys, preserveSelectedRowKeys: true }}
           pagination={{
             current: pageNo, total, pageSize, showTotal: (t) => `共 ${t} 条`,
             showSizeChanger: true, pageSizeOptions: ['20', '50', '100'],
@@ -444,6 +471,37 @@ export default function UserList() {
               )}
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* 批量改角色 Modal */}
+      <Modal
+        title={`批量修改角色（已选 ${selectedRowKeys.length} 个用户）`}
+        open={bulkModal}
+        onOk={doBulkRoles}
+        confirmLoading={bulkSaving}
+        onCancel={() => setBulkModal(false)}
+        okText="确定"
+        cancelText="取消"
+        width={480}
+      >
+        <div className="space-y-4 py-1">
+          <div>
+            <div className="text-sm font-medium text-slate-700 mb-1.5">应用方式</div>
+            <Radio.Group value={bulkMode} onChange={(e) => setBulkMode(e.target.value)}>
+              <Radio value="replace">覆盖（用所选角色替换原有角色）</Radio>
+              <Radio value="add">追加（在原有角色基础上增加）</Radio>
+            </Radio.Group>
+          </div>
+          <div>
+            <div className="text-sm font-medium text-slate-700 mb-1.5">角色</div>
+            <Select mode="multiple" placeholder="选择角色" className="w-full"
+              value={bulkRoleIds} onChange={setBulkRoleIds}
+              options={roles.map((r) => ({ label: r.name, value: r.id }))} />
+            {bulkMode === 'replace' && bulkRoleIds.length === 0 && (
+              <div className="text-[12px] text-amber-600 mt-1">提示：覆盖模式下不选角色，将清空所选用户的全部角色。</div>
+            )}
+          </div>
         </div>
       </Modal>
     </div>

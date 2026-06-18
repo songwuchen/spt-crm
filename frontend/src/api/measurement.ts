@@ -14,4 +14,13 @@ export const measurementApi = {
     client.delete<unknown, ApiResponse<void>>(`/api/v1/measurements/${id}`),
   stats: () =>
     client.get<unknown, ApiResponse<MeasurementModelStat[]>>('/api/v1/measurements/stats'),
+  importFile: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return client.post<unknown, ApiResponse<{ success: number; failed: number; total: number; errors: { row: number; reason: string }[] }>>(
+      '/api/v1/measurements/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } },
+    )
+  },
+  downloadTemplate: () =>
+    client.get('/api/v1/measurements/template', { responseType: 'blob' }),
 }

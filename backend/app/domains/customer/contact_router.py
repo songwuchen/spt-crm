@@ -124,6 +124,20 @@ async def export_contacts(
     return excel_response(buf, "contacts.xlsx")
 
 
+@router.get("/template")
+async def contact_import_template(
+    _user=Depends(require_permissions("contact:view")),
+):
+    """下载联系人导入 Excel 模板（表头 + 示例行），列与导入接口一致。"""
+    headers = ["customer_name", "name", "title", "role_type", "phone", "mobile", "email", "is_primary", "remark"]
+    example = [
+        "示例客户有限公司", "张三", "采购经理", "procurement",
+        "010-12345678", "13800000000", "zhangsan@example.com", "true", "主要采购对接人",
+    ]
+    buf = build_excel("联系人导入模板", headers, [example])
+    return excel_response(buf, "contacts_template.xlsx")
+
+
 @router.post("/import")
 async def import_contacts(
     file: UploadFile = File(...),

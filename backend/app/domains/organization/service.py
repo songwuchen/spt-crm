@@ -239,6 +239,36 @@ async def update_user(db: AsyncSession, tenant_id: str, user_id: str, data: User
     return user
 
 
+async def bulk_set_roles(db: AsyncSession, tenant_id: str, user_ids: list[str], role_ids: list[str], mode: str = "replace") -> int:
+    """批量给多个用户设置角色。mode=replace 覆盖、add 追加。返回受影响用户数。"""
+    await _validate_role_dept_ids(db, tenant_id, role_ids, None)
+    valid_ids = set((await db.execute(
+        select(User.id).where(User.tenant_id == tenant_id, User.id.in_(user_ids))
+    )).scalars().all())
+    if not valid_ids:
+        return 0
+
+    if mode == "add":
+        existing = {
+            (ur.user_id, ur.role_id)
+            for ur in (await db.execute(
+                select(UserRole).where(UserRole.tenant_id == tenant_id, UserRole.user_id.in_(valid_ids))
+            )).scalars().all()
+        }
+        for uid in valid_ids:
+            for rid in role_ids:
+                if (uid, rid) not in existing:
+                    db.add(UserRole(id=generate_uuid(), tenant_id=tenant_id, user_id=uid, role_id=rid))
+    else:  # replace
+        await db.execute(delete(UserRole).where(UserRole.tenant_id == tenant_id, UserRole.user_id.in_(valid_ids)))
+        for uid in valid_ids:
+            for rid in role_ids:
+                db.add(UserRole(id=generate_uuid(), tenant_id=tenant_id, user_id=uid, role_id=rid))
+
+    await db.commit()
+    return len(valid_ids)
+
+
 async def delete_user(db: AsyncSession, tenant_id: str, user_id: str, current_user_id: str):
     user = (await db.execute(
         select(User).where(User.id == user_id, User.tenant_id == tenant_id)

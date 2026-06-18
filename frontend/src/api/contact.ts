@@ -35,4 +35,6 @@ export const contactApi = {
       params: params || {},
       responseType: 'blob',
     }),
+  downloadTemplate: () =>
+    client.get('/api/v1/contacts/template', { responseType: 'blob' }),
 }

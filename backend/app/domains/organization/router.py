@@ -14,7 +14,7 @@ from app.domains.admin.models import IntegrationEndpoint
 from app.database import generate_uuid
 from app.domains.organization.schemas import (
     DepartmentCreate, DepartmentUpdate, DepartmentOut,
-    UserCreate, UserUpdate, UserOut, ResetPassword,
+    UserCreate, UserUpdate, UserBulkRoles, UserOut, ResetPassword,
     RoleCreate, RoleOut, GrantPermissions,
 )
 from app.domains.organization import service
@@ -95,6 +95,17 @@ async def list_users(
             "departments": [ud.department.name for ud in u.user_departments],
         })
     return ok({"items": user_list, "total": total, "pageNo": pageNo, "pageSize": pageSize})
+
+
+@router.post("/users/bulk_roles")
+async def bulk_set_user_roles(
+    body: UserBulkRoles,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("user:manage")),
+):
+    n = await service.bulk_set_roles(db, tenant_id, body.user_ids, body.role_ids, body.mode)
+    return ok({"updated": n})
 
 
 @router.post("/users")

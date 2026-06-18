@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import {
-  Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Drawer,
+  Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Drawer, Upload, Alert,
 } from 'antd'
-import { PlusOutlined, SearchOutlined, DownloadOutlined, BarChartOutlined } from '@ant-design/icons'
+import { PlusOutlined, SearchOutlined, DownloadOutlined, BarChartOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { measurementApi } from '@/api/measurement'
@@ -31,6 +31,33 @@ export default function MeasurementPage() {
   const customerSelect = useCustomerSelect()
   const [statsOpen, setStatsOpen] = useState(false)
   const [stats, setStats] = useState<MeasurementModelStat[]>([])
+  // 批量导入
+  const [importOpen, setImportOpen] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; total: number; errors: { row: number; reason: string }[] } | null>(null)
+
+  const doImport = async () => {
+    if (!importFile) { message.warning('请选择文件'); return }
+    setImporting(true); setImportResult(null)
+    try {
+      const res = await measurementApi.importFile(importFile)
+      setImportResult(res.data)
+      if (res.data.errors.length === 0) {
+        message.success(`成功导入 ${res.data.success} 条`)
+        setImportOpen(false); setImportFile(null); fetchData()
+      }
+    } catch { message.error('导入失败') } finally { setImporting(false) }
+  }
+  const downloadTemplate = async () => {
+    try {
+      const res = await measurementApi.downloadTemplate() as unknown as Blob
+      const url = URL.createObjectURL(res)
+      const a = document.createElement('a')
+      a.href = url; a.download = 'measurements_template.xlsx'; a.click()
+      URL.revokeObjectURL(url)
+    } catch { message.error('模板下载失败') }
+  }
 
   const fetchData = async (p = page) => {
     setLoading(true)
@@ -68,16 +95,21 @@ export default function MeasurementPage() {
   })
   const openStats = async () => { setStatsOpen(true); try { setStats((await measurementApi.stats()).data || []) } catch { setStats([]) } }
 
+  // 列顺序与导出/导入模板表头一致
   const columns: ColumnsType<ServiceMeasurement> = [
     { title: '记录号', dataIndex: 'record_no', width: 140, fixed: 'left', render: (v) => <span className="font-mono text-xs">{v}</span> },
     { title: '客户', dataIndex: 'customer_name', width: 160, ellipsis: true, render: (v) => v || '-' },
+    { title: '服务日期', dataIndex: 'service_date', width: 110, render: (v) => v || '-' },
     { title: '行业', dataIndex: 'industry', width: 80, render: (v) => v ? <Tag>{v}</Tag> : '-' },
+    { title: '设备名称', dataIndex: 'equipment_name', width: 120, ellipsis: true, render: (v) => v || '-' },
     { title: '设备型号', dataIndex: 'equipment_model', width: 110, render: (v) => v || '-' },
     { title: '物料', dataIndex: 'material_name', width: 100, render: (v) => v || '-' },
     { title: '筛分效率%', dataIndex: 'screen_efficiency', width: 100, align: 'right', render: num },
     { title: '处理量t/h', dataIndex: 'throughput_tph', width: 100, align: 'right', render: num },
     { title: '运行电流A', dataIndex: 'running_current_a', width: 100, align: 'right', render: num },
-    { title: '服务日期', dataIndex: 'service_date', width: 110, render: (v) => v || '-' },
+    { title: '振源温度℃', dataIndex: 'source_temp_c', width: 100, align: 'right', render: num },
+    { title: '日运行h', dataIndex: 'daily_run_hours', width: 90, align: 'right', render: num },
+    { title: '服务人员', dataIndex: 'engineer_name', width: 100, render: (v) => v || '-' },
     {
       title: '', key: 'actions', width: 110, fixed: 'right',
       render: (_, r) => (
@@ -107,6 +139,7 @@ export default function MeasurementPage() {
         <Space>
           <Button icon={<BarChartOutlined />} onClick={openStats}>按机型统计</Button>
           <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/measurements/export/excel', 'measurements.xlsx')}>导出</Button>
+          <Button icon={<UploadOutlined />} onClick={() => { setImportFile(null); setImportResult(null); setImportOpen(true) }}>批量导入</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>录入实测</Button>
         </Space>
       </div>
@@ -121,7 +154,7 @@ export default function MeasurementPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={data} loading={loading} scroll={{ x: 1200 }}
+        <Table rowKey="id" columns={columns} dataSource={data} loading={loading} scroll={{ x: 1500 }}
           pagination={{ current: page, total, pageSize, showTotal: (t) => `共 ${t} 条`, onChange: (p) => { setPage(p); fetchData(p) } }} />
       </div>
 
@@ -162,6 +195,37 @@ export default function MeasurementPage() {
           <Form.Item name="result_desc" label="服务结果描述"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item name="issues" label="未解决问题"><Input.TextArea rows={2} /></Form.Item>
         </Form>
+      </Modal>
+
+      <Modal title="批量导入实测数据" open={importOpen} onOk={doImport} confirmLoading={importing}
+        onCancel={() => { setImportOpen(false); setImportFile(null); setImportResult(null) }} okText="开始导入" cancelText="取消" width={560}>
+        <div className="space-y-4 py-1">
+          <div className="text-sm text-slate-500">
+            支持 Excel(.xlsx) 或 CSV，第一行为表头。列名兼容中文（与导出/模板一致）：
+            <div className="mt-2 bg-slate-50 rounded p-2 text-sm text-slate-700 break-all">
+              记录号、客户、服务日期、行业、设备名称、设备型号、物料、筛分效率%、处理量t/h、运行电流A、振源温度、日运行h、服务人员
+            </div>
+            <div className="mt-1 text-sm text-slate-400">记录号留空将自动生成；客户名称为文本（如需关联客户主数据可在导入后编辑）。</div>
+            <Button type="link" size="small" className="px-0 mt-1" icon={<DownloadOutlined />} onClick={downloadTemplate}>下载导入模板</Button>
+          </div>
+          <Upload.Dragger maxCount={1} accept=".xlsx,.xls,.csv" beforeUpload={(f) => { setImportFile(f as File); setImportResult(null); return false }}
+            onRemove={() => setImportFile(null)} fileList={importFile ? [{ uid: '1', name: importFile.name } as any] : []}>
+            <p className="text-slate-500"><UploadOutlined className="mr-1" />点击或拖拽文件到此处</p>
+          </Upload.Dragger>
+          {importResult && (
+            <div className="space-y-2">
+              <Alert type={importResult.errors.length === 0 ? 'success' : 'warning'} showIcon
+                message={`导入完成：成功 ${importResult.success} 条，失败 ${importResult.failed} 条`} />
+              {importResult.errors.length > 0 && (
+                <div className="max-h-40 overflow-y-auto bg-red-50 rounded p-2">
+                  {importResult.errors.map((e, i) => (
+                    <div key={i} className="text-sm text-red-600">第 {e.row} 行：{e.reason}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </Modal>
 
       <Drawer title="按设备型号统计" open={statsOpen} onClose={() => setStatsOpen(false)} width={620}>

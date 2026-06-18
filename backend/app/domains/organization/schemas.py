@@ -49,6 +49,12 @@ class UserUpdate(BaseModel):
     department_ids: Optional[List[str]] = None
 
 
+class UserBulkRoles(BaseModel):
+    user_ids: List[str]
+    role_ids: List[str] = []
+    mode: str = "replace"  # replace=覆盖角色 / add=追加角色
+
+
 class UserOut(BaseModel):
     id: str
     username: str
