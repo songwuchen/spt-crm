@@ -201,7 +201,7 @@ async def delete_user(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("user:manage")),
 ):
-    await service.delete_user(db, tenant_id, user_id, current_user["user_id"])
+    await service.delete_user(db, tenant_id, user_id, current_user["sub"])
     return ok()
 
 

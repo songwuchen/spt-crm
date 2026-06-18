@@ -605,7 +605,7 @@ async def create_doc_template(
     t = DocTemplate(id=gen_id(), tenant_id=tenant_id, doc_type=body.doc_type,
                     name=body.name, description=body.description,
                     content_json=body.content_json, is_default=body.is_default,
-                    created_by_id=current_user["user_id"],
+                    created_by_id=current_user["sub"],
                     created_by_name=current_user.get("real_name", ""))
     db.add(t)
     await db.commit()
@@ -1535,7 +1535,7 @@ async def schedule_purge(
     now = datetime.now(timezone.utc)
     execute_at = datetime.fromtimestamp(now.timestamp() + body.delay_seconds, tz=timezone.utc)
 
-    user_id = current_user["user_id"]
+    user_id = current_user["sub"]
     user_name = current_user.get("real_name")
 
     # Create the background asyncio task
@@ -1617,7 +1617,7 @@ async def cancel_purge(
 
     # Audit log
     from app.domains.audit.service import log_action
-    user_id = current_user["user_id"]
+    user_id = current_user["sub"]
     user_name = current_user.get("real_name")
     await log_action(
         db, tenant_id=tenant_id,

@@ -38,6 +38,19 @@ logger = logging.getLogger("spt_crm.dingtalk_sync")
 _BASE = "https://oapi.dingtalk.com"
 _BASE_V2 = "https://api.dingtalk.com"
 
+# 离职人员一般被企业归档到名称含"离职"的部门；同步时跳过这些部门，只同步在职人员。
+_RESIGNED_DEPT_KEYWORDS = ("离职", "已离职", "离任", "停用")
+
+
+def _is_resigned_dept(name: str | None) -> bool:
+    n = name or ""
+    return any(k in n for k in _RESIGNED_DEPT_KEYWORDS)
+
+
+def _filter_active_depts(depts: list[dict]) -> list[dict]:
+    """剔除离职归档部门，只保留在职部门。"""
+    return [d for d in depts if not _is_resigned_dept(d.get("name", ""))]
+
 
 # ─────────────── OAuth2 SSO (一键登录) ───────────────
 
@@ -173,7 +186,7 @@ async def sync_departments(
     """
     if progress_cb:
         await progress_cb("拉取部门列表", 0, 0)
-    dt_depts = await fetch_all_departments(token)
+    dt_depts = _filter_active_depts(await fetch_all_departments(token))
     # Sort: root (parentid=1 or 0) first, then by parentid asc
     dt_depts.sort(key=lambda d: (d.get("parentid", 0) not in (0, 1), d.get("parentid", 0), d.get("order", 0)))
 
@@ -321,7 +334,7 @@ async def sync_users(
     """
     if progress_cb:
         await progress_cb("拉取部门列表", 0, 0)
-    dt_depts = await fetch_all_departments(token)
+    dt_depts = _filter_active_depts(await fetch_all_departments(token))
 
     # Build dept mapping if not provided
     if dt_to_local_dept is None:

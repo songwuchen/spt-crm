@@ -277,8 +277,11 @@ async def delete_user(db: AsyncSession, tenant_id: str, user_id: str, current_us
         raise BusinessException(code=NOT_FOUND, message="用户不存在")
     if user_id == current_user_id:
         raise BusinessException(message="不能删除当前登录用户")
+    # 清理对 users.id 有外键约束的关联记录，避免删除时外键冲突 500
+    from app.domains.auth.models import LoginSession
     await db.execute(delete(UserRole).where(UserRole.user_id == user_id, UserRole.tenant_id == tenant_id))
     await db.execute(delete(UserDepartment).where(UserDepartment.user_id == user_id, UserDepartment.tenant_id == tenant_id))
+    await db.execute(delete(LoginSession).where(LoginSession.user_id == user_id, LoginSession.tenant_id == tenant_id))
     await db.delete(user)
     await db.commit()
 
