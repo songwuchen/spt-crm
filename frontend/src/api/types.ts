@@ -242,9 +242,9 @@ export interface ContractItem {
   status: string
   signed_date?: string
   end_date?: string
-  amount_total?: number
-  payment_terms_json?: Record<string, unknown>
-  delivery_terms_json?: Record<string, unknown>
+  amount_total?: number | string
+  payment_terms_json?: Record<string, unknown> | unknown[]
+  delivery_terms_json?: Record<string, unknown> | unknown[]
   created_by_id?: string
   created_by_name?: string
   assignee_id?: string
@@ -262,7 +262,7 @@ export interface ContractVersion {
   version_no: number
   title?: string
   doc_attachment_id?: string
-  key_clauses_json?: Record<string, unknown>
+  key_clauses_json?: Record<string, unknown> | unknown[]
   risk_level?: string
   status: string
   created_at: string

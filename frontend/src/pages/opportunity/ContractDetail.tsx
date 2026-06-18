@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, Tabs, Steps, message } from 'antd'
-import { CopyOutlined, CheckCircleOutlined, AuditOutlined, RobotOutlined, PrinterOutlined, FilePdfOutlined } from '@ant-design/icons'
+import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, InputNumber, Tabs, Steps, message } from 'antd'
+import { CopyOutlined, CheckCircleOutlined, AuditOutlined, RobotOutlined, PrinterOutlined, FilePdfOutlined, EditOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useParams, useNavigate } from 'react-router-dom'
 import { contractApi } from '@/api/contract'
@@ -9,7 +9,7 @@ import { aiApi } from '@/api/ai'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import SignaturePad from '@/components/SignaturePad'
 import DataView, { formatMoney } from '@/components/DataView'
-import { PaymentTermsView, ClauseTermsView } from '@/components/ContractTerms'
+import { PaymentTermsView, ClauseTermsView, PaymentTermsEditor, LineItemsEditor, toCanonicalRows, PAY_FIELDS, LINE_FIELDS } from '@/components/ContractTerms'
 import type { ContractItem, ContractVersion } from '@/api/types'
 import { riskLabels, riskColors } from '@/api/types'
 import { contractStatusColors } from '@/constants/labels'
@@ -32,6 +32,42 @@ export default function ContractDetail() {
   const [showSignPad, setShowSignPad] = useState(false)
 
   const [renewLoading, setRenewLoading] = useState(false)
+
+  // 条款编辑
+  const [editModal, setEditModal] = useState(false)
+  const [editAmount, setEditAmount] = useState<number | null>(null)
+  const [editEndDate, setEditEndDate] = useState<dayjs.Dayjs | null>(null)
+  const [editPay, setEditPay] = useState<Record<string, unknown>[]>([])
+  const [editLines, setEditLines] = useState<Record<string, unknown>[]>([])
+  const [editSaving, setEditSaving] = useState(false)
+
+  const openEditModal = () => {
+    setEditAmount(typeof contract?.amount_total === 'number' ? contract.amount_total : null)
+    setEditEndDate(contract?.end_date ? dayjs(contract.end_date) : null)
+    setEditPay(toCanonicalRows(contract?.payment_terms_json, PAY_FIELDS))
+    setEditLines(toCanonicalRows(currentVersion?.key_clauses_json, LINE_FIELDS))
+    setEditModal(true)
+  }
+
+  const handleEditSave = async () => {
+    setEditSaving(true)
+    try {
+      const payload: Record<string, unknown> = {
+        payment_terms_json: editPay,
+        end_date: editEndDate ? editEndDate.format('YYYY-MM-DD') : null,
+      }
+      if (editAmount != null) payload.amount_total = editAmount
+      await contractApi.update(cid!, payload)
+      if (currentVersion) await contractApi.updateVersion(currentVersion.id, { key_clauses_json: editLines })
+      message.success('合同条款已保存')
+      setEditModal(false)
+      fetchContract()
+    } catch {
+      message.error('保存失败')
+    } finally {
+      setEditSaving(false)
+    }
+  }
 
   // Approval
   const [approvalModal, setApprovalModal] = useState(false)
@@ -162,6 +198,9 @@ export default function ContractDetail() {
           </p>
         </div>
         <Space>
+          {contract.status !== 'terminated' && (
+            <Button icon={<EditOutlined />} onClick={openEditModal}>编辑条款</Button>
+          )}
           {contract.status === 'draft' && (
             <>
               <Button icon={<AuditOutlined />} onClick={openApprovalModal}>提交审批</Button>
@@ -183,6 +222,32 @@ export default function ContractDetail() {
           <Button onClick={() => navigate(`/opportunities/${projectId}`)}>返回商机</Button>
         </Space>
       </div>
+
+      {/* 编辑条款 Modal */}
+      <Modal title="编辑合同条款" open={editModal} onOk={handleEditSave} confirmLoading={editSaving}
+        onCancel={() => setEditModal(false)} width={960} okText="保存" cancelText="取消">
+        <div className="space-y-5 py-2">
+          <div className="flex flex-wrap gap-6">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">合同金额</label>
+              <InputNumber value={editAmount} min={0} onChange={(v) => setEditAmount(v)} style={{ width: 220 }} addonBefore="¥"
+                placeholder={typeof contract.amount_total === 'string' ? '当前已脱敏，留空则不修改' : '输入金额'} />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">到期日期</label>
+              <DatePicker value={editEndDate} onChange={(d) => setEditEndDate(d)} style={{ width: 220 }} />
+            </div>
+          </div>
+          <div>
+            <div className="text-sm font-bold text-slate-700 mb-2">付款条款（收款计划）</div>
+            <PaymentTermsEditor value={editPay} onChange={setEditPay} />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-slate-700 mb-2">合同明细（结构化条款）</div>
+            <LineItemsEditor value={editLines} onChange={setEditLines} />
+          </div>
+        </div>
+      </Modal>
 
       {/* Signing Workflow Stepper */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">

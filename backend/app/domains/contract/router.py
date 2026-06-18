@@ -48,7 +48,7 @@ async def list_contracts(
     status: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("contract:view")),
+    current_user: dict = Depends(require_permissions("contract:view")),
 ):
     from app.domains.contract.models import Contract
     q = select(Contract).where(Contract.tenant_id == tenant_id)
@@ -61,7 +61,11 @@ async def list_contracts(
         q.order_by(Contract.created_at.desc())
         .offset((pageNo - 1) * pageSize).limit(pageSize)
     )).scalars().all()
-    return ok({"items": [_contract_dict(c) for c in items], "total": total})
+    # 与详情保持一致的字段脱敏（避免列表泄露详情已脱敏的字段）
+    perms = current_user.get("permissions", [])
+    policies = await load_mask_policies(db, tenant_id)
+    rows = apply_field_mask([_contract_dict(c) for c in items], "contract", perms, policies)
+    return ok({"items": rows, "total": total})
 
 
 # --- Project-scoped routes ---

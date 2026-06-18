@@ -121,24 +121,36 @@ jobs:
             [ -f .env ] || cp .env.example .env
           "
 
-      - name: Pull and deploy
+      - name: Pull, migrate, then deploy
         run: |
           ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "
+            set -e
             cd ${{ env.DEPLOY_DIR }}
             echo '${{ secrets.HARBOR_PASSWORD }}' | docker login ${{ env.HARBOR_REGISTRY }} -u ${{ secrets.HARBOR_USERNAME }} --password-stdin
             docker compose pull
-            docker compose up -d
-          "
 
-      - name: Run database migrations
-        run: |
-          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "
-            cd ${{ env.DEPLOY_DIR }}
+            # 1) Make sure the DB is up and accepting connections.
+            docker compose up -d db
             echo 'Waiting for database...'
             for i in \$(seq 1 30); do
               docker compose exec -T db pg_isready -U postgres && break
               sleep 2
             done
-            docker compose exec -T backend alembic upgrade head
+
+            # 2) Run migrations with the NEW image BEFORE swapping the running app.
+            #    'set -e' aborts here on failure, so the old code keeps serving on the
+            #    old schema (no 'new code + old schema' drift like the 2026-06-17 outage).
+            docker compose run --rm -T backend alembic upgrade head
+
+            # 3) Migrations succeeded -> swap to the new code.
+            docker compose up -d
+
+            # 4) Guard: fail the deploy loudly if the schema is not at head.
+            CUR=\$(docker compose exec -T backend alembic current 2>/dev/null | grep -oE '[0-9a-f]{12}' | head -1)
+            HEAD=\$(docker compose exec -T backend alembic heads 2>/dev/null | grep -oE '[0-9a-f]{12}' | head -1)
+            echo \"alembic current=\$CUR head=\$HEAD\"
+            { [ -n \"\$HEAD\" ] && [ \"\$CUR\" = \"\$HEAD\" ]; } || { echo 'DB migration drift: current != head'; exit 1; }
+
+            # 5) Seed idempotent reference data (permissions, demo tenant, etc.).
             docker compose exec -T backend python -m scripts.seed
           "

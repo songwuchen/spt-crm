@@ -15,7 +15,8 @@ DEFAULT_MASK_POLICIES = [
     {"resource": "cost_snapshot", "field": "cost_total", "required_permission": "quote:view_cost", "mask_type": "hidden"},
     {"resource": "cost_snapshot", "field": "breakdown_json", "required_permission": "quote:view_cost", "mask_type": "hidden"},
     {"resource": "quote_version", "field": "discount_total", "required_permission": "quote:view_discount", "mask_type": "hidden"},
-    {"resource": "contract", "field": "amount_total", "required_permission": "contract:view_amount", "mask_type": "hidden"},
+    # 合同金额是 CRM 核心数据，凡能查看合同者即可见，不再默认脱敏（成本/毛利/折扣仍脱敏）。
+    # 如某租户确需脱敏合同金额，可在「系统配置 → 字段权限(field_masking)」中按 contract.amount_total 配置。
 ]
 
 MASK_VALUE = "***"

@@ -53,6 +53,7 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, dat
         id=generate_uuid(), tenant_id=tenant_id,
         contract_id=contract.id, version_no=1,
         title=data.title or "V1",
+        key_clauses_json=data.key_clauses_json,
     )
     db.add(version)
     await db.commit()

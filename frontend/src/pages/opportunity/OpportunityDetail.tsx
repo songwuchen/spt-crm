@@ -26,6 +26,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import InternalNotes from '@/components/InternalNotes'
+import { PaymentTermsEditor, LineItemsEditor } from '@/components/ContractTerms'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 
@@ -309,10 +310,40 @@ export default function OpportunityDetail() {
     quoteApi.listByProject(id!).then((r) => setQuotes(r.data))
   }
 
-  const handleCreateContract = async () => {
-    await contractApi.create(id!, { title: 'V1' })
-    message.success('合同已创建')
-    contractApi.listByProject(id!).then((r) => setContracts(r.data))
+  // 新建合同（可直接录入条款）
+  const [contractModal, setContractModal] = useState(false)
+  const [ctAmount, setCtAmount] = useState<number | null>(null)
+  const [ctEndDate, setCtEndDate] = useState<dayjs.Dayjs | null>(null)
+  const [ctPay, setCtPay] = useState<Record<string, unknown>[]>([])
+  const [ctLines, setCtLines] = useState<Record<string, unknown>[]>([])
+  const [ctSaving, setCtSaving] = useState(false)
+
+  const handleCreateContract = () => {
+    setCtAmount(null)
+    setCtEndDate(null)
+    setCtPay([])
+    setCtLines([])
+    setContractModal(true)
+  }
+
+  const doCreateContract = async () => {
+    setCtSaving(true)
+    try {
+      await contractApi.create(id!, {
+        title: 'V1',
+        ...(ctAmount != null ? { amount_total: ctAmount } : {}),
+        ...(ctEndDate ? { end_date: ctEndDate.format('YYYY-MM-DD') } : {}),
+        ...(ctPay.length ? { payment_terms_json: ctPay } : {}),
+        ...(ctLines.length ? { key_clauses_json: ctLines } : {}),
+      })
+      message.success('合同已创建')
+      setContractModal(false)
+      contractApi.listByProject(id!).then((r) => setContracts(r.data))
+    } catch {
+      message.error('创建合同失败')
+    } finally {
+      setCtSaving(false)
+    }
   }
 
   const handleCreateSolution = async () => {
@@ -1528,6 +1559,31 @@ export default function OpportunityDetail() {
             <Select options={[{ value: 'view', label: '查看' }, { value: 'edit', label: '编辑' }]} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* 新建合同 */}
+      <Modal title="新建合同" open={contractModal} onOk={doCreateContract} confirmLoading={ctSaving}
+        onCancel={() => setContractModal(false)} width={960} okText="创建" cancelText="取消">
+        <div className="space-y-5 py-2">
+          <div className="flex flex-wrap gap-6">
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">合同金额</label>
+              <InputNumber value={ctAmount} min={0} onChange={(v) => setCtAmount(v)} style={{ width: 220 }} addonBefore="¥" placeholder="输入金额" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">到期日期</label>
+              <DatePicker value={ctEndDate} onChange={(d) => setCtEndDate(d)} style={{ width: 220 }} />
+            </div>
+          </div>
+          <div>
+            <div className="text-sm font-bold text-slate-700 mb-2">付款条款（收款计划）</div>
+            <PaymentTermsEditor value={ctPay} onChange={setCtPay} />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-slate-700 mb-2">合同明细（结构化条款）</div>
+            <LineItemsEditor value={ctLines} onChange={setCtLines} />
+          </div>
+        </div>
       </Modal>
     </div>
   )
