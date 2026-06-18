@@ -44,8 +44,10 @@ export const userApi = {
 export const roleApi = {
   list: () =>
     client.get<unknown, ApiResponse<Role[]>>('/api/admin/v1/tenant/roles'),
-  create: (data: { code: string; name: string; description?: string }) =>
+  create: (data: { code: string; name: string; description?: string; data_scope?: string }) =>
     client.post<unknown, ApiResponse<Role>>('/api/admin/v1/tenant/roles', data),
+  update: (roleId: string, data: { name?: string; description?: string; data_scope?: string }) =>
+    client.put<unknown, ApiResponse<Role>>(`/api/admin/v1/tenant/roles/${roleId}`, data),
   grantPermissions: (roleId: string, permissionIds: string[]) =>
     client.post<unknown, ApiResponse<null>>(`/api/admin/v1/tenant/roles/${roleId}/grant_permissions`, { permission_ids: permissionIds }),
   delete: (roleId: string) =>

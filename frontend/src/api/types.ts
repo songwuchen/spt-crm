@@ -123,6 +123,7 @@ export interface Role {
   name: string
   description?: string
   is_system: boolean
+  data_scope?: string  // self / dept / all
   permissions: string[]
 }
 

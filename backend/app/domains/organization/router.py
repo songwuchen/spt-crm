@@ -15,7 +15,7 @@ from app.database import generate_uuid
 from app.domains.organization.schemas import (
     DepartmentCreate, DepartmentUpdate, DepartmentOut,
     UserCreate, UserUpdate, UserBulkRoles, UserOut, ResetPassword,
-    RoleCreate, RoleOut, GrantPermissions,
+    RoleCreate, RoleUpdate, RoleOut, GrantPermissions,
 )
 from app.domains.organization import service
 
@@ -230,6 +230,7 @@ async def list_roles(
         role_list.append({
             "id": r.id, "code": r.code, "name": r.name,
             "description": r.description, "is_system": r.is_system,
+            "data_scope": r.data_scope or "self",
             "permissions": [rp.permission.code for rp in r.role_permissions],
         })
     return ok(role_list)
@@ -244,6 +245,18 @@ async def create_role(
 ):
     role = await service.create_role(db, tenant_id, body)
     return ok({"id": role.id, "code": role.code, "name": role.name})
+
+
+@router.put("/roles/{role_id}")
+async def update_role(
+    role_id: str,
+    body: RoleUpdate,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    role = await service.update_role(db, tenant_id, role_id, body)
+    return ok({"id": role.id, "code": role.code, "name": role.name, "data_scope": role.data_scope})
 
 
 @router.delete("/roles/{role_id}")

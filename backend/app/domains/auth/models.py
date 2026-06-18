@@ -32,6 +32,8 @@ class Role(TenantScopedBase):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 数据范围：None/self=仅本人、dept=本部门及下级、all=全部
+    data_scope: Mapped[str | None] = mapped_column(String(16))
 
     role_permissions: Mapped[list["RolePermission"]] = relationship(back_populates="role", lazy="selectin")
 

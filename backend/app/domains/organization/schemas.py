@@ -78,6 +78,13 @@ class RoleCreate(BaseModel):
     code: str
     name: str
     description: Optional[str] = None
+    data_scope: Optional[str] = None  # self / dept / all
+
+
+class RoleUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    data_scope: Optional[str] = None  # self / dept / all
 
 
 class RoleOut(BaseModel):
@@ -86,6 +93,7 @@ class RoleOut(BaseModel):
     name: str
     description: Optional[str] = None
     is_system: bool
+    data_scope: Optional[str] = None
     permissions: List[str] = []
 
     model_config = {"from_attributes": True}

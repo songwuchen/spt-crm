@@ -61,11 +61,12 @@ async def list_leads(
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("lead:view")),
-    data_scope: str | None = Depends(get_data_scope),
+    data_scope=Depends(get_data_scope),
 ):
-    effective_owner = owner_id or data_scope
+    from app.common.data_scope import scoped_owners
+    owners = scoped_owners(owner_id, data_scope)
     items, total = await service.list_leads(
-        db, tenant_id, pageNo, pageSize, keyword, status, effective_owner,
+        db, tenant_id, pageNo, pageSize, keyword, status, owners,
         customer_type=customer_type, category=category, country_type=country_type,
         province=province, department_id=department_id, industry=industry,
         company_name=company_name, start_date=start_date, end_date=end_date,

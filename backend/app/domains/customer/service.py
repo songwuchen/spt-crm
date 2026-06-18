@@ -26,7 +26,9 @@ async def list_customers(
         base = base.where(Customer.industry == industry)
     if region:
         base = base.where(Customer.region.ilike(f"%{region}%"))
-    if owner_id:
+    if isinstance(owner_id, (list, tuple, set)):
+        base = base.where(Customer.owner_id.in_(list(owner_id)))  # [] -> 无可见数据
+    elif owner_id:
         base = base.where(Customer.owner_id == owner_id)
     if tag:
         from sqlalchemy import cast, String

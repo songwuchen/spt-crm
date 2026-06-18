@@ -368,8 +368,20 @@ async def create_role(db: AsyncSession, tenant_id: str, data: RoleCreate) -> Rol
     if existing:
         raise BusinessException(code=DUPLICATE_ENTRY, message=f"角色编码 {data.code} 已存在")
 
-    role = Role(id=generate_uuid(), tenant_id=tenant_id, code=data.code, name=data.name, description=data.description)
+    role = Role(id=generate_uuid(), tenant_id=tenant_id, code=data.code, name=data.name,
+                description=data.description, data_scope=data.data_scope)
     db.add(role)
+    await db.commit()
+    await db.refresh(role)
+    return role
+
+
+async def update_role(db: AsyncSession, tenant_id: str, role_id: str, data) -> Role:
+    role = (await db.execute(select(Role).where(Role.id == role_id, Role.tenant_id == tenant_id))).scalar_one_or_none()
+    if not role:
+        raise BusinessException(code=NOT_FOUND, message="角色不存在")
+    for field, val in data.model_dump(exclude_unset=True).items():
+        setattr(role, field, val)
     await db.commit()
     await db.refresh(role)
     return role

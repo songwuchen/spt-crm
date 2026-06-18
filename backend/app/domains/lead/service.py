@@ -68,7 +68,9 @@ async def list_leads(
         base = base.where(Lead.created_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time()))
     if status:
         base = base.where(Lead.status == status)
-    if owner_id:
+    if isinstance(owner_id, (list, tuple, set)):
+        base = base.where(Lead.owner_id.in_(list(owner_id)))  # [] -> 无可见数据
+    elif owner_id:
         base = base.where(Lead.owner_id == owner_id)
     if customer_type:
         base = base.where(Lead.customer_type == customer_type)

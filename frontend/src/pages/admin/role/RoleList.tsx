@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Table, Button, Modal, Form, Input, Space, message, Checkbox, Tag } from 'antd'
+import { Table, Button, Modal, Form, Input, Select, Space, message, Checkbox, Tag } from 'antd'
 import { PlusOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { roleApi, permissionApi } from '@/api/user'
 import type { Role, PermissionItem } from '@/api/types'
@@ -10,6 +10,13 @@ const actionLabels: Record<string, string> = {
   advance: '推进', sign: '签署', manage: '管理', export: '导出',
 }
 
+const DATA_SCOPE_OPTIONS = [
+  { value: 'self', label: '仅本人' },
+  { value: 'dept', label: '本部门及下级' },
+  { value: 'all', label: '全部数据' },
+]
+const dataScopeLabel = (v?: string) => DATA_SCOPE_OPTIONS.find((o) => o.value === (v || 'self'))?.label || '仅本人'
+
 export default function RoleList() {
   usePageTitle('角色管理')
   const [roles, setRoles] = useState<Role[]>([])
@@ -19,6 +26,7 @@ export default function RoleList() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([])
   const [permSearch, setPermSearch] = useState('')
+  const [editingRole, setEditingRole] = useState<Role | null>(null)
   const [form] = Form.useForm()
 
   const fetchRoles = async () => {
@@ -33,11 +41,23 @@ export default function RoleList() {
 
   useEffect(() => { fetchRoles(); fetchPermissions() }, [])
 
-  const handleCreate = async () => {
+  const openCreate = () => { setEditingRole(null); form.resetFields(); form.setFieldsValue({ data_scope: 'self' }); setCreateModal(true) }
+  const openEditRole = (role: Role) => {
+    setEditingRole(role)
+    form.setFieldsValue({ code: role.code, name: role.name, description: role.description, data_scope: role.data_scope || 'self' })
+    setCreateModal(true)
+  }
+
+  const handleSave = async () => {
     const values = await form.validateFields()
-    await roleApi.create(values)
-    message.success('角色已创建')
-    setCreateModal(false); form.resetFields()
+    if (editingRole) {
+      await roleApi.update(editingRole.id, { name: values.name, description: values.description, data_scope: values.data_scope })
+      message.success('角色已更新')
+    } else {
+      await roleApi.create(values)
+      message.success('角色已创建')
+    }
+    setCreateModal(false); form.resetFields(); setEditingRole(null)
     fetchRoles()
   }
 
@@ -149,14 +169,18 @@ export default function RoleList() {
         </span>
       ),
     },
+    { title: '数据范围', dataIndex: 'data_scope', width: 130,
+      render: (v: string) => <Tag color={v === 'all' ? 'red' : v === 'dept' ? 'blue' : 'default'}>{dataScopeLabel(v)}</Tag>,
+    },
     { title: '权限数', dataIndex: 'permissions', width: 90,
       render: (v: string[]) => (
         <span className="text-sm font-black text-slate-700 tabular-nums">{v.length}</span>
       ),
     },
-    { title: '', width: 180,
+    { title: '', width: 240,
       render: (_: unknown, record: Role) => (
         <Space size={8}>
+          <a className="text-slate-600 text-sm font-bold uppercase tracking-widest" onClick={() => openEditRole(record)}>编辑</a>
           <a className="text-primary text-sm font-bold uppercase tracking-widest flex items-center gap-1" onClick={() => openPermMatrix(record)}>
             <span className="material-symbols-outlined text-sm">tune</span>
             配置权限
@@ -181,7 +205,7 @@ export default function RoleList() {
           <p className="text-sm text-slate-500 mt-0.5">管理角色和权限分配</p>
         </div>
         <Button type="primary" icon={<PlusOutlined />}
-          onClick={() => { form.resetFields(); setCreateModal(true) }}
+          onClick={openCreate}
           className="shadow-lg shadow-primary/20 font-bold">
           新建角色
         </Button>
@@ -193,14 +217,19 @@ export default function RoleList() {
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors" />
       </div>
 
-      {/* Create Modal */}
-      <Modal title="新建角色" open={createModal} onOk={handleCreate} onCancel={() => setCreateModal(false)}>
+      {/* Create / Edit Modal */}
+      <Modal title={editingRole ? '编辑角色' : '新建角色'} open={createModal} onOk={handleSave}
+        onCancel={() => { setCreateModal(false); setEditingRole(null) }}>
         <Form form={form} layout="vertical">
           <Form.Item name="code" label="角色编码" rules={[{ required: true }]}>
-            <Input placeholder="如 sales_manager" />
+            <Input placeholder="如 sales_manager" disabled={!!editingRole} />
           </Form.Item>
           <Form.Item name="name" label="角色名称" rules={[{ required: true }]}>
             <Input placeholder="如 销售经理" />
+          </Form.Item>
+          <Form.Item name="data_scope" label="数据范围"
+            tooltip="控制该角色可见的业务数据范围（客户/线索/商机）：仅本人=只看自己负责的；本部门及下级=看本部门及所有下级部门成员的；全部=看本租户全部">
+            <Select options={DATA_SCOPE_OPTIONS} />
           </Form.Item>
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={2} placeholder="角色描述" />

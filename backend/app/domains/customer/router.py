@@ -44,10 +44,11 @@ async def list_customers(
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
-    data_scope: str | None = Depends(get_data_scope),
+    data_scope=Depends(get_data_scope),
 ):
-    effective_owner = owner_id or data_scope
-    items, total = await service.list_customers(db, tenant_id, pageNo, pageSize, keyword, industry, region, effective_owner, tag=tag)
+    from app.common.data_scope import scoped_owners
+    owners = scoped_owners(owner_id, data_scope)
+    items, total = await service.list_customers(db, tenant_id, pageNo, pageSize, keyword, industry, region, owners, tag=tag)
     return ok({"items": [_customer_dict(c) for c in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
