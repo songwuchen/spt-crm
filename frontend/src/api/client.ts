@@ -37,6 +37,12 @@ let pendingRequests: Array<(token: string) => void> = []
 
 client.interceptors.response.use(
   (response) => {
+    // 二进制下载（xlsx/pdf 等）没有 {code,message,data} 包装，response.data 是 Blob/ArrayBuffer，
+    // 直接原样返回，避免被下面的 code 判断误当作错误（issue #47：导入模板下载失败）
+    const rt = response.config.responseType
+    if (rt === 'blob' || rt === 'arraybuffer') {
+      return response.data
+    }
     const data = response.data
     if (data.code !== 0) {
       // Token expired - try refresh

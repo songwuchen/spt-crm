@@ -123,6 +123,26 @@ async def list_products(
     return ok({"items": result_items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
+# 注意：静态路径必须注册在 /{product_id} 之前，否则会被动态路由吞掉（FastAPI 按注册顺序匹配）
+@router.get("/check-unique")
+async def check_unique_product(
+    product_code: str = Query(..., min_length=1),
+    exclude_id: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Check if a product code is unique within the tenant."""
+    q = select(Product.id).where(
+        Product.tenant_id == tenant_id,
+        Product.product_code == product_code,
+    )
+    if exclude_id:
+        q = q.where(Product.id != exclude_id)
+    exists = (await db.execute(q)).scalar() is not None
+    return ok({"unique": not exists})
+
+
 @router.get("/{product_id}")
 async def get_product(
     product_id: str,
@@ -283,22 +303,3 @@ async def import_products_excel(
             await db.rollback()  # 单行失败不污染会话，后续行可继续
             errors.append(f"第{idx}行: {str(e)[:80]}")
     return ok({"created": created, "skipped": skipped, "errors": errors})
-
-
-@router.get("/check-unique")
-async def check_unique_product(
-    product_code: str = Query(..., min_length=1),
-    exclude_id: str = Query(None),
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(get_current_user),
-):
-    """Check if a product code is unique within the tenant."""
-    q = select(Product.id).where(
-        Product.tenant_id == tenant_id,
-        Product.product_code == product_code,
-    )
-    if exclude_id:
-        q = q.where(Product.id != exclude_id)
-    exists = (await db.execute(q)).scalar() is not None
-    return ok({"unique": not exists})

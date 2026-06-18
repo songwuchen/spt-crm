@@ -49,6 +49,7 @@ const enUS = {
     login: 'Login',
     logout: 'Logout',
     username: 'Username',
+    loginAccount: 'Username / Phone',
     password: 'Password',
     loginTitle: 'Login to SPT-CRM',
     loginSubtitle: 'Intelligent Sales Project Management Platform',

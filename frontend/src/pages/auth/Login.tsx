@@ -145,8 +145,8 @@ export default function Login() {
 
         {/* Username / Password Form */}
         <Form form={form} onFinish={onFinish} size="large">
-          <Form.Item name="username" rules={[{ required: true, message: t('auth.username') }]}>
-            <Input prefix={<UserOutlined />} placeholder={t('auth.username')} disabled={needTotp} />
+          <Form.Item name="username" rules={[{ required: true, message: t('auth.loginAccount') }]}>
+            <Input prefix={<UserOutlined />} placeholder={t('auth.loginAccount')} disabled={needTotp} />
           </Form.Item>
           <Form.Item name="password" rules={[{ required: true, message: t('auth.password') }]}>
             <Input.Password prefix={<LockOutlined />} placeholder={t('auth.password')} disabled={needTotp} />

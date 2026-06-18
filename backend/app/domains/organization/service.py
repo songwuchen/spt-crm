@@ -236,6 +236,10 @@ async def update_user(db: AsyncSession, tenant_id: str, user_id: str, data: User
 
     await db.commit()
     await db.refresh(user)
+    # 角色变更后失效该用户的权限/角色缓存，使其重新登录立即生效（issue #49）
+    if role_ids is not None:
+        from app.domains.auth.service import invalidate_user_auth_cache
+        await invalidate_user_auth_cache(user_id, tenant_id)
     return user
 
 
@@ -266,6 +270,10 @@ async def bulk_set_roles(db: AsyncSession, tenant_id: str, user_ids: list[str], 
                 db.add(UserRole(id=generate_uuid(), tenant_id=tenant_id, user_id=uid, role_id=rid))
 
     await db.commit()
+    # 失效受影响用户的权限/角色缓存（issue #49）
+    from app.domains.auth.service import invalidate_user_auth_cache
+    for uid in valid_ids:
+        await invalidate_user_auth_cache(uid, tenant_id)
     return len(valid_ids)
 
 
@@ -284,6 +292,8 @@ async def delete_user(db: AsyncSession, tenant_id: str, user_id: str, current_us
     await db.execute(delete(LoginSession).where(LoginSession.user_id == user_id, LoginSession.tenant_id == tenant_id))
     await db.delete(user)
     await db.commit()
+    from app.domains.auth.service import invalidate_user_auth_cache
+    await invalidate_user_auth_cache(user_id, tenant_id)
 
 
 async def import_users(db: AsyncSession, tenant_id: str, rows: list) -> dict:
@@ -418,6 +428,9 @@ async def grant_permissions(db: AsyncSession, tenant_id: str, role_id: str, perm
         db.add(RolePermission(id=generate_uuid(), tenant_id=tenant_id, role_id=role_id, permission_id=pid))
 
     await db.commit()
+    # 角色权限变更会影响所有持有该角色的用户，失效整租户的权限缓存（issue #49）
+    from app.domains.auth.service import invalidate_tenant_auth_cache
+    await invalidate_tenant_auth_cache(tenant_id)
 
 
 async def list_permissions(db: AsyncSession):

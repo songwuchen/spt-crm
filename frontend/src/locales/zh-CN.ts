@@ -63,6 +63,7 @@ const zhCN = {
     login: '登录',
     logout: '退出登录',
     username: '用户名',
+    loginAccount: '用户名 / 手机号',
     password: '密码',
     loginTitle: '登录 SPT-CRM',
     loginSubtitle: '智能销售项目管理平台',

@@ -32,7 +32,7 @@ describe('Login', () => {
 
   it('renders username and password inputs', () => {
     render(<MemoryRouter><Login /></MemoryRouter>)
-    expect(screen.getByPlaceholderText('用户名')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('用户名 / 手机号')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('密码')).toBeInTheDocument()
   })
 
@@ -56,7 +56,7 @@ describe('Login', () => {
     })
 
     render(<MemoryRouter><Login /></MemoryRouter>)
-    await user.type(screen.getByPlaceholderText('用户名'), 'admin')
+    await user.type(screen.getByPlaceholderText('用户名 / 手机号'), 'admin')
     await user.type(screen.getByPlaceholderText('密码'), 'admin123')
     await user.click(screen.getByRole('button', { name: /登.*录/ }))
 
