@@ -168,13 +168,27 @@ async def delete_product(
     return ok()
 
 
-_PRODUCT_IMPORT_COLS = ["产品编码", "名称", "类型", "规格", "单位", "单价", "成本价", "交期(天)"]
+_PRODUCT_IMPORT_COLS = ["产品编码", "名称", "类型(标准品/非标品/服务/备件)", "规格", "单位", "单价", "成本价", "交期(天)"]
+
+# 类型：兼容中文标签与英文代码，未知值按空处理（不阻断导入）
+_ITEM_TYPE_MAP = {
+    "standard": "standard", "标准品": "standard", "标准件": "standard", "标准": "standard",
+    "nonstandard": "nonstandard", "非标品": "nonstandard", "非标件": "nonstandard", "非标": "nonstandard",
+    "service": "service", "服务": "service",
+    "spare": "spare", "备件": "spare", "配件": "spare",
+}
+
+
+def _norm_item_type(v):
+    if not v:
+        return None
+    return _ITEM_TYPE_MAP.get(str(v).strip())
 
 
 @router.get("/import/template")
 async def product_import_template(_user=Depends(require_permissions("product:view"))):
     """下载产品导入 Excel 模板（表头 + 示例行，列顺序与导入一致）。"""
-    example = ["P-001", "示例产品", "成品", "Φ100×200", "台", 1200, 800, 15]
+    example = ["P-001", "示例产品", "标准品", "Φ100×200", "台", 1200, 800, 15]
     buf = build_excel("产品导入模板", _PRODUCT_IMPORT_COLS, [example])
     return excel_response(buf, "products_template.xlsx")
 
@@ -255,7 +269,7 @@ async def import_products_excel(
             data = ProductCreate(
                 product_code=code,
                 name=_cell(1) or code,
-                item_type=_cell(2),
+                item_type=_norm_item_type(_cell(2)),
                 spec=_cell(3),
                 unit=_cell(4),
                 unit_price=price,
