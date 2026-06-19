@@ -61,6 +61,29 @@ class StorageBackend(ABC):
         """Synchronous connectivity check. Returns (ok, error_message)."""
         return True, None
 
+    # ---- Direct (browser ↔ storage) helpers — object storage only ----
+    def supports_direct(self) -> bool:
+        return False
+
+    def presign_get(self, key: str, expires: int = 600, filename: str | None = None, inline: bool = False) -> str | None:
+        """Presigned GET URL for browser download/preview. None when unsupported (local)."""
+        return None
+
+    def presign_put(self, key: str, expires: int = 600, content_type: str | None = None) -> str | None:
+        """Presigned PUT URL for browser direct upload. None when unsupported (local)."""
+        return None
+
+    def stat(self, key: str) -> dict | None:
+        """Return {'size': int, 'content_type': str} for an existing object, else None."""
+        return None
+
+
+def _content_disposition(filename: str, inline: bool) -> str:
+    import urllib.parse
+    disp = "inline" if inline else "attachment"
+    quoted = urllib.parse.quote(filename)
+    return f"{disp}; filename*=UTF-8''{quoted}"
+
 
 class LocalBackend(StorageBackend):
     type = "local"
@@ -104,7 +127,9 @@ class MinioBackend(StorageBackend):
             raise StorageError("未安装 minio 依赖，请运行 pip install minio") from e
         return Minio(
             self.endpoint, access_key=self.access_key,
-            secret_key=self.secret_key, secure=self.secure, region=self.region,
+            secret_key=self.secret_key, secure=self.secure,
+            # Default region avoids a GetBucketLocation network call when presigning.
+            region=self.region or "us-east-1",
         )
 
     def _save_sync(self, key: str, content: bytes, content_type: str | None) -> None:
@@ -146,6 +171,24 @@ class MinioBackend(StorageBackend):
         except Exception as e:  # noqa: BLE001 — surface any SDK/connection error to the admin
             return False, str(e)
 
+    def supports_direct(self) -> bool:
+        return True
+
+    def presign_get(self, key, expires=600, filename=None, inline=False):
+        from datetime import timedelta
+        headers = {"response-content-disposition": _content_disposition(filename, inline)} if filename else None
+        return self._client().presigned_get_object(
+            self.bucket, key, expires=timedelta(seconds=expires), response_headers=headers,
+        )
+
+    def presign_put(self, key, expires=600, content_type=None):
+        from datetime import timedelta
+        return self._client().presigned_put_object(self.bucket, key, expires=timedelta(seconds=expires))
+
+    def stat(self, key):
+        st = self._client().stat_object(self.bucket, key)
+        return {"size": st.size, "content_type": st.content_type}
+
 
 class OssBackend(StorageBackend):
     type = "oss"
@@ -182,6 +225,20 @@ class OssBackend(StorageBackend):
             return True, None
         except Exception as e:  # noqa: BLE001 — surface any SDK/connection error to the admin
             return False, str(e)
+
+    def supports_direct(self) -> bool:
+        return True
+
+    def presign_get(self, key, expires=600, filename=None, inline=False):
+        params = {"response-content-disposition": _content_disposition(filename, inline)} if filename else None
+        return self._bucket().sign_url("GET", key, expires, params=params, slash_safe=True)
+
+    def presign_put(self, key, expires=600, content_type=None):
+        return self._bucket().sign_url("PUT", key, expires, slash_safe=True)
+
+    def stat(self, key):
+        h = self._bucket().head_object(key)
+        return {"size": int(h.content_length), "content_type": h.content_type}
 
 
 def get_backend(storage_type: str | None, config: dict | None = None) -> StorageBackend:

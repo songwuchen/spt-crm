@@ -42,6 +42,33 @@ async def upload_attachment(
     return att
 
 
+async def register_uploaded(
+    db: AsyncSession, tenant_id: str, user: dict,
+    stored_path: str, filename: str, content_type: str | None, file_size: int,
+    storage_type: str, biz_type: str | None = None, biz_id: str | None = None,
+) -> Attachment:
+    """Create an attachment record for a file already uploaded directly to object storage."""
+    att = Attachment(
+        id=generate_uuid(), tenant_id=tenant_id,
+        original_name=filename, stored_path=stored_path,
+        content_type=content_type, file_size=file_size,
+        uploader_id=user["sub"], uploader_name=user.get("real_name") or user.get("username"),
+        storage_backend=storage_type,
+    )
+    db.add(att)
+
+    if biz_type and biz_id:
+        link = AttachmentLink(
+            id=generate_uuid(), tenant_id=tenant_id,
+            attachment_id=att.id, biz_type=biz_type, biz_id=biz_id,
+        )
+        db.add(link)
+
+    await db.commit()
+    await db.refresh(att)
+    return att
+
+
 async def list_by_biz(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str) -> list[Attachment]:
     link_q = select(AttachmentLink.attachment_id).where(
         AttachmentLink.tenant_id == tenant_id,
