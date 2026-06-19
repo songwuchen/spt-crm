@@ -15,6 +15,8 @@ class Attachment(TenantScopedBase):
     uploader_name: Mapped[str | None] = mapped_column(String(100))
     secrecy_level: Mapped[str | None] = mapped_column(String(16), default="internal")
     # public / internal / confidential / restricted
+    storage_backend: Mapped[str | None] = mapped_column(String(16), default="local")
+    # 记录该文件实际存放的后端：local / minio / oss —— 切换后端后历史文件仍可访问
 
 
 class AttachmentLink(TenantScopedBase):

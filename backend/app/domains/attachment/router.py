@@ -1,6 +1,7 @@
 import os
+import urllib.parse
 from fastapi import APIRouter, Depends, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
@@ -52,11 +53,15 @@ async def upload(
     if len(content) > MAX_FILE_SIZE:
         raise BusinessException(message=f"文件大小超过限制（最大 {MAX_FILE_SIZE // 1024 // 1024}MB）")
 
-    att = await service.upload_attachment(
-        db, tenant_id, current_user,
-        file.filename or "unknown", file.content_type or "application/octet-stream",
-        content, biz_type, biz_id,
-    )
+    from app.domains.attachment.storage import StorageError
+    try:
+        att = await service.upload_attachment(
+            db, tenant_id, current_user,
+            file.filename or "unknown", file.content_type or "application/octet-stream",
+            content, biz_type, biz_id,
+        )
+    except StorageError as e:
+        raise BusinessException(message=f"文件存储失败：{e}")
     return ok({
         "id": att.id, "original_name": att.original_name,
         "content_type": att.content_type, "file_size": att.file_size,
@@ -99,15 +104,33 @@ async def download(
     if secrecy == "confidential" and "attachment:view_confidential" not in user_perms:
         raise BusinessException(message="此文件为机密密级，您没有下载权限")
 
-    full_path = get_full_path(att.stored_path)
-    if not os.path.exists(full_path):
+    storage_type = att.storage_backend or "local"
+    media_type = att.content_type or "application/octet-stream"
+
+    if storage_type == "local":
+        full_path = get_full_path(att.stored_path)
+        if not os.path.exists(full_path):
+            from app.common.error_codes import NOT_FOUND
+            raise BusinessException(code=NOT_FOUND, message="文件不存在")
+        return FileResponse(path=full_path, filename=att.original_name, media_type=media_type)
+
+    # Object storage (MinIO / OSS): stream the bytes through the API
+    from app.domains.admin.service import resolve_storage_backend
+    from app.domains.attachment.storage import StorageError
+    try:
+        backend, _ = await resolve_storage_backend(db, tenant_id, storage_type)
+        content = await backend.read(att.stored_path)
+    except StorageError:
         from app.common.error_codes import NOT_FOUND
         raise BusinessException(code=NOT_FOUND, message="文件不存在")
+    except Exception:
+        raise BusinessException(message="文件下载失败，请检查存储配置")
 
-    return FileResponse(
-        path=full_path,
-        filename=att.original_name,
-        media_type=att.content_type or "application/octet-stream",
+    # RFC 5987 filename* so non-ASCII (Chinese) names download correctly
+    quoted = urllib.parse.quote(att.original_name)
+    return Response(
+        content=content, media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quoted}"},
     )
 
 

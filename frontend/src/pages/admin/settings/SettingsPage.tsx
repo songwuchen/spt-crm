@@ -8,6 +8,7 @@ import client from '@/api/client'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import ApprovalPolicyModal from './ApprovalPolicyModal'
+import FileStorageTab from './FileStorageTab'
 import GateRulesEditor, { type GateRule, validateGateRules } from '@/components/GateRulesEditor'
 import DataView from '@/components/DataView'
 
@@ -537,6 +538,10 @@ export default function SettingsPage() {
                 ]} />
               </div>
             ),
+          },
+          {
+            key: 'file_storage', label: '文件存储',
+            children: <FileStorageTab />,
           },
           {
             key: 'ai_budget', label: 'AI用量',

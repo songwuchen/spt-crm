@@ -205,3 +205,17 @@ class WebhookSubscription(TenantScopedBase):
     target_url: Mapped[str] = mapped_column(String(500), nullable=False)
     secret_token: Mapped[str | None] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(16), default="active")
+
+
+class TenantStorageConfig(TenantScopedBase):
+    """文件存储配置 — 选择本地 / MinIO / 阿里云OSS"""
+    __tablename__ = "tenant_storage_configs"
+
+    storage_type: Mapped[str] = mapped_column(String(16), default="local")
+    # local / minio / oss
+    config_json: Mapped[dict | None] = mapped_column(JSON)
+    # 按 provider 命名空间保存各后端凭证，切换后端不丢失历史配置：
+    # {"minio": {"endpoint": "host:port", "access_key": "...", "secret_key": "enc:...",
+    #            "bucket": "...", "secure": false},
+    #  "oss":   {"endpoint": "https://oss-cn-hangzhou.aliyuncs.com", "access_key": "...",
+    #            "secret_key": "enc:...", "bucket": "..."}}

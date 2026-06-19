@@ -8,6 +8,7 @@ from app.domains.admin.models import (
     TenantPlan, TenantUsageMeter, TenantProfile, TenantFeatureToggle,
     StageDefinition, MarginPolicy, TenantAiPolicy, TenantAiBudget,
     IntegrationEndpoint, WebhookSubscription, ApprovalPolicy,
+    TenantStorageConfig,
 )
 from app.domains.tenant.models import PlatformTenant
 from app.domains.audit.service import log_action
@@ -344,6 +345,94 @@ async def delete_integration(db: AsyncSession, tenant_id: str, ep_id: str):
     if ep:
         await db.delete(ep)
         await db.commit()
+
+
+# ==================== Tenant: File Storage ====================
+
+_STORAGE_PROVIDERS = ("minio", "oss")
+
+
+async def _get_storage_row(db: AsyncSession, tenant_id: str) -> TenantStorageConfig | None:
+    return (await db.execute(
+        select(TenantStorageConfig).where(TenantStorageConfig.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+
+
+async def get_storage_config_masked(db: AsyncSession, tenant_id: str) -> dict:
+    """Config for the settings UI — secret values masked, never returned in clear."""
+    from app.common.crypto import mask_config_json
+    row = await _get_storage_row(db, tenant_id)
+    cfg = (row.config_json if row else None) or {}
+    return {
+        "storage_type": row.storage_type if row else "local",
+        "minio": mask_config_json(cfg.get("minio")) or {},
+        "oss": mask_config_json(cfg.get("oss")) or {},
+    }
+
+
+def _merge_provider(existing: dict | None, incoming: dict | None) -> dict | None:
+    """Merge an incoming provider config over the stored one, keeping existing
+    encrypted secrets when the UI sends back a masked/empty secret_key."""
+    from app.common.crypto import encrypt_config_json
+    if incoming is None:
+        return existing
+    merged = dict(existing or {})
+    for k, v in incoming.items():
+        if v is None:
+            continue
+        # Preserve the stored secret when the client echoes the masked placeholder.
+        if k == "secret_key" and v in ("", "***"):
+            continue
+        merged[k] = v
+    return encrypt_config_json(merged)
+
+
+async def upsert_storage_config(db: AsyncSession, tenant_id: str, data: dict) -> TenantStorageConfig:
+    row = await _get_storage_row(db, tenant_id)
+    current = (row.config_json if row else None) or {}
+    new_config = dict(current)
+    for provider in _STORAGE_PROVIDERS:
+        if provider in data and data[provider] is not None:
+            new_config[provider] = _merge_provider(current.get(provider), data[provider])
+
+    storage_type = data.get("storage_type") or (row.storage_type if row else "local")
+    if row:
+        row.storage_type = storage_type
+        row.config_json = new_config
+    else:
+        row = TenantStorageConfig(
+            id=generate_uuid(), tenant_id=tenant_id,
+            storage_type=storage_type, config_json=new_config,
+        )
+        db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return row
+
+
+async def resolve_storage_backend(db: AsyncSession, tenant_id: str, storage_type: str | None = None):
+    """Return a ready-to-use StorageBackend.
+
+    ``storage_type`` overrides the active backend — used by the download/delete
+    paths to reach a file on the backend it was actually stored on.
+    """
+    from app.common.crypto import decrypt_config_json
+    from app.domains.attachment.storage import get_backend
+    row = await _get_storage_row(db, tenant_id)
+    active_type = storage_type or (row.storage_type if row else "local")
+    cfg = (row.config_json if row else None) or {}
+    provider_cfg = decrypt_config_json(cfg.get(active_type)) if active_type in _STORAGE_PROVIDERS else None
+    return get_backend(active_type, provider_cfg), active_type
+
+
+async def test_storage_connection(db: AsyncSession, tenant_id: str, storage_type: str) -> tuple[bool, str | None]:
+    import asyncio
+    from app.domains.attachment.storage import StorageError
+    try:
+        backend, _ = await resolve_storage_backend(db, tenant_id, storage_type)
+    except StorageError as e:
+        return False, str(e)
+    return await asyncio.to_thread(backend.test_connection)
 
 
 # ==================== Tenant: Webhooks ====================

@@ -116,4 +116,11 @@ export const settingsApi = {
   getReportSchedules: () => client.get('/api/admin/v1/tenant/report_schedules'),
   updateReportSchedules: (data: Array<Record<string, unknown>>) =>
     client.put('/api/admin/v1/tenant/report_schedules', data),
+
+  // File storage
+  getFileStorage: () => client.get('/api/admin/v1/tenant/file-storage'),
+  updateFileStorage: (data: Record<string, unknown>) =>
+    client.put('/api/admin/v1/tenant/file-storage', data),
+  testFileStorage: (storageType: string) =>
+    client.post('/api/admin/v1/tenant/file-storage/test', null, { params: { storage_type: storageType } }),
 }

@@ -111,3 +111,19 @@ class WebhookCreate(BaseModel):
     event_types_json: Optional[Union[dict, list]] = None
     target_url: str
     secret_token: Optional[str] = None
+
+# ---- File Storage ----
+class StorageProviderConfig(BaseModel):
+    """单个存储后端的连接配置（minio / oss）"""
+    endpoint: Optional[str] = None
+    access_key: Optional[str] = None
+    secret_key: Optional[str] = None
+    bucket: Optional[str] = None
+    region: Optional[str] = None
+    secure: Optional[bool] = None  # MinIO 是否启用 https
+    public_base_url: Optional[str] = None  # 可选：直链下载基址
+
+class StorageConfigUpdate(BaseModel):
+    storage_type: str  # local / minio / oss
+    minio: Optional[StorageProviderConfig] = None
+    oss: Optional[StorageProviderConfig] = None
