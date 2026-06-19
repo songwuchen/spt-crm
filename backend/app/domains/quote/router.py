@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
@@ -52,6 +53,60 @@ def _line_dict(l) -> dict:
         "cost_est": float(l.cost_est) if l.cost_est is not None else None,
         "leadtime_days": l.leadtime_days,
     }
+
+
+# --- List all quotes (tenant-wide) ---
+@router.get("/api/v1/quotes")
+async def list_quotes(
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    status: str = Query(None),
+    keyword: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("quote:view")),
+):
+    from app.domains.quote.models import Quote, QuoteVersion
+    q = select(Quote).where(Quote.tenant_id == tenant_id)
+    cq = select(func.count(Quote.id)).where(Quote.tenant_id == tenant_id)
+    if status:
+        q = q.where(Quote.status == status)
+        cq = cq.where(Quote.status == status)
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.where(Quote.quote_no.ilike(like))
+        cq = cq.where(Quote.quote_no.ilike(like))
+    total = (await db.execute(cq)).scalar() or 0
+    quotes = (await db.execute(
+        q.order_by(Quote.created_at.desc())
+        .offset((pageNo - 1) * pageSize).limit(pageSize)
+    )).scalars().all()
+
+    # Pull the current version of each listed quote in one query for price/margin.
+    cur_by_quote: dict = {}
+    qids = [x.id for x in quotes]
+    if qids:
+        versions = (await db.execute(
+            select(QuoteVersion).where(
+                QuoteVersion.tenant_id == tenant_id, QuoteVersion.quote_id.in_(qids)
+            )
+        )).scalars().all()
+        for v in versions:
+            cur_by_quote[(v.quote_id, v.version_no)] = v
+
+    rows = []
+    for x in quotes:
+        d = _quote_dict(x)
+        cv = cur_by_quote.get((x.id, x.current_version_no))
+        d["price_total"] = float(cv.price_total) if cv and cv.price_total is not None else None
+        d["margin_rate"] = float(cv.margin_rate) if cv and cv.margin_rate is not None else None
+        d["version_status"] = cv.status if cv else None
+        rows.append(d)
+
+    perms = current_user.get("permissions", [])
+    policies = await load_mask_policies(db, tenant_id)
+    rows = apply_field_mask(rows, "quote", perms, policies)
+    return ok({"items": rows, "total": total})
 
 
 # --- Project-scoped routes ---

@@ -66,6 +66,8 @@ const enUS = {
     contacts: 'Contacts',
     leads: 'Leads',
     opportunities: 'Opportunities',
+    quotes: 'Quotes',
+    contracts: 'Contracts',
     kanban: 'Kanban',
     products: 'Products',
     orders: 'Orders',

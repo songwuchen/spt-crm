@@ -19,6 +19,8 @@ const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
       { key: '/contacts', icon: 'contacts', labelKey: 'nav.contacts', permission: 'contact:view' },
       { key: '/leads', icon: 'trending_up', labelKey: 'nav.leads', permission: 'lead:view' },
       { key: '/opportunities', icon: 'rocket_launch', labelKey: 'nav.opportunities', permission: 'project:view' },
+      { key: '/quotes', icon: 'sell', labelKey: 'nav.quotes', permission: 'quote:view' },
+      { key: '/contracts', icon: 'contract', labelKey: 'nav.contracts', permission: 'contract:view' },
       { key: '/products', icon: 'inventory_2', labelKey: 'nav.products', permission: 'product:view' },
       { key: '/orders', icon: 'shopping_cart', labelKey: 'nav.orders', permission: 'order:view' },
       { key: '/tenders', icon: 'fact_check', labelKey: 'nav.tenders', permission: 'tender:view' },
@@ -64,6 +66,8 @@ function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/contacts/)) return '/contacts'
   if (pathname.match(/^\/leads/)) return '/leads'
   if (pathname.match(/^\/opportunities/)) return '/opportunities'
+  if (pathname.match(/^\/quotes/)) return '/quotes'
+  if (pathname.match(/^\/contracts/)) return '/contracts'
   if (pathname.match(/^\/products/)) return '/products'
   if (pathname.match(/^\/orders/)) return '/orders'
   if (pathname.match(/^\/tenders/)) return '/tenders'

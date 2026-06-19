@@ -2,6 +2,8 @@ import client from './client'
 import type { ApiResponse, QuoteItem, QuoteVersion, QuoteLine, CostSnapshotItem, QuoteSendLogItem } from './types'
 
 export const quoteApi = {
+  list: (params?: Record<string, unknown>) =>
+    client.get('/api/v1/quotes', { params }),
   listByProject: (projectId: string) =>
     client.get<unknown, ApiResponse<QuoteItem[]>>(`/api/v1/projects/${projectId}/quotes`),
   create: (projectId: string, data: Record<string, unknown>) =>

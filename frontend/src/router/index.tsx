@@ -87,6 +87,8 @@ const CustomerLifecycleReport = lazy(() => import('@/pages/report/CustomerLifecy
 const TeamPerformanceReport = lazy(() => import('@/pages/report/TeamPerformanceReport'))
 const ChangeRequestList = lazy(() => import('@/pages/change/ChangeRequestList'))
 const MilestoneList = lazy(() => import('@/pages/delivery/MilestoneList'))
+const QuoteList = lazy(() => import('@/pages/quote/QuoteList'))
+const ContractList = lazy(() => import('@/pages/contract/ContractList'))
 const DashboardSnapshot = lazy(() => import('@/pages/dashboard/DashboardSnapshot'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
@@ -146,6 +148,8 @@ export const router = createBrowserRouter([
       { path: 'reports/product', element: <Guard permission="product:view"><ProductReport /></Guard> },
       { path: 'reports/customer-lifecycle', element: <Guard permission="customer:view"><CustomerLifecycleReport /></Guard> },
       { path: 'reports/team-performance', element: <Guard permission="project:view"><TeamPerformanceReport /></Guard> },
+      { path: 'quotes', element: <Guard permission="quote:view"><QuoteList /></Guard> },
+      { path: 'contracts', element: <Guard permission="contract:view"><ContractList /></Guard> },
       { path: 'change-requests', element: <Guard permission="change:view"><ChangeRequestList /></Guard> },
       { path: 'milestones', element: <Guard permission="delivery:view"><MilestoneList /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },

@@ -82,6 +82,8 @@ const zhCN = {
     contacts: '联系人',
     leads: '线索管理',
     opportunities: '商机管理',
+    quotes: '报价管理',
+    contracts: '合同管理',
     kanban: '看板视图',
     products: '产品目录',
     orders: '订单管理',

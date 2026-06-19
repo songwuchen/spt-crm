@@ -200,6 +200,10 @@ export interface QuoteItem {
   versions?: QuoteVersion[]
   current_version?: QuoteVersion
   lines?: QuoteLine[]
+  // Joined from the tenant-wide list endpoint (current version summary)
+  price_total?: number | null
+  margin_rate?: number | null
+  version_status?: string | null
 }
 
 export interface QuoteVersion {

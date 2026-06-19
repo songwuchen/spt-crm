@@ -46,6 +46,7 @@ async def list_contracts(
     pageNo: int = Query(1, ge=1),
     pageSize: int = Query(20, ge=1, le=100),
     status: str = Query(None),
+    keyword: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("contract:view")),
@@ -56,6 +57,10 @@ async def list_contracts(
     if status:
         q = q.where(Contract.status == status)
         cq = cq.where(Contract.status == status)
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.where(Contract.contract_no.ilike(like))
+        cq = cq.where(Contract.contract_no.ilike(like))
     total = (await db.execute(cq)).scalar() or 0
     items = (await db.execute(
         q.order_by(Contract.created_at.desc())
