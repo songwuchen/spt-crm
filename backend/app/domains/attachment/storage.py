@@ -234,7 +234,10 @@ class OssBackend(StorageBackend):
         return self._bucket().sign_url("GET", key, expires, params=params, slash_safe=True)
 
     def presign_put(self, key, expires=600, content_type=None):
-        return self._bucket().sign_url("PUT", key, expires, slash_safe=True)
+        # OSS V1 signatures include Content-Type — the client MUST send the same value,
+        # so it must be part of the signed string or the PUT fails with SignatureDoesNotMatch.
+        headers = {"Content-Type": content_type} if content_type else None
+        return self._bucket().sign_url("PUT", key, expires, headers=headers, slash_safe=True)
 
     def stat(self, key):
         h = self._bucket().head_object(key)

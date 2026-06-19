@@ -68,7 +68,11 @@ export default function AttachmentPanel({ bizType, bizId }: Props) {
       fetchList()
     } catch (e) {
       const msg = e instanceof Error ? e.message : ''
-      message.error(/failed to fetch|直传失败/i.test(msg) ? '直传失败，请检查对象存储的跨域(CORS)配置' : (msg || '上传失败'))
+      if (msg === 'CORS_OR_NETWORK') {
+        message.error('直传失败：浏览器无法连接对象存储，请检查 OSS 跨域(CORS)配置')
+      } else {
+        message.error(msg || '上传失败')
+      }
     } finally {
       setUploading(false)
     }

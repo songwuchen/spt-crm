@@ -25,24 +25,36 @@ async function multipartUpload(file: File, bizType?: string, bizId?: string) {
  * otherwise it falls back to a server-side multipart upload.
  */
 async function upload(file: File, bizType?: string, bizId?: string) {
+  // The Content-Type sent on the PUT must EXACTLY equal what the presigned URL was
+  // signed with (OSS V1 signs Content-Type). Normalise once and use it for both.
+  const contentType = file.type || 'application/octet-stream'
   const presign = await client.post<unknown, ApiResponse<PresignResult>>(
     '/api/v1/attachments/presign-upload',
-    { filename: file.name, content_type: file.type || undefined, file_size: file.size, biz_type: bizType, biz_id: bizId },
+    { filename: file.name, content_type: contentType, file_size: file.size, biz_type: bizType, biz_id: bizId },
   )
   const info = presign.data
   if (info?.mode !== 'direct' || !info.upload_url || !info.key) {
     return multipartUpload(file, bizType, bizId)
   }
 
-  const putRes = await fetch(info.upload_url, {
-    method: info.method || 'PUT',
-    body: file,
-    headers: file.type ? { 'Content-Type': file.type } : undefined,
-  })
-  if (!putRes.ok) throw new Error(`直传失败 (${putRes.status})`)
+  let putRes: Response
+  try {
+    putRes = await fetch(info.upload_url, {
+      method: info.method || 'PUT',
+      body: file,
+      headers: { 'Content-Type': contentType },
+    })
+  } catch {
+    // fetch threw before any response → preflight blocked or host unreachable = CORS/network
+    throw new Error('CORS_OR_NETWORK')
+  }
+  if (!putRes.ok) {
+    const detail = await putRes.text().catch(() => '')
+    throw new Error(`直传被对象存储拒绝 (HTTP ${putRes.status})${detail ? '：' + detail.slice(0, 200) : ''}`)
+  }
 
   return client.post<unknown, ApiResponse<{ id: string }>>('/api/v1/attachments/register', {
-    key: info.key, original_name: file.name, content_type: file.type || undefined,
+    key: info.key, original_name: file.name, content_type: contentType,
     biz_type: bizType, biz_id: bizId,
   })
 }
