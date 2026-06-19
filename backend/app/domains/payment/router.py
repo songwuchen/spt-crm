@@ -176,7 +176,7 @@ async def list_all_plans(
     keyword: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("payment:view")),
+    current_user: dict = Depends(require_permissions("payment:view")),
 ):
     """List all payment plans across projects with pagination."""
     q = select(
@@ -196,6 +196,8 @@ async def list_all_plans(
         q = q.where(flt)
         count_q = count_q.where(flt)
 
+    from app.common.data_scope import apply_project_child_scope
+    q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, PaymentPlan)
     total = (await db.execute(count_q)).scalar() or 0
     rows = (await db.execute(
         q.order_by(PaymentPlan.due_date.asc())
@@ -220,7 +222,7 @@ async def list_all_records(
     keyword: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("payment:view")),
+    current_user: dict = Depends(require_permissions("payment:view")),
 ):
     """List all payment records across projects with pagination."""
     q = select(
@@ -237,6 +239,8 @@ async def list_all_records(
         q = q.where(flt)
         count_q = count_q.where(flt)
 
+    from app.common.data_scope import apply_project_child_scope
+    q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, PaymentRecord)
     total = (await db.execute(count_q)).scalar() or 0
     rows = (await db.execute(
         q.order_by(PaymentRecord.received_date.desc())
@@ -262,7 +266,7 @@ async def list_all_invoices(
     keyword: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("payment:view")),
+    current_user: dict = Depends(require_permissions("payment:view")),
 ):
     """List all invoices across projects with pagination."""
     q = select(
@@ -282,6 +286,8 @@ async def list_all_invoices(
         q = q.where(flt)
         count_q = count_q.where(flt)
 
+    from app.common.data_scope import apply_project_child_scope
+    q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, Invoice)
     total = (await db.execute(count_q)).scalar() or 0
     rows = (await db.execute(
         q.order_by(Invoice.created_at.desc())

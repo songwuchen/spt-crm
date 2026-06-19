@@ -36,7 +36,7 @@ async def list_all_change_requests(
     keyword: str | None = None,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("change:view")),
+    current_user: dict = Depends(require_permissions("change:view")),
 ):
     """Global list of all change requests with pagination and filters."""
     q = select(ChangeRequest).where(ChangeRequest.tenant_id == tenant_id)
@@ -51,6 +51,8 @@ async def list_all_change_requests(
         like = f"%{keyword}%"
         q = q.where(ChangeRequest.change_no.ilike(like) | ChangeRequest.reason.ilike(like))
         cq = cq.where(ChangeRequest.change_no.ilike(like) | ChangeRequest.reason.ilike(like))
+    from app.common.data_scope import apply_project_child_scope
+    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, ChangeRequest)
     total = (await db.execute(cq)).scalar() or 0
     q = q.order_by(ChangeRequest.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
     items = (await db.execute(q)).scalars().all()

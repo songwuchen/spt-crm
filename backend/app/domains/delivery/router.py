@@ -80,7 +80,7 @@ async def list_all_milestones(
     keyword: str | None = None,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("delivery:view")),
+    current_user: dict = Depends(require_permissions("delivery:view")),
 ):
     """Global list of all delivery milestones with pagination."""
     q = select(DeliveryMilestone).where(DeliveryMilestone.tenant_id == tenant_id)
@@ -92,6 +92,8 @@ async def list_all_milestones(
         like = f"%{keyword}%"
         q = q.where(DeliveryMilestone.name.ilike(like) | DeliveryMilestone.milestone_code.ilike(like))
         cq = cq.where(DeliveryMilestone.name.ilike(like) | DeliveryMilestone.milestone_code.ilike(like))
+    from app.common.data_scope import apply_project_child_scope
+    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, DeliveryMilestone)
     total = (await db.execute(cq)).scalar() or 0
     q = q.order_by(DeliveryMilestone.created_at.desc()).offset((pageNo - 1) * pageSize).limit(pageSize)
     items = (await db.execute(q)).scalars().all()

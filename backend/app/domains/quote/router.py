@@ -76,6 +76,8 @@ async def list_quotes(
         like = f"%{keyword}%"
         q = q.where(Quote.quote_no.ilike(like))
         cq = cq.where(Quote.quote_no.ilike(like))
+    from app.common.data_scope import apply_project_child_scope
+    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Quote)
     total = (await db.execute(cq)).scalar() or 0
     quotes = (await db.execute(
         q.order_by(Quote.created_at.desc())

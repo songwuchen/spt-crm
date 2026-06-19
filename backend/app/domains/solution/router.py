@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
@@ -32,6 +32,37 @@ def _version_dict(v) -> dict:
         "status": v.status,
         "created_at": v.created_at.isoformat() if v.created_at else "",
     }
+
+
+# --- List all solutions (tenant-wide) ---
+@router.get("/api/v1/solutions")
+async def list_solutions(
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    status: str = Query(None),
+    keyword: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("solution:view")),
+):
+    from app.domains.solution.models import Solution
+    q = select(Solution).where(Solution.tenant_id == tenant_id)
+    cq = select(func.count(Solution.id)).where(Solution.tenant_id == tenant_id)
+    if status:
+        q = q.where(Solution.status == status)
+        cq = cq.where(Solution.status == status)
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.where(Solution.solution_no.ilike(like))
+        cq = cq.where(Solution.solution_no.ilike(like))
+    from app.common.data_scope import apply_project_child_scope
+    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Solution)
+    total = (await db.execute(cq)).scalar() or 0
+    items = (await db.execute(
+        q.order_by(Solution.created_at.desc())
+        .offset((pageNo - 1) * pageSize).limit(pageSize)
+    )).scalars().all()
+    return ok({"items": [_solution_dict(s) for s in items], "total": total})
 
 
 # --- Project-scoped routes ---

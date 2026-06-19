@@ -79,6 +79,39 @@ def scoped_owners(owner_id: str | None, scope: list[str] | None) -> list[str] | 
     return scope
 
 
+async def apply_project_child_scope(
+    query: Select,
+    count_query: Select,
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict,
+    model,
+) -> tuple[Select, Select]:
+    """按「所属商机的归属」过滤商机子实体列表（报价/合同/方案/变更/交付/回款等，需有 project_id 列）。
+
+    可见条件：父商机 owner 落在数据范围内，或该行由本人创建 / 指派给本人。
+    管理员 / data_scope=all（resolve_owner_scope 返回 None）不受限。
+    返回 (query, count_query)，两者同步加上过滤条件。
+    """
+    scope = await resolve_owner_scope(db, user, tenant_id)
+    if scope is None:
+        return query, count_query
+
+    from app.domains.project.models import OpportunityProject
+    uid = user.get("sub", "")
+    owned_pids = select(OpportunityProject.id).where(
+        OpportunityProject.tenant_id == tenant_id,
+        OpportunityProject.owner_id.in_(scope),
+    )
+    conds = [model.project_id.in_(owned_pids)]
+    if hasattr(model, "created_by_id"):
+        conds.append(model.created_by_id == uid)
+    if hasattr(model, "assignee_id"):
+        conds.append(model.assignee_id == uid)
+    clause = or_(*conds)
+    return query.where(clause), count_query.where(clause)
+
+
 async def apply_data_scope(
     query: Select,
     db: AsyncSession,

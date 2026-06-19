@@ -11,32 +11,53 @@ interface MenuItem {
 
 const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
   {
-    titleKey: 'nav.businessGroup',
+    titleKey: 'nav.groupClients',
     items: [
       { key: '/', icon: 'dashboard', labelKey: 'nav.dashboard' },
       { key: '/customers', icon: 'business', labelKey: 'nav.customers', permission: 'customer:view' },
       { key: '/customer-pool', icon: 'waves', labelKey: 'nav.customerPool', permission: 'customer:view' },
       { key: '/contacts', icon: 'contacts', labelKey: 'nav.contacts', permission: 'contact:view' },
       { key: '/leads', icon: 'trending_up', labelKey: 'nav.leads', permission: 'lead:view' },
+    ],
+  },
+  {
+    titleKey: 'nav.groupDeals',
+    items: [
       { key: '/opportunities', icon: 'rocket_launch', labelKey: 'nav.opportunities', permission: 'project:view' },
+      { key: '/solutions', icon: 'lightbulb', labelKey: 'nav.solutions', permission: 'solution:view' },
       { key: '/quotes', icon: 'sell', labelKey: 'nav.quotes', permission: 'quote:view' },
       { key: '/contracts', icon: 'contract', labelKey: 'nav.contracts', permission: 'contract:view' },
+      { key: '/change-requests', icon: 'swap_horiz', labelKey: 'nav.changeRequests', permission: 'change:view' },
+      { key: '/milestones', icon: 'flag_circle', labelKey: 'nav.milestones', permission: 'delivery:view' },
+    ],
+  },
+  {
+    titleKey: 'nav.groupFinance',
+    items: [
+      { key: '/payments', icon: 'account_balance', labelKey: 'nav.payments', permission: 'payment:view' },
+      { key: '/collection', icon: 'request_quote', labelKey: 'nav.collection', permission: 'collection:view' },
+      { key: '/commissions', icon: 'paid', labelKey: 'nav.commissions', permission: 'commission:view' },
+      { key: '/guarantees', icon: 'verified_user', labelKey: 'nav.guarantees', permission: 'guarantee:view' },
+    ],
+  },
+  {
+    titleKey: 'nav.groupProductService',
+    items: [
       { key: '/products', icon: 'inventory_2', labelKey: 'nav.products', permission: 'product:view' },
       { key: '/orders', icon: 'shopping_cart', labelKey: 'nav.orders', permission: 'order:view' },
       { key: '/tenders', icon: 'fact_check', labelKey: 'nav.tenders', permission: 'tender:view' },
-      { key: '/follow-ups', icon: 'contact_phone', labelKey: 'nav.followUps', permission: 'customer:view' },
-      { key: '/payments', icon: 'account_balance', labelKey: 'nav.payments', permission: 'payment:view' },
-      { key: '/commissions', icon: 'paid', labelKey: 'nav.commissions', permission: 'commission:view' },
-      { key: '/collection', icon: 'request_quote', labelKey: 'nav.collection', permission: 'collection:view' },
-      { key: '/guarantees', icon: 'verified_user', labelKey: 'nav.guarantees', permission: 'guarantee:view' },
-      { key: '/equipment-profile', icon: 'precision_manufacturing', labelKey: 'nav.equipmentProfile', permission: 'customer:view' },
       { key: '/service-tickets', icon: 'confirmation_number', labelKey: 'nav.serviceTickets', permission: 'service:view' },
       { key: '/measurements', icon: 'monitoring', labelKey: 'nav.measurements', permission: 'service:view' },
+      { key: '/equipment-profile', icon: 'precision_manufacturing', labelKey: 'nav.equipmentProfile', permission: 'customer:view' },
+    ],
+  },
+  {
+    titleKey: 'nav.groupOps',
+    items: [
+      { key: '/follow-ups', icon: 'contact_phone', labelKey: 'nav.followUps', permission: 'customer:view' },
       { key: '/sales-targets', icon: 'flag', labelKey: 'nav.salesTargets', permission: 'project:view' },
       { key: '/analytics', icon: 'analytics', labelKey: 'nav.analytics', permission: 'project:view' },
       { key: '/calendar', icon: 'calendar_month', labelKey: 'nav.calendar' },
-      { key: '/change-requests', icon: 'swap_horiz', labelKey: 'nav.changeRequests', permission: 'change:view' },
-      { key: '/milestones', icon: 'flag_circle', labelKey: 'nav.milestones', permission: 'delivery:view' },
       { key: '/tasks', icon: 'checklist', labelKey: 'nav.tasks' },
       { key: '/approvals', icon: 'task_alt', labelKey: 'nav.approvals' },
       { key: '/ai-center', icon: 'smart_toy', labelKey: 'nav.aiCenter', permission: 'project:view' },
@@ -66,6 +87,7 @@ function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/contacts/)) return '/contacts'
   if (pathname.match(/^\/leads/)) return '/leads'
   if (pathname.match(/^\/opportunities/)) return '/opportunities'
+  if (pathname.match(/^\/solutions/)) return '/solutions'
   if (pathname.match(/^\/quotes/)) return '/quotes'
   if (pathname.match(/^\/contracts/)) return '/contracts'
   if (pathname.match(/^\/products/)) return '/products'
