@@ -340,18 +340,19 @@ async def save_dingtalk_config(
         "root_dept_id": body.root_dept_id or 1,
         "login_enabled": body.login_enabled or False,
     }
+    from app.common.crypto import encrypt_config_json
     if ep:
-        # preserve existing secret if masked value sent
+        # preserve existing secret if masked value sent (stored value may be enc:…)
         if body.app_secret == "******":
             cfg["app_secret"] = (ep.auth_config_json or {}).get("app_secret", "")
-        ep.auth_config_json = cfg
+        ep.auth_config_json = encrypt_config_json(cfg)
         ep.status = "active"
     else:
         ep = IntegrationEndpoint(
             id=generate_uuid(), tenant_id=tenant_id,
             system_code=_DT_OA_CODE, name="钉钉组织架构同步",
             base_url="", auth_type="appkey",
-            auth_config_json=cfg, status="active",
+            auth_config_json=encrypt_config_json(cfg), status="active",
         )
         db.add(ep)
     await db.commit()
@@ -365,10 +366,11 @@ async def test_dingtalk(
     _user=Depends(require_permissions("role:manage")),
 ):
     from app.common.dingtalk_sync import get_access_token, fetch_all_departments
+    from app.common.crypto import decrypt_config_json
     ep = await _get_dt_endpoint(db, tenant_id)
     if not ep:
         raise BusinessException(message="请先配置钉钉参数")
-    cfg = ep.auth_config_json or {}
+    cfg = decrypt_config_json(ep.auth_config_json or {}) or {}
     app_key = cfg.get("app_key", "")
     app_secret = cfg.get("app_secret", "")
     if not app_key or not app_secret:
@@ -435,10 +437,11 @@ async def dingtalk_sync_departments(
     import asyncio
     from app.common import sync_tasks
 
+    from app.common.crypto import decrypt_config_json
     ep = await _get_dt_endpoint(db, tenant_id)
     if not ep:
         raise BusinessException(message="请先配置钉钉参数")
-    cfg = ep.auth_config_json or {}
+    cfg = decrypt_config_json(ep.auth_config_json or {}) or {}
 
     # If a sync is already running for this tenant, reuse it so double-clicks don't double-fetch
     existing = sync_tasks.get_active_for_tenant(tenant_id, kind="dingtalk_departments")
@@ -460,10 +463,11 @@ async def dingtalk_sync_users(
     import asyncio
     from app.common import sync_tasks
 
+    from app.common.crypto import decrypt_config_json
     ep = await _get_dt_endpoint(db, tenant_id)
     if not ep:
         raise BusinessException(message="请先配置钉钉参数")
-    cfg = ep.auth_config_json or {}
+    cfg = decrypt_config_json(ep.auth_config_json or {}) or {}
 
     existing = sync_tasks.get_active_for_tenant(tenant_id, kind="dingtalk_users")
     if existing:

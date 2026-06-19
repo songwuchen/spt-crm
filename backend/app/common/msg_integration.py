@@ -153,9 +153,10 @@ async def dispatch_message(
     results: dict[str, bool] = {}
 
     # DingTalk
+    from app.common.crypto import decrypt_config_json
     dingtalk_ep = await _get_msg_endpoint(db, tenant_id, "dingtalk")
     if dingtalk_ep and dingtalk_ep.base_url:
-        config = dingtalk_ep.auth_config_json or {}
+        config = decrypt_config_json(dingtalk_ep.auth_config_json or {}) or {}
         # Check if this msg_type should be sent
         allowed_types = config.get("msg_types")
         if not allowed_types or msg_type in allowed_types or "*" in allowed_types:
@@ -170,7 +171,7 @@ async def dispatch_message(
     # WeCom
     wecom_ep = await _get_msg_endpoint(db, tenant_id, "wecom")
     if wecom_ep and wecom_ep.base_url:
-        config = wecom_ep.auth_config_json or {}
+        config = decrypt_config_json(wecom_ep.auth_config_json or {}) or {}
         allowed_types = config.get("msg_types")
         if not allowed_types or msg_type in allowed_types or "*" in allowed_types:
             results["wecom"] = await send_to_wecom(

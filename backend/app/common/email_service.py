@@ -26,7 +26,8 @@ async def _get_smtp_config(db: AsyncSession, tenant_id: str) -> dict | None:
     )).scalar_one_or_none()
     if not ep or not ep.auth_config_json:
         return None
-    config = ep.auth_config_json
+    from app.common.crypto import decrypt_config_json
+    config = decrypt_config_json(ep.auth_config_json) or {}
     # Expected config keys: host, port, username, password, from_email, use_tls
     return {
         "host": config.get("host", ""),

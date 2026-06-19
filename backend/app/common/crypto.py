@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 
 _ENCRYPTION_KEY: bytes | None = None
 
+# Config keys whose values are secrets and must be encrypted at rest / masked in responses.
+SENSITIVE_KEYS = {
+    "api_key", "secret", "password", "token", "secret_key", "access_token",
+    "app_secret", "client_secret",
+}
+
 
 def _get_key() -> bytes | None:
     global _ENCRYPTION_KEY
@@ -64,10 +70,9 @@ def encrypt_config_json(config: dict | None) -> dict | None:
     """Encrypt sensitive keys in a config dict (api_key, secret, password, token)."""
     if not config:
         return config
-    sensitive_keys = {"api_key", "secret", "password", "token", "secret_key", "access_token"}
     result = dict(config)
     for k, v in result.items():
-        if k in sensitive_keys and isinstance(v, str) and not v.startswith("enc:"):
+        if k in SENSITIVE_KEYS and isinstance(v, str) and not v.startswith("enc:"):
             result[k] = encrypt_value(v)
     return result
 
@@ -87,9 +92,8 @@ def mask_config_json(config: dict | None) -> dict | None:
     """Return config with sensitive values masked as '***' for API responses."""
     if not config:
         return config
-    sensitive_keys = {"api_key", "secret", "password", "token", "secret_key", "access_token"}
     result = dict(config)
     for k in result:
-        if k in sensitive_keys:
+        if k in SENSITIVE_KEYS:
             result[k] = "***"
     return result

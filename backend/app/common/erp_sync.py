@@ -28,9 +28,10 @@ class ERPClientBase(ABC):
     """Base class for ERP integration clients."""
 
     def __init__(self, endpoint: IntegrationEndpoint):
+        from app.common.crypto import decrypt_config_json
         self.endpoint = endpoint
         self.base_url = endpoint.base_url or ""
-        self.auth_config = endpoint.auth_config_json or {}
+        self.auth_config = decrypt_config_json(endpoint.auth_config_json or {}) or {}
         self.system_code = endpoint.system_code
 
     @abstractmethod

@@ -429,7 +429,8 @@ async def dingtalk_sso_callback(
     if not ep:
         raise BusinessException(code=40300, message="钉钉集成未配置")
 
-    cfg = ep.auth_config_json or {}
+    from app.common.crypto import decrypt_config_json
+    cfg = decrypt_config_json(ep.auth_config_json or {}) or {}
     if not cfg.get("login_enabled"):
         raise BusinessException(code=40300, message="钉钉登录未启用")
 
