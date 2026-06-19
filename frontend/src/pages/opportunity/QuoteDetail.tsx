@@ -13,6 +13,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { quoteLineItemTypeLabels as itemTypeLabels, quoteStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
+import AttachmentPanel from '@/components/AttachmentPanel'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 
 const BREAKDOWN_LABELS: Record<string, string> = {
@@ -432,6 +433,15 @@ export default function QuoteDetail() {
                   ]}
                 />
               )}
+            </div>
+          ),
+        },
+        {
+          key: 'attachments',
+          label: '附件',
+          children: (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <AttachmentPanel bizType="quote" bizId={qid!} />
             </div>
           ),
         },
