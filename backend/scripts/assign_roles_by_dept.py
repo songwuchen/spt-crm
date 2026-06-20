@@ -43,18 +43,21 @@ KEYWORD_ROLE = [
     ("采购", "procurement"), ("外购", "procurement"),
     ("客户服务", "service_engineer"), ("售后", "service_engineer"), ("服务部", "service_engineer"),
     ("市场支持", "biz_support"), ("业务支持", "biz_support"), ("营销支持", "biz_support"), ("标书", "biz_support"),
-    ("研究院", "design_engineer"), ("中央研究", "design_engineer"), ("技术", "design_engineer"),
-    ("工艺", "design_engineer"), ("设计", "design_engineer"), ("质检", "design_engineer"),
-    ("质量", "design_engineer"), ("标准化", "design_engineer"), ("试验", "design_engineer"),
+    # 销售线优先于生产关键词，避免「装备销售事业部」被误判为生产
+    ("事业部", "sales_rep"), ("销售", "sales_rep"), ("营销中心", "sales_rep"),
+    ("国际", "sales_rep"), ("贸易", "sales_rep"), ("营销", "sales_rep"),
+    ("研究院", "design_engineer"), ("中央研究", "design_engineer"), ("研发", "design_engineer"),
+    ("技术", "design_engineer"), ("工艺", "design_engineer"), ("设计", "design_engineer"),
+    ("质检", "design_engineer"), ("质量", "design_engineer"), ("标准化", "design_engineer"),
+    ("试验", "design_engineer"),
     ("生产", "production"), ("车间", "production"), ("仓储", "production"), ("物流", "production"),
     ("装卸", "production"), ("涂装", "production"), ("电气", "production"), ("下料", "production"),
     ("整装", "production"), ("机加工", "production"), ("筛板", "production"), ("配送", "production"),
-    ("工厂", "production"), ("制作", "production"), ("装备", "production"),
-    ("国际", "sales_rep"), ("贸易", "sales_rep"), ("营销", "sales_rep"),
-    ("事业部", "sales_rep"), ("销售", "sales_rep"),
-    ("总经办", "executive"), ("总经理", "executive"),
+    ("工厂", "production"), ("制作", "production"), ("调度", "production"), ("外协", "production"),
+    ("装备", "production"),  # 仅作生产兜底：销售事业部已在上方优先匹配
+    ("总经办", "executive"), ("总经理", "executive"), ("董事", "executive"),
     # explicitly unmapped (no obvious CRM role) -> manual:
-    ("人力", None), ("信息情报", None), ("公共事务", None), ("研发中心", None),
+    ("人力", None), ("信息情报", None), ("公共事务", None),
 ]
 
 MANAGER_VARIANT = {

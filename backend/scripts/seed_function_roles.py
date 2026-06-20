@@ -22,6 +22,7 @@ from sqlalchemy import select
 
 from app.database import async_session_factory, generate_uuid
 from app.domains.auth.models import Role, Permission, RolePermission
+import app.domains.organization.models  # noqa: F401 — register ORM mappers (User.user_departments)
 
 TENANT_ID = os.environ.get("TENANT_ID", "00000000-0000-0000-0000-000000000001")
 APPLY = "--apply" in sys.argv
