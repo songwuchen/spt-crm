@@ -37,9 +37,7 @@ export default function MobileLayout() {
       {/* Mobile Header */}
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 h-12 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-white text-sm font-black">S</span>
-          </div>
+          <img src="/logo.png" alt="SPT-CRM" className="w-7 h-7 rounded-lg object-cover" />
           <span className="font-bold text-sm text-slate-900">SPT-CRM</span>
         </div>
         <div className="flex items-center gap-3">

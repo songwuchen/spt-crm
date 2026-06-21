@@ -124,6 +124,9 @@ export default function Login() {
   return (
     <div className="h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-96 shadow-lg">
+        <div className="flex justify-center mb-4">
+          <img src="/logo.png" alt="SPT-CRM" className="w-20 h-20 rounded-2xl" />
+        </div>
         <h1 className="text-2xl font-bold text-center mb-2">{t('auth.loginTitle')}</h1>
         <p className="text-center text-gray-500 mb-6">{t('auth.loginSubtitle')}</p>
 

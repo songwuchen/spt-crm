@@ -132,10 +132,8 @@ export default function Sidebar() {
     <div className="sidebar-root">
       {/* Logo */}
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">
-          <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#fff' }}>factory</span>
-        </div>
-        <span className="sidebar-logo-text">Industrial AI-CRM</span>
+        <img src="/logo.png" alt="SPT-CRM" className="sidebar-logo-icon" />
+        <span className="sidebar-logo-text">SPT-CRM</span>
       </div>
 
       {/* Menu Groups */}
@@ -211,12 +209,11 @@ export default function Sidebar() {
         .sidebar-logo-icon {
           width: 34px;
           height: 34px;
-          background: #137fec;
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 2px 8px rgba(19,127,236,0.25);
+          border-radius: 9px;
+          object-fit: cover;
+          display: block;
+          flex-shrink: 0;
+          box-shadow: 0 2px 8px rgba(15,23,42,0.12);
         }
         .sidebar-logo-text {
           font-size: 15px;
