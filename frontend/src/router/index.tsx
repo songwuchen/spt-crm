@@ -1,9 +1,10 @@
 import { lazy, Suspense } from 'react'
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, redirect, Navigate } from 'react-router-dom'
 import { Spin } from 'antd'
 import MainLayout from '@/layouts/MainLayout'
 import MobileLayout from '@/layouts/MobileLayout'
 import PermissionGuard from '@/components/PermissionGuard'
+import { currentZone } from '@/config/zone'
 
 const Login = lazy(() => import('@/pages/auth/Login'))
 const Dashboard = lazy(() => import('@/pages/dashboard/Dashboard'))
@@ -101,6 +102,19 @@ function Guard({ permission, children }: { permission: string; children: React.R
   return <Lazy><PermissionGuard permission={permission}>{children}</PermissionGuard></Lazy>
 }
 
+// The mobile domain (link.fourier.net.cn) is the 移动端 — any desktop route under
+// "/" bounces to the mobile app so it never renders the desktop chrome on phones.
+function webZoneLoader() {
+  if (currentZone() === 'mobile') return redirect('/m')
+  return null
+}
+
+// Root landing: platform domain opens the 平台管理端, everyone else the 工作台.
+function ZoneEntry() {
+  if (currentZone() === 'platform') return <Navigate to="/platform/tenants" replace />
+  return <Lazy><Dashboard /></Lazy>
+}
+
 export const router = createBrowserRouter([
   {
     path: '/login',
@@ -109,8 +123,9 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: <MainLayout />,
+    loader: webZoneLoader,
     children: [
-      { index: true, element: <Lazy><Dashboard /></Lazy> },
+      { index: true, element: <ZoneEntry /> },
       { path: 'customers', element: <Guard permission="customer:view"><CustomerList /></Guard> },
       { path: 'customers/new', element: <Guard permission="customer:create"><CustomerForm /></Guard> },
       { path: 'customers/:id', element: <Guard permission="customer:view"><CustomerDetail /></Guard> },
