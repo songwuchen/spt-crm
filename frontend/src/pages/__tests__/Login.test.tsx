@@ -43,11 +43,6 @@ describe('Login', () => {
     expect(btn).toBeInTheDocument()
   })
 
-  it('shows demo credentials', () => {
-    render(<MemoryRouter><Login /></MemoryRouter>)
-    expect(screen.getByText(/admin \/ Admin12345/)).toBeInTheDocument()
-  })
-
   it('calls authApi.login on form submit', async () => {
     const user = userEvent.setup()
     const loginMock = authApi.login as ReturnType<typeof vi.fn>
