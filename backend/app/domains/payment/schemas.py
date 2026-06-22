@@ -31,6 +31,10 @@ class PaymentPlanCreate(BaseModel):
     department_name: Optional[str] = None
 
 
+class PaymentPlanBulkCreate(BaseModel):
+    plans: list[PaymentPlanCreate] = Field(default_factory=list)
+
+
 class PaymentPlanUpdate(BaseModel):
     due_date: Optional[date] = None
     amount: Optional[float] = Field(None, ge=0)

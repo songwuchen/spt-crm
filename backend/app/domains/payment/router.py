@@ -9,6 +9,7 @@ from app.domains.payment import service
 from app.domains.payment.models import PaymentPlan, PaymentRecord, Invoice
 from app.domains.payment.schemas import (
     InvoiceCreate, InvoiceUpdate, PaymentPlanCreate, PaymentPlanUpdate, PaymentRecordCreate,
+    PaymentPlanBulkCreate,
 )
 from app.domains.project.models import OpportunityProject
 
@@ -113,6 +114,17 @@ async def create_plan(
 ):
     plan = await service.create_plan(db, tenant_id, project_id, body, current_user)
     return ok(_plan_dict(plan))
+
+
+@router.post("/api/v1/projects/{project_id}/payment_plans/bulk")
+async def bulk_create_plans(
+    project_id: str, body: PaymentPlanBulkCreate,
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("payment:edit")),
+):
+    """Bulk-create payment plans (e.g. generated from a contract's payment terms)."""
+    plans = await service.bulk_create_plans(db, tenant_id, project_id, body, current_user)
+    return ok([_plan_dict(p) for p in plans])
 
 
 @router.put("/api/v1/payment_plans/{plan_id}")

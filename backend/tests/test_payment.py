@@ -79,6 +79,34 @@ async def test_payment_plan_crud(client: AsyncClient, auth_headers: dict):
     await _cleanup(client, h, proj_id, cust_id)
 
 
+async def test_payment_plan_bulk_create(client: AsyncClient, auth_headers: dict):
+    """Bulk-create payment plans (e.g. generated from a contract's payment terms)."""
+    h = auth_headers
+    cust_id, proj_id = await _setup_project(client, h)
+
+    # Bulk create 3 plans; plan_no omitted so each gets auto-generated
+    resp = await client.post(f"/api/v1/projects/{proj_id}/payment_plans/bulk", json={
+        "plans": [
+            {"amount": 30000, "due_date": "2026-06-30", "remark": "预付款"},
+            {"amount": 60000, "due_date": "2026-09-30", "remark": "进度款"},
+            {"amount": 10000, "remark": "尾款"},  # no due_date — allowed
+        ],
+    }, headers=h)
+    data = resp.json()
+    assert data["code"] == 0, f"Bulk create failed: {data}"
+    assert len(data["data"]) == 3
+    # Auto-generated plan numbers must be unique
+    nos = [p["plan_no"] for p in data["data"]]
+    assert len(set(nos)) == 3, f"plan_no not unique: {nos}"
+
+    # All three should now be listed
+    lst = await client.get(f"/api/v1/projects/{proj_id}/payment_plans", headers=h)
+    assert lst.json()["code"] == 0
+    assert len(lst.json()["data"]) == 3
+
+    await _cleanup(client, h, proj_id, cust_id)
+
+
 async def test_payment_record_crud(client: AsyncClient, auth_headers: dict):
     """Create and list payment records."""
     h = auth_headers

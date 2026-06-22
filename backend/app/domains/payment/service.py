@@ -10,6 +10,7 @@ from app.domains.payment.models import Invoice, PaymentPlan, PaymentRecord
 from app.domains.payment.schemas import (
     InvoiceCreate, InvoiceUpdate, PaymentPlanCreate, PaymentPlanUpdate, PaymentRecordCreate,
 )
+from app.domains.payment.schemas import PaymentPlanBulkCreate
 from app.domains.audit.service import log_action
 from app.common.code_generator import generate_code
 
@@ -172,6 +173,33 @@ async def create_plan(db: AsyncSession, tenant_id: str, project_id: str, data: P
                      action="create", resource_type="payment_plan", resource_id=plan.id,
                      summary=f"创建回款计划: {plan.plan_no}")
     return plan
+
+
+async def bulk_create_plans(
+    db: AsyncSession, tenant_id: str, project_id: str, data: PaymentPlanBulkCreate, user: dict
+) -> list[PaymentPlan]:
+    """Create multiple payment plans in one atomic transaction.
+
+    Used by the contract detail page to turn a contract's payment terms into
+    回款计划 in one shot. generate_code only flushes (no commit), so the whole
+    batch shares a single commit.
+    """
+    plans: list[PaymentPlan] = []
+    for item in data.plans:
+        dump = item.model_dump(exclude_unset=True)
+        if not dump.get("plan_no"):
+            dump["plan_no"] = await generate_code(db, tenant_id, "payment_plan")
+        plan = PaymentPlan(id=generate_uuid(), tenant_id=tenant_id, project_id=project_id, **dump)
+        db.add(plan)
+        plans.append(plan)
+    await db.commit()
+    for plan in plans:
+        await db.refresh(plan)
+    if plans:
+        await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                         action="create", resource_type="payment_plan", resource_id=project_id,
+                         summary=f"批量生成回款计划: {len(plans)} 条")
+    return plans
 
 
 async def update_plan(db: AsyncSession, tenant_id: str, plan_id: str, data: PaymentPlanUpdate, user: dict) -> PaymentPlan:

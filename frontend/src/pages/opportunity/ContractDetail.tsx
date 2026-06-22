@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, InputNumber, Tabs, Steps, message } from 'antd'
-import { CopyOutlined, CheckCircleOutlined, AuditOutlined, RobotOutlined, PrinterOutlined, FilePdfOutlined, EditOutlined } from '@ant-design/icons'
+import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, InputNumber, Input, Table, Alert, Tabs, Steps, message } from 'antd'
+import { CopyOutlined, CheckCircleOutlined, AuditOutlined, RobotOutlined, PrinterOutlined, FilePdfOutlined, EditOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useParams, useNavigate } from 'react-router-dom'
 import { contractApi } from '@/api/contract'
+import { paymentApi } from '@/api/payment'
 import { approvalApi } from '@/api/approval'
 import { aiApi } from '@/api/ai'
 import AttachmentPanel from '@/components/AttachmentPanel'
@@ -66,6 +67,75 @@ export default function ContractDetail() {
       message.error('保存失败')
     } finally {
       setEditSaving(false)
+    }
+  }
+
+  // 根据付款条款生成回款计划
+  type DraftPlan = { remark?: string; amount: number | null; due_date: dayjs.Dayjs | null }
+  const [genModal, setGenModal] = useState(false)
+  const [genRows, setGenRows] = useState<DraftPlan[]>([])
+  const [genSaving, setGenSaving] = useState(false)
+  const [existingPlanCount, setExistingPlanCount] = useState(0)
+
+  /** 把合同付款条款映射成回款计划草稿（兼容简道云旧 _widget_ 字段） */
+  const deriveDraftPlans = (): DraftPlan[] => {
+    const terms = toCanonicalRows(contract?.payment_terms_json, PAY_FIELDS)
+    const total = typeof contract?.amount_total === 'number' ? contract.amount_total : null
+    let allRatio = terms.length > 0
+    const rows: DraftPlan[] = terms.map((t) => {
+      const explicit = t.amount != null && t.amount !== '' ? Number(t.amount) : null
+      const ratio = t.ratio != null && t.ratio !== '' ? Number(t.ratio) : null
+      if (explicit != null) allRatio = false
+      let amount: number | null = Number.isFinite(explicit as number) ? explicit : null
+      if (amount == null && ratio != null && total != null) amount = Math.round(ratio * total * 100) / 100
+      const remark = [t.kind, t.note].filter((x) => x != null && x !== '').map(String).join(' · ') || undefined
+      return { remark, amount, due_date: t.due_date ? dayjs(t.due_date as string) : null }
+    })
+    // 末行兜底差额：仅当全部按比例反算且合同总额已知时，吸收凑整误差
+    if (allRatio && total != null && rows.length > 0 && rows.every((r) => r.amount != null)) {
+      const sumExceptLast = rows.slice(0, -1).reduce((s, r) => s + (r.amount as number), 0)
+      rows[rows.length - 1].amount = Math.round((total - sumExceptLast) * 100) / 100
+    }
+    return rows
+  }
+
+  const openGenModal = async () => {
+    setGenRows(deriveDraftPlans())
+    setGenModal(true)
+    try {
+      const r = await paymentApi.listPlans(projectId!)
+      setExistingPlanCount((r.data || []).length)
+    } catch { setExistingPlanCount(0) }
+  }
+
+  const updateGenRow = (i: number, key: keyof DraftPlan, val: unknown) =>
+    setGenRows((rows) => rows.map((r, j) => (j === i ? { ...r, [key]: val } : r)))
+  const delGenRow = (i: number) => setGenRows((rows) => rows.filter((_, j) => j !== i))
+  const addGenRow = () => setGenRows((rows) => [...rows, { remark: undefined, amount: null, due_date: null }])
+
+  const handleGenerate = async () => {
+    const valid = genRows.filter((r) => r.amount != null || r.remark || r.due_date)
+    if (!valid.length) { message.warning('没有可生成的回款计划'); return }
+    setGenSaving(true)
+    try {
+      const plans = valid.map((r) => ({
+        amount: r.amount ?? undefined,
+        due_date: r.due_date ? r.due_date.format('YYYY-MM-DD') : undefined,
+        remark: r.remark || undefined,
+      }))
+      await paymentApi.bulkCreatePlans(projectId!, plans)
+      message.success(`已生成 ${plans.length} 条回款计划`)
+      setGenModal(false)
+      Modal.confirm({
+        title: '回款计划已生成',
+        content: `已为该商机生成 ${plans.length} 条回款计划，是否前往「回款」查看？`,
+        okText: '前往查看', cancelText: '留在本页',
+        onOk: () => navigate(`/opportunities/${projectId}`),
+      })
+    } catch {
+      message.error('生成失败')
+    } finally {
+      setGenSaving(false)
     }
   }
 
@@ -183,6 +253,11 @@ export default function ContractDetail() {
   if (!contract) return <DetailSkeleton />
 
   const statusColors = contractStatusColors
+  // 只有结构化（行数组）付款条款才能生成回款计划；非行结构（如 {method:"分期"}）不展示按钮
+  const canGenerate = toCanonicalRows(contract.payment_terms_json, PAY_FIELDS).length > 0 && contract.status !== 'terminated'
+  const genTotal = genRows.reduce((s, r) => s + (r.amount || 0), 0)
+  const contractTotal = typeof contract.amount_total === 'number' ? contract.amount_total : null
+  const genMismatch = contractTotal != null && Math.abs(genTotal - contractTotal) > 0.01
 
   return (
     <div>
@@ -245,6 +320,68 @@ export default function ContractDetail() {
           <div>
             <div className="text-sm font-bold text-slate-700 mb-2">合同明细（结构化条款）</div>
             <LineItemsEditor value={editLines} onChange={setEditLines} />
+          </div>
+        </div>
+      </Modal>
+
+      {/* 生成回款计划 Modal */}
+      <Modal title="生成回款计划" open={genModal} onOk={handleGenerate} confirmLoading={genSaving}
+        onCancel={() => setGenModal(false)} width={760}
+        okText={genRows.length ? `确认生成 ${genRows.length} 条` : '确认生成'}
+        okButtonProps={{ disabled: genRows.length === 0 }} cancelText="取消">
+        <div className="py-2 space-y-3">
+          <div className="text-sm text-slate-500">
+            已根据合同付款条款预填，请核对金额与到期日期后确认。生成的计划可在商机「回款」中继续编辑。
+          </div>
+          {existingPlanCount > 0 && (
+            <Alert type="warning" showIcon
+              message={`该商机已有 ${existingPlanCount} 条回款计划，本次为追加生成，不会覆盖原有计划。`} />
+          )}
+          <Table size="small" rowKey={(_, i) => String(i)} pagination={false} dataSource={genRows}
+            locale={{ emptyText: '无付款条款可生成，点击下方「添加一行」手动录入' }}
+            columns={[
+              {
+                title: '款项说明', key: 'remark',
+                render: (_: unknown, _r: DraftPlan, i: number) => (
+                  <Input size="small" value={genRows[i].remark}
+                    placeholder="如：预付款 / 进度款"
+                    onChange={(e) => updateGenRow(i, 'remark', e.target.value)} />
+                ),
+              },
+              {
+                title: '金额', key: 'amount', width: 160,
+                render: (_: unknown, _r: DraftPlan, i: number) => (
+                  <InputNumber size="small" style={{ width: '100%' }} min={0} addonBefore="¥"
+                    value={genRows[i].amount} onChange={(v) => updateGenRow(i, 'amount', v)} />
+                ),
+              },
+              {
+                title: '到期日期', key: 'due_date', width: 160,
+                render: (_: unknown, _r: DraftPlan, i: number) => (
+                  <DatePicker size="small" style={{ width: '100%' }} value={genRows[i].due_date}
+                    onChange={(d) => updateGenRow(i, 'due_date', d)} />
+                ),
+              },
+              {
+                title: '', key: '__op', width: 44,
+                render: (_: unknown, _r: DraftPlan, i: number) => (
+                  <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => delGenRow(i)} />
+                ),
+              },
+            ]} />
+          <div className="flex items-center justify-between">
+            <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={addGenRow}>添加一行</Button>
+            <div className="text-sm">
+              <span className="text-slate-400">合计 </span>
+              <span className="font-bold text-primary">{formatMoney(genTotal)}</span>
+              {contractTotal != null && (
+                <>
+                  <span className="text-slate-400"> / 合同金额 </span>
+                  <span className="font-semibold text-slate-600">{formatMoney(contractTotal)}</span>
+                  {genMismatch && <Tag color="warning" className="ml-2">与合同金额不一致</Tag>}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </Modal>
@@ -337,7 +474,13 @@ export default function ContractDetail() {
 
         {contract.payment_terms_json && (
           <div className="mt-4">
-            <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">付款条款</h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400">付款条款</h4>
+              {canGenerate && (
+                <Button size="small" icon={<span className="material-symbols-outlined" style={{ fontSize: 16 }}>savings</span>}
+                  onClick={openGenModal}>生成回款计划</Button>
+              )}
+            </div>
             <PaymentTermsView value={contract.payment_terms_json} />
           </div>
         )}
