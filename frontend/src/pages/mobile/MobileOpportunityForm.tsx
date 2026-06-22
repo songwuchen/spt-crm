@@ -12,6 +12,7 @@ export default function MobileOpportunityForm() {
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([])
   const [form, setForm] = useState({
     name: '', customer_id: '', amount_expect: '', stage: 'S1', remark: '',
+    req_summary: '', req_acceptance: '', req_confirmed: false,
   })
 
   useEffect(() => {
@@ -27,6 +28,12 @@ export default function MobileOpportunityForm() {
     try {
       const data: any = { name: form.name, customer_id: form.customer_id, stage: form.stage, remark: form.remark }
       if (form.amount_expect) data.amount_expect = parseFloat(form.amount_expect)
+      // 关键需求（推进到 S3 前必填），剔除空值
+      const kr: Record<string, unknown> = {}
+      if (form.req_summary.trim()) kr.summary = form.req_summary.trim()
+      if (form.req_acceptance.trim()) kr.acceptance = form.req_acceptance.trim()
+      if (form.req_confirmed) kr.confirmed = true
+      if (Object.keys(kr).length) data.key_requirements_json = kr
       await projectApi.create(data)
       message.success('商机已创建')
       navigate(-1)
@@ -74,6 +81,21 @@ export default function MobileOpportunityForm() {
               <option value="S3">S3 方案报价</option>
             </select>
           </div>
+        </div>
+        <div className="border-t border-slate-100 pt-4">
+          <div className="text-sm font-bold text-slate-700">关键需求</div>
+          <div className="text-[11px] text-slate-400 mb-2">推进到「S3 方案报价」前需填写</div>
+          <textarea value={form.req_summary} onChange={(e) => setForm({ ...form, req_summary: e.target.value })}
+            placeholder="需求摘要：客户核心需求、技术规格、交付/预算约束等" rows={3}
+            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none" />
+          <textarea value={form.req_acceptance} onChange={(e) => setForm({ ...form, req_acceptance: e.target.value })}
+            placeholder="验收标准 / 技术协议要点（可选）" rows={2}
+            className="mt-2 w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none" />
+          <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" checked={form.req_confirmed}
+              onChange={(e) => setForm({ ...form, req_confirmed: e.target.checked })} />
+            需求已与客户确认
+          </label>
         </div>
         <div>
           <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">备注</label>

@@ -594,6 +594,9 @@ export default function OpportunityDetail() {
             <InfoField label="是否有重量要求" value={(project as any).has_weight_requirement == null ? undefined : ((project as any).has_weight_requirement ? '是' : '否')} />
             <InfoField label="是否使用呆滞设备" value={(project as any).uses_idle_equipment == null ? undefined : ((project as any).uses_idle_equipment ? '是' : '否')} />
             <InfoField label="状态" value={project.status} />
+            <InfoField label="需求摘要" value={(project.key_requirements_json as any)?.summary} />
+            <InfoField label="验收标准" value={(project.key_requirements_json as any)?.acceptance} />
+            <InfoField label="需求已确认" value={(project.key_requirements_json as any)?.confirmed == null ? undefined : ((project.key_requirements_json as any)?.confirmed ? '是' : '否')} />
             <InfoField label="备注" value={project.remark} />
           </div>
 

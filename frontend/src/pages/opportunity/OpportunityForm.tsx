@@ -75,9 +75,19 @@ export default function OpportunityForm() {
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true)
     try {
+      // Collapse the structured 关键需求 sub-form into key_requirements_json,
+      // dropping blank values so an untouched section stays empty (gate keeps blocking).
+      const kr = values.key_requirements_json as { summary?: string; acceptance?: string; confirmed?: boolean } | undefined
+      const cleanedKr: Record<string, unknown> = {}
+      if (kr) {
+        if (kr.summary?.trim()) cleanedKr.summary = kr.summary.trim()
+        if (kr.acceptance?.trim()) cleanedKr.acceptance = kr.acceptance.trim()
+        if (kr.confirmed) cleanedKr.confirmed = true
+      }
       const payload = {
         ...values,
         close_date_expect: values.close_date_expect ? (values.close_date_expect as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
+        key_requirements_json: cleanedKr,
       }
       if (isEdit) {
         await projectApi.update(id!, payload)
@@ -147,6 +157,21 @@ export default function OpportunityForm() {
               onSearch={userSelect.onSearch}
               onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
           </Form.Item>
+          <div className="border-t border-slate-100 pt-4 mt-2 mb-1">
+            <div className="text-sm font-semibold text-slate-700">关键需求</div>
+            <div className="text-xs text-slate-400 mb-3">推进到「S3 方案报价」前需填写关键需求信息</div>
+            <Form.Item name={['key_requirements_json', 'summary']} label="需求摘要"
+              tooltip="客户的核心需求、技术要点、约束条件等">
+              <Input.TextArea rows={3} placeholder="请概述客户关键需求（技术规格、交付要求、预算约束等）" />
+            </Form.Item>
+            <Form.Item name={['key_requirements_json', 'acceptance']} label="验收标准">
+              <Input.TextArea rows={2} placeholder="可量化的验收标准 / 技术协议要点（可选）" />
+            </Form.Item>
+            <Form.Item name={['key_requirements_json', 'confirmed']} label="需求已与客户确认" valuePropName="checked"
+              tooltip="需求澄清表已与客户确认无误">
+              <Switch checkedChildren="是" unCheckedChildren="否" />
+            </Form.Item>
+          </div>
           {isEdit && (
             <Form.Item name="status" label="状态">
               <Select options={statusDict.options} loading={statusDict.loading} />

@@ -12,7 +12,7 @@ interface ProjectInfo {
   amount_expect?: number; probability?: number; risk_level?: string
   owner_name?: string; customer_name?: string; customer_id?: string
   created_at: string; expected_close_date?: string
-  requirements_json?: { summary?: string }
+  key_requirements_json?: { summary?: string; acceptance?: string; confirmed?: boolean }
   competitors_json?: string[]
 }
 
@@ -137,10 +137,22 @@ export default function MobileOpportunityDetail() {
               </div>
             </div>
           )}
-          {project.requirements_json?.summary && (
+          {project.key_requirements_json?.summary && (
             <div>
               <span className="text-sm text-slate-400 block mb-1">需求摘要</span>
-              <p className="text-sm text-slate-700 whitespace-pre-wrap">{project.requirements_json.summary}</p>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{project.key_requirements_json.summary}</p>
+            </div>
+          )}
+          {project.key_requirements_json?.acceptance && (
+            <div>
+              <span className="text-sm text-slate-400 block mb-1">验收标准</span>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{project.key_requirements_json.acceptance}</p>
+            </div>
+          )}
+          {project.key_requirements_json?.confirmed != null && (
+            <div className="flex justify-between">
+              <span className="text-sm text-slate-400">需求已确认</span>
+              <span className="text-sm text-slate-700">{project.key_requirements_json.confirmed ? '是' : '否'}</span>
             </div>
           )}
         </div>
