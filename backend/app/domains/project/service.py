@@ -114,22 +114,28 @@ async def check_gate_rules(db: AsyncSession, tenant_id: str, project: Opportunit
 
         elif check_type == "has_related":
             entity = rule["entity"]
+            # Optional status filter — lets a tenant require e.g. a *signed* contract
+            # (configure in StageDefinition.gate_rules_json), not just any contract.
+            want_status = rule.get("status")
             count = 0
             if entity == "solution":
                 from app.domains.solution.models import Solution
-                count = (await db.execute(
-                    select(func.count(Solution.id)).where(Solution.tenant_id == tenant_id, Solution.project_id == project.id)
-                )).scalar() or 0
+                q = select(func.count(Solution.id)).where(Solution.tenant_id == tenant_id, Solution.project_id == project.id)
+                if want_status:
+                    q = q.where(Solution.status == want_status)
+                count = (await db.execute(q)).scalar() or 0
             elif entity == "quote":
                 from app.domains.quote.models import Quote
-                count = (await db.execute(
-                    select(func.count(Quote.id)).where(Quote.tenant_id == tenant_id, Quote.project_id == project.id)
-                )).scalar() or 0
+                q = select(func.count(Quote.id)).where(Quote.tenant_id == tenant_id, Quote.project_id == project.id)
+                if want_status:
+                    q = q.where(Quote.status == want_status)
+                count = (await db.execute(q)).scalar() or 0
             elif entity == "contract":
                 from app.domains.contract.models import Contract
-                count = (await db.execute(
-                    select(func.count(Contract.id)).where(Contract.tenant_id == tenant_id, Contract.project_id == project.id)
-                )).scalar() or 0
+                q = select(func.count(Contract.id)).where(Contract.tenant_id == tenant_id, Contract.project_id == project.id)
+                if want_status:
+                    q = q.where(Contract.status == want_status)
+                count = (await db.execute(q)).scalar() or 0
             if count == 0:
                 passed = False
 

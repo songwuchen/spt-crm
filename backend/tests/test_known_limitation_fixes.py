@@ -46,6 +46,60 @@ async def test_notification_preference_suppresses_disabled_type(client):
             await db.commit()
 
 
+async def test_gate_has_related_status_filter(client):
+    """has_related gate can require a related entity with a specific status
+    (e.g. S6 requires a *signed* contract), configured via StageDefinition."""
+    from app.domains.project.models import OpportunityProject
+    from app.domains.contract.models import Contract
+    from app.domains.admin.models import StageDefinition
+    from app.domains.project.service import check_gate_rules
+
+    async with db_module.async_session_factory() as db:
+        pid = generate_uuid()
+        cid = generate_uuid()
+        # Temporarily override the seeded S6 stage definition's gate rules
+        sd = (await db.execute(select(StageDefinition).where(
+            StageDefinition.tenant_id == TENANT, StageDefinition.stage_code == "S6",
+        ))).scalars().first()
+        original_rules = sd.gate_rules_json if sd else None
+        original_enabled = sd.enabled if sd else None
+        try:
+            project = OpportunityProject(
+                id=pid, tenant_id=TENANT, project_code="PRJ-GATE-TEST",
+                name="闸门状态测试", stage_code="S5", owner_id=ADMIN, owner_name="Admin",
+            )
+            db.add(project)
+            # A draft (not signed) contract
+            db.add(Contract(id=cid, tenant_id=TENANT, project_id=pid,
+                            contract_no="CT-GATE-TEST", status="draft", amount_total=1000))
+            assert sd is not None, "演示租户应已 seed S6 阶段定义"
+            sd.enabled = True
+            sd.gate_rules_json = [{
+                "code": "HAS_SIGNED_CONTRACT", "name": "已签署合同",
+                "check": "has_related", "entity": "contract", "status": "signed",
+                "message": "请先签署合同，再进入交付验收。",
+            }]
+            await db.commit()
+
+            # Draft contract -> gate fails
+            failed = await check_gate_rules(db, TENANT, project, "S6")
+            assert any(f["code"] == "HAS_SIGNED_CONTRACT" for f in failed), "草稿合同应不满足'已签署'闸门"
+
+            # Sign the contract -> gate passes
+            c = (await db.execute(select(Contract).where(Contract.id == cid))).scalar_one()
+            c.status = "signed"
+            await db.commit()
+            failed2 = await check_gate_rules(db, TENANT, project, "S6")
+            assert not any(f["code"] == "HAS_SIGNED_CONTRACT" for f in failed2), "已签署合同应满足闸门"
+        finally:
+            await db.execute(delete(Contract).where(Contract.id == cid))
+            await db.execute(delete(OpportunityProject).where(OpportunityProject.id == pid))
+            if sd is not None:
+                sd.gate_rules_json = original_rules
+                sd.enabled = original_enabled
+            await db.commit()
+
+
 async def test_solution_review_triggers_approval_and_approve_marks_approved(client):
     from app.domains.admin.models import ApprovalPolicy
     from app.domains.solution.models import Solution, SolutionVersion
