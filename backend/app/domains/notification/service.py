@@ -106,13 +106,34 @@ async def render_template(db: AsyncSession, tenant_id: str, event_type: str, var
     return title, content
 
 
+async def _is_type_enabled(db: AsyncSession, tenant_id: str, recipient_id: str, type: str) -> bool:
+    """Respect the recipient's NotificationPreference. Opt-out model: send unless the
+    user explicitly disabled this type (missing pref / missing key => enabled)."""
+    from app.domains.notification.models import NotificationPreference
+    try:
+        pref = (await db.execute(
+            select(NotificationPreference).where(
+                NotificationPreference.tenant_id == tenant_id,
+                NotificationPreference.user_id == recipient_id,
+            ).limit(1)
+        )).scalar_one_or_none()
+    except Exception:
+        return True
+    if not pref or not pref.preferences_json:
+        return True
+    return pref.preferences_json.get(type, True) is not False
+
+
 async def send_notification(db: AsyncSession, tenant_id: str, recipient_id: str,
                             type: str, title: str, content: str | None = None,
                             biz_type: str | None = None, biz_id: str | None = None,
                             sender_name: str | None = None, extra_json: dict | None = None,
-                            template_vars: dict | None = None) -> Notification:
+                            template_vars: dict | None = None) -> Notification | None:
     """Convenience function for sending a notification + real-time WS push.
-    If template_vars is provided, tries to render a template first."""
+    If template_vars is provided, tries to render a template first.
+    Returns None if the recipient has disabled this notification type."""
+    if not await _is_type_enabled(db, tenant_id, recipient_id, type):
+        return None
     if template_vars:
         try:
             tpl_title, tpl_content = await render_template(db, tenant_id, type, template_vars)

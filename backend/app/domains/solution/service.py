@@ -69,6 +69,7 @@ async def create_solution(db: AsyncSession, tenant_id: str, project_id: str, dat
 
 async def update_solution(db: AsyncSession, tenant_id: str, solution_id: str, data: SolutionUpdate, user: dict) -> Solution:
     solution = await get_solution(db, tenant_id, solution_id)
+    old_status = solution.status
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(solution, field, val)
     await db.commit()
@@ -77,6 +78,17 @@ async def update_solution(db: AsyncSession, tenant_id: str, solution_id: str, da
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="update", resource_type="solution", resource_id=solution.id,
                      summary=f"更新方案: {solution.solution_no}")
+
+    # 提交评审（状态→reviewing）时自动发起审批；审批通过后由 _on_approval_completed
+    # 将方案置为 approved（满足商机 S4「方案已审批」闸门）。无匹配策略时仍可手动批准。
+    if solution.status == "reviewing" and old_status != "reviewing":
+        try:
+            from app.domains.approval.service import auto_trigger_approval
+            await auto_trigger_approval(db, tenant_id, "solution", solution.id,
+                                        f"方案审批: {solution.solution_no}", user)
+        except Exception:
+            import logging
+            logging.getLogger("spt_crm.solution").warning("Auto-trigger approval for solution failed", exc_info=True)
     return solution
 
 

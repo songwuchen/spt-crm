@@ -513,6 +513,14 @@ async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: Approva
             if cr:
                 cr.status = "approved"
                 updated = True
+        elif flow.biz_type == "solution":
+            from app.domains.solution.models import Solution
+            sol = (await db.execute(
+                select(Solution).where(Solution.id == flow.biz_id, Solution.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if sol:
+                sol.status = "approved"
+                updated = True
         if updated:
             await db.commit()
     except Exception as e:
@@ -668,9 +676,21 @@ async def resubmit_approval(db: AsyncSession, tenant_id: str, flow_id: str, data
 
 
 async def auto_trigger_approval(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str, title: str, user: dict) -> ApprovalFlow | None:
-    """Auto-trigger approval if a matching policy exists. Returns the flow or None."""
+    """Auto-trigger approval if a matching policy exists. Returns the flow or None.
+    When no policy matches, notify the submitter so the submission isn't silently
+    stuck in 'submitted' with no approver (was a silent no-op before)."""
     resolved = await _resolve_policy_approvers(db, tenant_id, biz_type, biz_id)
     if not resolved:
+        try:
+            from app.domains.notification.service import send_notification
+            await send_notification(
+                db, tenant_id, recipient_id=user["sub"], type="system",
+                title=f"已提交，但未配置审批流程：{title}",
+                content="未找到匹配的审批策略，该单据不会自动进入审批。请联系管理员在「系统配置 → 审批策略」中配置后再提交。",
+                biz_type=biz_type, biz_id=biz_id,
+            )
+        except Exception:
+            logger.warning("No-policy notify failed for %s/%s", biz_type, biz_id)
         return None
     ids, names, mode = resolved
     data = ApprovalSubmit(

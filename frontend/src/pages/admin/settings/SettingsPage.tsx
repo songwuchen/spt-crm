@@ -338,7 +338,7 @@ export default function SettingsPage() {
                 </div>
                 <Table rowKey="id" dataSource={approvalPolicies} size="small" pagination={false} columns={[
                   { title: '业务类型', dataIndex: 'biz_type', width: 130, render: (v: string) => ({
-                    quote_version: '报价审批', contract_version: '合同审批', change_request: '变更审批',
+                    quote_version: '报价审批', contract_version: '合同审批', change_request: '变更审批', solution: '方案审批',
                   }[v] || v) },
                   { title: '策略名称', dataIndex: 'name', width: 150 },
                   { title: '触发条件', dataIndex: 'condition_json', render: (v: unknown) => <JsonCell value={v} /> },

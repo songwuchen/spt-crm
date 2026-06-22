@@ -61,6 +61,7 @@ const BIZ_TYPE_OPTIONS = [
   { value: 'quote_version', label: '报价审批' },
   { value: 'contract_version', label: '合同审批' },
   { value: 'change_request', label: '变更审批' },
+  { value: 'solution', label: '方案审批' },
 ]
 
 const MODE_OPTIONS = [
