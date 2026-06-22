@@ -13,10 +13,17 @@ const typeLabels: Record<string, { label: string; color: string }> = {
   stage_change: { label: '阶段变化', color: 'blue' },
   contract_signed: { label: '合同签署', color: 'green' },
   ticket_assigned: { label: '工单分配', color: 'cyan' },
+  task_assigned: { label: '任务分配', color: 'cyan' },
+  lead_assigned: { label: '线索分配', color: 'cyan' },
+  customer_assigned: { label: '客户分配', color: 'cyan' },
   payment_overdue: { label: '回款逾期', color: 'red' },
+  receivable_overdue: { label: '应收逾期', color: 'red' },
+  guarantee_expiring: { label: '保函到期', color: 'orange' },
   payment_received: { label: '收到回款', color: 'green' },
   ai_task_complete: { label: 'AI完成', color: 'purple' },
   gate_blocked: { label: '门禁拦截', color: 'orange' },
+  mention: { label: '提及我', color: 'blue' },
+  scheduled_report: { label: '定时报表', color: 'default' },
   system: { label: '系统', color: 'default' },
 }
 

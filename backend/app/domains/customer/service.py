@@ -91,6 +91,7 @@ async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, da
     customer = await get_customer(db, tenant_id, customer_id)
     update_data = data.model_dump(exclude_unset=True)
     # Resolve owner_name when owner_id changes
+    reassigned_to = None
     if "owner_id" in update_data:
         new_owner_id = update_data["owner_id"]
         if new_owner_id:
@@ -99,6 +100,8 @@ async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, da
                 select(User).where(User.id == new_owner_id, User.tenant_id == tenant_id)
             )).scalar_one_or_none()
             update_data["owner_name"] = owner.real_name or owner.username if owner else None
+            if new_owner_id != customer.owner_id:
+                reassigned_to = new_owner_id
         else:
             update_data["owner_name"] = None
     changes = {}
@@ -114,6 +117,14 @@ async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, da
                      action="update", resource_type="customer", resource_id=customer.id,
                      summary=f"更新客户: {customer.name}",
                      detail={"changes": changes} if changes else None)
+    # 客户转给他人 → 通知新负责人
+    if reassigned_to and reassigned_to != user["sub"]:
+        try:
+            from app.common.auto_notify import notify_customer_assigned
+            await notify_customer_assigned(db, tenant_id, customer.name, reassigned_to,
+                                           user.get("real_name") or user.get("username"), customer.id)
+        except Exception:
+            pass
     return customer
 
 

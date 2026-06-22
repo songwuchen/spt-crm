@@ -102,6 +102,16 @@ async def create_task(
     db.add(t)
     await db.commit()
     await db.refresh(t)
+    # 分配给他人时，给被分配人发"任务待办"通知（自己给自己建任务不通知）
+    if t.assignee_id and t.assignee_id != current_user["sub"]:
+        try:
+            from app.common.auto_notify import notify_task_assigned
+            await notify_task_assigned(
+                db, tenant_id, t.title, t.assignee_id,
+                current_user.get("real_name") or current_user.get("username"), t.id,
+            )
+        except Exception:
+            pass
     return ok(_task_dict(t))
 
 
@@ -172,6 +182,10 @@ async def batch_assign(
 ):
     """Batch assign tasks to a user."""
     from sqlalchemy import update
+    # 取一个任务标题用于通知文案（在更新前读取）
+    sample = (await db.execute(
+        select(UserTask).where(UserTask.tenant_id == tenant_id, UserTask.id.in_(body.ids)).limit(1)
+    )).scalar()
     result = await db.execute(
         update(UserTask).where(
             UserTask.tenant_id == tenant_id,
@@ -179,6 +193,17 @@ async def batch_assign(
         ).values(assignee_id=body.assignee_id, assignee_name=body.assignee_name)
     )
     await db.commit()
+    # 批量分配给他人时，给被分配人发一条汇总通知
+    if body.assignee_id and body.assignee_id != current_user["sub"] and result.rowcount and sample:
+        try:
+            from app.common.auto_notify import notify_task_assigned
+            await notify_task_assigned(
+                db, tenant_id, sample.title, body.assignee_id,
+                current_user.get("real_name") or current_user.get("username"),
+                sample.id, count=result.rowcount,
+            )
+        except Exception:
+            pass
     return ok({"updated": result.rowcount})
 
 

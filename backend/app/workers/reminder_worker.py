@@ -20,6 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session_factory
 
+# Register ORM mappers with cross-module relationships up front. The worker imports
+# models lazily per-check, which left User<->UserDepartment unresolved and made
+# configure_mappers() raise once a check touched the User mapper.
+import app.domains.auth.models  # noqa: F401,E402
+import app.domains.organization.models  # noqa: F401,E402
+
 logger = logging.getLogger("reminder_worker")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s %(message)s")
 
@@ -191,53 +197,57 @@ async def check_approval_sla(db: AsyncSession) -> int:
 
 
 async def check_expiring_contracts(db: AsyncSession) -> int:
-    """Find contracts expiring within CONTRACT_WARN_DAYS and notify owners."""
-    from app.domains.contract.models import ContractVersion
+    """Find contracts expiring within CONTRACT_WARN_DAYS and notify owners.
+
+    Note: 到期日(end_date)、project_id、contract_no 都在 Contract 主表上，
+    ContractVersion 并没有这些字段——早先误用 ContractVersion 会每轮抛 AttributeError。
+    """
+    from app.domains.contract.models import Contract
     from app.domains.project.models import OpportunityProject
     from app.domains.notification.service import send_notification
 
     warn_date = date.today() + timedelta(days=CONTRACT_WARN_DAYS)
     today = date.today()
 
-    versions = (await db.execute(
-        select(ContractVersion).where(
-            ContractVersion.status == "signed",
-            ContractVersion.end_date != None,
-            ContractVersion.end_date <= warn_date,
-            ContractVersion.end_date >= today,
+    contracts = (await db.execute(
+        select(Contract).where(
+            Contract.status == "signed",
+            Contract.end_date != None,
+            Contract.end_date <= warn_date,
+            Contract.end_date >= today,
         ).limit(5000)
     )).scalars().all()
 
     notified = 0
-    for ver in versions:
-        if not ver.project_id:
+    for c in contracts:
+        if not c.project_id:
             continue
 
         project = (await db.execute(
             select(OpportunityProject).where(
-                OpportunityProject.id == ver.project_id,
-                OpportunityProject.tenant_id == ver.tenant_id,
+                OpportunityProject.id == c.project_id,
+                OpportunityProject.tenant_id == c.tenant_id,
             )
         )).scalar_one_or_none()
 
         if not project or not project.owner_id:
             continue
 
-        days_until = (ver.end_date - today).days
+        days_until = (c.end_date - today).days
         try:
             await send_notification(
                 db=db,
-                tenant_id=ver.tenant_id,
+                tenant_id=c.tenant_id,
                 recipient_id=project.owner_id,
                 type="contract_signed",
-                title=f"合同即将到期: {ver.contract_no}",
-                content=f"合同「{ver.contract_no}」将在 {days_until} 天后到期（{ver.end_date}），请及时处理续约。",
+                title=f"合同即将到期: {c.contract_no}",
+                content=f"合同「{c.contract_no}」将在 {days_until} 天后到期（{c.end_date}），请及时处理续约。",
                 biz_type="project",
-                biz_id=ver.project_id,
+                biz_id=c.project_id,
             )
             notified += 1
         except Exception as e:
-            logger.warning(f"Failed to notify expiring contract {ver.id}: {e}")
+            logger.warning(f"Failed to notify expiring contract {c.id}: {e}")
 
     return notified
 
@@ -252,8 +262,9 @@ async def check_upcoming_followups(db: AsyncSession) -> int:
 
     activities = (await db.execute(
         select(Activity).where(
-            Activity.next_follow_date >= str(today),
-            Activity.next_follow_date <= str(warn_date),
+            Activity.next_follow_date != None,
+            Activity.next_follow_date >= today,
+            Activity.next_follow_date <= warn_date,
         ).limit(5000)
     )).scalars().all()
 
@@ -544,6 +555,50 @@ def freq_label(freq: str) -> str:
     return {"daily": "每日", "weekly": "每周", "monthly": "每月"}.get(freq, freq)
 
 
+async def _active_tenant_ids(db: AsyncSession) -> list[str]:
+    """All active tenant ids — for per-tenant reminder checks."""
+    from app.domains.tenant.models import PlatformTenant
+    return list((await db.execute(
+        select(PlatformTenant.id).where(PlatformTenant.is_active == True)
+    )).scalars().all())
+
+
+async def check_overdue_payments(db: AsyncSession) -> int:
+    """已逾期回款计划：标记 overdue 并通知商机负责人（逐租户）。"""
+    from app.domains.payment.service import check_overdue_and_notify
+    notified = 0
+    for tid in await _active_tenant_ids(db):
+        try:
+            notified += await check_overdue_and_notify(db, tid)
+        except Exception as e:
+            logger.warning(f"Overdue payment check failed for tenant {tid}: {e}")
+    return notified
+
+
+async def check_overdue_receivables_all(db: AsyncSession) -> int:
+    """应收账款逾期90天以上：通知客户负责人（逐租户）。"""
+    from app.domains.collection.service import check_overdue_receivables
+    notified = 0
+    for tid in await _active_tenant_ids(db):
+        try:
+            notified += await check_overdue_receivables(db, tid)
+        except Exception as e:
+            logger.warning(f"Overdue receivable check failed for tenant {tid}: {e}")
+    return notified
+
+
+async def check_expiring_guarantees(db: AsyncSession) -> int:
+    """保函即将到期：通知保函负责人（逐租户）。"""
+    from app.domains.guarantee.service import check_expiring_and_notify
+    notified = 0
+    for tid in await _active_tenant_ids(db):
+        try:
+            notified += await check_expiring_and_notify(db, tid)
+        except Exception as e:
+            logger.warning(f"Expiring guarantee check failed for tenant {tid}: {e}")
+    return notified
+
+
 async def run_once():
     """Single reminder check cycle."""
     async with async_session_factory() as db:
@@ -561,11 +616,17 @@ async def run_once():
         followups = await check_upcoming_followups(db)
         pool_released = await check_pool_auto_release(db)
         reports = await check_scheduled_reports(db)
-        total = stale + payments + sla + contracts + followups + pool_released + reports
+        overdue_payments = await check_overdue_payments(db)
+        overdue_receivables = await check_overdue_receivables_all(db)
+        expiring_guarantees = await check_expiring_guarantees(db)
+        total = (stale + payments + sla + contracts + followups + pool_released + reports
+                 + overdue_payments + overdue_receivables + expiring_guarantees)
         if total > 0:
             logger.info(
                 f"Reminders sent: stale_projects={stale}, upcoming_payments={payments}, "
-                f"sla_violations={sla}, expiring_contracts={contracts}, followups={followups}, pool_released={pool_released}, reports={reports}"
+                f"sla_violations={sla}, expiring_contracts={contracts}, followups={followups}, "
+                f"pool_released={pool_released}, reports={reports}, overdue_payments={overdue_payments}, "
+                f"overdue_receivables={overdue_receivables}, expiring_guarantees={expiring_guarantees}"
             )
         cleanup_total = audit_cleanup + notif_cleanup + session_cleanup + deleted_cleanup + outbox_cleanup + inactive_sessions
         if cleanup_total > 0:

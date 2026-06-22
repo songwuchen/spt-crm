@@ -11,9 +11,18 @@ const typeIcons: Record<string, { icon: string; color: string }> = {
   stage_change: { icon: 'swap_horiz', color: '#6366f1' },
   contract_signed: { icon: 'verified', color: '#059669' },
   ticket_assigned: { icon: 'support_agent', color: '#0ea5e9' },
+  task_assigned: { icon: 'assignment', color: '#0ea5e9' },
+  lead_assigned: { icon: 'person_add', color: '#0ea5e9' },
+  customer_assigned: { icon: 'person_add', color: '#0ea5e9' },
   payment_overdue: { icon: 'warning', color: '#ef4444' },
+  receivable_overdue: { icon: 'warning', color: '#ef4444' },
+  guarantee_expiring: { icon: 'warning', color: '#f59e0b' },
+  payment_received: { icon: 'payments', color: '#10b981' },
+  approval_sla_overdue: { icon: 'schedule', color: '#ef4444' },
   ai_task_complete: { icon: 'smart_toy', color: '#8b5cf6' },
   gate_blocked: { icon: 'block', color: '#f97316' },
+  mention: { icon: 'alternate_email', color: '#6366f1' },
+  scheduled_report: { icon: 'summarize', color: '#64748b' },
   system: { icon: 'info', color: '#64748b' },
 }
 

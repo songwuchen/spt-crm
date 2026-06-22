@@ -140,11 +140,13 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     lead = await get_lead(db, tenant_id, lead_id)
     payload = data.model_dump(exclude_unset=True)
     # When owner changes, refresh owner_name to match
+    reassigned_to = None
     if "owner_id" in payload and payload["owner_id"] and payload["owner_id"] != lead.owner_id:
         from app.domains.auth.models import User as AuthUser
         new_owner = (await db.execute(select(AuthUser).where(AuthUser.id == payload["owner_id"], AuthUser.tenant_id == tenant_id))).scalar_one_or_none()
         if new_owner:
             lead.owner_name = new_owner.real_name or new_owner.username
+        reassigned_to = payload["owner_id"]
     for field, val in payload.items():
         setattr(lead, field, val)
     lead.score = _compute_score(lead)
@@ -154,6 +156,14 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="update", resource_type="lead", resource_id=lead.id,
                      summary=f"更新线索: {lead.title}")
+    # 线索改派给他人 → 通知新负责人有线索待跟进
+    if reassigned_to and reassigned_to != user["sub"]:
+        try:
+            from app.common.auto_notify import notify_lead_assigned
+            await notify_lead_assigned(db, tenant_id, lead.title or lead.company_name or "线索",
+                                       reassigned_to, user.get("real_name") or user.get("username"), lead.id)
+        except Exception:
+            pass
     return lead
 
 

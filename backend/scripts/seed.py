@@ -128,6 +128,7 @@ async def seed():
             ("guarantee:view", "查看保函", "保函"),
             ("guarantee:edit", "编辑保函", "保函"),
             ("audit:view", "查看审计", "审计"),
+            ("dashboard:view", "查看销售目标/仪表盘", "报表"),
             ("role:view", "查看角色", "系统"),
             ("role:edit", "编辑角色", "系统"),
             ("role:manage", "管理角色", "系统"),

@@ -285,8 +285,11 @@ async def batch_assign(
     current_user: dict = Depends(require_permissions("lead:edit")),
 ):
     """Batch assign leads to a new owner."""
-    from sqlalchemy import update
+    from sqlalchemy import select, update
     from app.domains.lead.models import Lead
+    sample = (await db.execute(
+        select(Lead).where(Lead.tenant_id == tenant_id, Lead.id.in_(body.ids), Lead.is_deleted == False).limit(1)
+    )).scalar()
     result = await db.execute(
         update(Lead).where(
             Lead.tenant_id == tenant_id,
@@ -295,6 +298,17 @@ async def batch_assign(
         ).values(owner_id=body.owner_id, owner_name=body.owner_name)
     )
     await db.commit()
+    # 批量改派给他人 → 给新负责人发一条汇总通知
+    if body.owner_id and body.owner_id != current_user["sub"] and result.rowcount and sample:
+        try:
+            from app.common.auto_notify import notify_lead_assigned
+            await notify_lead_assigned(
+                db, tenant_id, sample.title or sample.company_name or "线索",
+                body.owner_id, current_user.get("real_name") or current_user.get("username"),
+                sample.id, count=result.rowcount,
+            )
+        except Exception:
+            pass
     return ok({"updated": result.rowcount})
 
 

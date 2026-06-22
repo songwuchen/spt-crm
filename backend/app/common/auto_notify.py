@@ -41,6 +41,52 @@ async def notify_ticket_assigned(db: AsyncSession, tenant_id: str, ticket_no: st
     )
 
 
+async def notify_task_assigned(db: AsyncSession, tenant_id: str, task_title: str,
+                                assignee_id: str, user_name: str, task_id: str, count: int = 1):
+    """Notify assignee when a task is assigned to them by someone else."""
+    if count > 1:
+        title = f"{user_name} 给您分配了 {count} 个任务"
+        content = f"其中包括「{task_title}」等"
+    else:
+        title = f"您有新任务待处理: {task_title}"
+        content = f"分配人: {user_name}"
+    await send_notification(
+        db, tenant_id, recipient_id=assignee_id,
+        type="task_assigned",
+        title=title, content=content,
+        biz_type="task", biz_id=task_id, sender_name=user_name,
+    )
+
+
+async def notify_lead_assigned(db: AsyncSession, tenant_id: str, lead_name: str,
+                                assignee_id: str, user_name: str, lead_id: str, count: int = 1):
+    """Notify new owner when a lead is (re)assigned to them by someone else."""
+    if count > 1:
+        title = f"{user_name} 给您分配了 {count} 条线索"
+        content = f"其中包括「{lead_name}」等，请及时跟进"
+    else:
+        title = f"您有新线索待跟进: {lead_name}"
+        content = f"分配人: {user_name}"
+    await send_notification(
+        db, tenant_id, recipient_id=assignee_id,
+        type="lead_assigned",
+        title=title, content=content,
+        biz_type="lead", biz_id=lead_id, sender_name=user_name,
+    )
+
+
+async def notify_customer_assigned(db: AsyncSession, tenant_id: str, customer_name: str,
+                                    assignee_id: str, user_name: str, customer_id: str):
+    """Notify new owner when a customer is assigned/transferred to them by someone else."""
+    await send_notification(
+        db, tenant_id, recipient_id=assignee_id,
+        type="customer_assigned",
+        title=f"您有新客户待跟进: {customer_name}",
+        content=f"分配人: {user_name}",
+        biz_type="customer", biz_id=customer_id, sender_name=user_name,
+    )
+
+
 async def notify_approval_submitted(db: AsyncSession, tenant_id: str, approver_id: str,
                                      title: str, user_name: str, flow_id: str):
     """Notify approver when an approval is submitted to them."""
