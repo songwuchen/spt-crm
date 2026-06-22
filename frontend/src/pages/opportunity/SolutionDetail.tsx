@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Button, Select, Tag, Space, Spin, Descriptions, Input, message, Modal, Table } from 'antd'
+import { Button, Select, Tag, Space, Spin, Descriptions, Input, message, Modal, Table, Alert } from 'antd'
 import { CopyOutlined, EditOutlined, SaveOutlined, CloseOutlined, SwapOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { solutionApi } from '@/api/solution'
+import { approvalApi } from '@/api/approval'
 import AttachmentPanel from '@/components/AttachmentPanel'
-import type { SolutionItem, SolutionVersion } from '@/api/types'
+import type { SolutionItem, SolutionVersion, ApprovalFlowItem } from '@/api/types'
 import { solutionStatusLabels as statusLabels, solutionStatusColors as statusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
@@ -34,6 +35,15 @@ export default function SolutionDetail() {
   const [compareV2, setCompareV2] = useState<number>(0)
   const [compareResult, setCompareResult] = useState<any>(null)
   const [compareLoading, setCompareLoading] = useState(false)
+  const [approvalFlow, setApprovalFlow] = useState<ApprovalFlowItem | null>(null)
+
+  const fetchApprovalFlow = async () => {
+    try {
+      const res = await approvalApi.list({ biz_type: 'solution', biz_id: sid })
+      const flows = res.data?.items || []
+      setApprovalFlow(flows.length > 0 ? flows[0] : null)
+    } catch { setApprovalFlow(null) }
+  }
 
   const fetchSolution = async () => {
     const res = await solutionApi.get(sid!)
@@ -43,6 +53,7 @@ export default function SolutionDetail() {
     const curVer = d.versions?.find((v) => v.version_no === d.current_version_no)
     setCurrentVersion(curVer || null)
     if (curVer) setSelectedVersionId(curVer.id)
+    fetchApprovalFlow()
   }
 
   const fetchVersion = async (vid: string) => {
@@ -91,10 +102,17 @@ export default function SolutionDetail() {
   const handleStatusChange = async (status: string) => {
     Modal.confirm({
       title: `确认将方案状态改为 "${statusLabels[status]}"？`,
+      content: status === 'reviewing'
+        ? '若已配置「方案审批」策略，提交后将自动发起审批流程，需审批通过才会标记为已批准；可在「审批中心」查看进度。'
+        : undefined,
       onOk: async () => {
         await solutionApi.update(sid!, { status })
-        message.success('状态已更新')
-        fetchSolution()
+        await fetchSolution()
+        if (status === 'reviewing') {
+          message.success('已提交评审')
+        } else {
+          message.success('状态已更新')
+        }
       },
     })
   }
@@ -123,14 +141,42 @@ export default function SolutionDetail() {
           </p>
         </div>
         <Space>
-          {(nextStatuses[solution.status] || []).map((s) => (
-            <Button key={s} onClick={() => handleStatusChange(s)}>
-              {statusLabels[s]}
-            </Button>
-          ))}
+          {(nextStatuses[solution.status] || []).map((s) => {
+            // 评审中且有进行中的审批时，禁止手动直接置"已批准"——必须走审批中心
+            if (s === 'approved' && approvalFlow?.status === 'pending') return null
+            return (
+              <Button key={s} onClick={() => handleStatusChange(s)}>
+                {statusLabels[s]}
+              </Button>
+            )
+          })}
+          {solution.status === 'reviewing' && approvalFlow?.status === 'pending' && (
+            <Tag color="processing">审批中</Tag>
+          )}
           <Button onClick={() => navigate(`/opportunities/${projectId}`)}>返回商机</Button>
         </Space>
       </div>
+
+      {/* 审批状态提示 */}
+      {approvalFlow && (
+        <Alert
+          className="mb-4"
+          type={approvalFlow.status === 'approved' ? 'success' : approvalFlow.status === 'rejected' ? 'error' : 'info'}
+          showIcon
+          message={
+            approvalFlow.status === 'pending'
+              ? `方案审批进行中（${approvalFlow.current_node ?? 1}/${approvalFlow.total_nodes ?? 1} 节点），请在「审批中心」处理`
+              : approvalFlow.status === 'approved' ? '方案审批已通过'
+              : approvalFlow.status === 'rejected' ? '方案审批已驳回，可修改后重新提交评审'
+              : `审批状态：${approvalFlow.status}`
+          }
+          action={
+            approvalFlow.status === 'pending'
+              ? <Button size="small" type="link" onClick={() => navigate('/approvals')}>前往审批中心</Button>
+              : undefined
+          }
+        />
+      )}
 
       {/* Version Selector + Version Detail */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">

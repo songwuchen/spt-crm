@@ -4,6 +4,7 @@ import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined, Uplo
 import DOMPurify from 'dompurify'
 import { settingsApi } from '@/api/settings'
 import { dashboardApi } from '@/api/dashboard'
+import { roleApi } from '@/api/user'
 import client from '@/api/client'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -32,6 +33,25 @@ function JsonCell({ value }: { value: unknown }) {
   return <div className="max-w-xs"><DataView value={value} /></div>
 }
 
+const APPROVER_TYPE_LABEL: Record<string, string> = { role: '角色', user: '用户', department_leader: '部门领导' }
+
+// Friendly render of approver_rules_json: resolves role code / user id to names instead
+// of dumping raw JSON (was unreadable in the policy list).
+function ApproverRulesCell({ value, nameMap }: { value: unknown; nameMap: Record<string, string> }) {
+  const rules = Array.isArray(value) ? value : value ? [value] : []
+  if (rules.length === 0) return <span className="text-slate-300">-</span>
+  return (
+    <Space size={[4, 4]} wrap>
+      {rules.map((r: any, i: number) => {
+        if (r?.type === 'department_leader') return <Tag key={i} color="geekblue">部门领导</Tag>
+        const label = APPROVER_TYPE_LABEL[r?.type] || r?.type || '?'
+        const name = r?.value ? nameMap[r.value] || r.value : '未指定'
+        return <Tag key={i} color="blue">{label}: {name}</Tag>
+      })}
+    </Space>
+  )
+}
+
 export default function SettingsPage() {
   usePageTitle('系统设置')
   const [stages, setStages] = useState<StageConfig[]>([])
@@ -43,6 +63,7 @@ export default function SettingsPage() {
   const [budgetForm, setBudgetForm] = useState({ budget_cost: 100, budget_tokens: 10000000, hard_limit: false })
   const [budgetModal, setBudgetModal] = useState(false)
   const [approvalPolicies, setApprovalPolicies] = useState<ApprovalPolicyItem[]>([])
+  const [approverNameMap, setApproverNameMap] = useState<Record<string, string>>({})
   const [docTemplates, setDocTemplates] = useState<DocTemplateItem[]>([])
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplateItem[]>([])
   const [customFields, setCustomFields] = useState<CustomFieldItem[]>([])
@@ -133,6 +154,19 @@ export default function SettingsPage() {
     } catch { message.error('更新预算失败') }
   }
   useEffect(() => { fetchAll() }, [])
+
+  // Load role/user name maps once, to render approver rules readably.
+  useEffect(() => {
+    Promise.all([
+      roleApi.list().catch(() => ({ data: [] as { code: string; name: string }[] })),
+      client.get('/api/admin/v1/tenant/users').catch(() => ({ data: { items: [] as { id: string; real_name?: string; username: string }[] } })),
+    ]).then(([rolesRes, usersRes]: any) => {
+      const map: Record<string, string> = {}
+      for (const r of rolesRes.data || []) map[r.code] = r.name
+      for (const u of usersRes.data?.items || []) map[u.id] = u.real_name || u.username
+      setApproverNameMap(map)
+    })
+  }, [])
 
   const handleSaveStage = async () => {
     const err = validateGateRules(stageForm.gate_rules)
@@ -342,7 +376,7 @@ export default function SettingsPage() {
                   }[v] || v) },
                   { title: '策略名称', dataIndex: 'name', width: 150 },
                   { title: '触发条件', dataIndex: 'condition_json', render: (v: unknown) => <JsonCell value={v} /> },
-                  { title: '审批人规则', dataIndex: 'approver_rules_json', render: (v: unknown) => <JsonCell value={v} /> },
+                  { title: '审批人规则', dataIndex: 'approver_rules_json', render: (v: unknown) => <ApproverRulesCell value={v} nameMap={approverNameMap} /> },
                   { title: '模式', dataIndex: 'approval_mode', width: 80, render: (v: string) => ({
                     sequential: '依次', parallel: '并行', any_one: '任一',
                   }[v] || v) },

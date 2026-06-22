@@ -8,6 +8,7 @@ export interface GateRule {
   check: string
   field?: string
   entity?: string
+  status?: string
   min_value?: number
   fix_action?: string
 }
@@ -43,6 +44,26 @@ const ENTITY_TYPES = [
   { value: 'quote', label: '报价 (quote)' },
   { value: 'contract', label: '合同 (contract)' },
 ]
+
+// Optional status filter per entity — lets a gate require e.g. a *signed* contract,
+// not just any contract. Aligns with backend has_related status filter.
+const ENTITY_STATUS: Record<string, { value: string; label: string }[]> = {
+  solution: [
+    { value: 'approved', label: '已批准 (approved)' },
+    { value: 'reviewing', label: '评审中 (reviewing)' },
+    { value: 'draft', label: '草稿 (draft)' },
+  ],
+  quote: [
+    { value: 'sent', label: '已发送 (sent)' },
+    { value: 'won', label: '赢单 (won)' },
+    { value: 'draft', label: '草稿 (draft)' },
+  ],
+  contract: [
+    { value: 'signed', label: '已签署 (signed)' },
+    { value: 'draft', label: '草稿 (draft)' },
+    { value: 'terminated', label: '已终止 (terminated)' },
+  ],
+}
 
 interface Props {
   value: GateRule[]
@@ -107,7 +128,7 @@ export default function GateRulesEditor({ value, onChange }: Props) {
                 <Select
                   className="w-full"
                   value={rule.check}
-                  onChange={(v) => update(idx, { check: v, field: undefined, entity: undefined, min_value: undefined })}
+                  onChange={(v) => update(idx, { check: v, field: undefined, entity: undefined, status: undefined, min_value: undefined })}
                   options={CHECK_TYPES.map((c) => ({ label: c.label, value: c.value }))}
                 />
               </div>
@@ -140,16 +161,35 @@ export default function GateRulesEditor({ value, onChange }: Props) {
               )}
 
               {rule.check === 'has_related' && (
-                <div className="col-span-2">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">关联实体 *</label>
-                  <Select
-                    className="w-full"
-                    value={rule.entity}
-                    placeholder="选择必须存在的关联类型"
-                    onChange={(v) => update(idx, { entity: v })}
-                    options={ENTITY_TYPES}
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">关联实体 *</label>
+                    <Select
+                      className="w-full"
+                      value={rule.entity}
+                      placeholder="选择必须存在的关联类型"
+                      onChange={(v) => update(idx, { entity: v, status: undefined })}
+                      options={ENTITY_TYPES}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">
+                      要求状态（选填）
+                      <Tooltip title="留空=只要存在即可；指定后必须存在该状态的记录，例如合同=已签署">
+                        <InfoCircleOutlined className="ml-1 text-slate-400" />
+                      </Tooltip>
+                    </label>
+                    <Select
+                      className="w-full"
+                      value={rule.status}
+                      allowClear
+                      placeholder="不限状态（默认存在即可）"
+                      onChange={(v) => update(idx, { status: v || undefined })}
+                      options={rule.entity ? (ENTITY_STATUS[rule.entity] || []) : []}
+                      disabled={!rule.entity}
+                    />
+                  </div>
+                </>
               )}
 
               {rule.check === 'min_amount' && (

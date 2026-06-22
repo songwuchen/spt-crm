@@ -37,8 +37,10 @@ class FeatureToggleUpdate(BaseModel):
 # ---- Stage Definition ----
 class StageDefinitionUpdate(BaseModel):
     name: Optional[str] = None
-    allowed_transitions_json: Optional[dict] = None
-    gate_rules_json: Optional[dict] = None
+    # 这两个字段实际存的是数组（阶段流转列表 / Gate 规则列表），早先误标为 dict
+    # 导致前端保存 Gate 规则时 422。
+    allowed_transitions_json: Optional[Union[dict, list]] = None
+    gate_rules_json: Optional[Union[dict, list]] = None
     sort_order: Optional[int] = None
     enabled: Optional[bool] = None
 

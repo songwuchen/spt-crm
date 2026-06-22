@@ -79,6 +79,29 @@ async def test_webhook_subscription_crud(client: AsyncClient, auth_headers: dict
     assert dl.json()["code"] == 0
 
 
+async def test_stage_gate_rules_save_list(client: AsyncClient, auth_headers: dict):
+    """Regression: saving a stage's gate_rules_json as a LIST must succeed (was 422
+    because the schema typed it as dict). Includes the has_related status filter."""
+    h = auth_headers
+    rules = [{
+        "code": "HAS_SIGNED_CONTRACT", "name": "已签署合同",
+        "message": "请先签署合同。", "check": "has_related",
+        "entity": "contract", "status": "signed",
+    }]
+    resp = await client.put("/api/admin/v1/tenant/policies/stages/S6", headers=h, json={
+        "name": "交付执行", "gate_rules_json": rules, "enabled": True,
+    })
+    assert resp.json()["code"] == 0, f"Stage gate save failed: {resp.json()}"
+
+    lst = (await client.get("/api/admin/v1/tenant/policies/stages", headers=h)).json()["data"]
+    s6 = next((s for s in lst if s["stage_code"] == "S6"), None)
+    assert s6 and isinstance(s6["gate_rules_json"], list)
+    assert s6["gate_rules_json"][0]["status"] == "signed"
+
+    # cleanup: clear the rule so dev/other tests aren't affected
+    await client.put("/api/admin/v1/tenant/policies/stages/S6", headers=h, json={"gate_rules_json": []})
+
+
 async def test_dashboard_trend(client: AsyncClient, auth_headers: dict):
     """Dashboard trend endpoint returns monthly data."""
     resp = await client.get("/api/v1/dashboard/trend?months=6", headers=auth_headers)
