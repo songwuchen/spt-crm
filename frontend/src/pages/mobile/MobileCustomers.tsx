@@ -4,7 +4,8 @@ import { Input, Spin, message } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import { customerApi } from '@/api/customer'
 import type { Customer } from '@/api/types'
-import { industryLabel } from '@/api/types'
+import { industryFallback } from '@/api/types'
+import { useDataDict } from '@/hooks/useDataDict'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import PullToRefresh from '@/components/PullToRefresh'
 import SwipeAction from '@/components/SwipeAction'
@@ -20,6 +21,8 @@ export default function MobileCustomers() {
   const [loading, setLoading] = useState(false)
   const [keyword, setKeyword] = useState('')
   const navigate = useNavigate()
+  const { options: industryOpts } = useDataDict('industry', industryFallback)
+  const industryMap = Object.fromEntries(industryOpts.map((o) => [o.value, o.label]))
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -97,7 +100,7 @@ export default function MobileCustomers() {
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-900 truncate">{c.name}</div>
                   <div className="text-sm text-slate-500 truncate">
-                    {[industryLabel(c.industry), c.region].filter(Boolean).join(' · ') || '-'}
+                    {[c.industry ? (industryMap[c.industry] || c.industry) : '', c.region].filter(Boolean).join(' · ') || '-'}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

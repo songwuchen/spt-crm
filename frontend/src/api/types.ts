@@ -934,10 +934,9 @@ export const industryLabels: Record<string, string> = {
   bulk_material_intelligent: '智能化大宗物料管理',
 }
 
-export function industryLabel(value?: string | null): string {
-  if (!value) return ''
-  return industryLabels[value] || value
-}
+// Fallback options for useDataDict('industry') when the dict API is unavailable —
+// mobile uses the live dict (same as desktop) and falls back to these business codes.
+export const industryFallback = Object.entries(industryLabels).map(([value, label]) => ({ label, value }))
 
 export const stageLabels: Record<string, string> = {
   S1: '线索确认', S2: '需求分析', S3: '方案报价',

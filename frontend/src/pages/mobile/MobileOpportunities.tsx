@@ -8,12 +8,15 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import PullToRefresh from '@/components/PullToRefresh'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
+const COLUMN_CAP = 12 // cards rendered per kanban column (overview keeps the DOM light)
+const LIST_PAGE = 30  // cards per "load more" page in the single-stage list
 
 export default function MobileOpportunities() {
   usePageTitle('商机')
   const [projects, setProjects] = useState<OpportunityProject[]>([])
   const [loading, setLoading] = useState(false)
   const [activeStage, setActiveStage] = useState<string | null>(null)
+  const [visibleCount, setVisibleCount] = useState(LIST_PAGE)
   const navigate = useNavigate()
 
   const fetchData = async () => {
@@ -27,6 +30,8 @@ export default function MobileOpportunities() {
   }
 
   useEffect(() => { fetchData() }, [])
+  // Reset the "load more" window whenever the selected stage changes.
+  useEffect(() => { setVisibleCount(LIST_PAGE) }, [activeStage])
 
   const filtered = activeStage ? projects.filter((p) => p.stage_code === activeStage) : projects
 
@@ -74,7 +79,7 @@ export default function MobileOpportunities() {
       ) : activeStage !== null ? (
         // Filtered list view
         <div className="space-y-2">
-          {filtered.map((p) => (
+          {filtered.slice(0, visibleCount).map((p) => (
             <div
               key={p.id}
               onClick={() => navigate(`/m/opportunities/${p.id}`)}
@@ -92,6 +97,14 @@ export default function MobileOpportunities() {
               </div>
             </div>
           ))}
+          {filtered.length > visibleCount && (
+            <button
+              onClick={() => setVisibleCount((n) => n + LIST_PAGE)}
+              className="w-full py-2.5 text-sm font-bold text-primary bg-white rounded-xl border border-slate-100 shadow-sm active:bg-slate-50"
+            >
+              加载更多（剩余 {filtered.length - visibleCount}）
+            </button>
+          )}
           {filtered.length === 0 && (
             <div className="text-center text-sm text-slate-400 py-10">暂无商机</div>
           )}
@@ -105,7 +118,7 @@ export default function MobileOpportunities() {
                 {g.label} <span className="ml-1 opacity-60">({g.items.length})</span>
               </div>
               <div className="bg-slate-50 rounded-b-lg border border-t-0 border-slate-200 p-2 space-y-2 min-h-[200px]">
-                {g.items.map((p) => (
+                {g.items.slice(0, COLUMN_CAP).map((p) => (
                   <div
                     key={p.id}
                     onClick={() => navigate(`/m/opportunities/${p.id}`)}
@@ -118,6 +131,14 @@ export default function MobileOpportunities() {
                     </div>
                   </div>
                 ))}
+                {g.items.length > COLUMN_CAP && (
+                  <button
+                    onClick={() => setActiveStage(g.stage)}
+                    className="w-full text-center text-[11px] font-bold text-primary py-2 active:opacity-70"
+                  >
+                    查看全部 {g.items.length} 个 →
+                  </button>
+                )}
                 {g.items.length === 0 && (
                   <div className="text-center text-[10px] text-slate-300 py-6">空</div>
                 )}
