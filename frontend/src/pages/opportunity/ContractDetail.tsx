@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, InputNumber, Input, Table, Alert, Tabs, Steps, message } from 'antd'
+import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, InputNumber, Input, Table, Alert, Checkbox, Tabs, Steps, message } from 'antd'
 import { CopyOutlined, CheckCircleOutlined, AuditOutlined, RobotOutlined, PrinterOutlined, FilePdfOutlined, EditOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useParams, useNavigate } from 'react-router-dom'
 import { contractApi } from '@/api/contract'
 import { paymentApi } from '@/api/payment'
+import { deliveryApi } from '@/api/delivery'
 import { approvalApi } from '@/api/approval'
 import { aiApi } from '@/api/ai'
 import AttachmentPanel from '@/components/AttachmentPanel'
@@ -71,11 +72,14 @@ export default function ContractDetail() {
   }
 
   // 根据付款条款生成回款计划
-  type DraftPlan = { remark?: string; amount: number | null; due_date: dayjs.Dayjs | null }
+  type DraftPlan = { remark?: string; amount: number | null; due_date: dayjs.Dayjs | null; trigger_milestone_code?: string }
   const [genModal, setGenModal] = useState(false)
   const [genRows, setGenRows] = useState<DraftPlan[]>([])
   const [genSaving, setGenSaving] = useState(false)
-  const [existingPlanCount, setExistingPlanCount] = useState(0)
+  const [sameContractCount, setSameContractCount] = useState(0)  // 本合同上次生成的计划数
+  const [otherPlanCount, setOtherPlanCount] = useState(0)        // 其它来源（手工/其它合同）计划数
+  const [replaceExisting, setReplaceExisting] = useState(true)
+  const [milestoneOpts, setMilestoneOpts] = useState<{ label: string; value: string }[]>([])
 
   /** 把合同付款条款映射成回款计划草稿（兼容简道云旧 _widget_ 字段） */
   const deriveDraftPlans = (): DraftPlan[] => {
@@ -101,11 +105,22 @@ export default function ContractDetail() {
 
   const openGenModal = async () => {
     setGenRows(deriveDraftPlans())
+    setReplaceExisting(true)
     setGenModal(true)
     try {
-      const r = await paymentApi.listPlans(projectId!)
-      setExistingPlanCount((r.data || []).length)
-    } catch { setExistingPlanCount(0) }
+      const [plansRes, msRes] = await Promise.all([
+        paymentApi.listPlans(projectId!),
+        deliveryApi.listMilestones(projectId!),
+      ])
+      const plans = plansRes.data || []
+      setSameContractCount(plans.filter((p) => p.source_contract_id === cid).length)
+      setOtherPlanCount(plans.filter((p) => p.source_contract_id !== cid).length)
+      setMilestoneOpts((msRes.data || []).map((m) => ({
+        label: `${m.milestone_code}${m.name ? ' · ' + m.name : ''}`, value: m.milestone_code,
+      })))
+    } catch {
+      setSameContractCount(0); setOtherPlanCount(0); setMilestoneOpts([])
+    }
   }
 
   const updateGenRow = (i: number, key: keyof DraftPlan, val: unknown) =>
@@ -122,8 +137,12 @@ export default function ContractDetail() {
         amount: r.amount ?? undefined,
         due_date: r.due_date ? r.due_date.format('YYYY-MM-DD') : undefined,
         remark: r.remark || undefined,
+        trigger_milestone_code: r.trigger_milestone_code || undefined,
       }))
-      await paymentApi.bulkCreatePlans(projectId!, plans)
+      await paymentApi.bulkCreatePlans(projectId!, plans, {
+        source_contract_id: cid,
+        replace_existing: sameContractCount > 0 ? replaceExisting : false,
+      })
       message.success(`已生成 ${plans.length} 条回款计划`)
       setGenModal(false)
       Modal.confirm({
@@ -326,16 +345,23 @@ export default function ContractDetail() {
 
       {/* 生成回款计划 Modal */}
       <Modal title="生成回款计划" open={genModal} onOk={handleGenerate} confirmLoading={genSaving}
-        onCancel={() => setGenModal(false)} width={760}
+        onCancel={() => setGenModal(false)} width={920}
         okText={genRows.length ? `确认生成 ${genRows.length} 条` : '确认生成'}
         okButtonProps={{ disabled: genRows.length === 0 }} cancelText="取消">
         <div className="py-2 space-y-3">
           <div className="text-sm text-slate-500">
-            已根据合同付款条款预填，请核对金额与到期日期后确认。生成的计划可在商机「回款」中继续编辑。
+            已根据合同付款条款预填，请核对金额、到期日期与关联里程碑后确认。生成的计划可在商机「回款」中继续编辑。
           </div>
-          {existingPlanCount > 0 && (
-            <Alert type="warning" showIcon
-              message={`该商机已有 ${existingPlanCount} 条回款计划，本次为追加生成，不会覆盖原有计划。`} />
+          {sameContractCount > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg">
+              <Checkbox checked={replaceExisting} onChange={(e) => setReplaceExisting(e.target.checked)}>
+                覆盖本合同上次生成的 {sameContractCount} 条计划（取消勾选则追加）
+              </Checkbox>
+            </div>
+          )}
+          {otherPlanCount > 0 && (
+            <Alert type="info" showIcon
+              message={`该商机另有 ${otherPlanCount} 条非本合同生成的计划（手工录入或其它合同），不受影响。`} />
           )}
           <Table size="small" rowKey={(_, i) => String(i)} pagination={false} dataSource={genRows}
             locale={{ emptyText: '无付款条款可生成，点击下方「添加一行」手动录入' }}
@@ -356,10 +382,19 @@ export default function ContractDetail() {
                 ),
               },
               {
-                title: '到期日期', key: 'due_date', width: 160,
+                title: '到期日期', key: 'due_date', width: 150,
                 render: (_: unknown, _r: DraftPlan, i: number) => (
                   <DatePicker size="small" style={{ width: '100%' }} value={genRows[i].due_date}
                     onChange={(d) => updateGenRow(i, 'due_date', d)} />
+                ),
+              },
+              {
+                title: '关联里程碑', key: 'milestone', width: 190,
+                render: (_: unknown, _r: DraftPlan, i: number) => (
+                  <Select size="small" style={{ width: '100%' }} allowClear showSearch optionFilterProp="label"
+                    placeholder={milestoneOpts.length ? '进度款挂里程碑（可选）' : '暂无里程碑'}
+                    value={genRows[i].trigger_milestone_code} options={milestoneOpts}
+                    onChange={(v) => updateGenRow(i, 'trigger_milestone_code', v)} />
                 ),
               },
               {

@@ -400,6 +400,7 @@ export interface PaymentPlanItem {
   due_date?: string
   amount?: number
   trigger_milestone_code?: string
+  source_contract_id?: string
   status: string
   remark?: string
   assignee_id?: string

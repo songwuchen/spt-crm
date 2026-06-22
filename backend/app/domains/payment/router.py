@@ -35,6 +35,7 @@ def _plan_dict(p) -> dict:
         "due_date": str(p.due_date) if p.due_date else None,
         "amount": float(p.amount) if p.amount is not None else None,
         "trigger_milestone_code": p.trigger_milestone_code,
+        "source_contract_id": p.source_contract_id,
         "status": p.status, "remark": p.remark,
         "assignee_id": p.assignee_id, "assignee_name": p.assignee_name,
         "department_id": p.department_id, "department_name": p.department_name,

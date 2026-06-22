@@ -33,6 +33,9 @@ class PaymentPlanCreate(BaseModel):
 
 class PaymentPlanBulkCreate(BaseModel):
     plans: list[PaymentPlanCreate] = Field(default_factory=list)
+    source_contract_id: Optional[str] = None
+    # 覆盖重生成：删除本合同上次生成的计划后再插入（需配合 source_contract_id）
+    replace_existing: bool = False
 
 
 class PaymentPlanUpdate(BaseModel):

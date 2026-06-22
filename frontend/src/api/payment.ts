@@ -17,8 +17,8 @@ export const paymentApi = {
     client.get<unknown, ApiResponse<PaymentPlanItem[]>>(`/api/v1/projects/${projectId}/payment_plans`),
   createPlan: (projectId: string, data: Record<string, unknown>) =>
     client.post<unknown, ApiResponse<PaymentPlanItem>>(`/api/v1/projects/${projectId}/payment_plans`, data),
-  bulkCreatePlans: (projectId: string, plans: Record<string, unknown>[]) =>
-    client.post<unknown, ApiResponse<PaymentPlanItem[]>>(`/api/v1/projects/${projectId}/payment_plans/bulk`, { plans }),
+  bulkCreatePlans: (projectId: string, plans: Record<string, unknown>[], opts?: { source_contract_id?: string; replace_existing?: boolean }) =>
+    client.post<unknown, ApiResponse<PaymentPlanItem[]>>(`/api/v1/projects/${projectId}/payment_plans/bulk`, { plans, ...(opts || {}) }),
   updatePlan: (id: string, data: Record<string, unknown>) =>
     client.put<unknown, ApiResponse<PaymentPlanItem>>(`/api/v1/payment_plans/${id}`, data),
   deletePlan: (id: string) =>

@@ -1019,9 +1019,15 @@ export default function OpportunityDetail() {
                       </div>
                       <Table rowKey="id" dataSource={plans} pagination={false} size="small"
                         columns={[
-                          { title: '计划编号', dataIndex: 'plan_no' },
+                          { title: '计划编号', dataIndex: 'plan_no', render: (v: string, r: PaymentPlanItem) => (
+                            <span className="flex items-center gap-1">
+                              {v}
+                              {r.source_contract_id && <Tag color="blue" className="!mr-0">合同生成</Tag>}
+                            </span>
+                          )},
                           { title: '到期日', dataIndex: 'due_date', render: (v: string) => v || '-' },
                           { title: '金额', dataIndex: 'amount', render: (v: number) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
+                          { title: '里程碑', dataIndex: 'trigger_milestone_code', render: (v: string) => v || '-' },
                           { title: '状态', dataIndex: 'status', render: (v: string) => {
                             const c: Record<string, string> = { pending: 'default', paid: 'success', overdue: 'error' }
                             const l: Record<string, string> = { pending: '待回款', paid: '已回款', overdue: '已逾期' }

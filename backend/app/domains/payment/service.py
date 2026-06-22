@@ -184,21 +184,41 @@ async def bulk_create_plans(
     回款计划 in one shot. generate_code only flushes (no commit), so the whole
     batch shares a single commit.
     """
+    # 覆盖重生成：先删除本合同上次生成的计划（仅限同项目+同来源合同）
+    deleted = 0
+    if data.replace_existing and data.source_contract_id:
+        existing = (await db.execute(
+            select(PaymentPlan).where(
+                PaymentPlan.tenant_id == tenant_id,
+                PaymentPlan.project_id == project_id,
+                PaymentPlan.source_contract_id == data.source_contract_id,
+            )
+        )).scalars().all()
+        for p in existing:
+            await db.delete(p)
+            deleted += 1
+
     plans: list[PaymentPlan] = []
     for item in data.plans:
         dump = item.model_dump(exclude_unset=True)
         if not dump.get("plan_no"):
             dump["plan_no"] = await generate_code(db, tenant_id, "payment_plan")
-        plan = PaymentPlan(id=generate_uuid(), tenant_id=tenant_id, project_id=project_id, **dump)
+        plan = PaymentPlan(
+            id=generate_uuid(), tenant_id=tenant_id, project_id=project_id,
+            source_contract_id=data.source_contract_id, **dump,
+        )
         db.add(plan)
         plans.append(plan)
     await db.commit()
     for plan in plans:
         await db.refresh(plan)
-    if plans:
+    if plans or deleted:
+        summary = f"批量生成回款计划: {len(plans)} 条"
+        if deleted:
+            summary += f"（覆盖删除 {deleted} 条）"
         await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                          action="create", resource_type="payment_plan", resource_id=project_id,
-                         summary=f"批量生成回款计划: {len(plans)} 条")
+                         summary=summary)
     return plans
 
 

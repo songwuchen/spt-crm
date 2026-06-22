@@ -26,6 +26,9 @@ class PaymentPlan(TenantScopedBase):
     due_date: Mapped[str | None] = mapped_column(Date)
     amount: Mapped[float | None] = mapped_column(Numeric(18, 2))
     trigger_milestone_code: Mapped[str | None] = mapped_column(String(32))
+    # Which contract generated this plan (null = manually created). Enables
+    # overwrite-regeneration scoped to a single contract.
+    source_contract_id: Mapped[str | None] = mapped_column(String(36), index=True)
     status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/paid/overdue
     remark: Mapped[str | None] = mapped_column(Text)
     # 子模块负责人（多部门/多人协作）
