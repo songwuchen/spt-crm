@@ -170,9 +170,6 @@ export default function Login() {
             </Button>
           )}
         </Form>
-        <p className="text-center text-gray-400 text-sm mt-4">
-          演示账号: admin / Admin12345
-        </p>
       </Card>
     </div>
   )

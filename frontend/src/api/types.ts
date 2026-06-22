@@ -916,6 +916,29 @@ export const sourceLabels: Record<string, string> = {
   inbound: '官网/入站', partner: '合作伙伴', call: '电话',
 }
 
+// 行业字典 (DataDictionary dict_type="industry"; see backend/scripts/seed_lead_dicts.py).
+// Migrated customers may store either these codes or free-text Chinese — map known
+// codes to labels and pass anything else through unchanged.
+export const industryLabels: Record<string, string> = {
+  screening_metallurgy: '筛分分选-冶金',
+  screening_mining: '筛分分选-矿山',
+  screening_aggregate: '筛分分选-砂石',
+  screening_coking: '筛分分选-焦化',
+  screening_coal: '筛分分选-煤炭',
+  screening_power: '筛分分选-电力',
+  screening_chemical: '筛分分选-化工',
+  screening_pharma: '筛分分选-医药',
+  screening_spare_parts: '筛分分选-备件',
+  circular_economy: '循环经济',
+  scrap_steel: '废钢利用',
+  bulk_material_intelligent: '智能化大宗物料管理',
+}
+
+export function industryLabel(value?: string | null): string {
+  if (!value) return ''
+  return industryLabels[value] || value
+}
+
 export const stageLabels: Record<string, string> = {
   S1: '线索确认', S2: '需求分析', S3: '方案报价',
   S4: '商务谈判', S5: '合同签订', S6: '交付验收',

@@ -38,6 +38,9 @@ export default function MobileOpportunityDetail() {
   const [project, setProject] = useState<ProjectInfo | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [tab, setTab] = useState<'info' | 'activities'>('info')
+  // Hooks must run before any early return — calling useSwipe after the
+  // `if (!project)` guard changes the hook count between renders (React #310).
+  const swipeHandlers = useSwipe({ onSwipeRight: () => navigate(-1) })
 
   useEffect(() => {
     if (!id) return
@@ -51,7 +54,6 @@ export default function MobileOpportunityDetail() {
 
   const sc = stageColors[project.stage_code] || stageColors.S1
   const risk = riskLabels[project.risk_level || ''] || null
-  const swipeHandlers = useSwipe({ onSwipeRight: () => navigate(-1) })
 
   return (
     <div {...swipeHandlers}>

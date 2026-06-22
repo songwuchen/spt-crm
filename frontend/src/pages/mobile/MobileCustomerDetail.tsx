@@ -4,6 +4,7 @@ import { message } from 'antd'
 import { customerApi } from '@/api/customer'
 import { contactApi } from '@/api/contact'
 import { activityApi } from '@/api/activity'
+import { industryLabel } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface CustomerInfo {
@@ -106,7 +107,7 @@ export default function MobileCustomerDetail() {
             <div className="flex justify-between"><span className="text-sm text-slate-400">简称</span><span className="text-sm text-slate-700">{customer.short_name}</span></div>
           )}
           {customer.industry && (
-            <div className="flex justify-between"><span className="text-sm text-slate-400">行业</span><span className="text-sm text-slate-700">{customer.industry}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-slate-400">行业</span><span className="text-sm text-slate-700">{industryLabel(customer.industry)}</span></div>
           )}
           {customer.region && (
             <div className="flex justify-between"><span className="text-sm text-slate-400">区域</span><span className="text-sm text-slate-700">{customer.region}</span></div>

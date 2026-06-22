@@ -4,6 +4,7 @@ import { Input, Spin, message } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import { customerApi } from '@/api/customer'
 import type { Customer } from '@/api/types'
+import { industryLabel } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import PullToRefresh from '@/components/PullToRefresh'
 import SwipeAction from '@/components/SwipeAction'
@@ -96,7 +97,7 @@ export default function MobileCustomers() {
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-900 truncate">{c.name}</div>
                   <div className="text-sm text-slate-500 truncate">
-                    {[c.industry, c.region].filter(Boolean).join(' · ') || '-'}
+                    {[industryLabel(c.industry), c.region].filter(Boolean).join(' · ') || '-'}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

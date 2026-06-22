@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { authApi } from '@/api/auth'
 import NotificationBell from '@/components/NotificationBell'
 import ErrorBoundary from '@/components/ErrorBoundary'
 
@@ -15,6 +16,10 @@ export default function MobileLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
+  const token = useAuthStore((s) => s.token)
+  const setUser = useAuthStore((s) => s.setUser)
+  const setUserLoading = useAuthStore((s) => s.setUserLoading)
+  const logout = useAuthStore((s) => s.logout)
   const [offline, setOffline] = useState(!navigator.onLine)
 
   useEffect(() => {
@@ -24,6 +29,24 @@ export default function MobileLayout() {
     window.addEventListener('offline', off)
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
   }, [])
+
+  // Load current user. The mobile domain (link.fourier.net.cn) enters /m directly
+  // without ever mounting MainLayout, so MobileLayout must fetch /auth/me itself —
+  // otherwise greeting/avatar/profile/permissions stay empty.
+  useEffect(() => {
+    if (!token) {
+      setUserLoading(false)
+      navigate('/login', { replace: true })
+      return
+    }
+    setUserLoading(true)
+    authApi.me()
+      .then((res) => { if (res.data) setUser(res.data) })
+      .catch(() => {
+        logout()
+        navigate('/login', { replace: true })
+      })
+  }, [token])
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50">

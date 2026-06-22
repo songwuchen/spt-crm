@@ -20,6 +20,12 @@ button {
   padding: 0;
 }
 
+/* Native form controls use border-box so `w-full` + padding/border doesn't
+   overflow the container (preflight is disabled, so this isn't applied globally). */
+input, textarea, select {
+  box-sizing: border-box;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

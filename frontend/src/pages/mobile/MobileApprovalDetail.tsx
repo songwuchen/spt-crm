@@ -62,6 +62,8 @@ export default function MobileApprovalDetail() {
   const [delegateReason, setDelegateReason] = useState('')
 
   const userSelect = useUserSelect()
+  // useSwipe must run before the loading/!flow early returns (React #310).
+  const swipeHandlers = useSwipe({ onSwipeRight: () => navigate(-1) })
 
   useEffect(() => {
     if (!id) return
@@ -158,8 +160,6 @@ export default function MobileApprovalDetail() {
   }
 
   const statusText = flow.status === 'pending' ? '审批中' : flow.status === 'approved' ? '已通过' : flow.status === 'withdrawn' ? '已撤回' : '已拒绝'
-
-  const swipeHandlers = useSwipe({ onSwipeRight: () => navigate(-1) })
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-7rem)]" {...swipeHandlers}>
