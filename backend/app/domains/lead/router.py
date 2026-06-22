@@ -189,14 +189,20 @@ async def update_lead(
     return ok(_lead_dict(l))
 
 
+class QualifyBody(BaseModel):
+    create_opportunity: bool = False
+
+
 @router.post("/{lead_id}/qualify")
 async def qualify_lead(
     lead_id: str,
+    body: Optional[QualifyBody] = None,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("lead:qualify")),
 ):
-    result = await service.qualify_lead(db, tenant_id, lead_id, current_user)
+    create_opp = body.create_opportunity if body else False
+    result = await service.qualify_lead(db, tenant_id, lead_id, current_user, create_opportunity=create_opp)
     return ok(result)
 
 

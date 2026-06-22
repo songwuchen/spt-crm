@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Space, Modal, Spin, Tabs, message } from 'antd'
+import { Button, Space, Modal, Spin, Tabs, Checkbox, message } from 'antd'
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
@@ -86,13 +86,23 @@ export default function LeadDetail() {
   useEffect(() => { if (id) fetchLead() }, [id])
 
   const handleQualify = () => {
+    let createOpp = true
     Modal.confirm({
       title: '确认转化',
-      content: '将此线索转化为客户？转化后线索状态将变为"已转化"。',
+      content: (
+        <div>
+          <p className="mb-2">将此线索转化为客户？转化后线索状态将变为"已转化"。</p>
+          <Checkbox defaultChecked onChange={(e) => { createOpp = e.target.checked }}>
+            同时创建商机（带入需求摘要 / 预算）
+          </Checkbox>
+        </div>
+      ),
       onOk: async () => {
         try {
-          const res = await leadApi.qualify(id!)
-          message.success(`已转化为客户: ${res.data.customer_name}`)
+          const res = await leadApi.qualify(id!, createOpp)
+          message.success(res.data.project_code
+            ? `已转化为客户「${res.data.customer_name}」并创建商机 ${res.data.project_code}`
+            : `已转化为客户: ${res.data.customer_name}`)
           fetchLead()
         } catch {
           message.error('转化失败')

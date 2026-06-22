@@ -167,8 +167,10 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     return lead
 
 
-async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict) -> dict:
-    """Convert a lead into a customer."""
+async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict,
+                       create_opportunity: bool = False) -> dict:
+    """Convert a lead into a customer. Optionally also spin up an opportunity (商机)
+    carrying the lead's demand/budget context, so sales doesn't re-key it."""
     lead = await get_lead(db, tenant_id, lead_id)
     if lead.status == "qualified":
         raise BusinessException(code=LEAD_ALREADY_QUALIFIED, message="线索已转化")
@@ -187,24 +189,56 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
 
     lead.status = "qualified"
     lead.converted_customer_id = customer.id
+
+    # Optionally create an opportunity from the lead, carrying demand/budget context.
+    project = None
+    if create_opportunity:
+        from app.domains.project.models import OpportunityProject
+        from app.common.code_generator import generate_code
+        remark_parts = []
+        if lead.budget_range:
+            remark_parts.append(f"预算: {lead.budget_range}")
+        if lead.remark:
+            remark_parts.append(lead.remark)
+        project = OpportunityProject(
+            id=generate_uuid(), tenant_id=tenant_id,
+            project_code=await generate_code(db, tenant_id, "project"),
+            name=lead.title or lead.company_name or "新商机",
+            customer_id=customer.id, stage_code="S1",
+            owner_id=lead.owner_id, owner_name=lead.owner_name,
+            key_requirements_json={"summary": lead.demand_summary} if lead.demand_summary else None,
+            remark="\n".join(remark_parts) or None,
+        )
+        db.add(project)
+
     await db.commit()
     await db.refresh(lead)
     await db.refresh(customer)
+    if project is not None:
+        await db.refresh(project)
 
+    summary = f"转化线索: {lead.title} -> 客户: {customer.name}"
+    if project is not None:
+        summary += f" + 商机: {project.project_code}"
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="qualify", resource_type="lead", resource_id=lead.id,
-                     summary=f"转化线索: {lead.title} -> 客户: {customer.name}")
+                     summary=summary)
 
     # Auto-activity: record lead qualification on lead timeline
     try:
         from app.common.auto_activity import record_activity
+        act_msg = f"线索转化为客户: {customer.name}" + (f"，并创建商机 {project.project_code}" if project is not None else "")
         await record_activity(db, tenant_id, "lead", lead.id, "system",
-                              f"线索转化为客户: {customer.name}", None,
+                              act_msg, None,
                               user["sub"], user.get("real_name") or user.get("username"))
     except Exception as e:
         logger.warning("Auto-activity record for lead qualification failed: %s", e)
 
-    return {"lead_id": lead.id, "customer_id": customer.id, "customer_name": customer.name}
+    result = {"lead_id": lead.id, "customer_id": customer.id, "customer_name": customer.name}
+    if project is not None:
+        result["project_id"] = project.id
+        result["project_code"] = project.project_code
+    return result
 
 
 async def delete_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict):
