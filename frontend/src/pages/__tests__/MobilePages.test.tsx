@@ -54,6 +54,13 @@ vi.mock('@/api/notification', () => ({
   },
 }))
 
+// MobileCustomers/Detail call useDataDict('industry'); mock it so it returns the
+// fallback synchronously instead of leaking an async settings API call (which would
+// hit the real axios client and touch `window` after teardown → unhandled error).
+vi.mock('@/hooks/useDataDict', () => ({
+  useDataDict: (_type: string, fallback?: { label: string; value: string }[]) => ({ options: fallback ?? [], loading: false }),
+}))
+
 vi.mock('@/stores/useAuthStore', () => ({
   useAuthStore: vi.fn((selector: any) => {
     const state = { user: { username: 'admin', real_name: '管理员' }, token: 'test' }
