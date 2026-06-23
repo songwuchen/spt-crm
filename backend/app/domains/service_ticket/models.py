@@ -9,6 +9,7 @@ class ServiceTicket(TenantScopedBase):
 
     customer_id: Mapped[str | None] = mapped_column(String(36), index=True)
     project_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    order_id: Mapped[str | None] = mapped_column(String(36), index=True)  # 关联客户订单，快速获取产品信息
     ticket_no: Mapped[str] = mapped_column(String(64), nullable=False)
     type: Mapped[str] = mapped_column(String(32), nullable=False)
     # fault/maintenance/training/spare/upgrade

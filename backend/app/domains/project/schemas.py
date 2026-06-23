@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import date
 from pydantic import BaseModel, Field, field_validator
 
@@ -11,7 +11,7 @@ class ProjectCreate(BaseModel):
     probability: Optional[int] = Field(None, ge=0, le=100)
     close_date_expect: Optional[date] = None
     competitors_json: Optional[dict] = None
-    key_requirements_json: Optional[dict] = None
+    key_requirements_json: Optional[Union[dict, list]] = None  # 多条需求明细(数组)，兼容旧版单条 dict
     risk_level: Optional[str] = None
     has_guarantee: Optional[bool] = None
     has_weight_requirement: Optional[bool] = None
@@ -35,7 +35,7 @@ class ProjectUpdate(BaseModel):
     probability: Optional[int] = Field(None, ge=0, le=100)
     close_date_expect: Optional[date] = None
     competitors_json: Optional[dict] = None
-    key_requirements_json: Optional[dict] = None
+    key_requirements_json: Optional[Union[dict, list]] = None  # 多条需求明细(数组)，兼容旧版单条 dict
     risk_level: Optional[str] = None
     has_guarantee: Optional[bool] = None
     has_weight_requirement: Optional[bool] = None

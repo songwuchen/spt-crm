@@ -105,6 +105,15 @@ async def create_order(db: AsyncSession, tenant_id: str, data: OrderCreate, user
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="create", resource_type="order", resource_id=order.id,
                      summary=f"创建订单: {order.order_no}")
+
+    # 生成待办，推送给负责人（自己给自己建单不通知）；外部钉钉/企微由 outbox 事件转发
+    if order.owner_id and order.owner_id != user["sub"]:
+        try:
+            from app.common.auto_notify import notify_order_assigned
+            await notify_order_assigned(db, tenant_id, order.order_no, order.owner_id,
+                                        user.get("real_name") or user.get("username"), order.id)
+        except Exception:
+            pass
     return order
 
 

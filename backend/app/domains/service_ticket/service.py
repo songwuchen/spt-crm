@@ -100,6 +100,18 @@ async def create_ticket(db: AsyncSession, tenant_id: str, data: ServiceTicketCre
     return ticket
 
 
+async def submit_for_approval(db: AsyncSession, tenant_id: str, ticket_id: str, user: dict) -> ServiceTicket:
+    """提交售后工单审批（内勤发起）。按 service_ticket 审批策略自动建立审批流。"""
+    ticket = await get_ticket(db, tenant_id, ticket_id)
+    from app.domains.approval.service import auto_trigger_approval
+    await auto_trigger_approval(db, tenant_id, "service_ticket", ticket.id,
+                                f"售后工单审批: {ticket.ticket_no}", user)
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="submit", resource_type="service_ticket", resource_id=ticket.id,
+                     summary=f"提交售后审批: {ticket.ticket_no}")
+    return ticket
+
+
 async def update_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, data: ServiceTicketUpdate, user: dict) -> ServiceTicket:
     ticket = await get_ticket(db, tenant_id, ticket_id)
     old_assignee = ticket.assigned_to_id

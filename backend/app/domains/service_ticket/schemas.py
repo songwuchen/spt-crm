@@ -5,6 +5,7 @@ from pydantic import BaseModel
 class ServiceTicketCreate(BaseModel):
     customer_id: Optional[str] = None
     project_id: Optional[str] = None
+    order_id: Optional[str] = None
     type: str
     priority: Optional[str] = "medium"
     description: Optional[str] = None
@@ -18,6 +19,7 @@ class ServiceTicketUpdate(BaseModel):
     status: Optional[str] = None
     description: Optional[str] = None
     resolution: Optional[str] = None
+    order_id: Optional[str] = None
     assigned_to_id: Optional[str] = None
     assigned_to_name: Optional[str] = None
 

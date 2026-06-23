@@ -99,6 +99,18 @@ async def notify_project_assigned(db: AsyncSession, tenant_id: str, project_name
     )
 
 
+async def notify_order_assigned(db: AsyncSession, tenant_id: str, order_no: str,
+                                 assignee_id: str, user_name: str, order_id: str):
+    """Notify owner when an order is created/assigned to them (生成待办，推送给负责人)."""
+    await send_notification(
+        db, tenant_id, recipient_id=assignee_id,
+        type="order_assigned",
+        title=f"您有新订单待处理: {order_no}",
+        content=f"创建人: {user_name}",
+        biz_type="order", biz_id=order_id, sender_name=user_name,
+    )
+
+
 async def notify_approval_submitted(db: AsyncSession, tenant_id: str, approver_id: str,
                                      title: str, user_name: str, flow_id: str):
     """Notify approver when an approval is submitted to them."""

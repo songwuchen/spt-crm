@@ -163,7 +163,7 @@ export interface OpportunityProject {
   probability?: number
   close_date_expect?: string
   competitors_json?: Record<string, unknown>
-  key_requirements_json?: Record<string, unknown>
+  key_requirements_json?: Record<string, unknown> | unknown[]
   risk_level?: string
   owner_id?: string
   owner_name?: string
@@ -457,6 +457,7 @@ export interface ServiceTicketItem {
   id: string
   customer_id?: string
   project_id?: string
+  order_id?: string
   ticket_no: string
   type: string
   priority: string

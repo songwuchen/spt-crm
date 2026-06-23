@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Button, Tag, Select, Input, Space, Spin, Descriptions, Modal, Rate, message } from 'antd'
+import { Button, Tag, Select, Input, Space, Spin, Descriptions, Modal, Rate, Table, message } from 'antd'
 import { useParams, useNavigate } from 'react-router-dom'
 import { serviceTicketApi } from '@/api/serviceTicket'
+import { orderApi } from '@/api/order'
 import { activityApi } from '@/api/activity'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
-import type { ServiceTicketItem, ActivityItem } from '@/api/types'
+import type { ServiceTicketItem, ActivityItem, Order } from '@/api/types'
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
@@ -31,6 +32,8 @@ export default function ServiceTicketDetail() {
   const [ticket, setTicket] = useState<ServiceTicketItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [activities, setActivities] = useState<ActivityItem[]>([])
+  const [orderInfo, setOrderInfo] = useState<Order | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   // Edit fields
   const [editModal, setEditModal] = useState(false)
@@ -69,9 +72,27 @@ export default function ServiceTicketDetail() {
     try {
       const res = await serviceTicketApi.get(id!)
       setTicket(res.data)
+      if (res.data.order_id) {
+        orderApi.get(res.data.order_id).then((r) => setOrderInfo(r.data)).catch(() => setOrderInfo(null))
+      } else {
+        setOrderInfo(null)
+      }
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSubmitApproval = () => {
+    Modal.confirm({
+      title: '提交售后审批', content: `确认提交工单 ${ticket?.ticket_no} 进入审批流程（生产主任审批并分配售后人员）？`,
+      onOk: async () => {
+        setSubmitting(true)
+        try { await serviceTicketApi.submit(id!); message.success('已提交审批，请在审批中心查看进度') }
+        catch { message.error('提交失败，请确认已在「系统设置→审批策略」配置售后审批') }
+        finally { setSubmitting(false) }
+        fetchTicket()
+      },
+    })
   }
 
   const fetchActivities = async () => {
@@ -154,6 +175,9 @@ export default function ServiceTicketDetail() {
               {statusLabels[s]}
             </Button>
           ))}
+          {(ticket.status === 'open' || ticket.status === 'assigned') && (
+            <Button type="primary" ghost loading={submitting} onClick={handleSubmitApproval}>提交审批</Button>
+          )}
           <Button onClick={openAssignModal}>分配</Button>
           <Button onClick={openEditModal}>编辑</Button>
           <SubscribeButton bizType="service_ticket" bizId={id!} bizName={ticket.ticket_no} />
@@ -180,6 +204,33 @@ export default function ServiceTicketDetail() {
             </h3>
             <p className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.description || '暂无描述'}</p>
           </div>
+
+          {/* 关联订单 + 产品信息 */}
+          {orderInfo && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-indigo-500" style={{ fontSize: 18 }}>inventory_2</span>
+                  关联订单 · 产品信息
+                </h3>
+                <a className="text-primary text-sm font-bold" onClick={() => navigate('/orders')}>
+                  {orderInfo.order_no}
+                </a>
+              </div>
+              <Table
+                rowKey={(r, i) => (r.id || String(i)) as string}
+                size="small" pagination={false}
+                dataSource={orderInfo.lines || []}
+                locale={{ emptyText: '该订单暂无产品明细' }}
+                columns={[
+                  { title: '产品名称', dataIndex: 'product_name' },
+                  { title: '规格型号', dataIndex: 'spec', render: (v: string) => v || '-' },
+                  { title: '单位', dataIndex: 'unit', width: 60, render: (v: string) => v || '-' },
+                  { title: '数量', dataIndex: 'quantity', width: 70, align: 'right' },
+                ]}
+              />
+            </div>
+          )}
 
           {/* Resolution */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">

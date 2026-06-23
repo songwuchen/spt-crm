@@ -634,9 +634,32 @@ export default function OpportunityDetail() {
             <InfoField label="是否有重量要求" value={(project as any).has_weight_requirement == null ? undefined : ((project as any).has_weight_requirement ? '是' : '否')} />
             <InfoField label="是否使用呆滞设备" value={(project as any).uses_idle_equipment == null ? undefined : ((project as any).uses_idle_equipment ? '是' : '否')} />
             <InfoField label="状态" value={project.status} />
-            <InfoField label="需求摘要" value={(project.key_requirements_json as any)?.summary} />
-            <InfoField label="验收标准" value={(project.key_requirements_json as any)?.acceptance} />
-            <InfoField label="需求已确认" value={(project.key_requirements_json as any)?.confirmed == null ? undefined : ((project.key_requirements_json as any)?.confirmed ? '是' : '否')} />
+            {(() => {
+              const kr = project.key_requirements_json as any
+              const rows: any[] = Array.isArray(kr)
+                ? kr
+                : (kr && (kr.summary || kr.acceptance || kr.confirmed)
+                    ? [{ title: '关键需求', tech_spec: kr.summary, acceptance: kr.acceptance, confirmed: kr.confirmed }]
+                    : [])
+              if (rows.length === 0) return <InfoField label="关键需求" value={undefined} />
+              return (
+                <div className="py-3 border-b border-slate-50 last:border-0">
+                  <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">关键需求（{rows.length}）</div>
+                  <div className="space-y-2">
+                    {rows.map((r, i) => (
+                      <div key={i} className="bg-slate-50 rounded-lg px-2.5 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-700">{r.title || `需求${i + 1}`}</span>
+                          {r.confirmed && <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">已确认</span>}
+                        </div>
+                        {r.tech_spec && <div className="text-[11px] text-slate-500 mt-0.5">技术需求：{r.tech_spec}</div>}
+                        {r.acceptance && <div className="text-[11px] text-slate-500 mt-0.5">验收：{r.acceptance}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
             <InfoField label="备注" value={project.remark} />
             <div className="pt-3">
               <CustomFieldsPanel entityType="project" values={project.custom_fields_json} readOnly />

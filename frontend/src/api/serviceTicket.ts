@@ -12,6 +12,8 @@ export const serviceTicketApi = {
     client.put<unknown, ApiResponse<ServiceTicketItem>>(`/api/v1/service_tickets/${id}`, data),
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<null>>(`/api/v1/service_tickets/${id}`),
+  submit: (id: string) =>
+    client.post<unknown, ApiResponse<ServiceTicketItem>>(`/api/v1/service_tickets/${id}/submit`),
 
   // Renewal
   listRenewals: (params?: { customer_id?: string }) =>

@@ -308,7 +308,8 @@ async def seed():
         existing_pol = {p.biz_type for p in (await db.execute(
             select(ApprovalPolicy).where(ApprovalPolicy.tenant_id == TENANT_ID)
         )).scalars().all()}
-        for biz_type, pname in [("contract_version", "合同审批（默认）"), ("order", "订单审批（默认）")]:
+        for biz_type, pname in [("contract_version", "合同审批（默认）"), ("order", "订单审批（默认）"),
+                                ("service_ticket", "售后工单审批（默认）")]:
             if biz_type in existing_pol:
                 continue
             db.add(ApprovalPolicy(

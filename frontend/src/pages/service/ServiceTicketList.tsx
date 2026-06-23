@@ -5,6 +5,7 @@ import { downloadFile } from '@/utils/download'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { serviceTicketApi } from '@/api/serviceTicket'
+import { orderApi } from '@/api/order'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
 import type { ServiceTicketItem, RenewalItem } from '@/api/types'
 
@@ -38,6 +39,17 @@ export default function ServiceTicketList() {
   const [createModal, setCreateModal] = useState(false)
   const [form, setForm] = useState<Record<string, any>>({ type: 'fault', priority: 'medium', description: '' })
   const customerSelect = useCustomerSelect()
+
+  // 关联订单（可选）——按所选客户过滤，便于售后获取产品信息
+  const [orderOpts, setOrderOpts] = useState<{ label: string; value: string }[]>([])
+  const [orderLoading, setOrderLoading] = useState(false)
+  const searchOrders = async (kw?: string, customerId?: string) => {
+    setOrderLoading(true)
+    try {
+      const r = await orderApi.list({ pageNo: 1, pageSize: 20, keyword: kw || undefined, customer_id: customerId || undefined }) as any
+      setOrderOpts((r.data?.items || []).map((o: any) => ({ label: `${o.order_no}${o.title ? ' · ' + o.title : ''}`, value: o.id })))
+    } catch { /* ignore */ } finally { setOrderLoading(false) }
+  }
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined)
@@ -359,11 +371,19 @@ export default function ServiceTicketList() {
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.relatedCustomer')}</label>
             <Select className="w-full" allowClear showSearch filterOption={false} placeholder={t('service.relatedCustomerPlaceholder')}
-              value={form.customer_id} onChange={(v) => setForm({ ...form, customer_id: v })}
+              value={form.customer_id} onChange={(v) => setForm({ ...form, customer_id: v, order_id: undefined })}
               loading={customerSelect.loading}
               options={customerSelect.options}
               onSearch={customerSelect.onSearch}
               onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">关联订单（选填，便于获取产品信息）</label>
+            <Select className="w-full" allowClear showSearch filterOption={false} placeholder="搜索订单号 / 标题"
+              value={form.order_id} onChange={(v) => setForm({ ...form, order_id: v })}
+              loading={orderLoading} options={orderOpts}
+              onSearch={(kw) => searchOrders(kw, form.customer_id)}
+              onDropdownVisibleChange={(o) => { if (o) searchOrders(undefined, form.customer_id) }} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

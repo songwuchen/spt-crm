@@ -109,7 +109,8 @@ async def check_gate_rules(db: AsyncSession, tenant_id: str, project: Opportunit
 
         elif check_type == "json_not_empty":
             val = getattr(project, rule["field"], None)
-            if not val or (isinstance(val, dict) and len(val) == 0):
+            # 兼容 dict（旧版单条需求）与 list（新版多条需求明细）：空则不通过
+            if not val or (isinstance(val, (dict, list)) and len(val) == 0):
                 passed = False
 
         elif check_type == "has_related":

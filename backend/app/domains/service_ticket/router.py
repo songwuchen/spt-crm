@@ -17,6 +17,7 @@ router = APIRouter(tags=["售后管理"])
 def _ticket_dict(t) -> dict:
     return {
         "id": t.id, "customer_id": t.customer_id, "project_id": t.project_id,
+        "order_id": t.order_id,
         "ticket_no": t.ticket_no, "type": t.type,
         "priority": t.priority, "status": t.status,
         "description": t.description, "resolution": t.resolution,
@@ -118,6 +119,18 @@ async def update_ticket(
     current_user: dict = Depends(require_permissions("service:edit")),
 ):
     t = await service.update_ticket(db, tenant_id, ticket_id, body, current_user)
+    return ok(_ticket_dict(t))
+
+
+@router.post("/api/v1/service_tickets/{ticket_id}/submit")
+async def submit_ticket(
+    ticket_id: str,
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("service:edit")),
+):
+    """提交售后审批（内勤发起）。按 service_ticket 审批策略自动建流
+    （内勤发起→生产主任审批分配售后人员→售后人员完成填写工作内容）。"""
+    t = await service.submit_for_approval(db, tenant_id, ticket_id, current_user)
     return ok(_ticket_dict(t))
 
 

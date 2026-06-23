@@ -8,6 +8,7 @@ import type { Order, OrderLine } from '@/api/types'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
+import AttachmentPanel from '@/components/AttachmentPanel'
 
 const STATUS_OPTIONS = [
   { label: '草稿', value: 'draft' },
@@ -321,6 +322,14 @@ export default function OrderList() {
           </Form.Item>
           <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
         </Form>
+        {editing ? (
+          <div className="border-t border-slate-100 pt-3 mt-1">
+            <div className="text-sm font-semibold text-slate-600 mb-2">附件（合同扫描件、技术图纸、发货单等）</div>
+            <AttachmentPanel bizType="order" bizId={editing.id} />
+          </div>
+        ) : (
+          <div className="text-[12px] text-slate-400 mt-1">保存订单后，可在编辑里上传附件。</div>
+        )}
       </Modal>
 
       {/* 发货 */}
