@@ -6,8 +6,7 @@ import ImportModal from '@/components/ImportModal'
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { projectApi } from '@/api/project'
-import { customerApi } from '@/api/customer'
-import type { OpportunityProject, Customer } from '@/api/types'
+import type { OpportunityProject } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { opportunityStatusMap as statusMap } from '@/constants/labels'
@@ -31,7 +30,6 @@ export default function OpportunityList() {
   const [keyword, setKeyword] = useState(searchParams.get('q') || '')
   const [stageCode, setStageCode] = useState<string | undefined>(searchParams.get('stage') || undefined)
   const [status, setStatus] = useState<string | undefined>(searchParams.get('status') || undefined)
-  const [customerMap, setCustomerMap] = useState<Record<string, string>>({})
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [batchStageModal, setBatchStageModal] = useState(false)
   const [batchStage, setBatchStage] = useState<string>('S1')
@@ -89,15 +87,6 @@ export default function OpportunityList() {
       })
       setData(res.data.items)
       setTotal(res.data.total)
-
-      // Fetch customer names for display
-      const ids = [...new Set(res.data.items.map((p) => p.customer_id).filter(Boolean))] as string[]
-      if (ids.length > 0) {
-        const custRes = await customerApi.list({ pageNo: 1, pageSize: 100 })
-        const map: Record<string, string> = {}
-        custRes.data.items.forEach((c: Customer) => { map[c.id] = c.name })
-        setCustomerMap(map)
-      }
     } finally {
       setLoading(false)
     }
@@ -128,7 +117,7 @@ export default function OpportunityList() {
     },
     { title: t('opportunity.customer'), key: 'customer', width: 140,
       render: (_, r) => r.customer_id ? (
-        <span className="text-sm text-slate-700">{customerMap[r.customer_id] || '-'}</span>
+        <span className="text-sm text-slate-700">{r.customer_name || '-'}</span>
       ) : <span className="text-slate-300">-</span>,
     },
     { title: t('opportunity.stage'), key: 'stage', width: 110,

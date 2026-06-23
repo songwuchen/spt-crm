@@ -2,8 +2,7 @@ import { useState, useEffect, useRef, useMemo, DragEvent, useCallback } from 're
 import { useNavigate } from 'react-router-dom'
 import { message, Spin, Modal, Select } from 'antd'
 import { projectApi } from '@/api/project'
-import { customerApi } from '@/api/customer'
-import type { OpportunityProject, Customer } from '@/api/types'
+import type { OpportunityProject } from '@/api/types'
 import { stageLabels, riskLabels } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
@@ -32,7 +31,6 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
   const switchToTable = onSwitchView || (() => navigate('/opportunities'))
   const [cards, setCards] = useState<OpportunityProject[]>([])
   const [loading, setLoading] = useState(true)
-  const [customerMap, setCustomerMap] = useState<Record<string, string>>({})
   const [dragOverStage, setDragOverStage] = useState<string | null>(null)
   const [dragCardId, setDragCardId] = useState<string | null>(null)
   const [swimlane, setSwimlane] = useState<'none' | 'owner' | 'customer' | 'amount'>('none')
@@ -44,13 +42,6 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
     try {
       const res = await projectApi.list({ pageNo: 1, pageSize: 100, status: 'active' })
       setCards(res.data.items)
-      const ids = [...new Set(res.data.items.map((p) => p.customer_id).filter(Boolean))] as string[]
-      if (ids.length > 0) {
-        const custRes = await customerApi.list({ pageNo: 1, pageSize: 100 })
-        const map: Record<string, string> = {}
-        custRes.data.items.forEach((c: Customer) => { map[c.id] = c.name })
-        setCustomerMap(map)
-      }
     } finally {
       setLoading(false)
     }
@@ -78,7 +69,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
     for (const c of cards) {
       let key = ''
       if (swimlane === 'owner') key = c.owner_name || '未分配'
-      else if (swimlane === 'customer') key = customerMap[c.customer_id || ''] || '未知客户'
+      else if (swimlane === 'customer') key = c.customer_name || '未知客户'
       else if (swimlane === 'amount') {
         const amt = c.amount_expect || 0
         if (amt >= 1000000) key = '≥100万'
@@ -89,7 +80,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
       map.get(key)!.push(c)
     }
     return [...map.entries()].map(([key, items]) => ({ key, label: key, cards: items }))
-  }, [cards, swimlane, customerMap])
+  }, [cards, swimlane])
 
   const stageTotal = (stage: string) => {
     const items = grouped[stage] || []
@@ -285,10 +276,10 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
                         <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1 ml-2" style={{ background: statusDot[card.status] || '#94a3b8' }} />
                       </div>
                       <div className="text-[11px] text-slate-400 font-mono mb-2">{card.project_code}</div>
-                      {card.customer_id && customerMap[card.customer_id] && (
+                      {card.customer_name && (
                         <div className="text-[11px] text-slate-500 mb-1.5 flex items-center gap-1">
                           <span className="material-symbols-outlined" style={{ fontSize: 13 }}>business</span>
-                          {customerMap[card.customer_id]}
+                          {card.customer_name}
                         </div>
                       )}
                       <div className="flex items-center justify-between">

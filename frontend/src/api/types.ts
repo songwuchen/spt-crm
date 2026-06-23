@@ -155,6 +155,7 @@ export interface OpportunityProject {
   id: string
   project_code: string
   customer_id?: string
+  customer_name?: string
   name: string
   stage_code: string
   amount_expect?: number

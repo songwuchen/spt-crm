@@ -16,10 +16,10 @@ from app.domains.project.schemas import (
 router = APIRouter(prefix="/api/v1/projects", tags=["商机项目"])
 
 
-def _project_dict(p) -> dict:
+def _project_dict(p, customer_name: str | None = None) -> dict:
     return {
         "id": p.id, "project_code": p.project_code,
-        "customer_id": p.customer_id, "name": p.name,
+        "customer_id": p.customer_id, "customer_name": customer_name, "name": p.name,
         "stage_code": p.stage_code,
         "amount_expect": float(p.amount_expect) if p.amount_expect is not None else None,
         "probability": p.probability,
@@ -36,6 +36,23 @@ def _project_dict(p) -> dict:
         "created_at": p.created_at.isoformat() if p.created_at else "",
         "updated_at": p.updated_at.isoformat() if p.updated_at else "",
     }
+
+
+async def _customer_names(db, tenant_id: str, items) -> dict:
+    """批量取 customer_id -> name 映射，供列表/详情回填客户名。
+
+    商机表只存 customer_id，客户名按 id 实时关联，避免前端靠"拉前 N 个客户"
+    猜映射（客户总数 > 该页大小或受数据范围限制时会查不到名字）。"""
+    from app.domains.customer.models import Customer
+    ids = {p.customer_id for p in items if p.customer_id}
+    if not ids:
+        return {}
+    rows = (await db.execute(
+        sa_select(Customer.id, Customer.name).where(
+            Customer.tenant_id == tenant_id, Customer.id.in_(ids)
+        )
+    )).all()
+    return {cid: name for cid, name in rows}
 
 
 def _history_dict(h) -> dict:
@@ -70,7 +87,8 @@ async def list_projects(
         db, tenant_id, pageNo, pageSize, keyword, stage_code, customer_id, status,
         owner_id=owner_id, current_user=scope_user,
     )
-    return ok({"items": [_project_dict(p) for p in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+    name_map = await _customer_names(db, tenant_id, items)
+    return ok({"items": [_project_dict(p, name_map.get(p.customer_id)) for p in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.get("/export/excel")
@@ -86,11 +104,12 @@ async def export_projects_excel(
 ):
     from app.config import settings
     items, _ = await service.list_projects(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, stage_code, customer_id, status, owner_id)
-    headers = ["项目编码", "项目名称", "阶段", "预计金额", "概率(%)", "预计关闭日", "风险等级", "负责人", "状态", "创建时间"]
+    name_map = await _customer_names(db, tenant_id, items)
+    headers = ["项目编码", "项目名称", "客户", "阶段", "预计金额", "概率(%)", "预计关闭日", "风险等级", "负责人", "状态", "创建时间"]
     rows = []
     for p in items:
         rows.append([
-            p.project_code, p.name or "", p.stage_code or "",
+            p.project_code, p.name or "", name_map.get(p.customer_id) or "", p.stage_code or "",
             float(p.amount_expect) if p.amount_expect is not None else "",
             p.probability or "", str(p.close_date_expect) if p.close_date_expect else "",
             p.risk_level or "", p.owner_name or "", p.status or "",
@@ -231,7 +250,8 @@ async def get_project(
     _user=Depends(require_permissions("project:view")),
 ):
     p = await service.get_project(db, tenant_id, project_id)
-    return ok(_project_dict(p))
+    name_map = await _customer_names(db, tenant_id, [p])
+    return ok(_project_dict(p, name_map.get(p.customer_id)))
 
 
 @router.put("/{project_id}")
