@@ -192,8 +192,13 @@ export default function MeasurementPage() {
             <Form.Item name="service_rating" label="服务评价"><Select options={RATING} allowClear /></Form.Item>
             <Form.Item name="product_rating" label="产品评价"><Select options={PRODUCT_RATING} allowClear /></Form.Item>
           </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Form.Item name="engineer_name" label="服务人员"><Input placeholder="如：李工" /></Form.Item>
+            <Form.Item name="amplitude_mm" label="振幅mm"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>
+          </div>
           <Form.Item name="result_desc" label="服务结果描述"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item name="issues" label="未解决问题"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>
 

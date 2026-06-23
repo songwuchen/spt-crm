@@ -9,7 +9,7 @@ from app.common.schemas import ok
 from app.common.export import build_excel, excel_response
 from app.domains.project import service
 from app.domains.project.schemas import (
-    ProjectCreate, ProjectUpdate, StageAdvance, StageRollback,
+    ProjectCreate, ProjectUpdate, ProjectTransfer, StageAdvance, StageRollback,
     ProjectMemberAdd, ProjectMemberUpdate,
 )
 
@@ -32,6 +32,7 @@ def _project_dict(p, customer_name: str | None = None) -> dict:
         "uses_idle_equipment": p.uses_idle_equipment,
         "payment_method": p.payment_method,
         "owner_id": p.owner_id, "owner_name": p.owner_name,
+        "created_by_id": p.created_by_id, "created_by_name": p.created_by_name,
         "status": p.status, "remark": p.remark, "custom_fields_json": p.custom_fields_json,
         "created_at": p.created_at.isoformat() if p.created_at else "",
         "updated_at": p.updated_at.isoformat() if p.updated_at else "",
@@ -263,6 +264,20 @@ async def update_project(
     current_user: dict = Depends(require_permissions("project:edit")),
 ):
     p = await service.update_project(db, tenant_id, project_id, body, current_user)
+    return ok(_project_dict(p))
+
+
+@router.post("/{project_id}/transfer")
+async def transfer_project_owner(
+    project_id: str,
+    body: ProjectTransfer,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("project:transfer")),
+):
+    """转移商机负责人。需 project:transfer 权限（默认仅主管/管理员持有），
+    与普通编辑(project:edit)分离，避免任意成员私自改派以逃避数据范围监控或抢单。"""
+    p = await service.transfer_owner(db, tenant_id, project_id, body.owner_id, body.note, current_user)
     return ok(_project_dict(p))
 
 

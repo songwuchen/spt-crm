@@ -90,6 +90,78 @@ async def delete_category(
     return ok()
 
 
+_CATEGORY_IMPORT_COLS = ["分类名称", "上级分类", "排序", "描述"]
+
+
+@router.get("/categories/import/template")
+async def category_import_template(_user=Depends(require_permissions("product:view"))):
+    """下载产品分类导入模板。上级分类填已存在/同表中靠前的分类名称，留空为顶级分类。"""
+    example = ["振动筛", "", 1, "筛分设备大类"]
+    buf = build_excel("产品分类导入模板", _CATEGORY_IMPORT_COLS, [example])
+    return excel_response(buf, "product_categories_template.xlsx")
+
+
+@router.post("/categories/import")
+async def import_categories(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("product:edit")),
+):
+    """批量导入产品分类。列顺序：分类名称, 上级分类, 排序, 描述。
+    上级分类按名称匹配（已存在或本表中靠前的行）；重名分类跳过。"""
+    content = await file.read()
+    fname = (file.filename or "").lower()
+    try:
+        if fname.endswith(".csv"):
+            text = content.decode("utf-8-sig", errors="replace")
+            all_rows = [tuple(r) for r in csv.reader(io.StringIO(text))]
+        else:
+            wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+            ws = wb.active
+            all_rows = list(ws.iter_rows(values_only=True)) if ws is not None else []
+            wb.close()
+    except Exception:
+        raise BusinessException(message="无法解析文件，请使用导入模板（.xlsx 或 .csv）")
+
+    if len(all_rows) < 2:
+        return ok({"created": 0, "skipped": 0, "errors": []})
+    data_rows = all_rows[1:]
+
+    name_to_id = {c.name: c.id for c in await service.list_categories(db, tenant_id)}
+    created, skipped, errors = 0, 0, []
+    for idx, row in enumerate(data_rows, 2):
+        if not row or not any(row):
+            continue
+
+        def _cell(i: int):
+            return str(row[i]).strip() if len(row) > i and row[i] is not None and str(row[i]).strip() != "" else None
+
+        name = _cell(0)
+        if not name:
+            skipped += 1
+            continue
+        if name in name_to_id:
+            skipped += 1
+            continue
+        parent_name = _cell(1)
+        parent_id = name_to_id.get(parent_name) if parent_name else None
+        sort_order = 0
+        try:
+            sort_order = int(float(row[2])) if len(row) > 2 and row[2] is not None and str(row[2]).strip() != "" else 0
+        except (ValueError, TypeError):
+            pass
+        try:
+            c = await service.create_category(db, tenant_id, ProductCategoryCreate(
+                name=name, parent_id=parent_id, sort_order=sort_order, description=_cell(3)))
+            name_to_id[name] = c.id
+            created += 1
+        except Exception as e:
+            await db.rollback()
+            errors.append(f"第{idx}行: {str(e)[:80]}")
+    return ok({"created": created, "skipped": skipped, "errors": errors})
+
+
 # ---- Product ----
 
 @router.get("")

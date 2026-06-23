@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, Numeric, Date, Boolean
+from sqlalchemy import String, Text, Numeric, Date, Boolean, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import TenantScopedBase
@@ -13,7 +13,7 @@ class Order(TenantScopedBase):
     project_id: Mapped[str | None] = mapped_column(String(36), index=True)
     contract_id: Mapped[str | None] = mapped_column(String(36), index=True)
     title: Mapped[str | None] = mapped_column(String(300))
-    amount: Mapped[float | None] = mapped_column(Numeric(18, 2))
+    amount: Mapped[float | None] = mapped_column(Numeric(18, 2))  # 合计金额（有明细时由明细汇总）
     currency: Mapped[str | None] = mapped_column(String(8), default="CNY")
     status: Mapped[str] = mapped_column(String(16), default="draft")
     # draft/confirmed/producing/shipped/completed/cancelled
@@ -23,3 +23,20 @@ class Order(TenantScopedBase):
     owner_name: Mapped[str | None] = mapped_column(String(100))
     remark: Mapped[str | None] = mapped_column(Text)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+
+
+class OrderLine(TenantScopedBase):
+    """订单明细行：产品名称、规格型号、单位、数量、单价、金额(=数量×单价)。
+    支持部分/全部发货——shipped_quantity 记录已发货数量。"""
+    __tablename__ = "order_lines"
+
+    order_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    product_id: Mapped[str | None] = mapped_column(String(36))
+    product_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    spec: Mapped[str | None] = mapped_column(String(200))  # 规格型号
+    unit: Mapped[str | None] = mapped_column(String(32))   # 单位
+    quantity: Mapped[float] = mapped_column(Numeric(18, 3), default=0)
+    unit_price: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
+    amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0)  # 数量×单价
+    shipped_quantity: Mapped[float] = mapped_column(Numeric(18, 3), default=0)  # 已发货数量
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)

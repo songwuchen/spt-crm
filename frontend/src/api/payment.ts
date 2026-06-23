@@ -32,6 +32,14 @@ export const paymentApi = {
   deleteRecord: (id: string) =>
     client.delete<unknown, ApiResponse<null>>(`/api/v1/payment_records/${id}`),
 
+  // 到账记录批量导入
+  importRecords: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return client.post<unknown, ApiResponse<{ created: number; skipped: number; errors: string[] }>>(
+      '/api/v1/payment/records/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+
   // Cross-project listing
   listAllPlans: (params: Record<string, unknown>) =>
     client.get('/api/v1/payment/plans', { params }),

@@ -12,6 +12,8 @@ export const projectApi = {
     client.put<unknown, ApiResponse<OpportunityProject>>(`/api/v1/projects/${id}`, data),
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/projects/${id}`),
+  transfer: (id: string, data: { owner_id: string; note?: string }) =>
+    client.post<unknown, ApiResponse<OpportunityProject>>(`/api/v1/projects/${id}/transfer`, data),
   advance: (id: string, data: { to_stage: string; note?: string }) =>
     client.post<unknown, ApiResponse<OpportunityProject>>(`/api/v1/projects/${id}/advance`, data),
   rollback: (id: string, data: { to_stage: string; note?: string }) =>

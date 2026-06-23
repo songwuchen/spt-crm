@@ -15,6 +15,7 @@ class CustomerCreate(BaseModel):
     level: Optional[str] = None
     owner_id: Optional[str] = None
     tags_json: Optional[Union[dict, list]] = None
+    custom_fields_json: Optional[dict] = None
     remark: Optional[str] = Field(None, max_length=2000)
 
     @field_validator("level")
@@ -39,6 +40,7 @@ class CustomerUpdate(BaseModel):
     status: Optional[str] = None
     owner_id: Optional[str] = None
     tags_json: Optional[Union[dict, list]] = None
+    custom_fields_json: Optional[dict] = None
     remark: Optional[str] = Field(None, max_length=2000)
 
     @field_validator("level")
@@ -72,6 +74,7 @@ class CustomerOut(BaseModel):
     level: Optional[str] = None
     status: str
     tags_json: Optional[Union[dict, list]] = None
+    custom_fields_json: Optional[dict] = None
     remark: Optional[str] = None
     created_at: str = ""
     updated_at: str = ""

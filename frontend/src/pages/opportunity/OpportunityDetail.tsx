@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Button, Space, Modal, Input, InputNumber, Select, Spin, Tabs, Table, Tag, Timeline, DatePicker, Form, message } from 'antd'
-import { EditOutlined, DeleteOutlined, PlusOutlined, RobotOutlined, FilePdfOutlined } from '@ant-design/icons'
+import { Button, Space, Modal, Input, InputNumber, Select, Spin, Tabs, Table, Tag, Timeline, DatePicker, Form, Alert, message } from 'antd'
+import { EditOutlined, DeleteOutlined, PlusOutlined, RobotOutlined, FilePdfOutlined, UserSwitchOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { projectApi } from '@/api/project'
@@ -13,6 +13,7 @@ import { changeApi } from '@/api/change'
 import { aiApi } from '@/api/ai'
 import { customerApi } from '@/api/customer'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import CustomFieldsPanel from '@/components/CustomFieldsPanel'
 import ChangeHistory from '@/components/ChangeHistory'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import ActivityTimeline from '@/components/ActivityTimeline'
@@ -23,6 +24,7 @@ import { roleApi } from '@/api/user'
 import type { OpportunityProject, ProjectStageHistory, QuoteItem, ContractItem, SolutionItem, DeliveryMilestone, ErpOrderLink, PaymentPlanItem, PaymentRecordItem, InvoiceItem, ChangeRequestItem, Customer, AclShareItem, ProjectMember } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePermission } from '@/hooks/usePermission'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import InternalNotes from '@/components/InternalNotes'
@@ -52,6 +54,7 @@ export default function OpportunityDetail() {
   usePageTitle('商机详情')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { hasPermission } = usePermission()
   const [project, setProject] = useState<OpportunityProject | null>(null)
   const [history, setHistory] = useState<ProjectStageHistory[]>([])
   const [quotes, setQuotes] = useState<QuoteItem[]>([])
@@ -77,6 +80,12 @@ export default function OpportunityDetail() {
   const memberUserSelect = useUserSelect()
   // assignee picker shared across sub-module modals
   const assigneeUserSelect = useUserSelect()
+
+  // 转移负责人（受 project:transfer 权限保护）
+  const [transferModal, setTransferModal] = useState(false)
+  const [transferForm] = Form.useForm()
+  const transferUserSelect = useUserSelect()
+  const canTransfer = hasPermission('project:transfer')
 
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [advanceModal, setAdvanceModal] = useState(false)
@@ -492,6 +501,32 @@ export default function OpportunityDetail() {
     deliveryApi.listOrderLinks(id!).then((r) => setOrderLinks(r.data))
   }
 
+  // 转移负责人
+  const openTransfer = () => {
+    transferForm.resetFields()
+    if (project?.owner_id && project.owner_name) {
+      transferUserSelect.setInitialOption({ label: project.owner_name, value: project.owner_id })
+    }
+    transferForm.setFieldsValue({ owner_id: project?.owner_id })
+    setTransferModal(true)
+  }
+  const handleTransfer = async () => {
+    const values = await transferForm.validateFields()
+    if (values.owner_id === project?.owner_id) {
+      message.info('负责人未变更')
+      setTransferModal(false)
+      return
+    }
+    try {
+      await projectApi.transfer(id!, { owner_id: values.owner_id, note: values.note })
+      message.success('负责人已转移')
+      setTransferModal(false)
+      fetchAll()
+    } catch {
+      message.error('转移失败')
+    }
+  }
+
   if (!project) return <DetailSkeleton />
 
   const currentIdx = STAGES.indexOf(project.stage_code)
@@ -534,6 +569,9 @@ export default function OpportunityDetail() {
           </div>
           <Space>
             <Button icon={<RobotOutlined />} loading={aiLoading} onClick={handleAiAnalysis}>AI 分析</Button>
+            {canTransfer && (
+              <Button icon={<UserSwitchOutlined />} onClick={openTransfer}>转移负责人</Button>
+            )}
             <Button icon={<EditOutlined />} onClick={() => navigate(`/opportunities/${id}/edit`)}>编辑</Button>
             <Button danger icon={<DeleteOutlined />} onClick={() => {
               Modal.confirm({
@@ -585,6 +623,8 @@ export default function OpportunityDetail() {
         <div className="col-span-3">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-0">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">项目画像</h3>
+            <InfoField label="负责人" value={project.owner_name} />
+            <InfoField label="录入人" value={project.created_by_name} />
             <InfoField label="预期金额" value={project.amount_expect != null ? `¥${Number(project.amount_expect).toLocaleString()}` : undefined} />
             <InfoField label="成交概率" value={project.probability != null ? `${project.probability}%` : undefined} />
             <InfoField label="预期成交日" value={project.close_date_expect} />
@@ -598,6 +638,9 @@ export default function OpportunityDetail() {
             <InfoField label="验收标准" value={(project.key_requirements_json as any)?.acceptance} />
             <InfoField label="需求已确认" value={(project.key_requirements_json as any)?.confirmed == null ? undefined : ((project.key_requirements_json as any)?.confirmed ? '是' : '否')} />
             <InfoField label="备注" value={project.remark} />
+            <div className="pt-3">
+              <CustomFieldsPanel entityType="project" values={project.custom_fields_json} readOnly />
+            </div>
           </div>
 
           {/* Health Score */}
@@ -1239,6 +1282,30 @@ export default function OpportunityDetail() {
         </div>
       </Modal>
 
+      {/* Transfer Owner Modal */}
+      <Modal title="转移负责人" open={transferModal}
+        onOk={handleTransfer} onCancel={() => setTransferModal(false)} width={460} okText="确认转移">
+        <Form form={transferForm} layout="vertical" className="mt-3">
+          <div className="text-sm text-slate-500 mb-3">
+            当前负责人：<span className="font-bold text-slate-700">{project.owner_name || '-'}</span>
+            <span className="text-slate-400">（录入人：{project.created_by_name || '-'}，不变）</span>
+          </div>
+          <Form.Item name="owner_id" label="新负责人" rules={[{ required: true, message: '请选择新负责人' }]}>
+            <Select placeholder="请选择新负责人" showSearch filterOption={false}
+              loading={transferUserSelect.loading}
+              options={transferUserSelect.options}
+              onSearch={transferUserSelect.onSearch}
+              onDropdownVisibleChange={transferUserSelect.onDropdownVisibleChange} />
+          </Form.Item>
+          <Form.Item name="note" label="转移说明">
+            <Input.TextArea rows={2} placeholder="转移原因（选填，记入审计日志）" maxLength={500} />
+          </Form.Item>
+          <div className="text-[12px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            转移后该商机的数据可见范围与后续通知将归属新负责人，原负责人若不在可见范围将无法再查看。
+          </div>
+        </Form>
+      </Modal>
+
       {/* Milestone Modal */}
       <Modal title={editingMilestone ? '编辑里程碑' : '新建里程碑'} open={milestoneModal}
         onOk={handleMilestoneSave} onCancel={() => { setMilestoneModal(false); milestoneForm.resetFields() }} width={500}>
@@ -1276,6 +1343,14 @@ export default function OpportunityDetail() {
               onSearch={assigneeUserSelect.onSearch} onDropdownVisibleChange={assigneeUserSelect.onDropdownVisibleChange} />
           </Form.Item>
         </Form>
+        {editingMilestone ? (
+          <div className="border-t border-slate-100 pt-3 mt-1">
+            <div className="text-sm font-semibold text-slate-600 mb-2">附件（发货验收单等）</div>
+            <AttachmentPanel bizType="delivery_milestone" bizId={editingMilestone.id} />
+          </div>
+        ) : (
+          <Alert type="info" showIcon className="mt-2" message="保存里程碑后可在编辑里上传附件（发货验收单等）" />
+        )}
       </Modal>
 
       {/* Payment Plan Modal */}

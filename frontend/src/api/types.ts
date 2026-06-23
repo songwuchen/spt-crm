@@ -52,6 +52,7 @@ export interface Customer {
   level?: string
   status: string
   tags_json?: string[]
+  custom_fields_json?: Record<string, unknown>
   remark?: string
   created_at: string
   updated_at: string
@@ -166,7 +167,10 @@ export interface OpportunityProject {
   risk_level?: string
   owner_id?: string
   owner_name?: string
+  created_by_id?: string
+  created_by_name?: string
   status: string
+  custom_fields_json?: Record<string, unknown>
   remark?: string
   created_at: string
   updated_at: string
@@ -641,8 +645,23 @@ export interface Order {
   owner_id?: string
   owner_name?: string
   remark?: string
+  lines?: OrderLine[]
+  ship_status?: 'none' | 'partial' | 'full'
   created_at: string
   updated_at?: string
+}
+
+export interface OrderLine {
+  id?: string
+  product_id?: string
+  product_name: string
+  spec?: string
+  unit?: string
+  quantity: number
+  unit_price: number
+  amount?: number
+  shipped_quantity?: number
+  sort_order?: number
 }
 
 export interface Tender {

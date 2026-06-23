@@ -225,10 +225,13 @@ async def get_project(db: AsyncSession, tenant_id: str, project_id: str) -> Oppo
 
 
 async def create_project(db: AsyncSession, tenant_id: str, data: ProjectCreate, user: dict) -> OpportunityProject:
+    actor_name = user.get("real_name") or user.get("username")
     project = OpportunityProject(
         id=generate_uuid(), tenant_id=tenant_id,
         project_code=await generate_code(db, tenant_id, "project"),
-        owner_id=user["sub"], owner_name=user.get("real_name") or user.get("username"),
+        # 创建时负责人默认 = 录入人（之后可由主管经 transfer_owner 转移）
+        owner_id=user["sub"], owner_name=actor_name,
+        created_by_id=user["sub"], created_by_name=actor_name,
         **data.model_dump(),
     )
     db.add(project)
@@ -299,6 +302,50 @@ async def update_project(db: AsyncSession, tenant_id: str, project_id: str, data
                                                project.owner_id, user.get("real_name") or user.get("username"), project.id)
         except Exception as e:
             logger.warning("Auto-notify project owner for win/lost failed: %s", e)
+
+    return project
+
+
+async def transfer_owner(db: AsyncSession, tenant_id: str, project_id: str,
+                         new_owner_id: str, note: str | None, user: dict) -> OpportunityProject:
+    """转移商机负责人。受 project:transfer 权限保护（路由层校验）。
+
+    与普通编辑分离：改负责人会改变该商机在数据范围(data_scope)下对其他人的可见性，
+    并把后续赢单/丢单/回款等通知导向新负责人，故单独鉴权 + 审计 + 通知新负责人。
+    录入人(created_by)不受影响，始终保留。"""
+    project = await get_project(db, tenant_id, project_id)
+
+    from app.domains.auth.models import User as AuthUser
+    new_owner = (await db.execute(
+        select(AuthUser).where(AuthUser.id == new_owner_id, AuthUser.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not new_owner:
+        raise BusinessException(code=BUSINESS_ERROR, message="新负责人不存在")
+
+    old_owner_id = project.owner_id
+    old_owner_name = project.owner_name
+    if new_owner_id == old_owner_id:
+        return project  # 负责人未变，幂等返回
+
+    project.owner_id = new_owner_id
+    project.owner_name = new_owner.real_name or new_owner.username
+    await db.commit()
+    await db.refresh(project)
+
+    actor_name = user.get("real_name") or user.get("username")
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=actor_name,
+                     action="transfer", resource_type="project", resource_id=project.id,
+                     summary=f"转移负责人: {old_owner_name or '-'} → {project.owner_name}",
+                     detail={"changes": {"owner_id": {"old": old_owner_id, "new": new_owner_id}},
+                             "note": note})
+
+    # 通知新负责人（自己转给自己不通知）
+    if new_owner_id != user["sub"]:
+        try:
+            from app.common.auto_notify import notify_project_assigned
+            await notify_project_assigned(db, tenant_id, project.name, new_owner_id, actor_name, project.id)
+        except Exception as e:
+            logger.warning("Auto-notify new project owner on transfer failed: %s", e)
 
     return project
 

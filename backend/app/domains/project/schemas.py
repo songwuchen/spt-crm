@@ -17,6 +17,7 @@ class ProjectCreate(BaseModel):
     has_weight_requirement: Optional[bool] = None
     uses_idle_equipment: Optional[bool] = None
     payment_method: Optional[str] = Field(None, max_length=64)
+    custom_fields_json: Optional[dict] = None
     remark: Optional[str] = Field(None, max_length=2000)
 
     @field_validator("risk_level")
@@ -41,6 +42,7 @@ class ProjectUpdate(BaseModel):
     uses_idle_equipment: Optional[bool] = None
     payment_method: Optional[str] = Field(None, max_length=64)
     status: Optional[str] = None
+    custom_fields_json: Optional[dict] = None
     remark: Optional[str] = Field(None, max_length=2000)
 
     @field_validator("risk_level")
@@ -56,6 +58,12 @@ class ProjectUpdate(BaseModel):
         if v is not None and v not in ("active", "won", "lost", "suspended"):
             raise ValueError("状态必须为 active/won/lost/suspended")
         return v
+
+
+class ProjectTransfer(BaseModel):
+    """转移商机负责人。受 project:transfer 权限单独保护，与普通编辑(project:edit)分离。"""
+    owner_id: str = Field(..., min_length=1, max_length=36)
+    note: Optional[str] = Field(None, max_length=500)
 
 
 class ProjectMemberAdd(BaseModel):

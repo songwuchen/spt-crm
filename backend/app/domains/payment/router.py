@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Depends, Query
+import io
+import csv
+
+from fastapi import APIRouter, Depends, Query, UploadFile, File
+from openpyxl import load_workbook
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
+from app.common.exceptions import BusinessException
 from app.common.export import build_excel, excel_response
 from app.domains.payment import service
 from app.domains.payment.models import PaymentPlan, PaymentRecord, Invoice
@@ -177,6 +182,93 @@ async def delete_record(
 ):
     await service.delete_record(db, tenant_id, record_id, current_user)
     return ok(None)
+
+
+# --- 到账记录批量导入 ---
+
+_REC_IMPORT_COLS = ["商机编号", "到账日期", "金额", "渠道", "凭证号", "备注"]
+
+
+@router.get("/api/v1/payment/records/import/template")
+async def payment_records_template(_user=Depends(require_permissions("payment:view"))):
+    """下载到账记录导入模板（表头 + 示例行）。商机编号用于把每条到账关联到对应商机。"""
+    example = ["P-2026-0001", "2026-06-01", 100000, "电汇", "TT20260601", "首付款"]
+    buf = build_excel("到账记录导入模板", _REC_IMPORT_COLS, [example])
+    return excel_response(buf, "payment_records_template.xlsx")
+
+
+@router.post("/api/v1/payment/records/import")
+async def import_payment_records(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("payment:edit")),
+):
+    """批量导入到账记录。列顺序：商机编号, 到账日期, 金额, 渠道, 凭证号, 备注。
+    每行按"商机编号"关联到对应商机；找不到编号的行计入错误，不中断其余行。"""
+    content = await file.read()
+    fname = (file.filename or "").lower()
+    try:
+        if fname.endswith(".csv"):
+            text = content.decode("utf-8-sig", errors="replace")
+            all_rows = [tuple(r) for r in csv.reader(io.StringIO(text))]
+        else:
+            wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+            ws = wb.active
+            all_rows = list(ws.iter_rows(values_only=True)) if ws is not None else []
+            wb.close()
+    except Exception:
+        raise BusinessException(message="无法解析文件，请使用导入模板（.xlsx 或 .csv）")
+
+    if len(all_rows) < 2:
+        return ok({"created": 0, "skipped": 0, "errors": []})
+    data_rows = all_rows[1:]
+
+    # 预取商机编号 -> id 映射（仅本租户）
+    codes = {str(r[0]).strip() for r in data_rows if r and len(r) > 0 and r[0]}
+    code_to_id: dict[str, str] = {}
+    if codes:
+        rows = (await db.execute(
+            select(OpportunityProject.project_code, OpportunityProject.id).where(
+                OpportunityProject.tenant_id == tenant_id,
+                OpportunityProject.project_code.in_(codes),
+            )
+        )).all()
+        code_to_id = {c: i for c, i in rows}
+
+    created, skipped, errors = 0, 0, []
+    for idx, row in enumerate(data_rows, 2):
+        if not row or not any(row):
+            continue
+        code = str(row[0]).strip() if len(row) > 0 and row[0] is not None else ""
+        if not code:
+            skipped += 1
+            continue
+        pid = code_to_id.get(code)
+        if not pid:
+            errors.append(f"第{idx}行: 商机编号「{code}」不存在")
+            continue
+
+        def _cell(i: int):
+            return str(row[i]).strip() if len(row) > i and row[i] is not None else None
+
+        amount = None
+        try:
+            amount = float(row[2]) if len(row) > 2 and row[2] is not None and str(row[2]).strip() != "" else None
+        except (ValueError, TypeError):
+            errors.append(f"第{idx}行: 金额格式错误")
+            continue
+        try:
+            body = PaymentRecordCreate(
+                received_date=_cell(1), amount=amount,
+                channel=_cell(3), reference_no=_cell(4), remark=_cell(5),
+            )
+            await service.create_record(db, tenant_id, pid, body, current_user)
+            created += 1
+        except Exception as e:
+            await db.rollback()
+            errors.append(f"第{idx}行: {str(e)[:80]}")
+    return ok({"created": created, "skipped": skipped, "errors": errors})
 
 
 # --- Cross-project listing ---

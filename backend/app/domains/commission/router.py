@@ -1,8 +1,13 @@
-from fastapi import APIRouter, Depends, Query
+import io
+import csv
+
+from fastapi import APIRouter, Depends, Query, UploadFile, File
+from openpyxl import load_workbook
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
+from app.common.exceptions import BusinessException
 from app.common.export import build_excel, excel_response
 from app.domains.commission import service
 from app.domains.commission.schemas import (
@@ -109,6 +114,86 @@ async def export_excel(owner_id: str = Query(None), status: str = Query(None), k
         ])
     buf = build_excel("提成台账", headers, rows)
     return excel_response(buf, "commissions.xlsx")
+
+
+# ---------- 批量导入（声明在 /{record_id} 之前，避免路径捕获） ----------
+_COMM_IMPORT_COLS = ["客户名称", "负责人", "部门", "签约日期", "合同金额", "回款金额",
+                     "运费扣减", "服务扣减", "招待扣减", "返利扣减", "提成比例(0-1)", "备注"]
+
+
+@router.get("/import/template")
+async def commission_import_template(_u=Depends(require_permissions("commission:view"))):
+    """下载提成单导入模板。提成比例填小数（如 0.05 表示 5%）；留空则按提成政策自动套用。"""
+    example = ["示例客户有限公司", "张三", "销售一部", "2026-06-01", 1000000, 600000,
+               0, 0, 0, 0, 0.05, "首批结算"]
+    buf = build_excel("提成单导入模板", _COMM_IMPORT_COLS, [example])
+    return excel_response(buf, "commissions_template.xlsx")
+
+
+@router.post("/import")
+async def import_commissions(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    u=Depends(require_permissions("commission:edit")),
+):
+    """批量导入提成单。列顺序：客户名称, 负责人, 部门, 签约日期, 合同金额, 回款金额,
+    运费扣减, 服务扣减, 招待扣减, 返利扣减, 提成比例(0-1), 备注。单行失败不中断其余行。"""
+    content = await file.read()
+    fname = (file.filename or "").lower()
+    try:
+        if fname.endswith(".csv"):
+            text = content.decode("utf-8-sig", errors="replace")
+            all_rows = [tuple(r) for r in csv.reader(io.StringIO(text))]
+        else:
+            wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+            ws = wb.active
+            all_rows = list(ws.iter_rows(values_only=True)) if ws is not None else []
+            wb.close()
+    except Exception:
+        raise BusinessException(message="无法解析文件，请使用导入模板（.xlsx 或 .csv）")
+
+    if len(all_rows) < 2:
+        return ok({"created": 0, "skipped": 0, "errors": []})
+    data_rows = all_rows[1:]
+
+    def _num(v):
+        try:
+            return float(v) if v is not None and str(v).strip() != "" else 0
+        except (ValueError, TypeError):
+            return None
+
+    created, skipped, errors = 0, 0, []
+    for idx, row in enumerate(data_rows, 2):
+        if not row or not any(row):
+            continue
+
+        def _cell(i: int):
+            return str(row[i]).strip() if len(row) > i and row[i] is not None and str(row[i]).strip() != "" else None
+
+        if not _cell(0):  # 客户名称为空视为空行
+            skipped += 1
+            continue
+        amounts = [_num(row[i]) if len(row) > i else 0 for i in (4, 5, 6, 7, 8, 9, 10)]
+        if any(a is None for a in amounts):
+            errors.append(f"第{idx}行: 金额/比例格式错误")
+            continue
+        contract_amt, received_amt, dfreight, dservice, dentertain, drebate, rate = amounts
+        try:
+            body = CommissionRecordCreate(
+                customer_name=_cell(0), owner_name=_cell(1), department_name=_cell(2),
+                signed_date=_cell(3),
+                contract_amount=contract_amt or 0, received_amount=received_amt or 0,
+                deduction_freight=dfreight or 0, deduction_service=dservice or 0,
+                deduction_entertain=dentertain or 0, deduction_rebate=drebate or 0,
+                commission_rate=rate or 0, remark=_cell(11),
+            )
+            await service.create_record(db, tenant_id, body, u)
+            created += 1
+        except Exception as e:
+            await db.rollback()
+            errors.append(f"第{idx}行: {str(e)[:80]}")
+    return ok({"created": created, "skipped": skipped, "errors": errors})
 
 
 # ---------- Records ----------

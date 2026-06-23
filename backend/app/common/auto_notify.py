@@ -87,6 +87,18 @@ async def notify_customer_assigned(db: AsyncSession, tenant_id: str, customer_na
     )
 
 
+async def notify_project_assigned(db: AsyncSession, tenant_id: str, project_name: str,
+                                   assignee_id: str, user_name: str, project_id: str):
+    """Notify new owner when an opportunity is (re)assigned/transferred to them."""
+    await send_notification(
+        db, tenant_id, recipient_id=assignee_id,
+        type="project_assigned",
+        title=f"您有新商机待跟进: {project_name}",
+        content=f"分配人: {user_name}",
+        biz_type="project", biz_id=project_id, sender_name=user_name,
+    )
+
+
 async def notify_approval_submitted(db: AsyncSession, tenant_id: str, approver_id: str,
                                      title: str, user_name: str, flow_id: str):
     """Notify approver when an approval is submitted to them."""

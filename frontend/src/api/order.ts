@@ -12,4 +12,8 @@ export const orderApi = {
     client.put<unknown, ApiResponse<Order>>(`/api/v1/orders/${id}`, data),
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/orders/${id}`),
+  submit: (id: string) =>
+    client.post<unknown, ApiResponse<Order>>(`/api/v1/orders/${id}/submit`),
+  ship: (id: string, data: { full?: boolean; items?: { line_id: string; ship_quantity: number }[] }) =>
+    client.post<unknown, ApiResponse<Order>>(`/api/v1/orders/${id}/ship`, data),
 }

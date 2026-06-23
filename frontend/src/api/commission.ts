@@ -18,6 +18,12 @@ export const commissionApi = {
     client.post<unknown, ApiResponse<Commission>>(`/api/v1/commissions/${id}/recalc`),
   generateFromContract: (contractId: string) =>
     client.post<unknown, ApiResponse<Commission>>(`/api/v1/commissions/generate/from-contract/${contractId}`),
+  importRecords: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return client.post<unknown, ApiResponse<{ created: number; skipped: number; errors: string[] }>>(
+      '/api/v1/commissions/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
   summary: () =>
     client.get<unknown, ApiResponse<CommissionSummary[]>>('/api/v1/commissions/summary'),
   listPayouts: (id: string) =>

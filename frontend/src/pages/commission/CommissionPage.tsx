@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import {
   Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message,
-  Tag, Drawer, Statistic, Tooltip, Empty,
+  Tag, Drawer, Statistic, Tooltip, Empty, Upload, Alert,
 } from 'antd'
-import { PlusOutlined, SearchOutlined, DownloadOutlined, DollarOutlined } from '@ant-design/icons'
+import { PlusOutlined, SearchOutlined, DownloadOutlined, DollarOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { commissionApi } from '@/api/commission'
@@ -38,6 +38,24 @@ export default function CommissionPage() {
   const [editing, setEditing] = useState<Commission | null>(null)
   const [form] = Form.useForm()
   const ownerSelect = useUserSelect()
+
+  // 批量导入提成单
+  const [importOpen, setImportOpen] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null)
+  const doImport = async () => {
+    if (!importFile) { message.warning('请选择文件'); return }
+    setImporting(true); setImportResult(null)
+    try {
+      const res = await commissionApi.importRecords(importFile)
+      setImportResult(res.data)
+      if (res.data.errors.length === 0) {
+        message.success(`成功导入 ${res.data.created} 条`)
+        setImportOpen(false); setImportFile(null); fetchData()
+      }
+    } catch { message.error('导入失败') } finally { setImporting(false) }
+  }
   // payout drawer
   const [payoutOpen, setPayoutOpen] = useState(false)
   const [payoutTarget, setPayoutTarget] = useState<Commission | null>(null)
@@ -187,6 +205,7 @@ export default function CommissionPage() {
         </div>
         <Space>
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出台账</Button>
+          <Button icon={<UploadOutlined />} onClick={() => { setImportFile(null); setImportResult(null); setImportOpen(true) }}>批量导入</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建提成单</Button>
         </Space>
       </div>
@@ -307,6 +326,35 @@ export default function CommissionPage() {
           )}
         </div>
       </Drawer>
+
+      {/* 批量导入提成单 */}
+      <Modal title="批量导入提成单" open={importOpen} onOk={doImport} confirmLoading={importing}
+        onCancel={() => { setImportOpen(false); setImportFile(null); setImportResult(null) }} okText="开始导入" width={580}>
+        <div className="space-y-4 py-1">
+          <div className="text-sm text-slate-500">
+            支持 Excel(.xlsx) 或 CSV，第一行为表头。列顺序：
+            <div className="mt-2 bg-slate-50 rounded p-2 text-sm text-slate-700 break-all">客户名称、负责人、部门、签约日期、合同金额、回款金额、运费扣减、服务扣减、招待扣减、返利扣减、提成比例(0-1)、备注</div>
+            <div className="mt-1 text-sm text-slate-400">提成比例填小数（如 0.05 表示 5%），留空则按提成政策自动套用；应计奖金由系统计算。</div>
+            <Button type="link" size="small" className="px-0 mt-1" icon={<DownloadOutlined />}
+              onClick={() => downloadFile('/api/v1/commissions/import/template', 'commissions_template.xlsx')}>下载导入模板</Button>
+          </div>
+          <Upload.Dragger maxCount={1} accept=".xlsx,.xls,.csv" beforeUpload={(f) => { setImportFile(f as File); setImportResult(null); return false }}
+            onRemove={() => setImportFile(null)} fileList={importFile ? [{ uid: '1', name: importFile.name } as any] : []}>
+            <p className="text-slate-500"><UploadOutlined className="mr-1" />点击或拖拽文件到此处</p>
+          </Upload.Dragger>
+          {importResult && (
+            <div className="space-y-2">
+              <Alert type={importResult.errors.length === 0 ? 'success' : 'warning'} showIcon
+                message={`导入完成：成功 ${importResult.created} 条，跳过 ${importResult.skipped} 条，失败 ${importResult.errors.length} 条`} />
+              {importResult.errors.length > 0 && (
+                <div className="max-h-40 overflow-y-auto bg-red-50 rounded p-2">
+                  {importResult.errors.map((e, i) => (<div key={i} className="text-sm text-red-600">{e}</div>))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }

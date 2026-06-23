@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Table, Tabs, Tag, Select, Input, Button, Popconfirm, message } from 'antd'
-import { SearchOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Table, Tabs, Tag, Select, Input, Button, Popconfirm, Modal, Form, InputNumber, DatePicker, Upload, Alert, message } from 'antd'
+import { SearchOutlined, DownloadOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
+import dayjs from 'dayjs'
 import { downloadFile } from '@/utils/download'
 import { paymentApi } from '@/api/payment'
+import { projectApi } from '@/api/project'
 import { dashboardApi } from '@/api/dashboard'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePermission } from '@/hooks/usePermission'
 
 interface PlanRow {
   id: string; project_id: string; plan_no: string; due_date?: string | null
@@ -65,6 +68,69 @@ export default function PaymentPage() {
   const [invoicePage, setInvoicePage] = useState(1)
   const [invoiceLoading, setInvoiceLoading] = useState(false)
   const [invoiceKeyword, setInvoiceKeyword] = useState('')
+
+  const { hasPermission } = usePermission()
+  const canEdit = hasPermission('payment:edit')
+
+  // 商机搜索（新增回款时需指定关联商机）
+  const [projOpts, setProjOpts] = useState<{ label: string; value: string }[]>([])
+  const [projLoading, setProjLoading] = useState(false)
+  const searchProjects = async (kw?: string) => {
+    setProjLoading(true)
+    try {
+      const r = await projectApi.list({ pageNo: 1, pageSize: 20, keyword: kw || undefined })
+      setProjOpts((r.data.items || []).map((p) => ({ label: `${p.name}（${p.project_code}）`, value: p.id })))
+    } catch { /* ignore */ } finally { setProjLoading(false) }
+  }
+
+  // 新增回款（计划/到账/发票），复用按商机的创建端点
+  const [createType, setCreateType] = useState<'plan' | 'record' | 'invoice'>('record')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createForm] = Form.useForm()
+  const [creating, setCreating] = useState(false)
+  const createTitle = { plan: '新增回款计划', record: '新增到账记录', invoice: '新增发票' }[createType]
+  const openCreate = (type: 'plan' | 'record' | 'invoice') => {
+    setCreateType(type); createForm.resetFields(); setProjOpts([]); searchProjects(); setCreateOpen(true)
+  }
+  const handleCreate = async () => {
+    let v
+    try { v = await createForm.validateFields() } catch { return }
+    const pid = v.project_id as string
+    setCreating(true)
+    try {
+      if (createType === 'plan') {
+        await paymentApi.createPlan(pid, { due_date: v.due_date ? v.due_date.format('YYYY-MM-DD') : undefined, amount: v.amount, status: v.status || 'pending', remark: v.remark })
+      } else if (createType === 'record') {
+        await paymentApi.createRecord(pid, { received_date: v.received_date ? v.received_date.format('YYYY-MM-DD') : undefined, amount: v.amount, channel: v.channel, reference_no: v.reference_no, remark: v.remark })
+      } else {
+        await paymentApi.createInvoice(pid, { invoice_no: v.invoice_no, amount: v.amount, invoice_date: v.invoice_date ? v.invoice_date.format('YYYY-MM-DD') : undefined, remark: v.remark })
+      }
+      message.success('已新增')
+      setCreateOpen(false)
+      fetchOverview()
+      if (createType === 'plan') fetchPlans()
+      else if (createType === 'record') fetchRecords()
+      else fetchInvoices()
+    } catch { message.error('新增失败') } finally { setCreating(false) }
+  }
+
+  // 批量导入到账记录
+  const [importOpen, setImportOpen] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null)
+  const doImport = async () => {
+    if (!importFile) { message.warning('请选择文件'); return }
+    setImporting(true); setImportResult(null)
+    try {
+      const res = await paymentApi.importRecords(importFile)
+      setImportResult(res.data)
+      if (res.data.errors.length === 0) {
+        message.success(`成功导入 ${res.data.created} 条`)
+        setImportOpen(false); setImportFile(null); fetchRecords(); fetchOverview()
+      }
+    } catch { message.error('导入失败') } finally { setImporting(false) }
+  }
 
   const fetchOverview = () => {
     dashboardApi.paymentOverview().then((r: any) => {
@@ -184,6 +250,7 @@ export default function PaymentPage() {
                     value={planStatus}
                     onChange={(v) => { setPlanStatus(v); setPlanPage(1); fetchPlans(1, v, planKeyword) }}
                     options={Object.entries(planStatusConfig).map(([k, v]) => ({ value: k, label: v.label }))} />
+                  {canEdit && <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate('plan')} className="ml-auto">新增计划</Button>}
                 </div>
                 <Table rowKey="id" dataSource={plans} loading={planLoading} size="small" scroll={{ x: 800 }}
                   pagination={{ current: planPage, total: planTotal, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
@@ -231,6 +298,10 @@ export default function PaymentPage() {
                     value={recordKeyword} onChange={(e) => setRecordKeyword(e.target.value)}
                     onPressEnter={() => { setRecordPage(1); fetchRecords(1, recordKeyword) }}
                     style={{ width: 200 }} />
+                  {canEdit && <div className="ml-auto flex gap-2">
+                    <Button icon={<UploadOutlined />} onClick={() => { setImportFile(null); setImportResult(null); setImportOpen(true) }}>导入</Button>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate('record')}>新增到账</Button>
+                  </div>}
                 </div>
                 <Table rowKey="id" dataSource={records} loading={recordLoading} size="small" scroll={{ x: 800 }}
                   pagination={{ current: recordPage, total: recordTotal, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
@@ -270,6 +341,7 @@ export default function PaymentPage() {
                     value={invoiceKeyword} onChange={(e) => setInvoiceKeyword(e.target.value)}
                     onPressEnter={() => { setInvoicePage(1); fetchInvoices(1, invoiceKeyword) }}
                     style={{ width: 200 }} />
+                  {canEdit && <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate('invoice')} className="ml-auto">新增发票</Button>}
                 </div>
                 <Table rowKey="id" dataSource={invoices} loading={invoiceLoading} size="small" scroll={{ x: 800 }}
                   pagination={{ current: invoicePage, total: invoiceTotal, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
@@ -302,6 +374,74 @@ export default function PaymentPage() {
           },
         ]} />
       </div>
+
+      {/* 新增回款（计划/到账/发票） */}
+      <Modal title={createTitle} open={createOpen} onOk={handleCreate} confirmLoading={creating}
+        onCancel={() => setCreateOpen(false)} okText="保存" width={520} destroyOnClose>
+        <Form form={createForm} layout="vertical" className="mt-3">
+          <Form.Item name="project_id" label="关联商机" rules={[{ required: true, message: '请选择关联商机' }]}>
+            <Select showSearch filterOption={false} placeholder="搜索商机名称 / 编号"
+              options={projOpts} loading={projLoading} onSearch={searchProjects}
+              onDropdownVisibleChange={(o) => { if (o && projOpts.length === 0) searchProjects() }} />
+          </Form.Item>
+          {createType === 'plan' && (<>
+            <div className="grid grid-cols-2 gap-3">
+              <Form.Item name="due_date" label="到期日"><DatePicker className="w-full" /></Form.Item>
+              <Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><InputNumber className="w-full" min={0} /></Form.Item>
+            </div>
+            <Form.Item name="status" label="状态" initialValue="pending">
+              <Select options={[{ value: 'pending', label: '待回款' }, { value: 'paid', label: '已回款' }, { value: 'overdue', label: '逾期' }]} />
+            </Form.Item>
+          </>)}
+          {createType === 'record' && (<>
+            <div className="grid grid-cols-2 gap-3">
+              <Form.Item name="received_date" label="到账日期" rules={[{ required: true, message: '请选择到账日期' }]}><DatePicker className="w-full" /></Form.Item>
+              <Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><InputNumber className="w-full" min={0} /></Form.Item>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Form.Item name="channel" label="渠道"><Input placeholder="如 电汇 / 承兑" /></Form.Item>
+              <Form.Item name="reference_no" label="凭证号"><Input /></Form.Item>
+            </div>
+          </>)}
+          {createType === 'invoice' && (<>
+            <div className="grid grid-cols-2 gap-3">
+              <Form.Item name="invoice_no" label="发票号"><Input placeholder="留空自动生成" /></Form.Item>
+              <Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><InputNumber className="w-full" min={0} /></Form.Item>
+            </div>
+            <Form.Item name="invoice_date" label="开票日期"><DatePicker className="w-full" /></Form.Item>
+          </>)}
+          <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 批量导入到账记录 */}
+      <Modal title="批量导入到账记录" open={importOpen} onOk={doImport} confirmLoading={importing}
+        onCancel={() => { setImportOpen(false); setImportFile(null); setImportResult(null) }} okText="开始导入" width={560}>
+        <div className="space-y-4 py-1">
+          <div className="text-sm text-slate-500">
+            支持 Excel(.xlsx) 或 CSV，第一行为表头。列顺序：
+            <div className="mt-2 bg-slate-50 rounded p-2 text-sm text-slate-700 break-all">商机编号、到账日期、金额、渠道、凭证号、备注</div>
+            <div className="mt-1 text-sm text-slate-400">每行按「商机编号」关联到对应商机；编号不存在的行会列入错误。</div>
+            <Button type="link" size="small" className="px-0 mt-1" icon={<DownloadOutlined />}
+              onClick={() => downloadFile('/api/v1/payment/records/import/template', 'payment_records_template.xlsx')}>下载导入模板</Button>
+          </div>
+          <Upload.Dragger maxCount={1} accept=".xlsx,.xls,.csv" beforeUpload={(f) => { setImportFile(f as File); setImportResult(null); return false }}
+            onRemove={() => setImportFile(null)} fileList={importFile ? [{ uid: '1', name: importFile.name } as any] : []}>
+            <p className="text-slate-500"><UploadOutlined className="mr-1" />点击或拖拽文件到此处</p>
+          </Upload.Dragger>
+          {importResult && (
+            <div className="space-y-2">
+              <Alert type={importResult.errors.length === 0 ? 'success' : 'warning'} showIcon
+                message={`导入完成：成功 ${importResult.created} 条，跳过 ${importResult.skipped} 条，失败 ${importResult.errors.length} 条`} />
+              {importResult.errors.length > 0 && (
+                <div className="max-h-40 overflow-y-auto bg-red-50 rounded p-2">
+                  {importResult.errors.map((e, i) => (<div key={i} className="text-sm text-red-600">{e}</div>))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }

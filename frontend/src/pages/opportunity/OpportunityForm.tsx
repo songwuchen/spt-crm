@@ -8,6 +8,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useAutoSave } from '@/hooks/useAutoSave'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import CustomFieldsPanel from '@/components/CustomFieldsPanel'
 import dayjs from 'dayjs'
 
 const defaultRiskOptions = [
@@ -42,6 +43,7 @@ export default function OpportunityForm() {
   const customerSelect = useCustomerSelect()
 
   const userSelect = useUserSelect()
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
 
   const { restoreDraft, clearDraft, markDirty } = useAutoSave(`opportunity_form_${id || 'new'}`, form)
 
@@ -53,6 +55,7 @@ export default function OpportunityForm() {
           ...d,
           close_date_expect: d.close_date_expect ? dayjs(d.close_date_expect) : undefined,
         })
+        setCustomFields((d.custom_fields_json as Record<string, unknown>) || {})
         // Seed display names for Select components
         if (d.owner_id && d.owner_name) {
           userSelect.setInitialOption({ label: d.owner_name, value: d.owner_id })
@@ -88,6 +91,7 @@ export default function OpportunityForm() {
         ...values,
         close_date_expect: values.close_date_expect ? (values.close_date_expect as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
         key_requirements_json: cleanedKr,
+        custom_fields_json: customFields,
       }
       if (isEdit) {
         await projectApi.update(id!, payload)
@@ -150,13 +154,16 @@ export default function OpportunityForm() {
               <Switch checkedChildren="是" unCheckedChildren="否" />
             </Form.Item>
           </div>
-          <Form.Item name="owner_id" label="负责人">
-            <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
-              loading={userSelect.loading}
-              options={userSelect.options}
-              onSearch={userSelect.onSearch}
-              onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
-          </Form.Item>
+          {isEdit ? (
+            <Form.Item name="owner_id" label="负责人"
+              tooltip="负责人变更请在商机详情页使用「转移负责人」（需相应权限）">
+              <Select disabled options={userSelect.options} />
+            </Form.Item>
+          ) : (
+            <Form.Item label="负责人" tooltip="新建后默认负责人为当前用户（录入人），如需改派可在详情页转移">
+              <Input disabled value="（创建后默认为当前用户）" />
+            </Form.Item>
+          )}
           <div className="border-t border-slate-100 pt-4 mt-2 mb-1">
             <div className="text-sm font-semibold text-slate-700">关键需求</div>
             <div className="text-xs text-slate-400 mb-3">推进到「S3 方案报价」前需填写关键需求信息</div>
@@ -180,6 +187,9 @@ export default function OpportunityForm() {
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={3} placeholder="备注信息" />
           </Form.Item>
+          <div className="mb-4">
+            <CustomFieldsPanel entityType="project" values={customFields} onChange={setCustomFields} />
+          </div>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading}>保存</Button>
             <Button className="ml-2" onClick={() => navigate('/opportunities')}>取消</Button>

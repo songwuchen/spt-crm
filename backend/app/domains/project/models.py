@@ -19,6 +19,9 @@ class OpportunityProject(TenantScopedBase):
     risk_level: Mapped[str | None] = mapped_column(String(2))  # L/M/H
     owner_id: Mapped[str | None] = mapped_column(String(36))
     owner_name: Mapped[str | None] = mapped_column(String(100))
+    # 录入人（创建人）— 与负责人分家：负责人可被主管转移，录入人永久保留以供溯源
+    created_by_id: Mapped[str | None] = mapped_column(String(36))
+    created_by_name: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(16), default="active")  # active/won/lost/suspended
     remark: Mapped[str | None] = mapped_column(Text)
     # Business-specific flags (issue #18)

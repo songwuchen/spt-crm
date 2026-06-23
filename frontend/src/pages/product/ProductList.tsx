@@ -3,6 +3,7 @@ import { Button, Table, Input, Select, Tag, Modal, Form, InputNumber, Space, Swi
 import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons'
 import { productApi } from '@/api/product'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePermission } from '@/hooks/usePermission'
 import { quoteLineItemTypeLabels as itemTypeLabels } from '@/constants/labels'
 import type { ColumnsType } from 'antd/es/table'
 import ImportExcelModal from '@/components/ImportExcelModal'
@@ -35,6 +36,10 @@ export default function ProductList() {
   const [form] = Form.useForm()
 
   const [importModal, setImportModal] = useState(false)
+  const [catImportModal, setCatImportModal] = useState(false)
+  const { hasPermission } = usePermission()
+  const canCreate = hasPermission('product:create')
+  const canEditCat = hasPermission('product:edit')
   const [catModal, setCatModal] = useState(false)
   const [editingCat, setEditingCat] = useState<Category | null>(null)
   const [catForm] = Form.useForm()
@@ -172,10 +177,10 @@ export default function ProductList() {
                 <Select placeholder="分类" allowClear style={{ width: 140 }} value={filterCat} onChange={setFilterCat}
                   options={categories.map(c => ({ label: c.name, value: c.id }))} />
                 <div className="flex-1" />
-                <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>导入</Button>
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+                {canCreate && <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>导入</Button>}
+                {canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={() => {
                   setEditingProduct(null); form.resetFields(); form.setFieldsValue({ is_active: true }); setProductModal(true)
-                }}>新建产品</Button>
+                }}>新建产品</Button>}
               </div>
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <Table rowKey="id" columns={columns} dataSource={items} loading={loading} size="small"
@@ -192,9 +197,12 @@ export default function ProductList() {
             <>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm text-slate-500">管理产品分类，便于产品组织和筛选</span>
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => {
-                  setEditingCat(null); catForm.resetFields(); setCatModal(true)
-                }}>新建分类</Button>
+                {canEditCat && <Space>
+                  <Button icon={<UploadOutlined />} onClick={() => setCatImportModal(true)}>导入</Button>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+                    setEditingCat(null); catForm.resetFields(); setCatModal(true)
+                  }}>新建分类</Button>
+                </Space>}
               </div>
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <Table rowKey="id" dataSource={categories} size="small" pagination={false}
@@ -206,14 +214,14 @@ export default function ProductList() {
                     { title: '描述', dataIndex: 'description', width: 300 },
                     { title: '排序', dataIndex: 'sort_order', width: 80 },
                     { title: '', key: 'actions', width: 100,
-                      render: (_: unknown, r: Category) => (
+                      render: (_: unknown, r: Category) => canEditCat ? (
                         <Space size={4}>
                           <a className="text-primary text-sm font-bold" onClick={() => {
                             setEditingCat(r); catForm.setFieldsValue(r); setCatModal(true)
                           }}><EditOutlined /></a>
                           <a className="text-rose-500 text-sm font-bold" onClick={() => handleDeleteCat(r.id)}><DeleteOutlined /></a>
                         </Space>
-                      ),
+                      ) : <span className="text-slate-300">-</span>,
                     },
                   ]}
                 />
@@ -302,6 +310,16 @@ export default function ProductList() {
         title="导入产品"
         templateColumns={['产品编码', '名称', '类型(标准品/非标品/服务/备件)', '规格', '单位', '单价', '成本价', '交期(天)']}
         templateUrl="/api/v1/products/import/template"
+      />
+
+      <ImportExcelModal
+        open={catImportModal}
+        onClose={() => setCatImportModal(false)}
+        onSuccess={() => fetchCategories()}
+        apiUrl="/api/v1/products/categories/import"
+        title="导入产品分类"
+        templateColumns={['分类名称', '上级分类', '排序', '描述']}
+        templateUrl="/api/v1/products/categories/import/template"
       />
     </div>
   )

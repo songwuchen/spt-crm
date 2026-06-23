@@ -41,7 +41,7 @@ async def seed():
 
         added = {"permissions": 0, "perm_updates": 0, "roles": 0, "role_perms": 0,
                  "users": 0, "user_roles": 0, "customers": 0, "projects": 0,
-                 "stages": 0, "feature_toggles": 0}
+                 "stages": 0, "feature_toggles": 0, "approval_policies": 0}
 
         admin_user_id = "00000000-0000-0000-0000-000000000010"
 
@@ -66,6 +66,7 @@ async def seed():
             ("project:edit", "编辑商机", "商机"),
             ("project:delete", "删除商机", "商机"),
             ("project:advance", "推进商机阶段", "商机"),
+            ("project:transfer", "转移商机负责人", "商机"),
             ("quote:view", "查看报价", "报价"),
             ("quote:create", "创建报价", "报价"),
             ("quote:edit", "编辑报价", "报价"),
@@ -301,6 +302,22 @@ async def seed():
                 feature_code=code, enabled=enabled,
             ))
             added["feature_toggles"] += 1
+
+        # ---- 默认审批策略（预置一条可用的顺序审批；审批人/角色后续在「系统设置→审批策略」调整） ----
+        from app.domains.admin.models import ApprovalPolicy
+        existing_pol = {p.biz_type for p in (await db.execute(
+            select(ApprovalPolicy).where(ApprovalPolicy.tenant_id == TENANT_ID)
+        )).scalars().all()}
+        for biz_type, pname in [("contract_version", "合同审批（默认）"), ("order", "订单审批（默认）")]:
+            if biz_type in existing_pol:
+                continue
+            db.add(ApprovalPolicy(
+                id=generate_uuid(), tenant_id=TENANT_ID,
+                biz_type=biz_type, name=pname,
+                approver_rules_json=[{"type": "role", "value": "admin"}],
+                approval_mode="sequential", enabled=True, priority=0,
+            ))
+            added["approval_policies"] += 1
 
         await db.commit()
 

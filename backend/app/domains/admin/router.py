@@ -44,7 +44,8 @@ class EmailTemplateBody(BaseModel):
 
 class CustomFieldDefBody(BaseModel):
     entity_type: str = Field(..., pattern=r"^(customer|project|lead|contact|service_ticket)$")
-    field_key: str = Field(..., max_length=64)
+    # field_key 可留空——创建时后端自动生成稳定唯一的 key（用户只需填显示标签）
+    field_key: Optional[str] = Field(None, max_length=64)
     field_label: str = Field(..., max_length=100)
     field_type: str = Field(..., pattern=r"^(text|number|date|select|multiselect|boolean)$")
     options_json: Optional[list] = None
@@ -755,6 +756,22 @@ def _cf_dict(f: CustomFieldDef) -> dict:
     }
 
 
+async def _gen_field_key(db: AsyncSession, tenant_id: str, entity_type: str) -> str:
+    """自动生成自定义字段 key：cf_<8位>，保证在同租户+实体内唯一。
+    用户无需手填 key（避免重复/非法字符导致前端无法关联渲染）。"""
+    existing = set((await db.execute(
+        select(CustomFieldDef.field_key).where(
+            CustomFieldDef.tenant_id == tenant_id,
+            CustomFieldDef.entity_type == entity_type,
+        )
+    )).scalars().all())
+    for _ in range(50):
+        key = "cf_" + gen_id().replace("-", "")[:8]
+        if key not in existing:
+            return key
+    return "cf_" + gen_id().replace("-", "")
+
+
 @router.get("/api/v1/custom-fields")
 async def list_custom_fields(
     entity_type: str = Query(None),
@@ -777,7 +794,12 @@ async def create_custom_field(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:manage")),
 ):
-    f = CustomFieldDef(id=gen_id(), tenant_id=tenant_id, **body.model_dump())
+    data = body.model_dump()
+    key = (data.get("field_key") or "").strip()
+    if not key:
+        key = await _gen_field_key(db, tenant_id, body.entity_type)
+    data["field_key"] = key
+    f = CustomFieldDef(id=gen_id(), tenant_id=tenant_id, **data)
     db.add(f)
     await db.commit()
     await db.refresh(f)
@@ -796,7 +818,9 @@ async def update_custom_field(
     if not f or f.tenant_id != tenant_id:
         from app.common.exceptions import BusinessException
         raise BusinessException(message="字段不存在")
-    for k, v in body.model_dump().items():
+    data = body.model_dump()
+    data.pop("field_key", None)  # key 不可变（改 key 会让已存数据失联），仅更新标签/类型/选项等
+    for k, v in data.items():
         setattr(f, k, v)
     await db.commit()
     await db.refresh(f)
@@ -1056,94 +1080,6 @@ async def delete_email_template(
     if not tmpl:
         raise BusinessException(code=404, message="模板不存在")
     tmpl.is_deleted = True
-    await db.commit()
-    return ok(None)
-
-
-# ==================== Custom Fields ====================
-
-class CustomFieldBody(BaseModel):
-    entity_type: str = Field(..., pattern=r"^(customer|project|lead|contact|service_ticket)$")
-    field_key: str = Field(..., max_length=64)
-    field_label: str = Field(..., max_length=100)
-    field_type: str = Field(..., pattern=r"^(text|number|date|select|multiselect|boolean)$")
-    options_json: Optional[Union[dict, list]] = None
-    required: bool = False
-    sort_order: int = 0
-    enabled: bool = True
-
-
-@router.get("/api/v1/custom-fields")
-async def list_custom_fields(
-    entity_type: str = Query(None),
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("role:manage")),
-):
-    q = select(CustomFieldDef).where(
-        CustomFieldDef.tenant_id == tenant_id,
-    )
-    if entity_type:
-        q = q.where(CustomFieldDef.entity_type == entity_type)
-    items = (await db.execute(q.order_by(CustomFieldDef.entity_type, CustomFieldDef.sort_order))).scalars().all()
-    return ok([{
-        "id": f.id, "entity_type": f.entity_type, "field_key": f.field_key,
-        "field_label": f.field_label, "field_type": f.field_type,
-        "options_json": f.options_json, "required": f.required,
-        "sort_order": f.sort_order, "enabled": f.enabled,
-    } for f in items])
-
-
-@router.post("/api/v1/custom-fields")
-async def create_custom_field(
-    body: CustomFieldBody,
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("role:manage")),
-):
-    field = CustomFieldDef(
-        tenant_id=tenant_id, entity_type=body.entity_type,
-        field_key=body.field_key, field_label=body.field_label,
-        field_type=body.field_type, options_json=body.options_json,
-        required=body.required, sort_order=body.sort_order, enabled=body.enabled,
-    )
-    db.add(field)
-    await db.commit()
-    return ok({"id": field.id})
-
-
-@router.put("/api/v1/custom-fields/{field_id}")
-async def update_custom_field(
-    field_id: str,
-    body: CustomFieldBody,
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("role:manage")),
-):
-    field = (await db.execute(
-        select(CustomFieldDef).where(CustomFieldDef.id == field_id, CustomFieldDef.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not field:
-        raise BusinessException(code=404, message="字段不存在")
-    for attr in ("entity_type", "field_key", "field_label", "field_type", "options_json", "required", "sort_order", "enabled"):
-        setattr(field, attr, getattr(body, attr))
-    await db.commit()
-    return ok(None)
-
-
-@router.delete("/api/v1/custom-fields/{field_id}")
-async def delete_custom_field(
-    field_id: str,
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("role:manage")),
-):
-    field = (await db.execute(
-        select(CustomFieldDef).where(CustomFieldDef.id == field_id, CustomFieldDef.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not field:
-        raise BusinessException(code=404, message="字段不存在")
-    field.is_deleted = True
     await db.commit()
     return ok(None)
 

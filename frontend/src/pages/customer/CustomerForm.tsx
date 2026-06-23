@@ -7,6 +7,7 @@ import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useAutoSave } from '@/hooks/useAutoSave'
 import { useAuthStore } from '@/stores/useAuthStore'
+import CustomFieldsPanel from '@/components/CustomFieldsPanel'
 
 const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
 const defaultLevels = ['A', 'B', 'C', 'D'].map(l => ({ label: l, value: l }))
@@ -35,6 +36,7 @@ export default function CustomerForm() {
 
   const currentUser = useAuthStore((s) => s.user)
   const userSelect = useUserSelect()
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
 
   const [similarCustomers, setSimilarCustomers] = useState<{ id: string; name: string; short_name?: string; industry?: string; owner_name?: string; match_type?: string; match_phone?: string; match_contact?: string }[]>([])
   const dupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -60,6 +62,7 @@ export default function CustomerForm() {
     if (id) {
       customerApi.get(id).then((res) => {
         form.setFieldsValue(res.data)
+        setCustomFields((res.data.custom_fields_json as Record<string, unknown>) || {})
         // Seed owner option so Select shows name instead of raw ID
         if (res.data.owner_id && res.data.owner_name) {
           userSelect.setInitialOption({ label: res.data.owner_name, value: res.data.owner_id })
@@ -80,7 +83,7 @@ export default function CustomerForm() {
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true)
     try {
-      const payload = { ...values, owner_id: toPool ? null : (values.owner_id || null) } as any
+      const payload = { ...values, owner_id: toPool ? null : (values.owner_id || null), custom_fields_json: customFields } as any
       if (isEdit) {
         await customerApi.update(id!, payload)
         message.success('客户已更新')
@@ -188,6 +191,9 @@ export default function CustomerForm() {
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={3} placeholder="备注信息" />
           </Form.Item>
+          <div className="mb-4">
+            <CustomFieldsPanel entityType="customer" values={customFields} onChange={setCustomFields} />
+          </div>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading}>保存</Button>
             <Button className="ml-2" onClick={() => navigate('/customers')}>取消</Button>

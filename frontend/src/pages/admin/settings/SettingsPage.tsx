@@ -1200,15 +1200,14 @@ export default function SettingsPage() {
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">实体类型</label>
             <Select className="w-full" value={cfForm.entity_type} onChange={(v) => setCfForm({ ...cfForm, entity_type: v })}
-              options={Object.entries(entityTypeLabels).map(([k, v]) => ({ value: k, label: v }))} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">字段Key</label>
-            <Input value={cfForm.field_key} onChange={(e) => setCfForm({ ...cfForm, field_key: e.target.value })} placeholder="custom_region" />
+              disabled={!!cfEditingId}
+              options={[{ value: 'customer', label: '客户' }, { value: 'project', label: '商机' }]} />
+            <div className="text-[11px] text-slate-400 mt-1">自定义字段会显示在「客户」和「商机」的新建/编辑表单及详情页。</div>
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">显示标签</label>
             <Input value={cfForm.field_label} onChange={(e) => setCfForm({ ...cfForm, field_label: e.target.value })} placeholder="所在区域" />
+            <div className="text-[11px] text-slate-400 mt-1">字段 Key 由系统自动生成，无需填写。</div>
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">字段类型</label>

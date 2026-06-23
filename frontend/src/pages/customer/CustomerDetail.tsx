@@ -8,6 +8,7 @@ import { contactApi } from '@/api/contact'
 import { projectApi } from '@/api/project'
 import { roleApi } from '@/api/user'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import CustomFieldsPanel from '@/components/CustomFieldsPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import ChangeHistory from '@/components/ChangeHistory'
 import type { Customer, Contact, OpportunityProject, CustomerReport } from '@/api/types'
@@ -380,6 +381,9 @@ export default function CustomerDetail() {
             <InfoField label="来源" value={customer.source ? (sourceLabels[customer.source] || customer.source) : undefined} />
             <InfoField label="负责人" value={customer.owner_name} />
             <InfoField label="备注" value={customer.remark} />
+            <div className="pt-3">
+              <CustomFieldsPanel entityType="customer" values={customer.custom_fields_json} readOnly />
+            </div>
           </div>
         </div>
 
