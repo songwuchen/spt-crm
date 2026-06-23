@@ -148,7 +148,7 @@ async def rate_ticket(
     score = body.get("score")
     if not score or score < 1 or score > 5:
         from app.common.exceptions import BusinessException
-        raise BusinessException("评分必须为1-5")
+        raise BusinessException(message="评分必须为1-5")
 
     t = (await db.execute(
         select(ServiceTicket).where(
@@ -158,10 +158,10 @@ async def rate_ticket(
     )).scalar_one_or_none()
     if not t:
         from app.common.exceptions import BusinessException
-        raise BusinessException("工单不存在")
+        raise BusinessException(message="工单不存在")
     if t.status not in ("resolved", "closed"):
         from app.common.exceptions import BusinessException
-        raise BusinessException("仅已解决或已关闭的工单可评价")
+        raise BusinessException(message="仅已解决或已关闭的工单可评价")
 
     t.satisfaction_score = score
     t.satisfaction_comment = body.get("comment", "")

@@ -330,7 +330,7 @@ async def batch_status(
     from app.domains.lead.models import Lead
     if body.status not in ("new", "following", "qualified", "discarded"):
         from app.common.exceptions import BusinessException
-        raise BusinessException("无效状态")
+        raise BusinessException(message="无效状态")
     result = await db.execute(
         update(Lead).where(
             Lead.tenant_id == tenant_id,

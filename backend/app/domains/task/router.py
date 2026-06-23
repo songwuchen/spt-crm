@@ -128,7 +128,7 @@ async def update_task(
         select(UserTask).where(UserTask.tenant_id == tenant_id, UserTask.id == task_id)
     )).scalar()
     if not t:
-        raise BusinessException("任务不存在")
+        raise BusinessException(message="任务不存在")
     data = body.model_dump(exclude_unset=True)
     if "due_date" in data and data["due_date"]:
         from datetime import date as date_type
@@ -154,7 +154,7 @@ async def delete_task(
         select(UserTask).where(UserTask.tenant_id == tenant_id, UserTask.id == task_id)
     )).scalar()
     if not t:
-        raise BusinessException("任务不存在")
+        raise BusinessException(message="任务不存在")
     await db.delete(t)
     await db.commit()
     return ok()

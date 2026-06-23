@@ -202,7 +202,7 @@ async def compare_versions(
 
     if not ver1 or not ver2:
         from app.common.exceptions import BusinessException
-        raise BusinessException("版本不存在")
+        raise BusinessException(message="版本不存在")
 
     # Compute differences
     diffs = []

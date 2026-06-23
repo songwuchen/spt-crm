@@ -227,7 +227,7 @@ async def update_template(
     )).scalar()
     if not t:
         from app.common.exceptions import BusinessException
-        raise BusinessException("模板不存在")
+        raise BusinessException(message="模板不存在")
     for field, val in body.model_dump(exclude_unset=True).items():
         setattr(t, field, val)
     await db.commit()

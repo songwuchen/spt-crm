@@ -795,7 +795,7 @@ async def update_custom_field(
     f = await db.get(CustomFieldDef, field_id)
     if not f or f.tenant_id != tenant_id:
         from app.common.exceptions import BusinessException
-        raise BusinessException("字段不存在")
+        raise BusinessException(message="字段不存在")
     for k, v in body.model_dump().items():
         setattr(f, k, v)
     await db.commit()

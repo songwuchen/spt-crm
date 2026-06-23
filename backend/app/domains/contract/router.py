@@ -224,7 +224,7 @@ async def create_renewal_from_contract(
     )).scalar_one_or_none()
     if not contract:
         from app.common.exceptions import BusinessException
-        raise BusinessException("合同不存在")
+        raise BusinessException(message="合同不存在")
 
     # Get project info for customer_id
     project = (await db.execute(
@@ -306,7 +306,7 @@ async def batch_export_contract_pdf(
     ids = body.get("ids", [])
     if not ids:
         from app.common.exceptions import BusinessException
-        raise BusinessException("请选择要导出的合同")
+        raise BusinessException(message="请选择要导出的合同")
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:

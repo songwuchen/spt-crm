@@ -382,7 +382,7 @@ async def export_quote_pdf(
 
     if not ver:
         from app.common.exceptions import BusinessException
-        raise BusinessException("未找到报价版本")
+        raise BusinessException(message="未找到报价版本")
 
     lines = await service.list_lines(db, tenant_id, ver.id)
 
@@ -424,7 +424,7 @@ async def batch_export_quote_pdf(
     ids = body.get("ids", [])
     if not ids:
         from app.common.exceptions import BusinessException
-        raise BusinessException("请选择要导出的报价")
+        raise BusinessException(message="请选择要导出的报价")
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:

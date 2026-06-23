@@ -1,11 +1,12 @@
 import logging
 from datetime import date
 from sqlalchemy import select, func, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
-from app.common.error_codes import NOT_FOUND
+from app.common.error_codes import NOT_FOUND, DUPLICATE_ENTRY
 from app.domains.payment.models import Invoice, PaymentPlan, PaymentRecord
 from app.domains.payment.schemas import (
     InvoiceCreate, InvoiceUpdate, PaymentPlanCreate, PaymentPlanUpdate, PaymentRecordCreate,
@@ -167,7 +168,13 @@ async def create_plan(db: AsyncSession, tenant_id: str, project_id: str, data: P
         **dump,
     )
     db.add(plan)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # uq_plan_tenant_no protects (tenant_id, plan_no) — a reused plan number
+        # should be a clean validation error, not a 500.
+        await db.rollback()
+        raise BusinessException(code=DUPLICATE_ENTRY, message=f"回款计划编号 {dump.get('plan_no')} 已存在，请换一个编号")
     await db.refresh(plan)
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="create", resource_type="payment_plan", resource_id=plan.id,
@@ -209,7 +216,12 @@ async def bulk_create_plans(
         )
         db.add(plan)
         plans.append(plan)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise BusinessException(code=DUPLICATE_ENTRY,
+                                message="回款计划编号重复，请确保每条计划编号唯一")
     for plan in plans:
         await db.refresh(plan)
     if plans or deleted:

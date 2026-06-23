@@ -148,14 +148,45 @@ client.interceptors.response.use(
   },
 )
 
-// Wrap client.get with request deduplication
+// Was this rejection a request cancellation (vs. a real server/network error)?
+function isCanceled(err: any): boolean {
+  return (
+    axios.isCancel?.(err) === true ||
+    err?.code === 'ERR_CANCELED' ||
+    err?.name === 'CanceledError' ||
+    err?.name === 'AbortError'
+  )
+}
+
+// Wrap client.get with request deduplication.
+// GETs are idempotent, so we can safely refetch when a request is spuriously
+// canceled. This matters because React 18 StrictMode double-mounts effects in
+// dev: the discarded first mount's in-flight XHR can be aborted by the browser,
+// and without this guard the surviving mount inherits that rejection and renders
+// empty data (e.g. a related-list tab showing 0 despite rows existing).
 const originalGet = client.get.bind(client)
-client.get = function dedupGet(url: string, config?: any) {
+client.get = function dedupGet(url: string, config?: any): any {
+  // A caller that owns its own abort signal opts out of dedup — it wants an
+  // independently cancelable request and is responsible for the outcome.
+  if (config?.signal) return originalGet(url, config)
+
   const key = `${url}|${JSON.stringify(config?.params || {})}`
   const inflight = inflightRequests.get(key)
-  if (inflight) return inflight as any
+  if (inflight) {
+    // A concurrent caller deduped onto an in-flight request that then got
+    // canceled out from under it must not inherit that rejection — refetch.
+    return (inflight as Promise<unknown>).catch((err) =>
+      isCanceled(err) ? dedupGet(url, config) : Promise.reject(err),
+    )
+  }
 
-  const promise = originalGet(url, config).finally(() => {
+  const run = (retried: boolean): Promise<unknown> =>
+    originalGet(url, config).catch((err) => {
+      // Recover from a spurious cancellation once; surface everything else.
+      if (isCanceled(err) && !retried) return run(true)
+      throw err
+    })
+  const promise = run(false).finally(() => {
     inflightRequests.delete(key)
   })
   inflightRequests.set(key, promise)

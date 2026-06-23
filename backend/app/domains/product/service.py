@@ -33,7 +33,7 @@ async def update_category(db: AsyncSession, tenant_id: str, category_id: str, da
         select(ProductCategory).where(ProductCategory.tenant_id == tenant_id, ProductCategory.id == category_id)
     )).scalar()
     if not cat:
-        raise BusinessException("分类不存在")
+        raise BusinessException(message="分类不存在")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(cat, k, v)
     await db.commit()
@@ -46,7 +46,7 @@ async def delete_category(db: AsyncSession, tenant_id: str, category_id: str):
         select(ProductCategory).where(ProductCategory.tenant_id == tenant_id, ProductCategory.id == category_id)
     )).scalar()
     if not cat:
-        raise BusinessException("分类不存在")
+        raise BusinessException(message="分类不存在")
     # Check if any products reference this category
     count = (await db.execute(
         select(func.count(Product.id)).where(Product.tenant_id == tenant_id, Product.category_id == category_id)
@@ -94,7 +94,7 @@ async def get_product(db: AsyncSession, tenant_id: str, product_id: str):
         select(Product).where(Product.tenant_id == tenant_id, Product.id == product_id)
     )).scalar()
     if not p:
-        raise BusinessException("产品不存在")
+        raise BusinessException(message="产品不存在")
     return p
 
 

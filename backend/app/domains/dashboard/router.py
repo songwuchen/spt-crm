@@ -963,9 +963,9 @@ async def upsert_target(
     """Create or update a sales target (upsert by user+year+month or department+year+month)."""
     from app.common.exceptions import BusinessException
     if body.user_id and body.department_id:
-        raise BusinessException("不能同时设置用户和部门")
+        raise BusinessException(message="不能同时设置用户和部门")
     if not body.user_id and not body.department_id:
-        raise BusinessException("必须指定用户或部门")
+        raise BusinessException(message="必须指定用户或部门")
 
     if body.department_id:
         # Department-level target
@@ -1027,7 +1027,7 @@ async def delete_target(
     )).scalar()
     if not t:
         from app.common.exceptions import BusinessException
-        raise BusinessException("目标不存在")
+        raise BusinessException(message="目标不存在")
     await db.delete(t)
     await db.commit()
     return ok()

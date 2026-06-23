@@ -317,7 +317,9 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
     )).scalar_one_or_none()
     if not task:
         raise BusinessException(code=NOT_FOUND, message="审批任务不存在")
-    if task.status not in ("pending",):
+    if task.status == "waiting":
+        raise BusinessException(code=BUSINESS_ERROR, message="前序审批节点尚未完成，请等待轮到您再处理")
+    if task.status != "pending":
         raise BusinessException(code=BUSINESS_ERROR, message="该审批任务已处理")
     if task.assignee_id != user["sub"]:
         raise BusinessException(code=BUSINESS_ERROR, message="您不是该审批任务的审批人")
@@ -964,20 +966,22 @@ async def check_sla_overdue(db: AsyncSession, tenant_id: str) -> int:
                     except Exception as e:
                         logger.warning("SLA escalation notification failed for flow %s: %s", flow.id, e)
                 elif action_type == "auto_approve":
-                    # Auto-approve with system user
+                    # SLA auto-approve: nobody acted in time, so push the WHOLE flow
+                    # through. Approve every not-yet-decided task (pending + the
+                    # downstream 'waiting' nodes of a sequential flow) and complete
+                    # the flow — otherwise a multi-node sequential flow would approve
+                    # only the current node and hang forever (escalation_level is
+                    # already maxed, so it never retries).
                     try:
-                        sys_user = {"sub": "system", "real_name": "系统自动审批", "username": "system"}
-                        # Temporarily allow system to decide
-                        pending_task.assignee_id_backup = pending_task.assignee_id
-                        original_assignee = pending_task.assignee_id
-                        pending_task.status = "approved"
-                        pending_task.comment = f"SLA超时自动通过（{int(elapsed_hours)}小时）"
-                        pending_task.decided_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
-                        # Check if all tasks done (use batch-loaded tasks)
-                        all_approved = all(t.status == "approved" for t in flow_tasks)
-                        if all_approved:
-                            flow.status = "approved"
-                            await _on_approval_completed(db, tenant_id, flow)
+                        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+                        for t in flow_tasks:
+                            if t.status in ("pending", "waiting"):
+                                t.status = "approved"
+                                t.comment = f"SLA超时自动通过（{int(elapsed_hours)}小时）"
+                                t.decided_at = ts
+                        flow.current_node = flow.total_nodes
+                        flow.status = "approved"
+                        await _on_approval_completed(db, tenant_id, flow)
                         notified += 1
                     except Exception as e:
                         logger.warning("SLA auto-approve failed for flow %s: %s", flow.id, e)

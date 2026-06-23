@@ -278,7 +278,7 @@ async def release_to_pool(db: AsyncSession, tenant_id: str, customer_id: str, us
     """Release a customer to the pool."""
     customer = await get_customer(db, tenant_id, customer_id)
     if customer.status == "pool":
-        raise BusinessException("客户已在公海池中")
+        raise BusinessException(message="客户已在公海池中")
     old_owner = customer.owner_name or customer.owner_id
     customer.status = "pool"
     customer.owner_id = None
@@ -295,7 +295,7 @@ async def claim_from_pool(db: AsyncSession, tenant_id: str, customer_id: str, us
     """Claim a customer from the pool."""
     customer = await get_customer(db, tenant_id, customer_id)
     if customer.status != "pool":
-        raise BusinessException("客户不在公海池中")
+        raise BusinessException(message="客户不在公海池中")
     customer.status = "active"
     customer.owner_id = user["sub"]
     customer.owner_name = user.get("real_name") or user.get("username")

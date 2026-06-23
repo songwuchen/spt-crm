@@ -119,7 +119,7 @@ async def test_webhook(
     url = body.get("url", "")
     if not url:
         from app.common.exceptions import BusinessException
-        raise BusinessException("请提供 webhook URL")
+        raise BusinessException(message="请提供 webhook URL")
     test_payload = {
         "event": "test",
         "tenant_id": tenant_id,
