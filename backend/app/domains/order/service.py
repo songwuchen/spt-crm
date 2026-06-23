@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy import select, func, delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +10,8 @@ from app.common.code_generator import generate_code
 from app.domains.order.models import Order, OrderLine
 from app.domains.order.schemas import OrderCreate, OrderUpdate, OrderShip
 from app.domains.audit.service import log_action
+
+logger = logging.getLogger("spt_crm.order")
 
 
 def _round2(v: float) -> float:
@@ -106,14 +110,25 @@ async def create_order(db: AsyncSession, tenant_id: str, data: OrderCreate, user
                      action="create", resource_type="order", resource_id=order.id,
                      summary=f"创建订单: {order.order_no}")
 
-    # 生成待办，推送给负责人（自己给自己建单不通知）；外部钉钉/企微由 outbox 事件转发
+    # 生成待办，推送给负责人（自己给自己建单不通知）
     if order.owner_id and order.owner_id != user["sub"]:
+        actor = user.get("real_name") or user.get("username")
         try:
             from app.common.auto_notify import notify_order_assigned
-            await notify_order_assigned(db, tenant_id, order.order_no, order.owner_id,
-                                        user.get("real_name") or user.get("username"), order.id)
+            await notify_order_assigned(db, tenant_id, order.order_no, order.owner_id, actor, order.id)
         except Exception:
             pass
+        # 钉钉待办/工作通知（已配置企业应用且负责人有手机号时下发）
+        try:
+            from app.common.msg_integration import dispatch_todo
+            await dispatch_todo(
+                db, tenant_id, order.owner_id,
+                title=f"新订单待处理：{order.order_no}",
+                content=f"{order.title or order.order_no}\n创建人：{actor}\n请及时跟进订单处理。",
+                link="/orders",
+            )
+        except Exception as e:
+            logger.warning("DingTalk todo dispatch for order failed: %s", e)
     return order
 
 

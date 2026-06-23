@@ -76,6 +76,195 @@ async def send_to_dingtalk(
         return False
 
 
+# -------- DingTalk 企业应用：工作通知 + 待办（推送给具体负责人） --------
+# 群机器人(上面的 send_to_dingtalk)只能发到群；要把"待办"推给某个负责人，
+# 需用企业内部应用：appKey/appSecret 换 access_token，再按手机号查到 userid，
+# 通过「工作通知」(asyncsend_v2) 下发可点击卡片，并尽力创建钉钉「待办」(Todo)。
+
+_dingtalk_token_cache: dict[str, tuple[str, float]] = {}
+
+
+async def get_dingtalk_token(app_key: str, app_secret: str) -> str | None:
+    """获取并缓存钉钉企业应用 access_token（有效期内复用）。"""
+    if not app_key or not app_secret:
+        return None
+    now = time.time()
+    cached = _dingtalk_token_cache.get(app_key)
+    if cached and cached[1] > now + 60:
+        return cached[0]
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://oapi.dingtalk.com/gettoken",
+                params={"appkey": app_key, "appsecret": app_secret},
+            )
+            data = resp.json()
+        if data.get("errcode") == 0 and data.get("access_token"):
+            token = data["access_token"]
+            _dingtalk_token_cache[app_key] = (token, now + int(data.get("expires_in", 7200)))
+            return token
+        logger.warning("DingTalk gettoken failed: %s", data)
+    except Exception as e:
+        logger.error("DingTalk gettoken error: %s", e)
+    return None
+
+
+async def get_dingtalk_userid_by_mobile(token: str, mobile: str) -> str | None:
+    """按手机号查询钉钉 userid（CRM 用户 → 钉钉用户的映射）。"""
+    if not token or not mobile:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"https://oapi.dingtalk.com/topapi/v2/user/getbymobile?access_token={token}",
+                json={"mobile": mobile},
+            )
+            data = resp.json()
+        if data.get("errcode") == 0:
+            return (data.get("result") or {}).get("userid")
+        logger.warning("DingTalk getbymobile failed for %s: %s", mobile, data)
+    except Exception as e:
+        logger.error("DingTalk getbymobile error: %s", e)
+    return None
+
+
+async def get_dingtalk_unionid(token: str, userid: str) -> str | None:
+    """按 userid 查 unionId（创建钉钉「待办」需要 unionId）。"""
+    if not token or not userid:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"https://oapi.dingtalk.com/topapi/v2/user/get?access_token={token}",
+                json={"userid": userid},
+            )
+            data = resp.json()
+        if data.get("errcode") == 0:
+            return (data.get("result") or {}).get("unionid")
+    except Exception as e:
+        logger.error("DingTalk user/get error: %s", e)
+    return None
+
+
+async def send_dingtalk_work_notification(
+    token: str, agent_id: str, userid_list: list[str],
+    title: str, content: str, url: str | None = None,
+) -> bool:
+    """发送钉钉「工作通知」给指定用户（待办式推送）。有链接时用可点击卡片，否则用文本。"""
+    if not token or not agent_id or not userid_list:
+        return False
+    if url:
+        msg = {"msgtype": "action_card", "action_card": {
+            "title": title, "markdown": f"### {title}\n\n{content}",
+            "single_title": "查看详情", "single_url": url,
+        }}
+    else:
+        msg = {"msgtype": "text", "text": {"content": f"{title}\n{content}"}}
+    payload = {"agent_id": str(agent_id), "userid_list": ",".join(userid_list), "msg": msg}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"https://oapi.dingtalk.com/topapi/message/corpconversation/asyncsend_v2?access_token={token}",
+                json=payload,
+            )
+            data = resp.json()
+        if data.get("errcode") == 0:
+            logger.info("DingTalk work notification sent to %s: %s", userid_list, title)
+            return True
+        logger.warning("DingTalk asyncsend_v2 failed: %s", data)
+    except Exception as e:
+        logger.error("DingTalk asyncsend_v2 error: %s", e)
+    return False
+
+
+async def create_dingtalk_todo(
+    token: str, union_id: str, creator_union_id: str | None,
+    subject: str, description: str | None = None, url: str | None = None,
+) -> bool:
+    """在负责人的钉钉「待办」中创建一条任务（v1.0 Todo API，尽力而为）。"""
+    if not token or not union_id:
+        return False
+    body: dict[str, Any] = {
+        "subject": subject[:200],
+        "creatorId": creator_union_id or union_id,
+        "executorIds": [union_id],
+        "participantIds": [union_id],
+        "isOnlyShowExecutor": True,
+    }
+    if description:
+        body["description"] = description[:1000]
+    if url:
+        body["detailUrl"] = {"appUrl": url, "pcUrl": url}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"https://api.dingtalk.com/v1.0/todo/users/{union_id}/tasks",
+                headers={"x-acs-dingtalk-access-token": token},
+                json=body,
+            )
+        if resp.status_code in (200, 201):
+            logger.info("DingTalk todo created for %s: %s", union_id, subject)
+            return True
+        logger.warning("DingTalk todo create failed (%s): %s", resp.status_code, resp.text[:200])
+    except Exception as e:
+        logger.error("DingTalk todo create error: %s", e)
+    return False
+
+
+async def dispatch_todo(
+    db: AsyncSession, tenant_id: str, assignee_user_id: str,
+    title: str, content: str, link: str | None = None,
+) -> dict[str, bool]:
+    """把"待办"推送给指定负责人（钉钉工作通知 + 尽力创建钉钉待办）。
+
+    需要租户配置了钉钉企业应用（dingtalk 集成的 auth_config_json 含 app_key/app_secret/agent_id），
+    且该负责人在 CRM 中填了手机号（用于匹配钉钉账号）。未配置或匹配不到时安全跳过（站内通知已兜底）。
+    """
+    results: dict[str, bool] = {}
+    if not assignee_user_id:
+        return results
+    ep = await _get_msg_endpoint(db, tenant_id, "dingtalk")
+    if not ep:
+        return results
+    from app.common.crypto import decrypt_config_json
+    config = decrypt_config_json(ep.auth_config_json or {}) or {}
+    app_key = config.get("app_key")
+    app_secret = config.get("app_secret")
+    agent_id = config.get("agent_id")
+    if not (app_key and app_secret and agent_id):
+        return results  # 仅配置了群机器人、未配置企业应用 → 跳过个人待办
+
+    token = await get_dingtalk_token(app_key, app_secret)
+    if not token:
+        return results
+
+    from app.domains.auth.models import User
+    user = (await db.execute(
+        select(User).where(User.id == assignee_user_id, User.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not user or not user.phone:
+        logger.info("dispatch_todo skipped: assignee %s has no phone", assignee_user_id)
+        return results
+
+    userid = await get_dingtalk_userid_by_mobile(token, user.phone)
+    if not userid:
+        return results
+
+    full_url = None
+    if link:
+        base = (config.get("crm_base_url") or "").rstrip("/")
+        full_url = link if link.startswith("http") else (base + link if base else None)
+
+    results["work_notification"] = await send_dingtalk_work_notification(
+        token, agent_id, [userid], title, content, full_url)
+
+    # 尽力创建真正的钉钉待办（需 unionId + 应用具备待办权限）
+    union_id = await get_dingtalk_unionid(token, userid)
+    if union_id:
+        results["todo"] = await create_dingtalk_todo(token, union_id, None, title, content, full_url)
+    return results
+
+
 # -------- WeCom (企业微信) --------
 
 async def send_to_wecom(

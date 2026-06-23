@@ -1172,10 +1172,20 @@ export default function SettingsPage() {
             <label className="text-sm font-medium text-slate-700 mb-1 block">认证配置 (JSON)</label>
             <TextArea rows={5} value={intForm.auth_config_json} onChange={(e) => setIntForm({ ...intForm, auth_config_json: e.target.value })}
               className="font-mono text-sm"
-              placeholder={intForm.auth_type === 'apikey' ? '{"api_key": "your-key", "header_name": "X-API-Key"}'
+              placeholder={intForm.system_code === 'dingtalk'
+                ? '{"secret": "群机器人加签(可选)", "app_key": "企业应用Key", "app_secret": "企业应用Secret", "agent_id": "应用AgentId", "crm_base_url": "https://192.168.0.42:8410"}'
+                : intForm.auth_type === 'apikey' ? '{"api_key": "your-key", "header_name": "X-API-Key"}'
                 : intForm.auth_type === 'basic' ? '{"username": "user", "password": "pass"}'
                 : '{"token_url": "https://...", "client_id": "xxx", "client_secret": "xxx"}'} />
           </div>
+          {intForm.system_code === 'dingtalk' && (
+            <div className="text-[12px] text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+              <div className="font-semibold mb-1">钉钉「待办/工作通知」配置说明</div>
+              <div>• Webhook URL：群机器人地址，用于群通知（可选）。</div>
+              <div>• 认证配置 JSON 填企业内部应用的 <code>app_key</code> / <code>app_secret</code> / <code>agent_id</code> 后，系统会按负责人手机号匹配钉钉账号，下发「工作通知」并尽力创建钉钉「待办」。</div>
+              <div>• <code>crm_base_url</code> 用于待办卡片的跳转链接（如 https://192.168.0.42:8410）。负责人需在「用户管理」中填写手机号。</div>
+            </div>
+          )}
           {['dingtalk', 'wecom'].includes(intForm.system_code) && intForm.base_url && (
             <Button size="small" onClick={async () => {
               try {
