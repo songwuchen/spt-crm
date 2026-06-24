@@ -17,6 +17,77 @@ const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, { ALLOWED_TAGS: 
 
 const { TextArea } = Input
 
+// ---- Reusable visual editors (replace raw-JSON textareas) ----
+
+// Editable list of plain strings — used for 自定义字段选项 / 合同关键条款 etc.
+function StringListEditor({ value, onChange, placeholder, addText = '添加一项' }: {
+  value: string[]; onChange: (v: string[]) => void; placeholder?: string; addText?: string
+}) {
+  const list = value || []
+  return (
+    <div className="space-y-2">
+      {list.map((item, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <Input value={item} placeholder={placeholder}
+            onChange={(e) => onChange(list.map((v, idx) => (idx === i ? e.target.value : v)))} />
+          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => onChange(list.filter((_, idx) => idx !== i))} />
+        </div>
+      ))}
+      <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={() => onChange([...list, ''])} block>{addText}</Button>
+    </div>
+  )
+}
+
+interface KvRow { k: string; v: string }
+// Editable key/value pairs — used for 条款摘要 / 付款条款 / 交付条款 (stored as JSON objects).
+function KeyValueEditor({ value, onChange, keyPlaceholder = '名称', valPlaceholder = '值', addText = '添加条款' }: {
+  value: KvRow[]; onChange: (v: KvRow[]) => void; keyPlaceholder?: string; valPlaceholder?: string; addText?: string
+}) {
+  const rows = value || []
+  return (
+    <div className="space-y-2">
+      {rows.map((row, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <Input className="!w-1/3" value={row.k} placeholder={keyPlaceholder}
+            onChange={(e) => onChange(rows.map((r, idx) => (idx === i ? { ...r, k: e.target.value } : r)))} />
+          <Input className="flex-1" value={row.v} placeholder={valPlaceholder}
+            onChange={(e) => onChange(rows.map((r, idx) => (idx === i ? { ...r, v: e.target.value } : r)))} />
+          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => onChange(rows.filter((_, idx) => idx !== i))} />
+        </div>
+      ))}
+      <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={() => onChange([...rows, { k: '', v: '' }])} block>{addText}</Button>
+    </div>
+  )
+}
+
+interface AuthFieldDef { key: string; label: string; placeholder?: string; secret?: boolean }
+// Which credential inputs to render for an integration, by system / auth type — replaces the raw auth_config JSON textarea.
+function getAuthFields(systemCode: string, authType: string): AuthFieldDef[] {
+  if (systemCode === 'dingtalk') return [
+    { key: 'app_key', label: '企业应用 AppKey', placeholder: '企业内部应用 AppKey' },
+    { key: 'app_secret', label: '企业应用 AppSecret', placeholder: '企业内部应用 AppSecret', secret: true },
+    { key: 'agent_id', label: '应用 AgentId', placeholder: '应用 AgentId' },
+    { key: 'crm_base_url', label: 'CRM 访问地址', placeholder: 'https://192.168.0.42:8410' },
+    { key: 'secret', label: '群机器人加签 Secret（可选）', placeholder: '加签 secret，可留空', secret: true },
+  ]
+  switch (authType) {
+    case 'apikey': return [
+      { key: 'api_key', label: 'API Key', placeholder: 'your-key', secret: true },
+      { key: 'header_name', label: '请求头名称', placeholder: 'X-API-Key' },
+    ]
+    case 'basic': return [
+      { key: 'username', label: '用户名', placeholder: 'user' },
+      { key: 'password', label: '密码', placeholder: 'pass', secret: true },
+    ]
+    case 'oauth2': return [
+      { key: 'token_url', label: 'Token URL', placeholder: 'https://...' },
+      { key: 'client_id', label: 'Client ID', placeholder: 'xxx' },
+      { key: 'client_secret', label: 'Client Secret', placeholder: 'xxx', secret: true },
+    ]
+    default: return []
+  }
+}
+
 interface StageConfig { id: string; stage_code: string; name: string; gate_rules_json?: Record<string, unknown>[]; enabled: boolean }
 interface MarginPolicy { id: string; policy_code: string; redline_rate: number; action: string; scope_json?: Record<string, unknown>; enabled: boolean }
 interface AiPolicy { id: string; task_type: string; model_route_json?: Record<string, unknown>; budget_json?: Record<string, unknown>; enabled: boolean }
@@ -76,19 +147,29 @@ export default function SettingsPage() {
   // Custom field
   const [cfModal, setCfModal] = useState(false)
   const [cfEditingId, setCfEditingId] = useState<string | null>(null)
-  const defaultCfForm = { entity_type: 'customer', field_key: '', field_label: '', field_type: 'text', options_json: '', required: false, sort_order: 0, enabled: true }
+  const defaultCfForm = { entity_type: 'customer', field_key: '', field_label: '', field_type: 'text', options_json: [] as string[], required: false, sort_order: 0, enabled: true }
   const [cfForm, setCfForm] = useState(defaultCfForm)
 
   // Doc template
   const [dtModal, setDtModal] = useState(false)
   const [dtEditingId, setDtEditingId] = useState<string | null>(null)
-  const defaultDtForm = { doc_type: 'quote' as string, name: '', description: '', content_json: '', is_default: false }
+  const defaultDtForm = {
+    doc_type: 'quote' as string, name: '', description: '', is_default: false,
+    title: '',
+    tax_rate: 0.13 as number | null,
+    validity_days: 30 as number | null,
+    terms: [] as KvRow[],            // quote: terms_summary_json
+    lines: [] as { item_name: string; qty: number; unit: string; unit_price: number }[],
+    payment_terms: [] as KvRow[],    // contract: payment_terms_json
+    delivery_terms: [] as KvRow[],   // contract: delivery_terms_json
+    key_clauses: [] as string[],     // contract: key_clauses_json
+  }
   const [dtForm, setDtForm] = useState(defaultDtForm)
 
   // Email template
   const [etModal, setEtModal] = useState(false)
   const [etEditingId, setEtEditingId] = useState<string | null>(null)
-  const defaultEtForm = { code: '', name: '', subject: '', body_html: '', variables_json: '', enabled: true }
+  const defaultEtForm = { code: '', name: '', subject: '', body_html: '', variables_json: [] as { name: string; label: string }[], enabled: true }
   const [etForm, setEtForm] = useState(defaultEtForm)
 
   // Stage edit
@@ -102,7 +183,7 @@ export default function SettingsPage() {
   // Integration create/edit
   const [intModal, setIntModal] = useState(false)
   const [intEditingId, setIntEditingId] = useState<string | null>(null)
-  const defaultIntForm = { system_code: '', name: '', base_url: '', auth_type: 'apikey', auth_config_json: '', status: 'active' }
+  const defaultIntForm = { system_code: '', name: '', base_url: '', auth_type: 'apikey', auth_config_json: {} as Record<string, string>, status: 'active' }
   const [intForm, setIntForm] = useState(defaultIntForm)
 
   // Notification templates
@@ -202,9 +283,9 @@ export default function SettingsPage() {
         system_code: intForm.system_code, name: intForm.name,
         base_url: intForm.base_url, auth_type: intForm.auth_type, status: intForm.status,
       }
-      if (intForm.auth_config_json.trim()) {
-        try { payload.auth_config_json = JSON.parse(intForm.auth_config_json) } catch { message.error('认证配置 JSON 格式错误'); return }
-      } else { payload.auth_config_json = null }
+      const cfg: Record<string, string> = {}
+      Object.entries(intForm.auth_config_json || {}).forEach(([k, v]) => { if (v != null && String(v).trim()) cfg[k] = String(v).trim() })
+      payload.auth_config_json = Object.keys(cfg).length ? cfg : null
       if (intEditingId) {
         await settingsApi.updateIntegration(intEditingId, payload)
         message.success('集成端点已更新')
@@ -237,10 +318,35 @@ export default function SettingsPage() {
     } catch { message.error(apEditingId ? '更新审批策略失败' : '创建审批策略失败') }
   }
 
+  const kvToObj = (rows: KvRow[]) => rows.reduce((o, { k, v }) => { if (k.trim()) o[k.trim()] = v; return o }, {} as Record<string, string>)
+  const dtUpdateLine = (i: number, field: 'item_name' | 'unit', val: string) =>
+    setDtForm((f) => ({ ...f, lines: f.lines.map((l, idx) => (idx === i ? { ...l, [field]: val } : l)) }))
+  const dtUpdateLineNum = (i: number, field: 'qty' | 'unit_price', val: number) =>
+    setDtForm((f) => ({ ...f, lines: f.lines.map((l, idx) => (idx === i ? { ...l, [field]: val } : l)) }))
+
   const handleSaveDt = async () => {
-    let contentJson = null
-    if (dtForm.content_json) {
-      try { contentJson = JSON.parse(dtForm.content_json) } catch { message.error('内容JSON格式错误'); return }
+    if (!dtForm.name.trim()) { message.error('请填写模板名称'); return }
+    let contentJson: Record<string, unknown>
+    if (dtForm.doc_type === 'quote') {
+      const terms = kvToObj(dtForm.terms)
+      contentJson = {
+        title: dtForm.title || undefined,
+        tax_rate: dtForm.tax_rate ?? undefined,
+        validity_days: dtForm.validity_days ?? undefined,
+        ...(Object.keys(terms).length ? { terms_summary_json: terms } : {}),
+        lines: (dtForm.lines || []).filter((l) => l.item_name.trim())
+          .map((l) => ({ item_name: l.item_name.trim(), qty: l.qty, unit: l.unit, unit_price: l.unit_price })),
+      }
+    } else {
+      const pay = kvToObj(dtForm.payment_terms)
+      const del = kvToObj(dtForm.delivery_terms)
+      const clauses = (dtForm.key_clauses || []).map((c) => c.trim()).filter(Boolean)
+      contentJson = {
+        title: dtForm.title || undefined,
+        ...(Object.keys(pay).length ? { payment_terms_json: pay } : {}),
+        ...(Object.keys(del).length ? { delivery_terms_json: del } : {}),
+        ...(clauses.length ? { key_clauses_json: clauses } : {}),
+      }
     }
     try {
       const payload = { doc_type: dtForm.doc_type, name: dtForm.name, description: dtForm.description || undefined, content_json: contentJson, is_default: dtForm.is_default }
@@ -256,12 +362,11 @@ export default function SettingsPage() {
   }
 
   const handleSaveEt = async () => {
-    let varsJson = null
-    if (etForm.variables_json) {
-      try { varsJson = JSON.parse(etForm.variables_json) } catch { message.error('变量JSON格式错误'); return }
-    }
     try {
-      const payload = { code: etForm.code, name: etForm.name, subject: etForm.subject || undefined, body_html: etForm.body_html || undefined, variables_json: varsJson, enabled: etForm.enabled }
+      const vars = (etForm.variables_json || [])
+        .filter((v) => v.name.trim())
+        .map((v) => ({ name: v.name.trim(), label: v.label.trim() }))
+      const payload = { code: etForm.code, name: etForm.name, subject: etForm.subject || undefined, body_html: etForm.body_html || undefined, variables_json: vars.length ? vars : null, enabled: etForm.enabled }
       if (etEditingId) {
         await settingsApi.updateEmailTemplate(etEditingId, payload)
         message.success('邮件模板已更新')
@@ -274,12 +379,12 @@ export default function SettingsPage() {
   }
 
   const handleSaveCf = async () => {
-    let optionsJson = null
-    if (cfForm.options_json) {
-      try { optionsJson = JSON.parse(cfForm.options_json) } catch { message.error('选项JSON格式错误'); return }
-    }
     try {
-      const payload = { ...cfForm, options_json: optionsJson }
+      const opts = (cfForm.options_json || []).map((o) => o.trim()).filter(Boolean)
+      if ((cfForm.field_type === 'select' || cfForm.field_type === 'multiselect') && opts.length === 0) {
+        message.error('单选/多选字段请至少添加一个选项'); return
+      }
+      const payload = { ...cfForm, options_json: opts.length ? opts : null }
       if (cfEditingId) {
         await settingsApi.updateCustomField(cfEditingId, payload)
         message.success('自定义字段已更新')
@@ -428,8 +533,20 @@ export default function SettingsPage() {
                     <Space size="middle">
                       <a className="text-primary text-sm font-bold" onClick={() => {
                         setDtEditingId(r.id)
-                        setDtForm({ doc_type: r.doc_type, name: r.name, description: r.description || '',
-                          content_json: r.content_json ? JSON.stringify(r.content_json, null, 2) : '', is_default: r.is_default })
+                        const c = (r.content_json || {}) as Record<string, any>
+                        const objToKv = (o: any): KvRow[] => (o && typeof o === 'object' && !Array.isArray(o))
+                          ? Object.entries(o).map(([k, v]) => ({ k, v: typeof v === 'string' ? v : JSON.stringify(v) })) : []
+                        setDtForm({
+                          doc_type: r.doc_type, name: r.name, description: r.description || '', is_default: r.is_default,
+                          title: c.title || '',
+                          tax_rate: typeof c.tax_rate === 'number' ? c.tax_rate : (r.doc_type === 'quote' ? 0.13 : null),
+                          validity_days: typeof c.validity_days === 'number' ? c.validity_days : (r.doc_type === 'quote' ? 30 : null),
+                          terms: objToKv(c.terms_summary_json),
+                          lines: Array.isArray(c.lines) ? c.lines.map((l: any) => ({ item_name: l.item_name || '', qty: l.qty ?? 1, unit: l.unit || '', unit_price: l.unit_price ?? 0 })) : [],
+                          payment_terms: objToKv(c.payment_terms_json),
+                          delivery_terms: objToKv(c.delivery_terms_json),
+                          key_clauses: Array.isArray(c.key_clauses_json) ? c.key_clauses_json.map((x: any) => String(x)) : [],
+                        })
                         setDtModal(true)
                       }}>编辑</a>
                       <a className={`text-rose-500 text-sm font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
@@ -465,7 +582,10 @@ export default function SettingsPage() {
                       <a className="text-primary text-sm font-bold" onClick={() => {
                         setEtEditingId(r.id)
                         setEtForm({ code: r.code, name: r.name, subject: r.subject || '',
-                          body_html: r.body_html || '', variables_json: r.variables_json ? JSON.stringify(r.variables_json, null, 2) : '',
+                          body_html: r.body_html || '',
+                          variables_json: Array.isArray(r.variables_json)
+                            ? (r.variables_json as { name: string; label: string }[]).map((v) => ({ name: v.name || '', label: v.label || '' }))
+                            : [],
                           enabled: r.enabled })
                         setEtModal(true)
                       }}>编辑</a>
@@ -560,7 +680,7 @@ export default function SettingsPage() {
                         setIntForm({
                           system_code: r.system_code, name: r.name || '', base_url: r.base_url || '',
                           auth_type: r.auth_type || 'apikey', status: r.status || 'active',
-                          auth_config_json: r.auth_config_json ? JSON.stringify(r.auth_config_json, null, 2) : '',
+                          auth_config_json: (r.auth_config_json as Record<string, string>) || {},
                         })
                         setIntModal(true)
                       }}>编辑</a>
@@ -687,7 +807,7 @@ export default function SettingsPage() {
                     <Space size={4}>
                       <a onClick={() => {
                         setCfEditingId(r.id)
-                        setCfForm({ entity_type: r.entity_type, field_key: r.field_key, field_label: r.field_label, field_type: r.field_type, options_json: r.options_json ? JSON.stringify(r.options_json) : '', required: r.required, sort_order: r.sort_order, enabled: r.enabled })
+                        setCfForm({ entity_type: r.entity_type, field_key: r.field_key, field_label: r.field_label, field_type: r.field_type, options_json: Array.isArray(r.options_json) ? r.options_json : [], required: r.required, sort_order: r.sort_order, enabled: r.enabled })
                         setCfModal(true)
                       }} className="text-primary text-sm font-bold">编辑</a>
                       <a className={`text-rose-500 text-sm font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
@@ -983,13 +1103,72 @@ export default function SettingsPage() {
             <label className="text-sm font-medium text-slate-700 mb-1 block">说明</label>
             <Input value={dtForm.description} onChange={(e) => setDtForm({ ...dtForm, description: e.target.value })} placeholder="模板说明（可选）" />
           </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">内容 (JSON)</label>
-            <TextArea rows={8} value={dtForm.content_json} onChange={(e) => setDtForm({ ...dtForm, content_json: e.target.value })}
-              placeholder={dtForm.doc_type === 'quote'
-                ? '{"title":"标准报价","tax_rate":0.13,"validity_days":30,"terms_summary_json":{"payment":"预付30%"},"lines":[{"item_name":"示例","qty":1,"unit":"台","unit_price":10000}]}'
-                : '{"title":"标准合同","payment_terms_json":{"method":"分期"},"delivery_terms_json":{"address":"客户指定"},"key_clauses_json":["验收条款","质保条款"]}'} />
+
+          <div className="rounded-lg border border-slate-200 p-3 space-y-3 bg-slate-50/50">
+            <div className="text-sm font-bold text-slate-500">模板内容</div>
+            <div>
+              <label className="text-[12px] text-slate-500 mb-1 block">标题</label>
+              <Input value={dtForm.title} onChange={(e) => setDtForm({ ...dtForm, title: e.target.value })}
+                placeholder={dtForm.doc_type === 'quote' ? '标准报价' : '标准合同'} />
+            </div>
+
+            {dtForm.doc_type === 'quote' ? (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[12px] text-slate-500 mb-1 block">税率（如 0.13 表示 13%）</label>
+                    <InputNumber className="w-full" min={0} max={1} step={0.01} value={dtForm.tax_rate}
+                      onChange={(v) => setDtForm({ ...dtForm, tax_rate: v })} />
+                  </div>
+                  <div>
+                    <label className="text-[12px] text-slate-500 mb-1 block">有效期（天）</label>
+                    <InputNumber className="w-full" min={0} value={dtForm.validity_days}
+                      onChange={(v) => setDtForm({ ...dtForm, validity_days: v })} />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[12px] text-slate-500 mb-1 block">条款摘要</label>
+                  <KeyValueEditor value={dtForm.terms} keyPlaceholder="条款名，如 付款" valPlaceholder="内容，如 预付30%"
+                    addText="添加条款" onChange={(v) => setDtForm({ ...dtForm, terms: v })} />
+                </div>
+                <div>
+                  <label className="text-[12px] text-slate-500 mb-1 block">报价明细</label>
+                  <div className="space-y-2">
+                    {dtForm.lines.map((l, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <Input className="flex-1" placeholder="项目名称" value={l.item_name} onChange={(e) => dtUpdateLine(i, 'item_name', e.target.value)} />
+                        <InputNumber className="!w-20" placeholder="数量" min={0} value={l.qty} onChange={(v) => dtUpdateLineNum(i, 'qty', v ?? 0)} />
+                        <Input className="!w-16" placeholder="单位" value={l.unit} onChange={(e) => dtUpdateLine(i, 'unit', e.target.value)} />
+                        <InputNumber className="!w-28" placeholder="单价" min={0} value={l.unit_price} onChange={(v) => dtUpdateLineNum(i, 'unit_price', v ?? 0)} />
+                        <Button type="text" danger icon={<DeleteOutlined />} onClick={() => setDtForm({ ...dtForm, lines: dtForm.lines.filter((_, idx) => idx !== i) })} />
+                      </div>
+                    ))}
+                    <Button type="dashed" size="small" icon={<PlusOutlined />} block
+                      onClick={() => setDtForm({ ...dtForm, lines: [...dtForm.lines, { item_name: '', qty: 1, unit: '', unit_price: 0 }] })}>添加明细行</Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-[12px] text-slate-500 mb-1 block">付款条款</label>
+                  <KeyValueEditor value={dtForm.payment_terms} keyPlaceholder="条款名，如 付款方式" valPlaceholder="内容，如 分期"
+                    addText="添加付款条款" onChange={(v) => setDtForm({ ...dtForm, payment_terms: v })} />
+                </div>
+                <div>
+                  <label className="text-[12px] text-slate-500 mb-1 block">交付条款</label>
+                  <KeyValueEditor value={dtForm.delivery_terms} keyPlaceholder="条款名，如 交付地址" valPlaceholder="内容，如 客户指定"
+                    addText="添加交付条款" onChange={(v) => setDtForm({ ...dtForm, delivery_terms: v })} />
+                </div>
+                <div>
+                  <label className="text-[12px] text-slate-500 mb-1 block">关键条款</label>
+                  <StringListEditor value={dtForm.key_clauses} placeholder="如：验收条款"
+                    addText="添加关键条款" onChange={(v) => setDtForm({ ...dtForm, key_clauses: v })} />
+                </div>
+              </>
+            )}
           </div>
+
           <div className="flex items-center gap-3">
             <Switch checked={dtForm.is_default} onChange={(v) => setDtForm({ ...dtForm, is_default: v })} />
             <span className="text-sm text-slate-700">设为默认模板</span>
@@ -1054,29 +1233,29 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">变量定义 (JSON)</label>
-              <TextArea rows={3} value={etForm.variables_json} onChange={(e) => setEtForm({ ...etForm, variables_json: e.target.value })}
-                placeholder='[{"name":"customer_name","label":"客户名称"},{"name":"days","label":"天数"}]' />
+          <div className="flex items-center gap-3">
+            <Switch checked={etForm.enabled} onChange={(v) => setEtForm({ ...etForm, enabled: v })} />
+            <span className="text-sm text-slate-700">启用</span>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">变量定义</label>
+            <div className="space-y-2">
+              {etForm.variables_json.map((v, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Input className="!w-1/3" value={v.name} placeholder="变量名，如 customer_name"
+                    onChange={(e) => setEtForm({ ...etForm, variables_json: etForm.variables_json.map((x, idx) => (idx === i ? { ...x, name: e.target.value } : x)) })} />
+                  <Input className="flex-1" value={v.label} placeholder="说明，如 客户名称"
+                    onChange={(e) => setEtForm({ ...etForm, variables_json: etForm.variables_json.map((x, idx) => (idx === i ? { ...x, label: e.target.value } : x)) })} />
+                  <Button type="text" danger icon={<DeleteOutlined />}
+                    onClick={() => setEtForm({ ...etForm, variables_json: etForm.variables_json.filter((_, idx) => idx !== i) })} />
+                </div>
+              ))}
+              <Button type="dashed" size="small" icon={<PlusOutlined />}
+                onClick={() => setEtForm({ ...etForm, variables_json: [...etForm.variables_json, { name: '', label: '' }] })} block>添加变量</Button>
             </div>
-            <div className="flex flex-col justify-end">
-              <div className="flex items-center gap-3 mb-2">
-                <Switch checked={etForm.enabled} onChange={(v) => setEtForm({ ...etForm, enabled: v })} />
-                <span className="text-sm text-slate-700">启用</span>
-              </div>
-              {etForm.variables_json && (() => {
-                try {
-                  const vars = JSON.parse(etForm.variables_json)
-                  if (Array.isArray(vars)) return (
-                    <div className="text-sm text-slate-400">
-                      可用变量：{vars.map((v: any) => <Tag key={v.name} className="text-[10px]">{`{{${v.name}}}`}</Tag>)}
-                    </div>
-                  )
-                } catch { /* ignore */ }
-                return null
-              })()}
-            </div>
+            {etForm.variables_json.some((v) => v.name) && (
+              <div className="text-sm text-slate-400 mt-2">可用变量：{etForm.variables_json.filter((v) => v.name).map((v) => <Tag key={v.name} className="text-[10px]">{`{{${v.name}}}`}</Tag>)}</div>
+            )}
           </div>
         </div>
       </Modal>
@@ -1169,20 +1348,29 @@ export default function SettingsPage() {
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">认证配置 (JSON)</label>
-            <TextArea rows={5} value={intForm.auth_config_json} onChange={(e) => setIntForm({ ...intForm, auth_config_json: e.target.value })}
-              className="font-mono text-sm"
-              placeholder={intForm.system_code === 'dingtalk'
-                ? '{"secret": "群机器人加签(可选)", "app_key": "企业应用Key", "app_secret": "企业应用Secret", "agent_id": "应用AgentId", "crm_base_url": "https://192.168.0.42:8410"}'
-                : intForm.auth_type === 'apikey' ? '{"api_key": "your-key", "header_name": "X-API-Key"}'
-                : intForm.auth_type === 'basic' ? '{"username": "user", "password": "pass"}'
-                : '{"token_url": "https://...", "client_id": "xxx", "client_secret": "xxx"}'} />
+            <label className="text-sm font-medium text-slate-700 mb-1 block">认证配置</label>
+            {getAuthFields(intForm.system_code, intForm.auth_type).length === 0 ? (
+              <div className="text-[12px] text-slate-400">该集成无需额外认证配置。</div>
+            ) : (
+              <div className="space-y-3">
+                {getAuthFields(intForm.system_code, intForm.auth_type).map((f) => {
+                  const InputComp = f.secret ? Input.Password : Input
+                  return (
+                    <div key={f.key}>
+                      <div className="text-[12px] text-slate-500 mb-1">{f.label}</div>
+                      <InputComp value={intForm.auth_config_json?.[f.key] || ''} placeholder={f.placeholder}
+                        onChange={(e) => setIntForm({ ...intForm, auth_config_json: { ...intForm.auth_config_json, [f.key]: e.target.value } })} />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
           {intForm.system_code === 'dingtalk' && (
             <div className="text-[12px] text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
               <div className="font-semibold mb-1">钉钉「待办/工作通知」配置说明</div>
               <div>• Webhook URL：群机器人地址，用于群通知（可选）。</div>
-              <div>• 认证配置 JSON 填企业内部应用的 <code>app_key</code> / <code>app_secret</code> / <code>agent_id</code> 后，系统会按负责人手机号匹配钉钉账号，下发「工作通知」并尽力创建钉钉「待办」。</div>
+              <div>• 在「认证配置」中填写企业内部应用的 <code>app_key</code> / <code>app_secret</code> / <code>agent_id</code> 后，系统会按负责人手机号匹配钉钉账号，下发「工作通知」并尽力创建钉钉「待办」。</div>
               <div>• <code>crm_base_url</code> 用于待办卡片的跳转链接（如 https://192.168.0.42:8410）。负责人需在「用户管理」中填写手机号。</div>
             </div>
           )}
@@ -1226,9 +1414,10 @@ export default function SettingsPage() {
           </div>
           {(cfForm.field_type === 'select' || cfForm.field_type === 'multiselect') && (
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">选项 (JSON数组)</label>
-              <TextArea rows={3} value={cfForm.options_json} onChange={(e) => setCfForm({ ...cfForm, options_json: e.target.value })}
-                placeholder='["选项1", "选项2", "选项3"]' />
+              <label className="text-sm font-medium text-slate-700 mb-1 block">选项</label>
+              <StringListEditor value={cfForm.options_json} placeholder="选项内容，如：华东区"
+                addText="添加选项" onChange={(v) => setCfForm({ ...cfForm, options_json: v })} />
+              <div className="text-[11px] text-slate-400 mt-1">这些选项会作为下拉项展示给填写人。</div>
             </div>
           )}
           <div className="flex gap-4">
