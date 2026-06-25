@@ -121,7 +121,23 @@ export default function ImportModal({
   const errMap = preview?.errors || {}
   const errSet = new Set(Object.keys(errMap).map(Number))
 
-  const columns = preview?.headers.map((h, i) => ({
+  // Leading status column: shows the per-row error reason (or 重复/可导入) so users
+  // can see *why* a row failed instead of just a red highlight.
+  const statusColumn = (errSet.size > 0 || dupSet.size > 0)
+    ? [{
+        title: '状态',
+        key: '_status',
+        fixed: 'left' as const,
+        width: 220,
+        render: (_: unknown, record: any) => {
+          if (record._err) return <span className="text-red-500 text-xs">{record._errMsg || '校验失败'}</span>
+          if (record._dup) return <Tag color="warning">重复</Tag>
+          return <Tag color="success">可导入</Tag>
+        },
+      }]
+    : []
+
+  const columns = [...statusColumn, ...(preview?.headers.map((h, i) => ({
     title: () => (
       <div className="space-y-1">
         <div className="text-sm font-bold truncate">{h}</div>
@@ -153,7 +169,7 @@ export default function ImportModal({
         <span className={hasErr ? 'text-red-500' : ''}>{v || <span className="text-slate-300">-</span>}</span>
       )
     },
-  })) || []
+  })) || [])]
 
   const dataSource = preview?.rows.map((row, idx) => {
     const record: Record<string, any> = { _key: idx, _dup: dupSet.has(idx), _err: errSet.has(idx), _errMsg: errMap[idx] }

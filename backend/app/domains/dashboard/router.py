@@ -1090,9 +1090,9 @@ def _required_headers_error_msg(missing: list) -> str:
 
 
 async def _load_target_resolvers(db: AsyncSession, tenant_id: str):
-    """Build name/username -> user and name -> department lookup maps for a tenant."""
+    """Build lookup maps for a tenant: 姓名/用户名→用户、部门名→部门、用户→所属部门名集合。"""
     from app.domains.auth.models import User
-    from app.domains.organization.models import Department
+    from app.domains.organization.models import Department, UserDepartment
 
     users = (await db.execute(select(User).where(User.tenant_id == tenant_id))).scalars().all()
     real_name_map: dict[str, list] = {}
@@ -1109,11 +1109,26 @@ async def _load_target_resolvers(db: AsyncSession, tenant_id: str):
         if d.name:
             dept_name_map.setdefault(d.name.strip(), []).append(d)
 
-    return real_name_map, username_map, dept_name_map
+    # user_id -> {所属部门名}, 用于同名用户的部门消歧
+    ud_rows = (await db.execute(
+        select(UserDepartment.user_id, Department.name)
+        .join(Department, Department.id == UserDepartment.department_id)
+        .where(UserDepartment.tenant_id == tenant_id)
+    )).all()
+    user_dept_map: dict[str, set] = {}
+    for uid, dname in ud_rows:
+        if dname:
+            user_dept_map.setdefault(uid, set()).add(dname.strip())
+
+    return real_name_map, username_map, dept_name_map, user_dept_map
 
 
-def _resolve_target_row(cells, fmap, real_name_map, username_map, dept_name_map):
-    """Resolve a data row to a target dict. Returns (parsed_dict, error_message)."""
+def _resolve_target_row(cells, fmap, real_name_map, username_map, dept_name_map, user_dept_map):
+    """Resolve a data row to a target dict. Returns (parsed_dict, error_message).
+
+    填了姓名 → 个人目标（"部门"列选填，仅在同名时用于区分该用户所属部门）；
+    仅填部门 → 部门目标。
+    """
     def cell(field: str) -> str:
         i = fmap.get(field)
         if i is None or i >= len(cells):
@@ -1123,8 +1138,6 @@ def _resolve_target_row(cells, fmap, real_name_map, username_map, dept_name_map)
 
     name_v = cell("user_name")
     dept_v = cell("department_name")
-    if name_v and dept_v:
-        return None, "同一行不能同时填写姓名和部门"
     if not name_v and not dept_v:
         return None, "姓名和部门至少填写一个"
 
@@ -1161,15 +1174,21 @@ def _resolve_target_row(cells, fmap, real_name_map, username_map, dept_name_map)
     }
 
     if name_v:
-        matches = real_name_map.get(name_v)
-        if matches and len(matches) == 1:
+        # 个人目标：按姓名匹配用户；"部门"列（如填）仅用于同名用户的消歧
+        matches = list(real_name_map.get(name_v) or [])
+        if len(matches) > 1 and dept_v:
+            narrowed = [u for u in matches if dept_v in user_dept_map.get(u.id, ())]
+            if len(narrowed) == 1:
+                matches = narrowed
+        if len(matches) == 1:
             u = matches[0]
-        elif matches and len(matches) > 1:
-            #姓名重复 → 尝试用唯一的用户名消歧
+        elif len(matches) > 1:
+            # 姓名重复 → 尝试用唯一的用户名消歧
             if name_v in username_map:
                 u = username_map[name_v]
             else:
-                return None, f"姓名“{name_v}”匹配到{len(matches)}个用户，请改用唯一用户名"
+                hint = "，可在“部门”列填写其所属部门以区分" if not dept_v else "，“部门”列仍无法唯一确定"
+                return None, f"姓名“{name_v}”匹配到{len(matches)}个用户{hint}，或改用唯一用户名"
         elif name_v in username_map:
             u = username_map[name_v]
         else:
@@ -1196,8 +1215,9 @@ async def targets_import_template(_user=Depends(get_current_user)):
         "销售目标导入",
         TARGET_IMPORT_HEADERS,
         sample_rows=[
-            ["张三", "", 2026, 1, 500000, 5],
-            ["", "华东销售部", 2026, 1, 2000000, 20],
+            ["张三", "", 2026, 1, 500000, 5],            # 个人目标
+            ["李四", "华东销售部", 2026, 1, 300000, 3],   # 个人目标（部门列仅用于同名区分）
+            ["", "华东销售部", 2026, 1, 2000000, 20],     # 部门目标（仅填部门）
         ],
     )
     return excel_response(buf, "sales_targets_template.xlsx")
@@ -1234,10 +1254,10 @@ async def targets_import_preview(
             cells.append("")
         data_rows.append(cells[:len(headers)])
 
-    real_name_map, username_map, dept_name_map = await _load_target_resolvers(db, tenant_id)
+    real_name_map, username_map, dept_name_map, user_dept_map = await _load_target_resolvers(db, tenant_id)
     errors: dict[int, str] = {}
     for i, cells in enumerate(data_rows):
-        _, err = _resolve_target_row(cells, fmap, real_name_map, username_map, dept_name_map)
+        _, err = _resolve_target_row(cells, fmap, real_name_map, username_map, dept_name_map, user_dept_map)
         if err:
             errors[i] = err
 
@@ -1266,7 +1286,7 @@ async def targets_import_excel(
     if missing:
         raise BusinessException(message=_required_headers_error_msg(missing))
 
-    real_name_map, username_map, dept_name_map = await _load_target_resolvers(db, tenant_id)
+    real_name_map, username_map, dept_name_map, user_dept_map = await _load_target_resolvers(db, tenant_id)
 
     created = 0
     skipped = 0
@@ -1275,7 +1295,7 @@ async def targets_import_excel(
         if not row or not any(c not in (None, "") for c in row):
             continue
         cells = [str(c).strip() if c is not None else "" for c in row]
-        parsed, err = _resolve_target_row(cells, fmap, real_name_map, username_map, dept_name_map)
+        parsed, err = _resolve_target_row(cells, fmap, real_name_map, username_map, dept_name_map, user_dept_map)
         if err:
             errors.append(f"第{idx}行: {err}")
             skipped += 1
