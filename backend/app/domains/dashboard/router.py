@@ -1,8 +1,9 @@
 import io
 from datetime import datetime, timezone, date
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
+from openpyxl import load_workbook
 from sqlalchemy import select, func, extract, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +11,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions
 from app.common.schemas import ok
+from app.common.export import build_template, excel_response
 from app.domains.customer.models import Customer
 from app.domains.lead.models import Lead
 from app.domains.project.models import OpportunityProject
@@ -1031,6 +1033,289 @@ async def delete_target(
     await db.delete(t)
     await db.commit()
     return ok()
+
+
+# ---- Sales Target Import (with name / department auto-matching) ----
+
+TARGET_IMPORT_HEADERS = ["姓名", "部门", "年", "月", "目标金额", "目标单数"]
+
+# Logical field -> accepted header names (order-independent matching)
+_TARGET_HEADER_ALIASES = {
+    "user_name": ["姓名", "销售人员", "员工", "员工姓名", "用户", "人员"],
+    "department_name": ["部门", "部门名", "部门名称"],
+    "year": ["年", "年份", "目标年份"],
+    "month": ["月", "月份", "目标月份"],
+    "target_amount": ["目标金额", "金额", "销售目标", "目标"],
+    "target_count": ["目标单数", "目标数量", "目标单量", "单数"],
+}
+
+
+def _read_sheet_rows(content: bytes, filename: str) -> list:
+    """Parse an uploaded .xlsx/.xls/.csv into a list of row tuples (incl. header)."""
+    fname = (filename or "").lower()
+    if fname.endswith(".csv"):
+        import csv as csv_mod
+        text = content.decode("utf-8-sig", errors="replace")
+        return [tuple(r) for r in csv_mod.reader(text.splitlines())]
+    wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    ws = wb.active
+    all_rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+    return all_rows
+
+
+def _build_target_header_map(header_row) -> dict:
+    """Map logical field -> column index by matching header names."""
+    norm = [str(c).strip() if c is not None else "" for c in header_row]
+    field_idx: dict[str, int] = {}
+    for field, aliases in _TARGET_HEADER_ALIASES.items():
+        for idx, h in enumerate(norm):
+            if h in aliases:
+                field_idx[field] = idx
+                break
+    return field_idx
+
+
+def _missing_required_headers(fmap: dict) -> list:
+    missing = [f for f in ("year", "month", "target_amount") if f not in fmap]
+    if "user_name" not in fmap and "department_name" not in fmap:
+        missing.append("user_name_or_department")
+    return missing
+
+
+def _required_headers_error_msg(missing: list) -> str:
+    label = {"year": "年", "month": "月", "target_amount": "目标金额",
+             "user_name_or_department": "姓名或部门"}
+    return "缺少必要列：" + "、".join(label.get(m, m) for m in missing)
+
+
+async def _load_target_resolvers(db: AsyncSession, tenant_id: str):
+    """Build name/username -> user and name -> department lookup maps for a tenant."""
+    from app.domains.auth.models import User
+    from app.domains.organization.models import Department
+
+    users = (await db.execute(select(User).where(User.tenant_id == tenant_id))).scalars().all()
+    real_name_map: dict[str, list] = {}
+    username_map: dict[str, object] = {}
+    for u in users:
+        if u.real_name:
+            real_name_map.setdefault(u.real_name.strip(), []).append(u)
+        if u.username:
+            username_map[u.username.strip()] = u
+
+    depts = (await db.execute(select(Department).where(Department.tenant_id == tenant_id))).scalars().all()
+    dept_name_map: dict[str, list] = {}
+    for d in depts:
+        if d.name:
+            dept_name_map.setdefault(d.name.strip(), []).append(d)
+
+    return real_name_map, username_map, dept_name_map
+
+
+def _resolve_target_row(cells, fmap, real_name_map, username_map, dept_name_map):
+    """Resolve a data row to a target dict. Returns (parsed_dict, error_message)."""
+    def cell(field: str) -> str:
+        i = fmap.get(field)
+        if i is None or i >= len(cells):
+            return ""
+        v = cells[i]
+        return str(v).strip() if v is not None else ""
+
+    name_v = cell("user_name")
+    dept_v = cell("department_name")
+    if name_v and dept_v:
+        return None, "同一行不能同时填写姓名和部门"
+    if not name_v and not dept_v:
+        return None, "姓名和部门至少填写一个"
+
+    year_v, month_v = cell("year"), cell("month")
+    amt_v, cnt_v = cell("target_amount"), cell("target_count")
+    try:
+        year = int(float(year_v))
+    except (ValueError, TypeError):
+        return None, f"年份无效: {year_v or '空'}"
+    if not (2020 <= year <= 2100):
+        return None, f"年份超出范围: {year}"
+    try:
+        month = int(float(month_v))
+    except (ValueError, TypeError):
+        return None, f"月份无效: {month_v or '空'}"
+    if not (1 <= month <= 12):
+        return None, f"月份超出范围: {month}"
+    try:
+        amount = float(str(amt_v).replace(",", "").replace("，", "")) if amt_v else 0.0
+    except (ValueError, TypeError):
+        return None, f"目标金额无效: {amt_v}"
+    if amount < 0:
+        return None, "目标金额不能为负"
+    count = None
+    if cnt_v:
+        try:
+            count = int(float(cnt_v))
+        except (ValueError, TypeError):
+            return None, f"目标单数无效: {cnt_v}"
+
+    parsed = {
+        "year": year, "month": month, "target_amount": amount, "target_count": count,
+        "user_id": None, "user_name": None, "department_id": None, "department_name": None,
+    }
+
+    if name_v:
+        matches = real_name_map.get(name_v)
+        if matches and len(matches) == 1:
+            u = matches[0]
+        elif matches and len(matches) > 1:
+            #姓名重复 → 尝试用唯一的用户名消歧
+            if name_v in username_map:
+                u = username_map[name_v]
+            else:
+                return None, f"姓名“{name_v}”匹配到{len(matches)}个用户，请改用唯一用户名"
+        elif name_v in username_map:
+            u = username_map[name_v]
+        else:
+            return None, f"未找到姓名/用户名“{name_v}”对应的用户"
+        parsed["user_id"] = u.id
+        parsed["user_name"] = u.real_name or u.username
+    else:
+        matches = dept_name_map.get(dept_v)
+        if not matches:
+            return None, f"未找到部门“{dept_v}”"
+        if len(matches) > 1:
+            return None, f"部门“{dept_v}”重复（{len(matches)}个），请确保部门名唯一"
+        d = matches[0]
+        parsed["department_id"] = d.id
+        parsed["department_name"] = d.name
+
+    return parsed, None
+
+
+@router.get("/targets/import/template")
+async def targets_import_template(_user=Depends(get_current_user)):
+    """Download the sales-target import template (.xlsx)."""
+    buf = build_template(
+        "销售目标导入",
+        TARGET_IMPORT_HEADERS,
+        sample_rows=[
+            ["张三", "", 2026, 1, 500000, 5],
+            ["", "华东销售部", 2026, 1, 2000000, 20],
+        ],
+    )
+    return excel_response(buf, "sales_targets_template.xlsx")
+
+
+@router.post("/targets/import/preview")
+async def targets_import_preview(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Parse + validate an import file, resolving 姓名/部门 to ids. Rows that fail to
+    match are returned in `errors` (keyed by row index) so they show up in the preview."""
+    from app.common.exceptions import BusinessException
+
+    content = await file.read()
+    all_rows = _read_sheet_rows(content, file.filename or "")
+    if not all_rows:
+        return ok({"headers": [], "rows": [], "duplicates": [], "errors": {}})
+
+    fmap = _build_target_header_map(all_rows[0])
+    missing = _missing_required_headers(fmap)
+    if missing:
+        raise BusinessException(message=_required_headers_error_msg(missing))
+
+    headers = [str(c).strip() if c is not None else f"列{i+1}" for i, c in enumerate(all_rows[0])]
+    data_rows = []
+    for row in all_rows[1:]:
+        if not row or not any(c not in (None, "") for c in row):
+            continue
+        cells = [str(c).strip() if c is not None else "" for c in row]
+        while len(cells) < len(headers):
+            cells.append("")
+        data_rows.append(cells[:len(headers)])
+
+    real_name_map, username_map, dept_name_map = await _load_target_resolvers(db, tenant_id)
+    errors: dict[int, str] = {}
+    for i, cells in enumerate(data_rows):
+        _, err = _resolve_target_row(cells, fmap, real_name_map, username_map, dept_name_map)
+        if err:
+            errors[i] = err
+
+    # Upsert semantics → no rows are skipped as "duplicates"; existing targets are updated.
+    return ok({"headers": headers, "rows": data_rows, "duplicates": [], "errors": errors})
+
+
+@router.post("/targets/import/excel")
+async def targets_import_excel(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """Import sales targets from Excel/CSV, auto-matching 姓名→用户 and 部门名→部门, upserting per row.
+    Rows that fail name/department resolution are skipped and reported in `errors`."""
+    from app.common.exceptions import BusinessException
+
+    content = await file.read()
+    all_rows = _read_sheet_rows(content, file.filename or "")
+    if len(all_rows) < 2:
+        return ok({"created": 0, "skipped": 0, "errors": []})
+
+    fmap = _build_target_header_map(all_rows[0])
+    missing = _missing_required_headers(fmap)
+    if missing:
+        raise BusinessException(message=_required_headers_error_msg(missing))
+
+    real_name_map, username_map, dept_name_map = await _load_target_resolvers(db, tenant_id)
+
+    created = 0
+    skipped = 0
+    errors: list[str] = []
+    for idx, row in enumerate(all_rows[1:], start=2):
+        if not row or not any(c not in (None, "") for c in row):
+            continue
+        cells = [str(c).strip() if c is not None else "" for c in row]
+        parsed, err = _resolve_target_row(cells, fmap, real_name_map, username_map, dept_name_map)
+        if err:
+            errors.append(f"第{idx}行: {err}")
+            skipped += 1
+            continue
+        try:
+            if parsed["department_id"]:
+                existing = (await db.execute(select(SalesTarget).where(
+                    SalesTarget.tenant_id == tenant_id,
+                    SalesTarget.department_id == parsed["department_id"],
+                    SalesTarget.year == parsed["year"], SalesTarget.month == parsed["month"],
+                ))).scalar()
+            else:
+                existing = (await db.execute(select(SalesTarget).where(
+                    SalesTarget.tenant_id == tenant_id,
+                    SalesTarget.user_id == parsed["user_id"],
+                    SalesTarget.year == parsed["year"], SalesTarget.month == parsed["month"],
+                ))).scalar()
+            if existing:
+                existing.target_amount = parsed["target_amount"]
+                existing.target_count = parsed["target_count"]
+                if parsed["user_id"]:
+                    existing.user_name = parsed["user_name"]
+                if parsed["department_id"]:
+                    existing.department_name = parsed["department_name"]
+            else:
+                db.add(SalesTarget(
+                    tenant_id=tenant_id,
+                    user_id=parsed["user_id"], user_name=parsed["user_name"],
+                    department_id=parsed["department_id"], department_name=parsed["department_name"],
+                    year=parsed["year"], month=parsed["month"],
+                    target_amount=parsed["target_amount"], target_count=parsed["target_count"],
+                ))
+            await db.commit()
+            created += 1
+        except Exception as e:  # noqa: BLE001
+            await db.rollback()
+            errors.append(f"第{idx}行: {str(e)[:80]}")
+            skipped += 1
+
+    return ok({"created": created, "skipped": skipped, "errors": errors})
 
 
 @router.get("/target_achievement")

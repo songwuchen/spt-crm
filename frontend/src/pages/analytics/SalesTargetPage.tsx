@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Table, Button, Modal, Form, InputNumber, Select, Progress, DatePicker, message, Tag, Tabs, TreeSelect } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons'
 import { dashboardApi } from '@/api/dashboard'
 import { departmentApi } from '@/api/department'
+import ImportModal from '@/components/ImportModal'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import dayjs from 'dayjs'
@@ -55,6 +56,7 @@ export default function SalesTargetPage() {
   const [targets, setTargets] = useState<TargetRow[]>([])
   const [loading, setLoading] = useState(false)
   const [modal, setModal] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [form] = Form.useForm()
 
   const userSelect = useUserSelect()
@@ -180,9 +182,12 @@ export default function SalesTargetPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-slate-900">销售目标与达成</h1>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => {
-          form.resetFields(); form.setFieldsValue({ period: dayjs() }); setModal(true)
-        }}>设定目标</Button>
+        <div className="flex items-center gap-2">
+          <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>导入目标</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+            form.resetFields(); form.setFieldsValue({ period: dayjs() }); setModal(true)
+          }}>设定目标</Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -268,6 +273,18 @@ export default function SalesTargetPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Import Modal — 个人(姓名)/部门(部门名) 自动匹配 */}
+      <ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={fetchData}
+        previewUrl="/api/v1/dashboard/targets/import/preview"
+        importUrl="/api/v1/dashboard/targets/import/excel"
+        templateUrl="/api/v1/dashboard/targets/import/template"
+        title="导入销售目标"
+        expectedHeaders={['姓名', '部门', '年', '月', '目标金额', '目标单数']}
+      />
     </div>
   )
 }
