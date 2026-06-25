@@ -20,7 +20,7 @@ def _link_dict(l) -> dict:
     }
 
 
-def _ms_dict(m) -> dict:
+def _ms_dict(m, attachment_count: int = 0) -> dict:
     return {
         "id": m.id, "project_id": m.project_id,
         "milestone_code": m.milestone_code, "name": m.name,
@@ -30,8 +30,24 @@ def _ms_dict(m) -> dict:
         "sort_order": m.sort_order, "note": m.note,
         "assignee_id": m.assignee_id, "assignee_name": m.assignee_name,
         "department_id": m.department_id, "department_name": m.department_name,
+        "attachment_count": attachment_count,
         "created_at": m.created_at.isoformat() if m.created_at else "",
     }
+
+
+async def _ms_attachment_counts(db: AsyncSession, tenant_id: str, ids: list[str]) -> dict:
+    """里程碑id -> 附件数。让附件在列表上可见(不必进编辑弹窗才知道有附件，issue #63)。"""
+    if not ids:
+        return {}
+    from app.domains.attachment.models import AttachmentLink
+    rows = (await db.execute(
+        select(AttachmentLink.biz_id, func.count()).where(
+            AttachmentLink.tenant_id == tenant_id,
+            AttachmentLink.biz_type == "delivery_milestone",
+            AttachmentLink.biz_id.in_(ids),
+        ).group_by(AttachmentLink.biz_id)
+    )).all()
+    return {bid: cnt for bid, cnt in rows}
 
 
 # --- ERP Order Links ---
@@ -97,7 +113,8 @@ async def list_all_milestones(
     total = (await db.execute(cq)).scalar() or 0
     q = q.order_by(DeliveryMilestone.created_at.desc()).offset((pageNo - 1) * pageSize).limit(pageSize)
     items = (await db.execute(q)).scalars().all()
-    return ok({"items": [_ms_dict(m) for m in items], "total": total})
+    counts = await _ms_attachment_counts(db, tenant_id, [m.id for m in items])
+    return ok({"items": [_ms_dict(m, counts.get(m.id, 0)) for m in items], "total": total})
 
 
 @router.get("/api/v1/projects/{project_id}/milestones")
@@ -108,7 +125,8 @@ async def list_milestones(
     _user=Depends(require_permissions("delivery:view")),
 ):
     items = await service.list_milestones(db, tenant_id, project_id)
-    return ok([_ms_dict(m) for m in items])
+    counts = await _ms_attachment_counts(db, tenant_id, [m.id for m in items])
+    return ok([_ms_dict(m, counts.get(m.id, 0)) for m in items])
 
 
 @router.post("/api/v1/projects/{project_id}/milestones")

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button, Space, Modal, Input, InputNumber, Select, Spin, Tabs, Table, Tag, Timeline, DatePicker, Form, Alert, message } from 'antd'
-import { EditOutlined, DeleteOutlined, PlusOutlined, RobotOutlined, FilePdfOutlined, UserSwitchOutlined } from '@ant-design/icons'
+import { EditOutlined, DeleteOutlined, PlusOutlined, RobotOutlined, FilePdfOutlined, UserSwitchOutlined, PaperClipOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { projectApi } from '@/api/project'
@@ -100,6 +100,8 @@ export default function OpportunityDetail() {
   const [milestoneModal, setMilestoneModal] = useState(false)
   const [editingMilestone, setEditingMilestone] = useState<DeliveryMilestone | null>(null)
   const [milestoneForm] = Form.useForm()
+  // 里程碑附件查看（只读入口，团队成员无需进编辑弹窗即可查看附件，issue #63）
+  const [attachmentViewMs, setAttachmentViewMs] = useState<DeliveryMilestone | null>(null)
 
   // Payment view toggle
   const [paymentView, setPaymentView] = useState<'chart' | 'gantt'>('chart')
@@ -1005,6 +1007,11 @@ export default function OpportunityDetail() {
                           }},
                           { title: '负责人', dataIndex: 'assignee_name', render: (v: string) => v || '-' },
                           { title: '来源', dataIndex: 'source_type' },
+                          { title: '附件', key: 'attachment', width: 80, render: (_: unknown, r: DeliveryMilestone) => (
+                            <a className="text-slate-600 text-sm hover:text-primary" onClick={() => setAttachmentViewMs(r)}>
+                              <PaperClipOutlined /> {r.attachment_count || 0}
+                            </a>
+                          )},
                           { title: '', key: 'actions', width: 100, render: (_: unknown, r: DeliveryMilestone) => (
                             <Space size={4}>
                               <a className="text-primary text-sm font-bold" onClick={() => openMilestoneModal(r)}>编辑</a>
@@ -1373,6 +1380,15 @@ export default function OpportunityDetail() {
           </div>
         ) : (
           <Alert type="info" showIcon className="mt-2" message="保存里程碑后可在编辑里上传附件（发货验收单等）" />
+        )}
+      </Modal>
+
+      {/* Milestone Attachment Viewer (read-only entry — 团队成员查看里程碑附件，无需进入编辑) */}
+      <Modal title={`里程碑附件 - ${attachmentViewMs?.name || attachmentViewMs?.milestone_code || ''}`}
+        open={!!attachmentViewMs} onCancel={() => { setAttachmentViewMs(null); deliveryApi.listMilestones(id!).then((res) => setMilestones(res.data)) }}
+        footer={null} width={680} destroyOnHidden>
+        {attachmentViewMs && (
+          <AttachmentPanel bizType="delivery_milestone" bizId={attachmentViewMs.id} />
         )}
       </Modal>
 

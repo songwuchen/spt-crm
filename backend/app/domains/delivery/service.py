@@ -81,6 +81,36 @@ async def create_milestone(db: AsyncSession, tenant_id: str, project_id: str, da
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="create", resource_type="delivery_milestone", resource_id=ms.id,
                      summary=f"创建交付里程碑: {data.milestone_code}")
+
+    # 通知负责人：优先里程碑负责人(子模块负责人)，否则商机负责人；自己建给自己不通知(issue #62)
+    try:
+        from app.domains.project.models import OpportunityProject
+        proj = (await db.execute(
+            select(OpportunityProject).where(
+                OpportunityProject.id == project_id, OpportunityProject.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        recipient_id = ms.assignee_id or (proj.owner_id if proj else None)
+        if recipient_id and recipient_id != user["sub"]:
+            actor = user.get("real_name") or user.get("username")
+            proj_name = proj.name if proj else ""
+            ms_name = ms.name or ms.milestone_code
+            from app.common.auto_notify import notify_milestone_created
+            await notify_milestone_created(db, tenant_id, proj_name, ms_name, recipient_id, actor, project_id)
+            # 钉钉工作通知/待办（配置了企业应用且负责人有手机号时下发，否则安全跳过）
+            try:
+                from app.common.msg_integration import dispatch_todo
+                await dispatch_todo(
+                    db, tenant_id, recipient_id,
+                    title=f"新交付里程碑：{ms_name}",
+                    content=f"所属商机：{proj_name}\n创建人：{actor}\n请关注交付进度。",
+                    link=f"/opportunities/{project_id}",
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger("spt_crm.delivery").warning("DingTalk dispatch for milestone failed: %s", e)
+    except Exception as e:
+        import logging
+        logging.getLogger("spt_crm.delivery").warning("Auto-notify milestone created failed: %s", e)
     return ms
 
 

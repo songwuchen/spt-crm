@@ -172,6 +172,8 @@ export interface OpportunityProject {
   status: string
   custom_fields_json?: Record<string, unknown>
   remark?: string
+  delivery_total?: number | null
+  delivery_done?: number | null
   created_at: string
   updated_at: string
 }
@@ -379,6 +381,7 @@ export interface DeliveryMilestone {
   assignee_name?: string
   department_id?: string
   department_name?: string
+  attachment_count?: number
   created_at: string
 }
 

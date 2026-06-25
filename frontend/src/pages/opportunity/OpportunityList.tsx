@@ -6,6 +6,7 @@ import ImportModal from '@/components/ImportModal'
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { projectApi } from '@/api/project'
+import { settingsApi } from '@/api/settings'
 import type { OpportunityProject } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
@@ -18,6 +19,13 @@ import SavedViewSelect from '@/components/SavedViewSelect'
 import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
+
+interface CustomFieldDef {
+  field_key: string
+  field_label: string
+  field_type: string
+  enabled: boolean
+}
 
 export default function OpportunityList() {
   usePageTitle(t('opportunity.title'))
@@ -38,6 +46,14 @@ export default function OpportunityList() {
   const [transferForm] = Form.useForm()
   const userSelect = useUserSelect()
   const [pageSize, setPageSize] = usePageSize('opportunities')
+  // 自定义字段定义，用于在列表上以列的形式展示自定义字段值(issue #64)
+  const [customFields, setCustomFields] = useState<CustomFieldDef[]>([])
+
+  useEffect(() => {
+    settingsApi.listCustomFields({ entity_type: 'project' })
+      .then((r: any) => setCustomFields((r.data || []).filter((f: CustomFieldDef) => f.enabled)))
+      .catch(() => { /* 自定义字段不可用时静默跳过，不影响列表 */ })
+  }, [])
 
   const handleBatchStageChange = async () => {
     const results = await Promise.allSettled(
@@ -52,12 +68,18 @@ export default function OpportunityList() {
 
   const handleBatchTransfer = async () => {
     const values = await transferForm.validateFields()
-    const ownerName = userSelect.options.find(o => o.value === values.owner_id)?.label || ''
+    // 必须走 transfer 接口：update 的 ProjectUpdate schema 不含 owner_id，会被静默丢弃，
+    // 导致"转移后刷新负责人又变回去"(issue #66)。transfer 接口会改负责人、写审计并通知新负责人。
     const results = await Promise.allSettled(
-      selectedRowKeys.map((id) => projectApi.update(id as string, { owner_id: values.owner_id, owner_name: ownerName }))
+      selectedRowKeys.map((id) => projectApi.transfer(id as string, { owner_id: values.owner_id, note: values.note }))
     )
     const ok = results.filter(r => r.status === 'fulfilled').length
-    message.success(t('opportunity.batchTransferDone', { count: ok }))
+    const failed = results.length - ok
+    if (failed > 0) {
+      message.warning(`${ok} 个商机已转移，${failed} 个失败（可能无转移权限）`)
+    } else {
+      message.success(t('opportunity.batchTransferDone', { count: ok }))
+    }
     setBatchTransferModal(false)
     transferForm.resetFields()
     setSelectedRowKeys([])
@@ -104,7 +126,7 @@ export default function OpportunityList() {
     fetchData(1, keyword, stageCode, status)
   }
 
-  const allColumns: ColumnsType<OpportunityProject> = [
+  const baseColumns: ColumnsType<OpportunityProject> = [
     { title: t('opportunity.name'), key: 'name', width: 260,
       render: (_, r) => (
         <div>
@@ -160,21 +182,50 @@ export default function OpportunityList() {
     },
     { title: t('opportunity.owner'), dataIndex: 'owner_name', width: 90,
       render: (v) => v || <span className="text-slate-300">-</span> },
-    { title: '', key: 'actions', width: 150, fixed: 'right',
-      render: (_, r) => (
-        <Space size={0}>
-          <a onClick={() => navigate(`/opportunities/${r.id}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
-          <a onClick={() => navigate(`/opportunities/${r.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
-          <a className="text-sm font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
-            Modal.confirm({
-              title: t('common.confirmDelete'), content: t('opportunity.deleteConfirm', { name: r.name }), okType: 'danger',
-              onOk: async () => { await projectApi.delete(r.id); message.success(t('common.deleted')); fetchData() },
-            })
-          }}>{t('common.delete')}</a>
-        </Space>
-      ),
-    },
   ]
+
+  // 交付进度列：一眼区分 已交付/交付中/未开始，不用进里程碑查看(issue #65)
+  const deliveryColumn: ColumnsType<OpportunityProject>[number] = {
+    title: '交付', key: 'delivery', width: 110,
+    render: (_, r) => {
+      const total = r.delivery_total ?? 0
+      const done = r.delivery_done ?? 0
+      if (!total) return <span className="text-slate-300">-</span>
+      if (done >= total) return <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold border border-emerald-200 bg-emerald-50 text-emerald-600">已交付</span>
+      if (done === 0) return <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold border border-slate-200 bg-slate-50 text-slate-500">未开始 0/{total}</span>
+      return <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold border border-blue-200 bg-blue-50 text-blue-600">交付中 {done}/{total}</span>
+    },
+  }
+
+  // 自定义字段列(issue #64)：值存在 custom_fields_json 中，按字段类型简单格式化
+  const customColumns: ColumnsType<OpportunityProject> = customFields.map((f) => ({
+    title: f.field_label, key: `cf_${f.field_key}`, width: 140,
+    render: (_: unknown, r: OpportunityProject) => {
+      const raw = (r.custom_fields_json || {})[f.field_key]
+      if (raw == null || raw === '' || (Array.isArray(raw) && raw.length === 0)) return <span className="text-slate-300">-</span>
+      if (f.field_type === 'boolean') return raw ? '是' : '否'
+      if (Array.isArray(raw)) return raw.join('、')
+      return <span className="text-sm text-slate-700">{String(raw)}</span>
+    },
+  }))
+
+  const actionsColumn: ColumnsType<OpportunityProject>[number] = {
+    title: '', key: 'actions', width: 150, fixed: 'right',
+    render: (_, r) => (
+      <Space size={0}>
+        <a onClick={() => navigate(`/opportunities/${r.id}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
+        <a onClick={() => navigate(`/opportunities/${r.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
+        <a className="text-sm font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
+          Modal.confirm({
+            title: t('common.confirmDelete'), content: t('opportunity.deleteConfirm', { name: r.name }), okType: 'danger',
+            onOk: async () => { await projectApi.delete(r.id); message.success(t('common.deleted')); fetchData() },
+          })
+        }}>{t('common.delete')}</a>
+      </Space>
+    ),
+  }
+
+  const allColumns: ColumnsType<OpportunityProject> = [...baseColumns, deliveryColumn, ...customColumns, actionsColumn]
 
   const { visibleColumns, hiddenKeys, setColumnConfig, allColumnKeys } = useColumnConfig('opportunities', allColumns)
 
@@ -284,6 +335,9 @@ export default function OpportunityList() {
               <Select showSearch filterOption={false} placeholder="搜索用户"
                 loading={userSelect.loading} options={userSelect.options}
                 onSearch={userSelect.onSearch} onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
+            </Form.Item>
+            <Form.Item name="note" label="转移说明">
+              <Input.TextArea rows={2} placeholder="转移原因（选填，记入审计日志）" maxLength={500} />
             </Form.Item>
           </Form>
         </div>

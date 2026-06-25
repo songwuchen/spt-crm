@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query, UploadFile, File
-from sqlalchemy import select as sa_select
+from sqlalchemy import select as sa_select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from openpyxl import load_workbook
 import io
@@ -16,7 +16,7 @@ from app.domains.project.schemas import (
 router = APIRouter(prefix="/api/v1/projects", tags=["商机项目"])
 
 
-def _project_dict(p, customer_name: str | None = None) -> dict:
+def _project_dict(p, customer_name: str | None = None, delivery: tuple | None = None) -> dict:
     return {
         "id": p.id, "project_code": p.project_code,
         "customer_id": p.customer_id, "customer_name": customer_name, "name": p.name,
@@ -34,9 +34,30 @@ def _project_dict(p, customer_name: str | None = None) -> dict:
         "owner_id": p.owner_id, "owner_name": p.owner_name,
         "created_by_id": p.created_by_id, "created_by_name": p.created_by_name,
         "status": p.status, "remark": p.remark, "custom_fields_json": p.custom_fields_json,
+        # 交付进度(里程碑 已完成/总数)，让列表能一眼区分"已交付/交付中/未开始"(issue #65)
+        "delivery_total": delivery[0] if delivery else None,
+        "delivery_done": delivery[1] if delivery else None,
         "created_at": p.created_at.isoformat() if p.created_at else "",
         "updated_at": p.updated_at.isoformat() if p.updated_at else "",
     }
+
+
+async def _delivery_progress(db, tenant_id: str, project_ids: list[str]) -> dict:
+    """商机id -> (里程碑总数, 已完成数)。用于列表展示交付进度(issue #65)。"""
+    if not project_ids:
+        return {}
+    from app.domains.delivery.models import DeliveryMilestone
+    rows = (await db.execute(
+        sa_select(
+            DeliveryMilestone.project_id,
+            func.count().label("total"),
+            func.sum(case((DeliveryMilestone.status == "done", 1), else_=0)).label("done"),
+        ).where(
+            DeliveryMilestone.tenant_id == tenant_id,
+            DeliveryMilestone.project_id.in_(project_ids),
+        ).group_by(DeliveryMilestone.project_id)
+    )).all()
+    return {pid: (int(total or 0), int(done or 0)) for pid, total, done in rows}
 
 
 async def _customer_names(db, tenant_id: str, items) -> dict:
@@ -89,7 +110,8 @@ async def list_projects(
         owner_id=owner_id, current_user=scope_user,
     )
     name_map = await _customer_names(db, tenant_id, items)
-    return ok({"items": [_project_dict(p, name_map.get(p.customer_id)) for p in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+    prog = await _delivery_progress(db, tenant_id, [p.id for p in items])
+    return ok({"items": [_project_dict(p, name_map.get(p.customer_id), prog.get(p.id)) for p in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.get("/export/excel")

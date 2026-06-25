@@ -111,6 +111,18 @@ async def notify_order_assigned(db: AsyncSession, tenant_id: str, order_no: str,
     )
 
 
+async def notify_milestone_created(db: AsyncSession, tenant_id: str, project_name: str,
+                                    milestone_name: str, recipient_id: str, user_name: str, project_id: str):
+    """Notify the responsible person when a delivery milestone is created (issue #62)."""
+    await send_notification(
+        db, tenant_id, recipient_id=recipient_id,
+        type="milestone_created",
+        title=f"新交付里程碑「{milestone_name}」",
+        content=f"所属商机: {project_name}\n创建人: {user_name}\n请关注交付进度。",
+        biz_type="project", biz_id=project_id, sender_name=user_name,
+    )
+
+
 async def notify_approval_submitted(db: AsyncSession, tenant_id: str, approver_id: str,
                                      title: str, user_name: str, flow_id: str):
     """Notify approver when an approval is submitted to them."""

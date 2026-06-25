@@ -273,6 +273,41 @@ async def list_records(db: AsyncSession, tenant_id: str, project_id: str):
     return result.scalars().all()
 
 
+async def auto_complete_plans_if_fully_paid(db: AsyncSession, tenant_id: str, project_id: str) -> bool:
+    """商机累计回款达到回款计划总额(100%)时，自动把该商机下未完成的计划置为已回款。
+
+    覆盖"未逐笔把回款记录匹配到具体计划、但整体已收齐"的场景(issue #67/#68)：
+    只要 已收金额 ≥ 计划总额 且计划总额>0，就把 pending/overdue 的计划一次性标记为 paid。
+    单笔匹配(matched_plan_id)的逐计划完成逻辑保持不变，此处是对整体达标的兜底。
+    返回是否发生了状态变更。"""
+    plan_total = (await db.execute(
+        select(func.coalesce(func.sum(PaymentPlan.amount), 0)).where(
+            PaymentPlan.tenant_id == tenant_id, PaymentPlan.project_id == project_id,
+        )
+    )).scalar() or 0
+    if float(plan_total) <= 0:
+        return False
+    received_total = (await db.execute(
+        select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
+            PaymentRecord.tenant_id == tenant_id, PaymentRecord.project_id == project_id,
+        )
+    )).scalar() or 0
+    # 容忍浮点/分位误差
+    if float(received_total) + 0.01 < float(plan_total):
+        return False
+    result = await db.execute(
+        update(PaymentPlan).where(
+            PaymentPlan.tenant_id == tenant_id,
+            PaymentPlan.project_id == project_id,
+            PaymentPlan.status.in_(("pending", "overdue")),
+        ).values(status="paid")
+    )
+    if result.rowcount:
+        await db.commit()
+        return True
+    return False
+
+
 async def create_record(db: AsyncSession, tenant_id: str, project_id: str, data: PaymentRecordCreate, user: dict) -> PaymentRecord:
     rec = PaymentRecord(
         id=generate_uuid(), tenant_id=tenant_id, project_id=project_id,
@@ -296,6 +331,9 @@ async def create_record(db: AsyncSession, tenant_id: str, project_id: str, data:
         if plan and plan.status in ("pending", "overdue"):
             plan.status = "paid"
             await db.commit()
+
+    # 整体达标兜底：累计回款达到计划总额(100%)时自动完成剩余计划(issue #67/#68)
+    await auto_complete_plans_if_fully_paid(db, tenant_id, project_id)
 
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="create", resource_type="payment_record", resource_id=rec.id,
