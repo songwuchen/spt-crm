@@ -21,6 +21,11 @@ const itemTypeLabels: Record<string, string> = {
   standard: '标准', custom: '定制', service: '服务', spare: '备件',
 }
 
+// 成本/毛利/折扣无权限时被后端脱敏为 "***"，渲染前识别以避免显示 "NaN"。
+const isMasked = (v: unknown): boolean => typeof v === 'string' && !Number.isFinite(Number(v))
+const fmtMoney = (v: unknown): string => (v == null ? '-' : isMasked(v) ? '***' : `¥${Number(v).toLocaleString()}`)
+const fmtPct = (v: unknown): string => (v == null ? '-' : isMasked(v) ? '***' : `${(Number(v) * 100).toFixed(1)}%`)
+
 export default function MobileQuoteDetail() {
   usePageTitle('报价详情')
   const { id: projectId, qid } = useParams<{ id: string; qid: string }>()
@@ -113,7 +118,7 @@ export default function MobileQuoteDetail() {
             </div>
             <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-3 text-center border border-emerald-100">
               <div className="text-sm font-black text-emerald-600">
-                {currentVersion.margin_rate != null ? `${(Number(currentVersion.margin_rate) * 100).toFixed(1)}%` : '-'}
+                {fmtPct(currentVersion.margin_rate)}
               </div>
               <div className="text-[10px] text-slate-500 font-bold">毛利率</div>
             </div>
@@ -168,7 +173,7 @@ export default function MobileQuoteDetail() {
                   <div className="flex items-center gap-3 text-[10px] text-slate-400">
                     {l.qty != null && <span>数量: {l.qty} {l.unit || ''}</span>}
                     {l.unit_price != null && <span>单价: ¥{Number(l.unit_price).toLocaleString()}</span>}
-                    {l.cost_est != null && <span>成本: ¥{Number(l.cost_est).toLocaleString()}</span>}
+                    {l.cost_est != null && <span>成本: {fmtMoney(l.cost_est)}</span>}
                   </div>
                 </div>
               ))}
@@ -208,13 +213,13 @@ export default function MobileQuoteDetail() {
             <div className="flex justify-between">
               <span className="text-sm text-slate-400">毛利率</span>
               <span className="text-sm text-slate-700">
-                {currentVersion.margin_rate != null ? `${(Number(currentVersion.margin_rate) * 100).toFixed(1)}%` : '-'}
+                {fmtPct(currentVersion.margin_rate)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-slate-400">折扣</span>
               <span className="text-sm text-slate-700">
-                {currentVersion.discount_total != null ? `¥${Number(currentVersion.discount_total).toLocaleString()}` : '-'}
+                {fmtMoney(currentVersion.discount_total)}
               </span>
             </div>
             <div className="flex justify-between">

@@ -454,6 +454,14 @@ async def payment_overview(
         )
     )).scalar() or 0
 
+    # Total contract receivable (合同应收) — 回款率的标准分母，避免「计划回款」未录全导致回款率虚高
+    from app.domains.contract.models import Contract
+    total_receivable = (await db.execute(
+        select(func.coalesce(func.sum(Contract.amount_total), 0)).where(
+            Contract.tenant_id == tenant_id,
+        )
+    )).scalar() or 0
+
     # Overdue plans
     overdue_count = (await db.execute(
         select(func.count(PaymentPlan.id)).where(
@@ -483,13 +491,17 @@ async def payment_overview(
         )
     )).scalar() or 0
 
+    # 回款率 = 已回款 / 合同应收，封顶 100%（合同应收为 0 时回退到计划总额）
+    denom = float(total_receivable) or float(total_planned)
+    collection_rate = round(min(float(total_received) / denom * 100, 100.0), 1) if denom else 0
     return ok({
         "total_planned": float(total_planned),
+        "total_receivable": float(total_receivable),
         "total_received": float(total_received),
         "overdue_count": overdue_count,
         "overdue_amount": float(overdue_amount),
         "upcoming_30d_amount": float(upcoming_amount),
-        "collection_rate": round(float(total_received) / float(total_planned) * 100, 1) if total_planned else 0,
+        "collection_rate": collection_rate,
     })
 
 

@@ -17,6 +17,9 @@ class Customer(TenantScopedBase):
     website: Mapped[str | None] = mapped_column(String(300))
     owner_id: Mapped[str | None] = mapped_column(String(36))
     owner_name: Mapped[str | None] = mapped_column(String(100))
+    # 录入人(创建人)：与负责人分家，负责人改派后仍据此判定「本人创建」数据可见性
+    created_by_id: Mapped[str | None] = mapped_column(String(36))
+    created_by_name: Mapped[str | None] = mapped_column(String(100))
     source: Mapped[str | None] = mapped_column(String(100))
     level: Mapped[str | None] = mapped_column(String(50))  # A/B/C/D
     status: Mapped[str] = mapped_column(String(50), default="active")  # active / inactive

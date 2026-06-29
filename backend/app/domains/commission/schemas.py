@@ -21,7 +21,9 @@ class CommissionRecordCreate(BaseModel):
     deduction_service: float = Field(0, ge=0)
     deduction_entertain: float = Field(0, ge=0)
     deduction_rebate: float = Field(0, ge=0)
+    commission_mode: str = Field("rate", pattern="^(rate|amount)$")  # rate=按比例, amount=按固定金额
     commission_rate: float = Field(0, ge=0, le=1)
+    commission_amount: float = Field(0, ge=0)  # 固定提成金额（amount 模式）
     remark: Optional[str] = Field(None, max_length=2000)
 
 
@@ -38,7 +40,9 @@ class CommissionRecordUpdate(BaseModel):
     deduction_service: Optional[float] = Field(None, ge=0)
     deduction_entertain: Optional[float] = Field(None, ge=0)
     deduction_rebate: Optional[float] = Field(None, ge=0)
+    commission_mode: Optional[str] = Field(None, pattern="^(rate|amount)$")
     commission_rate: Optional[float] = Field(None, ge=0, le=1)
+    commission_amount: Optional[float] = Field(None, ge=0)
     status: Optional[str] = None
     remark: Optional[str] = Field(None, max_length=2000)
 

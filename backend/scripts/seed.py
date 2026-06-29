@@ -71,6 +71,8 @@ async def seed():
             ("quote:create", "创建报价", "报价"),
             ("quote:edit", "编辑报价", "报价"),
             ("quote:delete", "删除报价", "报价"),
+            ("quote:view_cost", "查看报价成本/毛利", "报价"),
+            ("quote:view_discount", "查看报价折扣", "报价"),
             ("contract:view", "查看合同", "合同"),
             ("contract:create", "创建合同", "合同"),
             ("contract:edit", "编辑合同", "合同"),

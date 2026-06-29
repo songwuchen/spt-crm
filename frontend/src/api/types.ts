@@ -705,7 +705,9 @@ export interface Commission {
   deduction_service: number
   deduction_entertain: number
   deduction_rebate: number
+  commission_mode?: string  // rate=按比例 / amount=按固定金额
   commission_rate: number
+  commission_amount?: number  // 固定提成金额（amount 模式）
   settle_rate: number
   accrued_amount: number
   paid_amount: number

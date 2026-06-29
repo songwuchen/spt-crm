@@ -39,7 +39,12 @@ def compute(rec: CommissionRecord) -> None:
     settle = (received / contract) if contract > 0 else Decimal(0)
     if settle > 1:
         settle = Decimal(1)
-    accrued = (net * D(rec.commission_rate) * settle).quantize(Decimal("0.01"))
+    if getattr(rec, "commission_mode", "rate") == "amount":
+        # 固定金额模式：应计奖金 = 提成金额 × 回款结算比例（与「回款驱动」一致）
+        accrued = (D(rec.commission_amount) * settle).quantize(Decimal("0.01"))
+    else:
+        # 比例模式：应计奖金 = 净额 × 提成比例 × 回款结算比例
+        accrued = (net * D(rec.commission_rate) * settle).quantize(Decimal("0.01"))
     paid = D(rec.paid_amount)
     current = accrued - paid
     if current < 0:
@@ -99,7 +104,8 @@ async def create_record(db, tenant_id, data: CommissionRecordCreate, user: dict)
     dump = data.model_dump(exclude_unset=True)
     if not dump.get("record_no"):
         dump["record_no"] = await generate_code(db, tenant_id, "commission")
-    if not dump.get("commission_rate"):
+    # 仅比例模式在未填比例时自动套用提成政策；金额模式按固定金额计提
+    if dump.get("commission_mode", "rate") != "amount" and not dump.get("commission_rate"):
         dump["commission_rate"] = await _resolve_commission_rate(
             db, tenant_id, dump.get("department_id"), dump.get("contract_amount", 0))
     rec = CommissionRecord(

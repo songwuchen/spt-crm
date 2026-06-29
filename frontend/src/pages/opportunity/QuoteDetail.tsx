@@ -25,6 +25,13 @@ const CHANNEL_LABELS: Record<string, string> = {
   email: '邮件', wechat: '微信', print: '打印', other: '其他',
 }
 
+// 成本/毛利/折扣等敏感字段在无权限时被后端脱敏为字符串 "***"。
+// 直接 Number("***") 会得到 NaN，故渲染前先识别脱敏值，避免显示 "NaN"。
+const MASK = '***'
+const isMasked = (v: unknown): boolean => typeof v === 'string' && !Number.isFinite(Number(v))
+const fmtMoney = (v: unknown): string => (v == null ? '-' : isMasked(v) ? MASK : `¥${Number(v).toLocaleString()}`)
+const fmtPct = (v: unknown): string => (v == null ? '-' : isMasked(v) ? MASK : `${(Number(v) * 100).toFixed(1)}%`)
+
 export default function QuoteDetail() {
   usePageTitle('报价详情')
   const { id: projectId, qid } = useParams<{ id: string; qid: string }>()
@@ -270,7 +277,7 @@ export default function QuoteDetail() {
     { title: '行合计', dataIndex: 'line_total', width: 110, align: 'right',
       render: (v) => v != null ? <span className="font-bold">¥{Number(v).toLocaleString()}</span> : '-' },
     { title: '估计成本', dataIndex: 'cost_est', width: 100, align: 'right',
-      render: (v) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
+      render: (v) => fmtMoney(v) },
     { title: '交期(天)', dataIndex: 'leadtime_days', width: 80 },
     { title: '', key: 'actions', width: 100,
       render: (_, r) => (
@@ -362,8 +369,8 @@ export default function QuoteDetail() {
             </Descriptions.Item>
             <Descriptions.Item label="税率">{currentVersion.tax_rate != null ? `${(Number(currentVersion.tax_rate) * 100).toFixed(1)}%` : '-'}</Descriptions.Item>
             <Descriptions.Item label="税额">{currentVersion.tax_total != null ? `¥${Number(currentVersion.tax_total).toLocaleString()}` : '-'}</Descriptions.Item>
-            <Descriptions.Item label="折扣">{currentVersion.discount_total != null ? `¥${Number(currentVersion.discount_total).toLocaleString()}` : '-'}</Descriptions.Item>
-            <Descriptions.Item label="毛利率">{currentVersion.margin_rate != null ? `${(Number(currentVersion.margin_rate) * 100).toFixed(1)}%` : '-'}</Descriptions.Item>
+            <Descriptions.Item label="折扣">{fmtMoney(currentVersion.discount_total)}</Descriptions.Item>
+            <Descriptions.Item label="毛利率">{fmtPct(currentVersion.margin_rate)}</Descriptions.Item>
             <Descriptions.Item label="交期承诺">{currentVersion.delivery_promise_date || '-'}</Descriptions.Item>
             <Descriptions.Item label="有效天数">{currentVersion.validity_days ?? '-'}</Descriptions.Item>
             <Descriptions.Item label="版本状态"><Tag>{currentVersion.status}</Tag></Descriptions.Item>
@@ -780,11 +787,11 @@ export default function QuoteDetail() {
                   <div className="flex-1">
                     <div className="text-sm font-bold text-slate-800">
                       总价: ¥{s.price_total != null ? Number(s.price_total).toLocaleString() : '-'} ·
-                      成本: ¥{s.cost_total != null ? Number(s.cost_total).toLocaleString() : '-'} ·
-                      毛利率: {s.margin_rate != null ? `${(Number(s.margin_rate) * 100).toFixed(1)}%` : '-'}
+                      成本: {fmtMoney(s.cost_total)} ·
+                      毛利率: {fmtPct(s.margin_rate)}
                     </div>
-                    {/* Cost Breakdown */}
-                    {s.breakdown_json && Object.keys(s.breakdown_json).length > 0 && (
+                    {/* Cost Breakdown（脱敏时 breakdown_json 为字符串 "***"，跳过明细渲染） */}
+                    {s.breakdown_json && typeof s.breakdown_json === 'object' && Object.keys(s.breakdown_json).length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {Object.entries(s.breakdown_json).map(([k, v]) => (
                           <div key={k} className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px]">

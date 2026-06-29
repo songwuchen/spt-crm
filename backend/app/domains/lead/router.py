@@ -7,7 +7,7 @@ from typing import Optional
 from openpyxl import load_workbook
 import io
 
-from app.dependencies import get_db, get_tenant_id, require_permissions, get_data_scope
+from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.common.export import build_excel, excel_response
 from app.domains.lead import service
@@ -61,15 +61,14 @@ async def list_leads(
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("lead:view")),
-    data_scope=Depends(get_data_scope),
 ):
-    from app.common.data_scope import scoped_owners
-    owners = scoped_owners(owner_id, data_scope)
+    # 数据范围「本人」= 负责人/创建人/共享给本人；「部门」= 部门子树成员；「全部」= 不限。
     items, total = await service.list_leads(
-        db, tenant_id, pageNo, pageSize, keyword, status, owners,
+        db, tenant_id, pageNo, pageSize, keyword, status, owner_id,
         customer_type=customer_type, category=category, country_type=country_type,
         province=province, department_id=department_id, industry=industry,
         company_name=company_name, start_date=start_date, end_date=end_date,
+        current_user=_user,
     )
     return ok({"items": [_lead_dict(l) for l in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
@@ -90,6 +89,7 @@ async def export_leads_excel(
     items, _ = await service.list_leads(
         db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, status, owner_id,
         company_name=company_name, start_date=start_date, end_date=end_date,
+        current_user=_user,
     )
     headers = [
         "线索编码", "标题", "公司名称", "联系人", "联系电话", "邮箱",

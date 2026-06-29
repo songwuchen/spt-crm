@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from openpyxl import load_workbook
 import io
 
-from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions, get_data_scope
+from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions
 from app.common.schemas import ok
 from app.common.export import build_excel, build_excel_multi, build_template, excel_response
 from app.domains.customer.models import Customer
@@ -44,11 +44,11 @@ async def list_customers(
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
-    data_scope=Depends(get_data_scope),
 ):
-    from app.common.data_scope import scoped_owners
-    owners = scoped_owners(owner_id, data_scope)
-    items, total = await service.list_customers(db, tenant_id, pageNo, pageSize, keyword, industry, region, owners, tag=tag)
+    # 数据范围「本人」= 负责人/创建人/共享给本人；「部门」= 部门子树成员所属；「全部」= 不限。
+    # 由 service 内 apply_data_scope 统一处理（owner_id 为前端显式筛选，仍受数据范围约束）。
+    items, total = await service.list_customers(
+        db, tenant_id, pageNo, pageSize, keyword, industry, region, owner_id, tag=tag, current_user=_user)
     return ok({"items": [_customer_dict(c) for c in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
@@ -85,7 +85,7 @@ async def export_customers_excel(
     _user=Depends(require_permissions("customer:view")),
 ):
     from app.config import settings
-    items, _ = await service.list_customers(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, industry, region, owner_id)
+    items, _ = await service.list_customers(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, industry, region, owner_id, current_user=_user)
     headers = ["客户编码", "客户名称", "简称", "行业", "规模", "地区", "地址", "负责人", "来源", "级别", "状态", "创建时间"]
     rows = []
     for c in items:

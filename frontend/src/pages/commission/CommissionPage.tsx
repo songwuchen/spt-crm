@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message,
-  Tag, Drawer, Statistic, Tooltip, Empty, Upload, Alert,
+  Tag, Drawer, Statistic, Tooltip, Empty, Upload, Alert, Radio,
 } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, DollarOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -92,7 +92,8 @@ export default function CommissionPage() {
     setEditing(null)
     form.resetFields()
     form.setFieldsValue({
-      contract_amount: 0, received_amount: 0, commission_rate: 0.01,
+      contract_amount: 0, received_amount: 0,
+      commission_mode: 'rate', commission_rate: 0.01, commission_amount: 0,
       deduction_freight: 0, deduction_service: 0, deduction_entertain: 0, deduction_rebate: 0,
     })
     setModalOpen(true)
@@ -100,7 +101,7 @@ export default function CommissionPage() {
 
   const openEdit = (r: Commission) => {
     setEditing(r)
-    form.setFieldsValue({ ...r, signed_date: r.signed_date ? dayjs(r.signed_date) : undefined })
+    form.setFieldsValue({ ...r, commission_mode: r.commission_mode || 'rate', signed_date: r.signed_date ? dayjs(r.signed_date) : undefined })
     if (r.owner_id && r.owner_name) ownerSelect.setInitialOption({ label: r.owner_name, value: r.owner_id })
     setModalOpen(true)
   }
@@ -178,7 +179,10 @@ export default function CommissionPage() {
     { title: '合同额', dataIndex: 'contract_amount', width: 130, align: 'right', render: money },
     { title: '累计回款', dataIndex: 'received_amount', width: 130, align: 'right', render: money },
     { title: '结算比例', dataIndex: 'settle_rate', width: 90, align: 'right', render: pct },
-    { title: '提成比例', dataIndex: 'commission_rate', width: 90, align: 'right', render: pct },
+    { title: '提成', dataIndex: 'commission_rate', width: 110, align: 'right',
+      render: (_, r) => (r.commission_mode === 'amount'
+        ? <Tooltip title="按固定金额"><span>{money(r.commission_amount)}</span></Tooltip>
+        : pct(r.commission_rate)) },
     { title: '应计奖金', dataIndex: 'accrued_amount', width: 130, align: 'right', render: (v) => <span className="font-semibold text-slate-800">{money(v)}</span> },
     { title: '已提', dataIndex: 'paid_amount', width: 120, align: 'right', render: money },
     { title: '本次可提', dataIndex: 'current_amount', width: 130, align: 'right', render: (v) => <span className="font-semibold text-emerald-600">{money(v)}</span> },
@@ -201,7 +205,7 @@ export default function CommissionPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">业务提成</h1>
-          <p className="text-sm text-slate-500 mt-0.5">回款驱动的业务奖金核算：应计奖金 = (合同额 − 扣减) × 提成比例 × 回款结算比例</p>
+          <p className="text-sm text-slate-500 mt-0.5">回款驱动的业务奖金核算：按比例 应计奖金 = (合同额 − 扣减) × 提成比例 × 回款结算比例；按金额 应计奖金 = 提成金额 × 回款结算比例</p>
         </div>
         <Space>
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出台账</Button>
@@ -261,13 +265,27 @@ export default function CommissionPage() {
                 onSearch={ownerSelect.onSearch} onDropdownVisibleChange={ownerSelect.onDropdownVisibleChange} />
             </Form.Item>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Form.Item name="contract_amount" label="合同额" rules={[{ required: true }]}>
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item name="received_amount" label="累计回款"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>
-            <Form.Item name="commission_rate" label="提成比例(0-1)">
-              <InputNumber min={0} max={1} step={0.001} style={{ width: '100%' }} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Form.Item name="commission_mode" label="提成方式">
+              <Radio.Group optionType="button" buttonStyle="solid"
+                options={[{ label: '按比例', value: 'rate' }, { label: '按金额', value: 'amount' }]} />
+            </Form.Item>
+            <Form.Item noStyle shouldUpdate={(p, c) => p.commission_mode !== c.commission_mode}>
+              {() => (form.getFieldValue('commission_mode') === 'amount' ? (
+                <Form.Item name="commission_amount" label="提成金额(元)" tooltip="固定提成金额，应计奖金 = 提成金额 × 回款结算比例">
+                  <InputNumber min={0} style={{ width: '100%' }} />
+                </Form.Item>
+              ) : (
+                <Form.Item name="commission_rate" label="提成比例(0-1)">
+                  <InputNumber min={0} max={1} step={0.001} style={{ width: '100%' }} />
+                </Form.Item>
+              ))}
             </Form.Item>
           </div>
           <div className="grid grid-cols-4 gap-3">

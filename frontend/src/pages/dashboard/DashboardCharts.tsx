@@ -305,9 +305,11 @@ export function ContractExpiryPanel() {
 export const LeaderboardChart = memo(function LeaderboardChart({ leaderboard }: { leaderboard: LeaderItem[] }) {
   if (leaderboard.length === 0) return null
 
+  // 名称过长时截断，避免 X 轴标签互相重叠（issue #73）
+  const short = (s: string) => (s && s.length > 6 ? s.slice(0, 6) + '…' : s || '-')
   const chartData = leaderboard.slice(0, 8).flatMap((item) => [
-    { name: item.owner_name, type: '赢单金额', value: item.won_amount / 10000 },
-    { name: item.owner_name, type: '管线金额', value: item.pipeline_amount / 10000 },
+    { name: short(item.owner_name), type: '赢单金额', value: item.won_amount / 10000 },
+    { name: short(item.owner_name), type: '管线金额', value: item.pipeline_amount / 10000 },
   ])
 
   return (
@@ -319,7 +321,7 @@ export const LeaderboardChart = memo(function LeaderboardChart({ leaderboard }: 
       group
       height={260}
       scale={{ color: { range: ['#10b981', '#3b82f6'] } }}
-      axis={{ y: { title: '万元' }, x: { title: false } }}
+      axis={{ y: { title: '万元' }, x: { title: false, labelAutoHide: false, labelAutoRotate: true, style: { labelFontSize: 11 } } }}
       legend={{ position: 'top' }}
     />
   )

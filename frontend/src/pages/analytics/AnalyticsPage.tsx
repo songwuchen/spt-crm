@@ -33,6 +33,7 @@ interface TopCustomer {
 
 interface PaymentOverview {
   total_planned: number
+  total_receivable?: number
   total_received: number
   overdue_count: number
   overdue_amount: number
@@ -458,8 +459,8 @@ export default function AnalyticsPage() {
             </h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">计划总额</span>
-                <span className="text-lg font-black text-slate-900">¥{(payment.total_planned / 10000).toFixed(1)}万</span>
+                <span className="text-sm text-slate-500">合同应收</span>
+                <span className="text-lg font-black text-slate-900">¥{((payment.total_receivable ?? payment.total_planned) / 10000).toFixed(1)}万</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-500">已回款</span>
@@ -493,12 +494,13 @@ export default function AnalyticsPage() {
                 data={topCustomerBarData}
                 xField="name"
                 yField="amount"
-                height={220}
+                // 高度随条数自适应，避免客户名称在 Y 轴上互相重叠（issue #73）
+                height={Math.max(240, topCustomerBarData.length * 44)}
                 colorField="name"
                 legend={false}
                 label={{ text: (d: { amount: number }) => `¥${d.amount}万`, position: 'right', style: { fontSize: 11, fontWeight: 'bold' } }}
-                axis={{ y: { title: false }, x: { title: false } }}
-                style={{ radiusTopRight: 4, radiusBottomRight: 4 }}
+                axis={{ y: { title: false }, x: { title: false, labelAutoHide: false, labelAutoRotate: false, style: { labelFontSize: 11 } } }}
+                style={{ maxBarWidth: 22, radiusTopRight: 4, radiusBottomRight: 4 }}
                 onReady={({ chart }) => {
                   chart.on('element:click', (evt: { data?: { data?: { id?: string } } }) => {
                     const id = evt?.data?.data?.id

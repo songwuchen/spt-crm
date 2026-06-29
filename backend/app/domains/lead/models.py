@@ -30,6 +30,9 @@ class Lead(TenantScopedBase):
     budget_range: Mapped[str | None] = mapped_column(String(100))
     owner_id: Mapped[str | None] = mapped_column(String(36))
     owner_name: Mapped[str | None] = mapped_column(String(100))
+    # 录入人(创建人)：负责人改派后仍据此判定「本人创建」数据可见性
+    created_by_id: Mapped[str | None] = mapped_column(String(36))
+    created_by_name: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(50), default="new")  # new / following / qualified / discarded
     score: Mapped[int] = mapped_column(Integer, default=0)
     converted_customer_id: Mapped[str | None] = mapped_column(String(36))

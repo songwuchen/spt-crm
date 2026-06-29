@@ -56,6 +56,7 @@ async def list_leads(
     department_id: str | None = None, industry: str | None = None,
     company_name: str | None = None,
     start_date=None, end_date=None,
+    current_user: dict | None = None,
 ):
     base = select(Lead).where(Lead.tenant_id == tenant_id, Lead.is_deleted == False)
     if keyword:
@@ -84,6 +85,11 @@ async def list_leads(
         base = base.where(Lead.department_id == department_id)
     if industry:
         base = base.where(Lead.industry == industry)
+
+    # 数据范围过滤（非管理员仅见 负责人/创建人/共享给本人 的线索）
+    if current_user:
+        from app.common.data_scope import apply_data_scope
+        base = await apply_data_scope(base, db, tenant_id, current_user, Lead, "lead")
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
     items = (await db.execute(
@@ -118,6 +124,8 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
         id=generate_uuid(), tenant_id=tenant_id,
         lead_code=await generate_code(db, tenant_id, "lead"),
         owner_id=owner_id, owner_name=owner_name,
+        created_by_id=user["sub"],
+        created_by_name=user.get("real_name") or user.get("username"),
         **payload,
     )
     lead.score = _compute_score(lead)

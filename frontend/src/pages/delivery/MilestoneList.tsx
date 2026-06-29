@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { deliveryApi } from '@/api/delivery'
 import type { DeliveryMilestone } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import AttachmentPanel from '@/components/AttachmentPanel'
 import dayjs from 'dayjs'
 
 const statusLabels: Record<string, string> = {
@@ -190,6 +191,12 @@ export default function MilestoneList() {
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>
+        {editing && (
+          <div className="border-t border-slate-100 pt-3 mt-1">
+            <div className="text-sm font-semibold text-slate-600 mb-2">附件（发货验收单等）</div>
+            <AttachmentPanel bizType="delivery_milestone" bizId={editing.id} />
+          </div>
+        )}
       </Modal>
     </div>
   )

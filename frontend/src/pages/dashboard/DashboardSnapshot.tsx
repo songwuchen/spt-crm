@@ -151,8 +151,8 @@ export default function DashboardSnapshot() {
                 <div className="text-xl font-black text-emerald-700">¥{(paymentOv.total_received / 10000).toFixed(1)}万</div>
               </div>
               <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
-                <div className="text-sm text-blue-600 font-bold mb-1">计划总额</div>
-                <div className="text-xl font-black text-blue-700">¥{(paymentOv.total_planned / 10000).toFixed(1)}万</div>
+                <div className="text-sm text-blue-600 font-bold mb-1">合同应收</div>
+                <div className="text-xl font-black text-blue-700">¥{((paymentOv.total_receivable ?? paymentOv.total_planned) / 10000).toFixed(1)}万</div>
               </div>
               <div className="text-center p-2 rounded-lg bg-slate-50">
                 <div className="text-lg font-black text-slate-900">{paymentOv.collection_rate}%</div>

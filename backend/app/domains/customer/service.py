@@ -71,6 +71,8 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
     customer = Customer(
         id=generate_uuid(), tenant_id=tenant_id,
         owner_id=owner_id, owner_name=owner_name,
+        created_by_id=user.get("sub"),
+        created_by_name=user.get("real_name") or user.get("username"),
         **dump,
     )
     db.add(customer)

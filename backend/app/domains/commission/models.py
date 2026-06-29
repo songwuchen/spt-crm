@@ -45,7 +45,9 @@ class CommissionRecord(TenantScopedBase):
     deduction_service: Mapped[float] = mapped_column(Numeric(18, 2), default=0)   # 服务费
     deduction_entertain: Mapped[float] = mapped_column(Numeric(18, 2), default=0)  # 招待费
     deduction_rebate: Mapped[float] = mapped_column(Numeric(18, 2), default=0)    # 返还款
+    commission_mode: Mapped[str] = mapped_column(String(8), default="rate")       # rate=按比例 / amount=按固定金额
     commission_rate: Mapped[float] = mapped_column(Numeric(8, 4), default=0)      # 提成比例 0-1
+    commission_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0)   # 固定提成金额(amount 模式)
     # 计算结果
     settle_rate: Mapped[float] = mapped_column(Numeric(8, 4), default=0)          # 结算比例
     accrued_amount: Mapped[float] = mapped_column(Numeric(18, 2), default=0)      # 应计奖金
