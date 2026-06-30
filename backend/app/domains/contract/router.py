@@ -73,7 +73,7 @@ async def list_contracts(
     from app.common.data_scope import apply_project_child_scope
     q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Contract)
     total = (await db.execute(cq)).scalar() or 0
-    order = resolve_sort("contract", sort_by, sort_order) or Contract.created_at.desc()
+    order = resolve_sort("contract", sort_by, sort_order, Contract.created_at.desc())
     items = (await db.execute(
         q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)

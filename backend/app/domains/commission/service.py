@@ -91,7 +91,7 @@ async def list_records(db, tenant_id, page_no=1, page_size=20, owner_id=None, st
     if clause is not None:
         base = base.where(clause)
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
-    order = resolve_sort("commission", sort_by, sort_order) or CommissionRecord.created_at.desc()
+    order = resolve_sort("commission", sort_by, sort_order, CommissionRecord.created_at.desc())
     items = (await db.execute(
         base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()

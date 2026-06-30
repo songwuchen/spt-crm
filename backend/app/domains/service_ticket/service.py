@@ -66,7 +66,7 @@ async def list_tickets(
         count_q = count_q.where(clause)
 
     total = (await db.execute(count_q)).scalar() or 0
-    order = resolve_sort("service_ticket", sort_by, sort_order) or ServiceTicket.created_at.desc()
+    order = resolve_sort("service_ticket", sort_by, sort_order, ServiceTicket.created_at.desc())
     result = await db.execute(
         q.order_by(order)
         .offset((page - 1) * page_size).limit(page_size)

@@ -64,7 +64,7 @@ async def list_orders(
         base = base.where(clause)
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
-    order = resolve_sort("order", sort_by, sort_order) or Order.created_at.desc()
+    order = resolve_sort("order", sort_by, sort_order, Order.created_at.desc())
     items = (await db.execute(
         base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()

@@ -9,7 +9,7 @@
     clause = filter_clause_or_400("customer", adv_filter, {"user_id": uid})
     if clause is not None:
         base = base.where(clause)
-    order = resolve_sort("customer", sort_by, sort_order) or Customer.created_at.desc()
+    order = resolve_sort("customer", sort_by, sort_order, Customer.created_at.desc())
 """
 from .errors import FilterError
 from .compiler import parse_filter, compile_filter
@@ -33,12 +33,15 @@ def filter_clause_or_400(resource: str, raw_filter, ctx: dict | None = None):
         raise BusinessException(code=400, message=f"高级筛选条件无效：{e}")
 
 
-def resolve_sort(resource: str, sort_by: str | None, sort_order: str | None):
-    """把排序字段 key 映射为 order_by 表达式；非法/未声明时返回 None。"""
+def resolve_sort(resource: str, sort_by: str | None, sort_order: str | None, default=None):
+    """把排序字段 key 映射为 order_by 表达式；非法/未声明时返回 default。
+
+    注意：不要写 `resolve_sort(...) or default`——SQLAlchemy 表达式不支持布尔取值
+    （`bool(clause)` 会抛 TypeError）。把默认排序作为第 4 个参数传入。
+    """
     schema = get_schema(resource)
-    if schema is None:
-        return None
-    return schema.sort_clause(sort_by, sort_order)
+    clause = schema.sort_clause(sort_by, sort_order) if schema is not None else None
+    return clause if clause is not None else default
 
 
 __all__ = [

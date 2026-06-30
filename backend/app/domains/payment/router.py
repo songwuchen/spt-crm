@@ -357,7 +357,7 @@ async def list_all_records(
     from app.common.data_scope import apply_project_child_scope
     q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, PaymentRecord)
     total = (await db.execute(count_q)).scalar() or 0
-    order = resolve_sort("payment", sort_by, sort_order) or PaymentRecord.received_date.desc()
+    order = resolve_sort("payment", sort_by, sort_order, PaymentRecord.received_date.desc())
     rows = (await db.execute(
         q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)

@@ -47,7 +47,7 @@ async def list_customers(
         base = await apply_data_scope(base, db, tenant_id, current_user, Customer, "customer")
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
-    order = resolve_sort("customer", sort_by, sort_order) or Customer.created_at.desc()
+    order = resolve_sort("customer", sort_by, sort_order, Customer.created_at.desc())
     items = (await db.execute(
         base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()

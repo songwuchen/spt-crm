@@ -99,7 +99,7 @@ async def list_leads(
         base = await apply_data_scope(base, db, tenant_id, current_user, Lead, "lead")
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
-    order = resolve_sort("lead", sort_by, sort_order) or Lead.created_at.desc()
+    order = resolve_sort("lead", sort_by, sort_order, Lead.created_at.desc())
     items = (await db.execute(
         base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()

@@ -63,7 +63,7 @@ async def list_all_change_requests(
     from app.common.data_scope import apply_project_child_scope
     q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, ChangeRequest)
     total = (await db.execute(cq)).scalar() or 0
-    order = resolve_sort("change", sort_by, sort_order) or ChangeRequest.created_at.desc()
+    order = resolve_sort("change", sort_by, sort_order, ChangeRequest.created_at.desc())
     q = q.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     items = (await db.execute(q)).scalars().all()
     return ok({"items": [_cr_dict(c) for c in items], "total": total})

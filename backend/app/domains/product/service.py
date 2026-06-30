@@ -91,7 +91,7 @@ async def list_products(
         base = base.where(clause)
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
-    order = resolve_sort("product", sort_by, sort_order) or Product.product_code.asc()
+    order = resolve_sort("product", sort_by, sort_order, Product.product_code.asc())
     items = (await db.execute(
         base.order_by(order).offset((page - 1) * page_size).limit(page_size)
     )).scalars().all()

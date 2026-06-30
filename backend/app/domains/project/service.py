@@ -218,7 +218,7 @@ async def list_projects(
         base = await apply_data_scope(base, db, tenant_id, current_user, OpportunityProject, "project")
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
-    order = resolve_sort("project", sort_by, sort_order) or OpportunityProject.created_at.desc()
+    order = resolve_sort("project", sort_by, sort_order, OpportunityProject.created_at.desc())
     items = (await db.execute(
         base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()

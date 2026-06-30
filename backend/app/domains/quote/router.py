@@ -88,7 +88,7 @@ async def list_quotes(
     from app.common.data_scope import apply_project_child_scope
     q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Quote)
     total = (await db.execute(cq)).scalar() or 0
-    order = resolve_sort("quote", sort_by, sort_order) or Quote.created_at.desc()
+    order = resolve_sort("quote", sort_by, sort_order, Quote.created_at.desc())
     quotes = (await db.execute(
         q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)

@@ -58,7 +58,7 @@ async def list_contacts(
         count_q = count_q.where(clause)
 
     total = (await db.execute(count_q)).scalar() or 0
-    order = resolve_sort("contact", sort_by, sort_order) or Contact.created_at.desc()
+    order = resolve_sort("contact", sort_by, sort_order, Contact.created_at.desc())
     items = (await db.execute(
         q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)
