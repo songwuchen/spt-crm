@@ -101,9 +101,13 @@ async def create_followup(body: CollectionFollowUpCreate, tenant_id: str = Depen
 @router.get("/transfers")
 async def list_transfers(pageNo: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100),
                          status: str = Query(None), keyword: str = Query(None), to_department_id: str = Query(None),
+                         filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+                         sort_by: str = Query(None), sort_order: str = Query(None),
                          tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
-                         _u=Depends(require_permissions("collection:view"))):
-    items, total = await service.list_transfers(db, tenant_id, pageNo, pageSize, status, keyword, to_department_id)
+                         current_user: dict = Depends(require_permissions("collection:view"))):
+    items, total = await service.list_transfers(db, tenant_id, pageNo, pageSize, status, keyword, to_department_id,
+                                                adv_filter=filter, sort_by=sort_by, sort_order=sort_order,
+                                                current_user=current_user)
     return ok({"items": [_transfer_dict(t) for t in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 

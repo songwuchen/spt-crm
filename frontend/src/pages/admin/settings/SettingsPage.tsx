@@ -10,6 +10,7 @@ import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import ApprovalPolicyModal from './ApprovalPolicyModal'
 import FileStorageTab from './FileStorageTab'
+import UiSettingsTab from './UiSettingsTab'
 import GateRulesEditor, { type GateRule, validateGateRules } from '@/components/GateRulesEditor'
 import DataView from '@/components/DataView'
 
@@ -450,6 +451,10 @@ export default function SettingsPage() {
                 ]} />
               </div>
             ),
+          },
+          {
+            key: 'ui_settings', label: '界面设置',
+            children: <UiSettingsTab />,
           },
           {
             key: 'margin', label: '毛利红线',

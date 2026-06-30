@@ -47,6 +47,7 @@ from app.domains.equipment.router import router as equipment_router
 from app.domains.measurement.router import router as measurement_router
 from app.domains.task.router import router as task_router
 from app.domains.dashboard.saved_view import router as saved_view_router
+from app.common.search.router import router as search_schema_router
 from app.domains.customer.contact_router import router as contact_router
 from app.domains.openapi.router import router as openapi_router
 from app.domains.openapi.admin_router import router as openapi_admin_router
@@ -169,6 +170,7 @@ app.include_router(measurement_router)
 app.include_router(task_router)
 app.include_router(lead_public_router)
 app.include_router(saved_view_router)
+app.include_router(search_schema_router)
 app.include_router(contact_router)
 app.include_router(openapi_router)
 app.include_router(openapi_admin_router)

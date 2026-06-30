@@ -1,85 +1,8 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
+import { menuGroups, PROTECTED_MENU_KEYS } from '@/config/menus'
 import { t } from '@/locales'
-
-interface MenuItem {
-  key: string
-  icon: string
-  labelKey: string
-  permission?: string
-}
-
-const menuGroups: { titleKey: string; items: MenuItem[] }[] = [
-  {
-    titleKey: 'nav.groupClients',
-    items: [
-      { key: '/', icon: 'dashboard', labelKey: 'nav.dashboard' },
-      { key: '/customers', icon: 'business', labelKey: 'nav.customers', permission: 'customer:view' },
-      { key: '/customer-pool', icon: 'waves', labelKey: 'nav.customerPool', permission: 'customer:view' },
-      { key: '/contacts', icon: 'contacts', labelKey: 'nav.contacts', permission: 'contact:view' },
-      { key: '/leads', icon: 'trending_up', labelKey: 'nav.leads', permission: 'lead:view' },
-    ],
-  },
-  {
-    titleKey: 'nav.groupDeals',
-    items: [
-      { key: '/opportunities', icon: 'rocket_launch', labelKey: 'nav.opportunities', permission: 'project:view' },
-      { key: '/solutions', icon: 'lightbulb', labelKey: 'nav.solutions', permission: 'solution:view' },
-      { key: '/quotes', icon: 'sell', labelKey: 'nav.quotes', permission: 'quote:view' },
-      { key: '/contracts', icon: 'contract', labelKey: 'nav.contracts', permission: 'contract:view' },
-      { key: '/change-requests', icon: 'swap_horiz', labelKey: 'nav.changeRequests', permission: 'change:view' },
-      { key: '/milestones', icon: 'flag_circle', labelKey: 'nav.milestones', permission: 'delivery:view' },
-    ],
-  },
-  {
-    titleKey: 'nav.groupFinance',
-    items: [
-      { key: '/payments', icon: 'account_balance', labelKey: 'nav.payments', permission: 'payment:view' },
-      { key: '/collection', icon: 'request_quote', labelKey: 'nav.collection', permission: 'collection:view' },
-      { key: '/commissions', icon: 'paid', labelKey: 'nav.commissions', permission: 'commission:view' },
-      { key: '/guarantees', icon: 'verified_user', labelKey: 'nav.guarantees', permission: 'guarantee:view' },
-    ],
-  },
-  {
-    titleKey: 'nav.groupProductService',
-    items: [
-      { key: '/products', icon: 'inventory_2', labelKey: 'nav.products', permission: 'product:view' },
-      { key: '/orders', icon: 'shopping_cart', labelKey: 'nav.orders', permission: 'order:view' },
-      { key: '/tenders', icon: 'fact_check', labelKey: 'nav.tenders', permission: 'tender:view' },
-      { key: '/service-tickets', icon: 'confirmation_number', labelKey: 'nav.serviceTickets', permission: 'service:view' },
-      { key: '/measurements', icon: 'monitoring', labelKey: 'nav.measurements', permission: 'service:view' },
-      { key: '/equipment-profile', icon: 'precision_manufacturing', labelKey: 'nav.equipmentProfile', permission: 'customer:view' },
-    ],
-  },
-  {
-    titleKey: 'nav.groupOps',
-    items: [
-      { key: '/follow-ups', icon: 'contact_phone', labelKey: 'nav.followUps', permission: 'customer:view' },
-      { key: '/sales-targets', icon: 'flag', labelKey: 'nav.salesTargets', permission: 'project:view' },
-      { key: '/analytics', icon: 'analytics', labelKey: 'nav.analytics', permission: 'project:view' },
-      { key: '/calendar', icon: 'calendar_month', labelKey: 'nav.calendar' },
-      { key: '/tasks', icon: 'checklist', labelKey: 'nav.tasks' },
-      { key: '/approvals', icon: 'task_alt', labelKey: 'nav.approvals' },
-      { key: '/ai-center', icon: 'smart_toy', labelKey: 'nav.aiCenter', permission: 'project:view' },
-      { key: '/knowledge-base', icon: 'menu_book', labelKey: 'nav.knowledgeBase', permission: 'project:view' },
-    ],
-  },
-  {
-    titleKey: 'nav.systemGroup',
-    items: [
-      { key: '/admin/departments', icon: 'account_tree', labelKey: 'nav.departments', permission: 'dept:view' },
-      { key: '/admin/users', icon: 'group', labelKey: 'nav.users', permission: 'user:view' },
-      { key: '/admin/roles', icon: 'admin_panel_settings', labelKey: 'nav.roles', permission: 'role:view' },
-      { key: '/admin/audit', icon: 'history', labelKey: 'nav.auditLog', permission: 'audit:view' },
-      { key: '/admin/settings', icon: 'settings', labelKey: 'nav.settings', permission: 'role:manage' },
-      { key: '/admin/api-docs', icon: 'api', labelKey: 'nav.apiDocs', permission: 'role:manage' },
-      { key: '/admin/openapi', icon: 'hub', labelKey: 'nav.openApi', permission: 'role:manage' },
-      { key: '/admin/system-health', icon: 'monitor_heart', labelKey: 'nav.systemHealth', permission: 'role:manage' },
-      { key: '/admin/dingtalk', icon: 'phonelink_ring', labelKey: 'nav.dingTalk', permission: 'role:manage' },
-      { key: '/admin/data-manage', icon: 'delete_sweep', labelKey: 'nav.dataManage', permission: 'role:manage' },
-    ],
-  },
-]
 
 function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/customers/)) return '/customers'
@@ -126,26 +49,38 @@ export default function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const hasPermission = useAuthStore((s) => s.hasPermission)
+  const systemName = useUiSettingsStore((s) => s.systemName)
+  const menuAliases = useUiSettingsStore((s) => s.menuAliases)
+  const hiddenMenus = useUiSettingsStore((s) => s.hiddenMenus)
   const selectedKey = getSelectedKey(location.pathname)
+
+  const hiddenSet = new Set(hiddenMenus)
+  const brandName = systemName || 'SPT-CRM'
 
   return (
     <div className="sidebar-root">
       {/* Logo */}
       <div className="sidebar-logo">
-        <img src="/logo.png" alt="SPT-CRM" className="sidebar-logo-icon" />
-        <span className="sidebar-logo-text">SPT-CRM</span>
+        <img src="/logo.png" alt={brandName} className="sidebar-logo-icon" />
+        <span className="sidebar-logo-text">{brandName}</span>
       </div>
 
       {/* Menu Groups */}
       <div className="sidebar-menu">
         {menuGroups.map((group) => {
-          const visibleItems = group.items.filter(
-            (item) => !item.permission || hasPermission(item.permission)
-          )
+          // 整组被隐藏 → 跳过
+          if (hiddenSet.has(group.key)) return null
+          const visibleItems = group.items.filter((item) => {
+            if (!item.permission || hasPermission(item.permission)) {
+              // 系统配置入口永不隐藏，避免管理员锁死
+              return !hiddenSet.has(item.key) || PROTECTED_MENU_KEYS.includes(item.key)
+            }
+            return false
+          })
           if (visibleItems.length === 0) return null
           return (
-            <div key={group.titleKey} className="sidebar-group">
-              <div className="sidebar-group-title">{t(group.titleKey)}</div>
+            <div key={group.key} className="sidebar-group">
+              <div className="sidebar-group-title">{menuAliases[group.key] || t(group.titleKey)}</div>
               <nav className="sidebar-group-nav">
                 {visibleItems.map((item) => {
                   const isActive = selectedKey === item.key
@@ -156,7 +91,7 @@ export default function Sidebar() {
                       className={`sidebar-item ${isActive ? 'sidebar-item--active' : ''}`}
                     >
                       <span className="material-symbols-outlined sidebar-item-icon">{item.icon}</span>
-                      <span className="sidebar-item-label">{t(item.labelKey)}</span>
+                      <span className="sidebar-item-label">{menuAliases[item.key] || t(item.labelKey)}</span>
                     </button>
                   )
                 })}

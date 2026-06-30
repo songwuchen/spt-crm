@@ -1,10 +1,13 @@
 import { useEffect } from 'react'
+import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
 
-const APP_NAME = 'SPT-CRM'
+const DEFAULT_APP_NAME = 'SPT-CRM'
 
 export function usePageTitle(title?: string) {
+  const systemName = useUiSettingsStore((s) => s.systemName)
+  const appName = systemName || DEFAULT_APP_NAME
   useEffect(() => {
-    document.title = title ? `${title} - ${APP_NAME}` : APP_NAME
-    return () => { document.title = APP_NAME }
-  }, [title])
+    document.title = title ? `${title} - ${appName}` : appName
+    return () => { document.title = appName }
+  }, [title, appName])
 }

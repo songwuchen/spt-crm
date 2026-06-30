@@ -72,7 +72,8 @@ async def _resolve_commission_rate(db: AsyncSession, tenant_id: str, department_
 
 
 # ==================== Records ====================
-async def list_records(db, tenant_id, page_no=1, page_size=20, owner_id=None, status=None, keyword=None):
+async def list_records(db, tenant_id, page_no=1, page_size=20, owner_id=None, status=None, keyword=None,
+                       adv_filter=None, sort_by=None, sort_order=None, current_user=None):
     base = select(CommissionRecord).where(CommissionRecord.tenant_id == tenant_id)
     if owner_id:
         base = base.where(CommissionRecord.owner_id == owner_id)
@@ -84,9 +85,15 @@ async def list_records(db, tenant_id, page_no=1, page_size=20, owner_id=None, st
             CommissionRecord.record_no.ilike(kw) | CommissionRecord.customer_name.ilike(kw)
             | CommissionRecord.owner_name.ilike(kw)
         )
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("commission", adv_filter, {"user_id": (current_user or {}).get("sub")})
+    if clause is not None:
+        base = base.where(clause)
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+    order = resolve_sort("commission", sort_by, sort_order) or CommissionRecord.created_at.desc()
     items = (await db.execute(
-        base.order_by(CommissionRecord.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+        base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()
     return items, total
 

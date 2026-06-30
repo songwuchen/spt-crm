@@ -58,6 +58,9 @@ async def list_leads(
     company_name: str = Query(None),
     start_date: date = Query(None),
     end_date: date = Query(None),
+    filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+    sort_by: str = Query(None),
+    sort_order: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("lead:view")),
@@ -69,6 +72,7 @@ async def list_leads(
         province=province, department_id=department_id, industry=industry,
         company_name=company_name, start_date=start_date, end_date=end_date,
         current_user=_user,
+        adv_filter=filter, sort_by=sort_by, sort_order=sort_order,
     )
     return ok({"items": [_lead_dict(l) for l in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 

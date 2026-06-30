@@ -57,6 +57,7 @@ async def list_leads(
     company_name: str | None = None,
     start_date=None, end_date=None,
     current_user: dict | None = None,
+    adv_filter: str | None = None, sort_by: str | None = None, sort_order: str | None = None,
 ):
     base = select(Lead).where(Lead.tenant_id == tenant_id, Lead.is_deleted == False)
     if keyword:
@@ -86,14 +87,21 @@ async def list_leads(
     if industry:
         base = base.where(Lead.industry == industry)
 
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("lead", adv_filter, {"user_id": (current_user or {}).get("sub")})
+    if clause is not None:
+        base = base.where(clause)
+
     # 数据范围过滤（非管理员仅见 负责人/创建人/共享给本人 的线索）
     if current_user:
         from app.common.data_scope import apply_data_scope
         base = await apply_data_scope(base, db, tenant_id, current_user, Lead, "lead")
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
+    order = resolve_sort("lead", sort_by, sort_order) or Lead.created_at.desc()
     items = (await db.execute(
-        base.order_by(Lead.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+        base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()
     return items, total
 

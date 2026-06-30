@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Table, Tag, Select, Input } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
@@ -6,6 +6,9 @@ import { quoteApi } from '@/api/quote'
 import type { QuoteItem } from '@/api/types'
 import { quoteStatusLabels, quoteStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useListView } from '@/hooks/useListView'
+import ListToolbar from '@/components/list/ListToolbar'
+import type { ColumnsType } from 'antd/es/table'
 
 const fmtMoney = (v?: number | null) => {
   if (v == null) return '-'
@@ -22,17 +25,45 @@ export default function QuoteList() {
   const [pageNo, setPageNo] = useState(1)
   const [keyword, setKeyword] = useState('')
   const [filterStatus, setFilterStatus] = useState<string | undefined>()
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
 
   const fetchData = async (page = pageNo, kw = keyword, st = filterStatus) => {
     setLoading(true)
     try {
-      const r = await quoteApi.list({ pageNo: page, pageSize: 20, keyword: kw || undefined, status: st }) as any
+      const r = await quoteApi.list({ pageNo: page, pageSize: 20, keyword: kw || undefined, status: st, ...view.buildParams() }) as any
       setData(r.data?.items || [])
       setTotal(r.data?.total || 0)
     } finally { setLoading(false) }
   }
 
   useEffect(() => { fetchData() }, [])
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取（reload 在 state 更新后再触发，避免读到旧值）
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchData(1)
+  }, [reload])
+
+  const columns: ColumnsType<QuoteItem> = [
+    { title: '报价编号', dataIndex: 'quote_no', width: 180,
+      render: (v: string, r: QuoteItem) => (
+        <a className="font-mono font-bold text-primary" onClick={() => navigate(`/opportunities/${r.project_id}/quotes/${r.id}`)}>{v}</a>
+      ),
+    },
+    { title: '状态', dataIndex: 'status', width: 100,
+      render: (v: string) => <Tag color={quoteStatusColors[v] || 'default'}>{quoteStatusLabels[v] || v}</Tag>,
+    },
+    { title: '当前版本总价', dataIndex: 'price_total', width: 150, align: 'right',
+      render: (v: number | string | null) => <span className="font-bold">{v === '***' ? '***' : fmtMoney(v as number | null)}</span> },
+    { title: '毛利率', dataIndex: 'margin_rate', width: 100, align: 'right',
+      render: (v: number | string | null) => v === '***' ? '***' : (v != null ? `${(Number(v) * 100).toFixed(1)}%` : '-') },
+    { title: '负责人', dataIndex: 'assignee_name', width: 100, render: (v: string) => v || '-' },
+    { title: '创建时间', dataIndex: 'created_at', width: 120,
+      render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
+  ]
+
+  const view = useListView<QuoteItem>('quote', columns, { pageKey: 'quotes' })
 
   return (
     <div>
@@ -52,6 +83,7 @@ export default function QuoteList() {
           <Select placeholder="状态" allowClear style={{ width: 130 }} value={filterStatus}
             onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchData(1, keyword, v) }}
             options={Object.entries(quoteStatusLabels).map(([k, v]) => ({ value: k, label: v }))} />
+          <ListToolbar resource="quote" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>
 
@@ -61,23 +93,7 @@ export default function QuoteList() {
             current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
             onChange: (p) => { setPageNo(p); fetchData(p) },
           }}
-          columns={[
-            { title: '报价编号', dataIndex: 'quote_no', width: 180,
-              render: (v: string, r: QuoteItem) => (
-                <a className="font-mono font-bold text-primary" onClick={() => navigate(`/opportunities/${r.project_id}/quotes/${r.id}`)}>{v}</a>
-              ),
-            },
-            { title: '状态', dataIndex: 'status', width: 100,
-              render: (v: string) => <Tag color={quoteStatusColors[v] || 'default'}>{quoteStatusLabels[v] || v}</Tag>,
-            },
-            { title: '当前版本总价', dataIndex: 'price_total', width: 150, align: 'right',
-              render: (v: number | string | null) => <span className="font-bold">{v === '***' ? '***' : fmtMoney(v as number | null)}</span> },
-            { title: '毛利率', dataIndex: 'margin_rate', width: 100, align: 'right',
-              render: (v: number | string | null) => v === '***' ? '***' : (v != null ? `${(Number(v) * 100).toFixed(1)}%` : '-') },
-            { title: '负责人', dataIndex: 'assignee_name', width: 100, render: (v: string) => v || '-' },
-            { title: '创建时间', dataIndex: 'created_at', width: 120,
-              render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
-          ]}
+          columns={view.columns}
         />
       </div>
     </div>

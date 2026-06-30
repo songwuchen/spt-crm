@@ -129,7 +129,8 @@ async def check_overdue_receivables(db: AsyncSession, tenant_id: str) -> int:
 
 
 # ==================== Debt Transfers ====================
-async def list_transfers(db, tenant_id, page_no=1, page_size=20, status=None, keyword=None, to_department_id=None):
+async def list_transfers(db, tenant_id, page_no=1, page_size=20, status=None, keyword=None, to_department_id=None,
+                         adv_filter=None, sort_by=None, sort_order=None, current_user=None):
     base = select(DebtTransfer).where(DebtTransfer.tenant_id == tenant_id)
     if status:
         base = base.where(DebtTransfer.status == status)
@@ -138,9 +139,17 @@ async def list_transfers(db, tenant_id, page_no=1, page_size=20, status=None, ke
     if keyword:
         kw = f"%{keyword}%"
         base = base.where(DebtTransfer.transfer_no.ilike(kw) | DebtTransfer.customer_name.ilike(kw))
+
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("collection", adv_filter, {"user_id": (current_user or {}).get("sub")})
+    if clause is not None:
+        base = base.where(clause)
+
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+    order = resolve_sort("collection", sort_by, sort_order) or DebtTransfer.created_at.desc()
     items = (await db.execute(
-        base.order_by(DebtTransfer.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+        base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()
     return items, total
 

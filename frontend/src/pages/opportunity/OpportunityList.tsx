@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Table, Button, Input, Select, Space, Modal, Form, Progress, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { t } from '@/locales'
@@ -13,10 +13,9 @@ import type { ColumnsType } from 'antd/es/table'
 import { opportunityStatusMap as statusMap } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
-import { useColumnConfig } from '@/hooks/useColumnConfig'
+import { useListView } from '@/hooks/useListView'
 import { usePageSize } from '@/hooks/usePageSize'
-import SavedViewSelect from '@/components/SavedViewSelect'
-import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
+import ListToolbar from '@/components/list/ListToolbar'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 
@@ -48,6 +47,8 @@ export default function OpportunityList() {
   const [pageSize, setPageSize] = usePageSize('opportunities')
   // 自定义字段定义，用于在列表上以列的形式展示自定义字段值(issue #64)
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([])
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
 
   useEffect(() => {
     settingsApi.listCustomFields({ entity_type: 'project' })
@@ -106,6 +107,7 @@ export default function OpportunityList() {
       const res = await projectApi.list({
         pageNo: page, pageSize,
         keyword: kw || undefined, stage_code: sc, status: st,
+        ...view.buildParams(),
       })
       setData(res.data.items)
       setTotal(res.data.total)
@@ -115,6 +117,12 @@ export default function OpportunityList() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取（reload 在 state 更新后再触发，避免读到旧值）
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchData(1)
+  }, [reload])
 
   const doSearch = () => {
     setPageNo(1)
@@ -227,7 +235,7 @@ export default function OpportunityList() {
 
   const allColumns: ColumnsType<OpportunityProject> = [...baseColumns, deliveryColumn, ...customColumns, actionsColumn]
 
-  const { visibleColumns, hiddenKeys, setColumnConfig, allColumnKeys } = useColumnConfig('opportunities', allColumns)
+  const view = useListView<OpportunityProject>('project', allColumns, { pageKey: 'opportunities' })
 
   return (
     <div>
@@ -275,20 +283,12 @@ export default function OpportunityList() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             {t('common.filter')}
           </Button>
-          <ColumnConfigDropdown allColumnKeys={allColumnKeys} hiddenKeys={hiddenKeys} onChange={setColumnConfig} />
-          <SavedViewSelect
-            page="opportunities"
-            currentFilters={{ keyword, stage_code: stageCode, status }}
-            onApply={(f) => {
-              setKeyword(f.keyword || ''); setStageCode(f.stage_code || undefined); setStatus(f.status || undefined)
-              fetchData(1, f.keyword || '', f.stage_code, f.status)
-            }}
-          />
+          <ListToolbar resource="project" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={visibleColumns} dataSource={data} loading={loading} scroll={{ x: 1200 }}
+        <Table rowKey="id" columns={view.columns} dataSource={data} loading={loading} scroll={{ x: 1200 }}
           rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys) }}
           pagination={{
             current: pageNo, total, pageSize, showTotal: (n) => t('common.totalCount', { count: n }),

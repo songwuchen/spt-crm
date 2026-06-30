@@ -172,11 +172,16 @@ async def list_products(
     category_id: str = Query(None),
     item_type: str = Query(None),
     is_active: bool = Query(None),
+    filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+    sort_by: str = Query(None),
+    sort_order: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("product:view")),
 ):
-    items, total = await service.list_products(db, tenant_id, pageNo, pageSize, keyword, category_id, item_type, is_active)
+    items, total = await service.list_products(
+        db, tenant_id, pageNo, pageSize, keyword, category_id, item_type, is_active,
+        current_user=_user, adv_filter=filter, sort_by=sort_by, sort_order=sort_order)
     # Batch usage count by matching item_code to product_code
     codes = [p.product_code for p in items if p.product_code]
     usage_map: dict[str, int] = {}

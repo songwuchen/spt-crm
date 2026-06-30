@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Table, Button, Input, Space, Tag, Select, Modal, Form, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, MailOutlined } from '@ant-design/icons'
 import ImportModal from '@/components/ImportModal'
@@ -12,11 +12,10 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { t } from '@/locales'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useUserSelect } from '@/hooks/useSelectOptions'
-import { useColumnConfig } from '@/hooks/useColumnConfig'
+import { useListView } from '@/hooks/useListView'
 import { usePageSize } from '@/hooks/usePageSize'
 import { useCountdownConfirm } from '@/hooks/useCountdownConfirm'
-import SavedViewSelect from '@/components/SavedViewSelect'
-import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
+import ListToolbar from '@/components/list/ListToolbar'
 import EditableCell from '@/components/EditableCell'
 import FeatureTip from '@/components/FeatureTip'
 import RegionMap from '@/components/RegionMap'
@@ -55,6 +54,8 @@ export default function CustomerList() {
   const [showTagCloud, setShowTagCloud] = useState(false)
   const [pageSize, setPageSize] = usePageSize('customers')
   const [regionData, setRegionData] = useState<{ region: string; count: number }[]>([])
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
 
   useEffect(() => {
     if (showMap) {
@@ -140,6 +141,7 @@ export default function CustomerList() {
       const res = await customerApi.list({
         pageNo: page, pageSize,
         keyword: kw || undefined, industry: ind, region: reg || undefined,
+        ...view.buildParams(),
       })
       setData(res.data.items)
       setTotal(res.data.total)
@@ -149,6 +151,12 @@ export default function CustomerList() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取（reload 在 state 更新后再触发，避免读到旧值）
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchData(1)
+  }, [reload])
 
   const doSearch = () => {
     setPageNo(1)
@@ -240,7 +248,7 @@ export default function CustomerList() {
     },
   ]
 
-  const { visibleColumns, hiddenKeys, setColumnConfig, allColumnKeys } = useColumnConfig('customers', columns)
+  const view = useListView<Customer>('customer', columns, { pageKey: 'customers' })
 
   return (
     <div>
@@ -339,15 +347,7 @@ export default function CustomerList() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             {t('common.filter')}
           </Button>
-          <ColumnConfigDropdown allColumnKeys={allColumnKeys} hiddenKeys={hiddenKeys} onChange={setColumnConfig} />
-          <SavedViewSelect
-            page="customers"
-            currentFilters={{ keyword, industry, region }}
-            onApply={(f) => {
-              setKeyword(f.keyword || ''); setIndustry(f.industry || undefined); setRegion(f.region || '')
-              fetchData(1, f.keyword || '', f.industry, f.region || '')
-            }}
-          />
+          <ListToolbar resource="customer" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>
 
@@ -355,7 +355,7 @@ export default function CustomerList() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Table
           rowKey="id"
-          columns={visibleColumns}
+          columns={view.columns}
           dataSource={data}
           loading={loading}
           scroll={{ x: 1100 }}

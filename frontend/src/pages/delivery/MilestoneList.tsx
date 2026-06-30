@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Table, Tag, Select, Input, Button, Modal, Form, DatePicker, Popconfirm, message } from 'antd'
 import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { deliveryApi } from '@/api/delivery'
 import type { DeliveryMilestone } from '@/api/types'
+import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useListView } from '@/hooks/useListView'
+import ListToolbar from '@/components/list/ListToolbar'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import dayjs from 'dayjs'
 
@@ -25,6 +28,9 @@ export default function MilestoneList() {
   const [keyword, setKeyword] = useState('')
   const [filterStatus, setFilterStatus] = useState<string | undefined>()
 
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
+
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<DeliveryMilestone | null>(null)
   const [saving, setSaving] = useState(false)
@@ -33,13 +39,19 @@ export default function MilestoneList() {
   const fetchData = async (page = pageNo, kw = keyword, st = filterStatus) => {
     setLoading(true)
     try {
-      const r = await deliveryApi.listAllMilestones({ pageNo: page, pageSize: 20, keyword: kw || undefined, status: st }) as any
+      const r = await deliveryApi.listAllMilestones({ pageNo: page, pageSize: 20, keyword: kw || undefined, status: st, ...view.buildParams() }) as any
       setData(r.data?.items || [])
       setTotal(r.data?.total || 0)
     } finally { setLoading(false) }
   }
 
   useEffect(() => { fetchData() }, [])
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取（reload 在 state 更新后再触发，避免读到旧值）
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchData(1)
+  }, [reload])
 
   const openCreate = () => {
     setEditing(null)
@@ -95,6 +107,43 @@ export default function MilestoneList() {
 
   const today = dayjs()
 
+  const columns: ColumnsType<DeliveryMilestone> = [
+    { title: '编号', dataIndex: 'milestone_code', width: 120,
+      render: (v: string) => <span className="font-mono text-sm font-bold">{v || '-'}</span>,
+    },
+    { title: '名称', dataIndex: 'name', width: 200,
+      render: (v: string, r: DeliveryMilestone) => (
+        <a className="font-bold text-primary" onClick={() => navigate(`/opportunities/${r.project_id}`)}>{v}</a>
+      ),
+    },
+    { title: '状态', dataIndex: 'status', width: 100,
+      render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag>,
+    },
+    { title: '计划日期', dataIndex: 'plan_date', width: 120,
+      render: (v: string | null, r: DeliveryMilestone) => {
+        if (!v) return '-'
+        const isOverdue = r.status !== 'done' && dayjs(v).isBefore(today, 'day')
+        return <span className={isOverdue ? 'text-rose-500 font-bold' : ''}>{v}{isOverdue ? ' (逾期)' : ''}</span>
+      },
+    },
+    { title: '实际日期', dataIndex: 'actual_date', width: 120,
+      render: (v: string | null) => v || '-',
+    },
+    { title: '备注', dataIndex: 'note', ellipsis: true },
+    { title: '操作', key: 'action', width: 100,
+      render: (_: unknown, r: DeliveryMilestone) => (
+        <div className="flex gap-1">
+          <Button type="text" size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
+          <Popconfirm title="确认删除此里程碑？" onConfirm={() => handleDelete(r.id)} okText="删除" cancelText="取消">
+            <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </div>
+      ),
+    },
+  ]
+
+  const view = useListView<DeliveryMilestone>('milestone', columns, { pageKey: 'milestones' })
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -113,49 +162,17 @@ export default function MilestoneList() {
           <Select placeholder="状态" allowClear style={{ width: 130 }} value={filterStatus}
             onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchData(1, keyword, v) }}
             options={Object.entries(statusLabels).map(([k, v]) => ({ value: k, label: v }))} />
+          <ListToolbar resource="milestone" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Table rowKey="id" dataSource={data} loading={loading} size="small"
+          columns={view.columns}
           pagination={{
             current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
             onChange: (p) => { setPageNo(p); fetchData(p) },
           }}
-          columns={[
-            { title: '编号', dataIndex: 'milestone_code', width: 120,
-              render: (v: string) => <span className="font-mono text-sm font-bold">{v || '-'}</span>,
-            },
-            { title: '名称', dataIndex: 'name', width: 200,
-              render: (v: string, r: DeliveryMilestone) => (
-                <a className="font-bold text-primary" onClick={() => navigate(`/opportunities/${r.project_id}`)}>{v}</a>
-              ),
-            },
-            { title: '状态', dataIndex: 'status', width: 100,
-              render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag>,
-            },
-            { title: '计划日期', dataIndex: 'plan_date', width: 120,
-              render: (v: string | null, r: DeliveryMilestone) => {
-                if (!v) return '-'
-                const isOverdue = r.status !== 'done' && dayjs(v).isBefore(today, 'day')
-                return <span className={isOverdue ? 'text-rose-500 font-bold' : ''}>{v}{isOverdue ? ' (逾期)' : ''}</span>
-              },
-            },
-            { title: '实际日期', dataIndex: 'actual_date', width: 120,
-              render: (v: string | null) => v || '-',
-            },
-            { title: '备注', dataIndex: 'note', ellipsis: true },
-            { title: '操作', key: 'action', width: 100,
-              render: (_: unknown, r: DeliveryMilestone) => (
-                <div className="flex gap-1">
-                  <Button type="text" size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
-                  <Popconfirm title="确认删除此里程碑？" onConfirm={() => handleDelete(r.id)} okText="删除" cancelText="取消">
-                    <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
-                </div>
-              ),
-            },
-          ]}
         />
       </div>
 

@@ -94,6 +94,9 @@ async def list_all_milestones(
     pageSize: int = Query(20, ge=1, le=100),
     status: str | None = None,
     keyword: str | None = None,
+    filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+    sort_by: str = Query(None),
+    sort_order: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("delivery:view")),
@@ -108,10 +111,17 @@ async def list_all_milestones(
         like = f"%{keyword}%"
         q = q.where(DeliveryMilestone.name.ilike(like) | DeliveryMilestone.milestone_code.ilike(like))
         cq = cq.where(DeliveryMilestone.name.ilike(like) | DeliveryMilestone.milestone_code.ilike(like))
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("milestone", filter, {"user_id": current_user.get("sub")})
+    if clause is not None:
+        q = q.where(clause)
+        cq = cq.where(clause)
     from app.common.data_scope import apply_project_child_scope
     q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, DeliveryMilestone)
     total = (await db.execute(cq)).scalar() or 0
-    q = q.order_by(DeliveryMilestone.created_at.desc()).offset((pageNo - 1) * pageSize).limit(pageSize)
+    order = resolve_sort("milestone", sort_by, sort_order) or DeliveryMilestone.created_at.desc()
+    q = q.order_by(order).offset((pageNo - 1) * pageSize).limit(pageSize)
     items = (await db.execute(q)).scalars().all()
     counts = await _ms_attachment_counts(db, tenant_id, [m.id for m in items])
     return ok({"items": [_ms_dict(m, counts.get(m.id, 0)) for m in items], "total": total})

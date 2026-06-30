@@ -41,6 +41,9 @@ async def list_customers(
     region: str = Query(None),
     owner_id: str = Query(None),
     tag: str = Query(None),
+    filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+    sort_by: str = Query(None),
+    sort_order: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
@@ -48,7 +51,8 @@ async def list_customers(
     # 数据范围「本人」= 负责人/创建人/共享给本人；「部门」= 部门子树成员所属；「全部」= 不限。
     # 由 service 内 apply_data_scope 统一处理（owner_id 为前端显式筛选，仍受数据范围约束）。
     items, total = await service.list_customers(
-        db, tenant_id, pageNo, pageSize, keyword, industry, region, owner_id, tag=tag, current_user=_user)
+        db, tenant_id, pageNo, pageSize, keyword, industry, region, owner_id, tag=tag, current_user=_user,
+        adv_filter=filter, sort_by=sort_by, sort_order=sort_order)
     return ok({"items": [_customer_dict(c) for c in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 

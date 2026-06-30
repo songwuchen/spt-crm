@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button, Table, Tag, Space, Modal, Form, Input, Select, Tabs, InputNumber, DatePicker, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
@@ -11,9 +11,8 @@ import type { ServiceTicketItem, RenewalItem } from '@/api/types'
 
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels, renewalStatusLabels, renewalStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useColumnConfig } from '@/hooks/useColumnConfig'
-import SavedViewSelect from '@/components/SavedViewSelect'
-import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
+import { useListView } from '@/hooks/useListView'
+import ListToolbar from '@/components/list/ListToolbar'
 import { t } from '@/locales'
 
 const { TextArea } = Input
@@ -36,6 +35,8 @@ export default function ServiceTicketList() {
   const [total, setTotal] = useState(0)
   const [pageNo, setPageNo] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
   const [createModal, setCreateModal] = useState(false)
   const [form, setForm] = useState<Record<string, any>>({ type: 'fault', priority: 'medium', description: '' })
   const customerSelect = useCustomerSelect()
@@ -87,6 +88,7 @@ export default function ServiceTicketList() {
       const r = await serviceTicketApi.list({
         pageNo: page, pageSize: 20,
         keyword: kw || undefined, status: st, priority: pri, type: tp,
+        ...view.buildParams(),
       })
       setTickets(r.data?.items || [])
       setTotal(r.data?.total || 0)
@@ -120,9 +122,15 @@ export default function ServiceTicketList() {
     { title: t('common.createdAt'), dataIndex: 'created_at', responsive: ['xl'] as any, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
   ]
 
-  const { visibleColumns: visibleTicketColumns, hiddenKeys: ticketHiddenKeys, setColumnConfig: setTicketColumnConfig, allColumnKeys: ticketColumnKeys } = useColumnConfig('service_tickets', ticketColumns)
+  const view = useListView<ServiceTicketItem>('service_ticket', ticketColumns, { pageKey: 'service_tickets' })
 
   useEffect(() => { fetchTickets(); fetchRenewals(); fetchSlaStats() }, [])
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchTickets(1)
+  }, [reload])
 
   const handleCreate = async () => {
     if (!form.description?.trim()) {
@@ -292,15 +300,7 @@ export default function ServiceTicketList() {
                     <Select allowClear placeholder={t('service.type')} value={filterType}
                       onChange={(v) => { setFilterType(v); setPageNo(1); fetchTickets(1, searchText, filterStatus, filterPriority, v) }}
                       style={{ width: 130 }} options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v }))} />
-                    <ColumnConfigDropdown allColumnKeys={ticketColumnKeys} hiddenKeys={ticketHiddenKeys} onChange={setTicketColumnConfig} />
-                    <SavedViewSelect
-                      page="service_tickets"
-                      currentFilters={{ searchText, status: filterStatus, priority: filterPriority, type: filterType }}
-                      onApply={(f) => {
-                        setSearchText(f.searchText || ''); setFilterStatus(f.status); setFilterPriority(f.priority); setFilterType(f.type)
-                        fetchTickets(1, f.searchText || '', f.status, f.priority, f.type)
-                      }}
-                    />
+                    <ListToolbar resource="service_ticket" view={view} onChange={() => setReload((r) => r + 1)} />
                   </div>
                   <Space wrap>
                     {selectedTicketKeys.length > 0 && (
@@ -318,7 +318,7 @@ export default function ServiceTicketList() {
                     current: pageNo, total, pageSize: 20, showTotal: (total) => t('common.totalCount', { count: total }),
                     onChange: (p) => { setPageNo(p); fetchTickets(p) },
                   }}
-                  columns={visibleTicketColumns}
+                  columns={view.columns}
                 />
               </div>
             ),

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message,
   Tag, Drawer, Statistic, Tooltip, Empty, Upload, Alert, Radio,
@@ -11,6 +11,8 @@ import type { Commission, CommissionPayout, CommissionSummary } from '@/api/type
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
+import { useListView } from '@/hooks/useListView'
+import ListToolbar from '@/components/list/ListToolbar'
 
 const STATUS_OPTIONS = [
   { label: '草稿', value: 'draft' },
@@ -38,6 +40,8 @@ export default function CommissionPage() {
   const [editing, setEditing] = useState<Commission | null>(null)
   const [form] = Form.useForm()
   const ownerSelect = useUserSelect()
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
 
   // 批量导入提成单
   const [importOpen, setImportOpen] = useState(false)
@@ -65,7 +69,7 @@ export default function CommissionPage() {
   const fetchData = async (p = page) => {
     setLoading(true)
     try {
-      const res = await commissionApi.list({ pageNo: p, pageSize, keyword: keyword || undefined, status })
+      const res = await commissionApi.list({ pageNo: p, pageSize, keyword: keyword || undefined, status, ...view.buildParams() })
       setData(res.data.items)
       setTotal(res.data.total)
     } finally {
@@ -81,6 +85,12 @@ export default function CommissionPage() {
   }
 
   useEffect(() => { fetchData(1); setPage(1); fetchSummary() }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取（reload 在 state 更新后再触发，避免读到旧值）
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchData(1)
+  }, [reload]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const totals = summary.reduce((acc, s) => ({
     accrued: acc.accrued + s.accrued_total,
@@ -200,6 +210,8 @@ export default function CommissionPage() {
     },
   ]
 
+  const view = useListView<Commission>('commission', columns, { pageKey: 'commissions' })
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -237,12 +249,13 @@ export default function CommissionPage() {
           />
           <Select placeholder="状态" allowClear style={{ width: 140 }} value={status} onChange={setStatus} options={STATUS_OPTIONS} />
           <Button onClick={() => { setPage(1); fetchData(1) }}>筛选</Button>
+          <ListToolbar resource="commission" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Table
-          rowKey="id" columns={columns} dataSource={data} loading={loading}
+          rowKey="id" columns={view.columns} dataSource={data} loading={loading}
           scroll={{ x: 1500 }}
           pagination={{
             current: page, total, pageSize, showTotal: (t) => `共 ${t} 条`,

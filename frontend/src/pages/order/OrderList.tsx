@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, Tag, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined, AuditOutlined, SendOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -8,6 +8,8 @@ import type { Order, OrderLine } from '@/api/types'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
+import { useListView } from '@/hooks/useListView'
+import ListToolbar from '@/components/list/ListToolbar'
 import AttachmentPanel from '@/components/AttachmentPanel'
 
 const STATUS_OPTIONS = [
@@ -36,6 +38,8 @@ export default function OrderList() {
   const [status, setStatus] = useState<string | undefined>()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Order | null>(null)
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
   const [form] = Form.useForm()
   const customerSelect = useCustomerSelect()
   const ownerSelect = useUserSelect()
@@ -53,7 +57,7 @@ export default function OrderList() {
   const fetchData = async (p = page) => {
     setLoading(true)
     try {
-      const res = await orderApi.list({ pageNo: p, pageSize, keyword: keyword || undefined, status })
+      const res = await orderApi.list({ pageNo: p, pageSize, keyword: keyword || undefined, status, ...view.buildParams() })
       setData(res.data.items)
       setTotal(res.data.total)
     } finally {
@@ -62,6 +66,12 @@ export default function OrderList() {
   }
 
   useEffect(() => { fetchData(1); setPage(1) }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取（reload 在 state 更新后再触发，避免读到旧值）
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchData(1)
+  }, [reload]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openCreate = () => {
     setEditing(null)
@@ -195,6 +205,8 @@ export default function OrderList() {
     },
   ]
 
+  const view = useListView<Order>('order', columns, { pageKey: 'orders' })
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -221,13 +233,14 @@ export default function OrderList() {
           />
           <Select placeholder="状态" allowClear style={{ width: 140 }} value={status} onChange={setStatus} options={STATUS_OPTIONS} />
           <Button onClick={() => { setPage(1); fetchData(1) }}>筛选</Button>
+          <ListToolbar resource="order" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Table
           rowKey="id"
-          columns={columns}
+          columns={view.columns}
           dataSource={data}
           loading={loading}
           scroll={{ x: 1100 }}

@@ -325,6 +325,9 @@ async def list_all_records(
     pageNo: int = Query(1, ge=1),
     pageSize: int = Query(20, ge=1, le=100),
     keyword: str = Query(None),
+    filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+    sort_by: str = Query(None),
+    sort_order: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("payment:view")),
@@ -344,11 +347,19 @@ async def list_all_records(
         q = q.where(flt)
         count_q = count_q.where(flt)
 
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("payment", filter, {"user_id": current_user.get("sub")})
+    if clause is not None:
+        q = q.where(clause)
+        count_q = count_q.where(clause)
+
     from app.common.data_scope import apply_project_child_scope
     q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, PaymentRecord)
     total = (await db.execute(count_q)).scalar() or 0
+    order = resolve_sort("payment", sort_by, sort_order) or PaymentRecord.received_date.desc()
     rows = (await db.execute(
-        q.order_by(PaymentRecord.received_date.desc())
+        q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)
     )).all()
 

@@ -189,6 +189,8 @@ async def list_projects(
     keyword: str | None = None, stage_code: str | None = None,
     customer_id: str | None = None, status: str | None = None,
     owner_id: str | None = None, current_user: dict | None = None,
+    adv_filter: str | None = None, sort_by: str | None = None, sort_order: str | None = None,
+    filter_user_id: str | None = None,
 ):
     base = select(OpportunityProject).where(OpportunityProject.tenant_id == tenant_id, OpportunityProject.is_deleted == False)
     if keyword:
@@ -204,14 +206,21 @@ async def list_projects(
     if owner_id:
         base = base.where(OpportunityProject.owner_id == owner_id)
 
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("project", adv_filter, {"user_id": filter_user_id})
+    if clause is not None:
+        base = base.where(clause)
+
     # Apply data scope (non-admin only sees owned/shared records)
     if current_user:
         from app.common.data_scope import apply_data_scope
         base = await apply_data_scope(base, db, tenant_id, current_user, OpportunityProject, "project")
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
+    order = resolve_sort("project", sort_by, sort_order) or OpportunityProject.created_at.desc()
     items = (await db.execute(
-        base.order_by(OpportunityProject.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+        base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()
     return items, total
 

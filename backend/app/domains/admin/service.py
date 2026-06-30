@@ -79,6 +79,28 @@ async def upsert_profile(db: AsyncSession, tenant_id: str, data: dict) -> Tenant
     return profile
 
 
+# ==================== Tenant: UI Settings (界面设置) ====================
+
+async def get_ui_settings(db: AsyncSession, tenant_id: str) -> dict:
+    """界面个性化设置。未配置时返回空别名/空隐藏/空系统名（前端回退默认）。"""
+    p = await get_profile(db, tenant_id)
+    return {
+        "system_name": p.system_name if p else None,
+        "menu_aliases": (p.menu_aliases_json if p and p.menu_aliases_json else {}),
+        "hidden_menus": (p.hidden_menus_json if p and p.hidden_menus_json else []),
+    }
+
+
+async def update_ui_settings(db: AsyncSession, tenant_id: str, data: dict) -> dict:
+    """整体覆盖保存界面设置（复用 TenantProfile 行）。"""
+    await upsert_profile(db, tenant_id, {
+        "system_name": data.get("system_name"),
+        "menu_aliases_json": data.get("menu_aliases") or {},
+        "hidden_menus_json": data.get("hidden_menus") or [],
+    })
+    return await get_ui_settings(db, tenant_id)
+
+
 # ==================== Tenant: Feature Toggles ====================
 
 async def list_features(db: AsyncSession, tenant_id: str):

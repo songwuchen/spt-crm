@@ -202,9 +202,12 @@ async def import_commissions(
 @router.get("")
 async def list_records(pageNo: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100),
                        owner_id: str = Query(None), status: str = Query(None), keyword: str = Query(None),
+                       filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+                       sort_by: str = Query(None), sort_order: str = Query(None),
                        tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
                        _u=Depends(require_permissions("commission:view"))):
-    items, total = await service.list_records(db, tenant_id, pageNo, pageSize, owner_id, status, keyword)
+    items, total = await service.list_records(db, tenant_id, pageNo, pageSize, owner_id, status, keyword,
+                                              adv_filter=filter, sort_by=sort_by, sort_order=sort_order, current_user=_u)
     return ok({"items": [_rec_dict(r) for r in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 

@@ -66,25 +66,34 @@ async def list_products(
     category_id: str | None = None,
     item_type: str | None = None,
     is_active: bool | None = None,
+    current_user: dict | None = None,
+    adv_filter: str | None = None, sort_by: str | None = None, sort_order: str | None = None,
 ):
-    q = select(Product).where(Product.tenant_id == tenant_id)
+    base = select(Product).where(Product.tenant_id == tenant_id)
     if keyword:
         kw = f"%{keyword}%"
-        q = q.where(or_(
+        base = base.where(or_(
             Product.name.ilike(kw),
             Product.product_code.ilike(kw),
             Product.spec.ilike(kw),
         ))
     if category_id:
-        q = q.where(Product.category_id == category_id)
+        base = base.where(Product.category_id == category_id)
     if item_type:
-        q = q.where(Product.item_type == item_type)
+        base = base.where(Product.item_type == item_type)
     if is_active is not None:
-        q = q.where(Product.is_active == is_active)
+        base = base.where(Product.is_active == is_active)
 
-    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
+    # 高级筛选（多字段/多条件）。产品无 owner，ctx.user_id 传 None。
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("product", adv_filter, {"user_id": None})
+    if clause is not None:
+        base = base.where(clause)
+
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+    order = resolve_sort("product", sort_by, sort_order) or Product.product_code.asc()
     items = (await db.execute(
-        q.order_by(Product.product_code).offset((page - 1) * page_size).limit(page_size)
+        base.order_by(order).offset((page - 1) * page_size).limit(page_size)
     )).scalars().all()
     return items, total
 

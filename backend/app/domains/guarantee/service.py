@@ -28,7 +28,8 @@ async def mark_expired(db: AsyncSession, tenant_id: str):
     await db.commit()
 
 
-async def list_guarantees(db, tenant_id, page_no=1, page_size=20, type=None, status=None, keyword=None):
+async def list_guarantees(db, tenant_id, page_no=1, page_size=20, type=None, status=None, keyword=None,
+                          adv_filter=None, sort_by=None, sort_order=None, current_user=None):
     await mark_expired(db, tenant_id)
     base = select(Guarantee).where(Guarantee.tenant_id == tenant_id)
     if type:
@@ -40,10 +41,21 @@ async def list_guarantees(db, tenant_id, page_no=1, page_size=20, type=None, sta
         base = base.where(
             Guarantee.guarantee_no.ilike(kw) | Guarantee.customer_name.ilike(kw) | Guarantee.issuer.ilike(kw)
         )
+
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("guarantee", adv_filter, {"user_id": (current_user or {}).get("sub")})
+    if clause is not None:
+        base = base.where(clause)
+
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+    order = resolve_sort("guarantee", sort_by, sort_order)
+    if order is not None:
+        base = base.order_by(order)
+    else:
+        base = base.order_by(Guarantee.expiry_date.asc().nullslast(), Guarantee.created_at.desc())
     items = (await db.execute(
-        base.order_by(Guarantee.expiry_date.asc().nullslast(), Guarantee.created_at.desc())
-        .offset((page_no - 1) * page_size).limit(page_size)
+        base.offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()
     return items, total
 

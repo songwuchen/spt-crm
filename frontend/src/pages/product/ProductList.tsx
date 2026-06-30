@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button, Table, Input, Select, Tag, Modal, Form, InputNumber, Space, Switch, message, Tabs } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons'
 import { productApi } from '@/api/product'
@@ -7,6 +7,8 @@ import { usePermission } from '@/hooks/usePermission'
 import { quoteLineItemTypeLabels as itemTypeLabels } from '@/constants/labels'
 import type { ColumnsType } from 'antd/es/table'
 import ImportExcelModal from '@/components/ImportExcelModal'
+import { useListView } from '@/hooks/useListView'
+import ListToolbar from '@/components/list/ListToolbar'
 
 interface ProductItem {
   id: string; product_code: string; name: string; category_id: string | null
@@ -29,6 +31,8 @@ export default function ProductList() {
   const [filterType, setFilterType] = useState<string | undefined>()
   const [filterCat, setFilterCat] = useState<string | undefined>()
   const [loading, setLoading] = useState(false)
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
 
   const [categories, setCategories] = useState<Category[]>([])
   const [productModal, setProductModal] = useState(false)
@@ -47,7 +51,7 @@ export default function ProductList() {
   const fetchProducts = async (p = page) => {
     setLoading(true)
     try {
-      const res = await productApi.list({ pageNo: p, pageSize: 20, keyword: keyword || undefined, item_type: filterType, category_id: filterCat })
+      const res = await productApi.list({ pageNo: p, pageSize: 20, keyword: keyword || undefined, item_type: filterType, category_id: filterCat, ...view.buildParams() })
       setItems(res.data?.items || [])
       setTotal(res.data?.total || 0)
     } finally { setLoading(false) }
@@ -64,6 +68,12 @@ export default function ProductList() {
 
   useEffect(() => { fetchCategories() }, [])
   useEffect(() => { fetchProducts(page) }, [page, filterType, filterCat])
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取（reload 在 state 更新后再触发，避免读到旧值）
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchProducts(1)
+  }, [reload])
 
   const handleSearch = () => { setPage(1); fetchProducts(1) }
 
@@ -157,6 +167,8 @@ export default function ProductList() {
     },
   ]
 
+  const view = useListView<ProductItem>('product', columns, { pageKey: 'products' })
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -176,6 +188,7 @@ export default function ProductList() {
                   options={Object.entries(itemTypeLabels).map(([k, v]) => ({ label: v, value: k }))} />
                 <Select placeholder="分类" allowClear style={{ width: 140 }} value={filterCat} onChange={setFilterCat}
                   options={categories.map(c => ({ label: c.name, value: c.id }))} />
+                <ListToolbar resource="product" view={view} onChange={() => setReload((r) => r + 1)} />
                 <div className="flex-1" />
                 {canCreate && <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>导入</Button>}
                 {canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={() => {
@@ -183,7 +196,7 @@ export default function ProductList() {
                 }}>新建产品</Button>}
               </div>
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <Table rowKey="id" columns={columns} dataSource={items} loading={loading} size="small"
+                <Table rowKey="id" columns={view.columns} dataSource={items} loading={loading} size="small"
                   scroll={{ x: 1200 }}
                   pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }} />
               </div>

@@ -23,6 +23,9 @@ async def list_contacts(
     keyword: str = Query(None),
     role_type: str = Query(None),
     customer_id: str = Query(None),
+    filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+    sort_by: str = Query(None),
+    sort_order: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("contact:view")),
@@ -47,9 +50,17 @@ async def list_contacts(
         q = q.where(Contact.customer_id == customer_id)
         count_q = count_q.where(Contact.customer_id == customer_id)
 
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("contact", filter, {"user_id": _user.get("sub")})
+    if clause is not None:
+        q = q.where(clause)
+        count_q = count_q.where(clause)
+
     total = (await db.execute(count_q)).scalar() or 0
+    order = resolve_sort("contact", sort_by, sort_order) or Contact.created_at.desc()
     items = (await db.execute(
-        q.order_by(Contact.created_at.desc())
+        q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)
     )).scalars().all()
 

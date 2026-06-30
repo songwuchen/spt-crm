@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Statistic,
 } from 'antd'
@@ -10,6 +10,8 @@ import type { Guarantee, GuaranteeSummary } from '@/api/types'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
+import { useListView } from '@/hooks/useListView'
+import ListToolbar from '@/components/list/ListToolbar'
 
 const TYPE_OPTIONS = [
   { label: '履约保函', value: 'performance' },
@@ -55,16 +57,24 @@ export default function GuaranteePage() {
   const [form] = Form.useForm()
   const customerSelect = useCustomerSelect()
   const ownerSelect = useUserSelect()
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
 
   const fetchData = async (p = page) => {
     setLoading(true)
     try {
-      const res = await guaranteeApi.list({ pageNo: p, pageSize, keyword: keyword || undefined, type, status })
+      const res = await guaranteeApi.list({ pageNo: p, pageSize, keyword: keyword || undefined, type, status, ...view.buildParams() })
       setData(res.data.items); setTotal(res.data.total)
     } finally { setLoading(false) }
   }
   const fetchSummary = async () => { try { setSummary((await guaranteeApi.summary()).data) } catch { /* */ } }
   useEffect(() => { fetchData(1); setPage(1); fetchSummary() }, [type, status]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchData(1)
+  }, [reload]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openCreate = () => {
     setEditing(null); form.resetFields()
@@ -158,6 +168,8 @@ export default function GuaranteePage() {
     },
   ]
 
+  const view = useListView<Guarantee>('guarantee', columns, { pageKey: 'guarantees' })
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -191,11 +203,12 @@ export default function GuaranteePage() {
           <Select placeholder="类型" allowClear style={{ width: 140 }} value={type} onChange={setType} options={TYPE_OPTIONS} />
           <Select placeholder="状态" allowClear style={{ width: 130 }} value={status} onChange={setStatus} options={STATUS_OPTIONS} />
           <Button onClick={() => { setPage(1); fetchData(1) }}>筛选</Button>
+          <ListToolbar resource="guarantee" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={data} loading={loading} scroll={{ x: 1200 }}
+        <Table rowKey="id" columns={view.columns} dataSource={data} loading={loading} scroll={{ x: 1200 }}
           pagination={{ current: page, total, pageSize, showTotal: (t) => `共 ${t} 条`, onChange: (p) => { setPage(p); fetchData(p) } }} />
       </div>
 

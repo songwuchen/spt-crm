@@ -22,6 +22,7 @@ from app.domains.admin.schemas import (
     MarginPolicyCreate, MarginPolicyUpdate, AiPolicyUpdate, AiBudgetUpdate,
     IntegrationCreate, IntegrationUpdate, WebhookCreate,
     ApprovalPolicyCreate, ApprovalPolicyUpdate, StorageConfigUpdate,
+    UiSettingsUpdate,
 )
 
 
@@ -192,6 +193,20 @@ async def get_profile(tenant_id: str = Depends(get_tenant_id), db: AsyncSession 
 async def update_profile(body: TenantProfileUpdate, tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
     p = await service.upsert_profile(db, tenant_id, body.model_dump(exclude_unset=True))
     return ok({"id": p.id, "timezone": p.timezone, "locale": p.locale})
+
+
+# ==================== Tenant: UI Settings (界面设置) ====================
+
+@router.get("/api/admin/v1/tenant/ui-settings")
+async def get_ui_settings(tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db)):
+    """界面个性化设置 — 任意登录用户可读（前端用于渲染菜单别名/隐藏与品牌名）。"""
+    return ok(await service.get_ui_settings(db, tenant_id))
+
+
+@router.put("/api/admin/v1/tenant/ui-settings")
+async def update_ui_settings(body: UiSettingsUpdate, tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    """整体覆盖保存界面设置（仅 role:manage）。"""
+    return ok(await service.update_ui_settings(db, tenant_id, body.model_dump()))
 
 
 # ==================== Tenant: Pool Rules ====================

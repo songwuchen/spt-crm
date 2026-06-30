@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Table, Tabs, Tag, Select, Input, Button, Popconfirm, Modal, Form, InputNumber, DatePicker, Upload, Alert, message } from 'antd'
 import { SearchOutlined, DownloadOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons'
+import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { downloadFile } from '@/utils/download'
@@ -9,6 +10,8 @@ import { projectApi } from '@/api/project'
 import { dashboardApi } from '@/api/dashboard'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
+import { useListView } from '@/hooks/useListView'
+import ListToolbar from '@/components/list/ListToolbar'
 
 interface PlanRow {
   id: string; project_id: string; plan_no: string; due_date?: string | null
@@ -68,6 +71,10 @@ export default function PaymentPage() {
   const [invoicePage, setInvoicePage] = useState(1)
   const [invoiceLoading, setInvoiceLoading] = useState(false)
   const [invoiceKeyword, setInvoiceKeyword] = useState('')
+
+  // 到账记录高级筛选/排序/视图刷新触发器
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
 
   const { hasPermission } = usePermission()
   const canEdit = hasPermission('payment:edit')
@@ -150,7 +157,7 @@ export default function PaymentPage() {
   const fetchRecords = async (page = recordPage, kw = recordKeyword) => {
     setRecordLoading(true)
     try {
-      const r = await paymentApi.listAllRecords({ pageNo: page, pageSize: 20, keyword: kw || undefined }) as any
+      const r = await paymentApi.listAllRecords({ pageNo: page, pageSize: 20, keyword: kw || undefined, ...view.buildParams() }) as any
       setRecords(r.data?.items || [])
       setRecordTotal(r.data?.total || 0)
     } finally { setRecordLoading(false) }
@@ -190,6 +197,37 @@ export default function PaymentPage() {
   }
 
   useEffect(() => { fetchOverview(); fetchPlans(); fetchRecords(); fetchInvoices() }, [])
+
+  // 到账记录高级筛选/排序/视图变化后回到第 1 页重新拉取
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchRecords(1)
+  }, [reload])
+
+  // 到账记录表格列（抽出以接入高级搜索/列配置）
+  const recordColumns: ColumnsType<RecordRow> = [
+    { title: '到账日期', dataIndex: 'received_date', width: 110 },
+    { title: '关联商机', key: 'project', width: 180,
+      render: (_: unknown, r: RecordRow) => (
+        <a className="text-primary text-sm cursor-pointer" onClick={() => navigate(`/opportunities/${r.project_id}`)}>
+          {r.project_name || r.project_code || '查看'}
+        </a>
+      ) },
+    { title: '金额', dataIndex: 'amount', width: 120,
+      render: (v: number | null) => v != null ? <span className="font-bold text-emerald-600">¥{v.toLocaleString()}</span> : '-' },
+    { title: '渠道', dataIndex: 'channel', width: 100 },
+    { title: '凭证号', dataIndex: 'reference_no', width: 140,
+      render: (v: string) => v ? <span className="font-mono text-sm">{v}</span> : '-' },
+    { title: '记录人', dataIndex: 'created_by_name', width: 90, responsive: ['lg'] as any },
+    { title: '备注', dataIndex: 'remark', ellipsis: true, responsive: ['lg'] as any },
+    { title: '操作', key: 'action', width: 70, render: (_: unknown, r: RecordRow) => (
+      <Popconfirm title="确认删除此记录？" onConfirm={() => handleDeleteRecord(r.id)} okText="删除" cancelText="取消">
+        <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+      </Popconfirm>
+    ) },
+  ]
+
+  const view = useListView<RecordRow>('payment', recordColumns, { pageKey: 'payments' })
 
   return (
     <div>
@@ -293,11 +331,12 @@ export default function PaymentPage() {
             label: `到账记录 (${recordTotal})`,
             children: (
               <div>
-                <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-3 mb-4 flex-wrap">
                   <Input prefix={<SearchOutlined />} placeholder="搜索凭证号..." allowClear
                     value={recordKeyword} onChange={(e) => setRecordKeyword(e.target.value)}
                     onPressEnter={() => { setRecordPage(1); fetchRecords(1, recordKeyword) }}
                     style={{ width: 200 }} />
+                  <ListToolbar resource="payment" view={view} onChange={() => setReload((r) => r + 1)} />
                   {canEdit && <div className="ml-auto flex gap-2">
                     <Button icon={<UploadOutlined />} onClick={() => { setImportFile(null); setImportResult(null); setImportOpen(true) }}>导入</Button>
                     <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate('record')}>新增到账</Button>
@@ -306,27 +345,7 @@ export default function PaymentPage() {
                 <Table rowKey="id" dataSource={records} loading={recordLoading} size="small" scroll={{ x: 800 }}
                   pagination={{ current: recordPage, total: recordTotal, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
                     onChange: (p) => { setRecordPage(p); fetchRecords(p) } }}
-                  columns={[
-                    { title: '到账日期', dataIndex: 'received_date', width: 110 },
-                    { title: '关联商机', key: 'project', width: 180,
-                      render: (_: unknown, r: RecordRow) => (
-                        <a className="text-primary text-sm cursor-pointer" onClick={() => navigate(`/opportunities/${r.project_id}`)}>
-                          {r.project_name || r.project_code || '查看'}
-                        </a>
-                      ) },
-                    { title: '金额', dataIndex: 'amount', width: 120,
-                      render: (v: number | null) => v != null ? <span className="font-bold text-emerald-600">¥{v.toLocaleString()}</span> : '-' },
-                    { title: '渠道', dataIndex: 'channel', width: 100 },
-                    { title: '凭证号', dataIndex: 'reference_no', width: 140,
-                      render: (v: string) => v ? <span className="font-mono text-sm">{v}</span> : '-' },
-                    { title: '记录人', dataIndex: 'created_by_name', width: 90, responsive: ['lg'] as any },
-                    { title: '备注', dataIndex: 'remark', ellipsis: true, responsive: ['lg'] as any },
-                    { title: '操作', key: 'action', width: 70, render: (_: unknown, r: RecordRow) => (
-                      <Popconfirm title="确认删除此记录？" onConfirm={() => handleDeleteRecord(r.id)} okText="删除" cancelText="取消">
-                        <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-                      </Popconfirm>
-                    ) },
-                  ]}
+                  columns={view.columns}
                 />
               </div>
             ),

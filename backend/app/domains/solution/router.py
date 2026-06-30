@@ -41,6 +41,9 @@ async def list_solutions(
     pageSize: int = Query(20, ge=1, le=100),
     status: str = Query(None),
     keyword: str = Query(None),
+    filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+    sort_by: str = Query(None),
+    sort_order: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("solution:view")),
@@ -55,11 +58,18 @@ async def list_solutions(
         like = f"%{keyword}%"
         q = q.where(Solution.solution_no.ilike(like))
         cq = cq.where(Solution.solution_no.ilike(like))
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("solution", filter, {"user_id": current_user.get("sub")})
+    if clause is not None:
+        q = q.where(clause)
+        cq = cq.where(clause)
     from app.common.data_scope import apply_project_child_scope
     q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Solution)
     total = (await db.execute(cq)).scalar() or 0
+    order = resolve_sort("solution", sort_by, sort_order) or Solution.created_at.desc()
     items = (await db.execute(
-        q.order_by(Solution.created_at.desc())
+        q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)
     )).scalars().all()
     return ok({"items": [_solution_dict(s) for s in items], "total": total})

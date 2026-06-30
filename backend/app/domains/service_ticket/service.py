@@ -31,6 +31,8 @@ async def list_tickets(
     keyword: str | None = None, status: str | None = None,
     priority: str | None = None, ticket_type: str | None = None,
     page: int = 1, page_size: int = 20,
+    current_user: dict | None = None,
+    adv_filter: str | None = None, sort_by: str | None = None, sort_order: str | None = None,
 ):
     q = select(ServiceTicket).where(ServiceTicket.tenant_id == tenant_id)
     count_q = select(func.count(ServiceTicket.id)).where(ServiceTicket.tenant_id == tenant_id)
@@ -56,9 +58,17 @@ async def list_tickets(
         q = q.where(ServiceTicket.type == ticket_type)
         count_q = count_q.where(ServiceTicket.type == ticket_type)
 
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("service_ticket", adv_filter, {"user_id": (current_user or {}).get("sub")})
+    if clause is not None:
+        q = q.where(clause)
+        count_q = count_q.where(clause)
+
     total = (await db.execute(count_q)).scalar() or 0
+    order = resolve_sort("service_ticket", sort_by, sort_order) or ServiceTicket.created_at.desc()
     result = await db.execute(
-        q.order_by(ServiceTicket.created_at.desc())
+        q.order_by(order)
         .offset((page - 1) * page_size).limit(page_size)
     )
     return result.scalars().all(), total

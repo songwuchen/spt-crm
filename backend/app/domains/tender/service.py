@@ -13,6 +13,8 @@ from app.domains.audit.service import log_action
 async def list_tenders(
     db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20,
     customer_id: str | None = None, status: str | None = None, keyword: str | None = None,
+    adv_filter: str | None = None, sort_by: str | None = None, sort_order: str | None = None,
+    current_user: dict | None = None,
 ):
     base = select(Tender).where(Tender.tenant_id == tenant_id, Tender.is_deleted == False)
     if customer_id:
@@ -22,9 +24,16 @@ async def list_tenders(
     if keyword:
         base = base.where(Tender.tender_no.ilike(f"%{keyword}%") | Tender.title.ilike(f"%{keyword}%"))
 
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("tender", adv_filter, {"user_id": (current_user or {}).get("sub")})
+    if clause is not None:
+        base = base.where(clause)
+
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
+    order = resolve_sort("tender", sort_by, sort_order) or Tender.created_at.desc()
     items = (await db.execute(
-        base.order_by(Tender.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+        base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()
     return items, total
 

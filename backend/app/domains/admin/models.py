@@ -41,6 +41,10 @@ class TenantProfile(TenantScopedBase):
     logo_attachment_id: Mapped[str | None] = mapped_column(String(36))
     security_policy_json: Mapped[dict | None] = mapped_column(JSON)
     data_retention_days: Mapped[int | None] = mapped_column(Integer, default=365)
+    # ---- 界面个性化（界面设置）----
+    system_name: Mapped[str | None] = mapped_column(String(64))      # 系统显示名（品牌名），空=默认
+    menu_aliases_json: Mapped[dict | None] = mapped_column(JSON)     # {菜单key: 别名}
+    hidden_menus_json: Mapped[list | None] = mapped_column(JSON)     # 隐藏的菜单key列表
 
 
 class TenantFeatureToggle(TenantScopedBase):

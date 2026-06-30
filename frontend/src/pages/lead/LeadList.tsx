@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Table, Button, Input, Space, Select, Modal, Upload, Form, DatePicker, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
@@ -11,10 +11,9 @@ import { leadStatusConfig as statusConfig } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
-import { useColumnConfig } from '@/hooks/useColumnConfig'
+import { useListView } from '@/hooks/useListView'
 import { usePageSize } from '@/hooks/usePageSize'
-import SavedViewSelect from '@/components/SavedViewSelect'
-import ColumnConfigDropdown from '@/components/ColumnConfigDropdown'
+import ListToolbar from '@/components/list/ListToolbar'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import dayjs from 'dayjs'
 import { t } from '@/locales'
@@ -99,6 +98,8 @@ export default function LeadList() {
   const [assignModal, setAssignModal] = useState(false)
   const [assignForm] = Form.useForm()
   const userSelect = useUserSelect()
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
 
   const handleBatchAssign = async () => {
     const values = await assignForm.validateFields()
@@ -163,6 +164,7 @@ export default function LeadList() {
         company_name: companyName || undefined,
         start_date: startDate,
         end_date: endDate,
+        ...view.buildParams(),
       })
       setData(res.data.items)
       setTotal(res.data.total)
@@ -172,6 +174,12 @@ export default function LeadList() {
   }
 
   useEffect(() => { fetchData(pageNo) }, [searchParams])
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取（reload 在 state 更新后再触发，避免读到旧值）
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchData(1)
+  }, [reload])
 
   const doSearch = () => { updateParams({ page: undefined }) }
 
@@ -276,7 +284,7 @@ export default function LeadList() {
     },
   ]
 
-  const { visibleColumns, hiddenKeys, setColumnConfig, allColumnKeys } = useColumnConfig('leads', allColumns)
+  const view = useListView<Lead>('lead', allColumns, { pageKey: 'leads' })
 
   return (
     <div>
@@ -423,27 +431,7 @@ export default function LeadList() {
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             {t('common.filter')}
           </Button>
-          <ColumnConfigDropdown allColumnKeys={allColumnKeys} hiddenKeys={hiddenKeys} onChange={setColumnConfig} />
-          <SavedViewSelect
-            page="leads"
-            currentFilters={{ keyword, status, source, customer_type: customerType, category, country_type: countryType, department_id: departmentId, industry, company_name: companyName, start_date: startDate, end_date: endDate }}
-            onApply={(f) => {
-              updateParams({
-                keyword: f.keyword || undefined,
-                status: f.status || undefined,
-                source: f.source || undefined,
-                customer_type: f.customer_type || undefined,
-                category: f.category || undefined,
-                country_type: f.country_type || undefined,
-                department_id: f.department_id || undefined,
-                industry: f.industry || undefined,
-                company_name: f.company_name || undefined,
-                start_date: f.start_date || undefined,
-                end_date: f.end_date || undefined,
-                page: undefined,
-              })
-            }}
-          />
+          <ListToolbar resource="lead" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>
 
@@ -451,7 +439,7 @@ export default function LeadList() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Table
           rowKey="id"
-          columns={visibleColumns}
+          columns={view.columns}
           dataSource={data}
           loading={loading}
           scroll={{ x: 1050 }}

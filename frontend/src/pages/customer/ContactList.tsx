@@ -9,6 +9,8 @@ import type { Contact } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePageSize } from '@/hooks/usePageSize'
+import { useListView } from '@/hooks/useListView'
+import ListToolbar from '@/components/list/ListToolbar'
 
 const roleTypeLabels: Record<string, string> = {
   decision_maker: '决策人',
@@ -38,6 +40,8 @@ export default function ContactList() {
   const [keyword, setKeyword] = useState('')
   const [roleType, setRoleType] = useState<string | undefined>()
   const [pageSize, setPageSize] = usePageSize('contacts')
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
 
   // Create modal state
   const [createModal, setCreateModal] = useState(false)
@@ -59,6 +63,7 @@ export default function ContactList() {
       const res = await contactApi.listAll({
         pageNo: page, pageSize,
         keyword: kw || undefined, role_type: rt,
+        ...view.buildParams(),
       })
       setData(res.data.items)
       setTotal(res.data.total)
@@ -68,6 +73,12 @@ export default function ContactList() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchData(1)
+  }, [reload])
 
   const doSearch = () => { setPageNo(1); fetchData(1) }
 
@@ -207,6 +218,8 @@ export default function ContactList() {
     } as ColumnsType<ContactItem>[number]] : []),
   ]
 
+  const view = useListView<ContactItem>('contact', columns, { pageKey: 'contacts' })
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
@@ -250,13 +263,14 @@ export default function ContactList() {
             onChange={(v) => { setRoleType(v); setPageNo(1); fetchData(1, keyword, v) }}
             options={Object.entries(roleTypeLabels).map(([k, v]) => ({ label: v, value: k }))}
           />
+          <ListToolbar resource="contact" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Table
           rowKey="id"
-          columns={columns}
+          columns={view.columns}
           dataSource={data}
           loading={loading}
           scroll={{ x: 900 }}

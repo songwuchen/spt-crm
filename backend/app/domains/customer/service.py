@@ -18,6 +18,7 @@ async def list_customers(
     region: str | None = None, owner_id: str | None = None,
     tag: str | None = None,
     current_user: dict | None = None,
+    adv_filter: str | None = None, sort_by: str | None = None, sort_order: str | None = None,
 ):
     base = select(Customer).where(Customer.tenant_id == tenant_id, Customer.is_deleted == False)
     if keyword:
@@ -34,14 +35,21 @@ async def list_customers(
         from sqlalchemy import cast, String
         base = base.where(cast(Customer.tags_json, String).ilike(f"%{tag}%"))
 
+    # 高级筛选（多字段/多条件）
+    from app.common.search import filter_clause_or_400, resolve_sort
+    clause = filter_clause_or_400("customer", adv_filter, {"user_id": (current_user or {}).get("sub")})
+    if clause is not None:
+        base = base.where(clause)
+
     # Apply data scope (non-admin only sees owned/shared records)
     if current_user:
         from app.common.data_scope import apply_data_scope
         base = await apply_data_scope(base, db, tenant_id, current_user, Customer, "customer")
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
+    order = resolve_sort("customer", sort_by, sort_order) or Customer.created_at.desc()
     items = (await db.execute(
-        base.order_by(Customer.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+        base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()
     return items, total
 

@@ -77,9 +77,13 @@ async def export_excel(type: str = Query(None), status: str = Query(None), keywo
 @router.get("")
 async def list_guarantees(pageNo: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100),
                           type: str = Query(None), status: str = Query(None), keyword: str = Query(None),
+                          filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+                          sort_by: str = Query(None), sort_order: str = Query(None),
                           tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
-                          _u=Depends(require_permissions("guarantee:view"))):
-    items, total = await service.list_guarantees(db, tenant_id, pageNo, pageSize, type, status, keyword)
+                          u=Depends(require_permissions("guarantee:view"))):
+    items, total = await service.list_guarantees(db, tenant_id, pageNo, pageSize, type, status, keyword,
+                                                 adv_filter=filter, sort_by=sort_by, sort_order=sort_order,
+                                                 current_user=u)
     return ok({"items": [_g_dict(g) for g in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 

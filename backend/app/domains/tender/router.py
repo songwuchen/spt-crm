@@ -40,11 +40,16 @@ async def list_tenders(
     customer_id: str = Query(None),
     status: str = Query(None),
     keyword: str = Query(None),
+    filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+    sort_by: str = Query(None),
+    sort_order: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("tender:view")),
 ):
-    items, total = await service.list_tenders(db, tenant_id, pageNo, pageSize, customer_id, status, keyword)
+    items, total = await service.list_tenders(
+        db, tenant_id, pageNo, pageSize, customer_id, status, keyword,
+        adv_filter=filter, sort_by=sort_by, sort_order=sort_order, current_user=_user)
     return ok({"items": [_tender_dict(t) for t in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 

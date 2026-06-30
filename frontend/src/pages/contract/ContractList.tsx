@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Table, Tag, Select, Input, Button, Modal, Form, InputNumber, DatePicker, message } from 'antd'
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
+import type { ColumnsType } from 'antd/es/table'
 import { contractApi } from '@/api/contract'
 import { projectApi } from '@/api/project'
 import type { ContractItem } from '@/api/types'
 import { contractStatusLabels, contractStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
+import { useListView } from '@/hooks/useListView'
+import ListToolbar from '@/components/list/ListToolbar'
 
 const fmtMoney = (v?: number | string | null) => {
   if (v == null || v === '***') return v === '***' ? '***' : '-'
@@ -24,6 +27,8 @@ export default function ContractList() {
   const [pageNo, setPageNo] = useState(1)
   const [keyword, setKeyword] = useState('')
   const [filterStatus, setFilterStatus] = useState<string | undefined>()
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
 
   const { hasPermission } = usePermission()
   const canCreate = hasPermission('contract:create')
@@ -64,13 +69,41 @@ export default function ContractList() {
   const fetchData = async (page = pageNo, kw = keyword, st = filterStatus) => {
     setLoading(true)
     try {
-      const r = await contractApi.list({ pageNo: page, pageSize: 20, keyword: kw || undefined, status: st }) as any
+      const r = await contractApi.list({ pageNo: page, pageSize: 20, keyword: kw || undefined, status: st, ...view.buildParams() }) as any
       setData(r.data?.items || [])
       setTotal(r.data?.total || 0)
     } finally { setLoading(false) }
   }
 
   useEffect(() => { fetchData() }, [])
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取（reload 在 state 更新后再触发，避免读到旧值）
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchData(1)
+  }, [reload])
+
+  const columns: ColumnsType<ContractItem> = [
+    { title: '合同编号', dataIndex: 'contract_no', width: 180,
+      render: (v: string, r: ContractItem) => r.project_id ? (
+        <a className="font-mono font-bold text-primary" onClick={() => navigate(`/opportunities/${r.project_id}/contracts/${r.id}`)}>{v}</a>
+      ) : <span className="font-mono font-bold text-slate-700">{v}</span>,
+    },
+    { title: '状态', dataIndex: 'status', width: 100,
+      render: (v: string) => <Tag color={contractStatusColors[v] || 'default'}>{contractStatusLabels[v] || v}</Tag>,
+    },
+    { title: '金额', dataIndex: 'amount_total', width: 140, align: 'right',
+      render: (v: number | string) => <span className="font-bold">{fmtMoney(v)}</span> },
+    { title: '签约日期', dataIndex: 'signed_date', width: 120,
+      render: (v: string) => v || '-' },
+    { title: '到期日期', dataIndex: 'end_date', width: 120,
+      render: (v: string) => v || '-' },
+    { title: '负责人', dataIndex: 'assignee_name', width: 100, render: (v: string) => v || '-' },
+    { title: '创建时间', dataIndex: 'created_at', width: 120,
+      render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
+  ]
+
+  const view = useListView<ContractItem>('contract', columns, { pageKey: 'contracts' })
 
   return (
     <div>
@@ -91,6 +124,7 @@ export default function ContractList() {
           <Select placeholder="状态" allowClear style={{ width: 130 }} value={filterStatus}
             onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchData(1, keyword, v) }}
             options={Object.entries(contractStatusLabels).map(([k, v]) => ({ value: k, label: v }))} />
+          <ListToolbar resource="contract" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>
 
@@ -100,25 +134,7 @@ export default function ContractList() {
             current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
             onChange: (p) => { setPageNo(p); fetchData(p) },
           }}
-          columns={[
-            { title: '合同编号', dataIndex: 'contract_no', width: 180,
-              render: (v: string, r: ContractItem) => r.project_id ? (
-                <a className="font-mono font-bold text-primary" onClick={() => navigate(`/opportunities/${r.project_id}/contracts/${r.id}`)}>{v}</a>
-              ) : <span className="font-mono font-bold text-slate-700">{v}</span>,
-            },
-            { title: '状态', dataIndex: 'status', width: 100,
-              render: (v: string) => <Tag color={contractStatusColors[v] || 'default'}>{contractStatusLabels[v] || v}</Tag>,
-            },
-            { title: '金额', dataIndex: 'amount_total', width: 140, align: 'right',
-              render: (v: number | string) => <span className="font-bold">{fmtMoney(v)}</span> },
-            { title: '签约日期', dataIndex: 'signed_date', width: 120,
-              render: (v: string) => v || '-' },
-            { title: '到期日期', dataIndex: 'end_date', width: 120,
-              render: (v: string) => v || '-' },
-            { title: '负责人', dataIndex: 'assignee_name', width: 100, render: (v: string) => v || '-' },
-            { title: '创建时间', dataIndex: 'created_at', width: 120,
-              render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
-          ]}
+          columns={view.columns}
         />
       </div>
 

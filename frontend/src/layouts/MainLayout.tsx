@@ -11,6 +11,7 @@ import CommandPalette from '@/components/CommandPalette'
 import ContextualHelp from '@/components/ContextualHelp'
 import { useAppStore } from '@/stores/useAppStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
 import { authApi } from '@/api/auth'
 
 const { Sider, Content } = Layout
@@ -101,6 +102,7 @@ export default function MainLayout() {
   }, [location.pathname, setSidebarCollapsed])
 
   const logout = useAuthStore((s) => s.logout)
+  const loadUiSettings = useUiSettingsStore((s) => s.load)
 
   useEffect(() => {
     if (!token) {
@@ -115,6 +117,8 @@ export default function MainLayout() {
       logout()
       navigate('/login', { replace: true })
     })
+    // 拉取界面个性化设置（系统显示名 / 菜单别名 / 隐藏）
+    loadUiSettings()
   }, [token])
 
   // Global keyboard shortcuts

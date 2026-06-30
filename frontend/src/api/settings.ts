@@ -117,6 +117,11 @@ export const settingsApi = {
   updateReportSchedules: (data: Array<Record<string, unknown>>) =>
     client.put('/api/admin/v1/tenant/report_schedules', data),
 
+  // UI settings (界面设置：系统显示名 / 菜单别名 / 菜单隐藏)
+  getUiSettings: () => client.get('/api/admin/v1/tenant/ui-settings'),
+  updateUiSettings: (data: Record<string, unknown>) =>
+    client.put('/api/admin/v1/tenant/ui-settings', data),
+
   // File storage
   getFileStorage: () => client.get('/api/admin/v1/tenant/file-storage'),
   updateFileStorage: (data: Record<string, unknown>) =>

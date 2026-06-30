@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional, Union
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional, Union, Dict, List
 
 
 # ---- Platform ----
@@ -28,6 +28,44 @@ class TenantProfileUpdate(BaseModel):
     logo_attachment_id: Optional[str] = None
     security_policy_json: Optional[dict] = None
     data_retention_days: Optional[int] = None
+
+# ---- UI Settings (界面设置) ----
+# 系统配置入口不可隐藏，防止管理员把自己锁死在外面
+PROTECTED_MENU_KEYS = {"/admin/settings"}
+
+class UiSettingsUpdate(BaseModel):
+    system_name: Optional[str] = Field(None, max_length=64)   # 系统显示名，空=默认
+    menu_aliases: Dict[str, str] = Field(default_factory=dict)  # {菜单key: 别名}
+    hidden_menus: List[str] = Field(default_factory=list)       # 隐藏的菜单key列表
+
+    @field_validator("system_name")
+    @classmethod
+    def _clean_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip()
+        return v[:64] if v else None
+
+    @field_validator("menu_aliases")
+    @classmethod
+    def _clean_aliases(cls, v: Dict[str, str]) -> Dict[str, str]:
+        out: Dict[str, str] = {}
+        for k, val in (v or {}).items():
+            k = str(k).strip()
+            val = str(val).strip()
+            if k and val:
+                out[k] = val[:64]
+        return out
+
+    @field_validator("hidden_menus")
+    @classmethod
+    def _clean_hidden(cls, v: List[str]) -> List[str]:
+        out: List[str] = []
+        for k in (v or []):
+            k = str(k).strip()
+            if k and k not in PROTECTED_MENU_KEYS and k not in out:
+                out.append(k)
+        return out
 
 # ---- Feature Toggle ----
 class FeatureToggleUpdate(BaseModel):

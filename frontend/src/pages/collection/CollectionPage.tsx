@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Tabs, Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Statistic,
 } from 'antd'
@@ -10,6 +10,8 @@ import type { ArAgingRow, DebtTransfer } from '@/api/types'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCustomerSelect } from '@/hooks/useSelectOptions'
+import { useListView } from '@/hooks/useListView'
+import ListToolbar from '@/components/list/ListToolbar'
 
 const BUCKETS = [
   { key: 'd0_30', label: '0-30天', color: '#10b981' },
@@ -109,15 +111,23 @@ function TransferTab() {
   const customerSelect = useCustomerSelect()
   const [claimTarget, setClaimTarget] = useState<DebtTransfer | null>(null)
   const [claimForm] = Form.useForm()
+  const [reload, setReload] = useState(0)
+  const didMount = useRef(false)
 
   const fetchData = async (p = page) => {
     setLoading(true)
     try {
-      const res = await collectionApi.listTransfers({ pageNo: p, pageSize, keyword: keyword || undefined, status })
+      const res = await collectionApi.listTransfers({ pageNo: p, pageSize, keyword: keyword || undefined, status, ...view.buildParams() })
       setData(res.data.items); setTotal(res.data.total)
     } finally { setLoading(false) }
   }
   useEffect(() => { fetchData(1); setPage(1) }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 高级筛选/排序/视图变化后回到第 1 页重新拉取
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return }
+    fetchData(1)
+  }, [reload]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openCreate = () => { form.resetFields(); form.setFieldsValue({ transfer_type: 'sales_to_collection' }); setModalOpen(true) }
 
@@ -176,6 +186,8 @@ function TransferTab() {
     },
   ]
 
+  const view = useListView<DebtTransfer>('collection', columns, { pageKey: 'collection' })
+
   return (
     <div>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
@@ -185,12 +197,13 @@ function TransferTab() {
               onChange={(e) => setKeyword(e.target.value)} onPressEnter={() => { setPage(1); fetchData(1) }} allowClear style={{ width: 220 }} />
             <Select placeholder="状态" allowClear style={{ width: 140 }} value={status} onChange={setStatus} options={STATUS_OPTIONS} />
             <Button onClick={() => { setPage(1); fetchData(1) }}>筛选</Button>
+            <ListToolbar resource="collection" view={view} onChange={() => setReload((r) => r + 1)} />
           </div>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建移交单</Button>
         </div>
       </div>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={data} loading={loading} scroll={{ x: 1300 }}
+        <Table rowKey="id" columns={view.columns} dataSource={data} loading={loading} scroll={{ x: 1300 }}
           pagination={{ current: page, total, pageSize, showTotal: (t) => `共 ${t} 条`, onChange: (p) => { setPage(p); fetchData(p) } }} />
       </div>
 

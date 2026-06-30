@@ -96,6 +96,9 @@ async def list_projects(
     customer_id: str = Query(None),
     status: str = Query(None),
     owner_id: str = Query(None),
+    filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
+    sort_by: str = Query(None),
+    sort_order: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("project:view")),
@@ -108,6 +111,8 @@ async def list_projects(
     items, total = await service.list_projects(
         db, tenant_id, pageNo, pageSize, keyword, stage_code, customer_id, status,
         owner_id=owner_id, current_user=scope_user,
+        adv_filter=filter, sort_by=sort_by, sort_order=sort_order,
+        filter_user_id=_user.get("sub"),
     )
     name_map = await _customer_names(db, tenant_id, items)
     prog = await _delivery_progress(db, tenant_id, [p.id for p in items])
