@@ -77,10 +77,10 @@ export const contractStatusColors: Record<string, string> = {
 
 // --- Solution ---
 export const solutionStatusLabels: Record<string, string> = {
-  draft: '草稿', reviewing: '评审中', approved: '已批准', obsolete: '已废弃',
+  draft: '草稿', reviewing: '评审中', approved: '已批准', rejected: '已驳回', obsolete: '已废弃',
 }
 export const solutionStatusColors: Record<string, string> = {
-  draft: 'default', reviewing: 'processing', approved: 'success', obsolete: 'warning',
+  draft: 'default', reviewing: 'processing', approved: 'success', rejected: 'error', obsolete: 'warning',
 }
 
 // --- AI Task ---

@@ -127,11 +127,21 @@ export default function ApprovalCenter() {
           }
         }
       } else if (bizType === 'change_request') {
-        navigate(`/opportunities/${bizId}`)
-        return
+        // biz_id 是变更单 id，不是商机 id —— 先取 project_id 再跳转，否则 404
+        const res = await client.get(`/api/v1/change_requests/${bizId}`)
+        const cr = (res as any).data
+        if (cr?.project_id) {
+          navigate(`/opportunities/${cr.project_id}`)
+          return
+        }
       } else if (bizType === 'solution') {
-        navigate(`/opportunities/${bizId}`)
-        return
+        // biz_id 是方案 id，不是商机 id —— 先取 project_id 再跳转，否则 404
+        const res = await client.get(`/api/v1/solutions/${bizId}`)
+        const sol = (res as any).data
+        if (sol?.project_id) {
+          navigate(`/opportunities/${sol.project_id}/solutions/${bizId}`)
+          return
+        }
       }
     } catch {
       // Fallback

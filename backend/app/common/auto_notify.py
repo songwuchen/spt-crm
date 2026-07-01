@@ -123,6 +123,26 @@ async def notify_milestone_created(db: AsyncSession, tenant_id: str, project_nam
     )
 
 
+_MILESTONE_STATUS_LABELS = {
+    "not_start": "未开始", "doing": "进行中", "done": "已完成", "delayed": "已延期",
+}
+
+
+async def notify_milestone_status_changed(db: AsyncSession, tenant_id: str, project_name: str,
+                                          milestone_name: str, old_status: str, new_status: str,
+                                          recipient_id: str, user_name: str, project_id: str):
+    """Notify the responsible person when a delivery milestone's status changes (issue #76)."""
+    old_label = _MILESTONE_STATUS_LABELS.get(old_status, old_status)
+    new_label = _MILESTONE_STATUS_LABELS.get(new_status, new_status)
+    await send_notification(
+        db, tenant_id, recipient_id=recipient_id,
+        type="milestone_status_changed",
+        title=f"交付里程碑「{milestone_name}」状态更新为{new_label}",
+        content=f"所属商机: {project_name}\n状态: {old_label} → {new_label}\n操作人: {user_name}",
+        biz_type="project", biz_id=project_id, sender_name=user_name,
+    )
+
+
 async def notify_approval_submitted(db: AsyncSession, tenant_id: str, approver_id: str,
                                      title: str, user_name: str, flow_id: str):
     """Notify approver when an approval is submitted to them."""

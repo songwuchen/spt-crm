@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Modal, Select, Input, InputNumber, Button, Space, message, Typography } from 'antd'
 import { PlusOutlined, DeleteOutlined, SwapOutlined } from '@ant-design/icons'
 import { roleApi } from '@/api/user'
@@ -336,6 +336,35 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
   const [users, setUsers] = useState<UserOption[]>([])
   const [saving, setSaving] = useState(false)
 
+  const [userSearching, setUserSearching] = useState(false)
+  const userSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 拉取用户（支持后端关键字搜索）；结果按 id 去重并入 users，避免已选用户回显丢失
+  const fetchUsers = async (keyword?: string) => {
+    try {
+      const res = await client.get('/api/admin/v1/tenant/users', {
+        params: { pageNo: 1, pageSize: 50, ...(keyword ? { keyword } : {}) },
+      }) as { data: { items?: { id: string; real_name?: string; username: string }[] } }
+      const list = res.data?.items || []
+      const mapped = list.map((u) => ({ id: u.id, real_name: u.real_name || u.username }))
+      setUsers((prev) => {
+        const seen = new Map(prev.map((u) => [u.id, u]))
+        mapped.forEach((u) => seen.set(u.id, u))
+        return Array.from(seen.values())
+      })
+    } catch { /* keep existing options on error */ }
+  }
+
+  // 输入时防抖调用后端搜索（原来仅前端过滤已加载的 20 条，用户多时搜不到，#83）
+  const handleUserSearch = (keyword: string) => {
+    if (userSearchTimer.current) clearTimeout(userSearchTimer.current)
+    setUserSearching(true)
+    userSearchTimer.current = setTimeout(async () => {
+      await fetchUsers(keyword.trim() || undefined)
+      setUserSearching(false)
+    }, 350)
+  }
+
   // Load options when modal opens
   useEffect(() => {
     if (!open) return
@@ -344,10 +373,7 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
       setRoles(list.map((r) => ({ code: r.code, name: r.name })))
     }).catch(() => setRoles([]))
 
-    client.get('/api/admin/v1/tenant/users').then((res: { data: { items?: { id: string; real_name?: string; username: string }[] } }) => {
-      const list = res.data?.items || []
-      setUsers(list.map((u) => ({ id: u.id, real_name: u.real_name || u.username })))
-    }).catch(() => setUsers([]))
+    fetchUsers()
   }, [open])
 
   // Sync initial data into state when modal opens / data changes
@@ -584,7 +610,8 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
                   )}
                   {row.type === 'user' && (
                     <Select className="flex-1" value={row.value || undefined} onChange={v => updateApprover(i, { value: v })}
-                      placeholder="选择用户" showSearch optionFilterProp="label"
+                      placeholder="输入姓名/用户名搜索" showSearch filterOption={false}
+                      onSearch={handleUserSearch} loading={userSearching} notFoundContent={userSearching ? '搜索中...' : '无匹配用户'}
                       options={users.map(u => ({ value: u.id, label: u.real_name }))} />
                   )}
                   {row.type === 'department_leader' && (

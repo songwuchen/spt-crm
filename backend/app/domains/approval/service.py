@@ -490,6 +490,8 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
     # Approval completion callback — auto-update biz object status
     if flow.status == "approved":
         await _on_approval_completed(db, tenant_id, flow)
+    elif flow.status == "rejected":
+        await _on_approval_rejected(db, tenant_id, flow)
 
     # Auto-activity: record approval decision on the biz object timeline
     try:
@@ -577,6 +579,53 @@ async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: Approva
             await db.commit()
     except Exception as e:
         logger.warning("Approval completion callback failed for %s/%s: %s", flow.biz_type, flow.biz_id, e)
+
+
+async def _on_approval_rejected(db: AsyncSession, tenant_id: str, flow: ApprovalFlow):
+    """Update biz object status when approval is rejected.
+
+    Symmetric to `_on_approval_completed`: without this, a rejected单据 keeps its
+    pre-approval status (reviewing/submitted) or even a stale "approved", so the
+    business page never reflects the驳回 (issue #82). Set it to "rejected" so the
+    detail page shows「已驳回」and the owner can revise & resubmit."""
+    try:
+        updated = False
+        if flow.biz_type == "quote_version":
+            from app.domains.quote.models import QuoteVersion
+            ver = (await db.execute(
+                select(QuoteVersion).where(QuoteVersion.id == flow.biz_id, QuoteVersion.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if ver:
+                ver.status = "rejected"
+                updated = True
+        elif flow.biz_type == "contract_version":
+            from app.domains.contract.models import ContractVersion
+            ver = (await db.execute(
+                select(ContractVersion).where(ContractVersion.id == flow.biz_id, ContractVersion.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if ver:
+                ver.status = "rejected"
+                updated = True
+        elif flow.biz_type == "change_request":
+            from app.domains.change.models import ChangeRequest
+            cr = (await db.execute(
+                select(ChangeRequest).where(ChangeRequest.id == flow.biz_id, ChangeRequest.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if cr:
+                cr.status = "rejected"
+                updated = True
+        elif flow.biz_type == "solution":
+            from app.domains.solution.models import Solution
+            sol = (await db.execute(
+                select(Solution).where(Solution.id == flow.biz_id, Solution.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if sol:
+                sol.status = "rejected"
+                updated = True
+        if updated:
+            await db.commit()
+    except Exception as e:
+        logger.warning("Approval rejection callback failed for %s/%s: %s", flow.biz_type, flow.biz_id, e)
 
 
 async def withdraw_flow(db: AsyncSession, tenant_id: str, flow_id: str, reason: str | None, user: dict) -> ApprovalFlow:

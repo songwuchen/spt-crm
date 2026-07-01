@@ -120,6 +120,7 @@ async def update_milestone(db: AsyncSession, tenant_id: str, milestone_id: str, 
     )).scalar_one_or_none()
     if not ms:
         raise BusinessException(code=NOT_FOUND, message="里程碑不存在")
+    old_status = ms.status
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(ms, field, val)
     await db.commit()
@@ -127,6 +128,27 @@ async def update_milestone(db: AsyncSession, tenant_id: str, milestone_id: str, 
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="update", resource_type="delivery_milestone", resource_id=milestone_id,
                      summary=f"更新交付里程碑: {ms.milestone_code}")
+
+    # 状态变更时通知负责人：优先里程碑负责人，否则商机负责人；自己改给自己不通知(issue #76)
+    if ms.status != old_status:
+        try:
+            from app.domains.project.models import OpportunityProject
+            proj = (await db.execute(
+                select(OpportunityProject).where(
+                    OpportunityProject.id == ms.project_id, OpportunityProject.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            recipient_id = ms.assignee_id or (proj.owner_id if proj else None)
+            if recipient_id and recipient_id != user["sub"]:
+                actor = user.get("real_name") or user.get("username")
+                proj_name = proj.name if proj else ""
+                ms_name = ms.name or ms.milestone_code
+                from app.common.auto_notify import notify_milestone_status_changed
+                await notify_milestone_status_changed(
+                    db, tenant_id, proj_name, ms_name, old_status, ms.status,
+                    recipient_id, actor, ms.project_id)
+        except Exception as e:
+            import logging
+            logging.getLogger("spt_crm.delivery").warning("Auto-notify milestone status changed failed: %s", e)
     return ms
 
 

@@ -808,8 +808,8 @@ export default function OpportunityDetail() {
                         )},
                         { title: '版本', dataIndex: 'current_version_no', render: (v: number) => `V${v}` },
                         { title: '状态', dataIndex: 'status', render: (v: string) => {
-                          const c: Record<string, string> = { draft: 'default', reviewing: 'processing', approved: 'success', obsolete: 'error' }
-                          const l: Record<string, string> = { draft: '草稿', reviewing: '评审中', approved: '已批准', obsolete: '已废弃' }
+                          const c: Record<string, string> = { draft: 'default', reviewing: 'processing', approved: 'success', rejected: 'error', obsolete: 'error' }
+                          const l: Record<string, string> = { draft: '草稿', reviewing: '评审中', approved: '已批准', rejected: '已驳回', obsolete: '已废弃' }
                           return <Tag color={c[v]}>{l[v] || v}</Tag>
                         }},
                         { title: '创建人', dataIndex: 'created_by_name' },

@@ -5,6 +5,7 @@ import { aiApi } from '@/api/ai'
 import type { KnowledgeDoc, KnowledgeSearchResult } from '@/api/ai'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { t } from '@/locales'
+import AttachmentPanel from '@/components/AttachmentPanel'
 
 const { TextArea } = Input
 
@@ -286,6 +287,14 @@ export default function KnowledgeBasePage() {
             <TextArea autoSize={{ minRows: 8, maxRows: 20 }} placeholder="输入文档内容，系统会自动分段用于 RAG 检索..." />
           </Form.Item>
         </Form>
+        {editingDoc ? (
+          <div className="border-t border-slate-100 pt-3">
+            <div className="text-sm font-bold text-slate-700 mb-2">附件</div>
+            <AttachmentPanel bizType="knowledge_doc" bizId={editingDoc.id} />
+          </div>
+        ) : (
+          <div className="text-xs text-slate-400 border-t border-slate-100 pt-3">保存文档后可上传附件</div>
+        )}
       </Modal>
 
       {/* Detail Modal */}
@@ -307,6 +316,10 @@ export default function KnowledgeBasePage() {
             </div>
             <div className="bg-slate-50 rounded-lg p-4 max-h-96 overflow-y-auto">
               <pre className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{detailDoc.content_text}</pre>
+            </div>
+            <div className="mt-4">
+              <div className="text-sm font-bold text-slate-700 mb-2">附件</div>
+              <AttachmentPanel bizType="knowledge_doc" bizId={detailDoc.id} />
             </div>
           </div>
         )}

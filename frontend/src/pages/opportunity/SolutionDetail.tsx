@@ -124,6 +124,7 @@ export default function SolutionDetail() {
     draft: ['reviewing'],
     reviewing: ['approved', 'draft'],
     approved: ['obsolete'],
+    rejected: ['reviewing', 'draft'],
     obsolete: [],
   }
 
