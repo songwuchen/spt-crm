@@ -71,6 +71,8 @@ export default function LeadDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [lead, setLead] = useState<Lead | null>(null)
+  const [activeTab, setActiveTab] = useState('detail')
+  const [followUpSignal, setFollowUpSignal] = useState(0)
   const customerTypeDict = useDataDict('customer_type')
   const industryDict = useDataDict('industry')
 
@@ -84,6 +86,22 @@ export default function LeadDetail() {
   }
 
   useEffect(() => { if (id) fetchLead() }, [id])
+
+  // 「开始跟进」：跳到动态页并打开跟进记录编辑（自动带入线索信息）
+  const handleStartFollowUp = () => {
+    setActiveTab('activities')
+    setFollowUpSignal((s) => s + 1)
+  }
+
+  // 首次跟进记录保存后，将「新建」线索推进到「跟进中」
+  const handleFollowUpCreated = async () => {
+    if (lead?.status === 'new' && id) {
+      try {
+        await leadApi.batchStatus([id], 'following')
+        fetchLead()
+      } catch { /* 记录已保存，状态推进失败不阻塞流程 */ }
+    }
+  }
 
   const handleQualify = () => {
     let createOpp = true
@@ -268,7 +286,8 @@ export default function LeadDetail() {
         <div className="col-span-6">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <Tabs
-              defaultActiveKey="detail"
+              activeKey={activeTab}
+              onChange={setActiveTab}
               className="px-6 pt-2"
               items={[
                 {
@@ -319,7 +338,8 @@ export default function LeadDetail() {
                   label: <span className="font-semibold">动态</span>,
                   children: (
                     <div className="py-4">
-                      <ActivityTimeline bizType="lead" bizId={id!} />
+                      <ActivityTimeline bizType="lead" bizId={id!} openCreateSignal={followUpSignal}
+                        defaultContactName={lead.contact_name} onCreated={handleFollowUpCreated} />
                     </div>
                   ),
                 },
@@ -376,7 +396,7 @@ export default function LeadDetail() {
                       : '跟进中线索建议定期更新进展，及时记录客户反馈和需求变化。'}
                   </p>
                   <button
-                    onClick={lead.status === 'new' ? () => navigate(`/leads/${id}/edit`) : handleQualify}
+                    onClick={lead.status === 'new' ? handleStartFollowUp : handleQualify}
                     className="w-full py-2 bg-white border border-primary text-primary rounded-lg text-sm font-bold hover:bg-primary hover:text-white transition-colors"
                   >
                     {lead.status === 'new' ? '开始跟进' : '立即转化'}

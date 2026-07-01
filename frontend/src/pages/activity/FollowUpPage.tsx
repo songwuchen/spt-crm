@@ -3,7 +3,7 @@ import { Table, Select, Input, Tag, Modal, DatePicker, message } from 'antd'
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { activityApi } from '@/api/activity'
-import { useCustomerSelect } from '@/hooks/useSelectOptions'
+import { useBizObjectSelects } from '@/hooks/useSelectOptions'
 import type { ActivityItem } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import dayjs from 'dayjs'
@@ -52,7 +52,9 @@ export default function FollowUpPage() {
     activity_type: 'call',
   })
 
-  const customerSelect = useCustomerSelect()
+  // 关联对象 data source depends on the selected 业务类型 (customer/lead/project/工单).
+  const selectFor = useBizObjectSelects()
+  const bizSelect = selectFor(form.biz_type)
 
   const fetchData = async (page = pageNo, bt = filterBizType, at = filterActivityType, kw = keyword) => {
     setLoading(true)
@@ -83,7 +85,7 @@ export default function FollowUpPage() {
         data.next_follow_date = (data.next_follow_date as dayjs.Dayjs).format('YYYY-MM-DD')
       }
       // Set biz_name from selected option
-      const opt = customerSelect.options.find((o) => o.value === form.biz_id)
+      const opt = bizSelect.options.find((o) => o.value === form.biz_id)
       if (opt) data.biz_name = opt.label
       await activityApi.create(data)
       message.success('跟进记录已创建')
@@ -217,10 +219,10 @@ export default function FollowUpPage() {
             <label className="text-sm font-medium text-slate-700 mb-1 block">关联对象 <span className="text-red-500">*</span></label>
             <Select className="w-full" showSearch filterOption={false} placeholder="搜索并选择..."
               value={form.biz_id} onChange={(v) => setForm({ ...form, biz_id: v })}
-              loading={customerSelect.loading}
-              options={customerSelect.options}
-              onSearch={customerSelect.onSearch}
-              onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
+              loading={bizSelect.loading}
+              options={bizSelect.options}
+              onSearch={bizSelect.onSearch}
+              onDropdownVisibleChange={bizSelect.onDropdownVisibleChange} />
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">主题 <span className="text-red-500">*</span></label>

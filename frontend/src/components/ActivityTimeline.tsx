@@ -27,9 +27,15 @@ interface Props {
   bizType: string
   bizId: string
   customerId?: string
+  /** Incrementing signal from a parent to open the "add record" modal (e.g. lead 开始跟进). */
+  openCreateSignal?: number
+  /** Prefill the contact name when the modal is opened via openCreateSignal. */
+  defaultContactName?: string
+  /** Called after a record is successfully created. */
+  onCreated?: () => void
 }
 
-export default function ActivityTimeline({ bizType, bizId, customerId }: Props) {
+export default function ActivityTimeline({ bizType, bizId, customerId, openCreateSignal, defaultContactName, onCreated }: Props) {
   const [items, setItems] = useState<ActivityItem[]>([])
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({
@@ -49,6 +55,15 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
     activityApi.list(bizType, bizId).then((r) => setItems(r.data))
   }
   useEffect(() => { fetchActivities() }, [bizType, bizId])
+
+  // Parent-triggered open (e.g. lead 开始跟进): open the modal prefilled with entity context.
+  useEffect(() => {
+    if (openCreateSignal && openCreateSignal > 0) {
+      setForm({ activity_type: 'note', subject: '', content: '', contact_id: '', contact_name: defaultContactName || '', next_follow_date: '' })
+      setMentionIds([])
+      setModal(true)
+    }
+  }, [openCreateSignal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load contacts for customer-related entities
   useEffect(() => {
@@ -79,6 +94,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId }: Props) 
       setForm({ activity_type: 'note', subject: '', content: '', contact_id: '', contact_name: '', next_follow_date: '' })
       setMentionIds([])
       fetchActivities()
+      onCreated?.()
     } catch {
       message.error('添加记录失败')
     }

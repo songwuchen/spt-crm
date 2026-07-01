@@ -44,6 +44,10 @@ export default function LeadForm() {
       leadApi.get(id).then((res) => {
         form.setFieldsValue(res.data)
         setCountryType(res.data.country_type)
+        // Seed owner option so the Select shows the name, not the raw owner_id code
+        if (res.data.owner_id && res.data.owner_name) {
+          userSelect.setInitialOption({ label: res.data.owner_name, value: res.data.owner_id })
+        }
       }).catch(() => message.error('加载线索数据失败'))
     }
   }, [id])
