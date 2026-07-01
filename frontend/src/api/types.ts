@@ -75,6 +75,14 @@ export interface Contact {
 export type LeadCategory = 'self_reported' | 'distributed'
 export type LeadCountryType = 'domestic' | 'overseas'
 
+export interface LeadProduct {
+  id?: string
+  product_name?: string
+  product_spec?: string
+  quantity?: number
+  remark?: string
+}
+
 export interface Lead {
   id: string
   lead_code?: string
@@ -100,10 +108,12 @@ export interface Lead {
   budget_range?: string
   owner_id?: string
   owner_name?: string
+  biz_date?: string
   status: string
   score: number
   converted_customer_id?: string
   remark?: string
+  products?: LeadProduct[]
   created_at: string
   updated_at: string
 }
@@ -162,6 +172,7 @@ export interface OpportunityProject {
   amount_expect?: number
   probability?: number
   close_date_expect?: string
+  biz_date?: string
   competitors_json?: Record<string, unknown>
   key_requirements_json?: Record<string, unknown> | unknown[]
   risk_level?: string

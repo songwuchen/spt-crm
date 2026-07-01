@@ -14,6 +14,8 @@ class OpportunityProject(TenantScopedBase):
     amount_expect: Mapped[float | None] = mapped_column(Numeric(18, 2))
     probability: Mapped[int | None] = mapped_column(Integer)
     close_date_expect: Mapped[str | None] = mapped_column(Date)
+    # 业务日期：用户可自行编辑，用于标识不同时间的商机（区别于 created_at 与预计成交日）(issue #84)
+    biz_date: Mapped[str | None] = mapped_column(Date)
     competitors_json: Mapped[dict | None] = mapped_column(JSON)
     key_requirements_json: Mapped[dict | None] = mapped_column(JSON)
     risk_level: Mapped[str | None] = mapped_column(String(2))  # L/M/H

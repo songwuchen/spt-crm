@@ -23,6 +23,7 @@ const zhCN = {
     reset: '重置',
     export: '导出',
     import: '导入',
+    template: '下载模板',
     refresh: '刷新',
     loading: '加载中...',
     noData: '暂无数据',

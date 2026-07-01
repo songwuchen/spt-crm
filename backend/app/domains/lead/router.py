@@ -9,13 +9,24 @@ import io
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
-from app.common.export import build_excel, excel_response
+from app.common.export import build_excel, build_template, excel_response
 from app.domains.lead import service
 
 router = APIRouter(prefix="/api/v1/leads", tags=["线索管理"])
 
+# 导入列（顺序即模板列顺序）；业务日期/负责人为 issue #84 新增列
+LEAD_IMPORT_HEADERS = ["标题", "公司名称", "联系人", "联系电话", "邮箱", "来源", "行业", "地区", "业务日期", "负责人"]
 
-def _lead_dict(l) -> dict:
+
+def _product_dict(p) -> dict:
+    return {
+        "id": p.id, "product_name": p.product_name, "product_spec": p.product_spec,
+        "quantity": float(p.quantity) if p.quantity is not None else None,
+        "remark": p.remark,
+    }
+
+
+def _lead_dict(l, products=None) -> dict:
     return {
         "id": l.id, "lead_code": l.lead_code, "title": l.title, "company_name": l.company_name,
         "contact_name": l.contact_name, "contact_phone": l.contact_phone,
@@ -34,9 +45,11 @@ def _lead_dict(l) -> dict:
         "department_id": l.department_id,
         "budget_range": l.budget_range,
         "owner_id": l.owner_id, "owner_name": l.owner_name,
+        "biz_date": str(l.biz_date) if l.biz_date else None,
         "status": l.status, "score": l.score,
         "converted_customer_id": l.converted_customer_id,
         "remark": l.remark,
+        "products": [_product_dict(p) for p in products] if products is not None else [],
         "created_at": l.created_at.isoformat() if l.created_at else "",
         "updated_at": l.updated_at.isoformat() if l.updated_at else "",
     }
@@ -121,6 +134,42 @@ async def export_leads_excel(
     return excel_response(buf, "leads.xlsx")
 
 
+@router.get("/import/template")
+async def download_lead_import_template(
+    _user=Depends(require_permissions("lead:create")),
+):
+    """下载线索导入模板（含业务日期、负责人列，issue #84）。"""
+    sample = [["某某设备采购线索", "示例科技有限公司", "张三", "13800000000",
+               "zhangsan@example.com", "展会", "机械制造", "上海市浦东新区",
+               "2026-07-01", "李四"]]
+    buf = build_template("线索导入模板", LEAD_IMPORT_HEADERS, sample)
+    return excel_response(buf, "lead_import_template.xlsx")
+
+
+def _parse_date_cell(v):
+    """把 Excel 日期单元格(datetime/date/字符串)归一化为 date，无法解析则返回 None。"""
+    if v is None or v == "":
+        return None
+    if hasattr(v, "date") and not isinstance(v, str):  # datetime
+        return v.date()
+    if isinstance(v, date):
+        return v
+    return str(v).strip()  # 交给 Pydantic 解析 "YYYY-MM-DD"
+
+
+async def _resolve_owner_id(db: AsyncSession, tenant_id: str, name):
+    """按姓名(real_name 或 username)在租户内匹配用户，返回 user_id；匹配不到返回 None。"""
+    if not name or not str(name).strip():
+        return None
+    from sqlalchemy import select
+    from app.domains.auth.models import User as AuthUser
+    nm = str(name).strip()
+    u = (await db.execute(select(AuthUser).where(
+        AuthUser.tenant_id == tenant_id,
+        (AuthUser.real_name == nm) | (AuthUser.username == nm)))).scalars().first()
+    return u.id if u else None
+
+
 @router.post("/import/excel")
 async def import_leads_excel(
     file: UploadFile = File(...),
@@ -128,7 +177,7 @@ async def import_leads_excel(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("lead:create")),
 ):
-    """Import leads from Excel. Columns: 标题, 公司名称, 联系人, 联系电话, 邮箱, 来源, 行业, 地区"""
+    """Import leads from Excel. Columns: 标题, 公司名称, 联系人, 联系电话, 邮箱, 来源, 行业, 地区, 业务日期, 负责人"""
     from app.domains.lead.schemas import LeadCreate
     content = await file.read()
     wb = load_workbook(io.BytesIO(content), read_only=True)
@@ -136,20 +185,27 @@ async def import_leads_excel(
     rows = list(ws.iter_rows(min_row=2, values_only=True))
     created = 0
     errors = []
+
+    def cell(row, i):
+        return row[i] if len(row) > i and row[i] not in (None, "") else None
+
     for idx, row in enumerate(rows, 2):
         if not row or not row[0]:
             continue
         try:
+            owner_id = await _resolve_owner_id(db, tenant_id, cell(row, 9))
             data = LeadCreate(
                 title=str(row[0]).strip(),
                 # company_name is required; fall back to the title when the column is blank
-                company_name=str(row[1]).strip() if len(row) > 1 and row[1] else str(row[0]).strip(),
-                contact_name=str(row[2]).strip() if len(row) > 2 and row[2] else None,
-                contact_phone=str(row[3]).strip() if len(row) > 3 and row[3] else None,
-                contact_email=str(row[4]).strip() if len(row) > 4 and row[4] else None,
-                source=str(row[5]).strip() if len(row) > 5 and row[5] else "import",
-                industry=str(row[6]).strip() if len(row) > 6 and row[6] else None,
-                region=str(row[7]).strip() if len(row) > 7 and row[7] else None,
+                company_name=str(row[1]).strip() if cell(row, 1) else str(row[0]).strip(),
+                contact_name=str(row[2]).strip() if cell(row, 2) else None,
+                contact_phone=str(row[3]).strip() if cell(row, 3) else None,
+                contact_email=str(row[4]).strip() if cell(row, 4) else None,
+                source=str(row[5]).strip() if cell(row, 5) else "import",
+                industry=str(row[6]).strip() if cell(row, 6) else None,
+                region=str(row[7]).strip() if cell(row, 7) else None,
+                biz_date=_parse_date_cell(cell(row, 8)),
+                owner_id=owner_id,
             )
             await service.create_lead(db, tenant_id, data, current_user)
             created += 1
@@ -167,7 +223,8 @@ async def create_lead(
     current_user: dict = Depends(require_permissions("lead:create")),
 ):
     l = await service.create_lead(db, tenant_id, body, current_user)
-    return ok(_lead_dict(l))
+    products = await service.list_lead_products(db, tenant_id, l.id)
+    return ok(_lead_dict(l, products))
 
 
 @router.get("/{lead_id}")
@@ -178,7 +235,8 @@ async def get_lead(
     _user=Depends(require_permissions("lead:view")),
 ):
     l = await service.get_lead(db, tenant_id, lead_id)
-    return ok(_lead_dict(l))
+    products = await service.list_lead_products(db, tenant_id, l.id)
+    return ok(_lead_dict(l, products))
 
 
 @router.put("/{lead_id}")
@@ -190,7 +248,8 @@ async def update_lead(
     current_user: dict = Depends(require_permissions("lead:edit")),
 ):
     l = await service.update_lead(db, tenant_id, lead_id, body, current_user)
-    return ok(_lead_dict(l))
+    products = await service.list_lead_products(db, tenant_id, l.id)
+    return ok(_lead_dict(l, products))
 
 
 class QualifyBody(BaseModel):

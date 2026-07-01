@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, Integer, JSON, Boolean
+from sqlalchemy import String, Text, Integer, JSON, Boolean, Date, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import TenantScopedBase
@@ -8,6 +8,8 @@ class Lead(TenantScopedBase):
     __tablename__ = "leads"
 
     lead_code: Mapped[str | None] = mapped_column(String(64), index=True)
+    # 业务日期：用户可自行编辑，用于标识不同时间的线索（区别于系统自动的 created_at）(issue #84)
+    biz_date: Mapped[str | None] = mapped_column(Date)
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     company_name: Mapped[str | None] = mapped_column(String(300))
     contact_name: Mapped[str | None] = mapped_column(String(100))
@@ -38,3 +40,15 @@ class Lead(TenantScopedBase):
     converted_customer_id: Mapped[str | None] = mapped_column(String(36))
     remark: Mapped[str | None] = mapped_column(Text)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+
+
+class LeadProduct(TenantScopedBase):
+    """线索产品信息子表：一条线索可包含多条产品明细(产品名称/规格/数量/备注)(issue #84)。"""
+    __tablename__ = "lead_products"
+
+    lead_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    product_name: Mapped[str | None] = mapped_column(String(300))
+    product_spec: Mapped[str | None] = mapped_column(String(300))
+    quantity: Mapped[float | None] = mapped_column(Numeric(18, 3))
+    remark: Mapped[str | None] = mapped_column(Text)
+    sort_order: Mapped[int | None] = mapped_column(Integer)

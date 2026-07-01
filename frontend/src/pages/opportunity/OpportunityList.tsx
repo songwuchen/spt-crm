@@ -307,8 +307,9 @@ export default function OpportunityList() {
         onSuccess={() => fetchData()}
         previewUrl="/api/v1/projects/import/preview"
         importUrl="/api/v1/projects/import/excel"
+        templateUrl="/api/v1/projects/import/template"
         title={t('opportunity.importOpportunity')}
-        expectedHeaders={['项目名称', '预计金额', '概率(%)', '预计关闭日', '风险等级', '备注']}
+        expectedHeaders={['项目名称', '预计金额', '概率(%)', '预计关闭日', '风险等级', '备注', '业务日期', '负责人']}
       />
 
       {/* Batch Stage Modal */}

@@ -1,14 +1,14 @@
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
 from app.common.error_codes import NOT_FOUND, LEAD_ALREADY_QUALIFIED, LEAD_ALREADY_DISCARDED
 from app.common.code_generator import generate_code
-from app.domains.lead.models import Lead
+from app.domains.lead.models import Lead, LeadProduct
 from app.domains.lead.schemas import LeadCreate, LeadUpdate
 from app.domains.customer.models import Customer
 from app.domains.audit.service import log_action
@@ -106,6 +106,30 @@ async def list_leads(
     return items, total
 
 
+async def list_lead_products(db: AsyncSession, tenant_id: str, lead_id: str):
+    """取某条线索的产品明细，按 sort_order 排序。"""
+    return (await db.execute(
+        select(LeadProduct).where(
+            LeadProduct.tenant_id == tenant_id, LeadProduct.lead_id == lead_id)
+        .order_by(LeadProduct.sort_order, LeadProduct.created_at)
+    )).scalars().all()
+
+
+async def _replace_lead_products(db: AsyncSession, tenant_id: str, lead_id: str, products) -> None:
+    """用给定明细整体替换线索产品明细。products 为 LeadProductIn 列表。"""
+    await db.execute(sql_delete(LeadProduct).where(
+        LeadProduct.tenant_id == tenant_id, LeadProduct.lead_id == lead_id))
+    for i, p in enumerate(products or []):
+        # 整行为空则跳过
+        if not (p.product_name or p.product_spec or p.quantity is not None or p.remark):
+            continue
+        db.add(LeadProduct(
+            id=generate_uuid(), tenant_id=tenant_id, lead_id=lead_id,
+            product_name=p.product_name, product_spec=p.product_spec,
+            quantity=p.quantity, remark=p.remark, sort_order=i,
+        ))
+
+
 async def get_lead(db: AsyncSession, tenant_id: str, lead_id: str) -> Lead:
     lead = (await db.execute(
         select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant_id, Lead.is_deleted == False)
@@ -117,6 +141,8 @@ async def get_lead(db: AsyncSession, tenant_id: str, lead_id: str) -> Lead:
 
 async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: dict) -> Lead:
     payload = data.model_dump()
+    products = data.products  # 产品明细单独处理，不能 setattr 到模型
+    payload.pop("products", None)
     # If user picked an owner in the form, look up that user's name; otherwise fall back to creator.
     chosen_owner_id = payload.pop("owner_id", None)
     if chosen_owner_id:
@@ -138,6 +164,8 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     )
     lead.score = _compute_score(lead)
     db.add(lead)
+    if products is not None:
+        await _replace_lead_products(db, tenant_id, lead.id, products)
     from app.domains.outbox.service import emit_event
     await emit_event(db, tenant_id, "crm.lead.created", "lead", lead.id, {
         "lead_id": lead.id, "lead_code": lead.lead_code, "title": lead.title,
@@ -155,6 +183,8 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
 async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: LeadUpdate, user: dict) -> Lead:
     lead = await get_lead(db, tenant_id, lead_id)
     payload = data.model_dump(exclude_unset=True)
+    products_given = "products" in payload
+    payload.pop("products", None)  # 产品明细单独处理
     # When owner changes, refresh owner_name to match
     reassigned_to = None
     if "owner_id" in payload and payload["owner_id"] and payload["owner_id"] != lead.owner_id:
@@ -166,6 +196,8 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     for field, val in payload.items():
         setattr(lead, field, val)
     lead.score = _compute_score(lead)
+    if products_given:
+        await _replace_lead_products(db, tenant_id, lead.id, data.products or [])
     await db.commit()
     await db.refresh(lead)
 

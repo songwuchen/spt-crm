@@ -295,6 +295,9 @@ export default function LeadList() {
           <p className="text-sm text-slate-500 mt-0.5">{t('lead.subtitle')}</p>
         </div>
         <Space>
+          <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/leads/import/template', 'lead_import_template.xlsx')}>
+            {t('common.template')}
+          </Button>
           <Upload accept=".xlsx,.xls" showUploadList={false} customRequest={async ({ file }) => {
             const formData = new FormData()
             formData.append('file', file as File)

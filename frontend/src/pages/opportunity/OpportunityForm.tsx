@@ -74,6 +74,7 @@ export default function OpportunityForm() {
         form.setFieldsValue({
           ...d,
           close_date_expect: d.close_date_expect ? dayjs(d.close_date_expect) : undefined,
+          biz_date: d.biz_date ? dayjs(d.biz_date) : undefined,
           key_requirements_json: normalizeRequirements(d.key_requirements_json),
         })
         setCustomFields((d.custom_fields_json as Record<string, unknown>) || {})
@@ -112,6 +113,7 @@ export default function OpportunityForm() {
       const payload = {
         ...values,
         close_date_expect: values.close_date_expect ? (values.close_date_expect as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
+        biz_date: values.biz_date ? (values.biz_date as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
         key_requirements_json: cleanedReqs,
         custom_fields_json: customFields,
       }
@@ -154,9 +156,14 @@ export default function OpportunityForm() {
               <InputNumber className="w-full" placeholder="0-100" min={0} max={100} />
             </Form.Item>
           </div>
-          <Form.Item name="close_date_expect" label="预期成交日期">
-            <DatePicker className="w-full" />
-          </Form.Item>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Form.Item name="close_date_expect" label="预期成交日期">
+              <DatePicker className="w-full" />
+            </Form.Item>
+            <Form.Item name="biz_date" label="日期" tooltip="业务日期，可自行编辑，用于标识不同时间的商机">
+              <DatePicker className="w-full" placeholder="请选择日期" />
+            </Form.Item>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Form.Item name="risk_level" label="风险等级">
               <Select placeholder="请选择风险等级" allowClear options={riskDict.options} loading={riskDict.loading} />

@@ -1,10 +1,24 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, List
+from datetime import date
 from pydantic import BaseModel, Field, field_validator, model_validator
 import re
 
 
 LeadCategory = Literal["self_reported", "distributed"]
 LeadCountryType = Literal["domestic", "overseas"]
+
+
+class LeadProductIn(BaseModel):
+    """线索产品明细(子表)一行。"""
+    product_name: Optional[str] = Field(None, max_length=300)
+    product_spec: Optional[str] = Field(None, max_length=300)
+    quantity: Optional[float] = Field(None, ge=0)
+    remark: Optional[str] = Field(None, max_length=2000)
+
+
+class LeadProductOut(LeadProductIn):
+    id: str
+    model_config = {"from_attributes": True}
 
 
 def _validate_email(v: Optional[str]) -> Optional[str]:
@@ -35,7 +49,9 @@ class LeadCreate(BaseModel):
     department_id: Optional[str] = Field(None, max_length=36)
     budget_range: Optional[str] = None
     owner_id: Optional[str] = Field(None, max_length=36)
+    biz_date: Optional[date] = None
     remark: Optional[str] = Field(None, max_length=2000)
+    products: Optional[List[LeadProductIn]] = None
 
     @field_validator("contact_email")
     @classmethod
@@ -72,8 +88,10 @@ class LeadUpdate(BaseModel):
     department_id: Optional[str] = Field(None, max_length=36)
     budget_range: Optional[str] = None
     owner_id: Optional[str] = Field(None, max_length=36)
+    biz_date: Optional[date] = None
     status: Optional[str] = None
     remark: Optional[str] = Field(None, max_length=2000)
+    products: Optional[List[LeadProductIn]] = None
 
     @field_validator("contact_email")
     @classmethod
@@ -105,10 +123,12 @@ class LeadOut(BaseModel):
     budget_range: Optional[str] = None
     owner_id: Optional[str] = None
     owner_name: Optional[str] = None
+    biz_date: Optional[str] = None
     status: str
     score: int
     converted_customer_id: Optional[str] = None
     remark: Optional[str] = None
+    products: List[LeadProductOut] = []
     created_at: str = ""
     updated_at: str = ""
 

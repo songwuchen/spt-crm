@@ -236,13 +236,25 @@ async def get_project(db: AsyncSession, tenant_id: str, project_id: str) -> Oppo
 
 async def create_project(db: AsyncSession, tenant_id: str, data: ProjectCreate, user: dict) -> OpportunityProject:
     actor_name = user.get("real_name") or user.get("username")
+    payload = data.model_dump()
+    # 创建时负责人默认 = 录入人（之后可由主管经 transfer_owner 转移）；
+    # 若显式指定 owner_id（如批量导入按姓名指派），则查该用户名回填 owner_name
+    chosen_owner_id = payload.pop("owner_id", None)
+    if chosen_owner_id:
+        from app.domains.auth.models import User as AuthUser
+        owner = (await db.execute(
+            select(AuthUser).where(AuthUser.id == chosen_owner_id, AuthUser.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        owner_id = chosen_owner_id
+        owner_name = (owner.real_name or owner.username) if owner else actor_name
+    else:
+        owner_id, owner_name = user["sub"], actor_name
     project = OpportunityProject(
         id=generate_uuid(), tenant_id=tenant_id,
         project_code=await generate_code(db, tenant_id, "project"),
-        # 创建时负责人默认 = 录入人（之后可由主管经 transfer_owner 转移）
-        owner_id=user["sub"], owner_name=actor_name,
+        owner_id=owner_id, owner_name=owner_name,
         created_by_id=user["sub"], created_by_name=actor_name,
-        **data.model_dump(),
+        **payload,
     )
     db.add(project)
     await db.commit()

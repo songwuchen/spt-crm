@@ -10,6 +10,7 @@ class ProjectCreate(BaseModel):
     amount_expect: Optional[float] = Field(None, ge=0)
     probability: Optional[int] = Field(None, ge=0, le=100)
     close_date_expect: Optional[date] = None
+    biz_date: Optional[date] = None
     competitors_json: Optional[dict] = None
     key_requirements_json: Optional[Union[dict, list]] = None  # 多条需求明细(数组)，兼容旧版单条 dict
     risk_level: Optional[str] = None
@@ -19,6 +20,8 @@ class ProjectCreate(BaseModel):
     payment_method: Optional[str] = Field(None, max_length=64)
     custom_fields_json: Optional[dict] = None
     remark: Optional[str] = Field(None, max_length=2000)
+    # 创建时可指定负责人（默认取录入人）；主要供批量导入按姓名指派负责人使用
+    owner_id: Optional[str] = Field(None, max_length=36)
 
     @field_validator("risk_level")
     @classmethod
@@ -34,6 +37,7 @@ class ProjectUpdate(BaseModel):
     amount_expect: Optional[float] = Field(None, ge=0)
     probability: Optional[int] = Field(None, ge=0, le=100)
     close_date_expect: Optional[date] = None
+    biz_date: Optional[date] = None
     competitors_json: Optional[dict] = None
     key_requirements_json: Optional[Union[dict, list]] = None  # 多条需求明细(数组)，兼容旧版单条 dict
     risk_level: Optional[str] = None

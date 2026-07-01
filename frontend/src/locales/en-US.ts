@@ -11,6 +11,7 @@ const enUS = {
     reset: 'Reset',
     export: 'Export',
     import: 'Import',
+    template: 'Download Template',
     refresh: 'Refresh',
     loading: 'Loading...',
     noData: 'No data',

@@ -6,7 +6,7 @@ import io
 
 from app.dependencies import get_db, get_tenant_id, require_permissions, get_data_scope
 from app.common.schemas import ok
-from app.common.export import build_excel, excel_response
+from app.common.export import build_excel, build_template, excel_response
 from app.domains.project import service
 from app.domains.project.schemas import (
     ProjectCreate, ProjectUpdate, ProjectTransfer, StageAdvance, StageRollback,
@@ -14,6 +14,33 @@ from app.domains.project.schemas import (
 )
 
 router = APIRouter(prefix="/api/v1/projects", tags=["商机项目"])
+
+# 导入列（顺序即模板列顺序）；业务日期/负责人为 issue #84 新增列
+PROJECT_IMPORT_HEADERS = ["项目名称", "预计金额", "概率(%)", "预计关闭日", "风险等级", "备注", "业务日期", "负责人"]
+
+
+def _parse_date_cell(v):
+    """把 Excel 日期单元格(datetime/date/字符串)归一化为 date/字符串，空则返回 None。"""
+    from datetime import date as _date
+    if v is None or v == "":
+        return None
+    if hasattr(v, "date") and not isinstance(v, str):  # datetime
+        return v.date()
+    if isinstance(v, _date):
+        return v
+    return str(v).strip()
+
+
+async def _resolve_owner_id(db: AsyncSession, tenant_id: str, name):
+    """按姓名(real_name 或 username)在租户内匹配用户，返回 user_id；匹配不到返回 None。"""
+    if not name or not str(name).strip():
+        return None
+    from app.domains.auth.models import User as AuthUser
+    nm = str(name).strip()
+    u = (await db.execute(sa_select(AuthUser).where(
+        AuthUser.tenant_id == tenant_id,
+        (AuthUser.real_name == nm) | (AuthUser.username == nm)))).scalars().first()
+    return u.id if u else None
 
 
 def _project_dict(p, customer_name: str | None = None, delivery: tuple | None = None) -> dict:
@@ -24,6 +51,7 @@ def _project_dict(p, customer_name: str | None = None, delivery: tuple | None = 
         "amount_expect": float(p.amount_expect) if p.amount_expect is not None else None,
         "probability": p.probability,
         "close_date_expect": str(p.close_date_expect) if p.close_date_expect else None,
+        "biz_date": str(p.biz_date) if p.biz_date else None,
         "competitors_json": p.competitors_json,
         "key_requirements_json": p.key_requirements_json,
         "risk_level": p.risk_level,
@@ -147,6 +175,17 @@ async def export_projects_excel(
     return excel_response(buf, "projects.xlsx")
 
 
+@router.get("/import/template")
+async def download_project_import_template(
+    _user=Depends(require_permissions("project:create")),
+):
+    """下载商机导入模板（含业务日期、负责人列，issue #84）。"""
+    sample = [["某某设备升级项目", "800000", "40", "2026-09-30", "M", "重点跟进",
+               "2026-07-01", "李四"]]
+    buf = build_template("商机导入模板", PROJECT_IMPORT_HEADERS, sample)
+    return excel_response(buf, "project_import_template.xlsx")
+
+
 @router.post("/import/preview")
 async def import_preview(
     file: UploadFile = File(...),
@@ -243,13 +282,16 @@ async def import_projects_excel(
                     prob = int(float(row[2]))
                 except (ValueError, TypeError):
                     pass
+            owner_id = await _resolve_owner_id(db, tenant_id, row[7] if len(row) > 7 else None)
             data = ProjectCreate(
                 name=name,
                 amount_expect=amount,
                 probability=prob,
-                close_date_expect=str(row[3]).strip() if len(row) > 3 and row[3] else None,
+                close_date_expect=_parse_date_cell(row[3] if len(row) > 3 else None),
                 risk_level=str(row[4]).strip() if len(row) > 4 and row[4] else None,
                 remark=str(row[5]).strip() if len(row) > 5 and row[5] else None,
+                biz_date=_parse_date_cell(row[6] if len(row) > 6 else None),
+                owner_id=owner_id,
             )
             await service.create_project(db, tenant_id, data, current_user)
             created += 1

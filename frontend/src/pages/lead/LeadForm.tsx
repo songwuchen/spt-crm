@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Form, Input, Select, Button, message } from 'antd'
+import { Form, Input, Select, Button, DatePicker, InputNumber, message } from 'antd'
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
+import dayjs from 'dayjs'
 import { leadApi } from '@/api/lead'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
@@ -42,7 +44,12 @@ export default function LeadForm() {
   useEffect(() => {
     if (id) {
       leadApi.get(id).then((res) => {
-        form.setFieldsValue(res.data)
+        const d = res.data as any
+        form.setFieldsValue({
+          ...d,
+          biz_date: d.biz_date ? dayjs(d.biz_date) : undefined,
+          products: d.products || [],
+        })
         setCountryType(res.data.country_type)
         // Seed owner option so the Select shows the name, not the raw owner_id code
         if (res.data.owner_id && res.data.owner_name) {
@@ -55,11 +62,20 @@ export default function LeadForm() {
   const onFinish = async (values: Record<string, unknown>) => {
     setLoading(true)
     try {
+      // 丢弃完全空白的产品明细行；业务日期 dayjs → 字符串
+      const rawProducts = (Array.isArray(values.products) ? values.products : []) as Record<string, unknown>[]
+      const products = rawProducts.filter((p) =>
+        p && (p.product_name || p.product_spec || p.quantity != null || p.remark))
+      const payload = {
+        ...values,
+        biz_date: values.biz_date ? (values.biz_date as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
+        products,
+      }
       if (isEdit) {
-        await leadApi.update(id!, values)
+        await leadApi.update(id!, payload)
         message.success('线索已更新')
       } else {
-        await leadApi.create(values)
+        await leadApi.create(payload)
         message.success('线索已创建')
       }
       navigate('/leads')
@@ -120,6 +136,9 @@ export default function LeadForm() {
                   onSearch={userSelect.onSearch}
                   onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
               </Form.Item>
+              <Form.Item name="biz_date" label="日期" tooltip="业务日期，可自行编辑，用于标识不同时间的线索">
+                <DatePicker className="w-full" placeholder="请选择日期" />
+              </Form.Item>
             </div>
           </div>
 
@@ -179,6 +198,46 @@ export default function LeadForm() {
                 <Input placeholder="请输入联系邮箱" />
               </Form.Item>
             </div>
+          </div>
+
+          {/* Product Info sub-table (issue #84) */}
+          <div className="mb-6">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">产品信息</h3>
+            <Form.List name="products">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.length > 0 && (
+                    <div className="hidden sm:flex items-center gap-2 px-1 mb-1 text-[11px] font-semibold text-slate-400">
+                      <span className="flex-1">产品名称</span>
+                      <span className="flex-1">产品规格</span>
+                      <span className="w-28">数量</span>
+                      <span className="flex-1">备注</span>
+                      <span className="w-8" />
+                    </div>
+                  )}
+                  {fields.map(({ key, name }) => (
+                    <div key={key} className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2 mb-2">
+                      <Form.Item name={[name, 'product_name']} className="!mb-0 flex-1">
+                        <Input placeholder="产品名称" />
+                      </Form.Item>
+                      <Form.Item name={[name, 'product_spec']} className="!mb-0 flex-1">
+                        <Input placeholder="产品规格" />
+                      </Form.Item>
+                      <Form.Item name={[name, 'quantity']} className="!mb-0 w-full sm:w-28">
+                        <InputNumber className="w-full" min={0} placeholder="数量" />
+                      </Form.Item>
+                      <Form.Item name={[name, 'remark']} className="!mb-0 flex-1">
+                        <Input placeholder="备注" />
+                      </Form.Item>
+                      <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} className="shrink-0" />
+                    </div>
+                  ))}
+                  <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({})} block>
+                    添加产品
+                  </Button>
+                </>
+              )}
+            </Form.List>
           </div>
 
           {/* Extra Info */}
