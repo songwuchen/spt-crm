@@ -8,7 +8,7 @@ const { Text, Link } = Typography
 
 /* ------------------------------------------------------------------ types */
 
-interface ConditionRow { field: string; operator: string; value: number | undefined }
+interface ConditionRow { field: string; operator: string; value: number | string | undefined }
 interface ApproverRow { type: string; value: string }
 interface EscalationRow { after_hours: number | undefined; action: string }
 
@@ -35,16 +35,80 @@ interface Props {
 
 /* ------------------------------------------------------------- constants */
 
-const FIELD_OPTIONS = [
-  { value: 'amount', label: '金额' },
-  { value: 'margin_rate', label: '毛利率' },
-]
+interface FieldDef {
+  value: string
+  label: string
+  type: 'number' | 'enum'
+  options?: { value: string; label: string }[]
+}
 
-const OP_OPTIONS = [
+/**
+ * Trigger-condition fields available per business type. Keep in sync with the
+ * backend `_build_policy_context()` — every field here must be populated into
+ * the match context there, or a configured condition can never match.
+ */
+const FIELD_CATALOG: Record<string, FieldDef[]> = {
+  quote_version: [
+    { value: 'amount', label: '金额', type: 'number' },
+    { value: 'margin_rate', label: '毛利率', type: 'number' },
+    { value: 'discount_total', label: '折扣金额', type: 'number' },
+  ],
+  contract_version: [
+    { value: 'amount', label: '合同金额', type: 'number' },
+    { value: 'risk_level', label: '风险等级', type: 'enum', options: [
+      { value: 'L', label: '低' }, { value: 'M', label: '中' }, { value: 'H', label: '高' },
+    ] },
+  ],
+  change_request: [
+    { value: 'change_type', label: '变更类型', type: 'enum', options: [
+      { value: 'requirement', label: '需求' }, { value: 'quote', label: '报价' },
+      { value: 'contract', label: '合同' }, { value: 'delivery', label: '交付' },
+    ] },
+    { value: 'cost_impact', label: '成本影响', type: 'number' },
+  ],
+  service_ticket: [
+    { value: 'priority', label: '优先级', type: 'enum', options: [
+      { value: 'low', label: '低' }, { value: 'medium', label: '中' },
+      { value: 'high', label: '高' }, { value: 'critical', label: '紧急' },
+    ] },
+    { value: 'type', label: '工单类型', type: 'enum', options: [
+      { value: 'fault', label: '故障' }, { value: 'maintenance', label: '维保' },
+      { value: 'training', label: '培训' }, { value: 'spare', label: '备件' },
+      { value: 'upgrade', label: '升级' },
+    ] },
+  ],
+  order: [
+    { value: 'amount', label: '订单金额', type: 'number' },
+  ],
+  solution: [],
+}
+
+const NUMBER_OP_OPTIONS = [
   { value: 'gt', label: '大于' },
+  { value: 'gte', label: '大于等于' },
   { value: 'lt', label: '小于' },
+  { value: 'lte', label: '小于等于' },
   { value: 'eq', label: '等于' },
 ]
+
+const ENUM_OP_OPTIONS = [
+  { value: 'eq', label: '等于' },
+  { value: 'ne', label: '不等于' },
+]
+
+const ALL_OPS = ['gt', 'gte', 'lt', 'lte', 'eq', 'ne']
+
+function fieldsForBiz(bizType: string): FieldDef[] {
+  return FIELD_CATALOG[bizType] || []
+}
+
+function getFieldDef(bizType: string, field: string): FieldDef | undefined {
+  return fieldsForBiz(bizType).find(f => f.value === field)
+}
+
+function opsForField(def: FieldDef | undefined): { value: string; label: string }[] {
+  return def?.type === 'enum' ? ENUM_OP_OPTIONS : NUMBER_OP_OPTIONS
+}
 
 const APPROVER_TYPE_OPTIONS = [
   { value: 'role', label: '按角色' },
@@ -62,6 +126,8 @@ const BIZ_TYPE_OPTIONS = [
   { value: 'contract_version', label: '合同审批' },
   { value: 'change_request', label: '变更审批' },
   { value: 'solution', label: '方案审批' },
+  { value: 'service_ticket', label: '售后工单审批' },
+  { value: 'order', label: '订单审批' },
 ]
 
 const MODE_OPTIONS = [
@@ -91,8 +157,9 @@ function jsonToConditions(json: unknown): ConditionRow[] {
     if (lastUnderscore > 0) {
       const field = key.slice(0, lastUnderscore)
       const operator = key.slice(lastUnderscore + 1)
-      if (['gt', 'lt', 'eq'].includes(operator)) {
-        rows.push({ field, operator, value: typeof val === 'number' ? val : undefined })
+      if (ALL_OPS.includes(operator)) {
+        const value = typeof val === 'number' || typeof val === 'string' ? val : undefined
+        rows.push({ field, operator, value })
       }
     }
   }
@@ -375,10 +442,24 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
 
   /* ----------- condition row ops ----------- */
 
-  const addCondition = () => setConditionRows([...conditionRows, { field: 'amount', operator: 'gt', value: undefined }])
+  const addCondition = () => {
+    const fields = fieldsForBiz(bizType)
+    if (fields.length === 0) return
+    const first = fields[0]
+    setConditionRows([...conditionRows, {
+      field: first.value,
+      operator: first.type === 'enum' ? 'eq' : 'gt',
+      value: undefined,
+    }])
+  }
   const removeCondition = (i: number) => setConditionRows(conditionRows.filter((_, idx) => idx !== i))
   const updateCondition = (i: number, patch: Partial<ConditionRow>) => {
     setConditionRows(conditionRows.map((r, idx) => idx === i ? { ...r, ...patch } : r))
+  }
+  // Fields differ per business type, so drop conditions that no longer apply.
+  const handleBizTypeChange = (v: string) => {
+    setBizType(v)
+    setConditionRows([])
   }
 
   /* ----------- approver row ops ----------- */
@@ -421,7 +502,7 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
         {/* Basic fields — always shown */}
         <div>
           <Label>业务类型</Label>
-          <Select className="w-full" value={bizType} onChange={setBizType} options={BIZ_TYPE_OPTIONS} />
+          <Select className="w-full" value={bizType} onChange={handleBizTypeChange} options={BIZ_TYPE_OPTIONS} />
         </div>
         <div>
           <Label>策略名称</Label>
@@ -448,22 +529,44 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
             {/* --- Condition Builder --- */}
             <div>
               <Label>触发条件</Label>
-              {conditionRows.map((row, i) => (
-                <div key={i} className="flex items-center gap-2 mb-2">
-                  <Select className="w-28" value={row.field} onChange={v => updateCondition(i, { field: v })}
-                    options={FIELD_OPTIONS} />
-                  <Select className="w-20" value={row.operator} onChange={v => updateCondition(i, { operator: v })}
-                    options={OP_OPTIONS} />
-                  <InputNumber className="w-28" value={row.value} onChange={v => updateCondition(i, { value: v ?? undefined })}
-                    placeholder="值" />
-                  <Button type="text" danger icon={<DeleteOutlined />} size="small" onClick={() => removeCondition(i)} />
-                </div>
-              ))}
-              <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={addCondition}>
-                添加条件
-              </Button>
-              {conditionRows.length === 0 && (
-                <div className="text-sm text-slate-400 mt-1">未设置条件，表示所有情况都匹配</div>
+              {fieldsForBiz(bizType).length === 0 ? (
+                <div className="text-sm text-slate-400">该业务类型暂无可配置的触发字段，审批将对所有提交生效</div>
+              ) : (
+                <>
+                  {conditionRows.map((row, i) => {
+                    const def = getFieldDef(bizType, row.field)
+                    return (
+                      <div key={i} className="flex items-center gap-2 mb-2">
+                        <Select className="w-32" value={row.field}
+                          onChange={v => {
+                            const newDef = getFieldDef(bizType, v)
+                            const validOps = opsForField(newDef).map(o => o.value)
+                            const nextOp = validOps.includes(row.operator) ? row.operator : validOps[0]
+                            updateCondition(i, { field: v, operator: nextOp, value: undefined })
+                          }}
+                          options={fieldsForBiz(bizType).map(f => ({ value: f.value, label: f.label }))} />
+                        <Select className="w-24" value={row.operator}
+                          onChange={v => updateCondition(i, { operator: v })}
+                          options={opsForField(def)} />
+                        {def?.type === 'enum' ? (
+                          <Select className="w-40" value={typeof row.value === 'string' ? row.value : undefined}
+                            onChange={v => updateCondition(i, { value: v })}
+                            placeholder="值" options={def.options} />
+                        ) : (
+                          <InputNumber className="w-32" value={typeof row.value === 'number' ? row.value : undefined}
+                            onChange={v => updateCondition(i, { value: v ?? undefined })} placeholder="值" />
+                        )}
+                        <Button type="text" danger icon={<DeleteOutlined />} size="small" onClick={() => removeCondition(i)} />
+                      </div>
+                    )
+                  })}
+                  <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={addCondition}>
+                    添加条件
+                  </Button>
+                  {conditionRows.length === 0 && (
+                    <div className="text-sm text-slate-400 mt-1">未设置条件，表示所有情况都匹配</div>
+                  )}
+                </>
               )}
             </div>
 

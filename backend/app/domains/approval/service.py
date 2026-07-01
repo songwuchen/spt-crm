@@ -88,30 +88,80 @@ async def _check_margin_redline(db: AsyncSession, tenant_id: str, biz_type: str,
     return None
 
 
-async def _resolve_policy_approvers(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str) -> tuple[list[str], list[str], str] | None:
-    """Try to resolve approvers from approval_policies table. Returns (ids, names, mode) or None."""
+def _safe_float(v) -> float | None:
+    if v is None:
+        return None
     try:
-        from app.domains.admin.service import match_approval_policy
-        context: dict = {}
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+async def _build_policy_context(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str) -> dict:
+    """Build the field context used to match approval policy conditions.
+
+    Each business type exposes the fields that make sense for it (see the
+    frontend FIELD_CATALOG). Keep the field names here in sync with that catalog
+    so a condition configured in the UI can actually be evaluated.
+    """
+    context: dict = {}
+    try:
         if biz_type == "quote_version":
             from app.domains.quote.models import QuoteVersion
             ver = (await db.execute(
                 select(QuoteVersion).where(QuoteVersion.id == biz_id, QuoteVersion.tenant_id == tenant_id)
             )).scalar_one_or_none()
             if ver:
-                context["margin_rate"] = float(ver.margin_rate) if ver.margin_rate is not None else None
-                context["amount"] = float(ver.price_total) if ver.price_total is not None else None
+                context["amount"] = _safe_float(ver.price_total)
+                context["margin_rate"] = _safe_float(ver.margin_rate)
+                context["discount_total"] = _safe_float(ver.discount_total)
         elif biz_type == "contract_version":
             from app.domains.contract.models import ContractVersion, Contract
             ver = (await db.execute(
                 select(ContractVersion).where(ContractVersion.id == biz_id, ContractVersion.tenant_id == tenant_id)
             )).scalar_one_or_none()
             if ver:
+                context["risk_level"] = ver.risk_level
                 c = (await db.execute(
                     select(Contract).where(Contract.id == ver.contract_id, Contract.tenant_id == tenant_id)
                 )).scalar_one_or_none()
                 if c:
-                    context["amount"] = float(c.amount_total) if c.amount_total is not None else None
+                    context["amount"] = _safe_float(c.amount_total)
+        elif biz_type == "change_request":
+            from app.domains.change.models import ChangeRequest
+            cr = (await db.execute(
+                select(ChangeRequest).where(ChangeRequest.id == biz_id, ChangeRequest.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if cr:
+                context["change_type"] = cr.change_type
+                impact = cr.impact_json if isinstance(cr.impact_json, dict) else {}
+                context["cost_impact"] = _safe_float(impact.get("cost"))
+        elif biz_type == "service_ticket":
+            from app.domains.service_ticket.models import ServiceTicket
+            t = (await db.execute(
+                select(ServiceTicket).where(ServiceTicket.id == biz_id, ServiceTicket.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if t:
+                context["priority"] = t.priority
+                context["type"] = t.type
+        elif biz_type == "order":
+            from app.domains.order.models import Order
+            o = (await db.execute(
+                select(Order).where(Order.id == biz_id, Order.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if o:
+                context["amount"] = _safe_float(o.amount)
+        # solution: no condition fields — always matches (approver-only policy)
+    except Exception as e:
+        logger.warning("Build policy context failed for %s/%s: %s", biz_type, biz_id, e)
+    return context
+
+
+async def _resolve_policy_approvers(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str) -> tuple[list[str], list[str], str] | None:
+    """Try to resolve approvers from approval_policies table. Returns (ids, names, mode) or None."""
+    try:
+        from app.domains.admin.service import match_approval_policy
+        context = await _build_policy_context(db, tenant_id, biz_type, biz_id)
 
         policy = await match_approval_policy(db, tenant_id, biz_type, context)
         if not policy or not policy.approver_rules_json:

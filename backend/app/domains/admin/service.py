@@ -288,32 +288,57 @@ async def match_approval_policy(db: AsyncSession, tenant_id: str, biz_type: str,
     return None
 
 
+_NUMERIC_OPS = ("gte", "lte", "gt", "lt")
+
+
 def _match_conditions(condition_json: dict | None, context: dict) -> bool:
-    """Check if context matches the policy conditions."""
-    if not condition_json:
+    """Check if context matches the policy conditions (AND across all keys).
+
+    Keys are `<field>_<op>` where op is one of gt/gte/lt/lte/eq/ne.
+    Numeric ops (gt/gte/lt/lte) require the field to be present and numeric.
+    eq/ne compare as strings, so they work for enum/text fields.
+    A bare `<field>` key (no op suffix) is treated as loose exact match for
+    backward compatibility. Referencing a field the context can't supply
+    (numeric ops or eq) fails to match, so a policy never triggers on data it
+    can't evaluate.
+    """
+    if not condition_json or not isinstance(condition_json, dict):
         return True  # No conditions = always match
     for key, value in condition_json.items():
-        if key.endswith("_lt"):
-            field = key[:-3]
-            if field in context and context[field] is not None:
-                if float(context[field]) >= float(value):
-                    return False
-            else:
+        op = None
+        field = key
+        for suffix in ("gte", "lte", "gt", "lt", "eq", "ne"):
+            if key.endswith("_" + suffix):
+                op = suffix
+                field = key[: -(len(suffix) + 1)]
+                break
+
+        actual = context.get(field)
+
+        if op in _NUMERIC_OPS:
+            if actual is None:
                 return False
-        elif key.endswith("_gt"):
-            field = key[:-3]
-            if field in context and context[field] is not None:
-                if float(context[field]) <= float(value):
-                    return False
-            else:
+            try:
+                a, b = float(actual), float(value)
+            except (TypeError, ValueError):
                 return False
-        elif key.endswith("_eq"):
-            field = key[:-3]
-            if field in context and str(context[field]) != str(value):
+            if op == "gt" and not (a > b):
+                return False
+            if op == "gte" and not (a >= b):
+                return False
+            if op == "lt" and not (a < b):
+                return False
+            if op == "lte" and not (a <= b):
+                return False
+        elif op == "eq":
+            if actual is None or str(actual) != str(value):
+                return False
+        elif op == "ne":
+            if actual is not None and str(actual) == str(value):
                 return False
         else:
-            # Exact match
-            if key in context and str(context[key]) != str(value):
+            # Bare key: loose exact match (absent field passes)
+            if actual is not None and str(actual) != str(value):
                 return False
     return True
 
