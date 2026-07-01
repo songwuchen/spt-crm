@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button, Table, Tag, Space, Modal, Form, Input, Select, Tabs, InputNumber, DatePicker, message } from 'antd'
-import { PlusOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons'
+import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
+import ImportModal from '@/components/ImportModal'
 import { serviceTicketApi } from '@/api/serviceTicket'
-import { orderApi } from '@/api/order'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
 import type { ServiceTicketItem, RenewalItem } from '@/api/types'
 
@@ -38,6 +38,7 @@ export default function ServiceTicketList() {
   const [reload, setReload] = useState(0)
   const didMount = useRef(false)
   const [createModal, setCreateModal] = useState(false)
+  const [importModal, setImportModal] = useState(false)
   const [form, setForm] = useState<Record<string, any>>({ type: 'fault', priority: 'medium', description: '' })
   const customerSelect = useCustomerSelect()
 
@@ -47,7 +48,9 @@ export default function ServiceTicketList() {
   const searchOrders = async (kw?: string, customerId?: string) => {
     setOrderLoading(true)
     try {
-      const r = await orderApi.list({ pageNo: 1, pageSize: 20, keyword: kw || undefined, customer_id: customerId || undefined }) as any
+      // 走售后专用的 order_options 端点（service 权限即可），修复 issue #85：
+      // 原先直接调订单列表需 order:view，售后/无订单权限的角色会报「缺少权限」
+      const r = await serviceTicketApi.orderOptions({ keyword: kw || undefined, customer_id: customerId || undefined }) as any
       setOrderOpts((r.data?.items || []).map((o: any) => ({ label: `${o.order_no}${o.title ? ' · ' + o.title : ''}`, value: o.id })))
     } catch { /* ignore */ } finally { setOrderLoading(false) }
   }
@@ -308,6 +311,7 @@ export default function ServiceTicketList() {
                         {t('service.batchAssign', { count: selectedTicketKeys.length })}
                       </Button>
                     )}
+                    <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>{t('common.import')}</Button>
                     <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/service_tickets/export/excel', 'service_tickets.xlsx')}>{t('common.export')}</Button>
                     <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{t('service.createTicket')}</Button>
                   </Space>
@@ -364,6 +368,18 @@ export default function ServiceTicketList() {
           },
         ]} />
       </div>
+
+      {/* Import Modal */}
+      <ImportModal
+        open={importModal}
+        onClose={() => setImportModal(false)}
+        onSuccess={() => fetchTickets()}
+        previewUrl="/api/v1/service_tickets/import/preview"
+        importUrl="/api/v1/service_tickets/import/excel"
+        templateUrl="/api/v1/service_tickets/import/template"
+        title="导入售后工单"
+        expectedHeaders={['工单类型', '优先级', '关联客户', '关联订单号', '负责人', '问题描述']}
+      />
 
       {/* Create Ticket Modal */}
       <Modal title={t('service.createTicketTitle')} open={createModal} onOk={handleCreate} onCancel={() => setCreateModal(false)} width={500}>

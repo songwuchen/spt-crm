@@ -1,17 +1,29 @@
-from fastapi import APIRouter, Depends, Query
+import io
+
+from fastapi import APIRouter, Depends, Query, UploadFile, File
+from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
-from app.common.export import build_excel, excel_response
+from app.common.export import build_excel, build_template, excel_response
 from app.domains.service_ticket import service
 from app.domains.service_ticket.schemas import (
     ServiceTicketCreate, ServiceTicketUpdate, RenewalCreate, RenewalUpdate,
 )
+from app.domains.order import service as order_service
 from app.domains.customer.models import Customer
 
 router = APIRouter(tags=["售后管理"])
+
+# 工单类型 / 优先级：code <-> 中文标签（与前端 constants/labels 保持一致），供导入解析用
+TYPE_LABELS = {"fault": "故障", "maintenance": "维保", "training": "培训", "spare": "备件", "upgrade": "升级改造"}
+PRIORITY_LABELS = {"low": "低", "medium": "中", "high": "高", "critical": "紧急"}
+_TYPE_BY_LABEL = {v: k for k, v in TYPE_LABELS.items()}
+_PRIORITY_BY_LABEL = {v: k for k, v in PRIORITY_LABELS.items()}
+# 导入列（顺序即模板列顺序）
+IMPORT_HEADERS = ["工单类型", "优先级", "关联客户", "关联订单号", "负责人", "问题描述"]
 
 
 def _ticket_dict(t) -> dict:
@@ -72,6 +84,136 @@ async def export_tickets_excel(
         ])
     buf = build_excel("售后工单", headers, rows)
     return excel_response(buf, "service_tickets.xlsx")
+
+
+# --- 关联订单下拉（售后专用轻量查询，issue #85）---
+# 独立于订单模块：用 service 权限鉴权，售后角色即使没有 order:view 也能在新建工单时
+# 按客户/关键字挑选要关联的订单（原先前端直接调 /api/v1/orders 需 order:view，导致缺权限报错）。
+
+@router.get("/api/v1/service_tickets/order_options")
+async def order_options_for_ticket(
+    customer_id: str | None = Query(None),
+    keyword: str | None = Query(None),
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("service:view")),
+):
+    items, _ = await order_service.list_orders(
+        db, tenant_id, page_no=1, page_size=20,
+        customer_id=customer_id or None, keyword=keyword or None)
+    return ok({"items": [{"id": o.id, "order_no": o.order_no, "title": o.title} for o in items]})
+
+
+# --- 导入（含模板下载，issue #85）---
+
+@router.get("/api/v1/service_tickets/import/template")
+async def download_ticket_import_template(
+    _user=Depends(require_permissions("service:create")),
+):
+    """下载售后工单导入模板。"""
+    sample = [["故障", "高", "示例客户A", "", "张三", "设备无法启动，请尽快处理"]]
+    buf = build_template("售后工单导入模板", IMPORT_HEADERS, sample)
+    return excel_response(buf, "service_ticket_import_template.xlsx")
+
+
+def _read_import_rows(content: bytes, filename: str) -> list[tuple]:
+    """解析上传的 .xlsx/.csv，返回含表头的行列表。"""
+    if (filename or "").lower().endswith(".csv"):
+        import csv as csv_mod
+        return [tuple(r) for r in csv_mod.reader(content.decode("utf-8-sig").splitlines())]
+    wb = load_workbook(io.BytesIO(content), read_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+    return rows
+
+
+@router.post("/api/v1/service_tickets/import/preview")
+async def import_tickets_preview(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("service:create")),
+):
+    """解析导入文件并返回表头 + 行 + 校验错误（工单无唯一键，故不做重复检测）。"""
+    all_rows = _read_import_rows(await file.read(), file.filename or "")
+    if not all_rows:
+        return ok({"headers": [], "rows": [], "duplicates": [], "errors": {}})
+    headers = [str(c).strip() if c else f"列{i+1}" for i, c in enumerate(all_rows[0])]
+    data_rows: list[list[str]] = []
+    for row in all_rows[1:]:
+        if not row or not any(row):
+            continue
+        cells = [str(c).strip() if c is not None else "" for c in row]
+        while len(cells) < len(headers):
+            cells.append("")
+        data_rows.append(cells[:len(headers)])
+    errors: dict[int, str] = {}
+    for i, row in enumerate(data_rows):
+        if len(row) < 6 or not row[5].strip():
+            errors[i] = "问题描述不能为空"
+    return ok({"headers": headers, "rows": data_rows, "duplicates": [], "errors": errors})
+
+
+@router.post("/api/v1/service_tickets/import/excel")
+async def import_tickets_excel(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("service:create")),
+):
+    """导入售后工单。列：工单类型, 优先级, 关联客户, 关联订单号, 负责人, 问题描述。
+    类型/优先级支持中文或英文 code；客户/订单/负责人按名称匹配，匹配不到则留空不报错。"""
+    from app.domains.order.models import Order
+    from app.domains.auth.models import User as AuthUser
+
+    all_rows = _read_import_rows(await file.read(), file.filename or "")
+    if len(all_rows) < 2:
+        return ok({"created": 0, "skipped": 0, "errors": []})
+
+    created = 0
+    errors: list[str] = []
+    for idx, row in enumerate(all_rows[1:], 2):
+        if not row or not any(row):
+            continue
+        cells = [str(c).strip() if c is not None else "" for c in row]
+
+        def cell(i: int) -> str:
+            return cells[i] if i < len(cells) else ""
+
+        desc = cell(5)
+        if not desc:
+            errors.append(f"第{idx}行: 问题描述不能为空")
+            continue
+        try:
+            type_code = _TYPE_BY_LABEL.get(cell(0)) or (cell(0) if cell(0) in TYPE_LABELS else "fault")
+            prio_code = _PRIORITY_BY_LABEL.get(cell(1)) or (cell(1) if cell(1) in PRIORITY_LABELS else "medium")
+            customer_id = None
+            if cell(2):
+                cust = (await db.execute(select(Customer).where(
+                    Customer.tenant_id == tenant_id, Customer.name == cell(2),
+                    Customer.is_deleted == False))).scalars().first()
+                customer_id = cust.id if cust else None
+            order_id = None
+            if cell(3):
+                order = (await db.execute(select(Order).where(
+                    Order.tenant_id == tenant_id, Order.order_no == cell(3),
+                    Order.is_deleted == False))).scalars().first()
+                order_id = order.id if order else None
+            assigned_to_id = assigned_to_name = None
+            if cell(4):
+                u = (await db.execute(select(AuthUser).where(
+                    AuthUser.tenant_id == tenant_id,
+                    (AuthUser.real_name == cell(4)) | (AuthUser.username == cell(4))))).scalars().first()
+                if u:
+                    assigned_to_id, assigned_to_name = u.id, (u.real_name or u.username)
+            body = ServiceTicketCreate(
+                type=type_code, priority=prio_code, description=desc,
+                customer_id=customer_id, order_id=order_id,
+                assigned_to_id=assigned_to_id, assigned_to_name=assigned_to_name,
+            )
+            await service.create_ticket(db, tenant_id, body, current_user)
+            created += 1
+        except Exception as e:
+            errors.append(f"第{idx}行: {str(e)[:80]}")
+    return ok({"created": created, "skipped": 0, "errors": errors})
 
 
 # --- ServiceTicket ---

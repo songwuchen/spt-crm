@@ -8,6 +8,10 @@ export const serviceTicketApi = {
     client.post<unknown, ApiResponse<ServiceTicketItem>>('/api/v1/service_tickets', data),
   get: (id: string) =>
     client.get<unknown, ApiResponse<ServiceTicketItem>>(`/api/v1/service_tickets/${id}`),
+  // 关联订单下拉（售后专用，无需 order:view 权限）
+  orderOptions: (params?: { customer_id?: string; keyword?: string }) =>
+    client.get<unknown, ApiResponse<{ items: { id: string; order_no: string; title?: string }[] }>>(
+      '/api/v1/service_tickets/order_options', { params }),
   update: (id: string, data: Record<string, unknown>) =>
     client.put<unknown, ApiResponse<ServiceTicketItem>>(`/api/v1/service_tickets/${id}`, data),
   delete: (id: string) =>
