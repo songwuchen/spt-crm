@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Button, Select, Table, Modal, Form, Input, InputNumber, Tag, Space, Descriptions, message, Timeline, Tabs, Progress, Spin } from 'antd'
-import { PlusOutlined, CopyOutlined, SwapOutlined, CameraOutlined, HistoryOutlined, AuditOutlined, FileProtectOutlined, SendOutlined, RobotOutlined, FilePdfOutlined, PrinterOutlined } from '@ant-design/icons'
+import { Button, Select, Table, Modal, Form, Input, InputNumber, DatePicker, Tag, Space, Descriptions, message, Timeline, Tabs, Progress, Spin } from 'antd'
+import { PlusOutlined, CopyOutlined, SwapOutlined, CameraOutlined, HistoryOutlined, AuditOutlined, FileProtectOutlined, SendOutlined, RobotOutlined, FilePdfOutlined, PrinterOutlined, EditOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
+import dayjs from 'dayjs'
 import { quoteApi } from '@/api/quote'
 import { downloadFile } from '@/utils/download'
 import { productApi } from '@/api/product'
@@ -44,6 +45,11 @@ export default function QuoteDetail() {
   const [lineModal, setLineModal] = useState(false)
   const [editingLine, setEditingLine] = useState<QuoteLine | null>(null)
   const [form] = Form.useForm()
+
+  // Version header edit (税率/折扣/交期/有效期/标题) — issue #87
+  const [versionEditModal, setVersionEditModal] = useState(false)
+  const [versionForm] = Form.useForm()
+  const [versionSaving, setVersionSaving] = useState(false)
 
   // Version comparison
   const [compareModal, setCompareModal] = useState(false)
@@ -142,6 +148,123 @@ export default function QuoteDetail() {
     await quoteApi.newVersion(qid!)
     message.success('新版本已创建')
     fetchQuote()
+  }
+
+  const openVersionEdit = () => {
+    if (!currentVersion) return
+    versionForm.setFieldsValue({
+      title: currentVersion.title,
+      // 后端以小数存储税率(0.13)，界面按百分比(13)编辑
+      tax_rate_pct: currentVersion.tax_rate != null ? Number((Number(currentVersion.tax_rate) * 100).toFixed(2)) : undefined,
+      // 折扣对无权限用户会被脱敏为 "***"，此时留空避免把脱敏串塞进数字输入框
+      discount_total: isMasked(currentVersion.discount_total) ? undefined : (currentVersion.discount_total ?? undefined),
+      delivery_promise_date: currentVersion.delivery_promise_date ? dayjs(currentVersion.delivery_promise_date) : undefined,
+      validity_days: currentVersion.validity_days ?? undefined,
+    })
+    setVersionEditModal(true)
+  }
+
+  const handleVersionEditSubmit = async () => {
+    const values = await versionForm.validateFields()
+    setVersionSaving(true)
+    try {
+      await quoteApi.updateVersion(selectedVersionId, {
+        title: values.title,
+        tax_rate: values.tax_rate_pct != null ? Number(values.tax_rate_pct) / 100 : undefined,
+        discount_total: values.discount_total,
+        delivery_promise_date: values.delivery_promise_date
+          ? (values.delivery_promise_date as dayjs.Dayjs).format('YYYY-MM-DD')
+          : undefined,
+        validity_days: values.validity_days,
+      })
+      message.success('报价信息已更新')
+      setVersionEditModal(false)
+      // 同步版本下拉里的标题，避免仍显示旧标题
+      setVersions((prev) => prev.map((ver) => ver.id === selectedVersionId ? { ...ver, title: values.title } : ver))
+      // 税额/毛利率由后端重算，刷新当前版本以显示最新值
+      await fetchVersion(selectedVersionId)
+    } finally {
+      setVersionSaving(false)
+    }
+  }
+
+  // 打印报价单：渲染一份规范的报价单文档并打印，而非截屏当前页面 (issue #89)
+  const handlePrint = () => {
+    if (!quote || !currentVersion) { message.warning('报价信息未加载'); return }
+    const v = currentVersion
+    const esc = (val: unknown): string =>
+      String(val ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
+    const money = (val: unknown): string =>
+      val == null ? '-' : `¥${Number(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+    const rowsHtml = lines.map((l) => `
+      <tr>
+        <td class="c">${esc(l.line_no)}</td>
+        <td>${esc(l.item_type ? (itemTypeLabels[l.item_type] || l.item_type) : '')}</td>
+        <td>${esc(l.item_code || '')}</td>
+        <td class="name">${esc(l.item_name || '')}</td>
+        <td>${esc(l.spec || '')}</td>
+        <td class="r">${l.qty != null ? esc(l.qty) : ''}</td>
+        <td class="c">${esc(l.unit || '')}</td>
+        <td class="r">${l.unit_price != null ? money(l.unit_price) : ''}</td>
+        <td class="r">${l.line_total != null ? money(l.line_total) : ''}</td>
+      </tr>`).join('')
+
+    const meta: [string, string][] = [
+      ['版本', `V${esc(v.version_no)}${v.title ? ` · ${esc(v.title)}` : ''}`],
+      ['状态', esc(quote.status)],
+      ['总价', money(v.price_total)],
+      ['税率', v.tax_rate != null ? `${(Number(v.tax_rate) * 100).toFixed(1)}%` : '-'],
+      ['税额', v.tax_total != null ? money(v.tax_total) : '-'],
+      ['折扣', esc(fmtMoney(v.discount_total))],
+      ['交期承诺', esc(v.delivery_promise_date || '-')],
+      ['有效天数', v.validity_days != null ? `${esc(v.validity_days)} 天` : '-'],
+      ['创建人', esc(quote.created_by_name || '-')],
+      ['打印时间', new Date().toLocaleString('zh-CN')],
+    ]
+    const metaHtml = meta.map(([k, val]) => `<div class="m"><span class="mk">${k}</span><span class="mv">${val}</span></div>`).join('')
+
+    const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>报价单 ${esc(quote.quote_no)}</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { font-family: -apple-system,"Microsoft YaHei","PingFang SC",sans-serif; color: #1e293b; margin: 32px; font-size: 12px; }
+      h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: 2px; }
+      .no { color: #475569; font-size: 13px; margin-bottom: 16px; }
+      .meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 32px; margin-bottom: 20px; }
+      .m { display: flex; justify-content: space-between; border-bottom: 1px dotted #cbd5e1; padding: 4px 0; }
+      .mk { color: #64748b; } .mv { font-weight: 600; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
+      th { background: #334155; color: #fff; font-weight: 600; }
+      td.r { text-align: right; } td.c { text-align: center; }
+      td.name { font-weight: 600; }
+      tbody tr:nth-child(even) { background: #f8fafc; }
+      .total { text-align: right; font-size: 15px; font-weight: 700; margin-top: 14px; }
+      .foot { margin-top: 28px; color: #94a3b8; font-size: 11px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+      @page { margin: 16mm; }
+    </style></head><body>
+      <h1>报价单</h1>
+      <div class="no">单号：${esc(quote.quote_no)}</div>
+      <div class="meta">${metaHtml}</div>
+      <table>
+        <thead><tr>
+          <th>#</th><th>类型</th><th>编码</th><th>品名</th><th>规格</th><th>数量</th><th>单位</th><th>单价</th><th>行合计</th>
+        </tr></thead>
+        <tbody>${rowsHtml || '<tr><td colspan="9" style="text-align:center;color:#94a3b8">暂无行项目</td></tr>'}</tbody>
+      </table>
+      <div class="total">合计金额：${money(v.price_total)}</div>
+      <div class="foot">本报价单由系统生成 · ${esc(quote.quote_no)}</div>
+    </body></html>`
+
+    const iframe = document.createElement('iframe')
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
+    iframe.onload = () => {
+      const win = iframe.contentWindow
+      if (win) { win.focus(); win.print() }
+      setTimeout(() => { if (iframe.parentNode) document.body.removeChild(iframe) }, 1000)
+    }
+    document.body.appendChild(iframe)
+    iframe.srcdoc = html
   }
 
   const handleCompare = async () => {
@@ -339,7 +462,7 @@ export default function QuoteDetail() {
             downloadFile(`/api/v1/quotes/${qid}/export/pdf${versionParam}`, `quote_${quote?.quote_no || ''}.pdf`)
           }}>导出PDF</Button>
           <Button icon={<HistoryOutlined />} onClick={openSnapshotModal}>成本快照</Button>
-          <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
+          <Button icon={<PrinterOutlined />} onClick={handlePrint}>打印</Button>
           <Button onClick={() => navigate(`/opportunities/${projectId}`)}>返回商机</Button>
         </Space>
       </div>
@@ -357,6 +480,7 @@ export default function QuoteDetail() {
             />
           </div>
           <Space>
+            <Button icon={<EditOutlined />} onClick={openVersionEdit} size="small" disabled={!currentVersion}>编辑信息</Button>
             <Button icon={<CameraOutlined />} onClick={() => { snapshotForm.resetFields(); setSnapshotCreateModal(true) }} size="small">保存快照</Button>
             <Button icon={<CopyOutlined />} onClick={handleNewVersion}>创建新版本</Button>
           </Space>
@@ -606,6 +730,32 @@ export default function QuoteDetail() {
               )
             }}
           </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Version Header Edit Modal — 税率/折扣/交期/有效期/标题 (issue #87) */}
+      <Modal title="编辑报价信息" open={versionEditModal} onOk={handleVersionEditSubmit}
+        onCancel={() => setVersionEditModal(false)} confirmLoading={versionSaving} width={560}>
+        <Form form={versionForm} layout="vertical">
+          <Form.Item name="title" label="版本标题">
+            <Input placeholder="如：初版报价 / 调整后报价" maxLength={200} />
+          </Form.Item>
+          <div className="grid grid-cols-2 gap-4">
+            <Form.Item name="tax_rate_pct" label="税率" extra="税额将按 总价 × 税率 自动重算">
+              <InputNumber className="w-full" min={0} max={100} precision={2} addonAfter="%" placeholder="如 13" />
+            </Form.Item>
+            <Form.Item name="discount_total" label="折扣金额">
+              <InputNumber className="w-full" min={0} precision={2} addonBefore="¥" placeholder="0.00" />
+            </Form.Item>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Form.Item name="delivery_promise_date" label="交期承诺">
+              <DatePicker className="w-full" placeholder="请选择交期" />
+            </Form.Item>
+            <Form.Item name="validity_days" label="有效天数">
+              <InputNumber className="w-full" min={1} max={365} precision={0} addonAfter="天" placeholder="如 30" />
+            </Form.Item>
+          </div>
         </Form>
       </Modal>
 

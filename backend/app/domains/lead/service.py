@@ -10,7 +10,7 @@ from app.common.error_codes import NOT_FOUND, LEAD_ALREADY_QUALIFIED, LEAD_ALREA
 from app.common.code_generator import generate_code
 from app.domains.lead.models import Lead, LeadProduct
 from app.domains.lead.schemas import LeadCreate, LeadUpdate
-from app.domains.customer.models import Customer
+from app.domains.customer.models import Customer, Contact
 from app.domains.audit.service import log_action
 
 logger = logging.getLogger("spt_crm.lead")
@@ -234,6 +234,22 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         source=lead.source, owner_id=lead.owner_id, owner_name=lead.owner_name,
     )
     db.add(customer)
+
+    # Carry the lead's contact person over to the new customer so sales keeps
+    # the person (and their phone/email) after conversion — otherwise the
+    # converted customer has no contacts. (issue #90)
+    contact_name = (lead.contact_name or "").strip()
+    contact_phone = (lead.contact_phone or "").strip()
+    contact_email = (lead.contact_email or "").strip()
+    if contact_name or contact_phone or contact_email:
+        db.add(Contact(
+            id=generate_uuid(), tenant_id=tenant_id,
+            customer_id=customer.id,
+            name=contact_name or contact_phone or contact_email,
+            mobile=contact_phone or None,
+            email=contact_email or None,
+            is_primary=True,
+        ))
 
     lead.status = "qualified"
     lead.converted_customer_id = customer.id

@@ -8,7 +8,11 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# Try to register a CJK font for Chinese text
+# Register a CJK font so Chinese text renders instead of "乱码".
+# 1) Prefer an embeddable system TTF/TTC when present (best fidelity, works in every viewer).
+# 2) Fall back to reportlab's bundled Adobe CID font, which renders CJK WITHOUT any system
+#    font file — essential on the slim Linux prod image (python:3.12-slim ships no CJK font),
+#    where the old code silently fell back to Helvetica and exported garbled Chinese. (issue #88)
 _font_registered = False
 _font_name = "Helvetica"
 try:
@@ -18,17 +22,31 @@ try:
         "C:/Windows/Fonts/msyh.ttc",     # 微软雅黑
         "C:/Windows/Fonts/simsun.ttc",    # 宋体
         "C:/Windows/Fonts/simhei.ttf",    # 黑体
-        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",   # fonts-wqy-microhei (installed in Dockerfile)
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",     # fonts-wqy-zenhei
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     ]
     for fp in font_paths:
         if os.path.exists(fp):
-            pdfmetrics.registerFont(TTFont("CJK", fp))
-            _font_name = "CJK"
-            _font_registered = True
-            break
+            try:
+                pdfmetrics.registerFont(TTFont("CJK", fp))
+                _font_name = "CJK"
+                _font_registered = True
+                break
+            except Exception:
+                # A specific file failed to parse (e.g. unsupported .ttc index) — keep trying.
+                continue
 except Exception:
     pass
+
+if not _font_registered:
+    try:
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+        _font_name = "STSong-Light"
+        _font_registered = True
+    except Exception:
+        pass
 
 
 def build_quote_pdf(
