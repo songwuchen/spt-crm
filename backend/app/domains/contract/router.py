@@ -81,7 +81,11 @@ async def list_contracts(
     # 与详情保持一致的字段脱敏（避免列表泄露详情已脱敏的字段）
     perms = current_user.get("permissions", [])
     policies = await load_mask_policies(db, tenant_id)
-    rows = apply_field_mask([_contract_dict(c) for c in items], "contract", perms, policies)
+    from app.common.list_enrich import project_names_map
+    name_map = await project_names_map(db, tenant_id, [c.project_id for c in items])
+    rows = apply_field_mask(
+        [{**_contract_dict(c), **(name_map.get(c.project_id) or {})} for c in items],
+        "contract", perms, policies)
     return ok({"items": rows, "total": total})
 
 

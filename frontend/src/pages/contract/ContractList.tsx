@@ -89,6 +89,8 @@ export default function ContractList() {
         <a className="font-mono font-bold text-primary" onClick={() => navigate(`/opportunities/${r.project_id}/contracts/${r.id}`)}>{v}</a>
       ) : <span className="font-mono font-bold text-slate-700">{v}</span>,
     },
+    { title: '商机名称', dataIndex: 'project_name', width: 200, ellipsis: true, render: (v: string) => v || '-' },
+    { title: '客户名称', dataIndex: 'customer_name', width: 180, ellipsis: true, render: (v: string) => v || '-' },
     { title: '状态', dataIndex: 'status', width: 100,
       render: (v: string) => <Tag color={contractStatusColors[v] || 'default'}>{contractStatusLabels[v] || v}</Tag>,
     },

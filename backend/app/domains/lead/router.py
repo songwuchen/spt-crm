@@ -14,8 +14,23 @@ from app.domains.lead import service
 
 router = APIRouter(prefix="/api/v1/leads", tags=["线索管理"])
 
-# 导入列（顺序即模板列顺序）；业务日期/负责人为 issue #84 新增列
-LEAD_IMPORT_HEADERS = ["标题", "公司名称", "联系人", "联系电话", "邮箱", "来源", "行业", "地区", "业务日期", "负责人"]
+# 导入列（顺序即模板列顺序）；与线索列表字段保持一致 (issue #95)：
+# 增加「客户类型」「类别」两列，覆盖列表中可录入的业务字段。
+LEAD_IMPORT_HEADERS = ["标题", "公司名称", "联系人", "联系电话", "邮箱", "来源",
+                       "客户类型", "行业", "类别", "地区", "业务日期", "负责人"]
+
+# 类别列既接受编码(self_reported/distributed)也接受中文标签
+_CATEGORY_BY_LABEL = {
+    "自报": "self_reported", "自拓": "self_reported", "self_reported": "self_reported",
+    "分发": "distributed", "分配": "distributed", "distributed": "distributed",
+}
+
+
+def _norm_category(v):
+    """把类别单元格归一化为编码；无法识别则返回 None（避免整行导入失败）。"""
+    if v is None or str(v).strip() == "":
+        return None
+    return _CATEGORY_BY_LABEL.get(str(v).strip())
 
 
 def _product_dict(p) -> dict:
@@ -90,6 +105,41 @@ async def list_leads(
     return ok({"items": [_lead_dict(l) for l in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
+async def _lead_department_names(db: AsyncSession, tenant_id: str, items) -> dict:
+    """批量取 department_id -> name，供导出回填部门名。"""
+    from sqlalchemy import select
+    from app.domains.organization.models import Department
+    ids = {l.department_id for l in items if l.department_id}
+    if not ids:
+        return {}
+    rows = (await db.execute(select(Department.id, Department.name).where(
+        Department.tenant_id == tenant_id, Department.id.in_(ids)))).all()
+    return {did: name for did, name in rows}
+
+
+async def _lead_products_text(db: AsyncSession, tenant_id: str, items) -> dict:
+    """批量取各线索的产品明细，拼成一段可读文本供导出（一条线索可有多个产品）。"""
+    from sqlalchemy import select
+    from app.domains.lead.models import LeadProduct
+    ids = {l.id for l in items}
+    if not ids:
+        return {}
+    rows = (await db.execute(select(LeadProduct).where(
+        LeadProduct.tenant_id == tenant_id, LeadProduct.lead_id.in_(ids))
+        .order_by(LeadProduct.lead_id, LeadProduct.sort_order))).scalars().all()
+    grouped: dict = {}
+    for p in rows:
+        parts = [p.product_name or ""]
+        if p.product_spec:
+            parts.append(f"({p.product_spec})")
+        if p.quantity is not None:
+            parts.append(f"x{float(p.quantity):g}")
+        if p.remark:
+            parts.append(f"[{p.remark}]")
+        grouped.setdefault(p.lead_id, []).append("".join(parts))
+    return {lid: "; ".join(v) for lid, v in grouped.items()}
+
+
 @router.get("/export/excel")
 async def export_leads_excel(
     keyword: str = Query(None),
@@ -108,10 +158,20 @@ async def export_leads_excel(
         company_name=company_name, start_date=start_date, end_date=end_date,
         current_user=_user,
     )
+    # 导出除列表字段外，补齐详情中「部门/联系人/产品/补充信息」各模块字段 (issue #95)
+    dept_names = await _lead_department_names(db, tenant_id, items)
+    product_texts = await _lead_products_text(db, tenant_id, items)
     headers = [
-        "线索编码", "标题", "公司名称", "联系人", "联系电话", "邮箱",
-        "来源", "类别", "客户类型", "行业", "国别", "国家",
-        "省", "市", "区县", "地区", "负责人", "状态", "评分", "创建时间",
+        # 列表 & 基本信息
+        "线索编码", "标题", "公司名称", "部门", "来源", "类别", "客户类型", "行业",
+        "业务日期", "负责人", "状态", "评分",
+        # 联系人信息
+        "联系人", "联系电话", "邮箱",
+        # 地区
+        "国别", "国家", "省", "市", "区县", "地区",
+        # 产品信息 & 补充信息
+        "产品信息", "预算范围", "需求摘要", "备注",
+        "创建时间",
     ]
     category_label = {"self_reported": "自报", "distributed": "分发"}
     country_label = {"domestic": "国内", "overseas": "国外"}
@@ -119,15 +179,21 @@ async def export_leads_excel(
     for l in items:
         rows.append([
             l.lead_code or "", l.title or "", l.company_name or "",
-            l.contact_name or "", l.contact_phone or "", l.contact_email or "",
+            dept_names.get(l.department_id, "") if l.department_id else "",
             l.source or "",
             category_label.get(l.category or "", l.category or ""),
             l.customer_type or "",
             l.industry or "",
+            str(l.biz_date) if l.biz_date else "",
+            l.owner_name or "", l.status or "", l.score or "",
+            l.contact_name or "", l.contact_phone or "", l.contact_email or "",
             country_label.get(l.country_type or "", l.country_type or ""),
             l.country_name or "",
             l.province or "", l.city or "", l.district or "", l.region or "",
-            l.owner_name or "", l.status or "", l.score or "",
+            product_texts.get(l.id, ""),
+            l.budget_range or "",
+            l.demand_summary or "",
+            l.remark or "",
             l.created_at.strftime("%Y-%m-%d %H:%M") if l.created_at else "",
         ])
     buf = build_excel("线索列表", headers, rows)
@@ -138,10 +204,10 @@ async def export_leads_excel(
 async def download_lead_import_template(
     _user=Depends(require_permissions("lead:create")),
 ):
-    """下载线索导入模板（含业务日期、负责人列，issue #84）。"""
+    """下载线索导入模板（列与线索列表字段保持一致，issue #95）。"""
     sample = [["某某设备采购线索", "示例科技有限公司", "张三", "13800000000",
-               "zhangsan@example.com", "展会", "机械制造", "上海市浦东新区",
-               "2026-07-01", "李四"]]
+               "zhangsan@example.com", "展会", "企业客户", "机械制造", "自报",
+               "上海市浦东新区", "2026-07-01", "李四"]]
     buf = build_template("线索导入模板", LEAD_IMPORT_HEADERS, sample)
     return excel_response(buf, "lead_import_template.xlsx")
 
@@ -177,7 +243,7 @@ async def import_leads_excel(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("lead:create")),
 ):
-    """Import leads from Excel. Columns: 标题, 公司名称, 联系人, 联系电话, 邮箱, 来源, 行业, 地区, 业务日期, 负责人"""
+    """Import leads from Excel. Columns: 标题, 公司名称, 联系人, 联系电话, 邮箱, 来源, 客户类型, 行业, 类别, 地区, 业务日期, 负责人"""
     from app.domains.lead.schemas import LeadCreate
     content = await file.read()
     wb = load_workbook(io.BytesIO(content), read_only=True)
@@ -193,7 +259,7 @@ async def import_leads_excel(
         if not row or not row[0]:
             continue
         try:
-            owner_id = await _resolve_owner_id(db, tenant_id, cell(row, 9))
+            owner_id = await _resolve_owner_id(db, tenant_id, cell(row, 11))
             data = LeadCreate(
                 title=str(row[0]).strip(),
                 # company_name is required; fall back to the title when the column is blank
@@ -202,9 +268,11 @@ async def import_leads_excel(
                 contact_phone=str(row[3]).strip() if cell(row, 3) else None,
                 contact_email=str(row[4]).strip() if cell(row, 4) else None,
                 source=str(row[5]).strip() if cell(row, 5) else "import",
-                industry=str(row[6]).strip() if cell(row, 6) else None,
-                region=str(row[7]).strip() if cell(row, 7) else None,
-                biz_date=_parse_date_cell(cell(row, 8)),
+                customer_type=str(row[6]).strip() if cell(row, 6) else None,
+                industry=str(row[7]).strip() if cell(row, 7) else None,
+                category=_norm_category(cell(row, 8)),
+                region=str(row[9]).strip() if cell(row, 9) else None,
+                biz_date=_parse_date_cell(cell(row, 10)),
                 owner_id=owner_id,
             )
             await service.create_lead(db, tenant_id, data, current_user)

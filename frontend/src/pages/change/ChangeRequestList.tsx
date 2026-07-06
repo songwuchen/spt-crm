@@ -55,6 +55,8 @@ export default function ChangeRequestList() {
         <a className="font-mono font-bold text-primary" onClick={() => navigate(`/opportunities/${r.project_id}`)}>{v}</a>
       ),
     },
+    { title: '商机名称', dataIndex: 'project_name', width: 200, ellipsis: true, render: (v: string) => v || '-' },
+    { title: '客户名称', dataIndex: 'customer_name', width: 180, ellipsis: true, render: (v: string) => v || '-' },
     { title: '类型', dataIndex: 'change_type', width: 110,
       render: (v: string) => <Tag>{changeTypeLabels[v] || v}</Tag>,
     },

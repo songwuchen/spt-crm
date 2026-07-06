@@ -254,9 +254,9 @@ export default function LeadDetail() {
       </div>
 
       {/* Content Grid */}
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Lead Portrait */}
-        <div className="col-span-3 space-y-6">
+        <div className="lg:col-span-3 space-y-6">
           {/* Score Card */}
           <ScoreGauge score={lead.score ?? 0} />
 
@@ -283,7 +283,7 @@ export default function LeadDetail() {
         </div>
 
         {/* Center: Tabs Content */}
-        <div className="col-span-6">
+        <div className="lg:col-span-6">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <Tabs
               activeKey={activeTab}
@@ -358,7 +358,7 @@ export default function LeadDetail() {
         </div>
 
         {/* Right: AI Insights Panel */}
-        <div className="col-span-3">
+        <div className="lg:col-span-3">
           <div className="bg-blue-50/50 rounded-xl border border-blue-100 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-5">
               <span className="material-symbols-outlined text-primary">auto_awesome</span>

@@ -124,7 +124,9 @@ async def list_all_milestones(
     q = q.order_by(order).offset((pageNo - 1) * pageSize).limit(pageSize)
     items = (await db.execute(q)).scalars().all()
     counts = await _ms_attachment_counts(db, tenant_id, [m.id for m in items])
-    return ok({"items": [_ms_dict(m, counts.get(m.id, 0)) for m in items], "total": total})
+    from app.common.list_enrich import project_names_map
+    name_map = await project_names_map(db, tenant_id, [m.project_id for m in items])
+    return ok({"items": [{**_ms_dict(m, counts.get(m.id, 0)), **(name_map.get(m.project_id) or {})} for m in items], "total": total})
 
 
 @router.get("/api/v1/projects/{project_id}/milestones")

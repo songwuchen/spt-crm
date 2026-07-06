@@ -1,15 +1,30 @@
-from fastapi import APIRouter, Depends, Query
+import io
+
+from fastapi import APIRouter, Depends, Query, UploadFile, File
 from fastapi.responses import Response
+from openpyxl import load_workbook
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
+from app.common.export import build_template, excel_response
 from app.common.field_mask import load_mask_policies, apply_field_mask
 from app.domains.quote import service
 from app.domains.quote.schemas import QuoteCreate, QuoteUpdate, QuoteVersionUpdate, QuoteLineCreate, QuoteLineUpdate, CostSnapshotCreate, QuoteSendLogCreate
 
 router = APIRouter(tags=["报价管理"])
+
+# 报价行项目导入列（顺序即模板列顺序）
+QUOTE_LINE_IMPORT_HEADERS = ["类型", "编码", "品名", "规格", "数量", "单位", "单价", "估计成本", "交期(天)"]
+
+# 类型列既接受编码也接受中文标签
+_ITEM_TYPE_BY_LABEL = {
+    "标准品": "standard", "standard": "standard",
+    "非标品": "nonstandard", "nonstandard": "nonstandard",
+    "服务": "service", "service": "service",
+    "备件": "spare", "spare": "spare",
+}
 
 
 def _quote_dict(q) -> dict:
@@ -106,6 +121,9 @@ async def list_quotes(
         for v in versions:
             cur_by_quote[(v.quote_id, v.version_no)] = v
 
+    from app.common.list_enrich import project_names_map
+    name_map = await project_names_map(db, tenant_id, [x.project_id for x in quotes])
+
     rows = []
     for x in quotes:
         d = _quote_dict(x)
@@ -113,6 +131,7 @@ async def list_quotes(
         d["price_total"] = float(cv.price_total) if cv and cv.price_total is not None else None
         d["margin_rate"] = float(cv.margin_rate) if cv and cv.margin_rate is not None else None
         d["version_status"] = cv.status if cv else None
+        d.update(name_map.get(x.project_id) or {})
         rows.append(d)
 
     perms = current_user.get("permissions", [])
@@ -276,6 +295,82 @@ async def delete_line(
 ):
     await service.delete_line(db, tenant_id, line_id, current_user)
     return ok()
+
+
+@router.get("/api/v1/quote_versions/{version_id}/lines/import/template")
+async def download_quote_line_import_template(
+    version_id: str,
+    _user=Depends(require_permissions("quote:edit")),
+):
+    """下载报价行项目导入模板 (issue #93)。"""
+    sample = [["标准品", "PRD-001", "示例产品", "500×300×200", 2, "台", 1500, 1200, 15]]
+    buf = build_template("报价行项目导入模板", QUOTE_LINE_IMPORT_HEADERS, sample)
+    return excel_response(buf, "quote_line_import_template.xlsx")
+
+
+def _num_cell(v):
+    """把单元格转为 float；空/无法解析返回 None。"""
+    if v is None or (isinstance(v, str) and v.strip() == ""):
+        return None
+    try:
+        return float(str(v).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+@router.post("/api/v1/quote_versions/{version_id}/lines/import")
+async def import_quote_lines(
+    version_id: str,
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("quote:edit")),
+):
+    """从 Excel 批量导入报价行项目 (issue #93)。
+    列顺序：类型, 编码, 品名, 规格, 数量, 单位, 单价, 估计成本, 交期(天)。
+    导入前校验版本存在（且属于本租户）。"""
+    # 校验版本存在，避免把行项目挂到不存在/越权的版本上
+    await service.get_version(db, tenant_id, version_id)
+
+    content = await file.read()
+    wb = load_workbook(io.BytesIO(content), read_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(min_row=2, values_only=True))
+    created = 0
+    errors = []
+
+    def cell(row, i):
+        return row[i] if len(row) > i and row[i] not in (None, "") else None
+
+    for idx, row in enumerate(rows, 2):
+        # 跳过完全空行
+        if not row or all(c in (None, "") for c in row):
+            continue
+        try:
+            qty = _num_cell(cell(row, 4))
+            unit_price = _num_cell(cell(row, 6))
+            if qty is None or qty <= 0:
+                raise ValueError("数量必须为正数")
+            if unit_price is None or unit_price < 0:
+                raise ValueError("单价必须为非负数")
+            item_type_raw = cell(row, 0)
+            body = QuoteLineCreate(
+                item_type=_ITEM_TYPE_BY_LABEL.get(str(item_type_raw).strip()) if item_type_raw else None,
+                item_code=str(cell(row, 1)).strip() if cell(row, 1) else None,
+                item_name=str(cell(row, 2)).strip() if cell(row, 2) else None,
+                spec=str(cell(row, 3)).strip() if cell(row, 3) else None,
+                qty=qty,
+                unit=str(cell(row, 5)).strip() if cell(row, 5) else None,
+                unit_price=unit_price,
+                cost_est=_num_cell(cell(row, 7)),
+                leadtime_days=int(_num_cell(cell(row, 8))) if _num_cell(cell(row, 8)) is not None else None,
+            )
+            await service.add_line(db, tenant_id, version_id, body, current_user)
+            created += 1
+        except Exception as e:
+            errors.append(f"第{idx}行: {str(e)[:80]}")
+    wb.close()
+    return ok({"created": created, "skipped": 0, "errors": errors})
 
 
 # --- Version Comparison ---

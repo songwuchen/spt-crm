@@ -269,7 +269,7 @@ export default function OpportunityList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
-        <div className="flex gap-3 flex-wrap items-center">
+        <div className="flex gap-3 flex-wrap items-stretch sm:items-center flex-col sm:flex-row">
           <Input placeholder={t('opportunity.searchPlaceholder')} prefix={<SearchOutlined className="text-slate-400" />}
             value={keyword} onChange={(e) => setKeyword(e.target.value)} onPressEnter={doSearch}
             allowClear style={{ width: 220, background: '#f1f5f9', borderColor: 'transparent' }} />
@@ -288,7 +288,7 @@ export default function OpportunityList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={view.columns} dataSource={data} loading={loading} scroll={{ x: 1200 }}
+        <Table rowKey="id" columns={view.columns} dataSource={data} loading={loading} scroll={{ x: 'max-content' }}
           rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys) }}
           pagination={{
             current: pageNo, total, pageSize, showTotal: (n) => t('common.totalCount', { count: n }),

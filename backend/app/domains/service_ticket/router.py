@@ -235,7 +235,15 @@ async def list_tickets(
         page=pageNo, page_size=pageSize,
         current_user=_user, adv_filter=filter, sort_by=sort_by, sort_order=sort_order,
     )
-    return ok({"items": [_ticket_dict(t) for t in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+    from app.common.list_enrich import customer_names_map, order_names_map
+    cust_names = await customer_names_map(db, tenant_id, [t.customer_id for t in items])
+    order_names = await order_names_map(db, tenant_id, [t.order_id for t in items])
+    rows = [{
+        **_ticket_dict(t),
+        "customer_name": cust_names.get(t.customer_id),
+        "order_name": order_names.get(t.order_id),
+    } for t in items]
+    return ok({"items": rows, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.post("/api/v1/service_tickets")

@@ -1450,6 +1450,7 @@ export default function SettingsPage() {
 // ==================== Data Dictionary Tab ====================
 const DICT_TYPES = [
   { value: 'industry', label: '行业' },
+  { value: 'customer_type', label: '客户类型' },
   { value: 'customer_source', label: '客户来源' },
   { value: 'customer_level', label: '客户等级' },
   { value: 'scale_level', label: '企业规模' },
@@ -1598,8 +1599,16 @@ function DataDictTab() {
   useEffect(() => { fetch() }, [filterType])
 
   const handleSave = async () => {
+    const code = (form.dict_code || '').trim()
+    const label = (form.dict_label || '').trim()
+    if (!code) { message.error('请填写编码（编码不能为空，否则下拉选项会互相冲突）'); return }
+    if (!label) { message.error('请填写标签'); return }
+    // Prevent duplicate codes within the same dict type — duplicates make the
+    // Select unable to tell options apart (issue #96).
+    const dup = items.find((it) => it.id !== editId && it.dict_type === form.dict_type && (it.dict_code || '').trim() === code)
+    if (dup) { message.error(`编码「${code}」在该字典类型下已存在`); return }
     try {
-      const payload = { ...form, color: form.color || null }
+      const payload = { ...form, dict_code: code, dict_label: label, color: form.color || null }
       if (editId) {
         await settingsApi.updateDataDict(editId, payload)
         message.success('已更新')
@@ -1627,7 +1636,7 @@ function DataDictTab() {
   return (
     <div className="pb-6">
       <div className="flex items-center gap-3 mb-3">
-        <Select allowClear placeholder="选择字典类型" value={filterType} onChange={setFilterType}
+        <Select allowClear showSearch optionFilterProp="label" placeholder="选择字典类型" value={filterType} onChange={setFilterType}
           options={DICT_TYPES} style={{ width: 180 }} size="small" />
         <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
           setEditId(null)
@@ -1660,11 +1669,11 @@ function DataDictTab() {
         <div className="space-y-4 py-2">
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">字典类型</label>
-            <Select value={form.dict_type} onChange={(v) => setForm({ ...form, dict_type: v })} options={DICT_TYPES} style={{ width: '100%' }} />
+            <Select showSearch optionFilterProp="label" value={form.dict_type} onChange={(v) => setForm({ ...form, dict_type: v })} options={DICT_TYPES} style={{ width: '100%' }} />
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">编码</label>
-            <Input value={form.dict_code} onChange={(e) => setForm({ ...form, dict_code: e.target.value })} placeholder="electronics" />
+            <label className="text-sm font-medium text-slate-700 mb-1 block"><span className="text-red-500">*</span> 编码</label>
+            <Input value={form.dict_code} onChange={(e) => setForm({ ...form, dict_code: e.target.value })} placeholder="electronics（唯一，不能为空）" />
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">标签</label>

@@ -620,9 +620,9 @@ export default function OpportunityDetail() {
       </div>
 
       {/* Content Grid */}
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Profile */}
-        <div className="col-span-3">
+        <div className="lg:col-span-3">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-0">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">项目画像</h3>
             <InfoField label="负责人" value={project.owner_name} />
@@ -790,7 +790,7 @@ export default function OpportunityDetail() {
         </div>
 
         {/* Right: Tabs */}
-        <div className="col-span-9">
+        <div className="lg:col-span-9">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <Tabs defaultActiveKey="solutions" className="px-6 pt-2" items={[
               {

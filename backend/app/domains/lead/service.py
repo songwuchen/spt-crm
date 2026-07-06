@@ -269,11 +269,28 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
             project_code=await generate_code(db, tenant_id, "project"),
             name=lead.title or lead.company_name or "新商机",
             customer_id=customer.id, stage_code="S1",
+            # 直接同步线索与商机重复的字段，避免转化后重复录入 (issue #94)
+            biz_date=lead.biz_date,
             owner_id=lead.owner_id, owner_name=lead.owner_name,
+            created_by_id=user.get("sub"),
+            created_by_name=user.get("real_name") or user.get("username"),
             key_requirements_json={"summary": lead.demand_summary} if lead.demand_summary else None,
             remark="\n".join(remark_parts) or None,
         )
         db.add(project)
+
+        # 同步线索的产品信息子表到商机需求，避免转化后重复录入 (issue #94 / #84)
+        lead_products = await list_lead_products(db, tenant_id, lead.id)
+        if lead_products:
+            product_lines = [{
+                "product_name": p.product_name,
+                "product_spec": p.product_spec,
+                "quantity": float(p.quantity) if p.quantity is not None else None,
+                "remark": p.remark,
+            } for p in lead_products]
+            kr = project.key_requirements_json or {}
+            kr["products"] = product_lines
+            project.key_requirements_json = kr
 
     await db.commit()
     await db.refresh(lead)

@@ -116,6 +116,8 @@ export default function MilestoneList() {
         <a className="font-bold text-primary" onClick={() => navigate(`/opportunities/${r.project_id}`)}>{v}</a>
       ),
     },
+    { title: '商机名称', dataIndex: 'project_name', width: 200, ellipsis: true, render: (v: string) => v || '-' },
+    { title: '客户名称', dataIndex: 'customer_name', width: 180, ellipsis: true, render: (v: string) => v || '-' },
     { title: '状态', dataIndex: 'status', width: 100,
       render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag>,
     },

@@ -66,7 +66,9 @@ async def list_all_change_requests(
     order = resolve_sort("change", sort_by, sort_order, ChangeRequest.created_at.desc())
     q = q.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     items = (await db.execute(q)).scalars().all()
-    return ok({"items": [_cr_dict(c) for c in items], "total": total})
+    from app.common.list_enrich import project_names_map
+    name_map = await project_names_map(db, tenant_id, [c.project_id for c in items])
+    return ok({"items": [{**_cr_dict(c), **(name_map.get(c.project_id) or {})} for c in items], "total": total})
 
 
 @router.get("/api/v1/projects/{project_id}/change_requests")

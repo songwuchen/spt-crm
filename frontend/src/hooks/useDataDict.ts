@@ -25,7 +25,7 @@ export function useDataDict(
   useEffect(() => {
     const cached = cache[dictType]
     if (cached && Date.now() - cached.ts < CACHE_TTL) {
-      const opts = cached.data.map((d) => ({ label: d.dict_label, value: d.dict_code }))
+      const opts = cached.data.map((d) => ({ label: d.dict_label, value: d.dict_code || d.dict_label }))
       setOptions(opts.length > 0 ? opts : fallback || [])
       return
     }
@@ -35,7 +35,7 @@ export function useDataDict(
       .then((r: any) => {
         const items: DictItem[] = (r.data || []).filter((d: any) => d.enabled)
         cache[dictType] = { data: items, ts: Date.now() }
-        const opts = items.map((d) => ({ label: d.dict_label, value: d.dict_code }))
+        const opts = items.map((d) => ({ label: d.dict_label, value: d.dict_code || d.dict_label }))
         setOptions(opts.length > 0 ? opts : fallback || [])
       })
       .catch(() => {

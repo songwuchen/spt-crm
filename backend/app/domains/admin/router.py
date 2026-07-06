@@ -1126,13 +1126,29 @@ async def list_data_dict(
 
 
 class DataDictBody(BaseModel):
-    dict_type: str = Field(..., max_length=64)
-    dict_code: str = Field(..., max_length=64)
-    dict_label: str = Field(..., max_length=200)
+    dict_type: str = Field(..., min_length=1, max_length=64)
+    # A non-empty, unique code per type is required: an empty/duplicated code makes
+    # the frontend <Select> unable to tell options apart, so every selection renders
+    # the last-added label (issue #96).
+    dict_code: str = Field(..., min_length=1, max_length=64)
+    dict_label: str = Field(..., min_length=1, max_length=200)
     sort_order: int = 0
     color: Optional[str] = None
     extra_json: Optional[dict] = None
     enabled: bool = True
+
+
+async def _ensure_dict_code_unique(db, tenant_id: str, dict_type: str, dict_code: str, exclude_id: Optional[str] = None):
+    q = select(DataDictionary).where(
+        DataDictionary.tenant_id == tenant_id,
+        DataDictionary.dict_type == dict_type,
+        DataDictionary.dict_code == dict_code,
+        DataDictionary.is_deleted == False,
+    )
+    if exclude_id:
+        q = q.where(DataDictionary.id != exclude_id)
+    if (await db.execute(q)).scalar_one_or_none():
+        raise BusinessException(code=400, message=f"编码「{dict_code}」在该字典类型下已存在")
 
 
 @router.post("/api/v1/data-dict")
@@ -1142,10 +1158,12 @@ async def create_data_dict(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:manage")),
 ):
+    code = body.dict_code.strip()
+    await _ensure_dict_code_unique(db, tenant_id, body.dict_type, code)
     item = DataDictionary(
         id=gen_id(), tenant_id=tenant_id,
-        dict_type=body.dict_type, dict_code=body.dict_code,
-        dict_label=body.dict_label, sort_order=body.sort_order,
+        dict_type=body.dict_type, dict_code=code,
+        dict_label=body.dict_label.strip(), sort_order=body.sort_order,
         color=body.color, extra_json=body.extra_json, enabled=body.enabled,
     )
     db.add(item)
@@ -1166,7 +1184,12 @@ async def update_data_dict(
     )).scalar_one_or_none()
     if not item:
         raise BusinessException(code=404, message="字典项不存在")
-    for k in ("dict_type", "dict_code", "dict_label", "sort_order", "color", "extra_json", "enabled"):
+    code = body.dict_code.strip()
+    await _ensure_dict_code_unique(db, tenant_id, body.dict_type, code, exclude_id=item_id)
+    item.dict_type = body.dict_type
+    item.dict_code = code
+    item.dict_label = body.dict_label.strip()
+    for k in ("sort_order", "color", "extra_json", "enabled"):
         setattr(item, k, getattr(body, k))
     await db.commit()
     return ok(None)

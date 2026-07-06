@@ -116,6 +116,8 @@ export default function ServiceTicketList() {
     { title: t('service.ticketNo'), dataIndex: 'ticket_no', render: (v: string, r: ServiceTicketItem) => (
       <a className="font-mono font-bold text-primary cursor-pointer" onClick={() => navigate(`/service-tickets/${r.id}`)}>{v}</a>
     )},
+    { title: '客户名称', dataIndex: 'customer_name', ellipsis: true, render: (v: string) => v || '-' },
+    { title: '订单名称', dataIndex: 'order_name', ellipsis: true, render: (v: string) => v || '-' },
     { title: t('service.type'), dataIndex: 'type', render: (v: string) => typeLabels[v] || v },
     { title: t('service.priority'), dataIndex: 'priority', render: (v: string) => <Tag color={priorityColors[v]}>{priorityLabels[v] || v}</Tag> },
     { title: t('common.status'), dataIndex: 'status', render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag> },
@@ -316,7 +318,7 @@ export default function ServiceTicketList() {
                     <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{t('service.createTicket')}</Button>
                   </Space>
                 </div>
-                <Table rowKey="id" dataSource={tickets} loading={loading} size="small" scroll={{ x: 900 }}
+                <Table rowKey="id" dataSource={tickets} loading={loading} size="small" scroll={{ x: 1200 }}
                   rowSelection={{ selectedRowKeys: selectedTicketKeys, onChange: setSelectedTicketKeys }}
                   pagination={{
                     current: pageNo, total, pageSize: 20, showTotal: (total) => t('common.totalCount', { count: total }),

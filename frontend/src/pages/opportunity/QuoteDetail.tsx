@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button, Select, Table, Modal, Form, Input, InputNumber, DatePicker, Tag, Space, Descriptions, message, Timeline, Tabs, Progress, Spin } from 'antd'
-import { PlusOutlined, CopyOutlined, SwapOutlined, CameraOutlined, HistoryOutlined, AuditOutlined, FileProtectOutlined, SendOutlined, RobotOutlined, FilePdfOutlined, PrinterOutlined, EditOutlined } from '@ant-design/icons'
+import { PlusOutlined, CopyOutlined, SwapOutlined, CameraOutlined, HistoryOutlined, AuditOutlined, FileProtectOutlined, SendOutlined, RobotOutlined, FilePdfOutlined, PrinterOutlined, EditOutlined, UploadOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { quoteApi } from '@/api/quote'
@@ -15,6 +15,7 @@ import { quoteLineItemTypeLabels as itemTypeLabels, quoteStatusColors } from '@/
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import ImportExcelModal from '@/components/ImportExcelModal'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 
 const BREAKDOWN_LABELS: Record<string, string> = {
@@ -44,6 +45,7 @@ export default function QuoteDetail() {
   const [selectedVersionId, setSelectedVersionId] = useState<string>('')
   const [lineModal, setLineModal] = useState(false)
   const [editingLine, setEditingLine] = useState<QuoteLine | null>(null)
+  const [lineImportModal, setLineImportModal] = useState(false)
   const [form] = Form.useForm()
 
   // Version header edit (税率/折扣/交期/有效期/标题) — issue #87
@@ -511,9 +513,13 @@ export default function QuoteDetail() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-slate-100">
                 <h3 className="text-sm font-bold text-slate-900">行项目</h3>
-                <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
-                  setEditingLine(null); form.resetFields(); setLineModal(true)
-                }}>添加行</Button>
+                <Space size="small">
+                  <Button size="small" icon={<UploadOutlined />} disabled={!selectedVersionId}
+                    onClick={() => setLineImportModal(true)}>导入</Button>
+                  <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
+                    setEditingLine(null); form.resetFields(); setLineModal(true)
+                  }}>添加行</Button>
+                </Space>
               </div>
               <Table rowKey="id" columns={lineColumns} dataSource={lines} pagination={false} size="small" scroll={{ x: 1200 }} />
               {lines.length > 0 && (
@@ -732,6 +738,17 @@ export default function QuoteDetail() {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 行项目 Excel 批量导入 (issue #93) */}
+      <ImportExcelModal
+        open={lineImportModal}
+        onClose={() => setLineImportModal(false)}
+        onSuccess={() => { if (selectedVersionId) fetchVersion(selectedVersionId) }}
+        title="导入报价行项目"
+        apiUrl={`/api/v1/quote_versions/${selectedVersionId}/lines/import`}
+        templateUrl={`/api/v1/quote_versions/${selectedVersionId}/lines/import/template`}
+        templateColumns={['类型', '编码', '品名', '规格', '数量', '单位', '单价', '估计成本', '交期(天)']}
+      />
 
       {/* Version Header Edit Modal — 税率/折扣/交期/有效期/标题 (issue #87) */}
       <Modal title="编辑报价信息" open={versionEditModal} onOk={handleVersionEditSubmit}

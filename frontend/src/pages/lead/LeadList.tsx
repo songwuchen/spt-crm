@@ -294,7 +294,7 @@ export default function LeadList() {
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{t('lead.title')}</h1>
           <p className="text-sm text-slate-500 mt-0.5">{t('lead.subtitle')}</p>
         </div>
-        <Space>
+        <Space wrap>
           <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/leads/import/template', 'lead_import_template.xlsx')}>
             {t('common.template')}
           </Button>
@@ -351,7 +351,7 @@ export default function LeadList() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
-        <div className="flex gap-3 flex-wrap items-center">
+        <div className="flex gap-3 flex-wrap items-stretch sm:items-center flex-col sm:flex-row">
           <Input
             placeholder={t('lead.searchPlaceholder')}
             prefix={<SearchOutlined className="text-slate-400" />}

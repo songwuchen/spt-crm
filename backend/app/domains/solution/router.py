@@ -72,7 +72,9 @@ async def list_solutions(
         q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)
     )).scalars().all()
-    return ok({"items": [_solution_dict(s) for s in items], "total": total})
+    from app.common.list_enrich import project_names_map
+    name_map = await project_names_map(db, tenant_id, [s.project_id for s in items])
+    return ok({"items": [{**_solution_dict(s), **(name_map.get(s.project_id) or {})} for s in items], "total": total})
 
 
 # --- Project-scoped routes ---
