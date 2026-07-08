@@ -116,7 +116,7 @@ export default function ViewManager({ page, view, onApplied }: Props) {
             <span className="flex items-center gap-1">
               {v.is_default && <StarFilled className="text-amber-500" style={{ fontSize: 10 }} />}
               {v.name}
-              {v.visibility === 'tenant' && <span className="text-[10px] text-slate-400">(共享)</span>}
+              {v.visibility === 'tenant' && <span className="text-[12px] text-slate-400">(共享)</span>}
             </span>
           ),
         }))}

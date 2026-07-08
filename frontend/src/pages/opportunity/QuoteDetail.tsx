@@ -525,13 +525,13 @@ export default function QuoteDetail() {
               {lines.length > 0 && (
                 <div className="border-t border-slate-200 p-4 bg-slate-50 flex justify-end gap-8">
                   <div className="text-right">
-                    <div className="text-[10px] text-slate-400 uppercase font-bold">行合计</div>
+                    <div className="text-[12px] text-slate-400 uppercase font-bold">行合计</div>
                     <div className="text-lg font-black text-slate-900">
                       ¥{lines.reduce((sum, l) => sum + (l.line_total || 0), 0).toLocaleString()}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[10px] text-slate-400 uppercase font-bold">行数</div>
+                    <div className="text-[12px] text-slate-400 uppercase font-bold">行数</div>
                     <div className="text-lg font-black text-slate-700">{lines.length}</div>
                   </div>
                 </div>
@@ -721,13 +721,13 @@ export default function QuoteDetail() {
               return (
                 <div className="grid grid-cols-2 gap-4 bg-slate-50 rounded-lg p-3 border border-slate-100">
                   <div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase">行合计 (数量 × 单价)</div>
+                    <div className="text-[12px] text-slate-400 font-bold uppercase">行合计 (数量 × 单价)</div>
                     <div className="text-base font-bold text-slate-800">
                       {lineTotal > 0 ? `¥${lineTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '-'}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase">毛利率 ((单价 − 成本) ÷ 单价)</div>
+                    <div className="text-[12px] text-slate-400 font-bold uppercase">毛利率 ((单价 − 成本) ÷ 单价)</div>
                     <div className={`text-base font-bold ${margin == null ? 'text-slate-300' : margin >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                       {margin != null ? `${(margin * 100).toFixed(1)}%` : '-'}
                     </div>
@@ -785,7 +785,7 @@ export default function QuoteDetail() {
           const maxPrice = Math.max(...prices, 1)
           return (
             <div className="mb-5 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-3">报价趋势</div>
+              <div className="text-[12px] font-bold uppercase tracking-wider text-blue-400 mb-3">报价趋势</div>
               <div className="flex items-end gap-2" style={{ height: 80 }}>
                 {sorted.map((v, i) => {
                   const h = Math.max((prices[i] / maxPrice) * 100, 8)
@@ -793,7 +793,7 @@ export default function QuoteDetail() {
                   const diff = prev != null ? prices[i] - prev : null
                   return (
                     <div key={v.id} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="text-[10px] font-bold text-slate-600">
+                      <div className="text-[12px] font-bold text-slate-600">
                         {prices[i] > 0 ? `¥${(prices[i] / 10000).toFixed(1)}万` : '-'}
                       </div>
                       {diff != null && diff !== 0 && (
@@ -807,7 +807,7 @@ export default function QuoteDetail() {
                         }`}
                         style={{ height: `${h}%`, minHeight: 4 }}
                       />
-                      <div className="text-[10px] text-slate-500 font-medium">V{v.version_no}</div>
+                      <div className="text-[12px] text-slate-500 font-medium">V{v.version_no}</div>
                     </div>
                   )
                 })}
@@ -855,14 +855,14 @@ export default function QuoteDetail() {
                     }
                     return (
                       <div key={field} className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                        <div className="text-[10px] text-slate-400 font-bold uppercase">{fieldLabels[field] || field}</div>
+                        <div className="text-[12px] text-slate-400 font-bold uppercase">{fieldLabels[field] || field}</div>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-sm text-slate-500">{formatVal(change.a, field)}</span>
                           <span className="material-symbols-outlined text-slate-300" style={{ fontSize: 14 }}>arrow_forward</span>
                           <span className="text-sm font-bold text-slate-800">{formatVal(change.b, field)}</span>
                         </div>
                         {diff(field) && (
-                          <div className={`text-[10px] font-bold mt-0.5 ${diff(field).startsWith('+') || diff(field).startsWith('-') ? (diff(field).startsWith('+') ? 'text-emerald-500' : 'text-rose-500') : 'text-slate-400'}`}>
+                          <div className={`text-[12px] font-bold mt-0.5 ${diff(field).startsWith('+') || diff(field).startsWith('-') ? (diff(field).startsWith('+') ? 'text-emerald-500' : 'text-rose-500') : 'text-slate-400'}`}>
                             {diff(field)}
                           </div>
                         )}
@@ -961,14 +961,14 @@ export default function QuoteDetail() {
                     {s.breakdown_json && typeof s.breakdown_json === 'object' && Object.keys(s.breakdown_json).length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {Object.entries(s.breakdown_json).map(([k, v]) => (
-                          <div key={k} className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px]">
+                          <div key={k} className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[13px]">
                             <span className="text-slate-400">{BREAKDOWN_LABELS[k] || k}: </span>
                             <span className="font-bold text-slate-700">¥{Number(v).toLocaleString()}</span>
                           </div>
                         ))}
                       </div>
                     )}
-                    <div className="text-[11px] text-slate-400 mt-1">
+                    <div className="text-[13px] text-slate-400 mt-1">
                       {s.snapshot_type === 'manual' ? '手动' : s.snapshot_type === 'approval' ? '审批' : s.snapshot_type} ·
                       {s.created_by_name || '系统'} · {s.created_at ? new Date(s.created_at).toLocaleString('zh-CN') : ''}
                     </div>

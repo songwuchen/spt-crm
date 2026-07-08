@@ -105,7 +105,7 @@ export default function DashboardSnapshot() {
           <div key={kpi.label} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
               <span className="material-symbols-outlined text-primary text-lg">{kpi.icon}</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{kpi.label}</span>
+              <span className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{kpi.label}</span>
             </div>
             <div className="text-2xl font-black text-slate-900">{kpi.value}</div>
           </div>
@@ -156,11 +156,11 @@ export default function DashboardSnapshot() {
               </div>
               <div className="text-center p-2 rounded-lg bg-slate-50">
                 <div className="text-lg font-black text-slate-900">{paymentOv.collection_rate}%</div>
-                <div className="text-[10px] text-slate-500">回款率</div>
+                <div className="text-[12px] text-slate-500">回款率</div>
               </div>
               <div className="text-center p-2 rounded-lg bg-red-50">
                 <div className="text-lg font-black text-red-600">{paymentOv.overdue_count}</div>
-                <div className="text-[10px] text-slate-500">逾期笔数</div>
+                <div className="text-[12px] text-slate-500">逾期笔数</div>
               </div>
             </div>
           ) : (
@@ -180,19 +180,19 @@ export default function DashboardSnapshot() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-3 rounded-lg bg-slate-50">
                 <div className="text-2xl font-black text-slate-900">{approvalStats.total_flows}</div>
-                <div className="text-[10px] text-slate-500 font-bold">审批总数</div>
+                <div className="text-[12px] text-slate-500 font-bold">审批总数</div>
               </div>
               <div className="text-center p-3 rounded-lg bg-emerald-50">
                 <div className="text-2xl font-black text-emerald-600">{Math.round(approvalStats.approval_rate * 100)}%</div>
-                <div className="text-[10px] text-slate-500 font-bold">通过率</div>
+                <div className="text-[12px] text-slate-500 font-bold">通过率</div>
               </div>
               <div className="text-center p-3 rounded-lg bg-blue-50">
                 <div className="text-2xl font-black text-blue-600">{approvalStats.avg_approval_hours}h</div>
-                <div className="text-[10px] text-slate-500 font-bold">平均审批时长</div>
+                <div className="text-[12px] text-slate-500 font-bold">平均审批时长</div>
               </div>
               <div className="text-center p-3 rounded-lg bg-amber-50">
                 <div className="text-2xl font-black text-amber-600">{Math.round(approvalStats.sla_compliance_rate * 100)}%</div>
-                <div className="text-[10px] text-slate-500 font-bold">SLA达标率</div>
+                <div className="text-[12px] text-slate-500 font-bold">SLA达标率</div>
               </div>
             </div>
           </div>

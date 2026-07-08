@@ -84,7 +84,7 @@ export default function MobileQuoteDetail() {
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-extrabold text-slate-900 truncate">{quote.quote_no}</h1>
           </div>
-          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+          <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${
             quote.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
             quote.status === 'rejected' ? 'bg-red-50 text-red-600 border border-red-200' :
             'bg-blue-50 text-blue-600 border border-blue-200'
@@ -96,7 +96,7 @@ export default function MobileQuoteDetail() {
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {versions.map((v) => (
               <button key={v.id} onClick={() => fetchVersion(v.id)}
-                className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold transition-colors ${
+                className={`shrink-0 px-2.5 py-1 rounded-full text-[12px] font-bold transition-colors ${
                   selectedVersionId === v.id ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
                 }`}>
                 V{v.version_no}
@@ -114,19 +114,19 @@ export default function MobileQuoteDetail() {
               <div className="text-sm font-black text-slate-900">
                 {currentVersion.price_total != null ? `¥${(Number(currentVersion.price_total) / 10000).toFixed(1)}万` : '-'}
               </div>
-              <div className="text-[10px] text-slate-500 font-bold">总价</div>
+              <div className="text-[12px] text-slate-500 font-bold">总价</div>
             </div>
             <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-3 text-center border border-emerald-100">
               <div className="text-sm font-black text-emerald-600">
                 {fmtPct(currentVersion.margin_rate)}
               </div>
-              <div className="text-[10px] text-slate-500 font-bold">毛利率</div>
+              <div className="text-[12px] text-slate-500 font-bold">毛利率</div>
             </div>
             <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-3 text-center border border-amber-100">
               <div className="text-sm font-black text-amber-600">
                 {currentVersion.validity_days ?? '-'}天
               </div>
-              <div className="text-[10px] text-slate-500 font-bold">有效期</div>
+              <div className="text-[12px] text-slate-500 font-bold">有效期</div>
             </div>
           </div>
         </div>
@@ -157,9 +157,9 @@ export default function MobileQuoteDetail() {
                 <div key={l.id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-3">
                   <div className="flex items-start justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-slate-400 font-mono">#{l.line_no}</span>
+                      <span className="text-[12px] text-slate-400 font-mono">#{l.line_no}</span>
                       {l.item_type && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-bold">
+                        <span className="text-[12px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-bold">
                           {itemTypeLabels[l.item_type] || l.item_type}
                         </span>
                       )}
@@ -170,7 +170,7 @@ export default function MobileQuoteDetail() {
                   </div>
                   <p className="text-sm font-bold text-slate-800 mb-1">{l.item_name || '-'}</p>
                   {l.spec && <p className="text-sm text-slate-500 mb-1">{l.spec}</p>}
-                  <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                  <div className="flex items-center gap-3 text-[12px] text-slate-400">
                     {l.qty != null && <span>数量: {l.qty} {l.unit || ''}</span>}
                     {l.unit_price != null && <span>单价: ¥{Number(l.unit_price).toLocaleString()}</span>}
                     {l.cost_est != null && <span>成本: {fmtMoney(l.cost_est)}</span>}

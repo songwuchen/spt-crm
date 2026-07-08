@@ -32,7 +32,7 @@ function StatCard({ title, value, icon, sub }: { title: string; value: string | 
       <div>
         <div className="text-2xl font-extrabold text-slate-900 tracking-tight">{value}</div>
         <div className="text-sm text-slate-500 mt-0.5">{title}</div>
-        {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
+        {sub && <div className="text-[13px] text-slate-400 mt-0.5">{sub}</div>}
       </div>
     </div>
   )
@@ -140,7 +140,7 @@ export default function PlatformTenants() {
                 render: (v: string, r: PlatformTenant) => (
                   <div>
                     <div className="font-bold text-slate-900 text-sm">{v}</div>
-                    <div className="text-[11px] text-slate-400 font-mono">{r.code}</div>
+                    <div className="text-[13px] text-slate-400 font-mono">{r.code}</div>
                   </div>
                 ),
               },

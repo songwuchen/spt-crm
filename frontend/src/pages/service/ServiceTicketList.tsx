@@ -247,7 +247,7 @@ export default function ServiceTicketList() {
           {/* Priority Distribution + SLA Config */}
           <div className="flex gap-3 flex-wrap">
             <div className="flex-1 min-w-[280px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">{t('service.priorityDistribution')}</div>
+              <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-3">{t('service.priorityDistribution')}</div>
               {(() => {
                 const prios = slaStats.by_priority || {}
                 const maxVal = Math.max(...Object.values(prios), 1)
@@ -269,7 +269,7 @@ export default function ServiceTicketList() {
               })()}
             </div>
             <div className="flex-1 min-w-[280px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">{t('service.slaResponseTime')}</div>
+              <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-3">{t('service.slaResponseTime')}</div>
               <div className="grid grid-cols-2 gap-2">
                 {Object.entries(slaStats.sla_config || {}).map(([k, v]) => (
                   <div key={k} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">

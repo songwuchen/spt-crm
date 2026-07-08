@@ -106,7 +106,7 @@ export default function CommandPalette() {
             placeholder="输入命令或搜索..."
             className="flex-1 text-sm outline-none bg-transparent text-slate-800 placeholder:text-slate-400"
           />
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-bold text-slate-400 border border-slate-200">ESC</kbd>
+          <kbd className="px-1.5 py-0.5 rounded bg-slate-100 text-[12px] font-bold text-slate-400 border border-slate-200">ESC</kbd>
         </div>
 
         {/* Results */}
@@ -116,7 +116,7 @@ export default function CommandPalette() {
           ) : (
             categories.map((cat) => (
               <div key={cat}>
-                <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{cat}</div>
+                <div className="px-4 py-1 text-[12px] font-bold text-slate-400 uppercase tracking-wider">{cat}</div>
                 {filtered.filter((c) => c.category === cat).map((cmd) => {
                   const idx = filtered.indexOf(cmd)
                   return (
@@ -137,7 +137,7 @@ export default function CommandPalette() {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-4 px-4 py-2 border-t border-slate-100 text-[10px] text-slate-400">
+        <div className="flex items-center gap-4 px-4 py-2 border-t border-slate-100 text-[12px] text-slate-400">
           <span className="flex items-center gap-1">
             <kbd className="px-1 py-0.5 rounded bg-slate-100 border border-slate-200">↑↓</kbd> 移动
           </span>

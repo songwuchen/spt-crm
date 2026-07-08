@@ -82,12 +82,12 @@ export default function CalendarPage() {
         {dayEvents.slice(0, 3).map((e) => (
           <li key={e.id} className="mb-0.5">
             <Badge color={e.color} text={
-              <span className="text-[10px] text-slate-600 truncate block max-w-full">{e.title}</span>
+              <span className="text-[12px] text-slate-600 truncate block max-w-full">{e.title}</span>
             } />
           </li>
         ))}
         {dayEvents.length > 3 && (
-          <li className="text-[10px] text-slate-400">+{dayEvents.length - 3} 更多</li>
+          <li className="text-[12px] text-slate-400">+{dayEvents.length - 3} 更多</li>
         )}
       </ul>
     )
@@ -174,11 +174,11 @@ export default function CalendarPage() {
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: e.color }} />
-                    {tl && <Tag color={tl.color} className="text-[10px] leading-tight">{tl.label}</Tag>}
+                    {tl && <Tag color={tl.color} className="text-[12px] leading-tight">{tl.label}</Tag>}
                   </div>
                   <div className="text-sm font-semibold text-slate-800 mt-1">{e.title}</div>
                   {link && (
-                    <div className="text-[11px] text-primary mt-1 flex items-center gap-0.5">
+                    <div className="text-[13px] text-primary mt-1 flex items-center gap-0.5">
                       <span className="material-symbols-outlined" style={{ fontSize: 12 }}>open_in_new</span>
                       查看详情
                     </div>

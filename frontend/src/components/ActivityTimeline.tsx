@@ -136,7 +136,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId, openCreat
           <p className="text-sm text-slate-700 mb-3">{aiSummary.summary}</p>
           {aiSummary.key_points?.length > 0 && (
             <div className="mb-3">
-              <div className="text-[10px] font-bold uppercase text-indigo-400 mb-1">关键要点</div>
+              <div className="text-[12px] font-bold uppercase text-indigo-400 mb-1">关键要点</div>
               <ul className="space-y-1">
                 {aiSummary.key_points.map((p, i) => (
                   <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
@@ -179,7 +179,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId, openCreat
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <span
-                        className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase text-white"
+                        className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold uppercase text-white"
                         style={{ background: cfg.color }}
                       >
                         {cfg.label}
@@ -205,13 +205,13 @@ export default function ActivityTimeline({ bizType, bizId, customerId, openCreat
                     <div className="flex items-center gap-3 flex-wrap">
                       <span className="text-sm text-slate-400">{item.created_by_name || '系统'}</span>
                       {(item as any).mentions_json?.length > 0 && (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-blue-500">
+                        <span className="inline-flex items-center gap-1 text-[12px] text-blue-500">
                           <span className="material-symbols-outlined" style={{ fontSize: 12 }}>alternate_email</span>
                           {(item as any).mentions_json.map((m: any) => m.user_name).join(', ')}
                         </span>
                       )}
                       {item.next_follow_date && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-100 text-[10px] font-bold text-amber-600">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-100 text-[12px] font-bold text-amber-600">
                           <span className="material-symbols-outlined" style={{ fontSize: 12 }}>event</span>
                           下次跟进: {item.next_follow_date}
                         </span>

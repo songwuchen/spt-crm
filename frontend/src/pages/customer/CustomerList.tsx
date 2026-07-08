@@ -184,7 +184,7 @@ export default function CustomerList() {
             <a onClick={() => navigate(`/customers/${record.id}`)} className="text-sm font-bold text-slate-900 hover:text-primary">
               {record.name}
             </a>
-            {record.short_name && <div className="text-[11px] text-slate-400">{record.short_name}</div>}
+            {record.short_name && <div className="text-[13px] text-slate-400">{record.short_name}</div>}
           </div>
         </div>
       ),
@@ -218,7 +218,7 @@ export default function CustomerList() {
     },
     { title: '标签', dataIndex: 'tags_json', width: 150, responsive: ['lg'],
       render: (v: string[]) => v?.length ? (
-        <div className="flex gap-1 flex-wrap">{v.slice(0, 3).map((tag) => <Tag key={tag} className="text-[10px] m-0">{tag}</Tag>)}{v.length > 3 && <span className="text-[10px] text-slate-400">+{v.length - 3}</span>}</div>
+        <div className="flex gap-1 flex-wrap">{v.slice(0, 3).map((tag) => <Tag key={tag} className="text-[12px] m-0">{tag}</Tag>)}{v.length > 3 && <span className="text-[12px] text-slate-400">+{v.length - 3}</span>}</div>
       ) : <span className="text-slate-300">-</span>,
     },
     { title: t('common.owner'), dataIndex: 'owner_name', width: 100,

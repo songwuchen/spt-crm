@@ -303,7 +303,7 @@ export default function ServiceTicketDetail() {
                       <div key={r.id} className="border border-slate-100 rounded-lg p-3 hover:bg-slate-50">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-mono text-sm text-slate-400">{r.ticket_no}</span>
-                          <Tag className="text-[10px]">{typeLabels[r.type] || r.type}</Tag>
+                          <Tag className="text-[12px]">{typeLabels[r.type] || r.type}</Tag>
                         </div>
                         <div className="text-sm text-slate-500 mb-1">{r.description}</div>
                         <div className="text-sm text-emerald-700 bg-emerald-50 rounded p-2 mt-1">

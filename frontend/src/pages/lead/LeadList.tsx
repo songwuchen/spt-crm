@@ -194,7 +194,7 @@ export default function LeadList() {
             <a onClick={() => navigate(`/leads/${record.id}`)} className="text-sm font-bold text-slate-900 hover:text-primary">
               {record.title}
             </a>
-            <div className="text-[11px] text-slate-400">
+            <div className="text-[13px] text-slate-400">
               {record.lead_code && <span className="font-mono mr-2">{record.lead_code}</span>}
               {record.company_name}
             </div>
@@ -246,7 +246,7 @@ export default function LeadList() {
       render: (v: string) => {
         const cfg = statusConfig[v] || statusConfig.new
         return (
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
             {cfg.label}
           </span>

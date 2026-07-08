@@ -196,7 +196,7 @@ export default function NotificationCenter() {
             return (
               <button key={type} onClick={() => { setFilter(type); setUnreadOnly(true) }}
                 className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:border-primary/30 text-sm font-bold text-slate-600 flex items-center gap-1.5 transition-colors">
-                <Tag color={tl.color} className="!m-0 !text-[10px]">{tl.label}</Tag>
+                <Tag color={tl.color} className="!m-0 !text-[12px]">{tl.label}</Tag>
                 <span className="text-red-500">{s.unread}</span>
               </button>
             )

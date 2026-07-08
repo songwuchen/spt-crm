@@ -91,7 +91,7 @@ export default function MobileLeadDetail() {
           <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
         </button>
         <h1 className="text-lg font-extrabold text-slate-900 flex-1">{lead.title}</h1>
-        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${st.color}`}>{st.label}</span>
+        <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${st.color}`}>{st.label}</span>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">

@@ -146,7 +146,7 @@ function ActivityHeatmap({ daily }: { daily: Array<{ date: string; count: number
                 return (
                   <div key={dow} className={`w-3 h-3 rounded-sm ${cell ? getColor(cell.count) : 'bg-slate-50'} group relative`}>
                     {cell && cell.count > 0 && (
-                      <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-800 text-white text-[10px] rounded whitespace-nowrap z-10">
+                      <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-800 text-white text-[12px] rounded whitespace-nowrap z-10">
                         {cell.date.slice(5)}: {cell.count} 次操作
                       </div>
                     )}
@@ -226,7 +226,7 @@ function HourlyChart({ hourly }: { hourly: Array<{ hour: number; count: number }
             <div className={`w-full rounded-sm ${intensity} transition-all`}
               style={{ height: `${Math.max(pct, 4)}%` }} />
             {h.hour % 4 === 0 && <span className="text-[8px] text-slate-400">{h.hour}</span>}
-            <div className="hidden group-hover:block absolute bottom-full mb-1 px-2 py-1 bg-slate-800 text-white text-[10px] rounded whitespace-nowrap z-10">
+            <div className="hidden group-hover:block absolute bottom-full mb-1 px-2 py-1 bg-slate-800 text-white text-[12px] rounded whitespace-nowrap z-10">
               {h.hour}:00 — {h.count} 次
             </div>
           </div>
@@ -269,7 +269,7 @@ function ResourceActionMatrix({ matrix, actionCfg }: {
 
   return (
     <div className="overflow-x-auto">
-      <table className="text-[10px]">
+      <table className="text-[12px]">
         <thead>
           <tr>
             <th className="p-1" />
@@ -292,7 +292,7 @@ function ResourceActionMatrix({ matrix, actionCfg }: {
                   <td key={a} className="p-0.5">
                     <div className={`w-8 h-6 rounded ${getColor(count)} flex items-center justify-center group relative`}>
                       {count > 0 && <span className="text-[9px] font-bold text-white mix-blend-difference">{count}</span>}
-                      <div className="hidden group-hover:block absolute bottom-full mb-1 px-2 py-1 bg-slate-800 text-white text-[10px] rounded whitespace-nowrap z-10">
+                      <div className="hidden group-hover:block absolute bottom-full mb-1 px-2 py-1 bg-slate-800 text-white text-[12px] rounded whitespace-nowrap z-10">
                         {resourceLabels[r] || r} · {actionCfg[a]?.label || a}: {count}
                       </div>
                     </div>
@@ -320,13 +320,13 @@ function TimelineView({ data, actionCfg }: { data: AuditLog[]; actionCfg: typeof
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-slate-800">{log.user_name}</span>
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cfg?.bg || 'bg-slate-100'} ${cfg?.text || 'text-slate-500'}`}>
+                <span className={`text-[12px] font-bold px-1.5 py-0.5 rounded ${cfg?.bg || 'bg-slate-100'} ${cfg?.text || 'text-slate-500'}`}>
                   {cfg?.label || log.action}
                 </span>
                 <span className="text-sm text-slate-500">{resourceLabels[log.resource_type] || log.resource_type}</span>
               </div>
               <div className="text-sm text-slate-600 mt-0.5">{log.summary}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">
+              <div className="text-[13px] text-slate-400 mt-0.5">
                 {log.created_at ? new Date(log.created_at).toLocaleString('zh-CN') : '-'}
                 {log.ip && <span className="ml-2 font-mono">{log.ip}</span>}
               </div>
@@ -428,7 +428,7 @@ export default function AuditLogPage() {
       render: (v: string) => {
         const cfg = actionConfig[v]
         return cfg ? (
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[12px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
             <span className="material-symbols-outlined text-sm">{cfg.icon}</span>
             {cfg.label}
           </span>
@@ -452,7 +452,7 @@ export default function AuditLogPage() {
     },
     { title: '资源ID', dataIndex: 'resource_id', width: 100, responsive: ['xl'] as any,
       render: (v: string) => v ? (
-        <span className="text-[11px] font-mono text-slate-400">{v.slice(0, 8)}...</span>
+        <span className="text-[13px] font-mono text-slate-400">{v.slice(0, 8)}...</span>
       ) : '-',
     },
   ]
@@ -483,24 +483,24 @@ export default function AuditLogPage() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
               <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">总操作数</div>
               <div className="text-2xl font-black text-slate-900 mt-1">{stats.total.toLocaleString()}</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">近 {stats.days} 天</div>
+              <div className="text-[12px] text-slate-400 mt-0.5">近 {stats.days} 天</div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
               <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">日均操作</div>
               <div className="text-2xl font-black text-primary mt-1">
                 {stats.daily.length > 0 ? Math.round(stats.total / stats.daily.length) : 0}
               </div>
-              <div className="text-[10px] text-slate-400 mt-0.5">活跃 {stats.daily.length} 天</div>
+              <div className="text-[12px] text-slate-400 mt-0.5">活跃 {stats.daily.length} 天</div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
               <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">操作类型</div>
               <div className="text-2xl font-black text-slate-900 mt-1">{stats.by_action.length}</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">种操作</div>
+              <div className="text-[12px] text-slate-400 mt-0.5">种操作</div>
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
               <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">活跃用户</div>
               <div className="text-2xl font-black text-slate-900 mt-1">{stats.top_operators.length}</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">位操作员</div>
+              <div className="text-[12px] text-slate-400 mt-0.5">位操作员</div>
             </div>
           </div>
 
@@ -525,14 +525,14 @@ export default function AuditLogPage() {
                   const pct = (a.count / actionMax) * 100
                   return (
                     <div key={a.action} className="flex items-center gap-2">
-                      <span className={`text-[10px] font-bold w-10 ${cfg?.text || 'text-slate-500'}`}>
+                      <span className={`text-[12px] font-bold w-10 ${cfg?.text || 'text-slate-500'}`}>
                         {cfg?.label || a.action}
                       </span>
                       <div className="flex-1 h-4 bg-slate-100 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${cfg?.bg || 'bg-slate-200'}`}
                           style={{ width: `${Math.max(pct, 4)}%` }} />
                       </div>
-                      <span className="text-[10px] font-bold text-slate-500 w-8 text-right">{a.count}</span>
+                      <span className="text-[12px] font-bold text-slate-500 w-8 text-right">{a.count}</span>
                     </div>
                   )
                 })}
@@ -545,7 +545,7 @@ export default function AuditLogPage() {
               <div className="space-y-2">
                 {stats.top_operators.slice(0, 5).map((op, i) => (
                   <div key={op.user_id} className="flex items-center gap-2">
-                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-black ${
+                    <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[12px] font-black ${
                       i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-white' : i === 2 ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-500'
                     }`}>{i + 1}</span>
                     <span className="text-sm font-medium text-slate-700 flex-1 truncate">{op.user_name}</span>
@@ -595,8 +595,8 @@ export default function AuditLogPage() {
                     <div key={r.resource_type}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
                       <span className="text-sm font-bold text-slate-700">{resourceLabels[r.resource_type] || r.resource_type}</span>
-                      <span className="text-[10px] font-bold text-primary">{r.count}</span>
-                      <span className="text-[10px] text-slate-400">({pct}%)</span>
+                      <span className="text-[12px] font-bold text-primary">{r.count}</span>
+                      <span className="text-[12px] text-slate-400">({pct}%)</span>
                     </div>
                   )
                 })}

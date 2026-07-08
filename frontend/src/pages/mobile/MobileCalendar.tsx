@@ -64,7 +64,7 @@ export default function MobileCalendar() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 mb-4">
         <div className="grid grid-cols-7 text-center mb-2">
           {['日', '一', '二', '三', '四', '五', '六'].map(d => (
-            <div key={d} className="text-[10px] font-bold text-slate-400 py-1">{d}</div>
+            <div key={d} className="text-[12px] font-bold text-slate-400 py-1">{d}</div>
           ))}
         </div>
         <div className="grid grid-cols-7 gap-1">
@@ -102,7 +102,7 @@ export default function MobileCalendar() {
           return (
             <div key={key} className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full" style={{ background: tl.color }} />
-              <span className="text-[10px] text-slate-500">{tl.label} {cnt}</span>
+              <span className="text-[12px] text-slate-500">{tl.label} {cnt}</span>
             </div>
           )
         })}
@@ -125,7 +125,7 @@ export default function MobileCalendar() {
                     </div>
                     <div className="flex-1">
                       <div className="text-sm font-bold text-slate-800">{e.title}</div>
-                      <div className="text-[10px] text-slate-400">{tl.label}</div>
+                      <div className="text-[12px] text-slate-400">{tl.label}</div>
                     </div>
                   </div>
                 )

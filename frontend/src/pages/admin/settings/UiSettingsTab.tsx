@@ -134,7 +134,7 @@ export default function UiSettingsTab() {
                           checked={hidden.has(item.key)}
                           onChange={(c) => toggleHidden(item.key, c)}
                         />
-                        {isProtected && <span className="text-[11px] text-amber-500 whitespace-nowrap">不可隐藏</span>}
+                        {isProtected && <span className="text-[13px] text-amber-500 whitespace-nowrap">不可隐藏</span>}
                       </div>
                     </div>
                   )

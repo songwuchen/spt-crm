@@ -527,7 +527,7 @@ X-Signature: sha256=HMAC_SHA256(secret, "METHOD\\nPATH\\nQUERY\\nTIMESTAMP\\nSHA
               <div className="space-y-1">
                 {ENDPOINTS.map((e) => (
                   <div key={e.path} className="flex items-center gap-3 py-1 text-sm border-b border-slate-50 last:border-0">
-                    <Tag color={METHOD_COLOR[e.method]} className="font-mono text-[10px] min-w-[44px] text-center">{e.method}</Tag>
+                    <Tag color={METHOD_COLOR[e.method]} className="font-mono text-[12px] min-w-[44px] text-center">{e.method}</Tag>
                     <code className="text-slate-700">{e.path}</code>
                     <span className="text-slate-500 ml-auto">{e.desc}</span>
                   </div>

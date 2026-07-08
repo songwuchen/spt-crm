@@ -36,7 +36,7 @@ const roleTypeMap: Record<string, { label: string; color: string }> = {
 function InfoField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="py-3 border-b border-slate-50 last:border-0">
-      <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</div>
+      <div className="text-[12px] text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</div>
       <div className="text-sm font-semibold text-slate-700">{value || <span className="text-slate-300">-</span>}</div>
     </div>
   )
@@ -140,7 +140,7 @@ export default function CustomerDetail() {
         if (!v) return <span className="text-slate-300">-</span>
         const r = roleTypeMap[v]
         return r ? (
-          <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${r.color}`}>{r.label}</span>
+          <span className={`inline-flex px-2 py-0.5 rounded text-[12px] font-bold uppercase border ${r.color}`}>{r.label}</span>
         ) : v
       },
     },
@@ -149,7 +149,7 @@ export default function CustomerDetail() {
     { title: '邮箱', dataIndex: 'email', width: 180 },
     { title: '主要', dataIndex: 'is_primary', width: 70,
       render: (v) => v ? (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 text-primary text-[12px] font-bold">
           <span className="material-symbols-outlined text-sm">star</span> 主要
         </span>
       ) : null,
@@ -220,7 +220,7 @@ export default function CustomerDetail() {
                       fetchCustomer()
                     }} />
                 }>
-                  <Tag className="cursor-pointer border-dashed"><PlusIcon className="text-[10px]" /> 标签</Tag>
+                  <Tag className="cursor-pointer border-dashed"><PlusIcon className="text-[12px]" /> 标签</Tag>
                 </Popover>
               </div>
               <div className="flex items-center gap-4 text-sm text-slate-500">
@@ -283,7 +283,7 @@ export default function CustomerDetail() {
                 <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{s.icon}</span>
               </div>
               <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">{s.label}</div>
+                <div className="text-[12px] uppercase font-bold tracking-wider text-slate-400">{s.label}</div>
                 <div className="text-xl font-black text-slate-900">{s.value}</div>
               </div>
             </div>
@@ -305,7 +305,7 @@ export default function CustomerDetail() {
               health.grade === 'C' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'
             }`}>{health.grade}</div>
             <div>
-              <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">健康度评分</div>
+              <div className="text-[12px] uppercase font-bold tracking-wider text-slate-400">健康度评分</div>
               <div className="text-xl font-black text-slate-900">{health.score}<span className="text-sm text-slate-400 font-normal">/100</span></div>
             </div>
             <div className="flex-1">
@@ -323,7 +323,7 @@ export default function CustomerDetail() {
                 <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1 mb-1">
                   <div className="h-full bg-primary rounded-full" style={{ width: `${(b.score / b.max) * 100}%` }} />
                 </div>
-                <div className="text-[10px] text-slate-400">{b.detail}</div>
+                <div className="text-[12px] text-slate-400">{b.detail}</div>
               </div>
             ))}
           </div>
@@ -338,7 +338,7 @@ export default function CustomerDetail() {
               <span className="material-symbols-outlined text-emerald-600" style={{ fontSize: 22 }}>emoji_events</span>
             </div>
             <div>
-              <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">赢单率</div>
+              <div className="text-[12px] uppercase font-bold tracking-wider text-slate-400">赢单率</div>
               <div className="text-xl font-black text-slate-900">{((stats.win_rate || 0) * 100).toFixed(1)}%</div>
               <div className="text-sm text-slate-500">
                 赢 <span className="font-bold text-emerald-600">{stats.won_count || 0}</span> / 丢 <span className="font-bold text-red-500">{stats.lost_count || 0}</span>
@@ -350,7 +350,7 @@ export default function CustomerDetail() {
               <span className="material-symbols-outlined text-blue-600" style={{ fontSize: 22 }}>account_balance</span>
             </div>
             <div>
-              <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">回款率</div>
+              <div className="text-[12px] uppercase font-bold tracking-wider text-slate-400">回款率</div>
               <div className={`text-xl font-black ${(stats.collection_rate || 0) >= 0.8 ? 'text-emerald-600' : (stats.collection_rate || 0) >= 0.5 ? 'text-amber-600' : 'text-red-600'}`}>
                 {((stats.collection_rate || 0) * 100).toFixed(1)}%
               </div>
@@ -361,7 +361,7 @@ export default function CustomerDetail() {
               <span className="material-symbols-outlined text-violet-600" style={{ fontSize: 22 }}>payments</span>
             </div>
             <div>
-              <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">签约总额</div>
+              <div className="text-[12px] uppercase font-bold tracking-wider text-slate-400">签约总额</div>
               <div className="text-xl font-black text-slate-900">¥{Number(stats.contract_amount || 0).toLocaleString()}</div>
             </div>
           </div>
@@ -470,7 +470,7 @@ export default function CustomerDetail() {
                             const relatedName = allCustomers.find((c) => c.id === relatedId)?.name || relatedId
                             return (
                               <div key={r.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${t.color}`}>{t.label}</span>
+                                <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${t.color}`}>{t.label}</span>
                                 <a onClick={() => navigate(`/customers/${relatedId}`)} className="text-sm font-bold text-primary hover:underline flex-1">{relatedName}</a>
                                 {r.note && <span className="text-sm text-slate-400">{r.note}</span>}
                                 <a className="text-rose-500 text-sm font-bold" onClick={async () => {
@@ -535,7 +535,7 @@ export default function CustomerDetail() {
                           },
                           { title: '阶段', key: 'stage', width: 100,
                             render: (_, r) => (
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${stageColors[r.stage_code] || stageColors.S1}`}>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-bold border ${stageColors[r.stage_code] || stageColors.S1}`}>
                                 {r.stage_code} {stageLabels[r.stage_code]}
                               </span>
                             ),

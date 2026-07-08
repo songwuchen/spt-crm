@@ -182,7 +182,7 @@ export default function KnowledgeBasePage() {
                           </div>
                           <div>
                             <a onClick={() => handleViewDetail(r.id)} className="text-sm font-bold text-slate-900 hover:text-primary">{r.title}</a>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-[13px] text-slate-400">
                               {r.chunk_count} 个片段 {r.source_filename && `· ${r.source_filename}`}
                             </div>
                           </div>
@@ -247,7 +247,7 @@ export default function KnowledgeBasePage() {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold text-slate-400">#{i + 1}</span>
                           <a onClick={() => handleViewDetail(r.document_id)} className="text-sm font-bold text-primary hover:underline">{r.doc_title}</a>
-                          <span className="text-[11px] text-slate-400">片段 {r.chunk_index + 1}</span>
+                          <span className="text-[13px] text-slate-400">片段 {r.chunk_index + 1}</span>
                         </div>
                         <Tag color="blue">相关度 {r.score}</Tag>
                       </div>

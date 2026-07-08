@@ -150,7 +150,7 @@ export default function RoleList() {
           </div>
           <div>
             <div className="text-sm font-bold text-slate-900">{record.name}</div>
-            <div className="text-[11px] font-mono text-slate-400">{record.code}</div>
+            <div className="text-[13px] font-mono text-slate-400">{record.code}</div>
           </div>
         </div>
       ),
@@ -160,11 +160,11 @@ export default function RoleList() {
     },
     { title: '类型', dataIndex: 'is_system', width: 90,
       render: (v: boolean) => v ? (
-        <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+        <span className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold bg-primary/10 text-primary border border-primary/20">
           系统内置
         </span>
       ) : (
-        <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+        <span className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
           自定义
         </span>
       ),
@@ -272,7 +272,7 @@ export default function RoleList() {
                     onChange={() => toggleGroup(perms)}
                   />
                   <span className="text-sm font-bold uppercase tracking-widest text-slate-500">{group}</span>
-                  <span className="text-[10px] text-slate-400 ml-auto">{checkedCount}/{groupIds.length}</span>
+                  <span className="text-[12px] text-slate-400 ml-auto">{checkedCount}/{groupIds.length}</span>
                 </div>
                 <div className="p-3 grid grid-cols-4 gap-2">
                   {perms.map((p) => {

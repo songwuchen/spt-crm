@@ -78,7 +78,7 @@ export default function MobileKanban() {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3 text-[10px] text-slate-400">
+            <div className="flex items-center gap-3 text-[12px] text-slate-400">
               {c.customer_name && <span>{c.customer_name}</span>}
               {c.owner_name && <span>{c.owner_name}</span>}
               {c.probability != null && <span>赢率 {c.probability}%</span>}

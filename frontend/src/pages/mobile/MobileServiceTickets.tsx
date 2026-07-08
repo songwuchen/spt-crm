@@ -83,7 +83,7 @@ export default function MobileServiceTickets() {
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 active:bg-slate-50">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-mono text-sm font-bold text-primary">{t.ticket_no}</span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${st.color} ${st.bg}`}>
+                <span className={`px-2 py-0.5 rounded-full text-[12px] font-bold ${st.color} ${st.bg}`}>
                   {st.label}
                 </span>
               </div>

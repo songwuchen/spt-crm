@@ -105,7 +105,7 @@ const KpiCard = memo(function KpiCard({ icon, label, value, trend, trendType, sp
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
         <span className="material-symbols-outlined text-primary text-xl">{icon}</span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+        <span className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
         {sparkData && sparkData.length >= 2 && (
           <span className="ml-auto"><Sparkline data={sparkData} color={sparkColor} /></span>
         )}
@@ -113,7 +113,7 @@ const KpiCard = memo(function KpiCard({ icon, label, value, trend, trendType, sp
       <div className="flex items-center gap-3">
         <span className="text-3xl font-black text-slate-900">{value}</span>
         {trend && trendType && (
-          <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[11px] font-bold ${trendColors[trendType]}`}>
+          <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[13px] font-bold ${trendColors[trendType]}`}>
             {trendType === 'up' && <span className="material-symbols-outlined text-sm">trending_up</span>}
             {trendType === 'down' && <span className="material-symbols-outlined text-sm">trending_down</span>}
             {trend}
@@ -393,7 +393,7 @@ export default function Dashboard() {
                       <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 group">
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium text-slate-800 truncate">{s.title}</div>
-                          <div className="text-[10px] text-slate-400">
+                          <div className="text-[12px] text-slate-400">
                             {s.created_at ? new Date(s.created_at).toLocaleString('zh-CN') : ''}
                             {s.expires_at ? ` · 过期: ${new Date(s.expires_at).toLocaleDateString('zh-CN')}` : ''}
                           </div>
@@ -432,7 +432,7 @@ export default function Dashboard() {
           <Select size="small" value={refreshInterval} onChange={setRefreshInterval}
             options={REFRESH_INTERVALS} style={{ width: 100 }}
             suffixIcon={<span className="material-symbols-outlined text-sm">timer</span>} />
-          <span className="text-[10px] text-slate-400 hidden sm:inline">
+          <span className="text-[12px] text-slate-400 hidden sm:inline">
             {lastRefresh.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 更新
           </span>
           <button onClick={() => { fetchData(); setLastRefresh(new Date()) }}
@@ -655,7 +655,7 @@ export default function Dashboard() {
                           <span className={`material-symbols-outlined ${t.color} mt-0.5`}>{t.icon}</span>
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-bold text-slate-800 truncate">{a.title}</div>
-                            <div className="text-[11px] text-slate-500 truncate">{a.content}</div>
+                            <div className="text-[13px] text-slate-500 truncate">{a.content}</div>
                           </div>
                         </div>
                       )
@@ -700,15 +700,15 @@ export default function Dashboard() {
                       <div className="grid grid-cols-3 gap-3">
                         <div className="text-center p-2 rounded-lg bg-slate-50">
                           <div className="text-lg font-black text-slate-900">{paymentOv.collection_rate}%</div>
-                          <div className="text-[10px] text-slate-500">回款率</div>
+                          <div className="text-[12px] text-slate-500">回款率</div>
                         </div>
                         <div className="text-center p-2 rounded-lg bg-red-50">
                           <div className="text-lg font-black text-red-600">{paymentOv.overdue_count}</div>
-                          <div className="text-[10px] text-slate-500">逾期笔数</div>
+                          <div className="text-[12px] text-slate-500">逾期笔数</div>
                         </div>
                         <div className="text-center p-2 rounded-lg bg-amber-50">
                           <div className="text-lg font-black text-amber-600">¥{(paymentOv.upcoming_30d_amount / 10000).toFixed(1)}万</div>
-                          <div className="text-[10px] text-slate-500">30天内到期</div>
+                          <div className="text-[12px] text-slate-500">30天内到期</div>
                         </div>
                       </div>
                       <div className="mt-4">
@@ -760,30 +760,30 @@ export default function Dashboard() {
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                     <div className="text-center p-3 rounded-lg bg-slate-50">
                       <div className="text-2xl font-black text-slate-900">{approvalStats.total_flows}</div>
-                      <div className="text-[10px] text-slate-500 font-bold">审批总数</div>
+                      <div className="text-[12px] text-slate-500 font-bold">审批总数</div>
                     </div>
                     <div className="text-center p-3 rounded-lg bg-emerald-50">
                       <div className="text-2xl font-black text-emerald-600">{Math.round(approvalStats.approval_rate * 100)}%</div>
-                      <div className="text-[10px] text-slate-500 font-bold">通过率</div>
+                      <div className="text-[12px] text-slate-500 font-bold">通过率</div>
                     </div>
                     <div className="text-center p-3 rounded-lg bg-blue-50">
                       <div className="text-2xl font-black text-blue-600">{approvalStats.avg_approval_hours}h</div>
-                      <div className="text-[10px] text-slate-500 font-bold">平均审批时长</div>
+                      <div className="text-[12px] text-slate-500 font-bold">平均审批时长</div>
                     </div>
                     <div className={`text-center p-3 rounded-lg ${approvalStats.sla_compliance_rate >= 0.9 ? 'bg-emerald-50' : approvalStats.sla_compliance_rate >= 0.7 ? 'bg-amber-50' : 'bg-red-50'}`}>
                       <div className={`text-2xl font-black ${approvalStats.sla_compliance_rate >= 0.9 ? 'text-emerald-600' : approvalStats.sla_compliance_rate >= 0.7 ? 'text-amber-600' : 'text-red-600'}`}>
                         {Math.round(approvalStats.sla_compliance_rate * 100)}%
                       </div>
-                      <div className="text-[10px] text-slate-500 font-bold">SLA达标率</div>
+                      <div className="text-[12px] text-slate-500 font-bold">SLA达标率</div>
                     </div>
                     <div className="text-center p-3 rounded-lg bg-amber-50">
                       <div className="text-2xl font-black text-amber-600">{approvalStats.status_breakdown.pending || 0}</div>
-                      <div className="text-[10px] text-slate-500 font-bold">待处理</div>
+                      <div className="text-[12px] text-slate-500 font-bold">待处理</div>
                     </div>
                   </div>
                   {approvalStats.top_approvers.length > 0 && (
                     <div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">审批人排行</div>
+                      <div className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-2">审批人排行</div>
                       <div className="flex flex-wrap gap-2">
                         {approvalStats.top_approvers.slice(0, 5).map((a, i) => (
                           <span key={i} className="px-2.5 py-1 bg-slate-50 border border-slate-100 rounded-lg text-sm">
@@ -835,7 +835,7 @@ export default function Dashboard() {
                       <span className="material-symbols-outlined text-primary">add_business</span>
                       <div>
                         <div className="text-sm font-bold text-slate-800">新建客户</div>
-                        <div className="text-[11px] text-slate-500">录入新的客户信息</div>
+                        <div className="text-[13px] text-slate-500">录入新的客户信息</div>
                       </div>
                     </button>
                     <button onClick={() => navigate('/leads/new')}
@@ -843,7 +843,7 @@ export default function Dashboard() {
                       <span className="material-symbols-outlined text-emerald-600">add_circle</span>
                       <div>
                         <div className="text-sm font-bold text-slate-800">新建线索</div>
-                        <div className="text-[11px] text-slate-500">创建新的销售线索</div>
+                        <div className="text-[13px] text-slate-500">创建新的销售线索</div>
                       </div>
                     </button>
                     <button onClick={() => navigate('/opportunities/new')}
@@ -851,7 +851,7 @@ export default function Dashboard() {
                       <span className="material-symbols-outlined text-amber-500">rocket_launch</span>
                       <div>
                         <div className="text-sm font-bold text-slate-800">新建商机</div>
-                        <div className="text-[11px] text-slate-500">创建新的商机项目</div>
+                        <div className="text-[13px] text-slate-500">创建新的商机项目</div>
                       </div>
                     </button>
                   </div>

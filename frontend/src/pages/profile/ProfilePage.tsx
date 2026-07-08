@@ -317,7 +317,7 @@ export default function ProfilePage() {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold text-slate-800">{dev.label}</span>
                           {s.is_current && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">当前</span>
+                            <span className="px-1.5 py-0.5 rounded text-[12px] font-bold bg-emerald-100 text-emerald-700">当前</span>
                           )}
                         </div>
                         <div className="text-sm text-slate-400 truncate">

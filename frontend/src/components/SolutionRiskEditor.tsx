@@ -91,7 +91,7 @@ export default function SolutionRiskEditor({ value, onChange }: Props) {
       {risks.map((risk, idx) => (
         <div key={idx} className="border border-slate-200 rounded-lg p-3 bg-white">
           <div className="flex items-center gap-2 mb-2">
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary">风险 {idx + 1}</span>
+            <span className="px-2 py-0.5 rounded text-[12px] font-bold bg-primary/10 text-primary">风险 {idx + 1}</span>
             <Select
               size="small"
               value={risk.severity}
@@ -104,7 +104,7 @@ export default function SolutionRiskEditor({ value, onChange }: Props) {
           </div>
           <div className="space-y-2">
             <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">风险描述 *</label>
+              <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">风险描述 *</label>
               <Input
                 value={risk.description}
                 placeholder="如：交付排期受供货周期影响存在延期可能"
@@ -112,7 +112,7 @@ export default function SolutionRiskEditor({ value, onChange }: Props) {
               />
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">缓解措施（选填）</label>
+              <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">缓解措施（选填）</label>
               <TextArea
                 rows={2}
                 value={risk.mitigation}

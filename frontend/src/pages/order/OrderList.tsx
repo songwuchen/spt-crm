@@ -279,7 +279,7 @@ export default function OrderList() {
               <span className="text-sm font-semibold text-slate-700">产品明细</span>
               <span className="text-sm text-slate-500">合计金额：<span className="font-bold text-slate-900">{money(linesTotal)}</span></span>
             </div>
-            <div className="grid grid-cols-12 gap-2 text-[11px] font-bold text-slate-400 px-1 mb-1">
+            <div className="grid grid-cols-12 gap-2 text-[13px] font-bold text-slate-400 px-1 mb-1">
               <div className="col-span-3">产品名称</div>
               <div className="col-span-2">规格型号</div>
               <div className="col-span-1">单位</div>

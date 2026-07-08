@@ -141,7 +141,7 @@ export default function OpportunityList() {
           <a onClick={() => navigate(`/opportunities/${r.id}`)} className="text-sm font-bold text-slate-900 hover:text-primary">
             {r.name}
           </a>
-          <div className="text-[11px] text-slate-400 font-mono">{r.project_code}</div>
+          <div className="text-[13px] text-slate-400 font-mono">{r.project_code}</div>
         </div>
       ),
     },
@@ -152,7 +152,7 @@ export default function OpportunityList() {
     },
     { title: t('opportunity.stage'), key: 'stage', width: 110,
       render: (_, r) => (
-        <span className={`inline-flex items-center px-2.5 py-1 rounded text-[10px] font-black uppercase border ${stageColors[r.stage_code] || stageColors.S1}`}>
+        <span className={`inline-flex items-center px-2.5 py-1 rounded text-[12px] font-black uppercase border ${stageColors[r.stage_code] || stageColors.S1}`}>
           {r.stage_code} {stageLabels[r.stage_code]}
         </span>
       ),
@@ -172,7 +172,7 @@ export default function OpportunityList() {
     },
     { title: t('opportunity.risk'), key: 'risk', width: 70, responsive: ['xl'],
       render: (_, r) => r.risk_level ? (
-        <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold border ${riskColors[r.risk_level] || ''}`}>
+        <span className={`inline-flex px-2 py-0.5 rounded text-[12px] font-bold border ${riskColors[r.risk_level] || ''}`}>
           {riskLabels[r.risk_level]}
         </span>
       ) : <span className="text-slate-300">-</span>,
@@ -199,9 +199,9 @@ export default function OpportunityList() {
       const total = r.delivery_total ?? 0
       const done = r.delivery_done ?? 0
       if (!total) return <span className="text-slate-300">-</span>
-      if (done >= total) return <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold border border-emerald-200 bg-emerald-50 text-emerald-600">已交付</span>
-      if (done === 0) return <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold border border-slate-200 bg-slate-50 text-slate-500">未开始 0/{total}</span>
-      return <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold border border-blue-200 bg-blue-50 text-blue-600">交付中 {done}/{total}</span>
+      if (done >= total) return <span className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold border border-emerald-200 bg-emerald-50 text-emerald-600">已交付</span>
+      if (done === 0) return <span className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold border border-slate-200 bg-slate-50 text-slate-500">未开始 0/{total}</span>
+      return <span className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold border border-blue-200 bg-blue-50 text-blue-600">交付中 {done}/{total}</span>
     },
   }
 

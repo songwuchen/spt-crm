@@ -40,7 +40,7 @@ export default function SlaCountdown({ label, deadline, completedAt }: SlaCountd
           {met ? 'check_circle' : 'cancel'}
         </span>
         <div>
-          <div className="text-[11px] text-slate-500 font-bold">{label}</div>
+          <div className="text-[13px] text-slate-500 font-bold">{label}</div>
           <div className={`text-sm font-black ${met ? 'text-emerald-600' : 'text-red-600'}`}>
             {met ? '已达标' : '已超时'} {formatDuration(Math.abs(diff))}
           </div>
@@ -71,7 +71,7 @@ export default function SlaCountdown({ label, deadline, completedAt }: SlaCountd
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${bgClass}`}>
       <span className={`material-symbols-outlined ${textClass} ${!breached && !completedAt ? 'animate-pulse' : ''}`} style={{ fontSize: 18 }}>{icon}</span>
       <div>
-        <div className="text-[11px] text-slate-500 font-bold">{label}</div>
+        <div className="text-[13px] text-slate-500 font-bold">{label}</div>
         <div className={`text-sm font-black tabular-nums ${textClass}`}>
           {breached ? `超时 ${formatDuration(remaining)}` : formatDuration(remaining)}
         </div>

@@ -71,7 +71,7 @@ export default function MobileTasks() {
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-slate-800 truncate">{t.title}</div>
                 {t.due_date && (
-                  <div className="text-[10px] text-slate-400 mt-0.5">{t.due_date}</div>
+                  <div className="text-[12px] text-slate-400 mt-0.5">{t.due_date}</div>
                 )}
               </div>
               <span className={`material-symbols-outlined ${priorityColors[t.priority] || 'text-slate-400'}`} style={{ fontSize: 14 }}>
@@ -84,7 +84,7 @@ export default function MobileTasks() {
 
       {doneTasks.length > 0 && (
         <>
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">已完成 ({doneTasks.length})</div>
+          <div className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-2">已完成 ({doneTasks.length})</div>
           <div className="space-y-2">
             {doneTasks.slice(0, 5).map(t => (
               <div key={t.id} role="button" tabIndex={0} onClick={() => toggleComplete(t)}

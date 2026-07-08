@@ -42,7 +42,7 @@ function DetailDiff({ detail }: { detail: Record<string, unknown> }) {
   return (
     <div className="mt-1 space-y-0.5">
       {entries.map(([field, { old: oldVal, new: newVal }]) => (
-        <div key={field} className="flex items-start gap-1 text-[11px]">
+        <div key={field} className="flex items-start gap-1 text-[13px]">
           <span className="font-mono text-slate-500 shrink-0">{field}:</span>
           {oldVal != null && <span className="text-red-500 line-through">{String(oldVal)}</span>}
           {oldVal != null && newVal != null && <span className="text-slate-400">&rarr;</span>}
@@ -88,10 +88,10 @@ export default function ChangeHistory({ resourceType, resourceId }: Props) {
       children: (
         <div>
           <div className="flex items-center gap-2">
-            <Tag color={cfg.color} className="text-[10px]">{cfg.label}</Tag>
+            <Tag color={cfg.color} className="text-[12px]">{cfg.label}</Tag>
             <span className="text-sm text-slate-700">{log.summary || ''}</span>
           </div>
-          <div className="text-[11px] text-slate-400 mt-0.5">
+          <div className="text-[13px] text-slate-400 mt-0.5">
             {log.user_name || '系统'} &middot; {log.created_at ? new Date(log.created_at).toLocaleString('zh-CN') : ''}
           </div>
           {log.detail && <DetailDiff detail={log.detail} />}

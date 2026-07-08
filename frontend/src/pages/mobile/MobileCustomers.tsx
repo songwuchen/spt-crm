@@ -105,7 +105,7 @@ export default function MobileCustomers() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {c.level && (
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${levelColors[c.level] || levelColors.D}`}>
+                    <span className={`px-1.5 py-0.5 rounded text-[12px] font-black ${levelColors[c.level] || levelColors.D}`}>
                       {c.level}
                     </span>
                   )}

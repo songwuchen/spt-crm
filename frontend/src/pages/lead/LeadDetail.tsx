@@ -33,7 +33,7 @@ const qualifySteps = [
 function InfoField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="py-3 border-b border-slate-50 last:border-0">
-      <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</div>
+      <div className="text-[12px] text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</div>
       <div className="text-sm font-semibold text-slate-700">{value || <span className="text-slate-300">-</span>}</div>
     </div>
   )
@@ -51,11 +51,11 @@ function ScoreGauge({ score }: { score: number }) {
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
       <div className="flex items-center gap-2 mb-4">
         <span className="material-symbols-outlined text-primary text-lg">auto_awesome</span>
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">AI 线索评分</h3>
+        <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400">AI 线索评分</h3>
       </div>
       <div className="flex items-center gap-4 mb-3">
         <span className={`text-4xl font-black tabular-nums ${cfg.text}`}>{score}</span>
-        <span className={`inline-flex px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border ${cfg.labelBg}`}>
+        <span className={`inline-flex px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${cfg.labelBg}`}>
           {cfg.label}
         </span>
       </div>
@@ -167,7 +167,7 @@ export default function LeadDetail() {
             <div>
               <div className="flex items-center gap-3 mb-1">
                 <h1 className="text-2xl font-bold text-slate-900">{lead.title}</h1>
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border ${s.bg} ${s.text} ${s.border}`}>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${s.bg} ${s.text} ${s.border}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
                   {s.label}
                 </span>
@@ -298,7 +298,7 @@ export default function LeadDetail() {
                       {/* Demand Summary */}
                       {lead.demand_summary && (
                         <div>
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">需求摘要</div>
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-2">需求摘要</div>
                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-700 leading-relaxed">
                             {lead.demand_summary}
                           </div>
@@ -308,7 +308,7 @@ export default function LeadDetail() {
                       {/* Remark */}
                       {lead.remark && (
                         <div>
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">备注</div>
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-2">备注</div>
                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-600 leading-relaxed">
                             {lead.remark}
                           </div>
@@ -318,13 +318,13 @@ export default function LeadDetail() {
                       {/* Meta Info */}
                       <div className="grid grid-cols-2 gap-4">
                         <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">创建时间</div>
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">创建时间</div>
                           <div className="text-sm font-semibold text-slate-700">
                             {lead.created_at ? new Date(lead.created_at).toLocaleString('zh-CN') : '-'}
                           </div>
                         </div>
                         <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">更新时间</div>
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">更新时间</div>
                           <div className="text-sm font-semibold text-slate-700">
                             {lead.updated_at ? new Date(lead.updated_at).toLocaleString('zh-CN') : '-'}
                           </div>
@@ -362,7 +362,7 @@ export default function LeadDetail() {
           <div className="bg-blue-50/50 rounded-xl border border-blue-100 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-5">
               <span className="material-symbols-outlined text-primary">auto_awesome</span>
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-900">AI 智能洞察</h3>
+              <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-900">AI 智能洞察</h3>
             </div>
 
             <div className="space-y-4">

@@ -92,15 +92,15 @@ export default function RegionMap({ data, onRegionClick }: RegionMapProps) {
       <div className="flex items-center justify-center gap-4 mt-2">
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded-full" style={{ background: '#bfdbfe' }} />
-          <span className="text-[10px] text-slate-400">少</span>
+          <span className="text-[12px] text-slate-400">少</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded-full" style={{ background: '#60a5fa' }} />
-          <span className="text-[10px] text-slate-400">中</span>
+          <span className="text-[12px] text-slate-400">中</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded-full" style={{ background: '#1d4ed8' }} />
-          <span className="text-[10px] text-slate-400">多</span>
+          <span className="text-[12px] text-slate-400">多</span>
         </div>
       </div>
     </div>

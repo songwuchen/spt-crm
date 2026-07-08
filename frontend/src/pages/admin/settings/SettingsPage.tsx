@@ -611,7 +611,7 @@ export default function SettingsPage() {
               <div className="pb-6">
                 <div className="flex justify-between mb-3">
                   <div className="text-sm text-slate-400">
-                    可用变量: {ntVariables.map(v => <Tag key={v.key} className="text-[10px]">{`{{${v.key}}}`} {v.label}</Tag>)}
+                    可用变量: {ntVariables.map(v => <Tag key={v.key} className="text-[12px]">{`{{${v.key}}}`} {v.label}</Tag>)}
                   </div>
                   <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
                     setNtEditingId(null); setNtForm({ event_type: '', title_template: '', content_template: '', is_active: true }); setNtModal(true)
@@ -1032,7 +1032,7 @@ export default function SettingsPage() {
           <div>
             <label className="text-sm font-medium text-slate-700 mb-2 block">
               Gate 规则
-              <span className="text-[11px] text-slate-400 ml-2 font-normal">推进到该阶段时执行的检查列表，全部通过才允许推进。</span>
+              <span className="text-[13px] text-slate-400 ml-2 font-normal">推进到该阶段时执行的检查列表，全部通过才允许推进。</span>
             </label>
             <GateRulesEditor
               value={stageForm.gate_rules}
@@ -1260,7 +1260,7 @@ export default function SettingsPage() {
                 onClick={() => setEtForm({ ...etForm, variables_json: [...etForm.variables_json, { name: '', label: '' }] })} block>添加变量</Button>
             </div>
             {etForm.variables_json.some((v) => v.name) && (
-              <div className="text-sm text-slate-400 mt-2">可用变量：{etForm.variables_json.filter((v) => v.name).map((v) => <Tag key={v.name} className="text-[10px]">{`{{${v.name}}}`}</Tag>)}</div>
+              <div className="text-sm text-slate-400 mt-2">可用变量：{etForm.variables_json.filter((v) => v.name).map((v) => <Tag key={v.name} className="text-[12px]">{`{{${v.name}}}`}</Tag>)}</div>
             )}
           </div>
         </div>
@@ -1307,7 +1307,7 @@ export default function SettingsPage() {
               placeholder="详细内容，可使用 {{variable}} 变量" />
           </div>
           <div className="text-sm text-slate-400">
-            可用变量: {ntVariables.map(v => <Tag key={v.key} className="text-[10px]">{`{{${v.key}}}`} {v.label}</Tag>)}
+            可用变量: {ntVariables.map(v => <Tag key={v.key} className="text-[12px]">{`{{${v.key}}}`} {v.label}</Tag>)}
           </div>
         </div>
       </Modal>
@@ -1406,12 +1406,12 @@ export default function SettingsPage() {
             <Select className="w-full" value={cfForm.entity_type} onChange={(v) => setCfForm({ ...cfForm, entity_type: v })}
               disabled={!!cfEditingId}
               options={[{ value: 'customer', label: '客户' }, { value: 'project', label: '商机' }]} />
-            <div className="text-[11px] text-slate-400 mt-1">自定义字段会显示在「客户」和「商机」的新建/编辑表单及详情页。</div>
+            <div className="text-[13px] text-slate-400 mt-1">自定义字段会显示在「客户」和「商机」的新建/编辑表单及详情页。</div>
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">显示标签</label>
             <Input value={cfForm.field_label} onChange={(e) => setCfForm({ ...cfForm, field_label: e.target.value })} placeholder="所在区域" />
-            <div className="text-[11px] text-slate-400 mt-1">字段 Key 由系统自动生成，无需填写。</div>
+            <div className="text-[13px] text-slate-400 mt-1">字段 Key 由系统自动生成，无需填写。</div>
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">字段类型</label>
@@ -1423,7 +1423,7 @@ export default function SettingsPage() {
               <label className="text-sm font-medium text-slate-700 mb-1 block">选项</label>
               <StringListEditor value={cfForm.options_json} placeholder="选项内容，如：华东区"
                 addText="添加选项" onChange={(v) => setCfForm({ ...cfForm, options_json: v })} />
-              <div className="text-[11px] text-slate-400 mt-1">这些选项会作为下拉项展示给填写人。</div>
+              <div className="text-[13px] text-slate-400 mt-1">这些选项会作为下拉项展示给填写人。</div>
             </div>
           )}
           <div className="flex gap-4">

@@ -87,7 +87,7 @@ export default function MobileOpportunities() {
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-bold text-slate-900 truncate flex-1">{p.name}</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${stageColors[p.stage_code]}`}>
+                <span className={`px-2 py-0.5 rounded text-[12px] font-bold border ${stageColors[p.stage_code]}`}>
                   {stageLabels[p.stage_code]}
                 </span>
               </div>
@@ -125,7 +125,7 @@ export default function MobileOpportunities() {
                     className="bg-white rounded-lg border border-slate-100 p-2.5 shadow-sm active:bg-slate-50 cursor-pointer"
                   >
                     <div className="text-sm font-bold text-slate-800 truncate mb-1">{p.name}</div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <div className="flex items-center justify-between text-[12px] text-slate-500">
                       <span>{p.amount_expect ? `¥${Number(p.amount_expect).toLocaleString()}` : '-'}</span>
                       <span>{p.owner_name || '-'}</span>
                     </div>
@@ -134,13 +134,13 @@ export default function MobileOpportunities() {
                 {g.items.length > COLUMN_CAP && (
                   <button
                     onClick={() => setActiveStage(g.stage)}
-                    className="w-full text-center text-[11px] font-bold text-primary py-2 active:opacity-70"
+                    className="w-full text-center text-[13px] font-bold text-primary py-2 active:opacity-70"
                   >
                     查看全部 {g.items.length} 个 →
                   </button>
                 )}
                 {g.items.length === 0 && (
-                  <div className="text-center text-[10px] text-slate-300 py-6">空</div>
+                  <div className="text-center text-[12px] text-slate-300 py-6">空</div>
                 )}
               </div>
             </div>

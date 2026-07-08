@@ -548,7 +548,7 @@ export default function ContractDetail() {
             <Descriptions.Item label="版本状态"><Tag>{currentVersion.status}</Tag></Descriptions.Item>
             <Descriptions.Item label="风险等级">
               {currentVersion.risk_level ? (
-                <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold border ${riskColors[currentVersion.risk_level] || ''}`}>
+                <span className={`inline-flex px-2 py-0.5 rounded text-[12px] font-bold border ${riskColors[currentVersion.risk_level] || ''}`}>
                   {riskLabels[currentVersion.risk_level]}
                 </span>
               ) : '-'}

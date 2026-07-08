@@ -64,9 +64,9 @@ export default function MobileOpportunityDetail() {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-extrabold text-slate-900 truncate">{project.name}</h1>
-          <span className="text-[10px] font-mono text-slate-400">{project.project_code}</span>
+          <span className="text-[12px] font-mono text-slate-400">{project.project_code}</span>
         </div>
-        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${sc}`}>
+        <span className={`px-2 py-0.5 rounded text-[12px] font-bold border ${sc}`}>
           {project.stage_code} {stageLabels[project.stage_code]}
         </span>
       </div>
@@ -77,15 +77,15 @@ export default function MobileOpportunityDetail() {
           <div className="text-lg font-black text-slate-900">
             {project.amount_expect != null ? `¥${(Number(project.amount_expect) / 10000).toFixed(0)}万` : '-'}
           </div>
-          <div className="text-[10px] text-slate-500 font-bold">预期金额</div>
+          <div className="text-[12px] text-slate-500 font-bold">预期金额</div>
         </div>
         <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-3 text-center border border-emerald-100">
           <div className="text-lg font-black text-emerald-600">{project.probability || 0}%</div>
-          <div className="text-[10px] text-slate-500 font-bold">赢率</div>
+          <div className="text-[12px] text-slate-500 font-bold">赢率</div>
         </div>
         <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-3 text-center border border-amber-100">
           <div className="text-lg font-black text-amber-600">{risk ? risk.label : '-'}</div>
-          <div className="text-[10px] text-slate-500 font-bold">风险</div>
+          <div className="text-[12px] text-slate-500 font-bold">风险</div>
         </div>
       </div>
 
@@ -132,7 +132,7 @@ export default function MobileOpportunityDetail() {
               <span className="text-sm text-slate-400 block mb-1">竞争对手</span>
               <div className="flex flex-wrap gap-1">
                 {project.competitors_json.map((c, i) => (
-                  <span key={i} className="px-2 py-0.5 bg-red-50 text-red-600 rounded text-[10px] font-bold">{c}</span>
+                  <span key={i} className="px-2 py-0.5 bg-red-50 text-red-600 rounded text-[12px] font-bold">{c}</span>
                 ))}
               </div>
             </div>
@@ -172,13 +172,13 @@ export default function MobileOpportunityDetail() {
                     </span>
                     <span className="text-sm font-bold text-slate-800 flex-1 truncate">{a.summary}</span>
                     {a.result && (
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      <span className={`text-[12px] font-bold px-1.5 py-0.5 rounded ${
                         a.result === 'progress' ? 'bg-emerald-50 text-emerald-600' :
                         a.result === 'risk' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
                       }`}>{a.result === 'progress' ? '进展' : a.result === 'risk' ? '风险' : '停滞'}</span>
                     )}
                   </div>
-                  <div className="text-[10px] text-slate-400">
+                  <div className="text-[12px] text-slate-400">
                     {a.created_by_name || ''} &middot; {a.created_at ? new Date(a.created_at).toLocaleDateString('zh-CN') : ''}
                   </div>
                 </div>

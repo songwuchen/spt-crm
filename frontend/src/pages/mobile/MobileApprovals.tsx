@@ -89,7 +89,7 @@ export default function MobileApprovals() {
                     <h4 className="text-sm font-bold text-slate-900 truncate">
                       {item.flow?.title || `${bizTypeLabels[item.flow?.biz_type] || ''}审批`}
                     </h4>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${statusColors[item.status] || statusColors.pending}`}>
+                    <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full shrink-0 ${statusColors[item.status] || statusColors.pending}`}>
                       {item.status === 'pending' ? '待审批' : item.status === 'approved' ? '已通过' : '已拒绝'}
                     </span>
                   </div>

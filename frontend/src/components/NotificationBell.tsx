@@ -186,9 +186,9 @@ export default function NotificationBell() {
                         {!item.is_read && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                       </div>
                       {item.content && (
-                        <div className="text-[11px] text-slate-500 mt-0.5 truncate">{item.content}</div>
+                        <div className="text-[13px] text-slate-500 mt-0.5 truncate">{item.content}</div>
                       )}
-                      <div className="text-[10px] text-slate-400 mt-1">{timeAgo(item.created_at)}</div>
+                      <div className="text-[12px] text-slate-400 mt-1">{timeAgo(item.created_at)}</div>
                     </div>
                   </div>
                 )

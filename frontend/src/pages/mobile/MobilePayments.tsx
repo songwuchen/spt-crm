@@ -44,11 +44,11 @@ export default function MobilePayments() {
       {/* Summary */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 text-center">
-          <div className="text-[10px] text-slate-400 font-bold">计划总额</div>
+          <div className="text-[12px] text-slate-400 font-bold">计划总额</div>
           <div className="text-lg font-black text-slate-900">¥{(totalAmount / 10000).toFixed(1)}万</div>
         </div>
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 text-center">
-          <div className="text-[10px] text-slate-400 font-bold">已回款</div>
+          <div className="text-[12px] text-slate-400 font-bold">已回款</div>
           <div className="text-lg font-black text-emerald-600">¥{(paidAmount / 10000).toFixed(1)}万</div>
         </div>
       </div>
@@ -80,12 +80,12 @@ export default function MobilePayments() {
               <div key={p.id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-bold text-slate-900">{p.plan_no}</span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${sc.bg} ${sc.color}`}>{sc.label}</span>
+                  <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${sc.bg} ${sc.color}`}>{sc.label}</span>
                 </div>
                 <div className="text-lg font-black text-slate-900">¥{p.amount.toLocaleString()}</div>
                 <div className="flex items-center justify-between mt-1">
-                  <span className="text-[10px] text-slate-400">{p.project_name || '-'}</span>
-                  <span className={`text-[10px] font-medium ${p.status !== 'paid' && daysLeft < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                  <span className="text-[12px] text-slate-400">{p.project_name || '-'}</span>
+                  <span className={`text-[12px] font-medium ${p.status !== 'paid' && daysLeft < 0 ? 'text-red-500' : 'text-slate-400'}`}>
                     {p.due_date}{p.status !== 'paid' && daysLeft < 0 ? ` (逾期${Math.abs(daysLeft)}天)` : ''}
                   </span>
                 </div>

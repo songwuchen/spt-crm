@@ -83,10 +83,10 @@ export default function MobileLeads() {
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 active:bg-slate-50">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-bold text-slate-800 flex-1 truncate">{l.title}</span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${st.color} ${st.bg}`}>{st.label}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[12px] font-bold ${st.color} ${st.bg}`}>{st.label}</span>
               </div>
               {l.company_name && <p className="text-sm text-slate-600 mb-1">{l.company_name}</p>}
-              <div className="flex items-center gap-3 text-[10px] text-slate-400">
+              <div className="flex items-center gap-3 text-[12px] text-slate-400">
                 {l.contact_name && <span>{l.contact_name}</span>}
                 {l.source && <span>{sourceLabels[l.source] || l.source}</span>}
                 {l.owner_name && <span>{l.owner_name}</span>}

@@ -52,7 +52,7 @@ export default function MobileServiceTicketDetail() {
           <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
         </button>
         <h1 className="text-lg font-extrabold text-slate-900">{ticket.ticket_no}</h1>
-        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${sc.color}`}>{sc.label}</span>
+        <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${sc.color}`}>{sc.label}</span>
       </div>
 
       {/* Header card */}
@@ -68,34 +68,34 @@ export default function MobileServiceTicketDetail() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-4 space-y-3">
         {ticket.description && (
           <div>
-            <div className="text-[10px] font-bold text-slate-400 mb-1">问题描述</div>
+            <div className="text-[12px] font-bold text-slate-400 mb-1">问题描述</div>
             <div className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.description}</div>
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
           {ticket.customer_name && (
             <div>
-              <div className="text-[10px] font-bold text-slate-400">客户</div>
+              <div className="text-[12px] font-bold text-slate-400">客户</div>
               <div className="text-sm text-slate-800">{ticket.customer_name}</div>
             </div>
           )}
           {ticket.assigned_to_name && (
             <div>
-              <div className="text-[10px] font-bold text-slate-400">负责人</div>
+              <div className="text-[12px] font-bold text-slate-400">负责人</div>
               <div className="text-sm text-slate-800">{ticket.assigned_to_name}</div>
             </div>
           )}
           <div>
-            <div className="text-[10px] font-bold text-slate-400">创建人</div>
+            <div className="text-[12px] font-bold text-slate-400">创建人</div>
             <div className="text-sm text-slate-800">{ticket.created_by_name || '-'}</div>
           </div>
           <div>
-            <div className="text-[10px] font-bold text-slate-400">创建时间</div>
+            <div className="text-[12px] font-bold text-slate-400">创建时间</div>
             <div className="text-sm text-slate-800">{ticket.created_at?.slice(0, 16)}</div>
           </div>
           {ticket.resolved_at && (
             <div>
-              <div className="text-[10px] font-bold text-slate-400">解决时间</div>
+              <div className="text-[12px] font-bold text-slate-400">解决时间</div>
               <div className="text-sm text-slate-800">{ticket.resolved_at.slice(0, 16)}</div>
             </div>
           )}
@@ -104,7 +104,7 @@ export default function MobileServiceTicketDetail() {
 
       {/* Status timeline */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
-        <div className="text-[10px] font-bold text-slate-400 mb-3">状态流转</div>
+        <div className="text-[12px] font-bold text-slate-400 mb-3">状态流转</div>
         <div className="flex items-center gap-1">
           {['open', 'in_progress', 'resolved', 'closed'].map((step, i) => {
             const steps = ['open', 'in_progress', 'resolved', 'closed']

@@ -288,7 +288,7 @@ export default function ApprovalCenter() {
         return (
           <span className={isOverdue ? 'text-red-500 font-bold' : ''}>
             {new Date(v).toLocaleString('zh-CN')}
-            {isOverdue && <Tag color="red" className="ml-1 text-[10px]">超时</Tag>}
+            {isOverdue && <Tag color="red" className="ml-1 text-[12px]">超时</Tag>}
           </span>
         )
       },
@@ -603,7 +603,7 @@ export default function ApprovalCenter() {
                         <div className="text-sm text-slate-500 mt-1">意见: {task.comment}</div>
                       )}
                       {task.decided_at && (
-                        <div className="text-[11px] text-slate-400 mt-0.5">{task.decided_at}</div>
+                        <div className="text-[13px] text-slate-400 mt-0.5">{task.decided_at}</div>
                       )}
                     </div>
                   </div>

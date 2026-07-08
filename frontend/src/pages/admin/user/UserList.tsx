@@ -197,7 +197,7 @@ export default function UserList() {
           </div>
           <div>
             <div className="text-sm font-bold text-slate-900">{record.real_name || record.username}</div>
-            <div className="text-[11px] text-slate-400">{record.username}</div>
+            <div className="text-[13px] text-slate-400">{record.username}</div>
           </div>
         </div>
       ),
@@ -212,7 +212,7 @@ export default function UserList() {
       render: (v: string[]) => v.length > 0 ? (
         <div className="flex flex-wrap gap-1">
           {v.map((r) => (
-            <span key={r} className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+            <span key={r} className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold bg-primary/10 text-primary border border-primary/20">
               {r}
             </span>
           ))}
@@ -223,7 +223,7 @@ export default function UserList() {
       render: (v: string[]) => v.length > 0 ? (
         <div className="flex flex-wrap gap-1">
           {v.map((d) => (
-            <span key={d} className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+            <span key={d} className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
               {d}
             </span>
           ))}

@@ -56,8 +56,8 @@ function ContactNode({ node, onSelect }: { node: TreeNode; onSelect?: (c: Contac
           </span>
         )}
         <div className="text-sm font-bold text-slate-800 text-center">{c.name}</div>
-        {c.title && <div className="text-[11px] text-slate-500 text-center truncate">{c.title}</div>}
-        <div className={`text-[10px] font-bold text-center mt-1 ${role.color}`}>{role.label}</div>
+        {c.title && <div className="text-[13px] text-slate-500 text-center truncate">{c.title}</div>}
+        <div className={`text-[12px] font-bold text-center mt-1 ${role.color}`}>{role.label}</div>
       </div>
 
       {/* Children */}
@@ -106,14 +106,14 @@ export default function ContactOrgChart({ contacts, onSelect }: ContactOrgChartP
         {Object.entries(roleConfig).map(([, cfg]) => (
           <div key={cfg.label} className="flex items-center gap-1">
             <div className={`w-3 h-3 rounded border-2 ${cfg.bg}`} />
-            <span className={`text-[10px] font-bold ${cfg.color}`}>{cfg.label}</span>
+            <span className={`text-[12px] font-bold ${cfg.color}`}>{cfg.label}</span>
           </div>
         ))}
         <div className="flex items-center gap-1">
           <span className="w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center">
             <span className="material-symbols-outlined text-white" style={{ fontSize: 10 }}>star</span>
           </span>
-          <span className="text-[10px] font-bold text-amber-600">主要联系人</span>
+          <span className="text-[12px] font-bold text-amber-600">主要联系人</span>
         </div>
       </div>
     </div>

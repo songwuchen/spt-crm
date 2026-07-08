@@ -231,11 +231,11 @@ export default function MobileFollowUp() {
           <div className="flex gap-3">
             <div className="flex h-20 w-20 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 cursor-pointer">
               <span className="material-symbols-outlined">add_a_photo</span>
-              <span className="text-[10px]">拍照</span>
+              <span className="text-[12px]">拍照</span>
             </div>
             <div className="flex h-20 w-20 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 cursor-pointer">
               <span className="material-symbols-outlined">mic</span>
-              <span className="text-[10px]">录音</span>
+              <span className="text-[12px]">录音</span>
             </div>
           </div>
         </section>

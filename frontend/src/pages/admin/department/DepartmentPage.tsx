@@ -142,15 +142,15 @@ export default function DepartmentPage() {
               <div className="p-5">
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">部门名称</div>
+                    <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">部门名称</div>
                     <div className="text-sm font-semibold text-slate-700">{selectedDept.name}</div>
                   </div>
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">排序权重</div>
+                    <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">排序权重</div>
                     <div className="text-sm font-semibold text-slate-700">{selectedDept.sort_order}</div>
                   </div>
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 col-span-2">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">物化路径</div>
+                    <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">物化路径</div>
                     <div className="text-sm font-mono text-slate-500">{selectedDept.path}</div>
                   </div>
                 </div>

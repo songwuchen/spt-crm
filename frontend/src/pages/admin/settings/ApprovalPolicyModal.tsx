@@ -275,7 +275,7 @@ function FlowPreview({
               <div className="flex items-center justify-center w-14 h-7 rounded-full bg-emerald-500 text-white text-sm font-bold">
                 完成
               </div>
-              <span className="text-[10px] text-slate-400 mt-0.5">
+              <span className="text-[12px] text-slate-400 mt-0.5">
                 {approvalMode === 'parallel' ? '全部通过' : '任一通过'}
               </span>
             </div>

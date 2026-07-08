@@ -67,7 +67,7 @@ export default function MilestoneGantt({ milestones }: Props) {
       {/* Timeline header */}
       <div className="relative h-6 mb-1 ml-[140px]">
         {monthTicks.map((t, i) => (
-          <div key={i} className="absolute text-[10px] text-slate-400 font-bold" style={{ left: `${t.pct}%`, transform: 'translateX(-50%)' }}>
+          <div key={i} className="absolute text-[12px] text-slate-400 font-bold" style={{ left: `${t.pct}%`, transform: 'translateX(-50%)' }}>
             {t.label}
           </div>
         ))}
@@ -152,7 +152,7 @@ export default function MilestoneGantt({ milestones }: Props) {
 
             {/* Status tag */}
             <div className="w-[60px] flex-shrink-0 pl-2">
-              {m.isOverdue && <Tag color="error" className="text-[10px] m-0">延期</Tag>}
+              {m.isOverdue && <Tag color="error" className="text-[12px] m-0">延期</Tag>}
             </div>
           </div>
         )
@@ -160,19 +160,19 @@ export default function MilestoneGantt({ milestones }: Props) {
 
       {/* Legend */}
       <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100 ml-[140px]">
-        <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+        <div className="flex items-center gap-1.5 text-[12px] text-slate-500">
           <div className="w-3 h-3 rotate-45 border-2 border-slate-400 bg-white" />
           <span>计划日期</span>
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+        <div className="flex items-center gap-1.5 text-[12px] text-slate-500">
           <div className="w-3 h-3 rounded-full bg-emerald-500" />
           <span>实际完成</span>
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+        <div className="flex items-center gap-1.5 text-[12px] text-slate-500">
           <div className="w-3 h-3 rounded-full bg-red-500" />
           <span>延期完成</span>
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+        <div className="flex items-center gap-1.5 text-[12px] text-slate-500">
           <div className="w-4 h-0 border-t-2 border-blue-400 border-dashed" />
           <span>今天</span>
         </div>

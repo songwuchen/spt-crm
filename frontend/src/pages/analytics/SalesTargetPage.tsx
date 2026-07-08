@@ -207,15 +207,15 @@ export default function SalesTargetPage() {
       {/* Overall Summary */}
       <div className="grid grid-cols-3 gap-4 mb-4">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <div className="text-[10px] text-slate-400 uppercase font-bold mb-1">{tab === 'user' ? '团队目标' : '部门目标合计'}</div>
+          <div className="text-[12px] text-slate-400 uppercase font-bold mb-1">{tab === 'user' ? '团队目标' : '部门目标合计'}</div>
           <div className="text-xl font-black text-slate-900">{totalTarget.toLocaleString()}</div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <div className="text-[10px] text-slate-400 uppercase font-bold mb-1">已达成</div>
+          <div className="text-[12px] text-slate-400 uppercase font-bold mb-1">已达成</div>
           <div className="text-xl font-black text-emerald-600">{totalActual.toLocaleString()}</div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <div className="text-[10px] text-slate-400 uppercase font-bold mb-1">达成率</div>
+          <div className="text-[12px] text-slate-400 uppercase font-bold mb-1">达成率</div>
           <Progress percent={overallRate} size="small" status={overallRate >= 100 ? 'success' : overallRate >= 80 ? 'active' : 'exception'} />
         </div>
       </div>

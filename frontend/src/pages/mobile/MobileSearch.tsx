@@ -82,7 +82,7 @@ export default function MobileSearch() {
           const cfg = typeConfig[type] || typeConfig.customer
           return (
             <div key={type}>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              <div className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 {cfg.label}（{items.length}）
               </div>
               <div className="space-y-1.5">

@@ -101,7 +101,7 @@ export default function LeadForm() {
         <Form form={form} layout="vertical" onFinish={onFinish} className="max-w-3xl">
           {/* Basic Info */}
           <div className="mb-6">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">基本信息</h3>
+            <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400 mb-4">基本信息</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
               <Form.Item name="title" label="线索标题" rules={[{ required: true, message: '请输入线索标题' }]} className="col-span-2">
                 <Input placeholder="请输入线索标题" />
@@ -144,7 +144,7 @@ export default function LeadForm() {
 
           {/* Location */}
           <div className="mb-6">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">项目地址</h3>
+            <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400 mb-4">项目地址</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
               <Form.Item name="country_type" label="国别">
                 <Select placeholder="请选择国别" allowClear options={countryOptions} onChange={(v) => setCountryType(v)} />
@@ -184,7 +184,7 @@ export default function LeadForm() {
 
           {/* Contact Info */}
           <div className="mb-6">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">联系人信息</h3>
+            <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400 mb-4">联系人信息</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
               <Form.Item name="contact_name" label="联系人姓名">
                 <Input placeholder="请输入联系人姓名" />
@@ -202,12 +202,12 @@ export default function LeadForm() {
 
           {/* Product Info sub-table (issue #84) */}
           <div className="mb-6">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">产品信息</h3>
+            <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400 mb-4">产品信息</h3>
             <Form.List name="products">
               {(fields, { add, remove }) => (
                 <>
                   {fields.length > 0 && (
-                    <div className="hidden sm:flex items-center gap-2 px-1 mb-1 text-[11px] font-semibold text-slate-400">
+                    <div className="hidden sm:flex items-center gap-2 px-1 mb-1 text-[13px] font-semibold text-slate-400">
                       <span className="flex-1">产品名称</span>
                       <span className="flex-1">产品规格</span>
                       <span className="w-28">数量</span>
@@ -242,7 +242,7 @@ export default function LeadForm() {
 
           {/* Extra Info */}
           <div className="mb-6">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">补充信息</h3>
+            <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400 mb-4">补充信息</h3>
             <Form.Item name="demand_summary" label="需求摘要">
               <Input.TextArea rows={3} placeholder="请描述客户需求" />
             </Form.Item>

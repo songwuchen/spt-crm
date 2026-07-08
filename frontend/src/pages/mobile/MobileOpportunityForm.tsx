@@ -84,7 +84,7 @@ export default function MobileOpportunityForm() {
         </div>
         <div className="border-t border-slate-100 pt-4">
           <div className="text-sm font-bold text-slate-700">关键需求</div>
-          <div className="text-[11px] text-slate-400 mb-2">推进到「S3 方案报价」前需填写</div>
+          <div className="text-[13px] text-slate-400 mb-2">推进到「S3 方案报价」前需填写</div>
           <textarea value={form.req_summary} onChange={(e) => setForm({ ...form, req_summary: e.target.value })}
             placeholder="需求摘要：客户核心需求、技术规格、交付/预算约束等" rows={3}
             className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none" />

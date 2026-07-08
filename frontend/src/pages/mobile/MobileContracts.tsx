@@ -75,7 +75,7 @@ export default function MobileContracts() {
                 onClick={() => setDetail(c)}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-bold text-slate-900">{c.contract_no}</span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${sc.bg} ${sc.color}`}>{sc.label}</span>
+                  <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${sc.bg} ${sc.color}`}>{sc.label}</span>
                 </div>
                 {c.title && <div className="text-sm text-slate-600 mb-1">{c.title}</div>}
                 <div className="flex items-center justify-between">
@@ -83,7 +83,7 @@ export default function MobileContracts() {
                     {c.amount_total != null && (
                       <div className="text-lg font-black text-slate-900">¥{(c.amount_total / 10000).toFixed(1)}万</div>
                     )}
-                    <div className="text-[10px] text-slate-400 mt-0.5">
+                    <div className="text-[12px] text-slate-400 mt-0.5">
                       {c.signed_date && <span>签署: {c.signed_date}</span>}
                       {c.created_by_name && <span className="ml-2">{c.created_by_name}</span>}
                     </div>
@@ -93,7 +93,7 @@ export default function MobileContracts() {
                       <div className="text-sm font-bold">
                         {daysLeft < 0 ? `已过期${Math.abs(daysLeft)}天` : `${daysLeft}天后到期`}
                       </div>
-                      <div className="text-[10px]">{c.end_date}</div>
+                      <div className="text-[12px]">{c.end_date}</div>
                     </div>
                   )}
                 </div>
@@ -123,10 +123,10 @@ export default function MobileContracts() {
                 const sc = statusConfig[step]
                 return (
                   <div key={step} className="flex items-center gap-1 flex-1">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold ${
                       isActive ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'
                     }`}>{i + 1}</div>
-                    <span className={`text-[10px] font-medium ${isActive ? 'text-slate-800' : 'text-slate-400'}`}>{sc.label}</span>
+                    <span className={`text-[12px] font-medium ${isActive ? 'text-slate-800' : 'text-slate-400'}`}>{sc.label}</span>
                     {i < 2 && <div className={`flex-1 h-0.5 ${isActive && i < currentIdx ? 'bg-primary' : 'bg-slate-100'}`} />}
                   </div>
                 )

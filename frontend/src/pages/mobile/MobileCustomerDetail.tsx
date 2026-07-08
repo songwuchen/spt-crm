@@ -67,10 +67,10 @@ export default function MobileCustomerDetail() {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-extrabold text-slate-900 truncate">{customer.name}</h1>
-          <span className="text-[10px] font-mono text-slate-400">{customer.customer_code}</span>
+          <span className="text-[12px] font-mono text-slate-400">{customer.customer_code}</span>
         </div>
         {customer.level && (
-          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${lc}`}>
+          <span className={`px-2 py-0.5 rounded text-[12px] font-bold border ${lc}`}>
             {customer.level}级
           </span>
         )}
@@ -80,17 +80,17 @@ export default function MobileCustomerDetail() {
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-gradient-to-br from-primary/10 to-blue-50 rounded-xl p-3 text-center border border-primary/10">
           <div className="text-lg font-black text-slate-900">{contacts.length}</div>
-          <div className="text-[10px] text-slate-500 font-bold">联系人</div>
+          <div className="text-[12px] text-slate-500 font-bold">联系人</div>
         </div>
         <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-3 text-center border border-emerald-100">
           <div className="text-lg font-black text-emerald-600">{activities.length}</div>
-          <div className="text-[10px] text-slate-500 font-bold">互动记录</div>
+          <div className="text-[12px] text-slate-500 font-bold">互动记录</div>
         </div>
         <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-3 text-center border border-amber-100">
           <div className="text-lg font-black text-amber-600">
             {customer.status === 'active' ? '活跃' : '停用'}
           </div>
-          <div className="text-[10px] text-slate-500 font-bold">状态</div>
+          <div className="text-[12px] text-slate-500 font-bold">状态</div>
         </div>
       </div>
 
@@ -136,7 +136,7 @@ export default function MobileCustomerDetail() {
                 <div key={c.id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-bold text-slate-800">{c.name}</span>
-                    {c.is_primary && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1 rounded">主要</span>}
+                    {c.is_primary && <span className="text-[12px] font-bold text-amber-600 bg-amber-50 px-1 rounded">主要</span>}
                     {c.title && <span className="text-sm text-slate-500">{c.title}</span>}
                   </div>
                   <div className="flex gap-3 text-sm text-slate-500">
@@ -166,7 +166,7 @@ export default function MobileCustomerDetail() {
                     <span className="text-sm font-bold text-slate-800 flex-1 truncate">{a.subject || a.content?.slice(0, 30) || '-'}</span>
                   </div>
                   {a.content && <p className="text-sm text-slate-600 mb-1 line-clamp-2">{a.content}</p>}
-                  <div className="text-[10px] text-slate-400">
+                  <div className="text-[12px] text-slate-400">
                     {a.created_by_name || ''} &middot; {a.created_at ? new Date(a.created_at).toLocaleDateString('zh-CN') : ''}
                   </div>
                 </div>

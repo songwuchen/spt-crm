@@ -163,7 +163,7 @@ export default function Header() {
                 const ti = typeIcons[type] || typeIcons.customer
                 return (
                   <div key={type}>
-                    <div className="px-4 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                    <div className="px-4 py-1.5 bg-slate-50 text-[12px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
                       {ti.label}（{items.length}）
                     </div>
                     {items.map((r) => {
@@ -182,7 +182,7 @@ export default function Header() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-semibold text-slate-800 truncate">{highlightMatch(r.title, searchText)}</div>
-                            {r.subtitle && <div className="text-[11px] text-slate-400 truncate">{highlightMatch(r.subtitle, searchText)}</div>}
+                            {r.subtitle && <div className="text-[13px] text-slate-400 truncate">{highlightMatch(r.subtitle, searchText)}</div>}
                           </div>
                         </div>
                       )
@@ -252,7 +252,7 @@ export default function Header() {
               <div className="text-sm font-semibold text-slate-900 leading-tight">
                 {user?.real_name || user?.username || '用户'}
               </div>
-              <div className="text-[11px] text-slate-400 leading-tight">
+              <div className="text-[13px] text-slate-400 leading-tight">
                 {user?.roles?.[0] || '成员'}
               </div>
             </div>

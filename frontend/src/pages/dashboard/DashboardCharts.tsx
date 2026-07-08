@@ -254,15 +254,15 @@ export function ContractExpiryPanel() {
         <div className="flex gap-3 mb-3">
           <div className="flex-1 rounded-lg bg-red-50 border border-red-100 p-2 text-center">
             <div className="text-lg font-black text-red-600">{expiredCount}</div>
-            <div className="text-[10px] text-red-500 font-bold">紧急/已过期</div>
+            <div className="text-[12px] text-red-500 font-bold">紧急/已过期</div>
           </div>
           <div className="flex-1 rounded-lg bg-amber-50 border border-amber-100 p-2 text-center">
             <div className="text-lg font-black text-amber-600">{items.length - expiredCount}</div>
-            <div className="text-[10px] text-amber-500 font-bold">预警中</div>
+            <div className="text-[12px] text-amber-500 font-bold">预警中</div>
           </div>
           <div className="flex-1 rounded-lg bg-blue-50 border border-blue-100 p-2 text-center">
             <div className="text-lg font-black text-blue-600">¥{(items.reduce((s, i) => s + (i.amount_total || 0), 0) / 10000).toFixed(0)}万</div>
-            <div className="text-[10px] text-blue-500 font-bold">涉及金额</div>
+            <div className="text-[12px] text-blue-500 font-bold">涉及金额</div>
           </div>
         </div>
       )}
@@ -278,19 +278,19 @@ export function ContractExpiryPanel() {
                 className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:shadow-sm transition-shadow ${u.bg} border-slate-100`}>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-800 truncate">{item.contract_no}</div>
-                  <div className="text-[11px] text-slate-500 truncate">{item.project_name} · {item.owner_name || '-'}</div>
+                  <div className="text-[13px] text-slate-500 truncate">{item.project_name} · {item.owner_name || '-'}</div>
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-sm font-bold text-slate-700">¥{(item.amount_total / 10000).toFixed(1)}万</div>
-                  <div className={`text-[10px] font-bold ${u.text}`}>
+                  <div className={`text-[12px] font-bold ${u.text}`}>
                     {item.days_left < 0 ? `已过期${Math.abs(item.days_left)}天` : `${item.days_left}天后到期`}
                   </div>
                 </div>
-                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${u.bg} ${u.text}`}>{u.label}</span>
+                <span className={`px-1.5 py-0.5 rounded text-[12px] font-bold ${u.bg} ${u.text}`}>{u.label}</span>
                 <Button size="small" type="primary"
                   loading={renewingId === item.id}
                   onClick={(e) => handleRenew(e, item.id)}
-                  className="shrink-0 text-[11px]">
+                  className="shrink-0 text-[13px]">
                   续签
                 </Button>
               </div>

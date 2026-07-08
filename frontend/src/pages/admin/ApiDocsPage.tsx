@@ -130,7 +130,7 @@ export default function ApiDocsPage() {
                 <div className="space-y-1">
                   {g.endpoints.map((ep, i) => (
                     <div key={i} className="flex items-center gap-3 py-1.5 border-b border-slate-50 last:border-0">
-                      <Tag color={methodColors[ep.method]} className="font-mono text-[10px] min-w-[50px] text-center">{ep.method}</Tag>
+                      <Tag color={methodColors[ep.method]} className="font-mono text-[12px] min-w-[50px] text-center">{ep.method}</Tag>
                       <code className="text-sm text-slate-700 font-mono flex-shrink-0">{ep.path}</code>
                       <span className="text-sm text-slate-500 ml-auto">{ep.desc}</span>
                     </div>

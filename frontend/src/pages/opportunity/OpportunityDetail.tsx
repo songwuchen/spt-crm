@@ -44,7 +44,7 @@ const MEMBER_ROLE_LABEL: Record<string, string> = Object.fromEntries(MEMBER_ROLE
 function InfoField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="py-3 border-b border-slate-50 last:border-0">
-      <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</div>
+      <div className="text-[12px] text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</div>
       <div className="text-sm font-semibold text-slate-700">{value || <span className="text-slate-300">-</span>}</div>
     </div>
   )
@@ -545,11 +545,11 @@ export default function OpportunityDetail() {
             <div>
               <div className="flex items-center gap-3 mb-1">
                 <h1 className="text-2xl font-bold text-slate-900">{project.name}</h1>
-                <span className={`inline-flex items-center px-2.5 py-1 rounded text-[10px] font-black uppercase border ${stageColors[project.stage_code]}`}>
+                <span className={`inline-flex items-center px-2.5 py-1 rounded text-[12px] font-black uppercase border ${stageColors[project.stage_code]}`}>
                   {project.stage_code} {stageLabels[project.stage_code]}
                 </span>
                 {project.risk_level && (
-                  <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold border ${riskColors[project.risk_level]}`}>
+                  <span className={`inline-flex px-2 py-0.5 rounded text-[12px] font-bold border ${riskColors[project.risk_level]}`}>
                     风险: {riskLabels[project.risk_level]}
                   </span>
                 )}
@@ -592,7 +592,7 @@ export default function OpportunityDetail() {
             return (
               <div key={s} className="flex-1 flex flex-col items-center gap-1">
                 <div className={`w-full h-2 rounded-full transition-all ${isActive ? 'bg-primary' : 'bg-slate-100'} ${isCurrent ? 'ring-2 ring-primary/30' : ''}`} />
-                <span className={`text-[10px] font-bold ${isActive ? 'text-primary' : 'text-slate-400'}`}>{s}</span>
+                <span className={`text-[12px] font-bold ${isActive ? 'text-primary' : 'text-slate-400'}`}>{s}</span>
               </div>
             )
           })}
@@ -646,16 +646,16 @@ export default function OpportunityDetail() {
               if (rows.length === 0) return <InfoField label="关键需求" value={undefined} />
               return (
                 <div className="py-3 border-b border-slate-50 last:border-0">
-                  <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">关键需求（{rows.length}）</div>
+                  <div className="text-[12px] text-slate-400 uppercase font-bold tracking-wider mb-1">关键需求（{rows.length}）</div>
                   <div className="space-y-2">
                     {rows.map((r, i) => (
                       <div key={i} className="bg-slate-50 rounded-lg px-2.5 py-2">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-semibold text-slate-700">{r.title || `需求${i + 1}`}</span>
-                          {r.confirmed && <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">已确认</span>}
+                          {r.confirmed && <span className="text-[12px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">已确认</span>}
                         </div>
-                        {r.tech_spec && <div className="text-[11px] text-slate-500 mt-0.5">技术需求：{r.tech_spec}</div>}
-                        {r.acceptance && <div className="text-[11px] text-slate-500 mt-0.5">验收：{r.acceptance}</div>}
+                        {r.tech_spec && <div className="text-[13px] text-slate-500 mt-0.5">技术需求：{r.tech_spec}</div>}
+                        {r.acceptance && <div className="text-[13px] text-slate-500 mt-0.5">验收：{r.acceptance}</div>}
                       </div>
                     ))}
                   </div>
@@ -688,7 +688,7 @@ export default function OpportunityDetail() {
                   }`}>
                     {{ healthy: '健康', attention: '关注', warning: '预警', critical: '危险' }[healthScore.level as string]}
                   </div>
-                  <div className="text-[10px] text-slate-400">满分 {healthScore.max_score}</div>
+                  <div className="text-[12px] text-slate-400">满分 {healthScore.max_score}</div>
                 </div>
               </div>
               {/* Dimension Bars */}
@@ -700,13 +700,13 @@ export default function OpportunityDetail() {
                     return (
                       <div key={key}>
                         <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[11px] font-bold text-slate-600">{dim.label}</span>
-                          <span className="text-[10px] text-slate-400">{dim.score}/{dim.max}</span>
+                          <span className="text-[13px] font-bold text-slate-600">{dim.label}</span>
+                          <span className="text-[12px] text-slate-400">{dim.score}/{dim.max}</span>
                         </div>
                         <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                           <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{dim.detail}</div>
+                        <div className="text-[12px] text-slate-400 mt-0.5">{dim.detail}</div>
                       </div>
                     )
                   })}
@@ -715,7 +715,7 @@ export default function OpportunityDetail() {
               {healthScore.risks?.length > 0 && (
                 <div className="space-y-1.5 border-t border-slate-100 pt-3">
                   {healthScore.risks.map((r: string, i: number) => (
-                    <div key={i} className="flex items-start gap-1.5 text-[11px] text-amber-600">
+                    <div key={i} className="flex items-start gap-1.5 text-[13px] text-amber-600">
                       <span className="material-symbols-outlined" style={{ fontSize: 14, marginTop: 1 }}>warning</span>
                       {r}
                     </div>
@@ -752,13 +752,13 @@ export default function OpportunityDetail() {
                   <div key={i} className="bg-slate-50 rounded-lg px-3 py-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-bold text-slate-700">{p.name}</span>
-                      <span className="text-[10px] font-extrabold text-primary">{p.similarity_score}%</span>
+                      <span className="text-[12px] font-extrabold text-primary">{p.similarity_score}%</span>
                     </div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{p.reason}</div>
+                    <div className="text-[12px] text-slate-500 mt-0.5">{p.reason}</div>
                   </div>
                 ))}
                 {similarInsights && (
-                  <div className="bg-indigo-50 rounded-lg px-3 py-2 text-[11px] text-indigo-700 border border-indigo-100">
+                  <div className="bg-indigo-50 rounded-lg px-3 py-2 text-[13px] text-indigo-700 border border-indigo-100">
                     <span className="font-bold">洞察: </span>{similarInsights}
                   </div>
                 )}
@@ -778,8 +778,8 @@ export default function OpportunityDetail() {
                     <div className="text-sm font-bold text-slate-700">
                       {h.from_stage} → {h.to_stage}
                     </div>
-                    {h.note && <div className="text-[11px] text-slate-500">{h.note}</div>}
-                    <div className="text-[10px] text-slate-400">
+                    {h.note && <div className="text-[13px] text-slate-500">{h.note}</div>}
+                    <div className="text-[12px] text-slate-400">
                       {h.changed_by_name} · {new Date(h.created_at).toLocaleString('zh-CN')}
                     </div>
                   </div>
@@ -953,19 +953,19 @@ export default function OpportunityDetail() {
                           <div className="grid grid-cols-4 gap-3 text-center">
                             <div>
                               <div className="text-xl font-extrabold text-slate-700">{milestones.length}</div>
-                              <div className="text-[10px] text-slate-400 font-bold">总里程碑</div>
+                              <div className="text-[12px] text-slate-400 font-bold">总里程碑</div>
                             </div>
                             <div>
                               <div className="text-xl font-extrabold text-emerald-600">{done}</div>
-                              <div className="text-[10px] text-emerald-500 font-bold">已完成</div>
+                              <div className="text-[12px] text-emerald-500 font-bold">已完成</div>
                             </div>
                             <div>
                               <div className="text-xl font-extrabold text-blue-600">{doing}</div>
-                              <div className="text-[10px] text-blue-500 font-bold">进行中</div>
+                              <div className="text-[12px] text-blue-500 font-bold">进行中</div>
                             </div>
                             <div>
                               <div className="text-xl font-extrabold text-red-600">{delayed}</div>
-                              <div className="text-[10px] text-red-500 font-bold">已延迟</div>
+                              <div className="text-[12px] text-red-500 font-bold">已延迟</div>
                             </div>
                           </div>
                           {delayed > 0 && (
@@ -1528,17 +1528,17 @@ export default function OpportunityDetail() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="bg-blue-50 rounded-lg p-3 text-center">
                       <div className="text-2xl font-extrabold text-blue-600">{(editingChange.impact_json as Record<string, unknown>).affected_milestone_count as number ?? '-'}</div>
-                      <div className="text-[10px] text-blue-500 font-bold uppercase">受影响里程碑</div>
+                      <div className="text-[12px] text-blue-500 font-bold uppercase">受影响里程碑</div>
                     </div>
                     <div className="bg-slate-50 rounded-lg p-3 text-center">
                       <div className="text-2xl font-extrabold text-slate-600">{(editingChange.impact_json as Record<string, unknown>).total_milestone_count as number ?? '-'}</div>
-                      <div className="text-[10px] text-slate-500 font-bold uppercase">总里程碑数</div>
+                      <div className="text-[12px] text-slate-500 font-bold uppercase">总里程碑数</div>
                     </div>
                     <div className="bg-amber-50 rounded-lg p-3 text-center">
                       <div className="text-lg font-extrabold text-amber-600">
                         {((editingChange.impact_json as Record<string, unknown>).risk_summary as string[])?.length ?? 0}
                       </div>
-                      <div className="text-[10px] text-amber-500 font-bold uppercase">风险提示</div>
+                      <div className="text-[12px] text-amber-500 font-bold uppercase">风险提示</div>
                     </div>
                   </div>
                   {/* Risk warnings */}
@@ -1555,7 +1555,7 @@ export default function OpportunityDetail() {
                   {/* Affected milestones list */}
                   {((editingChange.impact_json as Record<string, unknown>).affected_milestones as Array<Record<string, string>>)?.length > 0 && (
                     <div>
-                      <div className="text-[10px] font-bold uppercase text-slate-400 mb-1">受影响里程碑</div>
+                      <div className="text-[12px] font-bold uppercase text-slate-400 mb-1">受影响里程碑</div>
                       <div className="space-y-1">
                         {((editingChange.impact_json as Record<string, unknown>).affected_milestones as Array<Record<string, string>>).map((m) => (
                           <div key={m.id} className="flex items-center justify-between text-sm bg-slate-50 rounded px-3 py-1.5">

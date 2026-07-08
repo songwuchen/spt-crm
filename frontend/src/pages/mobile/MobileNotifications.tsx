@@ -73,12 +73,12 @@ export default function MobileNotifications() {
                 <span className={`material-symbols-outlined ${cfg.color} mt-0.5`} style={{ fontSize: 20 }}>{cfg.icon}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{cfg.label}</span>
+                    <span className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{cfg.label}</span>
                     {!n.is_read && <span className="w-2 h-2 rounded-full bg-primary shrink-0" />}
                   </div>
                   <p className="text-sm text-slate-800 font-medium">{n.title}</p>
                   {n.content && <p className="text-sm text-slate-500 mt-1 line-clamp-2">{n.content}</p>}
-                  <span className="text-[10px] text-slate-400 mt-1 block">
+                  <span className="text-[12px] text-slate-400 mt-1 block">
                     {n.created_at ? new Date(n.created_at).toLocaleString('zh-CN') : ''}
                   </span>
                 </div>

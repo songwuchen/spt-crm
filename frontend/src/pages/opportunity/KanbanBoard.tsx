@@ -235,12 +235,12 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-black uppercase tracking-wider" style={{ color: color.text }}>{stage}</span>
-                    <span className="text-[11px] font-semibold" style={{ color: color.text }}>{stageLabels[stage]}</span>
+                    <span className="text-[13px] font-semibold" style={{ color: color.text }}>{stageLabels[stage]}</span>
                   </div>
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-white"
+                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[12px] font-bold text-white"
                     style={{ background: color.text }}>{count}</span>
                 </div>
-                <div className="text-[11px] font-medium" style={{ color: color.text, opacity: 0.7 }}>
+                <div className="text-[13px] font-medium" style={{ color: color.text, opacity: 0.7 }}>
                   {sum > 0 ? `¥${(sum / 10000).toFixed(1)}万` : '-'}
                 </div>
               </div>
@@ -275,9 +275,9 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
                         <h3 className="text-[13px] font-bold text-slate-800 leading-tight line-clamp-2 flex-1">{card.name}</h3>
                         <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1 ml-2" style={{ background: statusDot[card.status] || '#94a3b8' }} />
                       </div>
-                      <div className="text-[11px] text-slate-400 font-mono mb-2">{card.project_code}</div>
+                      <div className="text-[13px] text-slate-400 font-mono mb-2">{card.project_code}</div>
                       {card.customer_name && (
-                        <div className="text-[11px] text-slate-500 mb-1.5 flex items-center gap-1">
+                        <div className="text-[13px] text-slate-500 mb-1.5 flex items-center gap-1">
                           <span className="material-symbols-outlined" style={{ fontSize: 13 }}>business</span>
                           {card.customer_name}
                         </div>
@@ -288,10 +288,10 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
                         </div>
                         <div className="flex items-center gap-2">
                           {card.probability != null && (
-                            <span className="text-[10px] font-bold text-blue-500">{card.probability}%</span>
+                            <span className="text-[12px] font-bold text-blue-500">{card.probability}%</span>
                           )}
                           {card.risk_level && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            <span className={`text-[12px] font-bold px-1.5 py-0.5 rounded ${
                               card.risk_level === 'H' ? 'bg-red-50 text-red-500' :
                               card.risk_level === 'M' ? 'bg-amber-50 text-amber-500' :
                               'bg-emerald-50 text-emerald-500'
@@ -300,7 +300,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
                         </div>
                       </div>
                       {card.owner_name && (
-                        <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center gap-1">
+                        <div className="mt-2 pt-2 border-t border-slate-100 text-[13px] text-slate-400 flex items-center gap-1">
                           <span className="material-symbols-outlined" style={{ fontSize: 13 }}>person</span>
                           {card.owner_name}
                         </div>

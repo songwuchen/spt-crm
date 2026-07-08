@@ -26,7 +26,7 @@ function StatCard({ icon, label, value, color, onClick }: {
     <div onClick={onClick} className={`bg-white rounded-xl border border-slate-100 shadow-sm p-3 ${onClick ? 'cursor-pointer active:bg-slate-50' : ''}`}>
       <div className="flex items-center gap-2 mb-1">
         <span className={`material-symbols-outlined ${color}`} style={{ fontSize: 18 }}>{icon}</span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+        <span className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
       </div>
       <div className="text-xl font-black text-slate-900">{value}</div>
     </div>
@@ -73,15 +73,15 @@ export default function MobileWorkbench() {
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-gradient-to-br from-primary/10 to-blue-50 rounded-xl p-3 text-center border border-primary/10">
             <div className="text-lg font-black text-slate-900">{myOv.my_customer_count}</div>
-            <div className="text-[10px] text-slate-500 font-bold">我的客户</div>
+            <div className="text-[12px] text-slate-500 font-bold">我的客户</div>
           </div>
           <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-3 text-center border border-emerald-100">
             <div className="text-lg font-black text-emerald-600">{myOv.my_active_projects}</div>
-            <div className="text-[10px] text-slate-500 font-bold">进行中商机</div>
+            <div className="text-[12px] text-slate-500 font-bold">进行中商机</div>
           </div>
           <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl p-3 text-center border border-amber-100">
             <div className="text-lg font-black text-amber-600">{myOv.my_won_month}</div>
-            <div className="text-[10px] text-slate-500 font-bold">本月赢单</div>
+            <div className="text-[12px] text-slate-500 font-bold">本月赢单</div>
           </div>
         </div>
       )}
@@ -109,7 +109,7 @@ export default function MobileWorkbench() {
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${a.color}`}>
                 <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{a.icon}</span>
               </div>
-              <span className="text-[11px] font-bold text-slate-700">{a.label}</span>
+              <span className="text-[13px] font-bold text-slate-700">{a.label}</span>
             </button>
           ))}
         </div>
@@ -126,7 +126,7 @@ export default function MobileWorkbench() {
                 <span className="material-symbols-outlined text-amber-500" style={{ fontSize: 18 }}>schedule</span>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-800 truncate">{p.name}</div>
-                  <div className="text-[10px] text-slate-500">{p.stage_code}</div>
+                  <div className="text-[12px] text-slate-500">{p.stage_code}</div>
                 </div>
                 <span className="text-sm font-bold text-amber-600">{p.days_stalled}天</span>
               </div>

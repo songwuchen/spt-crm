@@ -149,7 +149,7 @@ export default function InternalNotes({ bizType, bizId }: InternalNotesProps) {
         <div className="flex justify-between items-center mt-2">
           <div className="flex items-center gap-2">
             <VoiceInput onResult={(text) => setContent((prev) => prev + text)} />
-            <span className="text-[11px] text-slate-400">Ctrl+Enter 快速提交</span>
+            <span className="text-[13px] text-slate-400">Ctrl+Enter 快速提交</span>
           </div>
           <Button type="primary" size="small" loading={submitting} onClick={handleSubmit}
             disabled={!content.trim()}>
@@ -170,16 +170,16 @@ export default function InternalNotes({ bizType, bizId }: InternalNotesProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-bold text-slate-800">{note.created_by_name || '未知'}</span>
-                    <span className="text-[11px] text-slate-400">{note.created_at ? new Date(note.created_at).toLocaleString('zh-CN') : ''}</span>
+                    <span className="text-[13px] text-slate-400">{note.created_at ? new Date(note.created_at).toLocaleString('zh-CN') : ''}</span>
                     {note.pinned && (
-                      <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">置顶</span>
+                      <span className="text-[12px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">置顶</span>
                     )}
                   </div>
                   <p className="text-sm text-slate-700 whitespace-pre-wrap">{note.content}</p>
                   {note.mentions_json && note.mentions_json.length > 0 && (
                     <div className="flex gap-1 mt-2">
                       {note.mentions_json.map((m) => (
-                        <span key={m.user_id} className="text-[11px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
+                        <span key={m.user_id} className="text-[13px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
                           @{m.user_name}
                         </span>
                       ))}

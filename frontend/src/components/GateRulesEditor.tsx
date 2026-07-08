@@ -99,7 +99,7 @@ export default function GateRulesEditor({ value, onChange }: Props) {
           <div key={idx} className="border border-slate-200 rounded-lg p-4 bg-white">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary">规则 {idx + 1}</span>
+                <span className="px-2 py-0.5 rounded text-[12px] font-bold bg-primary/10 text-primary">规则 {idx + 1}</span>
                 <span className="text-sm text-slate-500">{checkCfg?.label || rule.check}</span>
               </div>
               <Button danger size="small" type="text" icon={<DeleteOutlined />} onClick={() => remove(idx)} />
@@ -107,17 +107,17 @@ export default function GateRulesEditor({ value, onChange }: Props) {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">规则代码 *</label>
+                <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">规则代码 *</label>
                 <Input value={rule.code} placeholder="HAS_CUSTOMER"
                   onChange={(e) => update(idx, { code: e.target.value })} />
               </div>
               <div>
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">规则名称 *</label>
+                <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">规则名称 *</label>
                 <Input value={rule.name} placeholder="已关联客户"
                   onChange={(e) => update(idx, { name: e.target.value })} />
               </div>
               <div className="col-span-2">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">
+                <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">
                   校验类型 *
                   {checkCfg && (
                     <Tooltip title={checkCfg.desc}>
@@ -136,7 +136,7 @@ export default function GateRulesEditor({ value, onChange }: Props) {
               {/* Conditional parameter row */}
               {rule.check === 'field_required' && (
                 <div className="col-span-2">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">校验字段 *</label>
+                  <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">校验字段 *</label>
                   <Select
                     className="w-full"
                     value={rule.field}
@@ -149,7 +149,7 @@ export default function GateRulesEditor({ value, onChange }: Props) {
 
               {rule.check === 'json_not_empty' && (
                 <div className="col-span-2">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">JSON 字段 *</label>
+                  <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">JSON 字段 *</label>
                   <Select
                     className="w-full"
                     value={rule.field}
@@ -163,7 +163,7 @@ export default function GateRulesEditor({ value, onChange }: Props) {
               {rule.check === 'has_related' && (
                 <>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">关联实体 *</label>
+                    <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">关联实体 *</label>
                     <Select
                       className="w-full"
                       value={rule.entity}
@@ -173,7 +173,7 @@ export default function GateRulesEditor({ value, onChange }: Props) {
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">
+                    <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">
                       要求状态（选填）
                       <Tooltip title="留空=只要存在即可；指定后必须存在该状态的记录，例如合同=已签署">
                         <InfoCircleOutlined className="ml-1 text-slate-400" />
@@ -194,7 +194,7 @@ export default function GateRulesEditor({ value, onChange }: Props) {
 
               {rule.check === 'min_amount' && (
                 <div className="col-span-2">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">金额下限 (¥)</label>
+                  <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">金额下限 (¥)</label>
                   <InputNumber
                     className="w-full"
                     value={rule.min_value}
@@ -206,13 +206,13 @@ export default function GateRulesEditor({ value, onChange }: Props) {
               )}
 
               <div className="col-span-2">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">不通过提示 *</label>
+                <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">不通过提示 *</label>
                 <Input value={rule.message} placeholder="请先关联客户后再推进阶段"
                   onChange={(e) => update(idx, { message: e.target.value })} />
               </div>
 
               <div className="col-span-2">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">修复链接（选填）</label>
+                <label className="text-[13px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">修复链接（选填）</label>
                 <Input value={rule.fix_action} placeholder="/customers/new — 用户点击提示时可跳转的地址"
                   onChange={(e) => update(idx, { fix_action: e.target.value || undefined })} />
               </div>

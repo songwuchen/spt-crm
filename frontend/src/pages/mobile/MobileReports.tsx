@@ -54,7 +54,7 @@ export default function MobileReports() {
               <span className={`material-symbols-outlined ${s.color}`} style={{ fontSize: 20 }}>{s.icon}</span>
               <div>
                 <div className="text-sm font-black text-slate-900">{s.value}</div>
-                <div className="text-[10px] text-slate-400 font-bold">{s.label}</div>
+                <div className="text-[12px] text-slate-400 font-bold">{s.label}</div>
               </div>
             </div>
           ))}
@@ -69,21 +69,21 @@ export default function MobileReports() {
             <div className="grid grid-cols-4 gap-2 text-center">
               <div>
                 <div className="text-lg font-black text-slate-900">{approvalStats.total_flows}</div>
-                <div className="text-[10px] text-slate-400">总数</div>
+                <div className="text-[12px] text-slate-400">总数</div>
               </div>
               <div>
                 <div className="text-lg font-black text-emerald-600">{Math.round(approvalStats.approval_rate * 100)}%</div>
-                <div className="text-[10px] text-slate-400">通过率</div>
+                <div className="text-[12px] text-slate-400">通过率</div>
               </div>
               <div>
                 <div className="text-lg font-black text-blue-600">{approvalStats.avg_approval_hours}h</div>
-                <div className="text-[10px] text-slate-400">平均时长</div>
+                <div className="text-[12px] text-slate-400">平均时长</div>
               </div>
               <div>
                 <div className={`text-lg font-black ${approvalStats.sla_compliance_rate >= 0.9 ? 'text-emerald-600' : 'text-amber-600'}`}>
                   {Math.round(approvalStats.sla_compliance_rate * 100)}%
                 </div>
-                <div className="text-[10px] text-slate-400">SLA达标</div>
+                <div className="text-[12px] text-slate-400">SLA达标</div>
               </div>
             </div>
           </div>

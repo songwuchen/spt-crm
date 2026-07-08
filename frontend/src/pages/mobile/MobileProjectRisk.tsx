@@ -141,15 +141,15 @@ export default function MobileProjectRisk() {
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex flex-col items-center">
             <span className="text-red-600 text-2xl font-bold">{String(highCount).padStart(2, '0')}</span>
-            <span className="text-red-500 text-[10px] font-bold uppercase tracking-wider">高风险</span>
+            <span className="text-red-500 text-[12px] font-bold uppercase tracking-wider">高风险</span>
           </div>
           <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 flex flex-col items-center">
             <span className="text-orange-600 text-2xl font-bold">{String(medCount).padStart(2, '0')}</span>
-            <span className="text-orange-500 text-[10px] font-bold uppercase tracking-wider">中风险</span>
+            <span className="text-orange-500 text-[12px] font-bold uppercase tracking-wider">中风险</span>
           </div>
           <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex flex-col items-center">
             <span className="text-emerald-600 text-2xl font-bold">{String(lowCount).padStart(2, '0')}</span>
-            <span className="text-emerald-500 text-[10px] font-bold uppercase tracking-wider">低风险</span>
+            <span className="text-emerald-500 text-[12px] font-bold uppercase tracking-wider">低风险</span>
           </div>
         </div>
       </div>
@@ -170,7 +170,7 @@ export default function MobileProjectRisk() {
                     }`} style={{ fontSize: 18 }}>{icon}</span>
                     <h4 className="font-bold text-slate-900 text-sm">{risk.title}</h4>
                   </div>
-                  <span className={`${badge.bg} ${badge.text} text-[10px] px-2 py-0.5 rounded-full font-bold uppercase`}>
+                  <span className={`${badge.bg} ${badge.text} text-[12px] px-2 py-0.5 rounded-full font-bold uppercase`}>
                     {badge.label}
                   </span>
                 </div>

@@ -56,15 +56,15 @@ export default function PaymentChart({ plans, records }: Props) {
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-          <div className="text-[10px] text-blue-400 font-bold uppercase">计划回款</div>
+          <div className="text-[12px] text-blue-400 font-bold uppercase">计划回款</div>
           <div className="text-lg font-black text-blue-700">¥{planTotal.toLocaleString()}</div>
         </div>
         <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
-          <div className="text-[10px] text-emerald-400 font-bold uppercase">实际到账</div>
+          <div className="text-[12px] text-emerald-400 font-bold uppercase">实际到账</div>
           <div className="text-lg font-black text-emerald-700">¥{receivedTotal.toLocaleString()}</div>
         </div>
         <div className={`border rounded-lg p-3 ${collectionRate >= 0.8 ? 'bg-emerald-50 border-emerald-100' : collectionRate >= 0.5 ? 'bg-amber-50 border-amber-100' : 'bg-red-50 border-red-100'}`}>
-          <div className="text-[10px] text-slate-400 font-bold uppercase">回款率</div>
+          <div className="text-[12px] text-slate-400 font-bold uppercase">回款率</div>
           <div className={`text-lg font-black ${collectionRate >= 0.8 ? 'text-emerald-700' : collectionRate >= 0.5 ? 'text-amber-700' : 'text-red-700'}`}>
             {(collectionRate * 100).toFixed(1)}%
           </div>
@@ -98,7 +98,7 @@ export default function PaymentChart({ plans, records }: Props) {
                             style={{ width: `${planPct}%` }}
                           />
                         </div>
-                        <span className="text-[10px] text-slate-400 w-[70px] text-right">¥{m.plan.toLocaleString()}</span>
+                        <span className="text-[12px] text-slate-400 w-[70px] text-right">¥{m.plan.toLocaleString()}</span>
                       </div>
                     </Tooltip>
 
@@ -111,14 +111,14 @@ export default function PaymentChart({ plans, records }: Props) {
                             style={{ width: `${receivedPct}%` }}
                           />
                         </div>
-                        <span className="text-[10px] text-slate-400 w-[70px] text-right">¥{m.received.toLocaleString()}</span>
+                        <span className="text-[12px] text-slate-400 w-[70px] text-right">¥{m.received.toLocaleString()}</span>
                       </div>
                     </Tooltip>
                   </div>
 
                   {/* Overdue marker */}
                   <div className="w-[40px] flex-shrink-0">
-                    {m.overdue && <Tag color="error" className="text-[10px] m-0">逾期</Tag>}
+                    {m.overdue && <Tag color="error" className="text-[12px] m-0">逾期</Tag>}
                   </div>
                 </div>
               )
@@ -127,15 +127,15 @@ export default function PaymentChart({ plans, records }: Props) {
 
           {/* Legend */}
           <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100">
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+            <div className="flex items-center gap-1.5 text-[12px] text-slate-500">
               <div className="w-3 h-3 rounded bg-blue-400" />
               <span>计划回款</span>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+            <div className="flex items-center gap-1.5 text-[12px] text-slate-500">
               <div className="w-3 h-3 rounded bg-emerald-400" />
               <span>实际到账</span>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+            <div className="flex items-center gap-1.5 text-[12px] text-slate-500">
               <div className="w-3 h-3 rounded bg-amber-400" />
               <span>到账不足</span>
             </div>

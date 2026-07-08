@@ -172,7 +172,7 @@ export default function ContactList() {
     {
       title: '姓名', dataIndex: 'name', width: 150,
       render: (v: string, r) => (
-        <span className="font-semibold text-slate-800">{v}{r.is_primary && <Tag color="gold" className="ml-1 text-[10px]">主联系人</Tag>}</span>
+        <span className="font-semibold text-slate-800">{v}{r.is_primary && <Tag color="gold" className="ml-1 text-[12px]">主联系人</Tag>}</span>
       ),
     },
     { title: '职位', dataIndex: 'title', width: 120, render: (v: string) => v || '-' },

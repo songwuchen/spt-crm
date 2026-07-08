@@ -253,7 +253,7 @@ export default function AnalyticsPage() {
                 <div>
                   <div className="text-sm text-slate-400 font-bold">已回款</div>
                   <div className="text-xl font-black text-slate-900">¥{(payment.total_received / 10000).toFixed(0)}万</div>
-                  <div className="text-[10px] text-emerald-600 font-bold">回款率 {payment.collection_rate}%</div>
+                  <div className="text-[12px] text-emerald-600 font-bold">回款率 {payment.collection_rate}%</div>
                 </div>
               </div>
             </div>
@@ -265,7 +265,7 @@ export default function AnalyticsPage() {
                 <div>
                   <div className="text-sm text-slate-400 font-bold">逾期回款</div>
                   <div className="text-xl font-black text-red-600">¥{(payment.overdue_amount / 10000).toFixed(0)}万</div>
-                  <div className="text-[10px] text-red-500 font-bold">{payment.overdue_count} 笔逾期</div>
+                  <div className="text-[12px] text-red-500 font-bold">{payment.overdue_count} 笔逾期</div>
                 </div>
               </div>
             </div>
@@ -281,7 +281,7 @@ export default function AnalyticsPage() {
                 <div>
                   <div className="text-sm text-slate-400 font-bold">里程碑完成</div>
                   <div className="text-xl font-black text-slate-900">{milestones.completed}/{milestones.total}</div>
-                  <div className="text-[10px] text-blue-600 font-bold">完成率 {milestones.completion_rate}%</div>
+                  <div className="text-[12px] text-blue-600 font-bold">完成率 {milestones.completion_rate}%</div>
                 </div>
               </div>
             </div>
@@ -293,7 +293,7 @@ export default function AnalyticsPage() {
                 <div>
                   <div className="text-sm text-slate-400 font-bold">延期里程碑</div>
                   <div className="text-xl font-black text-amber-600">{milestones.delayed}</div>
-                  <div className="text-[10px] text-slate-400 font-bold">进行中 {milestones.in_progress}</div>
+                  <div className="text-[12px] text-slate-400 font-bold">进行中 {milestones.in_progress}</div>
                 </div>
               </div>
             </div>
@@ -594,7 +594,7 @@ export default function AnalyticsPage() {
                   return (
                     <tr key={item.owner_id} className="border-b border-slate-50 hover:bg-slate-50/50">
                       <td className="py-2.5 px-2">
-                        <span className={`inline-flex w-6 h-6 rounded-full items-center justify-center text-[10px] font-black text-white ${
+                        <span className={`inline-flex w-6 h-6 rounded-full items-center justify-center text-[12px] font-black text-white ${
                           i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : i === 2 ? 'bg-amber-700' : 'bg-slate-300'
                         }`}>{i + 1}</span>
                       </td>
@@ -680,7 +680,7 @@ export default function AnalyticsPage() {
                   </div>
                   <span className="text-sm text-slate-500 w-10 text-right">{(s.probability * 100).toFixed(0)}%</span>
                   <span className="text-sm font-bold text-slate-700 w-24 text-right">¥{s.weighted_amount.toLocaleString()}</span>
-                  <span className="text-[10px] text-slate-400 w-12 text-right">{s.count} 个</span>
+                  <span className="text-[12px] text-slate-400 w-12 text-right">{s.count} 个</span>
                 </div>
               ))}
             </div>
@@ -700,15 +700,15 @@ export default function AnalyticsPage() {
                   <div className="flex-1 bg-slate-100 rounded-full h-6 overflow-hidden relative">
                     <div className={`h-full rounded-full transition-all ${s.avg_days > 30 ? 'bg-red-400' : s.avg_days > 14 ? 'bg-amber-400' : 'bg-emerald-400'}`}
                       style={{ width: `${(s.avg_days / maxAvg) * 100}%` }} />
-                    <span className="absolute inset-0 flex items-center px-2 text-[11px] font-bold text-slate-700">{s.avg_days}天</span>
+                    <span className="absolute inset-0 flex items-center px-2 text-[13px] font-bold text-slate-700">{s.avg_days}天</span>
                   </div>
-                  <span className="text-[10px] text-slate-400 w-20 text-right">{s.min_days}-{s.max_days}天</span>
-                  <span className="text-[10px] text-slate-400 w-12 text-right">{s.count} 个</span>
+                  <span className="text-[12px] text-slate-400 w-20 text-right">{s.min_days}-{s.max_days}天</span>
+                  <span className="text-[12px] text-slate-400 w-12 text-right">{s.count} 个</span>
                 </div>
               )
             })}
           </div>
-          <div className="flex gap-4 mt-3 text-[10px] text-slate-400">
+          <div className="flex gap-4 mt-3 text-[12px] text-slate-400">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" />{'<'}14天</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" />14-30天</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400" />{'>'}30天</span>

@@ -91,7 +91,7 @@ export default function MobileLayout() {
               }`}
             >
               <span className="material-symbols-outlined" style={{ fontSize: 22 }}>{t.icon}</span>
-              <span className="text-[10px] font-bold">{t.label}</span>
+              <span className="text-[12px] font-bold">{t.label}</span>
             </button>
           )
         })}
