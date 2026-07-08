@@ -127,7 +127,11 @@ jobs:
             set -e
             cd ${{ env.DEPLOY_DIR }}
             echo '${{ secrets.HARBOR_PASSWORD }}' | docker login ${{ env.HARBOR_REGISTRY }} -u ${{ secrets.HARBOR_USERNAME }} --password-stdin
-            docker compose pull
+            # Only pull the images we just built (Harbor). Do NOT pull 'db':
+            # postgres:16-alpine lives on Docker Hub, which is unreachable from the
+            # prod host, so 'docker compose pull' (all services) would hang for
+            # minutes on it. The db image is already present and never changes here.
+            docker compose pull backend worker reminder frontend
 
             # 1) Make sure the DB is up and accepting connections.
             docker compose up -d db
