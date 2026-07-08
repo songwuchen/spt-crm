@@ -44,7 +44,7 @@ input, textarea, select {
 
 /* Micro label utility */
 .micro-label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -66,7 +66,7 @@ input, textarea, select {
 
 /* Table header: uppercase micro-label style */
 .ant-table-thead > tr > th {
-  font-size: 11px !important;
+  font-size: 13px !important;
   font-weight: 800 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.05em !important;

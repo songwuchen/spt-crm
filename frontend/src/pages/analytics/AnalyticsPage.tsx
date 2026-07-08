@@ -348,7 +348,7 @@ export default function AnalyticsPage() {
                   label={{ text: 'type', position: 'outside', style: { fontSize: 12, fontWeight: 'bold' } }}
                   annotations={[
                     { type: 'text', style: { text: `${winLoss.win_rate}%`, x: '50%', y: '46%', textAlign: 'center', fontSize: 24, fontWeight: 'bold', fill: '#0f172a' } },
-                    { type: 'text', style: { text: '赢单率', x: '50%', y: '58%', textAlign: 'center', fontSize: 11, fill: '#94a3b8' } },
+                    { type: 'text', style: { text: '赢单率', x: '50%', y: '58%', textAlign: 'center', fontSize: 13, fill: '#94a3b8' } },
                   ]}
                 />
               </div>
@@ -393,7 +393,7 @@ export default function AnalyticsPage() {
               colorField="month"
               scale={{ color: { range: ['#6366f1'] } }}
               legend={false}
-              label={{ text: (d: { amount: number }) => d.amount > 0 ? `${d.amount}` : '', position: 'inside', style: { fontSize: 11, fontWeight: 'bold', fill: '#fff' } }}
+              label={{ text: (d: { amount: number }) => d.amount > 0 ? `${d.amount}` : '', position: 'inside', style: { fontSize: 13, fontWeight: 'bold', fill: '#fff' } }}
               style={{ radiusTopLeft: 4, radiusTopRight: 4 }}
               axis={{ y: { title: '万元' }, x: { title: false } }}
             />
@@ -420,10 +420,10 @@ export default function AnalyticsPage() {
                   width={200}
                   scale={{ color: { range: ['#10b981', '#3b82f6', '#cbd5e1', '#ef4444'] } }}
                   legend={false}
-                  label={{ text: (d: { type: string; value: number }) => `${d.type} ${d.value}`, position: 'outside', style: { fontSize: 11 } }}
+                  label={{ text: (d: { type: string; value: number }) => `${d.type} ${d.value}`, position: 'outside', style: { fontSize: 13 } }}
                   annotations={[
                     { type: 'text', style: { text: `${milestones.completion_rate}%`, x: '50%', y: '46%', textAlign: 'center', fontSize: 22, fontWeight: 'bold', fill: '#0f172a' } },
-                    { type: 'text', style: { text: '完成率', x: '50%', y: '58%', textAlign: 'center', fontSize: 11, fill: '#94a3b8' } },
+                    { type: 'text', style: { text: '完成率', x: '50%', y: '58%', textAlign: 'center', fontSize: 13, fill: '#94a3b8' } },
                   ]}
                 />
               </div>
@@ -498,7 +498,7 @@ export default function AnalyticsPage() {
                 height={Math.max(240, topCustomerBarData.length * 44)}
                 colorField="name"
                 legend={false}
-                label={{ text: (d: { amount: number }) => `¥${d.amount}万`, position: 'right', style: { fontSize: 11, fontWeight: 'bold' } }}
+                label={{ text: (d: { amount: number }) => `¥${d.amount}万`, position: 'right', style: { fontSize: 13, fontWeight: 'bold' } }}
                 axis={{ y: { title: false }, x: { title: false, labelAutoHide: false, labelAutoRotate: false, style: { labelFontSize: 11 } } }}
                 style={{ maxBarWidth: 22, radiusTopRight: 4, radiusBottomRight: 4 }}
                 onReady={({ chart }) => {
@@ -633,7 +633,7 @@ export default function AnalyticsPage() {
                 color="#6366f1"
                 barWidthRatio={0.5}
                 label={{ position: 'right', style: { fill: '#475569', fontSize: 12 } }}
-                xAxis={{ label: { style: { fontSize: 11 } } }}
+                xAxis={{ label: { style: { fontSize: 13 } } }}
                 yAxis={{ label: { style: { fontSize: 12, fontWeight: 600 } } }}
                 meta={{ count: { alias: '客户数' }, region: { alias: '区域' } }}
               />
