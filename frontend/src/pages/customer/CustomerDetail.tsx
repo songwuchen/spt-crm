@@ -13,6 +13,7 @@ import ActivityTimeline from '@/components/ActivityTimeline'
 import ChangeHistory from '@/components/ChangeHistory'
 import type { Customer, Contact, OpportunityProject, CustomerReport } from '@/api/types'
 import { sourceLabels, stageLabels, stageColors } from '@/api/types'
+import { opportunityStatusMap, quoteStatusLabels, contractStatusLabels, orderStatusLabels, tenderStatusLabels, ticketStatusLabels, ticketTypeLabels, ticketPriorityLabels } from '@/constants/labels'
 import type { ColumnsType } from 'antd/es/table'
 import client from '@/api/client'
 import { downloadFile } from '@/utils/download'
@@ -566,14 +567,14 @@ export default function CustomerDetail() {
                         <Table rowKey="id" dataSource={tickets} size="small" pagination={false} columns={[
                           { title: '工单号', dataIndex: 'ticket_no', width: 140,
                             render: (v: string) => <span className="font-mono text-sm font-bold">{v}</span> },
-                          { title: '类型', dataIndex: 'type', width: 90 },
+                          { title: '类型', dataIndex: 'type', width: 90, render: (v: string) => ticketTypeLabels[v] || v },
                           { title: '状态', dataIndex: 'status', width: 90,
                             render: (v: string) => {
                               const c: Record<string, string> = { open: 'blue', in_progress: 'orange', resolved: 'green', closed: 'default' }
-                              return <Tag color={c[v] || 'default'}>{v}</Tag>
+                              return <Tag color={c[v] || 'default'}>{ticketStatusLabels[v] || v}</Tag>
                             },
                           },
-                          { title: '优先级', dataIndex: 'priority', width: 80 },
+                          { title: '优先级', dataIndex: 'priority', width: 80, render: (v: string) => ticketPriorityLabels[v] || v },
                           { title: '创建时间', dataIndex: 'created_at', width: 110,
                             render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
                         ]} />
@@ -637,17 +638,17 @@ export default function CustomerDetail() {
                             { title: '名称', dataIndex: 'name' },
                             { title: '阶段', dataIndex: 'stage_code', width: 80, render: (v: string) => `${v || ''} ${stageLabels[v] || ''}` },
                             { title: '预期金额', dataIndex: 'amount_expect', width: 120, align: 'right' as const, render: (v: number) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
-                            { title: '状态', dataIndex: 'status', width: 80 },
+                            { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => opportunityStatusMap[v]?.label || v },
                           ]} />
                           <ReportSection title={`报价 (${report.quotes.length})`} dataSource={report.quotes} columns={[
                             { title: '报价单号', dataIndex: 'quote_no', width: 170 },
                             { title: '版本', dataIndex: 'current_version_no', width: 70 },
                             { title: '金额', dataIndex: 'amount', width: 120, align: 'right' as const, render: (v: number) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
-                            { title: '状态', dataIndex: 'status', width: 80 },
+                            { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => quoteStatusLabels[v] || v },
                           ]} />
                           <ReportSection title={`合同 (${report.contracts.length})`} dataSource={report.contracts} columns={[
                             { title: '合同编号', dataIndex: 'contract_no', width: 170 },
-                            { title: '状态', dataIndex: 'status', width: 80 },
+                            { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => contractStatusLabels[v] || v },
                             { title: '签约日期', dataIndex: 'signed_date', width: 110 },
                             { title: '金额', dataIndex: 'amount_total', width: 120, align: 'right' as const, render: (v: number) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
                           ]} />
@@ -655,14 +656,14 @@ export default function CustomerDetail() {
                             { title: '订单号', dataIndex: 'order_no', width: 160 },
                             { title: '标题', dataIndex: 'title' },
                             { title: '金额', dataIndex: 'amount', width: 120, align: 'right' as const, render: (v: number, r: any) => v != null ? `${r.currency || ''} ${Number(v).toLocaleString()}` : '-' },
-                            { title: '状态', dataIndex: 'status', width: 90 },
+                            { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => orderStatusLabels[v] || v },
                             { title: '交付日期', dataIndex: 'delivery_date', width: 110 },
                           ]} />
                           <ReportSection title={`标书 (${report.tenders.length})`} dataSource={report.tenders} columns={[
                             { title: '标书号', dataIndex: 'tender_no', width: 160 },
                             { title: '标题', dataIndex: 'title' },
                             { title: '投标金额', dataIndex: 'bid_amount', width: 120, align: 'right' as const, render: (v: number) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
-                            { title: '状态', dataIndex: 'status', width: 90 },
+                            { title: '状态', dataIndex: 'status', width: 90, render: (v: string) => tenderStatusLabels[v] || v },
                           ]} />
                           <ReportSection title={`回款记录 (${report.payment_records.length})`} dataSource={report.payment_records} columns={[
                             { title: '收款日期', dataIndex: 'received_date', width: 120 },
@@ -672,9 +673,9 @@ export default function CustomerDetail() {
                           ]} />
                           <ReportSection title={`工单 (${report.tickets.length})`} dataSource={report.tickets} columns={[
                             { title: '工单号', dataIndex: 'ticket_no', width: 150 },
-                            { title: '类型', dataIndex: 'type', width: 100 },
-                            { title: '状态', dataIndex: 'status', width: 100 },
-                            { title: '优先级', dataIndex: 'priority', width: 90 },
+                            { title: '类型', dataIndex: 'type', width: 100, render: (v: string) => ticketTypeLabels[v] || v },
+                            { title: '状态', dataIndex: 'status', width: 100, render: (v: string) => ticketStatusLabels[v] || v },
+                            { title: '优先级', dataIndex: 'priority', width: 90, render: (v: string) => ticketPriorityLabels[v] || v },
                           ]} />
                         </div>
                       )}

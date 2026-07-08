@@ -6,7 +6,7 @@ import { solutionApi } from '@/api/solution'
 import { approvalApi } from '@/api/approval'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import type { SolutionItem, SolutionVersion, ApprovalFlowItem } from '@/api/types'
-import { solutionStatusLabels as statusLabels, solutionStatusColors as statusColors } from '@/constants/labels'
+import { solutionStatusLabels as statusLabels, solutionStatusColors as statusColors, approvalStatusLabels } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import SolutionConfigEditor, { normalizeConfig, serializeConfig } from '@/components/SolutionConfigEditor'
@@ -169,7 +169,7 @@ export default function SolutionDetail() {
               ? `方案审批进行中（${approvalFlow.current_node ?? 1}/${approvalFlow.total_nodes ?? 1} 节点），请在「审批中心」处理`
               : approvalFlow.status === 'approved' ? '方案审批已通过'
               : approvalFlow.status === 'rejected' ? '方案审批已驳回，可修改后重新提交评审'
-              : `审批状态：${approvalFlow.status}`
+              : `审批状态：${approvalStatusLabels[approvalFlow.status] || approvalFlow.status}`
           }
           action={
             approvalFlow.status === 'pending'
@@ -215,7 +215,7 @@ export default function SolutionDetail() {
           <>
             <Descriptions size="small" column={3} bordered className="mb-4">
               <Descriptions.Item label="版本标题">{currentVersion.title || '-'}</Descriptions.Item>
-              <Descriptions.Item label="版本状态"><Tag>{currentVersion.status}</Tag></Descriptions.Item>
+              <Descriptions.Item label="版本状态"><Tag>{statusLabels[currentVersion.status] || currentVersion.status}</Tag></Descriptions.Item>
               <Descriptions.Item label="创建时间">{currentVersion.created_at ? new Date(currentVersion.created_at).toLocaleDateString('zh-CN') : '-'}</Descriptions.Item>
             </Descriptions>
 

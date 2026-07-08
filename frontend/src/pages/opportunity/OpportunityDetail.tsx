@@ -23,6 +23,7 @@ import PaymentGantt from '@/components/PaymentGantt'
 import { roleApi } from '@/api/user'
 import type { OpportunityProject, ProjectStageHistory, QuoteItem, ContractItem, SolutionItem, DeliveryMilestone, ErpOrderLink, PaymentPlanItem, PaymentRecordItem, InvoiceItem, ChangeRequestItem, Customer, AclShareItem, ProjectMember } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
+import { opportunityStatusMap, quoteStatusLabels, quoteStatusColors, contractStatusLabels, contractStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import { useUserSelect } from '@/hooks/useSelectOptions'
@@ -635,7 +636,7 @@ export default function OpportunityDetail() {
             <InfoField label="是否有保函" value={(project as any).has_guarantee == null ? undefined : ((project as any).has_guarantee ? '是' : '否')} />
             <InfoField label="是否有重量要求" value={(project as any).has_weight_requirement == null ? undefined : ((project as any).has_weight_requirement ? '是' : '否')} />
             <InfoField label="是否使用呆滞设备" value={(project as any).uses_idle_equipment == null ? undefined : ((project as any).uses_idle_equipment ? '是' : '否')} />
-            <InfoField label="状态" value={project.status} />
+            <InfoField label="状态" value={project.status ? (opportunityStatusMap[project.status]?.label || project.status) : undefined} />
             {(() => {
               const kr = project.key_requirements_json as any
               const rows: any[] = Array.isArray(kr)
@@ -856,10 +857,9 @@ export default function OpportunityDetail() {
                           <a onClick={() => navigate(`/opportunities/${id}/quotes/${r.id}`)} className="font-bold text-primary">{v}</a>
                         )},
                         { title: '版本', dataIndex: 'current_version_no', render: (v) => `V${v}` },
-                        { title: '状态', dataIndex: 'status', render: (v) => {
-                          const c: Record<string, string> = { draft: 'default', sent: 'processing', won: 'success', lost: 'error' }
-                          return <Tag color={c[v]}>{v}</Tag>
-                        }},
+                        { title: '状态', dataIndex: 'status', render: (v) => (
+                          <Tag color={quoteStatusColors[v] || 'default'}>{quoteStatusLabels[v] || v}</Tag>
+                        )},
                         { title: '创建人', dataIndex: 'created_by_name' },
                         { title: '创建时间', dataIndex: 'created_at', render: (v) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
                         { title: '', key: 'actions', render: (_, r) => (
@@ -905,10 +905,9 @@ export default function OpportunityDetail() {
                         )},
                         { title: '版本', dataIndex: 'current_version_no', render: (v) => `V${v}` },
                         { title: '合同金额', dataIndex: 'amount_total', render: (v) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
-                        { title: '状态', dataIndex: 'status', render: (v) => {
-                          const c: Record<string, string> = { draft: 'default', signed: 'success', terminated: 'error' }
-                          return <Tag color={c[v]}>{v}</Tag>
-                        }},
+                        { title: '状态', dataIndex: 'status', render: (v) => (
+                          <Tag color={contractStatusColors[v] || 'default'}>{contractStatusLabels[v] || v}</Tag>
+                        )},
                         { title: '签署日期', dataIndex: 'signed_date', render: (v) => v || '-' },
                         { title: '', key: 'actions', render: (_, r) => (
                           <Space size={4}>
@@ -1006,7 +1005,7 @@ export default function OpportunityDetail() {
                             return <Tag color={c[v]}>{l[v] || v}</Tag>
                           }},
                           { title: '负责人', dataIndex: 'assignee_name', render: (v: string) => v || '-' },
-                          { title: '来源', dataIndex: 'source_type' },
+                          { title: '来源', dataIndex: 'source_type', render: (v: string) => ({ manual: '手动', erp: 'ERP同步', contract: '合同生成', sync: '同步' } as Record<string, string>)[v] || v },
                           { title: '附件', key: 'attachment', width: 80, render: (_: unknown, r: DeliveryMilestone) => (
                             <a className="text-slate-600 text-sm hover:text-primary" onClick={() => setAttachmentViewMs(r)}>
                               <PaperClipOutlined /> {r.attachment_count || 0}

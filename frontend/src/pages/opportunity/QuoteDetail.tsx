@@ -11,7 +11,7 @@ import { approvalApi } from '@/api/approval'
 import { aiApi } from '@/api/ai'
 import type { QuoteItem, QuoteVersion, QuoteLine, CostSnapshotItem, QuoteSendLogItem } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
-import { quoteLineItemTypeLabels as itemTypeLabels, quoteStatusColors } from '@/constants/labels'
+import { quoteLineItemTypeLabels as itemTypeLabels, quoteStatusColors, quoteStatusLabels } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import AttachmentPanel from '@/components/AttachmentPanel'
@@ -424,6 +424,7 @@ export default function QuoteDetail() {
   if (!quote) return <DetailSkeleton />
 
   const statusColors = quoteStatusColors
+  const statusLabels = quoteStatusLabels
 
   return (
     <div>
@@ -432,7 +433,7 @@ export default function QuoteDetail() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-slate-900">{quote.quote_no}</h1>
-            <Tag color={statusColors[quote.status]}>{quote.status}</Tag>
+            <Tag color={statusColors[quote.status]}>{statusLabels[quote.status] || quote.status}</Tag>
           </div>
           <p className="text-sm text-slate-500">
             创建人: {quote.created_by_name || '-'} · {quote.created_at ? new Date(quote.created_at).toLocaleDateString('zh-CN') : ''}
@@ -499,7 +500,7 @@ export default function QuoteDetail() {
             <Descriptions.Item label="毛利率">{fmtPct(currentVersion.margin_rate)}</Descriptions.Item>
             <Descriptions.Item label="交期承诺">{currentVersion.delivery_promise_date || '-'}</Descriptions.Item>
             <Descriptions.Item label="有效天数">{currentVersion.validity_days ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="版本状态"><Tag>{currentVersion.status}</Tag></Descriptions.Item>
+            <Descriptions.Item label="版本状态"><Tag>{statusLabels[currentVersion.status] || currentVersion.status}</Tag></Descriptions.Item>
           </Descriptions>
         )}
       </div>
@@ -563,7 +564,7 @@ export default function QuoteDetail() {
                       )) || '-' },
                     { title: '主题', dataIndex: 'subject', width: 200 },
                     { title: '状态', dataIndex: 'status', width: 80,
-                      render: (v: string) => <Tag color={v === 'sent' ? 'success' : v === 'failed' ? 'error' : 'default'}>{v === 'sent' ? '已发送' : v === 'failed' ? '失败' : v}</Tag> },
+                      render: (v: string) => <Tag color={v === 'sent' ? 'success' : v === 'failed' ? 'error' : v === 'recalled' ? 'warning' : 'default'}>{v === 'sent' ? '已发送' : v === 'failed' ? '失败' : v === 'recalled' ? '已撤回' : v}</Tag> },
                     { title: '发送人', dataIndex: 'sent_by_name', width: 100 },
                     { title: '发送时间', dataIndex: 'created_at', width: 160,
                       render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-' },

@@ -27,6 +27,11 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   done: { label: '完成', color: 'success' },
 }
 
+const bizTypeLabels: Record<string, string> = {
+  customer: '客户', project: '商机', lead: '线索', ticket: '工单',
+  quote: '报价', contract: '合同', order: '订单',
+}
+
 export default function TaskPage() {
   usePageTitle('待办任务')
   const [items, setItems] = useState<TaskItem[]>([])
@@ -177,7 +182,7 @@ export default function TaskPage() {
               },
             },
             { title: '关联', dataIndex: 'biz_name', width: 120, ellipsis: true,
-              render: (v: string | null, r: TaskItem) => v ? <Tag>{r.biz_type}: {v}</Tag> : '-' },
+              render: (v: string | null, r: TaskItem) => v ? <Tag>{(r.biz_type ? bizTypeLabels[r.biz_type] || r.biz_type : '')}: {v}</Tag> : '-' },
             { title: '负责人', dataIndex: 'assignee_name', width: 80 },
             { title: '', key: 'actions', width: 60,
               render: (_, r: TaskItem) => (

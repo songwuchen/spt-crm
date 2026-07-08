@@ -275,8 +275,8 @@ async def seed():
             select(StageDefinition).where(StageDefinition.tenant_id == TENANT_ID)
         )).scalars().all()}
         for code, name in [
-            ("S1", "线索确认"), ("S2", "需求分析"), ("S3", "方案制定"),
-            ("S4", "商务谈判"), ("S5", "合同签订"), ("S6", "交付执行"),
+            ("S1", "线索确认"), ("S2", "需求分析"), ("S3", "方案报价"),
+            ("S4", "商务谈判"), ("S5", "合同签订"), ("S6", "交付验收"),
         ]:
             if code in existing_stages:
                 continue

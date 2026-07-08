@@ -14,7 +14,7 @@ import DataView, { formatMoney } from '@/components/DataView'
 import { PaymentTermsView, ClauseTermsView, PaymentTermsEditor, LineItemsEditor, toCanonicalRows, PAY_FIELDS, LINE_FIELDS } from '@/components/ContractTerms'
 import type { ContractItem, ContractVersion } from '@/api/types'
 import { riskLabels, riskColors } from '@/api/types'
-import { contractStatusColors } from '@/constants/labels'
+import { contractStatusColors, contractStatusLabels } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { useUserSelect } from '@/hooks/useSelectOptions'
@@ -272,6 +272,7 @@ export default function ContractDetail() {
   if (!contract) return <DetailSkeleton />
 
   const statusColors = contractStatusColors
+  const statusLabels = contractStatusLabels
   // 只有结构化（行数组）付款条款才能生成回款计划；非行结构（如 {method:"分期"}）不展示按钮
   const canGenerate = toCanonicalRows(contract.payment_terms_json, PAY_FIELDS).length > 0 && contract.status !== 'terminated'
   const genTotal = genRows.reduce((s, r) => s + (r.amount || 0), 0)
@@ -285,7 +286,7 @@ export default function ContractDetail() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-slate-900">{contract.contract_no}</h1>
-            <Tag color={statusColors[contract.status]}>{contract.status}</Tag>
+            <Tag color={statusColors[contract.status]}>{statusLabels[contract.status] || contract.status}</Tag>
           </div>
           <p className="text-sm text-slate-500">
             创建人: {contract.created_by_name || '-'} · {contract.created_at ? new Date(contract.created_at).toLocaleDateString('zh-CN') : ''}
@@ -502,7 +503,7 @@ export default function ContractDetail() {
           <Descriptions.Item label="合同金额">
             <span className="font-bold text-lg">{formatMoney(contract.amount_total)}</span>
           </Descriptions.Item>
-          <Descriptions.Item label="状态"><Tag color={statusColors[contract.status]}>{contract.status}</Tag></Descriptions.Item>
+          <Descriptions.Item label="状态"><Tag color={statusColors[contract.status]}>{statusLabels[contract.status] || contract.status}</Tag></Descriptions.Item>
           <Descriptions.Item label="签署日期">{contract.signed_date || '-'}</Descriptions.Item>
           <Descriptions.Item label="到期日期">{contract.end_date || '-'}</Descriptions.Item>
         </Descriptions>
@@ -545,7 +546,7 @@ export default function ContractDetail() {
         {currentVersion && (
           <Descriptions size="small" column={3} bordered>
             <Descriptions.Item label="版本标题">{currentVersion.title || '-'}</Descriptions.Item>
-            <Descriptions.Item label="版本状态"><Tag>{currentVersion.status}</Tag></Descriptions.Item>
+            <Descriptions.Item label="版本状态"><Tag>{statusLabels[currentVersion.status] || currentVersion.status}</Tag></Descriptions.Item>
             <Descriptions.Item label="风险等级">
               {currentVersion.risk_level ? (
                 <span className={`inline-flex px-2 py-0.5 rounded text-[12px] font-bold border ${riskColors[currentVersion.risk_level] || ''}`}>

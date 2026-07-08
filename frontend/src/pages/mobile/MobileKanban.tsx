@@ -53,7 +53,7 @@ export default function MobileKanban() {
             className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-bold transition-colors ${
               activeStage === stage ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
             }`}>
-            {stage} ({count})
+            {stageLabels[stage] || stage} ({count})
           </button>
         ))}
       </div>

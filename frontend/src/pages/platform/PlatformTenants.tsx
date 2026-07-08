@@ -210,7 +210,7 @@ export default function PlatformTenants() {
             { title: '名称', dataIndex: 'name', width: 150 },
             { title: '定价', dataIndex: 'pricing_json', render: (v: unknown) => <div className="max-w-xs"><DataView value={v} /></div> },
             { title: '限额', dataIndex: 'limits_json', render: (v: unknown) => <div className="max-w-xs"><DataView value={v} /></div> },
-            { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => <Tag color={v === 'active' ? 'success' : 'default'}>{v}</Tag> },
+            { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => <Tag color={v === 'active' ? 'success' : 'default'}>{v === 'active' ? '启用' : v === 'inactive' ? '停用' : v}</Tag> },
             { title: '创建时间', dataIndex: 'created_at', width: 130, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
           ]}
         />

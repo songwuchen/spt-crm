@@ -60,11 +60,15 @@ export const changeStatusLabels: Record<string, string> = {
 }
 
 // --- Quote ---
+// 主报价单 Quote.status = draft/sent/won/lost；报价版本 QuoteVersion.status = draft/approved/sent。
+// 此处为二者的并集，避免任一枚举值回退为原始码。
 export const quoteStatusLabels: Record<string, string> = {
-  draft: '草稿', submitted: '已提交', approved: '已批准', rejected: '已驳回', expired: '已过期',
+  draft: '草稿', submitted: '已提交', sent: '已发送', approved: '已批准',
+  rejected: '已驳回', won: '已成交', lost: '已失单', expired: '已过期',
 }
 export const quoteStatusColors: Record<string, string> = {
-  draft: 'default', submitted: 'processing', approved: 'success', rejected: 'error', expired: 'warning',
+  draft: 'default', submitted: 'processing', sent: 'processing', approved: 'success',
+  rejected: 'error', won: 'success', lost: 'error', expired: 'warning',
 }
 
 // --- Contract ---
@@ -115,6 +119,22 @@ export const opportunityStatusMap: Record<string, { label: string; dot: string }
 // --- Quote Line Item ---
 export const quoteLineItemTypeLabels: Record<string, string> = {
   standard: '标准品', nonstandard: '非标品', service: '服务', spare: '备件',
+}
+
+// --- Order ---
+export const orderStatusLabels: Record<string, string> = {
+  draft: '草稿', confirmed: '已确认', producing: '生产中', shipped: '已发货', completed: '已完成', cancelled: '已取消',
+}
+export const orderStatusColors: Record<string, string> = {
+  draft: 'default', confirmed: 'blue', producing: 'gold', shipped: 'cyan', completed: 'green', cancelled: 'red',
+}
+
+// --- Tender ---
+export const tenderStatusLabels: Record<string, string> = {
+  preparing: '编制中', submitted: '已投标', won: '中标', lost: '未中标', cancelled: '已取消',
+}
+export const tenderStatusColors: Record<string, string> = {
+  preparing: 'default', submitted: 'processing', won: 'success', lost: 'error', cancelled: 'default',
 }
 
 // --- Renewal ---

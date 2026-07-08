@@ -118,8 +118,8 @@ async def provision():
             select(StageDefinition).where(StageDefinition.tenant_id == tenant_id)
         )).scalars().all()}
         stages_added = 0
-        for sc, sn in [("S1", "线索确认"), ("S2", "需求分析"), ("S3", "方案制定"),
-                       ("S4", "商务谈判"), ("S5", "合同签订"), ("S6", "交付执行")]:
+        for sc, sn in [("S1", "线索确认"), ("S2", "需求分析"), ("S3", "方案报价"),
+                       ("S4", "商务谈判"), ("S5", "合同签订"), ("S6", "交付验收")]:
             if sc in existing_stages:
                 continue
             db.add(StageDefinition(id=generate_uuid(), tenant_id=tenant_id, stage_code=sc,

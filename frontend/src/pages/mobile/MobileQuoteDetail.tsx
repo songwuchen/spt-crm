@@ -4,6 +4,7 @@ import { message } from 'antd'
 import { quoteApi } from '@/api/quote'
 import { contractApi } from '@/api/contract'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { quoteStatusLabels } from '@/constants/labels'
 
 interface VersionInfo {
   id: string; version_no: number; title?: string; status: string
@@ -88,7 +89,7 @@ export default function MobileQuoteDetail() {
             quote.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
             quote.status === 'rejected' ? 'bg-red-50 text-red-600 border border-red-200' :
             'bg-blue-50 text-blue-600 border border-blue-200'
-          }`}>{quote.status}</span>
+          }`}>{quoteStatusLabels[quote.status] || quote.status}</span>
         </div>
 
         {/* Version Selector */}
@@ -196,7 +197,7 @@ export default function MobileQuoteDetail() {
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-slate-400">状态</span>
-              <span className="text-sm text-slate-700">{currentVersion.status}</span>
+              <span className="text-sm text-slate-700">{quoteStatusLabels[currentVersion.status] || currentVersion.status}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-slate-400">总价</span>

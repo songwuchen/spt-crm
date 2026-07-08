@@ -6,6 +6,7 @@ import { approvalApi } from '@/api/approval'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import PullToRefresh from '@/components/PullToRefresh'
+import { stageLabels } from '@/api/types'
 
 interface Stats {
   customer_total: number; lead_total: number; monthly_new_customers: number; pending_leads: number
@@ -126,7 +127,7 @@ export default function MobileWorkbench() {
                 <span className="material-symbols-outlined text-amber-500" style={{ fontSize: 18 }}>schedule</span>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-800 truncate">{p.name}</div>
-                  <div className="text-[12px] text-slate-500">{p.stage_code}</div>
+                  <div className="text-[12px] text-slate-500">{stageLabels[p.stage_code] || p.stage_code}</div>
                 </div>
                 <span className="text-sm font-bold text-amber-600">{p.days_stalled}天</span>
               </div>

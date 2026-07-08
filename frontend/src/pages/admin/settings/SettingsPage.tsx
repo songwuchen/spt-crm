@@ -1510,7 +1510,7 @@ function HealthCheckTab() {
                 <div className={`text-lg font-black mt-2 ${isOk ? 'text-emerald-700' : 'text-red-600'}`}>
                   {isOk ? '正常' : '异常'}
                 </div>
-                <div className="text-sm text-slate-400 mt-1">状态: {item.status}</div>
+                <div className="text-sm text-slate-400 mt-1">状态: {item.status === 'ok' ? '正常' : item.status === 'connected' ? '已连接' : item.status}</div>
               </div>
             )
           })}

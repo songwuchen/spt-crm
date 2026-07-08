@@ -279,7 +279,7 @@ function FailedEventsSection() {
     { title: '事件', dataIndex: 'event_type', render: (v: string) => <code className="text-xs">{v}</code> },
     {
       title: '状态', dataIndex: 'status',
-      render: (v: string) => <Tag color={v === 'failed' ? 'red' : v === 'published' ? 'green' : 'orange'}>{v}</Tag>,
+      render: (v: string) => <Tag color={v === 'failed' ? 'red' : v === 'published' ? 'green' : 'orange'}>{v === 'published' ? '已推送' : v === 'failed' ? '失败' : v === 'pending' ? '待推送' : v}</Tag>,
     },
     { title: '重试次数', dataIndex: 'retry_count' },
     { title: '错误', dataIndex: 'error_message', ellipsis: true, render: (v: string) => <span className="text-xs text-slate-500">{v}</span> },
@@ -372,7 +372,7 @@ function WebhooksTab() {
       title: '订阅事件', dataIndex: 'event_types_json',
       render: (v: any) => Array.isArray(v) ? v.map((t) => <Tag key={t}>{t}</Tag>) : <Tag>*</Tag>,
     },
-    { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={v === 'active' ? 'green' : 'default'}>{v}</Tag> },
+    { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={v === 'active' ? 'green' : 'default'}>{v === 'active' ? '启用' : v === 'inactive' ? '停用' : v}</Tag> },
     {
       title: '操作', key: 'action', width: 160,
       render: (_: unknown, r: any) => (
