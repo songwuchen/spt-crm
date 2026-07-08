@@ -150,7 +150,8 @@ describe('ContractDetail', { timeout: 15000 }, () => {
     render(<ContractDetail />)
     await waitFor(() => {
       expect(screen.getByText('签章流程')).toBeInTheDocument()
-      expect(screen.getByText('草稿')).toBeInTheDocument()
+      // 状态标签现在也显示「草稿」（原为原始码 draft），故用 getAllByText
+      expect(screen.getAllByText('草稿').length).toBeGreaterThan(0)
       expect(screen.getByText('审批')).toBeInTheDocument()
       expect(screen.getByText('签章')).toBeInTheDocument()
       expect(screen.getByText('生效')).toBeInTheDocument()
