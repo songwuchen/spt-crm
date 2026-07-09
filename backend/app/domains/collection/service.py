@@ -5,10 +5,11 @@
 清欠：DebtTransfer 责任移交单 + 抢单(claim) + CollectionFollowUp 催收跟进。
 """
 import logging
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case, and_, distinct, literal, String, ARRAY
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid, utcnow
@@ -27,83 +28,163 @@ logger = logging.getLogger("spt_crm.collection")
 BUCKETS = [(0, 30, "d0_30"), (31, 60, "d31_60"), (61, 90, "d61_90"), (91, 180, "d91_180"), (181, None, "d180p")]
 
 
-def _bucket(age_days: int) -> str:
-    for low, high, key in BUCKETS:
-        if age_days >= low and (high is None or age_days <= high):
-            return key
-    return "d180p"
+def _f(v) -> float:
+    """Decimal/None → 保留 2 位的 float（与原实现的输出类型一致）。"""
+    return round(float(v or 0), 2)
 
 
 # ==================== AR Aging ====================
-async def aging_report(db: AsyncSession, tenant_id: str):
+async def aging_report(db: AsyncSession, tenant_id: str,
+                       page_no: int | None = None, page_size: int | None = None):
+    """应收账龄报表（按客户聚合）。
+
+    聚合全部下推到 SQL：
+      1) 按项目汇总合同应收(min 签订日) 与已回款；
+      2) LEFT JOIN 项目/客户，逐项目算应收余额并按账期分桶
+         （用签订日阈值区间比较，避免日期相减的类型问题）；
+      3) 按客户分组汇总各账龄桶，按应收余额降序。
+    summary 始终覆盖全部客户；传入 page_no/page_size 时对客户行做后端分页并返回 total。
+    仅统计项目关联的合同（project_id 非空），与原实现范围一致。
+    """
     from app.domains.contract.models import Contract
     from app.domains.payment.models import PaymentRecord
     from app.domains.project.models import OpportunityProject
     from app.domains.customer.models import Customer
 
-    contract_rows = (await db.execute(
-        select(Contract.project_id,
-               func.sum(Contract.amount_total).label("total"),
-               func.min(Contract.signed_date).label("signed"))
-        .where(Contract.tenant_id == tenant_id)
-        .group_by(Contract.project_id)
-    )).all()
+    bucket_keys = [b[2] for b in BUCKETS]
+    today = date.today()
 
-    pay_rows = (await db.execute(
-        select(PaymentRecord.project_id, func.sum(PaymentRecord.amount))
+    # 每项目：合同应收合计 + 最早签订日
+    contract_agg = (
+        select(
+            Contract.project_id.label("project_id"),
+            func.coalesce(func.sum(Contract.amount_total), 0).label("total"),
+            func.min(Contract.signed_date).label("signed"),
+        )
+        .where(Contract.tenant_id == tenant_id, Contract.project_id.isnot(None))
+        .group_by(Contract.project_id)
+        .cte("contract_agg")
+    )
+    # 每项目：已回款合计
+    pay_agg = (
+        select(
+            PaymentRecord.project_id.label("project_id"),
+            func.coalesce(func.sum(PaymentRecord.amount), 0).label("paid"),
+        )
         .where(PaymentRecord.tenant_id == tenant_id)
         .group_by(PaymentRecord.project_id)
-    )).all()
-    paid = {pid: float(s or 0) for pid, s in pay_rows}
+        .cte("pay_agg")
+    )
 
-    proj_rows = (await db.execute(
-        select(OpportunityProject.id, OpportunityProject.customer_id,
-               OpportunityProject.owner_id, OpportunityProject.owner_name)
-        .where(OpportunityProject.tenant_id == tenant_id)
-    )).all()
-    proj = {r[0]: (r[1], r[2], r[3]) for r in proj_rows}
+    total_col = contract_agg.c.total
+    paid_col = func.coalesce(pay_agg.c.paid, 0)
+    outstanding_col = total_col - paid_col
+    signed_col = contract_agg.c.signed
 
-    cust_rows = (await db.execute(
-        select(Customer.id, Customer.name).where(Customer.tenant_id == tenant_id)
-    )).all()
-    cust_names = {r[0]: r[1] for r in cust_rows}
+    # 账期分桶：age = today - signed。用签订日阈值区间表达按天分桶：
+    # 负账期(签订日在未来)与签订日为空都落入 d180p（else 分支）。
+    def thr(days: int) -> date:
+        return today - timedelta(days=days)
+    bucket_col = case(
+        (and_(signed_col.isnot(None), signed_col >= thr(30), signed_col <= today), literal("d0_30")),
+        (and_(signed_col.isnot(None), signed_col >= thr(60), signed_col <= thr(31)), literal("d31_60")),
+        (and_(signed_col.isnot(None), signed_col >= thr(90), signed_col <= thr(61)), literal("d61_90")),
+        (and_(signed_col.isnot(None), signed_col >= thr(180), signed_col <= thr(91)), literal("d91_180")),
+        else_=literal("d180p"),
+    )
 
-    today = date.today()
-    per: dict[str, dict] = {}
-    bucket_keys = [b[2] for b in BUCKETS]
+    # 逐项目明细行（仅保留仍有应收余额者，与原 outstanding<=0.005 continue 一致）
+    proj_line = (
+        select(
+            func.coalesce(OpportunityProject.customer_id, literal("_unlinked")).label("customer_key"),
+            OpportunityProject.customer_id.label("customer_id"),
+            Customer.name.label("customer_name"),
+            OpportunityProject.owner_id.label("owner_id"),
+            OpportunityProject.owner_name.label("owner_name"),
+            total_col.label("total"),
+            paid_col.label("paid"),
+            outstanding_col.label("outstanding"),
+            bucket_col.label("bucket"),
+        )
+        .select_from(
+            contract_agg
+            .outerjoin(OpportunityProject, and_(
+                OpportunityProject.id == contract_agg.c.project_id,
+                OpportunityProject.tenant_id == tenant_id,
+            ))
+            .outerjoin(pay_agg, pay_agg.c.project_id == contract_agg.c.project_id)
+            .outerjoin(Customer, and_(
+                Customer.id == OpportunityProject.customer_id,
+                Customer.tenant_id == tenant_id,
+            ))
+        )
+        .where(outstanding_col > 0.005)
+        .cte("proj_line")
+    )
 
-    for project_id, total, signed in contract_rows:
-        total = float(total or 0)
-        if not project_id:
-            continue
-        outstanding = total - paid.get(project_id, 0)
-        if outstanding <= 0.005:
-            continue
-        cust_id, owner_id, owner_name = proj.get(project_id, (None, None, None))
-        key = cust_id or "_unlinked"
-        agg = per.get(key)
-        if agg is None:
-            agg = {"customer_id": cust_id, "customer_name": cust_names.get(cust_id, "(未关联客户)"),
-                   "owner_id": owner_id, "owner_name": owner_name,
-                   "contract_total": 0.0, "received_total": 0.0, "outstanding": 0.0}
-            for bk in bucket_keys:
-                agg[bk] = 0.0
-            per[key] = agg
-        age = (today - signed).days if signed else 9999
-        bk = _bucket(age)
-        agg[bk] += outstanding
-        agg["outstanding"] += outstanding
-        agg["contract_total"] += total
-        agg["received_total"] += paid.get(project_id, 0)
+    def bucket_sum(bk: str):
+        return func.coalesce(
+            func.sum(case((proj_line.c.bucket == bk, proj_line.c.outstanding), else_=0)), 0
+        )
 
-    rows = sorted(per.values(), key=lambda x: x["outstanding"], reverse=True)
-    summary = {bk: round(sum(r[bk] for r in rows), 2) for bk in bucket_keys}
-    summary["outstanding"] = round(sum(r["outstanding"] for r in rows), 2)
-    summary["customer_count"] = len(rows)
-    for r in rows:
-        for bk in bucket_keys + ["contract_total", "received_total", "outstanding"]:
-            r[bk] = round(r[bk], 2)
-    return {"summary": summary, "buckets": bucket_keys, "rows": rows}
+    # 汇总：覆盖全部客户，不受分页影响
+    summary_row = (await db.execute(
+        select(
+            *[bucket_sum(bk).label(bk) for bk in bucket_keys],
+            func.coalesce(func.sum(proj_line.c.outstanding), 0).label("outstanding"),
+            func.count(distinct(proj_line.c.customer_key)).label("customer_count"),
+        )
+    )).mappings().one()
+    summary = {bk: _f(summary_row[bk]) for bk in bucket_keys}
+    summary["outstanding"] = _f(summary_row["outstanding"])
+    summary["customer_count"] = int(summary_row["customer_count"] or 0)
+
+    # 客户负责人：取应收余额最大的项目，array_agg 同序保证 id/name 同源
+    owner_id_col = func.array_agg(
+        aggregate_order_by(proj_line.c.owner_id, proj_line.c.outstanding.desc()),
+        type_=ARRAY(String),
+    )[1]
+    owner_name_col = func.array_agg(
+        aggregate_order_by(proj_line.c.owner_name, proj_line.c.outstanding.desc()),
+        type_=ARRAY(String),
+    )[1]
+
+    rows_q = (
+        select(
+            func.max(proj_line.c.customer_id).label("customer_id"),
+            func.coalesce(func.max(proj_line.c.customer_name), literal("(未关联客户)")).label("customer_name"),
+            owner_id_col.label("owner_id"),
+            owner_name_col.label("owner_name"),
+            func.coalesce(func.sum(proj_line.c.total), 0).label("contract_total"),
+            func.coalesce(func.sum(proj_line.c.paid), 0).label("received_total"),
+            func.coalesce(func.sum(proj_line.c.outstanding), 0).label("outstanding"),
+            *[bucket_sum(bk).label(bk) for bk in bucket_keys],
+        )
+        .group_by(proj_line.c.customer_key)
+        # customer_key 作次序稳定的 tiebreaker，保证分页不重不漏
+        .order_by(func.sum(proj_line.c.outstanding).desc(), proj_line.c.customer_key)
+    )
+    paginated = page_no is not None and page_size is not None
+    if paginated:
+        rows_q = rows_q.offset((page_no - 1) * page_size).limit(page_size)
+
+    money_keys = bucket_keys + ["contract_total", "received_total", "outstanding"]
+    rows = []
+    for r in (await db.execute(rows_q)).mappings().all():
+        row = {
+            "customer_id": r["customer_id"],
+            "customer_name": r["customer_name"],
+            "owner_id": r["owner_id"],
+            "owner_name": r["owner_name"],
+        }
+        for k in money_keys:
+            row[k] = _f(r[k])
+        rows.append(row)
+
+    result = {"summary": summary, "buckets": bucket_keys, "rows": rows}
+    if paginated:
+        result["total"] = summary["customer_count"]
+    return result
 
 
 async def check_overdue_receivables(db: AsyncSession, tenant_id: str) -> int:

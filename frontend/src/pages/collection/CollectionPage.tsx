@@ -39,20 +39,25 @@ const STATUS_COLOR: Record<string, string> = { pending: 'gold', claimed: 'blue',
 
 const money = (v?: number) => (v ? `¥${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '-')
 
+const AGING_PAGE_SIZE = 20
+
 function AgingTab() {
   const [rows, setRows] = useState<ArAgingRow[]>([])
   const [summary, setSummary] = useState<Record<string, number>>({})
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
 
-  const fetchData = async () => {
+  const fetchData = async (p = page) => {
     setLoading(true)
     try {
-      const res = await collectionApi.aging()
+      const res = await collectionApi.aging({ pageNo: p, pageSize: AGING_PAGE_SIZE })
       setRows(res.data.rows || [])
       setSummary(res.data.summary || {})
+      setTotal(res.data.total ?? res.data.rows?.length ?? 0)
     } finally { setLoading(false) }
   }
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData(1) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const notify = async () => {
     try { const r = await collectionApi.agingNotify(); message.success(`已提醒 ${r.data.notified} 位负责人`) }
@@ -92,7 +97,11 @@ function AgingTab() {
       </div>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <Table rowKey={(r) => r.customer_id || r.customer_name} columns={columns} dataSource={rows} loading={loading}
-          scroll={{ x: 1200 }} pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 个客户` }} />
+          scroll={{ x: 1200 }} pagination={{
+            current: page, total, pageSize: AGING_PAGE_SIZE, showSizeChanger: false,
+            showTotal: (t) => `共 ${t} 个客户`,
+            onChange: (p) => { setPage(p); fetchData(p) },
+          }} />
       </div>
     </div>
   )

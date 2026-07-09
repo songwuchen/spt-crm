@@ -54,9 +54,11 @@ def _followup_dict(f) -> dict:
 
 # ---------- Aging ----------
 @router.get("/aging")
-async def aging(tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+async def aging(pageNo: int = Query(None, ge=1), pageSize: int = Query(None, ge=1, le=200),
+                tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
                 _u=Depends(require_permissions("collection:view"))):
-    return ok(await service.aging_report(db, tenant_id))
+    # 不传分页参数 → 返回全部客户行（兼容导出/提醒等场景）
+    return ok(await service.aging_report(db, tenant_id, page_no=pageNo, page_size=pageSize))
 
 
 @router.get("/aging/export/excel")

@@ -4,8 +4,8 @@ import type {
 } from './types'
 
 export const collectionApi = {
-  aging: () =>
-    client.get<unknown, ApiResponse<ArAgingReport>>('/api/v1/collection/aging'),
+  aging: (params?: Record<string, unknown>) =>
+    client.get<unknown, ApiResponse<ArAgingReport>>('/api/v1/collection/aging', { params }),
   agingNotify: () =>
     client.post<unknown, ApiResponse<{ notified: number }>>('/api/v1/collection/aging/notify'),
   // transfers

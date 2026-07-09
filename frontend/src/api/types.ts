@@ -783,6 +783,7 @@ export interface ArAgingReport {
   summary: Record<string, number>
   buckets: string[]
   rows: ArAgingRow[]
+  total?: number // 传分页参数时返回：客户总数（用于后端分页）
 }
 
 export interface DebtTransfer {
