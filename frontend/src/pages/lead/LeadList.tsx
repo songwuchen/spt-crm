@@ -173,7 +173,9 @@ export default function LeadList() {
     }
   }
 
-  useEffect(() => { fetchData(pageNo) }, [searchParams])
+  // 仅首次加载 / 分页 / 视图变化时拉取；筛选条件的变更不再自动触发搜索，
+  // 需点「筛选」按钮或回车（doSearch），与客户管理等列表保持一致。
+  useEffect(() => { fetchData(pageNo) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // 高级筛选/排序/视图变化后回到第 1 页重新拉取（reload 在 state 更新后再触发，避免读到旧值）
   useEffect(() => {
@@ -181,7 +183,7 @@ export default function LeadList() {
     fetchData(1)
   }, [reload])
 
-  const doSearch = () => { updateParams({ page: undefined }) }
+  const doSearch = () => { updateParams({ page: undefined }); fetchData(1) }
 
   const allColumns: ColumnsType<Lead> = [
     { title: t('lead.name'), key: 'title', width: 260,
