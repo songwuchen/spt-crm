@@ -146,17 +146,38 @@ async def get_dingtalk_unionid(token: str, userid: str) -> str | None:
     return None
 
 
+def _to_workbench_link(url: str | None) -> str | None:
+    """PC 端：包成钉钉工作台内打开的深链（新标签页），点击不跳出钉钉客户端。"""
+    if not url or url.startswith("dingtalk://"):
+        return url
+    return "dingtalk://dingtalkclient/page/link?url=" + urllib.parse.quote(url, safe="") + "&pc_slide=false&ddtab=true"
+
+
+def _to_app_deeplink(url: str | None) -> str | None:
+    """移动端：包成钉钉容器内打开的深链（可触发 JSAPI 免登）。"""
+    if not url or url.startswith("dingtalk://"):
+        return url
+    return "dingtalk://dingtalkclient/page/link?url=" + urllib.parse.quote(url, safe="")
+
+
 async def send_dingtalk_work_notification(
     token: str, agent_id: str, userid_list: list[str],
-    title: str, content: str, url: str | None = None,
+    title: str, content: str,
+    pc_url: str | None = None, app_url: str | None = None,
 ) -> bool:
-    """发送钉钉「工作通知」给指定用户（待办式推送）。有链接时用可点击卡片，否则用文本。"""
+    """发送钉钉「工作通知」给指定用户。
+
+    有链接时用 OA 卡片，PC/移动端分别跳转（pc_message_url / message_url，各自包深链），
+    从而 PC 钉钉点开走 PC 域名、手机钉钉点开走移动域名并可免登；无链接则退回文本。
+    """
     if not token or not agent_id or not userid_list:
         return False
-    if url:
-        msg = {"msgtype": "action_card", "action_card": {
-            "title": title, "markdown": f"### {title}\n\n{content}",
-            "single_title": "查看详情", "single_url": url,
+    if pc_url or app_url:
+        msg = {"msgtype": "oa", "oa": {
+            "message_url": _to_app_deeplink(app_url or pc_url),
+            "pc_message_url": _to_workbench_link(pc_url or app_url),
+            "head": {"bgcolor": "FF00C48F", "text": (title or "通知")[:16]},
+            "body": {"title": title[:100], "content": content[:500]},
         }}
     else:
         msg = {"msgtype": "text", "text": {"content": f"{title}\n{content}"}}
@@ -200,7 +221,7 @@ async def create_dingtalk_todo(
     if description:
         body["description"] = description[:1000]
     if url or mobile_url:
-        body["detailUrl"] = {"pcUrl": url or mobile_url, "appUrl": mobile_url or url}
+        body["detailUrl"] = {"pcUrl": _to_workbench_link(url or mobile_url), "appUrl": _to_app_deeplink(mobile_url or url)}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(
@@ -326,7 +347,7 @@ async def dispatch_todo(
     app_url = _abs_url(config, mobile_link or link, mobile=True)
 
     results["work_notification"] = await send_dingtalk_work_notification(
-        token, config["agent_id"], [userid], title, content, app_url or pc_url)
+        token, config["agent_id"], [userid], title, content, pc_url=pc_url, app_url=app_url)
 
     # 创建真正的钉钉待办（需 unionId + 应用具备待办权限）
     union_id = await get_dingtalk_unionid(token, userid)
