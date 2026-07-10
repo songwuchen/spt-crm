@@ -27,6 +27,12 @@ class DingTalkConfigBody(BaseModel):
     default_password: Optional[str] = "Changeme@123"
     root_dept_id: Optional[int] = 1
     login_enabled: Optional[bool] = False
+    # 消息通知 / 待办（统一到本页配置）
+    agent_id: Optional[str] = ""          # 工作通知/待办需要的应用 AgentId
+    webhook_url: Optional[str] = ""        # 群机器人 webhook（可选）
+    secret: Optional[str] = ""             # 群机器人加签 secret（可选）
+    crm_base_url: Optional[str] = ""       # 待办/通知跳转链接的 PC 域名
+    crm_h5_base_url: Optional[str] = ""    # 移动端域名（留空同 PC）
 
 router = APIRouter(prefix="/api/admin/v1/tenant", tags=["组织管理"])
 
@@ -323,6 +329,11 @@ async def get_dingtalk_config(
         "default_password": cfg.get("default_password", "Changeme@123"),
         "root_dept_id": cfg.get("root_dept_id", 1),
         "login_enabled": cfg.get("login_enabled", False),
+        "agent_id": cfg.get("agent_id", ""),
+        "webhook_url": cfg.get("webhook_url", ""),
+        "secret": "******" if cfg.get("secret") else "",
+        "crm_base_url": cfg.get("crm_base_url", ""),
+        "crm_h5_base_url": cfg.get("crm_h5_base_url", ""),
         "status": ep.status,
     })
 
@@ -342,12 +353,20 @@ async def save_dingtalk_config(
         "default_password": body.default_password or "Changeme@123",
         "root_dept_id": body.root_dept_id or 1,
         "login_enabled": body.login_enabled or False,
+        "agent_id": body.agent_id or "",
+        "webhook_url": body.webhook_url or "",
+        "secret": body.secret or "",
+        "crm_base_url": body.crm_base_url or "",
+        "crm_h5_base_url": body.crm_h5_base_url or "",
     }
     from app.common.crypto import encrypt_config_json
     if ep:
-        # preserve existing secret if masked value sent (stored value may be enc:…)
+        # preserve existing secrets if masked value sent (stored value may be enc:…)
+        prev = ep.auth_config_json or {}
         if body.app_secret == "******":
-            cfg["app_secret"] = (ep.auth_config_json or {}).get("app_secret", "")
+            cfg["app_secret"] = prev.get("app_secret", "")
+        if body.secret == "******":
+            cfg["secret"] = prev.get("secret", "")
         ep.auth_config_json = encrypt_config_json(cfg)
         ep.status = "active"
     else:

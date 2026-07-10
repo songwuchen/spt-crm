@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Button, Form, Input, InputNumber, Switch, message, Alert, Spin, Divider, Tag, Progress } from 'antd'
 import {
   CheckCircleOutlined, CloseCircleOutlined, SyncOutlined,
-  ApiOutlined, TeamOutlined, ApartmentOutlined, UserOutlined, LoginOutlined,
+  ApiOutlined, TeamOutlined, ApartmentOutlined, UserOutlined, LoginOutlined, BellOutlined,
 } from '@ant-design/icons'
 import client from '@/api/client'
 import type { ApiResponse } from '@/api/types'
@@ -15,6 +15,11 @@ interface DingTalkConfig {
   default_password: string
   root_dept_id: number
   login_enabled: boolean
+  agent_id: string
+  webhook_url: string
+  secret: string
+  crm_base_url: string
+  crm_h5_base_url: string
   status: string
 }
 
@@ -170,6 +175,11 @@ export default function DingTalkPage() {
           default_password: res.data.default_password || 'Changeme@123',
           root_dept_id: res.data.root_dept_id || 1,
           login_enabled: res.data.login_enabled || false,
+          agent_id: res.data.agent_id || '',
+          webhook_url: res.data.webhook_url || '',
+          secret: res.data.secret || '',
+          crm_base_url: res.data.crm_base_url || '',
+          crm_h5_base_url: res.data.crm_h5_base_url || '',
         })
       }
     } catch {
@@ -319,6 +329,37 @@ export default function DingTalkPage() {
               <div className="font-mono bg-white rounded px-2 py-1 border border-amber-200 select-all">
                 {window.location.origin}/login
               </div>
+            </div>
+          </div>
+
+          {/* 消息通知 / 待办 —— 统一到本页配置（原「集成配置→钉钉」已合并至此） */}
+          <div className="border-t border-slate-100 pt-4 mt-2">
+            <div className="flex items-center gap-2 mb-3">
+              <BellOutlined className="text-emerald-500" />
+              <span className="font-medium text-slate-700">消息通知 / 待办</span>
+              <span className="text-sm text-slate-400">审批等业务的工作通知与钉钉个人待办（复用上方 AppKey/AppSecret）</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Form.Item name="agent_id" label="应用 AgentId" tooltip="发工作通知/待办所需，企业内部应用的 AgentId">
+                <Input placeholder="应用 AgentId" />
+              </Form.Item>
+              <Form.Item name="crm_base_url" label="CRM 访问地址（PC）" tooltip="待办/通知卡片的 PC 端跳转域名">
+                <Input placeholder="https://192.168.0.42:8410" />
+              </Form.Item>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Form.Item name="crm_h5_base_url" label="CRM 移动端地址（可选）" tooltip="移动端待办深链域名，留空则同 PC">
+                <Input placeholder="https://link.fourier.net.cn" />
+              </Form.Item>
+              <Form.Item name="webhook_url" label="群机器人 Webhook（可选）" tooltip="额外把消息发到钉钉群，可留空">
+                <Input placeholder="https://oapi.dingtalk.com/robot/send?access_token=xxx" />
+              </Form.Item>
+            </div>
+            <Form.Item name="secret" label="群机器人加签 Secret（可选）">
+              <Input.Password placeholder="群机器人加签 secret，可留空" />
+            </Form.Item>
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-600">
+              个人待办按<b>负责人手机号</b>匹配钉钉账号下发，请确保用户已填手机号；未配置 AgentId 时仅发群消息（若填了 Webhook）。
             </div>
           </div>
         </Form>

@@ -1325,8 +1325,9 @@ export default function SettingsPage() {
                 options={[
                   { value: 'erp_k3', label: '金蝶K3 (ERP)' }, { value: 'erp_sap', label: 'SAP (ERP)' },
                   { value: 'erp_yonyou', label: '用友 (ERP)' }, { value: 'mes', label: 'MES' },
-                  { value: 'dingtalk', label: '钉钉' }, { value: 'wecom', label: '企业微信' },
+                  { value: 'wecom', label: '企业微信' },
                 ]} />
+              <div className="text-[12px] text-slate-400 mt-1">钉钉配置（消息/待办/免登）已统一到「钉钉集成」页</div>
             </div>
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">名称</label>

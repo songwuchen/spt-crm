@@ -243,13 +243,36 @@ async def complete_dingtalk_todo(token: str, union_id: str, task_id: str) -> boo
     return False
 
 
+async def _resolve_dingtalk_config(db: AsyncSession, tenant_id: str) -> dict | None:
+    """统一读取钉钉配置：老「消息集成」(dingtalk) 铺底，「钉钉集成」(dingtalk_oa) 覆盖。
+
+    企业通常只有一个钉钉企业应用；两处配置合并后共享凭证以「钉钉集成」页(dingtalk_oa,
+    组织同步+SSO)为准，消息字段(agent_id/webhook/crm_url)哪份非空用哪份，便于从「集成配置」
+    的老 dingtalk 平滑过渡到统一的钉钉集成页。群机器人 webhook 兼容：老配置存 base_url，
+    统一配置存 auth_config.webhook_url。无任何配置时返回 None。
+    """
+    from app.common.crypto import decrypt_config_json
+    merged: dict = {}
+    found = False
+    for code in ("dingtalk", "dingtalk_oa"):
+        ep = await _get_msg_endpoint(db, tenant_id, code)
+        if not ep:
+            continue
+        found = True
+        cfg = decrypt_config_json(ep.auth_config_json or {}) or {}
+        if ep.base_url and not cfg.get("webhook_url"):
+            cfg = {**cfg, "webhook_url": ep.base_url}
+        for k, v in cfg.items():
+            if v not in (None, ""):
+                merged[k] = v
+    return merged if found else None
+
+
 async def _dingtalk_app_config(db: AsyncSession, tenant_id: str) -> dict | None:
     """取租户钉钉企业应用配置（app_key/app_secret/agent_id 齐全才算可用），否则 None。"""
-    ep = await _get_msg_endpoint(db, tenant_id, "dingtalk")
-    if not ep:
+    config = await _resolve_dingtalk_config(db, tenant_id)
+    if not config:
         return None
-    from app.common.crypto import decrypt_config_json
-    config = decrypt_config_json(ep.auth_config_json or {}) or {}
     if not (config.get("app_key") and config.get("app_secret") and config.get("agent_id")):
         return None  # 仅群机器人、未配置企业应用 → 无法推个人待办
     return config
@@ -422,23 +445,20 @@ async def dispatch_message(
     """
     results: dict[str, bool] = {}
 
-    # DingTalk
-    from app.common.crypto import decrypt_config_json
-    dingtalk_ep = await _get_msg_endpoint(db, tenant_id, "dingtalk")
-    if dingtalk_ep and dingtalk_ep.base_url:
-        config = decrypt_config_json(dingtalk_ep.auth_config_json or {}) or {}
-        # Check if this msg_type should be sent
-        allowed_types = config.get("msg_types")
+    # DingTalk — 统一读取（消息集成 dingtalk + 钉钉集成 dingtalk_oa 合并），群机器人 webhook
+    dingtalk_cfg = await _resolve_dingtalk_config(db, tenant_id)
+    if dingtalk_cfg and dingtalk_cfg.get("webhook_url"):
+        allowed_types = dingtalk_cfg.get("msg_types")
         if not allowed_types or msg_type in allowed_types or "*" in allowed_types:
-            secret = config.get("secret")
             results["dingtalk"] = await send_to_dingtalk(
-                webhook_url=dingtalk_ep.base_url,
+                webhook_url=dingtalk_cfg["webhook_url"],
                 title=title,
                 content=content,
-                secret=secret,
+                secret=dingtalk_cfg.get("secret"),
             )
 
     # WeCom
+    from app.common.crypto import decrypt_config_json
     wecom_ep = await _get_msg_endpoint(db, tenant_id, "wecom")
     if wecom_ep and wecom_ep.base_url:
         config = decrypt_config_json(wecom_ep.auth_config_json or {}) or {}
