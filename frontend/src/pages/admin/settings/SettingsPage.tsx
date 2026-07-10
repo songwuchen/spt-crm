@@ -68,7 +68,8 @@ function getAuthFields(systemCode: string, authType: string): AuthFieldDef[] {
     { key: 'app_key', label: '企业应用 AppKey', placeholder: '企业内部应用 AppKey' },
     { key: 'app_secret', label: '企业应用 AppSecret', placeholder: '企业内部应用 AppSecret', secret: true },
     { key: 'agent_id', label: '应用 AgentId', placeholder: '应用 AgentId' },
-    { key: 'crm_base_url', label: 'CRM 访问地址', placeholder: 'https://192.168.0.42:8410' },
+    { key: 'crm_base_url', label: 'CRM 访问地址（PC）', placeholder: 'https://192.168.0.42:8410' },
+    { key: 'crm_h5_base_url', label: 'CRM 移动端地址（可选）', placeholder: '移动端域名，如 https://link.fourier.net.cn，留空则同 PC' },
     { key: 'secret', label: '群机器人加签 Secret（可选）', placeholder: '加签 secret，可留空', secret: true },
   ]
   switch (authType) {

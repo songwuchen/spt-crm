@@ -537,13 +537,18 @@ async def dingtalk_jsapi_login(
     from app.common.dingtalk_sync import get_userinfo_by_auth_code
     from app.common.crypto import decrypt_config_json
 
-    ep = (await db.execute(
+    eps = (await db.execute(
         sa_select(IntegrationEndpoint).where(
             IntegrationEndpoint.system_code == "dingtalk_oa",
-        ).order_by(IntegrationEndpoint.created_at).limit(1)
-    )).scalar_one_or_none()
-    if not ep:
+        ).order_by(IntegrationEndpoint.created_at)
+    )).scalars().all()
+    if not eps:
         raise BusinessException(code=40300, message="钉钉集成未配置")
+    # 多租户：前端带了 corpId 时选 corp_id 匹配的配置（定位到正确租户），否则取最早创建的
+    ep = None
+    if body.corp_id:
+        ep = next((e for e in eps if (e.auth_config_json or {}).get("corp_id") == body.corp_id), None)
+    ep = ep or eps[0]
 
     cfg = decrypt_config_json(ep.auth_config_json or {}) or {}
     if not cfg.get("login_enabled"):
