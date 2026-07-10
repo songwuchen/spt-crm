@@ -10,6 +10,7 @@ interface HealthData {
     latency_ms: number
     pool: { pool_size: number; checked_out: number; overflow: number; checked_in: number }
   }
+  cache?: { backend: string; configured: boolean; connected: boolean }
   table_counts: Record<string, number>
   api: { total_ops_24h: number }
   timestamp: string
@@ -96,6 +97,22 @@ export default function SystemHealthPage() {
               </Card>
             </Col>
           </Row>
+
+          {/* Cache backend (Redis) status */}
+          {data.cache && (
+            <Card className="mb-6" size="small">
+              <div className="flex items-center gap-3">
+                <span className="font-medium text-slate-700">缓存后端</span>
+                {data.cache.backend === 'redis' && data.cache.connected ? (
+                  <Tag color="green" icon={<CheckCircleOutlined />}>Redis 已启用并连接</Tag>
+                ) : data.cache.configured ? (
+                  <Tag color="red" icon={<CloseCircleOutlined />}>已配置 REDIS_URL 但未连接（回退内存缓存，请检查 redis 服务）</Tag>
+                ) : (
+                  <Tag color="orange">内存缓存（未启用 Redis）</Tag>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* Connection Pool Detail */}
           {pool && (

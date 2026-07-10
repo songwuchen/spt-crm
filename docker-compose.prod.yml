@@ -17,16 +17,31 @@ services:
       timeout: 3s
       retries: 5
 
+  # redis:7-alpine 来自 Docker Hub（与 db 的 postgres:16-alpine 同源）。首次 up 会拉取一次，
+  # 之后本地缓存；例行部署的 `docker compose pull` 已排除 db/redis，避免每次重拉挂起。
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   backend:
     image: wmharbor.fourier.net.cn:39011/hengchao-dev/spt-crm-backend:latest
     restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@db:5432/spt_crm
+      REDIS_URL: redis://redis:6379/0
       LOG_FORMAT: json
       LOG_LEVEL: INFO
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - uploads:/app/uploads
@@ -38,10 +53,13 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@db:5432/spt_crm
+      REDIS_URL: redis://redis:6379/0
       LOG_FORMAT: json
       LOG_LEVEL: INFO
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   reminder:
@@ -51,10 +69,13 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@db:5432/spt_crm
+      REDIS_URL: redis://redis:6379/0
       LOG_FORMAT: json
       LOG_LEVEL: INFO
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   frontend:

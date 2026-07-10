@@ -17,12 +17,24 @@ services:
       timeout: 3s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   backend:
     build: ./backend
     ports:
       - "8002:8002"
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/spt_crm
+      REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:80}
       AI_PROVIDER: ${AI_PROVIDER:-mock}
@@ -32,6 +44,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - uploads:/app/uploads
 
@@ -40,10 +54,13 @@ services:
     command: ["python", "-m", "app.workers.outbox_worker"]
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/spt_crm
+      REDIS_URL: redis://redis:6379/0
       LOG_FORMAT: json
       LOG_LEVEL: INFO
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 
@@ -52,10 +69,13 @@ services:
     command: ["python", "-m", "app.workers.reminder_worker"]
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/spt_crm
+      REDIS_URL: redis://redis:6379/0
       LOG_FORMAT: json
       LOG_LEVEL: INFO
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 

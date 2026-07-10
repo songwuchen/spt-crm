@@ -290,8 +290,16 @@ async def system_health(
         )
     )).scalar() or 0
 
+    # Cache backend (redis vs in-memory) — 用于验证线上 Redis 是否真正启用
+    try:
+        from app.common.cache import cache_backend
+        cache_status = cache_backend()
+    except Exception:
+        cache_status = {"backend": "unknown", "configured": False, "connected": False}
+
     return ok({
         "db": {"ok": db_ok, "latency_ms": db_latency_ms, "pool": pool_stats},
+        "cache": cache_status,
         "table_counts": counts,
         "api": {"total_ops_24h": total_ops},
         "timestamp": now.isoformat(),

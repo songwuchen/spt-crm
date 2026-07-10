@@ -30,6 +30,23 @@ def _get_redis():
     return None
 
 
+def cache_backend() -> dict:
+    """报告缓存后端状态，供 /system/health 验证 Redis 是否真正启用。
+
+    configured=True 但 backend=memory 说明有问题（redis 库未装、REDIS_URL 错、或 redis 不可达）。
+    """
+    from app.config import settings
+    configured = bool(getattr(settings, "REDIS_URL", ""))
+    r = _get_redis()
+    if r:
+        try:
+            r.ping()
+            return {"backend": "redis", "configured": True, "connected": True}
+        except Exception:
+            return {"backend": "memory", "configured": configured, "connected": False}
+    return {"backend": "memory", "configured": configured, "connected": False}
+
+
 async def cache_get(key: str) -> Optional[Any]:
     """Get value from cache. Returns None on miss."""
     r = _get_redis()
