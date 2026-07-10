@@ -142,6 +142,10 @@ export default function ApprovalCenter() {
           navigate(`/opportunities/${sol.project_id}/solutions/${bizId}`)
           return
         }
+      } else if (bizType === 'lead') {
+        // biz_id 即线索 id，直接跳线索详情
+        navigate(`/leads/${bizId}`)
+        return
       }
     } catch {
       // Fallback

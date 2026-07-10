@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { notificationApi, type NotificationItem } from '@/api/notification'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { notificationTarget } from '@/utils/notificationRoute'
 
 const typeConfig: Record<string, { label: string; icon: string; color: string }> = {
   approval_pending: { label: '审批待处理', icon: 'pending_actions', color: 'text-orange-500' },
@@ -38,6 +39,13 @@ export default function MobileNotifications() {
     setItems(prev => prev.map(i => i.id === id ? { ...i, is_read: true } : i))
   }
 
+  // 点击通知：标记已读并跳转到对应的移动端详情页
+  const handleOpen = (n: NotificationItem) => {
+    if (!n.is_read) handleMarkRead(n.id)
+    const target = notificationTarget(n.biz_type, n.biz_id)
+    if (target) navigate(target)
+  }
+
   const handleMarkAllRead = async () => {
     const unreadIds = items.filter(i => !i.is_read).map(i => i.id)
     if (unreadIds.length === 0) return
@@ -66,8 +74,8 @@ export default function MobileNotifications() {
         {items.map((n) => {
           const cfg = typeConfig[n.type] || typeConfig.system
           return (
-            <div key={n.id} role="button" tabIndex={0} onClick={() => !n.is_read && handleMarkRead(n.id)}
-              onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !n.is_read) { e.preventDefault(); handleMarkRead(n.id) } }}
+            <div key={n.id} role="button" tabIndex={0} onClick={() => handleOpen(n)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpen(n) } }}
               className={`bg-white rounded-xl border shadow-sm p-4 ${n.is_read ? 'border-slate-100 opacity-60' : 'border-primary/20'}`}>
               <div className="flex items-start gap-3">
                 <span className={`material-symbols-outlined ${cfg.color} mt-0.5`} style={{ fontSize: 20 }}>{cfg.icon}</span>

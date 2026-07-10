@@ -151,6 +151,18 @@ async def _build_policy_context(db: AsyncSession, tenant_id: str, biz_type: str,
             )).scalar_one_or_none()
             if o:
                 context["amount"] = _safe_float(o.amount)
+        elif biz_type == "lead":
+            from app.domains.lead.models import Lead
+            ld = (await db.execute(
+                select(Lead).where(Lead.id == biz_id, Lead.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if ld:
+                context["score"] = _safe_float(ld.score)
+                context["source"] = ld.source
+                context["customer_type"] = ld.customer_type
+                context["category"] = ld.category
+                context["country_type"] = ld.country_type
+                context["industry"] = ld.industry
         # solution: no condition fields — always matches (approver-only policy)
     except Exception as e:
         logger.warning("Build policy context failed for %s/%s: %s", biz_type, biz_id, e)
@@ -220,6 +232,42 @@ async def _dispatch_msg_safe(db: AsyncSession, tenant_id: str, title: str, conte
         await dispatch_message(db, tenant_id, title, content, msg_type=msg_type)
     except Exception as e:
         logger.warning("Dispatch external message failed: %s", e)
+
+
+async def _create_todo_for_task(db: AsyncSession, tenant_id: str, flow: ApprovalFlow, task: ApprovalTask):
+    """尽力为一个待处理审批任务创建钉钉个人待办，并把 todo_id 记到任务上。
+
+    未配置钉钉企业应用 / 审批人无手机号时安全跳过（站内通知已兜底）。深链 PC→审批中心、
+    移动端→该审批详情页，实现「PC/移动端不同页面」。
+    """
+    if not task or task.status != "pending" or not task.assignee_id:
+        return
+    try:
+        from app.common.msg_integration import dispatch_todo
+        title = f"审批待处理: {flow.title or flow.biz_type}"
+        content = f"{flow.submitted_by_name or ''} 提交了审批，请尽快处理。"
+        res = await dispatch_todo(
+            db, tenant_id, task.assignee_id, title, content,
+            link="/approvals", mobile_link=f"/m/approvals/{flow.id}",
+        )
+        todo_id = res.get("todo_id")
+        if todo_id:
+            task.dingtalk_todo_id = todo_id
+            await db.commit()
+    except Exception as e:
+        logger.warning("Create DingTalk todo for task failed: %s", e)
+
+
+async def _complete_todo_for_task(db: AsyncSession, tenant_id: str, task: ApprovalTask):
+    """审批任务被处理/取消时，完结其钉钉个人待办（避免钉钉待办里一直挂着已处理项）。"""
+    todo_id = getattr(task, "dingtalk_todo_id", None) if task else None
+    if not todo_id or not task.assignee_id:
+        return
+    try:
+        from app.common.msg_integration import complete_todo_for_user
+        await complete_todo_for_user(db, tenant_id, task.assignee_id, todo_id)
+    except Exception as e:
+        logger.warning("Complete DingTalk todo for task failed: %s", e)
 
 
 async def _enqueue_approval_event(db: AsyncSession, tenant_id: str, event_type: str, flow: ApprovalFlow, extra: dict | None = None):
@@ -352,6 +400,11 @@ async def submit_approval(db: AsyncSession, tenant_id: str, data: ApprovalSubmit
         await _dispatch_msg_safe(db, tenant_id,
             "审批待处理通知",
             f"**审批模式**: {mode}\n\n**业务类型**: {data.biz_type}\n\n**审批对象**: {data.title or data.biz_type}\n\n请相关审批人尽快处理。")
+
+    # 钉钉个人待办：给当前待处理审批人逐个下发
+    for t in await get_flow_tasks(db, tenant_id, flow.id):
+        if t.status == "pending":
+            await _create_todo_for_task(db, tenant_id, flow, t)
 
     return flow
 
@@ -491,7 +544,7 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
     if flow.status == "approved":
         await _on_approval_completed(db, tenant_id, flow)
     elif flow.status == "rejected":
-        await _on_approval_rejected(db, tenant_id, flow)
+        await _on_approval_rejected(db, tenant_id, flow, comment)
 
     # Auto-activity: record approval decision on the biz object timeline
     try:
@@ -536,6 +589,20 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
     except Exception as e:
         logger.warning("Failed to record approval activity: %s", e)
 
+    # 钉钉待办同步
+    await _complete_todo_for_task(db, tenant_id, task)  # 本人已决策 → 完结其待办
+    if flow.status in ("approved", "rejected"):
+        # parallel 驳回 / any_one 通过会取消其余待处理任务 → 一并完结它们的待办
+        for t in await get_flow_tasks(db, tenant_id, flow.id):
+            if t.status == "cancelled" and t.id != task.id:
+                await _complete_todo_for_task(db, tenant_id, t)
+    elif mode == "sequential" and action == "approved":
+        # 顺序审批推进 → 给新的待处理审批人下发待办
+        nt = next((t for t in await get_flow_tasks(db, tenant_id, flow.id)
+                   if t.node_order == flow.current_node and t.status == "pending"), None)
+        if nt:
+            await _create_todo_for_task(db, tenant_id, flow, nt)
+
     return flow
 
 
@@ -575,13 +642,22 @@ async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: Approva
             if sol:
                 sol.status = "approved"
                 updated = True
+        elif flow.biz_type == "lead":
+            from app.domains.lead.models import Lead
+            ld = (await db.execute(
+                select(Lead).where(Lead.id == flow.biz_id, Lead.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if ld:
+                ld.review_status = "approved"
+                ld.reject_reason = None
+                updated = True
         if updated:
             await db.commit()
     except Exception as e:
         logger.warning("Approval completion callback failed for %s/%s: %s", flow.biz_type, flow.biz_id, e)
 
 
-async def _on_approval_rejected(db: AsyncSession, tenant_id: str, flow: ApprovalFlow):
+async def _on_approval_rejected(db: AsyncSession, tenant_id: str, flow: ApprovalFlow, comment: str | None = None):
     """Update biz object status when approval is rejected.
 
     Symmetric to `_on_approval_completed`: without this, a rejected单据 keeps its
@@ -621,6 +697,15 @@ async def _on_approval_rejected(db: AsyncSession, tenant_id: str, flow: Approval
             )).scalar_one_or_none()
             if sol:
                 sol.status = "rejected"
+                updated = True
+        elif flow.biz_type == "lead":
+            from app.domains.lead.models import Lead
+            ld = (await db.execute(
+                select(Lead).where(Lead.id == flow.biz_id, Lead.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if ld:
+                ld.review_status = "rejected"
+                ld.reject_reason = comment
                 updated = True
         if updated:
             await db.commit()
@@ -675,6 +760,11 @@ async def withdraw_flow(db: AsyncSession, tenant_id: str, flow_id: str, reason: 
         "审批撤回通知",
         f"**审批对象**: {flow.title or flow.biz_type}\n\n**发起人**: {user_name}\n\n**操作**: 已撤回" + (f"\n\n**原因**: {reason}" if reason else ""))
 
+    # 完结被撤回而取消的审批任务对应的钉钉待办
+    for t in await get_flow_tasks(db, tenant_id, flow.id):
+        if t.status == "cancelled":
+            await _complete_todo_for_task(db, tenant_id, t)
+
     return flow
 
 
@@ -703,8 +793,11 @@ async def delegate_task(db: AsyncSession, tenant_id: str, task_id: str, target_u
         raise BusinessException(code=NOT_FOUND, message="目标用户不存在")
 
     original_name = task.assignee_name
+    old_todo_id = task.dingtalk_todo_id
+    old_assignee_id = task.assignee_id
     task.assignee_id = target_user_id
     task.assignee_name = target.real_name or target.username
+    task.dingtalk_todo_id = None
 
     await db.commit()
     await db.refresh(task)
@@ -735,6 +828,15 @@ async def delegate_task(db: AsyncSession, tenant_id: str, task_id: str, target_u
         biz_type="approval_flow", biz_id=flow.id,
         sender_name="系统",
     )
+
+    # 钉钉待办：完结原审批人的待办，给转交对象新建待办
+    if old_todo_id:
+        try:
+            from app.common.msg_integration import complete_todo_for_user
+            await complete_todo_for_user(db, tenant_id, old_assignee_id, old_todo_id)
+        except Exception as e:
+            logger.warning("Complete delegated DingTalk todo failed: %s", e)
+    await _create_todo_for_task(db, tenant_id, flow, task)
 
     return task
 
@@ -961,6 +1063,25 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
                 detail["change_no"] = cr.change_no
                 detail["change_type"] = cr.change_type
                 detail["scope_description"] = cr.scope_description
+        elif biz_type == "lead":
+            from app.domains.lead.models import Lead
+            ld = (await db.execute(
+                select(Lead).where(Lead.id == biz_id, Lead.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if ld:
+                if ld.lead_code:
+                    detail["lead_code"] = ld.lead_code
+                if ld.company_name:
+                    detail["company_name"] = ld.company_name
+                if ld.owner_name:
+                    detail["owner_name"] = ld.owner_name
+                if ld.source:
+                    detail["source"] = ld.source
+                if ld.budget_range:
+                    detail["budget_range"] = ld.budget_range
+                contact = " ".join([p for p in (ld.contact_name, ld.contact_phone) if p])
+                if contact:
+                    detail["contact"] = contact
     except Exception as e:
         logger.warning("Failed to resolve biz detail for %s/%s: %s", biz_type, biz_id, e)
     return detail

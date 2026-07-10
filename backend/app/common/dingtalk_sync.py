@@ -98,6 +98,47 @@ async def get_dingtalk_user_info(user_access_token: str) -> dict:
     return data
 
 
+async def get_userinfo_by_auth_code(app_key: str, app_secret: str, auth_code: str) -> dict:
+    """容器内免登：用 JSAPI requestAuthCode 得到的临时授权码换取用户身份。
+
+    与 OAuth2 扫码登录不同——这里用「企业应用 access_token + topapi/v2/user/getuserinfo」
+    直接换 userid，再用 topapi/v2/user/get 补全手机号/unionId 供匹配本地账号。
+    返回 {userid, name, mobile, unionid}。
+    """
+    token = await get_access_token(app_key, app_secret)
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            f"{_BASE}/topapi/v2/user/getuserinfo",
+            params={"access_token": token},
+            json={"code": auth_code},
+        )
+    data = resp.json()
+    if data.get("errcode", -1) != 0:
+        raise ValueError(f"钉钉免登换取用户失败 [{data.get('errcode')}]: {data.get('errmsg')}")
+    result = data.get("result", {}) or {}
+    userid = result.get("userid")
+    if not userid:
+        raise ValueError("钉钉免登未返回 userid")
+    info = {"userid": userid, "name": result.get("name"), "mobile": None, "unionid": None}
+    # 补全手机号/unionId（用于按手机号匹配本地账号）
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp2 = await client.post(
+                f"{_BASE}/topapi/v2/user/get",
+                params={"access_token": token},
+                json={"userid": userid},
+            )
+        d2 = resp2.json()
+        if d2.get("errcode", -1) == 0:
+            r2 = d2.get("result", {}) or {}
+            info["mobile"] = r2.get("mobile") or r2.get("telephone")
+            info["unionid"] = r2.get("unionid")
+            info["name"] = info["name"] or r2.get("name")
+    except Exception as e:
+        logger.warning("钉钉免登补全用户详情失败: %s", e)
+    return info
+
+
 # ─────────────── DingTalk API helpers ───────────────
 
 async def get_access_token(app_key: str, app_secret: str) -> str:

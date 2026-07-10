@@ -6,6 +6,7 @@ import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { t } from '@/locales'
+import { isDingTalkContainer, getDingTalkAuthCode } from '@/utils/dingtalk'
 
 // DingTalk brand color
 const DT_COLOR = '#1A7AF8'
@@ -26,7 +27,7 @@ export default function Login() {
   const [form] = Form.useForm()
   const [needTotp, setNeedTotp] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [dtConfig, setDtConfig] = useState<{ login_enabled: boolean; app_key: string } | null>(null)
+  const [dtConfig, setDtConfig] = useState<{ login_enabled: boolean; app_key: string; corp_id: string } | null>(null)
   const [dtLoading, setDtLoading] = useState(false)
 
   // Redirect if already logged in
@@ -72,6 +73,26 @@ export default function Login() {
       })
       .finally(() => setDtLoading(false))
   }, [searchParams])
+
+  // 钉钉容器内自动免登：无需扫码/密码，静默用 requestAuthCode 换取 CRM token。
+  // 失败则静默回退到账号密码表单。
+  useEffect(() => {
+    if (!dtConfig?.login_enabled || !dtConfig.corp_id) return
+    if (!isDingTalkContainer()) return
+    if (searchParams.get('code')) return // 走 OAuth 回调分支，不重复触发
+    if (token) return
+
+    setDtLoading(true)
+    getDingTalkAuthCode(dtConfig.corp_id)
+      .then((authCode) => authApi.dingtalkJsapiLogin({ auth_code: authCode, corp_id: dtConfig.corp_id }))
+      .then((res) => {
+        setAuth(res.data.access_token, res.data.refresh_token)
+        navigate('/', { replace: true })
+      })
+      .catch(() => { /* 免登失败静默回退，用户可用账号密码登录 */ })
+      .finally(() => setDtLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dtConfig])
 
   const handleDingTalkLogin = () => {
     if (!dtConfig?.app_key) return

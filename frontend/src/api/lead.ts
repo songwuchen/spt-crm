@@ -15,6 +15,8 @@ export const leadApi = {
       `/api/v1/leads/${id}/qualify`, { create_opportunity: createOpportunity }),
   discard: (id: string) =>
     client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/discard`),
+  submitReview: (id: string) =>
+    client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/submit_review`),
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/leads/${id}`),
   batchAssign: (ids: string[], owner_id: string, owner_name: string) =>

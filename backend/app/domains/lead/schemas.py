@@ -125,6 +125,9 @@ class LeadOut(BaseModel):
     owner_name: Optional[str] = None
     biz_date: Optional[str] = None
     status: str
+    review_status: str = "approved"
+    review_flow_id: Optional[str] = None
+    reject_reason: Optional[str] = None
     score: int
     converted_customer_id: Optional[str] = None
     remark: Optional[str] = None

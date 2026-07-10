@@ -9,7 +9,7 @@ import { sourceLabels } from '@/api/types'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import DetailSkeleton from '@/components/DetailSkeleton'
-import { leadStatusConfig as statusConfig } from '@/constants/labels'
+import { leadStatusConfig as statusConfig, leadReviewStatusConfig } from '@/constants/labels'
 import { useDataDict } from '@/hooks/useDataDict'
 
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
@@ -129,6 +129,16 @@ export default function LeadDetail() {
     })
   }
 
+  const handleResubmit = async () => {
+    try {
+      await leadApi.submitReview(id!)
+      message.success('已重新提交审核')
+      fetchLead()
+    } catch {
+      message.error('提交审核失败')
+    }
+  }
+
   const handleDiscard = () => {
     Modal.confirm({
       title: '确认废弃',
@@ -151,6 +161,9 @@ export default function LeadDetail() {
   )
 
   const canOperate = lead.status !== 'qualified' && lead.status !== 'discarded'
+  const reviewStatus = lead.review_status || 'approved'
+  const reviewApproved = reviewStatus === 'approved'
+  const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
   const s = statusConfig[lead.status] || statusConfig.new
 
   const currentStepIdx = lead.status === 'discarded' ? -1 : qualifySteps.findIndex((st) => st.key === lead.status)
@@ -171,6 +184,12 @@ export default function LeadDetail() {
                   <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
                   {s.label}
                 </span>
+                {reviewCfg && (
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${reviewCfg.bg} ${reviewCfg.text} ${reviewCfg.border}`}>
+                    <span className="material-symbols-outlined text-sm">{reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'}</span>
+                    {reviewCfg.label}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-4 text-sm text-slate-500">
                 {lead.company_name && (
@@ -196,13 +215,21 @@ export default function LeadDetail() {
             {canOperate && (
               <>
                 <Button icon={<EditOutlined />} onClick={() => navigate(`/leads/${id}/edit`)}>编辑</Button>
-                <Button
-                  type="primary"
-                  onClick={handleQualify}
-                >
-                  <span className="material-symbols-outlined text-sm mr-1">check_circle</span>
-                  转化为客户
-                </Button>
+                {reviewStatus === 'rejected' && (
+                  <Button type="primary" onClick={handleResubmit}>
+                    <span className="material-symbols-outlined text-sm mr-1">restart_alt</span>
+                    重新提交审核
+                  </Button>
+                )}
+                {reviewApproved && (
+                  <Button
+                    type="primary"
+                    onClick={handleQualify}
+                  >
+                    <span className="material-symbols-outlined text-sm mr-1">check_circle</span>
+                    转化为客户
+                  </Button>
+                )}
                 <Button danger onClick={handleDiscard}>
                   <span className="material-symbols-outlined text-sm mr-1">block</span>
                   废弃
@@ -252,6 +279,28 @@ export default function LeadDetail() {
           </div>
         )}
       </div>
+
+      {/* Review status banner */}
+      {reviewCfg && (
+        <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-4 mb-6 flex items-start gap-3`}>
+          <span className={`material-symbols-outlined ${reviewCfg.text}`}>
+            {reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'}
+          </span>
+          <div className="flex-1">
+            <div className={`text-sm font-bold ${reviewCfg.text}`}>
+              {reviewStatus === 'pending' ? '线索待信息情报部内勤审核' : '线索审核被驳回'}
+            </div>
+            <div className="text-sm text-slate-600 mt-1">
+              {reviewStatus === 'pending'
+                ? '审核通过后方可转化为客户。'
+                : (lead.reject_reason ? `驳回原因：${lead.reject_reason}` : '请根据反馈修改线索信息后重新提交审核。')}
+            </div>
+          </div>
+          {reviewStatus === 'rejected' && canOperate && (
+            <Button size="small" type="primary" onClick={handleResubmit}>重新提交审核</Button>
+          )}
+        </div>
+      )}
 
       {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -384,7 +433,7 @@ export default function LeadDetail() {
               </div>
 
               {/* Next Action */}
-              {canOperate && (
+              {canOperate && reviewApproved && (
                 <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="material-symbols-outlined text-amber-500 text-sm">lightbulb</span>

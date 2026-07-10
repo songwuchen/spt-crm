@@ -139,7 +139,62 @@ async def get_lead(db: AsyncSession, tenant_id: str, lead_id: str) -> Lead:
     return lead
 
 
-async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: dict) -> Lead:
+# 拥有该权限的提交人（信息情报部内勤 / 管理员）录入或导入线索免审；其余（业务员）需内勤审核。
+LEAD_REVIEW_PERM = "lead:review"
+
+
+async def _resolve_lead_reviewers(db: AsyncSession, tenant_id: str, exclude_user_id: str | None = None) -> tuple[list[str], list[str]]:
+    """线索审核人 = 信息情报部内勤角色(lead_intel)的活跃成员。
+
+    刻意按角色而非按 lead:review 权限解析，避免把管理员(拥有全部权限)也拉进审核人池
+    导致管理员被线索审批任务淹没。返回 (ids, names)，排除提交人本人。
+    """
+    from app.domains.auth.models import User, UserRole, Role
+    rows = (await db.execute(
+        select(User)
+        .join(UserRole, UserRole.user_id == User.id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(User.tenant_id == tenant_id, Role.code == "lead_intel", User.is_active == True)
+    )).scalars().all()
+    ids: list[str] = []
+    names: list[str] = []
+    for u in rows:
+        if exclude_user_id and u.id == exclude_user_id:
+            continue
+        if u.id not in ids:
+            ids.append(u.id)
+            names.append(u.real_name or u.username)
+    return ids, names
+
+
+async def submit_lead_review(db: AsyncSession, tenant_id: str, lead: Lead, user: dict):
+    """把线索提交给信息情报部内勤审核。
+
+    审批人解析优先级：① 管理员在「系统配置→审批策略」为 biz_type=lead 配置的策略；
+    ② 兜底取 lead_intel 角色成员（任一通过）。二者都无人时返回 None（调用方按免审处理）。
+    返回创建的 ApprovalFlow 或 None。
+    """
+    from app.domains.approval.service import submit_approval, _resolve_policy_approvers
+    from app.domains.approval.schemas import ApprovalSubmit
+
+    title = f"线索审核: {(lead.lead_code + ' ') if lead.lead_code else ''}{lead.title}"
+    resolved = await _resolve_policy_approvers(db, tenant_id, "lead", lead.id)
+    if resolved:
+        ids, names, mode = resolved
+    else:
+        ids, names = await _resolve_lead_reviewers(db, tenant_id, exclude_user_id=user.get("sub"))
+        mode = "any_one"
+    if not ids:
+        return None
+    data = ApprovalSubmit(
+        biz_type="lead", biz_id=lead.id, title=title,
+        assignee_ids=ids, assignee_names=names, approval_mode=mode,
+    )
+    return await submit_approval(db, tenant_id, data, user)
+
+
+async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: dict,
+                      auto_review: bool | None = None) -> Lead:
     payload = data.model_dump()
     products = data.products  # 产品明细单独处理，不能 setattr 到模型
     payload.pop("products", None)
@@ -177,6 +232,28 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="create", resource_type="lead", resource_id=lead.id,
                      summary=f"创建线索: {lead.title}")
+
+    # 审核门禁：默认按创建人是否拥有 lead:review 权限决定（内勤/管理员免审，业务员需审核）。
+    # auto_review 显式传入可覆盖（如公开表单 webhook 传 False 直接免审）。
+    if auto_review is None:
+        needs_review = LEAD_REVIEW_PERM not in (user.get("permissions") or [])
+    else:
+        needs_review = not auto_review
+    if needs_review:
+        lead.review_status = "pending"
+        await db.commit()
+        try:
+            flow = await submit_lead_review(db, tenant_id, lead, user)
+        except Exception as e:
+            logger.warning("Lead review submit failed for %s: %s", lead.id, e)
+            flow = None
+        if flow is not None:
+            lead.review_flow_id = flow.id
+        else:
+            # 未配置审核策略且无内勤成员 → 免审，置回 approved，避免线索永远卡在待审
+            lead.review_status = "approved"
+        await db.commit()
+        await db.refresh(lead)
     return lead
 
 
@@ -185,6 +262,10 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     payload = data.model_dump(exclude_unset=True)
     products_given = "products" in payload
     payload.pop("products", None)  # 产品明细单独处理
+    # 审核门禁：未通过审核的线索不可经编辑直接置为「已转化」(移动端转化走 update)
+    if payload.get("status") == "qualified" and getattr(lead, "review_status", "approved") != "approved":
+        from app.common.error_codes import VALIDATION_ERROR
+        raise BusinessException(code=VALIDATION_ERROR, message="线索尚未通过审核，无法转化")
     # When owner changes, refresh owner_name to match
     reassigned_to = None
     if "owner_id" in payload and payload["owner_id"] and payload["owner_id"] != lead.owner_id:
@@ -224,6 +305,9 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         raise BusinessException(code=LEAD_ALREADY_QUALIFIED, message="线索已转化")
     if lead.status == "discarded":
         raise BusinessException(code=LEAD_ALREADY_DISCARDED, message="线索已废弃，无法转化")
+    if getattr(lead, "review_status", "approved") != "approved":
+        from app.common.error_codes import VALIDATION_ERROR
+        raise BusinessException(code=VALIDATION_ERROR, message="线索尚未通过审核，无法转化")
 
     # Create customer from lead — carry over geographic fields so sales keeps context on conversion
     customer = Customer(
@@ -363,4 +447,33 @@ async def discard_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
     except Exception as e:
         logger.warning("Auto-activity record for lead discard failed: %s", e)
 
+    return lead
+
+
+async def resubmit_lead_review(db: AsyncSession, tenant_id: str, lead_id: str, user: dict) -> Lead:
+    """被驳回的线索修改后重新提交内勤审核。"""
+    from app.common.error_codes import VALIDATION_ERROR
+    lead = await get_lead(db, tenant_id, lead_id)
+    if lead.review_status != "rejected":
+        raise BusinessException(code=VALIDATION_ERROR, message="仅被驳回的线索可重新提交审核")
+
+    lead.review_status = "pending"
+    lead.reject_reason = None
+    await db.commit()
+    try:
+        flow = await submit_lead_review(db, tenant_id, lead, user)
+    except Exception as e:
+        logger.warning("Lead review resubmit failed for %s: %s", lead.id, e)
+        flow = None
+    if flow is not None:
+        lead.review_flow_id = flow.id
+    else:
+        # 无审核人 → 视为免审直接通过
+        lead.review_status = "approved"
+    await db.commit()
+    await db.refresh(lead)
+
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="submit_review", resource_type="lead", resource_id=lead.id,
+                     summary=f"重新提交线索审核: {lead.title}")
     return lead

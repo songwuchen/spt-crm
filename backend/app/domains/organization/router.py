@@ -23,6 +23,7 @@ from app.domains.organization import service
 class DingTalkConfigBody(BaseModel):
     app_key: str
     app_secret: str
+    corp_id: Optional[str] = ""  # 容器内免登(requestAuthCode)需要 corpId
     default_password: Optional[str] = "Changeme@123"
     root_dept_id: Optional[int] = 1
     login_enabled: Optional[bool] = False
@@ -318,6 +319,7 @@ async def get_dingtalk_config(
     return ok({
         "app_key": cfg.get("app_key", ""),
         "app_secret": "******" if cfg.get("app_secret") else "",
+        "corp_id": cfg.get("corp_id", ""),
         "default_password": cfg.get("default_password", "Changeme@123"),
         "root_dept_id": cfg.get("root_dept_id", 1),
         "login_enabled": cfg.get("login_enabled", False),
@@ -336,6 +338,7 @@ async def save_dingtalk_config(
     cfg = {
         "app_key": body.app_key,
         "app_secret": body.app_secret,
+        "corp_id": body.corp_id or "",
         "default_password": body.default_password or "Changeme@123",
         "root_dept_id": body.root_dept_id or 1,
         "login_enabled": body.login_enabled or False,

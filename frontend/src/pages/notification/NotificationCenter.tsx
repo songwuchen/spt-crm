@@ -4,6 +4,7 @@ import { CheckOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { notificationApi, type NotificationItem } from '@/api/notification'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { notificationTarget } from '@/utils/notificationRoute'
 
 const typeLabels: Record<string, { label: string; color: string }> = {
   approval_pending: { label: '审批待处理', color: 'orange' },
@@ -105,15 +106,8 @@ export default function NotificationCenter() {
       notificationApi.markRead([item.id])
       setItems(prev => prev.map(n => n.id === item.id ? { ...n, is_read: true } : n))
     }
-    if (item.biz_type === 'approval_flow' || item.biz_type === 'approval') {
-      navigate('/approvals')
-    } else if (item.biz_type === 'service_ticket') {
-      navigate(`/service-tickets/${item.biz_id}`)
-    } else if (item.biz_type === 'project') {
-      navigate(`/opportunities/${item.biz_id}`)
-    } else if (item.biz_type === 'customer' && item.biz_id) {
-      navigate(`/customers/${item.biz_id}`)
-    }
+    const target = notificationTarget(item.biz_type, item.biz_id)
+    if (target) navigate(target)
   }
 
   const columns = [

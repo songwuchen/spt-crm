@@ -3,6 +3,7 @@ import { Badge, Spin, message } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { notificationApi, type NotificationItem } from '@/api/notification'
 import { useWebSocket } from '@/hooks/useWebSocket'
+import { notificationTarget, notificationsHome } from '@/utils/notificationRoute'
 
 const typeIcons: Record<string, { icon: string; color: string }> = {
   approval_pending: { icon: 'pending_actions', color: '#f59e0b' },
@@ -93,17 +94,8 @@ export default function NotificationBell() {
     }
     setOpen(false)
 
-    if (item.biz_type === 'approval_flow' || item.biz_type === 'approval') {
-      navigate('/approvals')
-    } else if (item.biz_type === 'service_ticket') {
-      navigate(`/service-tickets/${item.biz_id}`)
-    } else if (item.biz_type === 'project') {
-      navigate(`/opportunities/${item.biz_id}`)
-    } else if (item.biz_type === 'contract' && item.biz_id) {
-      navigate(`/opportunities/contracts/${item.biz_id}`)
-    } else if (item.biz_type === 'customer' && item.biz_id) {
-      navigate(`/customers/${item.biz_id}`)
-    }
+    const target = notificationTarget(item.biz_type, item.biz_id)
+    if (target) navigate(target)
   }
 
   const handleMarkAllRead = async () => {
@@ -200,7 +192,7 @@ export default function NotificationBell() {
           {items.length > 0 && (
             <div className="border-t border-slate-100 px-4 py-2 text-center">
               <button
-                onClick={() => { setOpen(false); navigate('/notifications') }}
+                onClick={() => { setOpen(false); navigate(notificationsHome()) }}
                 className="text-sm font-semibold text-primary hover:underline bg-transparent border-none cursor-pointer"
               >
                 查看全部通知

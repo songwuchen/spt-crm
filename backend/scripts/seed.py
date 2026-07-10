@@ -61,6 +61,7 @@ async def seed():
             ("lead:delete", "删除线索", "线索"),
             ("lead:qualify", "转化线索", "线索"),
             ("lead:discard", "废弃线索", "线索"),
+            ("lead:review", "审核线索", "线索"),
             ("project:view", "查看商机", "商机"),
             ("project:create", "创建商机", "商机"),
             ("project:edit", "编辑商机", "商机"),

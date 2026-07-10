@@ -14,6 +14,7 @@ const bizTypeLabels: Record<string, string> = {
   contract_version: '合同审批',
   change_request: '变更审批',
   solution: '方案审批',
+  lead: '线索审核',
 }
 
 const bizTypeIcons: Record<string, string> = {
@@ -21,6 +22,7 @@ const bizTypeIcons: Record<string, string> = {
   contract_version: 'handshake',
   change_request: 'swap_horiz',
   solution: 'lightbulb',
+  lead: 'trending_up',
 }
 
 const modeLabels: Record<string, string> = {
@@ -143,6 +145,13 @@ export default function MobileApprovalDetail() {
     if (detail.change_no) items.push({ label: '变更编号', value: detail.change_no })
     if (detail.change_type) items.push({ label: '变更类型', value: detail.change_type })
     if (detail.version_no) items.push({ label: '版本号', value: `V${detail.version_no}` })
+    // 线索审核
+    if (detail.lead_code) items.push({ label: '线索编码', value: detail.lead_code })
+    if (detail.company_name) items.push({ label: '公司', value: detail.company_name })
+    if (detail.contact) items.push({ label: '联系人', value: detail.contact })
+    if (detail.source) items.push({ label: '来源', value: detail.source })
+    if (detail.budget_range) items.push({ label: '预算', value: detail.budget_range })
+    if (detail.owner_name) items.push({ label: '负责人', value: detail.owner_name })
     if (items.length === 0) items.push({ label: '类型', value: bizTypeLabels[flow.biz_type] || flow.biz_type })
     return items
   })() : []

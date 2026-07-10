@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_current_user
 from app.common.schemas import ok
-from app.domains.auth.schemas import LoginRequest, TokenResponse, RefreshRequest, UserInfo, ChangePasswordRequest, UpdateProfileRequest, TotpVerifyRequest, DingTalkCallbackRequest
+from app.domains.auth.schemas import LoginRequest, TokenResponse, RefreshRequest, UserInfo, ChangePasswordRequest, UpdateProfileRequest, TotpVerifyRequest, DingTalkCallbackRequest, DingTalkJsapiLoginRequest
 from app.domains.auth.service import authenticate, get_user_permissions, get_user_roles
 from app.domains.auth.jwt_handler import create_access_token, create_refresh_token, decode_token, generate_jti
 from app.common.exceptions import BusinessException
@@ -379,6 +379,47 @@ async def totp_status(current_user: dict = Depends(get_current_user), db: AsyncS
 
 # ==================== DingTalk SSO ====================
 
+async def _issue_login_tokens(db: AsyncSession, user, request: Request, summary: str) -> dict:
+    """签发登录令牌 + 记录会话/审计（账号密码登录之外的登录入口复用，如钉钉 SSO/免登）。"""
+    from app.domains.auth.models import LoginSession
+    from app.config import settings
+
+    permissions = await get_user_permissions(db, user.id, user.tenant_id)
+    roles = await get_user_roles(db, user.id, user.tenant_id)
+    jti = generate_jti()
+    payload = {
+        "sub": user.id,
+        "tenant_id": user.tenant_id,
+        "username": user.username,
+        "real_name": user.real_name,
+        "permissions": permissions,
+        "roles": roles,
+    }
+    tokens = TokenResponse(
+        access_token=create_access_token(payload, jti=jti),
+        refresh_token=create_refresh_token({"sub": user.id, "tenant_id": user.tenant_id}, jti=jti),
+    )
+    client_ip = _get_client_ip(request)
+    ua = request.headers.get("User-Agent", "")
+    db.add(LoginSession(
+        tenant_id=user.tenant_id, user_id=user.id, token_jti=jti, ip=client_ip,
+        user_agent=ua[:500] if ua else None, device_type=_parse_device_type(ua),
+        is_active=True, last_active_at=datetime.now(timezone.utc),
+        expired_at=datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_REFRESH_TOKEN_EXPIRE_MINUTES),
+    ))
+    try:
+        from app.domains.audit.service import log_action
+        await log_action(
+            db, tenant_id=user.tenant_id, user_id=user.id,
+            user_name=user.real_name or user.username,
+            action="login", resource_type="auth", resource_id=user.id, summary=summary,
+        )
+    except Exception:
+        pass
+    await db.commit()
+    return tokens.model_dump()
+
+
 @router.get("/dingtalk/config")
 async def dingtalk_sso_config(db: AsyncSession = Depends(get_db)):
     """Public endpoint — returns DingTalk OAuth config for the login page.
@@ -400,6 +441,7 @@ async def dingtalk_sso_config(db: AsyncSession = Depends(get_db)):
     return ok({
         "login_enabled": cfg.get("login_enabled", False),
         "app_key": cfg.get("app_key", ""),
+        "corp_id": cfg.get("corp_id", ""),
     })
 
 
@@ -473,48 +515,70 @@ async def dingtalk_sso_callback(
     if not user.is_active:
         raise BusinessException(code=40300, message="账号已停用，请联系管理员")
 
-    permissions = await get_user_permissions(db, user.id, user.tenant_id)
-    roles = await get_user_roles(db, user.id, user.tenant_id)
+    tokens = await _issue_login_tokens(db, user, request, f"钉钉登录成功 from {_get_client_ip(request)}")
+    return ok(tokens)
 
-    jti = generate_jti()
-    payload = {
-        "sub": user.id,
-        "tenant_id": user.tenant_id,
-        "username": user.username,
-        "real_name": user.real_name,
-        "permissions": permissions,
-        "roles": roles,
-    }
-    tokens = TokenResponse(
-        access_token=create_access_token(payload, jti=jti),
-        refresh_token=create_refresh_token({"sub": user.id, "tenant_id": user.tenant_id}, jti=jti),
-    )
 
-    client_ip = _get_client_ip(request)
-    ua = request.headers.get("User-Agent", "")
-    session = LoginSession(
-        tenant_id=user.tenant_id,
-        user_id=user.id,
-        token_jti=jti,
-        ip=client_ip,
-        user_agent=ua[:500] if ua else None,
-        device_type=_parse_device_type(ua),
-        is_active=True,
-        last_active_at=datetime.now(timezone.utc),
-        expired_at=datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_REFRESH_TOKEN_EXPIRE_MINUTES),
-    )
-    db.add(session)
+@router.post("/dingtalk/jsapi-login")
+async def dingtalk_jsapi_login(
+    body: DingTalkJsapiLoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """容器内免登：用钉钉 JSAPI requestAuthCode 得到的临时授权码静默登录。
+
+    在钉钉客户端内打开 CRM 时前端自动获取 authCode 调此接口，无需扫码/输密码。
+    匹配本地账号：优先 username==钉钉 userid（组织同步用 userid 作用户名），再按手机号；
+    均限定在该钉钉集成所属租户内，避免跨租户越权。
+    """
+    from sqlalchemy import select as sa_select
+    from app.domains.admin.models import IntegrationEndpoint
+    from app.domains.auth.models import User
+    from app.common.dingtalk_sync import get_userinfo_by_auth_code
+    from app.common.crypto import decrypt_config_json
+
+    ep = (await db.execute(
+        sa_select(IntegrationEndpoint).where(
+            IntegrationEndpoint.system_code == "dingtalk_oa",
+        ).order_by(IntegrationEndpoint.created_at).limit(1)
+    )).scalar_one_or_none()
+    if not ep:
+        raise BusinessException(code=40300, message="钉钉集成未配置")
+
+    cfg = decrypt_config_json(ep.auth_config_json or {}) or {}
+    if not cfg.get("login_enabled"):
+        raise BusinessException(code=40300, message="钉钉登录未启用")
+    app_key = cfg.get("app_key", "")
+    app_secret = cfg.get("app_secret", "")
+    if not app_key or not app_secret:
+        raise BusinessException(code=40300, message="钉钉 AppKey/AppSecret 未配置")
 
     try:
-        from app.domains.audit.service import log_action
-        await log_action(
-            db, tenant_id=user.tenant_id, user_id=user.id,
-            user_name=user.real_name or user.username,
-            action="login", resource_type="auth", resource_id=user.id,
-            summary=f"钉钉登录成功 from {client_ip}",
-        )
-    except Exception:
-        pass
+        info = await get_userinfo_by_auth_code(app_key, app_secret, body.auth_code)
+    except Exception as e:
+        raise BusinessException(code=40100, message=f"钉钉免登失败: {e}")
 
-    await db.commit()
-    return ok(tokens.model_dump())
+    userid = info.get("userid")
+    mobile = info.get("mobile")
+    name = info.get("name")
+
+    user: User | None = None
+    if userid:
+        user = (await db.execute(
+            sa_select(User).where(User.username == userid, User.tenant_id == ep.tenant_id)
+        )).scalar_one_or_none()
+    if not user and mobile:
+        user = (await db.execute(
+            sa_select(User).where(User.phone == mobile, User.tenant_id == ep.tenant_id)
+        )).scalar_one_or_none()
+
+    if not user:
+        raise BusinessException(
+            code=40400,
+            message=f"未找到关联的 CRM 账号（钉钉：{name or userid or '未知'}），请联系管理员绑定或先同步用户",
+        )
+    if not user.is_active:
+        raise BusinessException(code=40300, message="账号已停用，请联系管理员")
+
+    tokens = await _issue_login_tokens(db, user, request, f"钉钉免登成功 from {_get_client_ip(request)}")
+    return ok(tokens)

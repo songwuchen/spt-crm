@@ -5,9 +5,11 @@ export const authApi = {
   login: (data: LoginRequest) =>
     client.post<unknown, ApiResponse<TokenResponse>>('/api/v1/auth/login', data),
   dingtalkConfig: () =>
-    client.get<unknown, ApiResponse<{ login_enabled: boolean; app_key: string }>>('/api/v1/auth/dingtalk/config'),
+    client.get<unknown, ApiResponse<{ login_enabled: boolean; app_key: string; corp_id: string }>>('/api/v1/auth/dingtalk/config'),
   dingtalkCallback: (data: { code: string; redirect_uri: string; state?: string }) =>
     client.post<unknown, ApiResponse<TokenResponse>>('/api/v1/auth/dingtalk/callback', data),
+  dingtalkJsapiLogin: (data: { auth_code: string; corp_id?: string }) =>
+    client.post<unknown, ApiResponse<TokenResponse>>('/api/v1/auth/dingtalk/jsapi-login', data),
   refresh: (refresh_token: string) =>
     client.post<unknown, ApiResponse<TokenResponse>>('/api/v1/auth/refresh', { refresh_token }),
   me: () =>

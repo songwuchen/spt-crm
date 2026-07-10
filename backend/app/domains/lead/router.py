@@ -62,6 +62,9 @@ def _lead_dict(l, products=None) -> dict:
         "owner_id": l.owner_id, "owner_name": l.owner_name,
         "biz_date": str(l.biz_date) if l.biz_date else None,
         "status": l.status, "score": l.score,
+        "review_status": getattr(l, "review_status", "approved"),
+        "review_flow_id": getattr(l, "review_flow_id", None),
+        "reject_reason": getattr(l, "reject_reason", None),
         "converted_customer_id": l.converted_customer_id,
         "remark": l.remark,
         "products": [_product_dict(p) for p in products] if products is not None else [],
@@ -337,6 +340,19 @@ async def qualify_lead(
     return ok(result)
 
 
+@router.post("/{lead_id}/submit_review")
+async def submit_lead_review(
+    lead_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("lead:edit")),
+):
+    """被驳回的线索修改后重新提交内勤审核。"""
+    l = await service.resubmit_lead_review(db, tenant_id, lead_id, current_user)
+    products = await service.list_lead_products(db, tenant_id, l.id)
+    return ok(_lead_dict(l, products))
+
+
 @router.post("/{lead_id}/discard")
 async def discard_lead(
     lead_id: str,
@@ -397,7 +413,8 @@ async def public_lead_capture(
         source=body.source or "inbound",
     )
     system_user = {"sub": "system", "real_name": "系统"}
-    lead = await service.create_lead(db, x_tenant_id, data, system_user)
+    # 公开表单线索无归属提交人，直接免审进入线索池（由内勤后续分配/跟进）
+    lead = await service.create_lead(db, x_tenant_id, data, system_user, auto_review=False)
     return ok({"id": lead.id, "title": lead.title})
 
 
@@ -462,12 +479,14 @@ async def batch_status(
     if body.status not in ("new", "following", "qualified", "discarded"):
         from app.common.exceptions import BusinessException
         raise BusinessException(message="无效状态")
-    result = await db.execute(
-        update(Lead).where(
-            Lead.tenant_id == tenant_id,
-            Lead.id.in_(body.ids),
-            Lead.is_deleted == False,
-        ).values(status=body.status)
+    stmt = update(Lead).where(
+        Lead.tenant_id == tenant_id,
+        Lead.id.in_(body.ids),
+        Lead.is_deleted == False,
     )
+    # 批量转化时跳过尚未通过审核的线索，避免绕过审核门禁
+    if body.status == "qualified":
+        stmt = stmt.where(Lead.review_status == "approved")
+    result = await db.execute(stmt.values(status=body.status))
     await db.commit()
     return ok({"updated": result.rowcount})

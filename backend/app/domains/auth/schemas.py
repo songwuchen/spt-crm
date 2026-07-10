@@ -50,3 +50,9 @@ class DingTalkCallbackRequest(BaseModel):
     code: str
     redirect_uri: str
     state: Optional[str] = None
+
+
+class DingTalkJsapiLoginRequest(BaseModel):
+    """容器内免登：requestAuthCode 得到的临时授权码。"""
+    auth_code: str
+    corp_id: Optional[str] = None

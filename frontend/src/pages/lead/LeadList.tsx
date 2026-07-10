@@ -7,7 +7,7 @@ import { leadApi } from '@/api/lead'
 import type { Lead } from '@/api/types'
 import { sourceLabels } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
-import { leadStatusConfig as statusConfig } from '@/constants/labels'
+import { leadStatusConfig as statusConfig, leadReviewStatusConfig } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
@@ -245,13 +245,22 @@ export default function LeadList() {
       render: (v: number) => <ScoreBar score={v ?? 0} />,
     },
     { title: t('lead.status'), dataIndex: 'status', width: 100,
-      render: (v: string) => {
+      render: (v: string, record: Lead) => {
         const cfg = statusConfig[v] || statusConfig.new
+        const rs = record.review_status || 'approved'
+        const rcfg = rs !== 'approved' ? leadReviewStatusConfig[rs] : null
         return (
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-            {cfg.label}
-          </span>
+          <div className="flex flex-col items-start gap-1">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+              {cfg.label}
+            </span>
+            {rcfg && (
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-bold border ${rcfg.bg} ${rcfg.text} ${rcfg.border}`}>
+                {rcfg.label}
+              </span>
+            )}
+          </div>
         )
       },
     },

@@ -81,6 +81,20 @@ const FIELD_CATALOG: Record<string, FieldDef[]> = {
     { value: 'amount', label: '订单金额', type: 'number' },
   ],
   solution: [],
+  lead: [
+    { value: 'score', label: '线索评分', type: 'number' },
+    { value: 'category', label: '类别', type: 'enum', options: [
+      { value: 'self_reported', label: '自报' }, { value: 'distributed', label: '分发' },
+    ] },
+    { value: 'country_type', label: '国别', type: 'enum', options: [
+      { value: 'domestic', label: '国内' }, { value: 'overseas', label: '国外' },
+    ] },
+    { value: 'source', label: '来源', type: 'enum', options: [
+      { value: 'expo', label: '展会' }, { value: 'referral', label: '转介绍' },
+      { value: 'ad', label: '广告' }, { value: 'inbound', label: '主动咨询' },
+      { value: 'partner', label: '合作伙伴' }, { value: 'call', label: '电话' },
+    ] },
+  ],
 }
 
 const NUMBER_OP_OPTIONS = [
@@ -128,6 +142,7 @@ const BIZ_TYPE_OPTIONS = [
   { value: 'solution', label: '方案审批' },
   { value: 'service_ticket', label: '售后工单审批' },
   { value: 'order', label: '订单审批' },
+  { value: 'lead', label: '线索审核' },
 ]
 
 const MODE_OPTIONS = [

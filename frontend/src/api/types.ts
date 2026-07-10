@@ -110,6 +110,9 @@ export interface Lead {
   owner_name?: string
   biz_date?: string
   status: string
+  review_status?: string
+  review_flow_id?: string
+  reject_reason?: string
   score: number
   converted_customer_id?: string
   remark?: string

@@ -36,6 +36,11 @@ class Lead(TenantScopedBase):
     created_by_id: Mapped[str | None] = mapped_column(String(36))
     created_by_name: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(50), default="new")  # new / following / qualified / discarded
+    # 审核态（提交审核流程）：approved=免审/已通过（默认可用）, pending=待内勤审核, rejected=已驳回。
+    # 与 status 正交：status 表达销售进程，review_status 是创建时的审核门禁。
+    review_status: Mapped[str] = mapped_column(String(20), default="approved", index=True)
+    review_flow_id: Mapped[str | None] = mapped_column(String(36))  # 关联 approval_flows.id
+    reject_reason: Mapped[str | None] = mapped_column(Text)  # 最近一次驳回原因
     score: Mapped[int] = mapped_column(Integer, default=0)
     converted_customer_id: Mapped[str | None] = mapped_column(String(36))
     remark: Mapped[str | None] = mapped_column(Text)

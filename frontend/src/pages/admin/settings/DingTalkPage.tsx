@@ -11,6 +11,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 interface DingTalkConfig {
   app_key: string
   app_secret: string
+  corp_id: string
   default_password: string
   root_dept_id: number
   login_enabled: boolean
@@ -165,6 +166,7 @@ export default function DingTalkPage() {
         form.setFieldsValue({
           app_key: res.data.app_key,
           app_secret: res.data.app_secret,
+          corp_id: res.data.corp_id || '',
           default_password: res.data.default_password || 'Changeme@123',
           root_dept_id: res.data.root_dept_id || 1,
           login_enabled: res.data.login_enabled || false,
@@ -296,13 +298,20 @@ export default function DingTalkPage() {
             </Form.Item>
           </div>
           <div className="border-t border-slate-100 pt-4">
+            <Form.Item
+              name="corp_id"
+              label="CorpId（企业 ID）"
+              tooltip="钉钉容器内「免登」需要；在钉钉开放平台应用信息中查看。仅用于扫码登录时可留空。"
+            >
+              <Input placeholder="ding××××××××（用于钉钉客户端内免登）" />
+            </Form.Item>
             <div className="flex items-center gap-3">
               <LoginOutlined className="text-blue-500" />
               <span className="font-medium text-slate-700">钉钉一键登录</span>
               <Form.Item name="login_enabled" valuePropName="checked" className="mb-0">
                 <Switch />
               </Form.Item>
-              <span className="text-sm text-slate-400">开启后登录页将显示「钉钉一键登录」按钮</span>
+              <span className="text-sm text-slate-400">开启后登录页显示「钉钉一键登录」，在钉钉客户端内打开则自动免登</span>
             </div>
             <div className="mt-3 bg-amber-50 border border-amber-100 rounded-lg p-3 text-sm text-amber-700 space-y-1">
               <div className="font-semibold">配置 OAuth 回调地址</div>

@@ -79,6 +79,17 @@ ROLE_DEFS = [
         ],
     },
     {
+        "code": "lead_intel", "name": "信息情报部内勤", "scope": "all",
+        "desc": "线索审核/分发：审核业务员提交的线索；自身单条录入或Excel导入免审",
+        "perms": CORE + [
+            "customer:view",
+            "lead:view", "lead:create", "lead:edit", "lead:review",
+            "lead:qualify", "lead:discard",
+            "approval:approve", "approval:decide", "approval:delegate",
+            "dashboard:view",
+        ],
+    },
+    {
         "code": "biz_support", "name": "商务/标书专员", "scope": "dept",
         "desc": "市场支持/国际业务支持：标书 + 协助报价",
         "perms": CORE + [

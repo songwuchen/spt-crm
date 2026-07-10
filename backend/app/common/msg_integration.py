@@ -179,22 +179,28 @@ async def send_dingtalk_work_notification(
 
 async def create_dingtalk_todo(
     token: str, union_id: str, creator_union_id: str | None,
-    subject: str, description: str | None = None, url: str | None = None,
-) -> bool:
-    """在负责人的钉钉「待办」中创建一条任务（v1.0 Todo API，尽力而为）。"""
+    subject: str, description: str | None = None,
+    url: str | None = None, mobile_url: str | None = None,
+) -> str | None:
+    """在负责人的钉钉「待办」中创建一条任务（v1.0 Todo API）。
+
+    返回钉钉待办 id（成功）或 None（失败/未配置）。注意响应里待办 id 字段是 "id"
+    而非 "taskId"（这是 spt-lowcode 踩过的坑），读错会导致后续无法完结该待办。
+    """
     if not token or not union_id:
-        return False
+        return None
     body: dict[str, Any] = {
         "subject": subject[:200],
         "creatorId": creator_union_id or union_id,
         "executorIds": [union_id],
         "participantIds": [union_id],
         "isOnlyShowExecutor": True,
+        "notifyConfigs": {"dingNotify": "1"},
     }
     if description:
         body["description"] = description[:1000]
-    if url:
-        body["detailUrl"] = {"appUrl": url, "pcUrl": url}
+    if url or mobile_url:
+        body["detailUrl"] = {"pcUrl": url or mobile_url, "appUrl": mobile_url or url}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(
@@ -203,38 +209,81 @@ async def create_dingtalk_todo(
                 json=body,
             )
         if resp.status_code in (200, 201):
-            logger.info("DingTalk todo created for %s: %s", union_id, subject)
-            return True
+            todo_id = (resp.json() or {}).get("id")
+            logger.info("DingTalk todo created for %s: %s (id=%s)", union_id, subject, todo_id)
+            return todo_id
         logger.warning("DingTalk todo create failed (%s): %s", resp.status_code, resp.text[:200])
     except Exception as e:
         logger.error("DingTalk todo create error: %s", e)
+    return None
+
+
+async def complete_dingtalk_todo(token: str, union_id: str, task_id: str) -> bool:
+    """完结钉钉个人待办。
+
+    必须走 executorStatus 子接口（operatorId 为 query 参数），直接 PUT tasks/{id}
+    传 isDone 钉钉不认、待办不消失（spt-lowcode 生产事故修复过）。
+    """
+    if not token or not union_id or not task_id:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.put(
+                f"https://api.dingtalk.com/v1.0/todo/users/{union_id}/tasks/{task_id}/executorStatus",
+                params={"operatorId": union_id},
+                headers={"x-acs-dingtalk-access-token": token},
+                json={"executorStatusList": [{"id": union_id, "isDone": True}]},
+            )
+        if resp.status_code in (200, 201):
+            logger.info("DingTalk todo completed for %s: %s", union_id, task_id)
+            return True
+        logger.warning("DingTalk todo complete failed (%s): %s", resp.status_code, resp.text[:200])
+    except Exception as e:
+        logger.error("DingTalk todo complete error: %s", e)
     return False
+
+
+async def _dingtalk_app_config(db: AsyncSession, tenant_id: str) -> dict | None:
+    """取租户钉钉企业应用配置（app_key/app_secret/agent_id 齐全才算可用），否则 None。"""
+    ep = await _get_msg_endpoint(db, tenant_id, "dingtalk")
+    if not ep:
+        return None
+    from app.common.crypto import decrypt_config_json
+    config = decrypt_config_json(ep.auth_config_json or {}) or {}
+    if not (config.get("app_key") and config.get("app_secret") and config.get("agent_id")):
+        return None  # 仅群机器人、未配置企业应用 → 无法推个人待办
+    return config
+
+
+def _abs_url(config: dict, link: str | None, mobile: bool = False) -> str | None:
+    """把站内相对路径拼成绝对 URL；移动端优先用 crm_h5_base_url。"""
+    if not link:
+        return None
+    if link.startswith("http"):
+        return link
+    base = (config.get("crm_h5_base_url") if mobile else config.get("crm_base_url")) or config.get("crm_base_url") or ""
+    base = base.rstrip("/")
+    return base + link if base else None
 
 
 async def dispatch_todo(
     db: AsyncSession, tenant_id: str, assignee_user_id: str,
-    title: str, content: str, link: str | None = None,
-) -> dict[str, bool]:
-    """把"待办"推送给指定负责人（钉钉工作通知 + 尽力创建钉钉待办）。
+    title: str, content: str, link: str | None = None, mobile_link: str | None = None,
+) -> dict[str, Any]:
+    """把"待办"推送给指定负责人（钉钉工作通知 + 创建钉钉待办）。
 
     需要租户配置了钉钉企业应用（dingtalk 集成的 auth_config_json 含 app_key/app_secret/agent_id），
     且该负责人在 CRM 中填了手机号（用于匹配钉钉账号）。未配置或匹配不到时安全跳过（站内通知已兜底）。
+
+    返回 {work_notification: bool, todo: bool, todo_id: str|None, union_id: str|None}。
     """
-    results: dict[str, bool] = {}
+    results: dict[str, Any] = {}
     if not assignee_user_id:
         return results
-    ep = await _get_msg_endpoint(db, tenant_id, "dingtalk")
-    if not ep:
+    config = await _dingtalk_app_config(db, tenant_id)
+    if not config:
         return results
-    from app.common.crypto import decrypt_config_json
-    config = decrypt_config_json(ep.auth_config_json or {}) or {}
-    app_key = config.get("app_key")
-    app_secret = config.get("app_secret")
-    agent_id = config.get("agent_id")
-    if not (app_key and app_secret and agent_id):
-        return results  # 仅配置了群机器人、未配置企业应用 → 跳过个人待办
-
-    token = await get_dingtalk_token(app_key, app_secret)
+    token = await get_dingtalk_token(config["app_key"], config["app_secret"])
     if not token:
         return results
 
@@ -250,19 +299,51 @@ async def dispatch_todo(
     if not userid:
         return results
 
-    full_url = None
-    if link:
-        base = (config.get("crm_base_url") or "").rstrip("/")
-        full_url = link if link.startswith("http") else (base + link if base else None)
+    pc_url = _abs_url(config, link, mobile=False)
+    app_url = _abs_url(config, mobile_link or link, mobile=True)
 
     results["work_notification"] = await send_dingtalk_work_notification(
-        token, agent_id, [userid], title, content, full_url)
+        token, config["agent_id"], [userid], title, content, app_url or pc_url)
 
-    # 尽力创建真正的钉钉待办（需 unionId + 应用具备待办权限）
+    # 创建真正的钉钉待办（需 unionId + 应用具备待办权限）
     union_id = await get_dingtalk_unionid(token, userid)
     if union_id:
-        results["todo"] = await create_dingtalk_todo(token, union_id, None, title, content, full_url)
+        todo_id = await create_dingtalk_todo(token, union_id, None, title, content, pc_url, app_url)
+        results["todo"] = bool(todo_id)
+        results["todo_id"] = todo_id
+        results["union_id"] = union_id
     return results
+
+
+async def complete_todo_for_user(
+    db: AsyncSession, tenant_id: str, assignee_user_id: str, todo_id: str,
+) -> bool:
+    """完结某负责人名下的一条钉钉待办（审批任务被处理/取消时调用）。
+
+    完结时重新按手机号解析该用户的 unionId（待办完结接口需要 unionId）。未配置钉钉、
+    无手机号或解析失败时安全返回 False。
+    """
+    if not (assignee_user_id and todo_id):
+        return False
+    config = await _dingtalk_app_config(db, tenant_id)
+    if not config:
+        return False
+    token = await get_dingtalk_token(config["app_key"], config["app_secret"])
+    if not token:
+        return False
+    from app.domains.auth.models import User
+    user = (await db.execute(
+        select(User).where(User.id == assignee_user_id, User.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not user or not user.phone:
+        return False
+    userid = await get_dingtalk_userid_by_mobile(token, user.phone)
+    if not userid:
+        return False
+    union_id = await get_dingtalk_unionid(token, userid)
+    if not union_id:
+        return False
+    return await complete_dingtalk_todo(token, union_id, todo_id)
 
 
 # -------- WeCom (企业微信) --------

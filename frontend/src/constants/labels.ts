@@ -24,6 +24,7 @@ export const taskStatusColorsApproval: Record<string, string> = {
 }
 export const approvalBizTypeLabels: Record<string, string> = {
   quote_version: '报价审批', contract_version: '合同审批', change_request: '变更审批', solution: '方案审批',
+  lead: '线索审核',
 }
 
 // --- Service Ticket ---
@@ -41,6 +42,14 @@ export const ticketStatusLabels: Record<string, string> = {
 }
 export const ticketStatusColors: Record<string, string> = {
   open: 'default', assigned: 'blue', in_progress: 'processing', resolved: 'success', closed: 'success',
+}
+
+// --- Lead review (提交审核流程) ---
+// review_status: approved=已通过/免审(默认可用) · pending=待审核 · rejected=已驳回
+export const leadReviewStatusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  pending: { label: '待审核', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' },
+  rejected: { label: '审核驳回', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100' },
+  approved: { label: '审核通过', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
 }
 
 // --- Lead ---

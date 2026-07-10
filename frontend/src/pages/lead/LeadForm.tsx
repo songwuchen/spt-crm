@@ -75,8 +75,10 @@ export default function LeadForm() {
         await leadApi.update(id!, payload)
         message.success('线索已更新')
       } else {
-        await leadApi.create(payload)
-        message.success('线索已创建')
+        const res = await leadApi.create(payload)
+        message.success(res?.data?.review_status === 'pending'
+          ? '线索已提交，等待信息情报部内勤审核'
+          : '线索已创建')
       }
       navigate('/leads')
     } catch {

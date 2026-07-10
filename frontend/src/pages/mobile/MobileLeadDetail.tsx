@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { message, Modal, Input, Select } from 'antd'
 import { leadApi } from '@/api/lead'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { leadReviewStatusConfig } from '@/constants/labels'
 
 interface LeadItem {
   id: string; lead_code: string; title: string; company_name: string | null
@@ -10,6 +11,7 @@ interface LeadItem {
   source: string | null; status: string; score: number | null
   demand_summary: string | null; industry: string | null; region: string | null
   owner_name: string | null; created_at: string
+  review_status?: string; reject_reason?: string | null
 }
 
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -67,6 +69,17 @@ export default function MobileLeadDetail() {
     }
   }
 
+  const handleResubmit = async () => {
+    if (!id) return
+    try {
+      await leadApi.submitReview(id)
+      message.success('已重新提交审核')
+      loadLead()
+    } catch {
+      message.error('提交审核失败')
+    }
+  }
+
   const handleStatusChange = (newStatus: string) => {
     if (!id || !lead) return
     Modal.confirm({
@@ -83,6 +96,9 @@ export default function MobileLeadDetail() {
   if (!lead) return <div className="text-center py-12 text-slate-400">加载中...</div>
 
   const st = statusMap[lead.status] || statusMap.new
+  const reviewStatus = lead.review_status || 'approved'
+  const reviewApproved = reviewStatus === 'approved'
+  const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
 
   return (
     <div>
@@ -93,6 +109,29 @@ export default function MobileLeadDetail() {
         <h1 className="text-lg font-extrabold text-slate-900 flex-1">{lead.title}</h1>
         <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${st.color}`}>{st.label}</span>
       </div>
+
+      {/* Review status banner */}
+      {reviewCfg && (
+        <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-3 mb-3`}>
+          <div className={`flex items-center gap-1.5 text-sm font-bold ${reviewCfg.text}`}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+              {reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'}
+            </span>
+            {reviewStatus === 'pending' ? '待内勤审核' : '审核被驳回'}
+          </div>
+          {reviewStatus === 'rejected' && (
+            <div className="text-sm text-slate-600 mt-1">
+              {lead.reject_reason ? `驳回原因：${lead.reject_reason}` : '请修改后重新提交审核。'}
+            </div>
+          )}
+          {reviewStatus === 'rejected' && (
+            <button onClick={handleResubmit}
+              className="mt-2 w-full py-2 bg-primary text-white rounded-lg text-sm font-bold">
+              重新提交审核
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
         <div className="flex justify-between">
@@ -177,7 +216,7 @@ export default function MobileLeadDetail() {
             开始跟进
           </button>
         )}
-        {lead.status === 'following' && (
+        {lead.status === 'following' && reviewApproved && (
           <button onClick={() => handleStatusChange('qualified')}
             className="flex-1 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold">
             转化线索

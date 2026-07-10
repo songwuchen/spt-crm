@@ -37,3 +37,4 @@ class ApprovalTask(TenantScopedBase):
     # pending / approved / rejected / waiting / cancelled
     comment: Mapped[str | None] = mapped_column(Text)
     decided_at: Mapped[str | None] = mapped_column(String(30))
+    dingtalk_todo_id: Mapped[str | None] = mapped_column(String(64))  # 关联钉钉个人待办 id，处理后回写完结
