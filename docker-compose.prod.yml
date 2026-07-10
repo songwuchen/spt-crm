@@ -17,10 +17,10 @@ services:
       timeout: 3s
       retries: 5
 
-  # redis:7-alpine 来自 Docker Hub（与 db 的 postgres:16-alpine 同源）。首次 up 会拉取一次，
-  # 之后本地缓存；例行部署的 `docker compose pull` 已排除 db/redis，避免每次重拉挂起。
+  # prod 拉不通 Docker Hub，redis 镜像走私有 Harbor（由 CI 从 docker.io 镜像转推），
+  # 与 backend/frontend 同源，随 `docker compose pull ... redis` 一并拉取。
   redis:
-    image: redis:7-alpine
+    image: wmharbor.fourier.net.cn:39011/hengchao-dev/redis:7-alpine
     restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
     healthcheck:

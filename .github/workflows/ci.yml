@@ -97,6 +97,13 @@ jobs:
           docker push ${{ env.FRONTEND_IMAGE }}:latest
           docker push ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
 
+      # prod 无法访问 Docker Hub，把 redis 从 docker.io 转推到私有 Harbor，供 prod 拉取。
+      - name: Mirror redis image into Harbor
+        run: |
+          docker pull redis:7-alpine
+          docker tag redis:7-alpine ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/redis:7-alpine
+          docker push ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/redis:7-alpine
+
   deploy:
     name: Deploy to Production
     runs-on: self-hosted
@@ -127,11 +134,12 @@ jobs:
             set -e
             cd ${{ env.DEPLOY_DIR }}
             echo '${{ secrets.HARBOR_PASSWORD }}' | docker login ${{ env.HARBOR_REGISTRY }} -u ${{ secrets.HARBOR_USERNAME }} --password-stdin
-            # Only pull the images we just built (Harbor). Do NOT pull 'db':
-            # postgres:16-alpine lives on Docker Hub, which is unreachable from the
-            # prod host, so 'docker compose pull' (all services) would hang for
-            # minutes on it. The db image is already present and never changes here.
-            docker compose pull backend worker reminder frontend
+            # Only pull the images from Harbor (backend/worker/reminder/frontend/redis).
+            # Do NOT pull 'db': postgres:16-alpine lives on Docker Hub, which is
+            # unreachable from the prod host, so 'docker compose pull' (all services)
+            # would hang for minutes on it. The db image is already present locally.
+            # redis is served from Harbor (mirrored in build-and-push) so it pulls fast.
+            docker compose pull backend worker reminder frontend redis
 
             # 1) Make sure the DB is up and accepting connections.
             docker compose up -d db
