@@ -1,0 +1,39 @@
+/*
+ * 本地静态 Material Symbols 字体（替代 material-symbols 包的 3.7MB 可变字体）。
+ *
+ * 原因：钉钉内嵌 webview 里，3.7MB 的可变字体经常加载失败/超时，或不渲染可变字体，
+ * 导致 241 处图标显示成空框或 "edit" 连字原文。这里改用「实例化后的静态单字重字体」：
+ *   - 3.7MB -> 359KB（去掉可变轴机制）
+ *   - 静态字体 webview 兼容性好、加载快，图标可靠显示
+ *   - 全量字体，含所有图标，无需按名字裁剪（连字字体无法有效按名裁剪）
+ *
+ * 字体生成（源自 node_modules/material-symbols 的可变字体，新增图标也无需重生成）：
+ *   python -m fontTools.varLib.instancer material-symbols-outlined.woff2 \
+ *     wght=400 opsz=24 FILL=0 GRAD=0 -o ms.ttf
+ *   # 再用 fontTools 将 ms.ttf 存为 flavor=woff2 -> public/fonts/ms-static.woff2
+ */
+@font-face {
+  font-family: "Material Symbols Outlined";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("/fonts/ms-static.woff2") format("woff2");
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "liga";
+}
