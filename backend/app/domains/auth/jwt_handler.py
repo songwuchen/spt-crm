@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt, JWTError
+from jose.exceptions import ExpiredSignatureError
 
 from app.config import settings
 from app.common.exceptions import BusinessException
@@ -33,14 +34,14 @@ def generate_jti() -> str:
 def decode_token(token: str, expected_type: str = "access") -> dict:
     try:
         payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    except ExpiredSignatureError:
+        # jose 默认校验 exp，过期会抛此异常（JWTError 的子类）。必须先于 JWTError 捕获，
+        # 否则过期被误报为 40102(无效)，前端不会触发 refresh 续期 → 到期即掉线。
+        raise BusinessException(code=TOKEN_EXPIRED, message="Token 已过期")
     except JWTError:
         raise BusinessException(code=TOKEN_INVALID, message="Token 无效")
 
     if payload.get("type") != expected_type:
         raise BusinessException(code=TOKEN_INVALID, message="Token 类型不匹配")
-
-    exp = payload.get("exp")
-    if exp and datetime.fromtimestamp(exp, tz=timezone.utc) < datetime.now(timezone.utc):
-        raise BusinessException(code=TOKEN_EXPIRED, message="Token 已过期")
 
     return payload
