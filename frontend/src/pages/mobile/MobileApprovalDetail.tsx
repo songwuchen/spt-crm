@@ -4,6 +4,7 @@ import { useSwipe } from '@/hooks/useSwipe'
 import { message, Modal, Input, Select } from 'antd'
 import { approvalApi } from '@/api/approval'
 import { aiApi } from '@/api/ai'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import type { ApprovalFlowItem, AiResultItem } from '@/api/types'
@@ -75,11 +76,14 @@ export default function MobileApprovalDetail() {
     }).catch(() => message.error('加载审批详情失败'))
       .finally(() => setLoading(false))
 
-    aiApi.listTasks({ biz_id: id }).then((res) => {
-      const tasks = res.data || []
-      const riskTask = tasks.find((t: any) => t.task_type === 'quote_risk' || t.task_type === 'contract_risk')
-      if (riskTask?.result) setAiResult(riskTask.result)
-    }).catch(() => {})
+    // AI 风险面板需 project:view；仅被指派为审批人、无该权限的用户跳过，避免弹权限错误
+    if (useAuthStore.getState().hasPermission('project:view')) {
+      aiApi.listTasks({ biz_id: id }).then((res) => {
+        const tasks = res.data || []
+        const riskTask = tasks.find((t: any) => t.task_type === 'quote_risk' || t.task_type === 'contract_risk')
+        if (riskTask?.result) setAiResult(riskTask.result)
+      }).catch(() => {})
+    }
   }, [id])
 
   const currentTask = flow?.tasks?.find((t) => t.status === 'pending')
