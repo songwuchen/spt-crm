@@ -461,3 +461,12 @@ input, textarea, select {
     display: block !important;
   }
 }
+
+/* 系统配置：左侧竖向 Tab —— 内容留白 + 收紧每个 tab 高度（22 个 tab 更好操作） */
+.settings-tabs .ant-tabs-content-holder {
+  padding-left: 20px;
+}
+.settings-tabs.ant-tabs-left > .ant-tabs-nav .ant-tabs-tab {
+  padding: 7px 14px;
+  margin-top: 2px;
+}

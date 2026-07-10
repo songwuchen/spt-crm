@@ -427,7 +427,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Tabs className="px-6 pt-2" items={[
+        <Tabs tabPosition="left" className="settings-tabs px-2 pt-4" tabBarStyle={{ minWidth: 116 }} items={[
           {
             key: 'stages', label: '阶段Gate',
             children: (
