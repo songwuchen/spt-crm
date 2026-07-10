@@ -30,9 +30,12 @@ export default function Login() {
   const [dtConfig, setDtConfig] = useState<{ login_enabled: boolean; app_key: string; corp_id: string } | null>(null)
   const [dtLoading, setDtLoading] = useState(false)
 
+  // 登录成功后回跳的目标（钉钉待办深链等经 ?redirect= 传入），默认首页
+  const redirectTo = searchParams.get('redirect') || '/'
+
   // Redirect if already logged in
   useEffect(() => {
-    if (token) navigate('/', { replace: true })
+    if (token) navigate(redirectTo, { replace: true })
   }, [token])
 
   // Load DingTalk SSO config
@@ -63,7 +66,7 @@ export default function Login() {
       .then(res => {
         setAuth(res.data.access_token, res.data.refresh_token)
         message.success('钉钉登录成功')
-        navigate('/', { replace: true })
+        navigate(redirectTo, { replace: true })
       })
       .catch((err: any) => {
         const msg = err?.response?.data?.message || '钉钉登录失败，请使用账号密码登录'
@@ -87,7 +90,7 @@ export default function Login() {
       .then((authCode) => authApi.dingtalkJsapiLogin({ auth_code: authCode, corp_id: dtConfig.corp_id }))
       .then((res) => {
         setAuth(res.data.access_token, res.data.refresh_token)
-        navigate('/', { replace: true })
+        navigate(redirectTo, { replace: true })
       })
       .catch(() => { /* 免登失败静默回退，用户可用账号密码登录 */ })
       .finally(() => setDtLoading(false))
@@ -114,7 +117,7 @@ export default function Login() {
       }
       setAuth(res.data.access_token, res.data.refresh_token)
       message.success('登录成功')
-      navigate('/')
+      navigate(redirectTo, { replace: true })
     } catch {
       // 错误提示由 client.ts 响应拦截器统一弹出（如"用户名或密码错误"），
       // 此处不再二次弹出，避免叠加 axios 的英文 "Request failed with status code 401"。

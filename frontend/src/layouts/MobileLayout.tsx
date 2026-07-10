@@ -34,9 +34,15 @@ export default function MobileLayout() {
   // without ever mounting MainLayout, so MobileLayout must fetch /auth/me itself —
   // otherwise greeting/avatar/profile/permissions stay empty.
   useEffect(() => {
+    // 未登录跳登录时保留目标路径（如钉钉待办深链 /m/approvals/:id），登录后回跳
+    const loginWithRedirect = () => {
+      const target = location.pathname + location.search
+      const q = target && target !== '/m' ? '?redirect=' + encodeURIComponent(target) : ''
+      navigate('/login' + q, { replace: true })
+    }
     if (!token) {
       setUserLoading(false)
-      navigate('/login', { replace: true })
+      loginWithRedirect()
       return
     }
     setUserLoading(true)
@@ -44,7 +50,7 @@ export default function MobileLayout() {
       .then((res) => { if (res.data) setUser(res.data) })
       .catch(() => {
         logout()
-        navigate('/login', { replace: true })
+        loginWithRedirect()
       })
   }, [token])
 

@@ -105,9 +105,15 @@ export default function MainLayout() {
   const loadUiSettings = useUiSettingsStore((s) => s.load)
 
   useEffect(() => {
+    // 未登录跳登录时保留目标路径（如钉钉待办深链 /approvals），登录后回跳而非落到首页
+    const loginWithRedirect = () => {
+      const target = location.pathname + location.search
+      const q = target && target !== '/' ? '?redirect=' + encodeURIComponent(target) : ''
+      navigate('/login' + q, { replace: true })
+    }
     if (!token) {
       setUserLoading(false)
-      navigate('/login', { replace: true })
+      loginWithRedirect()
       return
     }
     setUserLoading(true)
@@ -115,7 +121,7 @@ export default function MainLayout() {
       if (res.data) setUser(res.data)
     }).catch(() => {
       logout()
-      navigate('/login', { replace: true })
+      loginWithRedirect()
     })
     // 拉取界面个性化设置（系统显示名 / 菜单别名 / 隐藏）
     loadUiSettings()

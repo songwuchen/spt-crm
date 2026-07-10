@@ -258,9 +258,12 @@ export default function Dashboard() {
     dashboardApi.leaderboard().then((res: any) => {
       if (res.data) setLeaderboard(res.data)
     }).catch(() => { /* non-critical panel */ })
-    approvalApi.statistics().then((r: any) => {
-      if (r.data) setApprovalStats(r.data)
-    }).catch(() => { /* non-critical panel */ })
+    // 审批统计需 approval:view 权限；无权限的用户（如仅被指派为某审批的审批人）跳过，避免首页弹权限错误
+    if (useAuthStore.getState().hasPermission('approval:view')) {
+      approvalApi.statistics().then((r: any) => {
+        if (r.data) setApprovalStats(r.data)
+      }).catch(() => { /* non-critical panel */ })
+    }
     dashboardApi.trend({ months: 6 }).then((r: any) => {
       if (r.data && Array.isArray(r.data)) {
         setTrendSpark({
