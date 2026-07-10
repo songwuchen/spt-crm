@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 
 interface Props {
   onRefresh: () => Promise<void>
@@ -56,7 +57,7 @@ export default function PullToRefresh({ onRefresh, children, threshold = 60 }: P
         style={{ height: pullDistance > 0 || refreshing ? Math.max(pullDistance, refreshing ? 40 : 0) : 0 }}
       >
         {refreshing ? (
-          <span className="animate-spin material-symbols-outlined text-primary text-base">refresh</span>
+          <MobileIcon name="refresh" className="animate-spin text-primary text-base" />
         ) : pullDistance >= threshold ? (
           '释放刷新'
         ) : pullDistance > 0 ? (

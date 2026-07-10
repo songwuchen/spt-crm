@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useParams, useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import { aiApi } from '@/api/ai'
@@ -109,7 +110,7 @@ export default function MobileProjectRisk() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <span className="material-symbols-outlined animate-spin text-primary" style={{ fontSize: 32 }}>progress_activity</span>
+        <MobileIcon name="progress_activity" className="animate-spin text-primary" style={{ fontSize: 32 }} />
       </div>
     )
   }
@@ -119,7 +120,7 @@ export default function MobileProjectRisk() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => navigate(-1)} className="flex items-center text-slate-900 bg-transparent border-0 cursor-pointer p-0">
-          <span className="material-symbols-outlined">arrow_back</span>
+          <MobileIcon name="arrow_back" />
         </button>
         <h2 className="text-lg font-bold text-slate-900 flex-1 text-center truncate px-2">
           {project?.name || 'AI 风险分析'}
@@ -129,9 +130,7 @@ export default function MobileProjectRisk() {
           disabled={analyzing}
           className="flex items-center text-primary bg-transparent border-0 cursor-pointer p-0 disabled:opacity-50"
         >
-          <span className={`material-symbols-outlined ${analyzing ? 'animate-spin' : ''}`} style={{ fontSize: 22 }}>
-            {analyzing ? 'progress_activity' : 'refresh'}
-          </span>
+          <MobileIcon name={analyzing ? 'progress_activity' : 'refresh'} className={`${analyzing ? 'animate-spin' : ''}`} style={{ fontSize: 22 }} />
         </button>
       </div>
 
@@ -164,10 +163,10 @@ export default function MobileProjectRisk() {
               <div key={i} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-2">
-                    <span className={`material-symbols-outlined ${
+                    <MobileIcon name={icon} className={`${
                       risk.severity === 'H' ? 'text-red-500' :
                       risk.severity === 'M' ? 'text-orange-500' : 'text-emerald-500'
-                    }`} style={{ fontSize: 18 }}>{icon}</span>
+                    }`} style={{ fontSize: 18 }} />
                     <h4 className="font-bold text-slate-900 text-sm">{risk.title}</h4>
                   </div>
                   <span className={`${badge.bg} ${badge.text} text-[12px] px-2 py-0.5 rounded-full font-bold uppercase`}>
@@ -178,7 +177,7 @@ export default function MobileProjectRisk() {
                 {risk.evidence_link && (
                   <a className="flex items-center text-primary text-sm font-bold gap-1 mt-2 cursor-pointer"
                     onClick={(e) => { e.preventDefault(); navigate(risk.evidence_link!) }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>link</span>
+                    <MobileIcon name="link" style={{ fontSize: 14 }} />
                     查看证据
                   </a>
                 )}
@@ -196,7 +195,7 @@ export default function MobileProjectRisk() {
       {actions.length > 0 && (
         <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 mb-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-primary" style={{ fontSize: 20 }}>auto_awesome</span>
+            <MobileIcon name="auto_awesome" className="text-primary" style={{ fontSize: 20 }} />
             <h3 className="text-slate-900 font-bold text-sm">AI 建议下一步行动</h3>
           </div>
           <div className="space-y-3">

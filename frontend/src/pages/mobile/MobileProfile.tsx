@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -80,9 +81,9 @@ export default function MobileProfile() {
               i > 0 ? 'border-t border-slate-50' : ''
             }`}
           >
-            <span className="material-symbols-outlined text-slate-500" style={{ fontSize: 20 }}>{item.icon}</span>
+            <MobileIcon name={item.icon} className="text-slate-500" style={{ fontSize: 20 }} />
             <span className="flex-1 text-sm font-medium text-slate-800">{item.label}</span>
-            <span className="material-symbols-outlined text-slate-300" style={{ fontSize: 16 }}>chevron_right</span>
+            <MobileIcon name="chevron_right" className="text-slate-300" style={{ fontSize: 16 }} />
           </div>
         ))}
       </div>
@@ -102,7 +103,7 @@ export default function MobileProfile() {
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-extrabold text-slate-900">修改密码</h3>
               <button onClick={() => setPwdModal(false)} className="text-slate-400">
-                <span className="material-symbols-outlined" style={{ fontSize: 22 }}>close</span>
+                <MobileIcon name="close" style={{ fontSize: 22 }} />
               </button>
             </div>
             <div className="space-y-4">

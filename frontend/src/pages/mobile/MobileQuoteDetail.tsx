@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useParams, useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import { quoteApi } from '@/api/quote'
@@ -80,7 +81,7 @@ export default function MobileQuoteDetail() {
       <div className="bg-white px-4 pt-3 pb-2 border-b border-slate-100">
         <div className="flex items-center gap-2 mb-2">
           <button onClick={() => navigate(-1)} className="text-slate-400">
-            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
+            <MobileIcon name="arrow_back" style={{ fontSize: 20 }} />
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-extrabold text-slate-900 truncate">{quote.quote_no}</h1>

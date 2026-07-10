@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { dashboardApi } from '@/api/dashboard'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -57,10 +58,10 @@ export default function MobileSearch() {
       <div className="bg-white px-4 pt-3 pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <button onClick={() => navigate(-1)} className="text-slate-400 shrink-0">
-            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
+            <MobileIcon name="arrow_back" style={{ fontSize: 20 }} />
           </button>
           <div className="flex-1 relative">
-            <span className="material-symbols-outlined absolute left-2.5 top-2 text-slate-400" style={{ fontSize: 18 }}>search</span>
+            <MobileIcon name="search" className="absolute left-2.5 top-2 text-slate-400" style={{ fontSize: 18 }} />
             <input autoFocus value={query} onChange={(e) => handleChange(e.target.value)}
               placeholder="搜索客户、线索、商机、工单..."
               className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm" />
@@ -89,12 +90,12 @@ export default function MobileSearch() {
                 {items.map((r) => (
                   <div key={`${r.type}-${r.id}`} onClick={() => navigate(r.url)}
                     className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 flex items-center gap-3 active:bg-slate-50">
-                    <span className={`material-symbols-outlined ${cfg.color}`} style={{ fontSize: 20 }}>{cfg.icon}</span>
+                    <MobileIcon name={cfg.icon} className={`${cfg.color}`} style={{ fontSize: 20 }} />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-bold text-slate-800 truncate">{r.title}</div>
                       {r.subtitle && <div className="text-sm text-slate-400 truncate">{r.subtitle}</div>}
                     </div>
-                    <span className="material-symbols-outlined text-slate-300" style={{ fontSize: 16 }}>chevron_right</span>
+                    <MobileIcon name="chevron_right" className="text-slate-300" style={{ fontSize: 16 }} />
                   </div>
                 ))}
               </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { message } from 'antd'
 import { customerApi } from '@/api/customer'
@@ -101,7 +102,7 @@ export default function MobileFollowUp() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => navigate(-1)} className="flex items-center text-primary bg-transparent border-0 cursor-pointer p-0">
-          <span className="material-symbols-outlined">chevron_left</span>
+          <MobileIcon name="chevron_left" />
           <span className="text-sm font-medium">返回</span>
         </button>
         <h1 className="text-lg font-bold text-slate-900">新建跟进</h1>
@@ -146,7 +147,7 @@ export default function MobileFollowUp() {
                 <option key={item.value} value={item.value}>{item.label}</option>
               ))}
             </select>
-            <span className="material-symbols-outlined pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" style={{ fontSize: 18 }}>expand_more</span>
+            <MobileIcon name="expand_more" className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" style={{ fontSize: 18 }} />
           </div>
         </section>
 
@@ -165,7 +166,7 @@ export default function MobileFollowUp() {
                 }`}
                 style={activityType !== t.key ? { border: '1px solid #e2e8f0' } : {}}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{t.icon}</span>
+                <MobileIcon name={t.icon} style={{ fontSize: 20 }} />
                 <span className="text-sm font-medium">{t.label}</span>
               </button>
             ))}
@@ -207,7 +208,7 @@ export default function MobileFollowUp() {
                   <p className="text-sm font-medium text-slate-900">{opt.label}</p>
                   <p className="text-sm text-slate-500">{opt.desc}</p>
                 </div>
-                <span className={`material-symbols-outlined ${opt.color}`}>{opt.icon}</span>
+                <MobileIcon name={opt.icon} className={`${opt.color}`} />
               </label>
             ))}
           </div>
@@ -230,11 +231,11 @@ export default function MobileFollowUp() {
           <label className="text-sm font-semibold text-slate-700 ml-1">附件</label>
           <div className="flex gap-3">
             <div className="flex h-20 w-20 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 cursor-pointer">
-              <span className="material-symbols-outlined">add_a_photo</span>
+              <MobileIcon name="add_a_photo" />
               <span className="text-[12px]">拍照</span>
             </div>
             <div className="flex h-20 w-20 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 cursor-pointer">
-              <span className="material-symbols-outlined">mic</span>
+              <MobileIcon name="mic" />
               <span className="text-[12px]">录音</span>
             </div>
           </div>
@@ -248,9 +249,9 @@ export default function MobileFollowUp() {
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary/10 py-3.5 text-primary transition-colors active:bg-primary/20 border-0 cursor-pointer font-bold text-sm disabled:opacity-50"
           >
             {aiLoading ? (
-              <span className="material-symbols-outlined animate-spin" style={{ fontSize: 18 }}>progress_activity</span>
+              <MobileIcon name="progress_activity" className="animate-spin" style={{ fontSize: 18 }} />
             ) : (
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>auto_awesome</span>
+              <MobileIcon name="auto_awesome" style={{ fontSize: 18 }} />
             )}
             <span>AI 生成摘要</span>
           </button>
@@ -260,7 +261,7 @@ export default function MobileFollowUp() {
         {aiSummary && (
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
             <div className="flex items-center gap-2 text-primary font-bold text-sm">
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>description</span>
+              <MobileIcon name="description" style={{ fontSize: 18 }} />
               AI 生成摘要
             </div>
             <p className="text-sm leading-relaxed text-slate-700">{aiSummary}</p>

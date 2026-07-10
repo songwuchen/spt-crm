@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { authApi } from '@/api/auth'
@@ -59,7 +60,7 @@ export default function MobileLayout() {
       {/* Offline Banner */}
       {offline && (
         <div className="bg-amber-500 text-white text-sm font-bold text-center py-1 px-2">
-          <span className="material-symbols-outlined text-sm align-middle mr-1" style={{ fontSize: 14 }}>cloud_off</span>
+          <MobileIcon name="cloud_off" className="text-sm align-middle mr-1" style={{ fontSize: 14 }} />
           离线模式 — 部分数据可能不是最新的
         </div>
       )}
@@ -96,7 +97,7 @@ export default function MobileLayout() {
                 active ? 'text-primary' : 'text-slate-400'
               }`}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 22 }}>{t.icon}</span>
+              <MobileIcon name={t.icon} style={{ fontSize: 22 }} />
               <span className="text-[12px] font-bold">{t.label}</span>
             </button>
           )

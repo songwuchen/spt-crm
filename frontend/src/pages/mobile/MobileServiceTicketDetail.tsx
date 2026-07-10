@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useParams, useNavigate } from 'react-router-dom'
 import { serviceTicketApi } from '@/api/serviceTicket'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -50,7 +51,7 @@ export default function MobileServiceTicketDetail() {
     <div>
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => navigate(-1)} className="text-slate-400">
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
+          <MobileIcon name="arrow_back" style={{ fontSize: 20 }} />
         </button>
         <h1 className="text-lg font-extrabold text-slate-900">{ticket.ticket_no}</h1>
         <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${sc.color}`}>{sc.label}</span>

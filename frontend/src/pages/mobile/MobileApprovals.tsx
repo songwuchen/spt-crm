@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import { approvalApi } from '@/api/approval'
@@ -42,7 +43,7 @@ export default function MobileApprovals() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <span className="material-symbols-outlined animate-spin text-primary" style={{ fontSize: 32 }}>progress_activity</span>
+        <MobileIcon name="progress_activity" className="animate-spin text-primary" style={{ fontSize: 32 }} />
       </div>
     )
   }
@@ -52,7 +53,7 @@ export default function MobileApprovals() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => navigate(-1)} className="flex items-center text-primary bg-transparent border-0 cursor-pointer p-0">
-          <span className="material-symbols-outlined">arrow_back_ios</span>
+          <MobileIcon name="arrow_back_ios" />
         </button>
         <h2 className="text-lg font-bold text-slate-900 flex-1 text-center">审批中心</h2>
         <div className="w-10" />
@@ -61,7 +62,7 @@ export default function MobileApprovals() {
       {/* Stats */}
       <div className="bg-primary/10 rounded-xl p-4 mb-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-          <span className="material-symbols-outlined text-primary" style={{ fontSize: 22 }}>task_alt</span>
+          <MobileIcon name="task_alt" className="text-primary" style={{ fontSize: 22 }} />
         </div>
         <div>
           <div className="text-2xl font-black text-primary">{pending.length}</div>
@@ -80,9 +81,7 @@ export default function MobileApprovals() {
             >
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-primary" style={{ fontSize: 20 }}>
-                    {bizTypeIcons[item.flow?.biz_type] || 'description'}
-                  </span>
+                  <MobileIcon name={bizTypeIcons[item.flow?.biz_type] || 'description'} className="text-primary" style={{ fontSize: 20 }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
@@ -112,14 +111,14 @@ export default function MobileApprovals() {
                     </span>
                   </div>
                 </div>
-                <span className="material-symbols-outlined text-slate-300 shrink-0" style={{ fontSize: 16 }}>chevron_right</span>
+                <MobileIcon name="chevron_right" className="text-slate-300 shrink-0" style={{ fontSize: 16 }} />
               </div>
             </div>
           ))}
         </div>
       ) : (
         <div className="text-center py-16">
-          <span className="material-symbols-outlined text-slate-200 mb-2" style={{ fontSize: 48 }}>task_alt</span>
+          <MobileIcon name="task_alt" className="text-slate-200 mb-2" style={{ fontSize: 48 }} />
           <p className="text-sm text-slate-400 mt-2">暂无待审批事项</p>
         </div>
       )}

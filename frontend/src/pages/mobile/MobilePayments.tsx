@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { paymentApi } from '@/api/payment'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -36,7 +37,7 @@ export default function MobilePayments() {
     <div>
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => navigate(-1)} className="text-slate-400">
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
+          <MobileIcon name="arrow_back" style={{ fontSize: 20 }} />
         </button>
         <h1 className="text-lg font-extrabold text-slate-900">回款管理</h1>
       </div>

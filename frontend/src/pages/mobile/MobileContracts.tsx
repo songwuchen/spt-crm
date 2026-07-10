@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { contractApi } from '@/api/contract'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -41,7 +42,7 @@ export default function MobileContracts() {
     <div>
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => navigate(-1)} className="text-slate-400">
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
+          <MobileIcon name="arrow_back" style={{ fontSize: 20 }} />
         </button>
         <h1 className="text-lg font-extrabold text-slate-900">合同列表</h1>
         <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-sm font-bold">{contracts.length}</span>
@@ -110,7 +111,7 @@ export default function MobileContracts() {
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-extrabold text-slate-900">{detail.contract_no}</h3>
               <button onClick={() => setDetail(null)} className="text-slate-400">
-                <span className="material-symbols-outlined" style={{ fontSize: 22 }}>close</span>
+                <MobileIcon name="close" style={{ fontSize: 22 }} />
               </button>
             </div>
 

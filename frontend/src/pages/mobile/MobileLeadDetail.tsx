@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useParams, useNavigate } from 'react-router-dom'
 import { message, Modal, Input, Select } from 'antd'
 import { leadApi } from '@/api/lead'
@@ -104,7 +105,7 @@ export default function MobileLeadDetail() {
     <div>
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => navigate(-1)} className="text-slate-400">
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
+          <MobileIcon name="arrow_back" style={{ fontSize: 20 }} />
         </button>
         <h1 className="text-lg font-extrabold text-slate-900 flex-1">{lead.title}</h1>
         <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${st.color}`}>{st.label}</span>
@@ -114,9 +115,7 @@ export default function MobileLeadDetail() {
       {reviewCfg && (
         <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-3 mb-3`}>
           <div className={`flex items-center gap-1.5 text-sm font-bold ${reviewCfg.text}`}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-              {reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'}
-            </span>
+            <MobileIcon name={reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'} style={{ fontSize: 18 }} />
             {reviewStatus === 'pending' ? '待内勤审核' : '审核被驳回'}
           </div>
           {reviewStatus === 'rejected' && (
@@ -207,7 +206,7 @@ export default function MobileLeadDetail() {
       <div className="mt-4 flex gap-2">
         <button onClick={openEdit}
           className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1">
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+          <MobileIcon name="edit" style={{ fontSize: 16 }} />
           编辑
         </button>
         {lead.status === 'new' && (

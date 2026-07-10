@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { message } from 'antd'
 import { taskApi } from '@/api/task'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -48,7 +49,7 @@ export default function MobileTasks() {
         <h1 className="text-xl font-extrabold text-slate-900">待办任务</h1>
         <button onClick={() => setShowAdd(!showAdd)}
           className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>add</span>
+          <MobileIcon name="add" style={{ fontSize: 20 }} />
         </button>
       </div>
 
@@ -74,9 +75,7 @@ export default function MobileTasks() {
                   <div className="text-[12px] text-slate-400 mt-0.5">{t.due_date}</div>
                 )}
               </div>
-              <span className={`material-symbols-outlined ${priorityColors[t.priority] || 'text-slate-400'}`} style={{ fontSize: 14 }}>
-                {t.priority === 'urgent' || t.priority === 'high' ? 'priority_high' : 'remove'}
-              </span>
+              <MobileIcon name={t.priority === 'urgent' || t.priority === 'high' ? 'priority_high' : 'remove'} className={`${priorityColors[t.priority] || 'text-slate-400'}`} style={{ fontSize: 14 }} />
             </div>
           ))}
         </div>
@@ -91,7 +90,7 @@ export default function MobileTasks() {
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleComplete(t) } }}
                 className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 flex items-center gap-3 cursor-pointer active:bg-slate-50 opacity-60">
                 <div className="w-5 h-5 rounded-full border-2 border-emerald-400 bg-emerald-50 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-emerald-500" style={{ fontSize: 14 }}>check</span>
+                  <MobileIcon name="check" className="text-emerald-500" style={{ fontSize: 14 }} />
                 </div>
                 <span className="text-sm text-slate-500 line-through truncate">{t.title}</span>
               </div>

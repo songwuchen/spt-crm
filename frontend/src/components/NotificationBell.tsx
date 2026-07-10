@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { notificationApi, type NotificationItem } from '@/api/notification'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { notificationTarget, notificationsHome } from '@/utils/notificationRoute'
+import MobileIcon from '@/components/MobileIcon'
 
 const typeIcons: Record<string, { icon: string; color: string }> = {
   approval_pending: { icon: 'pending_actions', color: '#f59e0b' },
@@ -127,7 +128,7 @@ export default function NotificationBell() {
         className="relative flex items-center justify-center w-9 h-9 rounded-lg hover:bg-slate-100 transition-colors"
       >
         <Badge count={unread} size="small" offset={[-2, 2]}>
-          <span className="material-symbols-outlined" style={{ fontSize: 22, color: '#475569' }}>notifications</span>
+          <MobileIcon name="notifications" style={{ fontSize: 22, color: '#475569' }} />
         </Badge>
       </button>
 
@@ -168,7 +169,7 @@ export default function NotificationBell() {
                       className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
                       style={{ background: `${t.color}15` }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: t.color }}>{t.icon}</span>
+                      <MobileIcon name={t.icon} style={{ fontSize: 18, color: t.color }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">

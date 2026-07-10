@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { productApi } from '@/api/product'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
@@ -33,7 +34,7 @@ export default function MobileProducts() {
       {/* Search & Filter */}
       <div className="bg-white px-4 py-2 border-b border-slate-100 flex gap-2">
         <div className="flex-1 relative">
-          <span className="material-symbols-outlined absolute left-2.5 top-2 text-slate-400" style={{ fontSize: 18 }}>search</span>
+          <MobileIcon name="search" className="absolute left-2.5 top-2 text-slate-400" style={{ fontSize: 18 }} />
           <input value={keyword} onChange={(e) => setKeyword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && fetchProducts()}
             placeholder="搜索产品" className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm" />

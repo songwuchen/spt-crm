@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import { dashboardApi } from '@/api/dashboard'
@@ -26,7 +27,7 @@ function StatCard({ icon, label, value, color, onClick }: {
   return (
     <div onClick={onClick} className={`bg-white rounded-xl border border-slate-100 shadow-sm p-3 ${onClick ? 'cursor-pointer active:bg-slate-50' : ''}`}>
       <div className="flex items-center gap-2 mb-1">
-        <span className={`material-symbols-outlined ${color}`} style={{ fontSize: 18 }}>{icon}</span>
+        <MobileIcon name={icon} className={`${color}`} style={{ fontSize: 18 }} />
         <span className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
       </div>
       <div className="text-xl font-black text-slate-900">{value}</div>
@@ -108,7 +109,7 @@ export default function MobileWorkbench() {
             <button key={a.label} onClick={() => navigate(a.path)}
               className="flex flex-col items-center gap-1.5 py-2 bg-transparent border-0 cursor-pointer">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${a.color}`}>
-                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{a.icon}</span>
+                <MobileIcon name={a.icon} style={{ fontSize: 20 }} />
               </div>
               <span className="text-[13px] font-bold text-slate-700">{a.label}</span>
             </button>
@@ -124,7 +125,7 @@ export default function MobileWorkbench() {
             {myOv.stalled_projects.map((p) => (
               <div key={p.id} onClick={() => navigate(`/m/opportunities`)}
                 className="flex items-center gap-3 p-2.5 rounded-lg bg-amber-50 border border-amber-100 cursor-pointer active:bg-amber-100">
-                <span className="material-symbols-outlined text-amber-500" style={{ fontSize: 18 }}>schedule</span>
+                <MobileIcon name="schedule" className="text-amber-500" style={{ fontSize: 18 }} />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-800 truncate">{p.name}</div>
                   <div className="text-[12px] text-slate-500">{stageLabels[p.stage_code] || p.stage_code}</div>
@@ -140,7 +141,7 @@ export default function MobileWorkbench() {
       <div className="space-y-3">
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center">
-            <span className="material-symbols-outlined text-amber-600" style={{ fontSize: 20 }}>schedule</span>
+            <MobileIcon name="schedule" className="text-amber-600" style={{ fontSize: 20 }} />
           </div>
           <div className="flex-1">
             <div className="text-sm font-bold text-slate-800">待跟进线索</div>
@@ -150,7 +151,7 @@ export default function MobileWorkbench() {
         </div>
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
-            <span className="material-symbols-outlined text-red-500" style={{ fontSize: 20 }}>support_agent</span>
+            <MobileIcon name="support_agent" className="text-red-500" style={{ fontSize: 20 }} />
           </div>
           <div className="flex-1">
             <div className="text-sm font-bold text-slate-800">未关闭工单</div>

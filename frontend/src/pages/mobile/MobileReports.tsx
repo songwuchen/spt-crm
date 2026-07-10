@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { dashboardApi } from '@/api/dashboard'
 import { approvalApi } from '@/api/approval'
@@ -51,7 +52,7 @@ export default function MobileReports() {
         <div className="grid grid-cols-2 gap-2 mb-4">
           {stats.map((s) => (
             <div key={s.label} className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 flex items-center gap-2">
-              <span className={`material-symbols-outlined ${s.color}`} style={{ fontSize: 20 }}>{s.icon}</span>
+              <MobileIcon name={s.icon} className={`${s.color}`} style={{ fontSize: 20 }} />
               <div>
                 <div className="text-sm font-black text-slate-900">{s.value}</div>
                 <div className="text-[12px] text-slate-400 font-bold">{s.label}</div>
@@ -96,12 +97,12 @@ export default function MobileReports() {
         {reportLinks.map((r) => (
           <button key={r.path} onClick={() => navigate(r.path)}
             className="w-full bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-3 text-left active:bg-slate-50">
-            <span className="material-symbols-outlined text-primary" style={{ fontSize: 24 }}>{r.icon}</span>
+            <MobileIcon name={r.icon} className="text-primary" style={{ fontSize: 24 }} />
             <div className="flex-1">
               <div className="text-sm font-bold text-slate-800">{r.label}</div>
               <div className="text-sm text-slate-400">{r.desc}</div>
             </div>
-            <span className="material-symbols-outlined text-slate-300" style={{ fontSize: 16 }}>chevron_right</span>
+            <MobileIcon name="chevron_right" className="text-slate-300" style={{ fontSize: 16 }} />
           </button>
         ))}
       </div>

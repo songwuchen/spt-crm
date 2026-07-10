@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useParams, useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import { projectApi } from '@/api/project'
@@ -60,7 +61,7 @@ export default function MobileOpportunityDetail() {
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => navigate(-1)} className="text-slate-400">
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
+          <MobileIcon name="arrow_back" style={{ fontSize: 20 }} />
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-extrabold text-slate-900 truncate">{project.name}</h1>
@@ -167,9 +168,7 @@ export default function MobileOpportunityDetail() {
               {activities.map((a) => (
                 <div key={a.id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="material-symbols-outlined text-slate-400" style={{ fontSize: 16 }}>
-                      {activityIcons[a.interaction_type] || 'note'}
-                    </span>
+                    <MobileIcon name={activityIcons[a.interaction_type] || 'note'} className="text-slate-400" style={{ fontSize: 16 }} />
                     <span className="text-sm font-bold text-slate-800 flex-1 truncate">{a.summary}</span>
                     {a.result && (
                       <span className={`text-[12px] font-bold px-1.5 py-0.5 rounded ${

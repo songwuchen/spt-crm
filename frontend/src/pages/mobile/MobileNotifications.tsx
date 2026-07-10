@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { notificationApi, type NotificationItem } from '@/api/notification'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -78,7 +79,7 @@ export default function MobileNotifications() {
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpen(n) } }}
               className={`bg-white rounded-xl border shadow-sm p-4 ${n.is_read ? 'border-slate-100 opacity-60' : 'border-primary/20'}`}>
               <div className="flex items-start gap-3">
-                <span className={`material-symbols-outlined ${cfg.color} mt-0.5`} style={{ fontSize: 20 }}>{cfg.icon}</span>
+                <MobileIcon name={cfg.icon} className={`${cfg.color} mt-0.5`} style={{ fontSize: 20 }} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{cfg.label}</span>

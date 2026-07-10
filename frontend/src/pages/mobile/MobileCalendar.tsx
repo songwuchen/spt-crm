@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { dashboardApi } from '@/api/dashboard'
@@ -44,7 +45,7 @@ export default function MobileCalendar() {
     <div>
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => navigate(-1)} className="text-slate-400">
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
+          <MobileIcon name="arrow_back" style={{ fontSize: 20 }} />
         </button>
         <h1 className="text-lg font-extrabold text-slate-900">日程</h1>
       </div>
@@ -52,11 +53,11 @@ export default function MobileCalendar() {
       {/* Month nav */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => setCurrentMonth(m => m.subtract(1, 'month'))} className="text-slate-500 active:bg-slate-100 rounded-lg p-1">
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>chevron_left</span>
+          <MobileIcon name="chevron_left" style={{ fontSize: 20 }} />
         </button>
         <span className="text-sm font-bold text-slate-900">{currentMonth.format('YYYY年M月')}</span>
         <button onClick={() => setCurrentMonth(m => m.add(1, 'month'))} className="text-slate-500 active:bg-slate-100 rounded-lg p-1">
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>chevron_right</span>
+          <MobileIcon name="chevron_right" style={{ fontSize: 20 }} />
         </button>
       </div>
 
@@ -121,7 +122,7 @@ export default function MobileCalendar() {
                 return (
                   <div key={e.id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: tl.color + '20' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 16, color: tl.color }}>{tl.icon}</span>
+                      <MobileIcon name={tl.icon} style={{ fontSize: 16, color: tl.color }} />
                     </div>
                     <div className="flex-1">
                       <div className="text-sm font-bold text-slate-800">{e.title}</div>

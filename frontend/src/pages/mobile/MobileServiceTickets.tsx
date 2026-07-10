@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { serviceTicketApi } from '@/api/serviceTicket'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -91,7 +92,7 @@ export default function MobileServiceTickets() {
               <div className="flex items-center justify-between text-sm text-slate-400">
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
-                    <span className={`material-symbols-outlined ${pri.color}`} style={{ fontSize: 14 }}>{pri.icon}</span>
+                    <MobileIcon name={pri.icon} className={`${pri.color}`} style={{ fontSize: 14 }} />
                     {typeLabels[t.type] || t.type}
                   </span>
                   {t.assigned_to_name && <span>{t.assigned_to_name}</span>}

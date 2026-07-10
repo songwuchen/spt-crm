@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MobileIcon from '@/components/MobileIcon'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useSwipe } from '@/hooks/useSwipe'
 import { message, Modal, Input, Select } from 'antd'
@@ -163,7 +164,7 @@ export default function MobileApprovalDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <span className="material-symbols-outlined animate-spin text-primary" style={{ fontSize: 32 }}>progress_activity</span>
+        <MobileIcon name="progress_activity" className="animate-spin text-primary" style={{ fontSize: 32 }} />
       </div>
     )
   }
@@ -179,7 +180,7 @@ export default function MobileApprovalDetail() {
       {/* Top Nav */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => navigate(-1)} className="flex items-center text-primary bg-transparent border-0 cursor-pointer p-0">
-          <span className="material-symbols-outlined">arrow_back_ios</span>
+          <MobileIcon name="arrow_back_ios" />
         </button>
         <h2 className="text-lg font-bold text-slate-900 flex-1 text-center">审批详情</h2>
         <div className="w-10" />
@@ -188,9 +189,7 @@ export default function MobileApprovalDetail() {
       {/* Header Info Card */}
       <div className="flex gap-4 items-center mb-4">
         <div className="bg-primary/10 flex items-center justify-center rounded-xl min-h-[5rem] w-20 border border-primary/20 shrink-0">
-          <span className="material-symbols-outlined text-primary" style={{ fontSize: 36 }}>
-            {bizTypeIcons[flow.biz_type] || 'description'}
-          </span>
+          <MobileIcon name={bizTypeIcons[flow.biz_type] || 'description'} className="text-primary" style={{ fontSize: 36 }} />
         </div>
         <div className="flex flex-col justify-center min-w-0">
           <p className="text-lg font-bold text-slate-900 leading-tight truncate">
@@ -233,17 +232,12 @@ export default function MobileApprovalDetail() {
         <div className="space-y-2">
           {(flow.tasks || []).map((task) => (
             <div key={task.id} className="flex items-center gap-3 py-1.5">
-              <span className={`material-symbols-outlined ${
+              <MobileIcon name={task.status === 'approved' ? 'check_circle' : task.status === 'rejected' ? 'cancel' : task.status === 'pending' ? 'schedule' : task.status === 'cancelled' ? 'block' : 'hourglass_empty'} className={`${
                 task.status === 'approved' ? 'text-green-500' :
                 task.status === 'rejected' ? 'text-red-500' :
                 task.status === 'pending' ? 'text-amber-500' :
                 task.status === 'cancelled' ? 'text-slate-300' : 'text-slate-300'
-              }`} style={{ fontSize: 18 }}>
-                {task.status === 'approved' ? 'check_circle' :
-                 task.status === 'rejected' ? 'cancel' :
-                 task.status === 'pending' ? 'schedule' :
-                 task.status === 'cancelled' ? 'block' : 'hourglass_empty'}
-              </span>
+              }`} style={{ fontSize: 18 }} />
               <div className="flex-1 min-w-0">
                 <span className="text-sm font-medium text-slate-800">{task.assignee_name || '审批人'}</span>
                 {task.comment && <p className="text-sm text-slate-500 truncate">{task.comment}</p>}
@@ -265,7 +259,7 @@ export default function MobileApprovalDetail() {
       {risks.length > 0 && (
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-3">
-            <span className="material-symbols-outlined text-primary" style={{ fontSize: 20 }}>auto_awesome</span>
+            <MobileIcon name="auto_awesome" className="text-primary" style={{ fontSize: 20 }} />
             <h3 className="text-base font-bold text-slate-900">AI 风险报告</h3>
           </div>
           <div className="space-y-3">
@@ -274,7 +268,7 @@ export default function MobileApprovalDetail() {
               return (
                 <div key={i} className={`p-4 ${cfg.bg} rounded-xl border ${cfg.border}`}>
                   <div className="flex items-start gap-3">
-                    <span className={`material-symbols-outlined ${cfg.iconColor} mt-0.5`}>{cfg.icon}</span>
+                    <MobileIcon name={cfg.icon} className={`${cfg.iconColor} mt-0.5`} />
                     <div>
                       <p className={`text-sm font-bold ${cfg.titleColor}`}>{risk.title}</p>
                       <p className={`text-sm mt-1 leading-relaxed ${cfg.descColor}`}>{risk.description}</p>
