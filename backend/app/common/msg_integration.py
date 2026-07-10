@@ -300,12 +300,17 @@ async def _dingtalk_app_config(db: AsyncSession, tenant_id: str) -> dict | None:
 
 
 def _abs_url(config: dict, link: str | None, mobile: bool = False) -> str | None:
-    """把站内相对路径拼成绝对 URL；移动端优先用 crm_h5_base_url。"""
+    """把站内相对路径拼成绝对 URL；移动端优先用 crm_h5_base_url。
+
+    对 base/link 做 strip()：配置里域名若误带首尾空格，拼进 dingtalk:// 深链后会被编码成
+    %20 导致待办打不开，这里防呆清理。
+    """
     if not link:
         return None
+    link = link.strip()
     if link.startswith("http"):
         return link
-    base = (config.get("crm_h5_base_url") if mobile else config.get("crm_base_url")) or config.get("crm_base_url") or ""
+    base = ((config.get("crm_h5_base_url") if mobile else config.get("crm_base_url")) or config.get("crm_base_url") or "").strip()
     base = base.rstrip("/")
     return base + link if base else None
 

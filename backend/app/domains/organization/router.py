@@ -352,18 +352,20 @@ async def save_dingtalk_config(
     _user=Depends(require_permissions("role:manage")),
 ):
     ep = await _get_dt_endpoint(db, tenant_id)
+    def _s(v):  # 去除首尾空格：域名/AppKey 等误带空格会污染钉钉深链、token 请求等
+        return (v or "").strip()
     cfg = {
-        "app_key": body.app_key,
+        "app_key": _s(body.app_key),
         "app_secret": body.app_secret,
-        "corp_id": body.corp_id or "",
+        "corp_id": _s(body.corp_id),
         "default_password": body.default_password or "Changeme@123",
         "root_dept_id": body.root_dept_id or 1,
         "login_enabled": body.login_enabled or False,
-        "agent_id": body.agent_id or "",
-        "webhook_url": body.webhook_url or "",
+        "agent_id": _s(body.agent_id),
+        "webhook_url": _s(body.webhook_url),
         "secret": body.secret or "",
-        "crm_base_url": body.crm_base_url or "",
-        "crm_h5_base_url": body.crm_h5_base_url or "",
+        "crm_base_url": _s(body.crm_base_url),
+        "crm_h5_base_url": _s(body.crm_h5_base_url),
         "auto_sync": bool(body.auto_sync),
         "sync_time": (body.sync_time or "02:00").strip(),
     }
