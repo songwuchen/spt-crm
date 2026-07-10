@@ -20,6 +20,9 @@ interface DingTalkConfig {
   secret: string
   crm_base_url: string
   crm_h5_base_url: string
+  auto_sync: boolean
+  sync_time: string
+  last_sync_at?: string
   status: string
 }
 
@@ -79,6 +82,7 @@ export default function DingTalkPage() {
   const [testing, setTesting] = useState(false)
   const [syncingDepts, setSyncingDepts] = useState(false)
   const [syncingUsers, setSyncingUsers] = useState(false)
+  const [lastSyncAt, setLastSyncAt] = useState('')
 
   const [testResult, setTestResult] = useState<{ connected: boolean; dept_count?: number; error?: string } | null>(null)
   const [deptResult, setDeptResult] = useState<SyncDeptResult | null>(null)
@@ -180,7 +184,10 @@ export default function DingTalkPage() {
           secret: res.data.secret || '',
           crm_base_url: res.data.crm_base_url || '',
           crm_h5_base_url: res.data.crm_h5_base_url || '',
+          auto_sync: res.data.auto_sync || false,
+          sync_time: res.data.sync_time || '02:00',
         })
+        setLastSyncAt(res.data.last_sync_at || '')
       }
     } catch {
       // no config yet
@@ -361,6 +368,27 @@ export default function DingTalkPage() {
             <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-600">
               个人待办按<b>负责人手机号</b>匹配钉钉账号下发，请确保用户已填手机号；未配置 AgentId 时仅发群消息（若填了 Webhook）。
             </div>
+          </div>
+
+          {/* 通讯录定时同步 */}
+          <div className="border-t border-slate-100 pt-4 mt-2">
+            <div className="flex items-center gap-3 mb-2">
+              <SyncOutlined className="text-blue-500" />
+              <span className="font-medium text-slate-700">通讯录定时同步</span>
+              <Form.Item name="auto_sync" valuePropName="checked" className="mb-0">
+                <Switch />
+              </Form.Item>
+              <span className="text-sm text-slate-400">每天定时自动同步部门与用户（无需手动点击）</span>
+            </div>
+            <Form.Item name="sync_time" label="每日同步时间（北京时间）"
+              tooltip="到达该时间后由后台任务自动执行一次部门+用户同步，格式 HH:MM">
+              <Input className="!w-40" placeholder="02:00" />
+            </Form.Item>
+            {lastSyncAt && (
+              <div className="text-[12px] text-slate-400">
+                上次自动同步：{new Date(lastSyncAt).toLocaleString('zh-CN')}
+              </div>
+            )}
           </div>
         </Form>
 

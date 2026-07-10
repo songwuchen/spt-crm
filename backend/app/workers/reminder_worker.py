@@ -599,6 +599,81 @@ async def check_expiring_guarantees(db: AsyncSession) -> int:
     return notified
 
 
+CN_TZ = timezone(timedelta(hours=8))  # 北京时间（同步时间按北京时间解释）
+
+
+async def check_dingtalk_auto_sync(db: AsyncSession) -> int:
+    """钉钉通讯录定时同步：到达配置的每日同步时间(北京时间)且当天未同步过，则跑一次部门+用户同步。"""
+    from app.domains.admin.models import IntegrationEndpoint
+    from app.common.crypto import decrypt_config_json
+    from app.common import dingtalk_sync as dts
+    from sqlalchemy.orm.attributes import flag_modified
+
+    now_cn = datetime.now(CN_TZ)
+    synced = 0
+    eps = (await db.execute(
+        select(IntegrationEndpoint).where(IntegrationEndpoint.system_code == "dingtalk_oa")
+    )).scalars().all()
+    for ep in eps:
+        try:
+            stored = ep.auth_config_json or {}
+            dec = decrypt_config_json(stored) or {}
+            if not dec.get("auto_sync"):
+                continue
+            app_key, app_secret = dec.get("app_key"), dec.get("app_secret")
+            if not (app_key and app_secret):
+                continue
+
+            sync_time = (dec.get("sync_time") or "02:00").strip()
+            try:
+                hh, mm = [int(x) for x in sync_time.split(":")[:2]]
+            except Exception:
+                hh, mm = 2, 0
+            scheduled_today = now_cn.replace(hour=hh, minute=mm, second=0, microsecond=0)
+            if now_cn < scheduled_today:
+                continue  # 今天还没到点
+
+            last_dt = None
+            last = dec.get("last_sync_at")
+            if last:
+                try:
+                    last_dt = datetime.fromisoformat(last)
+                    if last_dt.tzinfo is None:
+                        last_dt = last_dt.replace(tzinfo=CN_TZ)
+                except Exception:
+                    last_dt = None
+            if last_dt is not None and last_dt >= scheduled_today:
+                continue  # 今天已同步过
+
+            # 到点且今天未同步 → 执行
+            token = await dts.get_access_token(app_key, app_secret)
+            dept_res = await dts.sync_departments(db, ep.tenant_id, token, sync_leaders=True)
+            dt_to_local = {int(k): v for k, v in (dept_res.get("dt_to_local") or {}).items()}
+            user_res = await dts.sync_users(
+                db, ep.tenant_id, token,
+                default_password=dec.get("default_password") or "Changeme@123",
+                dt_to_local_dept=dt_to_local,
+            )
+            # 回写 last_sync_at 到加密态 dict（app_secret 保持 enc: 不变）
+            stored["last_sync_at"] = now_cn.isoformat()
+            ep.auth_config_json = stored
+            flag_modified(ep, "auth_config_json")
+            await db.commit()
+            synced += 1
+            logger.info(
+                "DingTalk auto-sync done for tenant %s: depts(new=%s upd=%s) users(new=%s upd=%s)",
+                ep.tenant_id, dept_res.get("created"), dept_res.get("updated"),
+                user_res.get("created"), user_res.get("updated"),
+            )
+        except Exception as e:
+            logger.warning("DingTalk auto-sync failed for endpoint %s: %s", getattr(ep, "id", "?"), e)
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+    return synced
+
+
 async def run_once():
     """Single reminder check cycle."""
     async with async_session_factory() as db:
@@ -619,6 +694,9 @@ async def run_once():
         overdue_payments = await check_overdue_payments(db)
         overdue_receivables = await check_overdue_receivables_all(db)
         expiring_guarantees = await check_expiring_guarantees(db)
+        dingtalk_synced = await check_dingtalk_auto_sync(db)
+        if dingtalk_synced:
+            logger.info("DingTalk auto-sync ran for %d tenant(s)", dingtalk_synced)
         total = (stale + payments + sla + contracts + followups + pool_released + reports
                  + overdue_payments + overdue_receivables + expiring_guarantees)
         if total > 0:

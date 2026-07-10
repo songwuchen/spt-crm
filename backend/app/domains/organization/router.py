@@ -33,6 +33,9 @@ class DingTalkConfigBody(BaseModel):
     secret: Optional[str] = ""             # 群机器人加签 secret（可选）
     crm_base_url: Optional[str] = ""       # 待办/通知跳转链接的 PC 域名
     crm_h5_base_url: Optional[str] = ""    # 移动端域名（留空同 PC）
+    # 通讯录定时同步
+    auto_sync: Optional[bool] = False      # 是否每天定时自动同步部门+用户
+    sync_time: Optional[str] = "02:00"     # 每日同步时间 HH:MM（北京时间）
 
 router = APIRouter(prefix="/api/admin/v1/tenant", tags=["组织管理"])
 
@@ -334,6 +337,9 @@ async def get_dingtalk_config(
         "secret": "******" if cfg.get("secret") else "",
         "crm_base_url": cfg.get("crm_base_url", ""),
         "crm_h5_base_url": cfg.get("crm_h5_base_url", ""),
+        "auto_sync": cfg.get("auto_sync", False),
+        "sync_time": cfg.get("sync_time", "02:00"),
+        "last_sync_at": cfg.get("last_sync_at", ""),
         "status": ep.status,
     })
 
@@ -358,6 +364,8 @@ async def save_dingtalk_config(
         "secret": body.secret or "",
         "crm_base_url": body.crm_base_url or "",
         "crm_h5_base_url": body.crm_h5_base_url or "",
+        "auto_sync": bool(body.auto_sync),
+        "sync_time": (body.sync_time or "02:00").strip(),
     }
     from app.common.crypto import encrypt_config_json
     if ep:
@@ -367,6 +375,9 @@ async def save_dingtalk_config(
             cfg["app_secret"] = prev.get("app_secret", "")
         if body.secret == "******":
             cfg["secret"] = prev.get("secret", "")
+        # 保留定时同步的上次同步时间戳（由 worker 写入，管理员保存配置不应清零）
+        if prev.get("last_sync_at"):
+            cfg["last_sync_at"] = prev["last_sync_at"]
         ep.auth_config_json = encrypt_config_json(cfg)
         ep.status = "active"
     else:
