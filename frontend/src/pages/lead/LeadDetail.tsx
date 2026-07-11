@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Button, Space, Modal, Spin, Tabs, Checkbox, message } from 'antd'
+import { Button, Space, Modal, Spin, Tabs, Checkbox, message, Input } from 'antd'
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
+import { approvalApi } from '@/api/approval'
+import type { ApprovalPendingItem } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import type { Lead } from '@/api/types'
 import { sourceLabels } from '@/api/types'
@@ -73,6 +75,11 @@ export default function LeadDetail() {
   const [lead, setLead] = useState<Lead | null>(null)
   const [activeTab, setActiveTab] = useState('detail')
   const [followUpSignal, setFollowUpSignal] = useState(0)
+  // 当前用户对该线索的待审批任务（有则可在本页直接审批）
+  const [myTask, setMyTask] = useState<ApprovalPendingItem | null>(null)
+  const [rejectOpen, setRejectOpen] = useState(false)
+  const [rejectComment, setRejectComment] = useState('')
+  const [deciding, setDeciding] = useState(false)
   const customerTypeDict = useDataDict('customer_type')
   const industryDict = useDataDict('industry')
 
@@ -85,7 +92,33 @@ export default function LeadDetail() {
     }
   }
 
-  useEffect(() => { if (id) fetchLead() }, [id])
+  // 查询「我的待办审批」里是否有这条线索的、且轮到我处理的任务
+  const fetchMyApproval = async () => {
+    try {
+      const res = await approvalApi.myPending()
+      const t = (res.data || []).find(
+        (p) => p.flow?.biz_type === 'lead' && p.flow?.biz_id === id && p.status === 'pending',
+      )
+      setMyTask(t || null)
+    } catch { setMyTask(null) }
+  }
+
+  const handleDecide = async (action: 'approved' | 'rejected', comment?: string) => {
+    if (!myTask) return
+    setDeciding(true)
+    try {
+      await approvalApi.decide(myTask.id, { action, comment })
+      message.success(action === 'approved' ? '已通过' : '已驳回')
+      setMyTask(null)
+      fetchLead()
+    } catch {
+      message.error('操作失败')
+    } finally {
+      setDeciding(false)
+    }
+  }
+
+  useEffect(() => { if (id) { fetchLead(); fetchMyApproval() } }, [id])
 
   // 「开始跟进」：跳到动态页并打开跟进记录编辑（自动带入线索信息）
   const handleStartFollowUp = () => {
@@ -279,6 +312,26 @@ export default function LeadDetail() {
           </div>
         )}
       </div>
+
+      {/* 待我审批：当前用户是该线索审批人时，可直接在此通过/驳回 */}
+      {myTask && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 mb-6 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-primary">approval</span>
+            <div>
+              <div className="text-sm font-bold text-slate-900">该线索待您审批</div>
+              <div className="text-sm text-slate-500">
+                {myTask.flow?.title || '线索审核'}
+                {myTask.flow?.submitted_by_name ? ` · 发起人 ${myTask.flow.submitted_by_name}` : ''}
+              </div>
+            </div>
+          </div>
+          <Space>
+            <Button danger disabled={deciding} onClick={() => { setRejectComment(''); setRejectOpen(true) }}>驳回</Button>
+            <Button type="primary" loading={deciding} onClick={() => handleDecide('approved')}>通过</Button>
+          </Space>
+        </div>
+      )}
 
       {/* Review status banner */}
       {reviewCfg && (
@@ -489,6 +542,21 @@ export default function LeadDetail() {
           </div>
         </div>
       </div>
+
+      {/* 驳回原因弹窗 */}
+      <Modal
+        title="驳回审批"
+        open={rejectOpen}
+        onOk={() => { setRejectOpen(false); handleDecide('rejected', rejectComment) }}
+        onCancel={() => setRejectOpen(false)}
+        okText="确认驳回"
+        okType="danger"
+        cancelText="取消"
+        confirmLoading={deciding}
+      >
+        <Input.TextArea rows={3} value={rejectComment} onChange={(e) => setRejectComment(e.target.value)}
+          placeholder="请输入驳回原因（选填）" />
+      </Modal>
     </div>
   )
 }

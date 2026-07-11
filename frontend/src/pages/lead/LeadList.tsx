@@ -245,22 +245,23 @@ export default function LeadList() {
       render: (v: number) => <ScoreBar score={v ?? 0} />,
     },
     { title: t('lead.status'), dataIndex: 'status', width: 100,
-      render: (v: string, record: Lead) => {
+      render: (v: string) => {
         const cfg = statusConfig[v] || statusConfig.new
-        const rs = record.review_status || 'approved'
-        const rcfg = rs !== 'approved' ? leadReviewStatusConfig[rs] : null
         return (
-          <div className="flex flex-col items-start gap-1">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-              {cfg.label}
-            </span>
-            {rcfg && (
-              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-bold border ${rcfg.bg} ${rcfg.text} ${rcfg.border}`}>
-                {rcfg.label}
-              </span>
-            )}
-          </div>
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+            {cfg.label}
+          </span>
+        )
+      },
+    },
+    { title: '审核状态', dataIndex: 'review_status', width: 96,
+      render: (v: string) => {
+        const rcfg = leadReviewStatusConfig[v || 'approved'] || leadReviewStatusConfig.approved
+        return (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-bold border ${rcfg.bg} ${rcfg.text} ${rcfg.border}`}>
+            {rcfg.label}
+          </span>
         )
       },
     },
