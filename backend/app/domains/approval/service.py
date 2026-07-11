@@ -478,20 +478,13 @@ async def decide(db: AsyncSession, tenant_id: str, task_id: str, action: str, co
                 flow.status = "approved"
 
     elif mode == "any_one":
-        # Any approve => flow approved; all reject => flow rejected
-        if action == "approved":
-            flow.status = "approved"
-            # Cancel remaining pending tasks
-            all_tasks = await get_flow_tasks(db, tenant_id, flow.id)
-            for t in all_tasks:
-                if t.id != task.id and t.status == "pending":
-                    t.status = "cancelled"
-        elif action == "rejected":
-            # Check if all other tasks are also rejected
-            all_tasks = await get_flow_tasks(db, tenant_id, flow.id)
-            all_rejected = all(t.status in ("rejected", "cancelled") for t in all_tasks)
-            if all_rejected:
-                flow.status = "rejected"
+        # 任一：第一个做出决定的人（通过或驳回）即为最终结果，其余审批人的待办立即作废。
+        # （原逻辑要求「全部驳回」才算驳回，导致一人驳回后其他人待办仍在，不符合「任一」直觉。）
+        flow.status = "approved" if action == "approved" else "rejected"
+        all_tasks = await get_flow_tasks(db, tenant_id, flow.id)
+        for t in all_tasks:
+            if t.id != task.id and t.status == "pending":
+                t.status = "cancelled"
 
     # Outbox event (before commit)
     if flow.status in ("approved", "rejected"):
