@@ -139,8 +139,6 @@ async def get_lead(db: AsyncSession, tenant_id: str, lead_id: str) -> Lead:
     return lead
 
 
-# 拥有该权限的提交人（信息情报部内勤 / 管理员）录入或导入线索免审；其余（业务员）需内勤审核。
-LEAD_REVIEW_PERM = "lead:review"
 
 
 async def _resolve_lead_reviewers(db: AsyncSession, tenant_id: str, exclude_user_id: str | None = None) -> tuple[list[str], list[str]]:
@@ -233,10 +231,10 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
                      action="create", resource_type="lead", resource_id=lead.id,
                      summary=f"创建线索: {lead.title}")
 
-    # 审核门禁：默认按创建人是否拥有 lead:review 权限决定（内勤/管理员免审，业务员需审核）。
-    # auto_review 显式传入可覆盖（如公开表单 webhook 传 False 直接免审）。
+    # 审核门禁：任何人（含管理员）在系统内新建/导入线索都需内勤审核。
+    # 仅显式传 auto_review=False 的入口（如公开表单 webhook）免审。
     if auto_review is None:
-        needs_review = LEAD_REVIEW_PERM not in (user.get("permissions") or [])
+        needs_review = True
     else:
         needs_review = not auto_review
     if needs_review:
