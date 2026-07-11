@@ -125,6 +125,21 @@ function ApproverRulesCell({ value, nameMap }: { value: unknown; nameMap: Record
   )
 }
 
+const ESCALATION_ACTION_LABEL: Record<string, string> = { remind: '再次提醒', auto_approve: '自动通过' }
+
+// Friendly render of escalation_json（升级链）: 超N小时→操作枚举，替代原始 JSON。
+function EscalationCell({ value }: { value: unknown }) {
+  const rows = Array.isArray(value) ? value : value ? [value] : []
+  if (rows.length === 0) return <span className="text-slate-300">-</span>
+  return (
+    <Space size={[4, 4]} wrap>
+      {rows.map((r: any, i: number) => (
+        <Tag key={i} color="orange">超{r?.after_hours ?? '?'}h: {ESCALATION_ACTION_LABEL[r?.action] || r?.action || '?'}</Tag>
+      ))}
+    </Space>
+  )
+}
+
 export default function SettingsPage() {
   usePageTitle('系统设置')
   const [stages, setStages] = useState<StageConfig[]>([])
@@ -242,7 +257,8 @@ export default function SettingsPage() {
   useEffect(() => {
     Promise.all([
       roleApi.list().catch(() => ({ data: [] as { code: string; name: string }[] })),
-      client.get('/api/admin/v1/tenant/users').catch(() => ({ data: { items: [] as { id: string; real_name?: string; username: string }[] } })),
+      // 取足够多用户以覆盖审批人 id→名字映射（默认分页只回第一页，靠后的审批人会显示成 id）
+      client.get('/api/admin/v1/tenant/users', { params: { pageNo: 1, pageSize: 1000 } }).catch(() => ({ data: { items: [] as { id: string; real_name?: string; username: string }[] } })),
     ]).then(([rolesRes, usersRes]: any) => {
       const map: Record<string, string> = {}
       for (const r of rolesRes.data || []) map[r.code] = r.name
@@ -484,7 +500,7 @@ export default function SettingsPage() {
                 <Table rowKey="id" dataSource={approvalPolicies} size="small" pagination={false} columns={[
                   { title: '业务类型', dataIndex: 'biz_type', width: 130, render: (v: string) => ({
                     quote_version: '报价审批', contract_version: '合同审批', change_request: '变更审批', solution: '方案审批',
-                    service_ticket: '售后工单审批', order: '订单审批',
+                    service_ticket: '售后工单审批', order: '订单审批', lead: '线索审核',
                   }[v] || v) },
                   { title: '策略名称', dataIndex: 'name', width: 150 },
                   { title: '触发条件', dataIndex: 'condition_json', render: (v: unknown) => <JsonCell value={v} /> },
@@ -493,7 +509,7 @@ export default function SettingsPage() {
                     sequential: '依次', parallel: '并行', any_one: '任一',
                   }[v] || v) },
                   { title: 'SLA(时)', dataIndex: 'sla_hours', width: 70 },
-                  { title: '升级链', dataIndex: 'escalation_json', width: 100, render: (v: unknown) => v ? <JsonCell value={v} /> : <span className="text-slate-300">-</span> },
+                  { title: '升级链', dataIndex: 'escalation_json', width: 120, render: (v: unknown) => <EscalationCell value={v} /> },
                   { title: '启用', dataIndex: 'enabled', width: 60, render: (v: boolean, r: ApprovalPolicyItem) => (
                     <Switch size="small" checked={v} onChange={async (checked) => {
                       try {
