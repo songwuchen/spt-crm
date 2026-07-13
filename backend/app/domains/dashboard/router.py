@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from openpyxl import load_workbook
-from sqlalchemy import select, func, extract, or_
+from sqlalchemy import select, func, extract, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pydantic import BaseModel, Field
@@ -28,6 +28,33 @@ from app.domains.payment.models import PaymentPlan
 from app.domains.dashboard.models import SalesTarget, DashboardSnapshot
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["工作台"])
+
+
+async def _signed_contract_amount(db: AsyncSession, tenant_id: str, *extra_where) -> float:
+    """已签合同总额（赢单成交额统一口径）。
+
+    金额取 contracts.amount_total，仅统计 status='signed' 的合同。
+    extra_where 可追加按 signed_date 的年月/区间等过滤，用于趋势、导出等按期统计。
+    """
+    q = select(func.coalesce(func.sum(Contract.amount_total), 0)).where(
+        Contract.tenant_id == tenant_id,
+        Contract.status == "signed",
+        *extra_where,
+    )
+    return float((await db.execute(q)).scalar() or 0)
+
+
+async def _signed_contract_count(db: AsyncSession, tenant_id: str, *extra_where) -> int:
+    """已签合同数（赢单数统一口径，与成交额取同一份合同集）。
+
+    extra_where 可追加按 signed_date 的年月/区间过滤，用于趋势等按期统计。
+    """
+    q = select(func.count(Contract.id)).where(
+        Contract.tenant_id == tenant_id,
+        Contract.status == "signed",
+        *extra_where,
+    )
+    return int((await db.execute(q)).scalar() or 0)
 
 
 @router.get("/stats")
@@ -376,11 +403,8 @@ async def win_loss(
             OpportunityProject.tenant_id == tenant_id, OpportunityProject.status == "lost"
         )
     )).scalar() or 0
-    won_amount = (await db.execute(
-        select(func.coalesce(func.sum(OpportunityProject.amount_expect), 0)).where(
-            OpportunityProject.tenant_id == tenant_id, OpportunityProject.status == "won"
-        )
-    )).scalar() or 0
+    # 赢单金额 = 已签合同额（签单额口径），不再用商机预计额
+    won_amount = await _signed_contract_amount(db, tenant_id)
     lost_amount = (await db.execute(
         select(func.coalesce(func.sum(OpportunityProject.amount_expect), 0)).where(
             OpportunityProject.tenant_id == tenant_id, OpportunityProject.status == "lost"
@@ -571,23 +595,33 @@ async def leaderboard(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    """Performance leaderboard: top salespeople by won deals."""
-    # Won deals by owner
-    result = await db.execute(
+    """Performance leaderboard: top salespeople by won deals（签单数/成交额=已签合同）。"""
+    # 签单数 + 成交额：已签合同，归到商机负责人；无关联商机的外部合同回退到合同负责人
+    credited_owner_id = func.coalesce(OpportunityProject.owner_id, Contract.assignee_id)
+    credited_owner_name = func.coalesce(OpportunityProject.owner_name, Contract.assignee_name)
+    won_rows = (await db.execute(
         select(
-            OpportunityProject.owner_id,
-            OpportunityProject.owner_name,
-            func.count(OpportunityProject.id).label("won_count"),
-            func.coalesce(func.sum(OpportunityProject.amount_expect), 0).label("won_amount"),
-        ).where(
-            OpportunityProject.tenant_id == tenant_id,
-            OpportunityProject.status == "won",
-            OpportunityProject.owner_id.isnot(None),
-        ).group_by(OpportunityProject.owner_id, OpportunityProject.owner_name)
-        .order_by(func.sum(OpportunityProject.amount_expect).desc())
-        .limit(10)
-    )
-    won_rows = result.all()
+            credited_owner_id.label("owner_id"),
+            credited_owner_name.label("owner_name"),
+            func.count(Contract.id).label("won_count"),
+            func.coalesce(func.sum(Contract.amount_total), 0).label("won_amount"),
+        )
+        .select_from(Contract)
+        .outerjoin(
+            OpportunityProject,
+            and_(
+                OpportunityProject.id == Contract.project_id,
+                OpportunityProject.tenant_id == tenant_id,
+            ),
+        )
+        .where(
+            Contract.tenant_id == tenant_id,
+            Contract.status == "signed",
+            credited_owner_id.isnot(None),
+        )
+        .group_by(credited_owner_id, credited_owner_name)
+    )).all()
+    won_map = {r.owner_id: {"owner_name": r.owner_name, "won_count": r.won_count, "won_amount": float(r.won_amount)} for r in won_rows}
 
     # Active pipeline by owner
     pipeline_result = await db.execute(
@@ -603,19 +637,20 @@ async def leaderboard(
     )
     pipeline_map = {r.owner_id: {"active_count": r.active_count, "pipeline_amount": float(r.pipeline_amount)} for r in pipeline_result.all()}
 
+    # 合并：按成交额排序取 Top10
     board = []
-    for r in won_rows:
-        p = pipeline_map.get(r.owner_id, {"active_count": 0, "pipeline_amount": 0})
+    for oid, w in won_map.items():
+        p = pipeline_map.get(oid, {"active_count": 0, "pipeline_amount": 0})
         board.append({
-            "owner_id": r.owner_id,
-            "owner_name": r.owner_name or "未知",
-            "won_count": r.won_count,
-            "won_amount": float(r.won_amount),
+            "owner_id": oid,
+            "owner_name": w["owner_name"] or "未知",
+            "won_count": w["won_count"],
+            "won_amount": w["won_amount"],
             "active_count": p["active_count"],
             "pipeline_amount": p["pipeline_amount"],
         })
-
-    return ok(board)
+    board.sort(key=lambda x: x["won_amount"], reverse=True)
+    return ok(board[:10])
 
 
 @router.get("/trend")
@@ -645,14 +680,13 @@ async def trend(
             )
         )).scalar() or 0
 
-        won_count = (await db.execute(
-            select(func.count(OpportunityProject.id)).where(
-                OpportunityProject.tenant_id == tenant_id,
-                OpportunityProject.status == "won",
-                extract("year", OpportunityProject.updated_at) == y,
-                extract("month", OpportunityProject.updated_at) == m,
-            )
-        )).scalar() or 0
+        # 赢单数 = 当月已签合同数（按签约日 signed_date 归期）
+        won_count = await _signed_contract_count(
+            db, tenant_id,
+            Contract.signed_date.isnot(None),
+            extract("year", Contract.signed_date) == y,
+            extract("month", Contract.signed_date) == m,
+        )
 
         lost_count = (await db.execute(
             select(func.count(OpportunityProject.id)).where(
@@ -663,14 +697,13 @@ async def trend(
             )
         )).scalar() or 0
 
-        won_amount = (await db.execute(
-            select(func.coalesce(func.sum(OpportunityProject.amount_expect), 0)).where(
-                OpportunityProject.tenant_id == tenant_id,
-                OpportunityProject.status == "won",
-                extract("year", OpportunityProject.updated_at) == y,
-                extract("month", OpportunityProject.updated_at) == m,
-            )
-        )).scalar() or 0
+        # 赢单金额 = 当月已签合同额（按签约日 signed_date 归期）
+        won_amount = await _signed_contract_amount(
+            db, tenant_id,
+            Contract.signed_date.isnot(None),
+            extract("year", Contract.signed_date) == y,
+            extract("month", Contract.signed_date) == m,
+        )
 
         result.append({
             "label": f"{y}-{str(m).zfill(2)}",
@@ -778,14 +811,20 @@ async def my_overview(
         )
     )).scalar() or 0
 
-    # My won deals this month
+    # My won deals this month = 本月归到我的已签合同数（按签约日 signed_date）
     my_won_month = (await db.execute(
-        select(func.count(OpportunityProject.id)).where(
+        select(func.count(Contract.id))
+        .select_from(Contract)
+        .outerjoin(OpportunityProject, and_(
+            OpportunityProject.id == Contract.project_id,
             OpportunityProject.tenant_id == tenant_id,
-            OpportunityProject.owner_id == uid,
-            OpportunityProject.status == "won",
-            extract("year", OpportunityProject.updated_at) == now.year,
-            extract("month", OpportunityProject.updated_at) == now.month,
+        ))
+        .where(
+            Contract.tenant_id == tenant_id,
+            Contract.status == "signed",
+            func.coalesce(OpportunityProject.owner_id, Contract.assignee_id) == uid,
+            extract("year", Contract.signed_date) == now.year,
+            extract("month", Contract.signed_date) == now.month,
         )
     )).scalar() or 0
 
@@ -1368,20 +1407,37 @@ async def target_achievement(
         tq = tq.where(SalesTarget.month == month)
     targets = (await db.execute(tq)).scalars().all()
 
-    # Get actual won amounts by owner
-    aq = select(
-        OpportunityProject.owner_id,
-        OpportunityProject.owner_name,
-        func.coalesce(func.sum(OpportunityProject.amount_expect), 0).label("actual_amount"),
-        func.count(OpportunityProject.id).label("actual_count"),
-    ).where(
-        OpportunityProject.tenant_id == tenant_id,
-        OpportunityProject.status == "won",
-        extract("year", OpportunityProject.updated_at) == year,
+    # 实际业绩 = 已签合同金额（签单额口径）。
+    # 金额取 contracts.amount_total（status='signed'），归期按签约日 signed_date；
+    # 业绩归到该合同所属商机的负责人 owner_id，外部导入的无商机合同回退到合同负责人 assignee_id。
+    credited_owner_id = func.coalesce(OpportunityProject.owner_id, Contract.assignee_id)
+    credited_owner_name = func.coalesce(OpportunityProject.owner_name, Contract.assignee_name)
+    aq = (
+        select(
+            credited_owner_id.label("owner_id"),
+            credited_owner_name.label("owner_name"),
+            func.coalesce(func.sum(Contract.amount_total), 0).label("actual_amount"),
+            func.count(Contract.id).label("actual_count"),
+        )
+        .select_from(Contract)
+        .outerjoin(
+            OpportunityProject,
+            and_(
+                OpportunityProject.id == Contract.project_id,
+                OpportunityProject.tenant_id == tenant_id,
+            ),
+        )
+        .where(
+            Contract.tenant_id == tenant_id,
+            Contract.status == "signed",
+            Contract.signed_date.isnot(None),
+            credited_owner_id.isnot(None),
+            extract("year", Contract.signed_date) == year,
+        )
     )
     if month:
-        aq = aq.where(extract("month", OpportunityProject.updated_at) == month)
-    aq = aq.group_by(OpportunityProject.owner_id, OpportunityProject.owner_name)
+        aq = aq.where(extract("month", Contract.signed_date) == month)
+    aq = aq.group_by(credited_owner_id, credited_owner_name)
     actuals = {r.owner_id: {"actual_amount": float(r.actual_amount), "actual_count": r.actual_count, "owner_name": r.owner_name}
                for r in (await db.execute(aq)).all()}
 
@@ -1625,36 +1681,50 @@ async def contract_expiry(
 
 async def _gather_export_data(db: AsyncSession, tenant_id: str, start_date: Optional[str], end_date: Optional[str]):
     """Gather analytics summary data for export."""
+    # created_at 是 timestamptz，asyncpg 下必须与 datetime 比较（与字符串比较会报 timestamptz>=text 类型错误）
     filters = [OpportunityProject.tenant_id == tenant_id]
     if start_date:
-        filters.append(OpportunityProject.created_at >= start_date)
+        filters.append(OpportunityProject.created_at >= datetime.fromisoformat(start_date[:10]).replace(tzinfo=timezone.utc))
     if end_date:
-        filters.append(OpportunityProject.created_at <= end_date + " 23:59:59")
+        filters.append(OpportunityProject.created_at <= datetime.fromisoformat(end_date[:10] + "T23:59:59").replace(tzinfo=timezone.utc))
 
     # Funnel
     stage_map = {"S1": "线索确认", "S2": "需求分析", "S3": "方案报价", "S4": "商务谈判", "S5": "合同签订", "S6": "交付验收"}
     funnel_rows = (await db.execute(
-        select(OpportunityProject.stage, func.count(OpportunityProject.id).label("cnt"),
+        select(OpportunityProject.stage_code.label("stage"), func.count(OpportunityProject.id).label("cnt"),
                func.coalesce(func.sum(OpportunityProject.amount_expect), 0).label("amt"))
-        .where(*filters).group_by(OpportunityProject.stage)
+        .where(*filters).group_by(OpportunityProject.stage_code)
     )).all()
     funnel = [{"stage": r.stage, "label": stage_map.get(r.stage, r.stage), "count": r.cnt, "amount": float(r.amt)} for r in funnel_rows]
 
     # Win/Loss
     won_count = (await db.execute(select(func.count(OpportunityProject.id)).where(*filters, OpportunityProject.status == "won"))).scalar() or 0
     lost_count = (await db.execute(select(func.count(OpportunityProject.id)).where(*filters, OpportunityProject.status == "lost"))).scalar() or 0
-    won_amount = float((await db.execute(select(func.coalesce(func.sum(OpportunityProject.amount_expect), 0)).where(*filters, OpportunityProject.status == "won"))).scalar() or 0)
+    # 赢单金额 = 已签合同额（按签约日 signed_date 落在导出区间内）
+    # signed_date 是 Date 列，asyncpg 下必须与 date 对象比较（与字符串比较会报 date>=text 类型错误）
+    signed_filters = [Contract.signed_date.isnot(None)]
+    if start_date:
+        signed_filters.append(Contract.signed_date >= date.fromisoformat(start_date[:10]))
+    if end_date:
+        signed_filters.append(Contract.signed_date <= date.fromisoformat(end_date[:10]))
+    won_amount = await _signed_contract_amount(db, tenant_id, *signed_filters)
     lost_amount = float((await db.execute(select(func.coalesce(func.sum(OpportunityProject.amount_expect), 0)).where(*filters, OpportunityProject.status == "lost"))).scalar() or 0)
     total_decided = won_count + lost_count
     win_rate = round(won_count / total_decided * 100, 1) if total_decided else 0
 
-    # Top customers
+    # Top customers by 成交额（已签合同额；客户取合同直连客户，回退到关联商机客户）
+    cust_id_expr = func.coalesce(Contract.customer_id, OpportunityProject.customer_id)
     top_rows = (await db.execute(
-        select(Customer.name, func.count(OpportunityProject.id).label("cnt"),
-               func.coalesce(func.sum(OpportunityProject.amount_expect), 0).label("amt"))
-        .join(Customer, Customer.id == OpportunityProject.customer_id)
-        .where(OpportunityProject.tenant_id == tenant_id)
-        .group_by(Customer.name).order_by(func.sum(OpportunityProject.amount_expect).desc()).limit(10)
+        select(Customer.name, func.count(Contract.id).label("cnt"),
+               func.coalesce(func.sum(Contract.amount_total), 0).label("amt"))
+        .select_from(Contract)
+        .outerjoin(OpportunityProject, and_(
+            OpportunityProject.id == Contract.project_id,
+            OpportunityProject.tenant_id == tenant_id,
+        ))
+        .join(Customer, and_(Customer.id == cust_id_expr, Customer.tenant_id == tenant_id))
+        .where(Contract.tenant_id == tenant_id, Contract.status == "signed", *signed_filters)
+        .group_by(Customer.name).order_by(func.sum(Contract.amount_total).desc()).limit(10)
     )).all()
     top_customers = [{"name": r.name, "project_count": r.cnt, "total_amount": float(r.amt)} for r in top_rows]
 
@@ -2143,64 +2213,6 @@ async def delete_target(
         await db.delete(t)
         await db.commit()
     return ok(None)
-
-
-@router.get("/target_achievement")
-async def target_achievement(
-    year: int = Query(..., ge=2020),
-    month: int | None = Query(None),
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("dashboard:view")),
-):
-    """Calculate achievement: target vs actual won deals."""
-    # Get targets
-    tq = select(SalesTarget).where(SalesTarget.tenant_id == tenant_id, SalesTarget.year == year)
-    if month:
-        tq = tq.where(SalesTarget.month == month)
-    targets = (await db.execute(tq)).scalars().all()
-
-    # Get actual won projects in the period
-    pq = select(
-        OpportunityProject.owner_id,
-        func.sum(OpportunityProject.amount_expect).label("total_amount"),
-        func.count(OpportunityProject.id).label("total_count"),
-    ).where(
-        OpportunityProject.tenant_id == tenant_id,
-        OpportunityProject.status == "won",
-        extract("year", OpportunityProject.updated_at) == year,
-    )
-    if month:
-        pq = pq.where(extract("month", OpportunityProject.updated_at) == month)
-    pq = pq.group_by(OpportunityProject.owner_id)
-    actuals = {r.owner_id: {"amount": float(r.total_amount or 0), "count": r.total_count or 0}
-               for r in (await db.execute(pq)).all()}
-
-    # Merge
-    user_map: dict[str, dict] = {}
-    for t in targets:
-        entry = user_map.setdefault(t.user_id, {
-            "user_id": t.user_id, "user_name": t.user_name or "",
-            "target_amount": 0, "target_count": 0,
-            "actual_amount": 0, "actual_count": 0, "achievement_rate": 0,
-        })
-        entry["target_amount"] += float(t.target_amount or 0)
-        entry["target_count"] += t.target_count or 0
-
-    for uid, data in actuals.items():
-        entry = user_map.setdefault(uid, {
-            "user_id": uid, "user_name": "",
-            "target_amount": 0, "target_count": 0,
-            "actual_amount": 0, "actual_count": 0, "achievement_rate": 0,
-        })
-        entry["actual_amount"] = data["amount"]
-        entry["actual_count"] = data["count"]
-
-    for entry in user_map.values():
-        if entry["target_amount"] > 0:
-            entry["achievement_rate"] = round(entry["actual_amount"] / entry["target_amount"] * 100)
-
-    return ok(list(user_map.values()))
 
 
 # ── Dashboard Snapshot Sharing ─────────────────────────────────────
