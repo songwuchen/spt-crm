@@ -4,6 +4,7 @@ import { PlusOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
+import { userApi } from '@/api/user'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useDataDict } from '@/hooks/useDataDict'
@@ -81,6 +82,13 @@ export default function OpportunityForm() {
         // Seed display names for Select components
         if (d.owner_id && d.owner_name) {
           userSelect.setInitialOption({ label: d.owner_name, value: d.owner_id })
+        } else if (d.owner_id) {
+          // owner_name 缺失（历史/导入数据）时按 id 回查姓名，避免禁用框永久显示 id
+          const oid = d.owner_id
+          userApi.get(oid).then((r) => {
+            const nm = r.data?.real_name || r.data?.username
+            if (nm) userSelect.setInitialOption({ label: nm, value: oid })
+          }).catch(() => {})
         }
         if (d.customer_id) {
           const cid = d.customer_id

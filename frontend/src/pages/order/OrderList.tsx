@@ -4,6 +4,7 @@ import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined, AuditOu
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { orderApi } from '@/api/order'
+import { customerApi } from '@/api/customer'
 import type { Order, OrderLine } from '@/api/types'
 import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -94,7 +95,13 @@ export default function OrderList() {
         quantity: l.quantity, unit_price: l.unit_price,
       })),
     })
-    if (full.customer_id) customerSelect.setInitialOption({ label: full.customer_id, value: full.customer_id })
+    // 关联客户：按 id 回查客户名再播种，否则会直接显示客户 id
+    if (full.customer_id) {
+      const cid = full.customer_id
+      customerApi.get(cid).then((r) => {
+        if (r.data?.name) customerSelect.setInitialOption({ label: r.data.name, value: cid })
+      }).catch(() => {})
+    }
     if (full.owner_id && full.owner_name) ownerSelect.setInitialOption({ label: full.owner_name, value: full.owner_id })
     setModalOpen(true)
   }

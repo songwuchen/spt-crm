@@ -158,6 +158,22 @@ async def export_users(
     )
 
 
+# 注意：必须注册在 /users/export 之后，否则 /users/{user_id} 会遮蔽字面量路由
+@router.get("/users/{user_id}")
+async def get_user_detail(
+    user_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("user:view")),
+):
+    """按 id 取单个用户（供前端把负责人/受理人 id 回显为姓名用）。"""
+    u = await service.get_user(db, tenant_id, user_id)
+    return ok({
+        "id": u.id, "username": u.username, "real_name": u.real_name,
+        "phone": u.phone, "email": u.email, "is_active": u.is_active,
+    })
+
+
 @router.post("/users/import")
 async def import_users(
     file: UploadFile = File(...),

@@ -71,6 +71,10 @@ export default function RenewalList() {
       ...item,
       close_date_expect: item.close_date_expect ? dayjs(item.close_date_expect) : null,
     })
+    // 播种负责人姓名，否则回填的 owner_id 会因 options 懒加载而直接显示为 id
+    if (item.owner_id && item.owner_name) {
+      userSelect.setInitialOption({ label: item.owner_name, value: item.owner_id })
+    }
     setModal(true)
   }
 

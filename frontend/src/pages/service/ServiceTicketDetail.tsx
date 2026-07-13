@@ -134,6 +134,10 @@ export default function ServiceTicketDetail() {
 
   const openAssignModal = () => {
     setAssigneeId(ticket?.assigned_to_id || '')
+    // 播种当前受理人姓名，否则已分配工单再分配时 value 会直接显示为 id
+    if (ticket?.assigned_to_id && ticket?.assigned_to_name) {
+      userSelect.setInitialOption({ label: ticket.assigned_to_name, value: ticket.assigned_to_id })
+    }
     setAssignModal(true)
   }
 

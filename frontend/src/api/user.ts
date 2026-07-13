@@ -15,6 +15,8 @@ interface UserItem {
 export const userApi = {
   list: (params: Record<string, unknown>) =>
     client.get<unknown, ApiResponse<PageData<UserItem>>>('/api/admin/v1/tenant/users', { params }),
+  get: (id: string) =>
+    client.get<unknown, ApiResponse<UserItem>>(`/api/admin/v1/tenant/users/${id}`),
   create: (data: Record<string, unknown>) =>
     client.post<unknown, ApiResponse<UserItem>>('/api/admin/v1/tenant/users', data),
   update: (id: string, data: Record<string, unknown>) =>
