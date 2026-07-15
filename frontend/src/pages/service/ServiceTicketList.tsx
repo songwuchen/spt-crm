@@ -13,6 +13,7 @@ import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels,
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
+import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import { t } from '@/locales'
 
 const { TextArea } = Input
@@ -40,6 +41,7 @@ export default function ServiceTicketList() {
   const [createModal, setCreateModal] = useState(false)
   const [importModal, setImportModal] = useState(false)
   const [form, setForm] = useState<Record<string, any>>({ type: 'fault', priority: 'medium', description: '' })
+  const [ticketCustomFields, setTicketCustomFields] = useState<Record<string, unknown>>({})
   const customerSelect = useCustomerSelect()
 
   // 关联订单（可选）——按所选客户过滤，便于售后获取产品信息
@@ -143,7 +145,7 @@ export default function ServiceTicketList() {
       return
     }
     try {
-      const data = { ...form }
+      const data: Record<string, any> = { ...form, custom_fields_json: ticketCustomFields }
       if (!data.customer_id) delete data.customer_id
       await serviceTicketApi.create(data)
       message.success(t('service.ticketCreated'))
@@ -157,6 +159,7 @@ export default function ServiceTicketList() {
 
   const openCreate = () => {
     setForm({ type: 'fault', priority: 'medium', description: '' })
+    setTicketCustomFields({})
     setCreateModal(true)
   }
 
@@ -419,6 +422,7 @@ export default function ServiceTicketList() {
             <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.description')}</label>
             <TextArea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={t('service.descriptionPlaceholder')} />
           </div>
+          <EntityCustomFields entityType="service_ticket" value={ticketCustomFields} onChange={setTicketCustomFields} />
         </div>
       </Modal>
 

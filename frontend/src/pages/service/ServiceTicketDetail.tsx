@@ -5,6 +5,7 @@ import { serviceTicketApi } from '@/api/serviceTicket'
 import { orderApi } from '@/api/order'
 import { activityApi } from '@/api/activity'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import type { ServiceTicketItem, ActivityItem, Order } from '@/api/types'
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels } from '@/constants/labels'
@@ -372,6 +373,7 @@ export default function ServiceTicketDetail() {
                 {ticket.updated_at ? new Date(ticket.updated_at).toLocaleString('zh-CN') : '-'}
               </Descriptions.Item>
             </Descriptions>
+            <EntityCustomFields entityType="service_ticket" value={(ticket as unknown as { custom_fields_json?: Record<string, unknown> }).custom_fields_json || {}} readOnly />
           </div>
 
           {ticket.ai_summary_json && (

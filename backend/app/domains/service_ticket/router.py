@@ -43,6 +43,7 @@ def _ticket_dict(t) -> dict:
         "satisfaction_score": t.satisfaction_score,
         "satisfaction_comment": t.satisfaction_comment,
         "satisfaction_at": t.satisfaction_at.isoformat() if t.satisfaction_at else None,
+        "custom_fields_json": t.custom_fields_json,
         "created_at": t.created_at.isoformat() if t.created_at else "",
         "updated_at": t.updated_at.isoformat() if t.updated_at else "",
     }

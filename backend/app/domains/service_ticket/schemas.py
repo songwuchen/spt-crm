@@ -11,6 +11,7 @@ class ServiceTicketCreate(BaseModel):
     description: Optional[str] = None
     assigned_to_id: Optional[str] = None
     assigned_to_name: Optional[str] = None
+    custom_fields_json: Optional[dict] = None
 
 
 class ServiceTicketUpdate(BaseModel):
@@ -22,6 +23,7 @@ class ServiceTicketUpdate(BaseModel):
     order_id: Optional[str] = None
     assigned_to_id: Optional[str] = None
     assigned_to_name: Optional[str] = None
+    custom_fields_json: Optional[dict] = None
 
 
 class RenewalCreate(BaseModel):
