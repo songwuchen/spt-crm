@@ -8,6 +8,8 @@ import {
 } from 'antd'
 import { ArrowUpOutlined, ArrowDownOutlined, DeleteOutlined, PlusOutlined, ArrowLeftOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
+import { roleApi } from '@/api/user'
+import type { Role } from '@/api/types'
 import type { FieldDefinition, FieldType } from '@/types/lowcode'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 
@@ -39,6 +41,8 @@ export default function FormDesignerPage() {
   const [jsonOpen, setJsonOpen] = useState(false)
   const [jsonText, setJsonText] = useState('')
   const [optEditing, setOptEditing] = useState<{ idx: number; text: string } | null>(null)
+  const [roles, setRoles] = useState<Role[]>([])
+  const [permEditing, setPermEditing] = useState<{ idx: number } | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -48,7 +52,10 @@ export default function FormDesignerPage() {
         setFields((design.data.field_definitions as FieldDefinition[]) || [])
       } finally { setLoading(false) }
     })()
+    roleApi.list().then((r) => setRoles(r.data || [])).catch(() => { /* 角色不可用时权限选择为空 */ })
   }, [id])
+
+  const roleOptions = roles.map((r) => ({ label: r.name, value: r.code }))
 
   const addField = () => {
     const meta = ADDABLE_TYPES.find((t) => t.value === addType)!
@@ -149,6 +156,11 @@ export default function FormDesignerPage() {
                   <Col><Text type="secondary" style={{ fontSize: 12 }}>id: {f.id}</Text></Col>
                   <Col><Space size={4}><Text style={{ fontSize: 12 }}>必填</Text><Switch size="small" checked={!!f.required} onChange={(v) => patch(idx, { required: v })} /></Space></Col>
                   {CHOICE_TYPES.has(f.type) && <Col><Button size="small" onClick={() => openOptEditor(idx)}>选项({f.options?.length || 0})</Button></Col>}
+                  <Col>
+                    <Button size="small" onClick={() => setPermEditing({ idx })}>
+                      权限{(f.visible_roles?.length || f.edit_roles?.length) ? ' ●' : ''}
+                    </Button>
+                  </Col>
                   {f.type === 'formula' && (
                     <Col flex="auto">
                       <Input size="small" placeholder="公式, 如 $amt# * 2" value={(f.props?.formula as string) || ''}
@@ -169,10 +181,34 @@ export default function FormDesignerPage() {
         </Col>
         <Col span={11}>
           <Card title="实时预览" size="small">
-            <FormRenderer fields={fields} mode="edit" value={previewValue} onChange={() => { /* 预览不保存 */ }} />
+            <FormRenderer fields={fields} mode="edit" value={previewValue} onChange={() => { /* 预览不保存 */ }} applyFieldPerms={false} />
           </Card>
         </Col>
       </Row>
+
+      <Modal title="字段权限" open={!!permEditing} footer={<Button type="primary" onClick={() => setPermEditing(null)}>完成</Button>}
+        onCancel={() => setPermEditing(null)} destroyOnClose>
+        {permEditing && (() => {
+          const f = fields[permEditing.idx]
+          return (
+            <div className="space-y-4">
+              <div>
+                <div style={{ marginBottom: 4, fontSize: 13 }}>可见角色<Text type="secondary" style={{ marginLeft: 6, fontSize: 12 }}>留空=所有人可见</Text></div>
+                <Select mode="multiple" allowClear style={{ width: '100%' }} placeholder="选择角色，仅这些角色可见"
+                  value={f.visible_roles || []} options={roleOptions}
+                  onChange={(v) => patch(permEditing.idx, { visible_roles: v.length ? v : null })} />
+              </div>
+              <div>
+                <div style={{ marginBottom: 4, fontSize: 13 }}>可编辑角色<Text type="secondary" style={{ marginLeft: 6, fontSize: 12 }}>留空=可见者皆可编辑；否则其余角色只读</Text></div>
+                <Select mode="multiple" allowClear style={{ width: '100%' }} placeholder="选择角色，仅这些角色可编辑"
+                  value={f.edit_roles || []} options={roleOptions}
+                  onChange={(v) => patch(permEditing.idx, { edit_roles: v.length ? v : null })} />
+              </div>
+              <Text type="secondary" style={{ fontSize: 12 }}>说明：后端在读取/写入时按登录者角色强制裁剪；设计器预览不受限。</Text>
+            </div>
+          )
+        })()}
+      </Modal>
 
       <Modal title="编辑选项" open={!!optEditing} onOk={saveOpts} onCancel={() => setOptEditing(null)} destroyOnClose>
         <Text type="secondary">每行一个选项，格式 <code>显示文本</code> 或 <code>显示文本|存储值</code></Text>

@@ -29,6 +29,10 @@ export interface FieldDefinition {
   detail_table_columns?: FieldDefinition[]
   is_indexed?: boolean
   span?: number // 栅格: 6/8/12/24, 默认 24
+  // 字段级权限(角色 code)。空/缺省 = 不限制。visible_roles: 谁可见; edit_roles: 谁可编辑。
+  visible_roles?: string[] | null
+  edit_roles?: string[] | null
+  readonly?: boolean // 后端 get_instance 对不可编辑字段的标记(只读渲染)
 }
 
 export interface FormRule {

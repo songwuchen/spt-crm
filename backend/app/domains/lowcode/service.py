@@ -19,6 +19,7 @@ from app.domains.lowcode.models import (
 from app.domains.lowcode import schemas
 from app.domains.lowcode.formula_engine import compute_formula_fields
 from app.domains.lowcode.serial_number import generate_serials_for_submit
+from app.domains.lowcode.field_permission import filter_read, sanitize_write
 
 
 def _now() -> datetime:
@@ -351,7 +352,9 @@ async def create_instance(
 
     field_defs = published.field_definitions or []
     user_name = user.get("real_name") or user.get("username") or ""
-    form_data = compute_formula_fields(dict(data.form_data or {}), field_defs, user_name)
+    # 字段级权限：丢弃用户对不可编辑/隐藏字段的写入（后端权威边界）
+    raw = sanitize_write(data.form_data, None, field_defs, user.get("roles"))
+    form_data = compute_formula_fields(dict(raw or {}), field_defs, user_name)
 
     if not data.as_draft:
         err = validate_required(field_defs, form_data)
@@ -384,7 +387,7 @@ async def create_instance(
     return inst
 
 
-async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str) -> dict:
+async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user: dict | None = None) -> dict:
     inst = (await db.execute(
         select(FormInstance).where(
             FormInstance.id == instance_id,
@@ -406,6 +409,8 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str) -> di
         rule_defs = version.rule_definitions or []
 
     out = schemas.FormInstanceOut.model_validate(inst).model_dump()
+    # 字段级权限：按查看者角色剔除隐藏字段(定义+值)，不可编辑字段标记 readonly
+    field_defs, out["form_data"] = filter_read(field_defs, out.get("form_data"), (user or {}).get("roles"))
     out["field_definitions"] = field_defs
     out["rule_definitions"] = rule_defs
     return out
@@ -499,7 +504,9 @@ async def update_instance(
         version = await db.get(FormTemplateVersion, inst.template_version_id)
         field_defs = (version.field_definitions if version else inst.field_definitions) or []
         user_name = user.get("real_name") or user.get("username") or ""
-        form_data = compute_formula_fields(dict(data.form_data), field_defs, user_name)
+        # 字段级权限：不可编辑字段保留原值，忽略用户改动（后端权威边界）
+        raw = sanitize_write(data.form_data, inst.form_data, field_defs, user.get("roles"))
+        form_data = compute_formula_fields(dict(raw), field_defs, user_name)
         if inst.status != "draft":
             err = validate_required(field_defs, form_data)
             if err:

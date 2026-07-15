@@ -8,8 +8,9 @@ import { ArrowLeftOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/i
 import { lowcodeApi } from '@/api/lowcode'
 import { downloadFile } from '@/utils/download'
 import type { FieldDefinition, FormRule, FormInstance } from '@/types/lowcode'
-import FormRenderer, { validateRequired } from '@/components/lowcode/FormRenderer'
+import FormRenderer, { validateRequired, deriveRolePerms } from '@/components/lowcode/FormRenderer'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 const { Title } = Typography
 
@@ -37,6 +38,7 @@ function cellText(field: FieldDefinition, v: unknown): string {
 export default function FormDataListPage() {
   const { id = '' } = useParams()
   const nav = useNavigate()
+  const userRoles = useAuthStore((s) => s.user?.roles) || []
   const [name, setName] = useState('')
   const [colFields, setColFields] = useState<FieldDefinition[]>([])
   const [rules, setRules] = useState<FormRule[]>([])
@@ -76,7 +78,7 @@ export default function FormDataListPage() {
 
   const saveEdit = async () => {
     if (!viewRec) return
-    const states = computeFieldStates(viewRec.fields, viewRec.value, rules)
+    const states = computeFieldStates(viewRec.fields, viewRec.value, rules, deriveRolePerms(viewRec.fields, userRoles))
     const e = validateRequired(viewRec.fields, states, viewRec.value)
     if (e) { message.error(e); return }
     await lowcodeApi.updateInstance(viewRec.id, { form_data: viewRec.value })

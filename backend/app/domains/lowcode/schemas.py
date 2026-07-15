@@ -26,6 +26,10 @@ class FieldDefinition(BaseModel):
     detail_table_columns: list["FieldDefinition"] | None = None
     is_indexed: bool = False
     span: int | None = None
+    # 字段级权限(按角色 code)。空/缺省 = 不限制(所有人)。
+    # visible_roles: 谁能看到该字段; edit_roles: 谁能编辑(可见但不可编辑 → 只读)。
+    visible_roles: list[str] | None = None
+    edit_roles: list[str] | None = None
 
 
 class FormRuleDefinition(BaseModel):

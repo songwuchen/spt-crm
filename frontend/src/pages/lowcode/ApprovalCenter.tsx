@@ -77,7 +77,7 @@ function ProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
         <>
           <Space><b>{detail.title || '(无标题)'}</b>{PSTATUS[detail.status] && <Tag color={PSTATUS[detail.status].color}>{PSTATUS[detail.status].text}</Tag>}</Space>
           <Divider style={{ margin: '12px 0' }}>表单内容</Divider>
-          {fields.length ? <FormRenderer fields={fields} mode="readonly" value={formData} /> : <Text type="secondary">无关联表单</Text>}
+          {fields.length ? <FormRenderer fields={fields} mode="readonly" value={formData} applyFieldPerms={false} /> : <Text type="secondary">无关联表单</Text>}
           <Divider style={{ margin: '12px 0' }}>流程轨迹</Divider>
           <Timeline items={(detail.timeline || []).map((t) => ({
             children: <div><b>{ACTION_TXT[t.action] || t.action}</b> · {t.actor_name || t.actor_id}

@@ -8,8 +8,9 @@ import {
 } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import type { FieldDefinition, FormRule, FieldState } from '@/types/lowcode'
+import type { FieldDefinition, FormRule, FieldState, FieldPermission } from '@/types/lowcode'
 import { computeFieldStates } from './RuleEngine'
+import { useAuthStore } from '@/stores/useAuthStore'
 import PersonField from './fields/PersonField'
 import DeptField from './fields/DeptField'
 import FileField from './fields/FileField'
@@ -38,10 +39,39 @@ interface Props {
   mode?: 'edit' | 'readonly'
   value: Record<string, unknown>
   onChange?: (value: Record<string, unknown>) => void
+  // 设计器预览传 false，让管理员始终看到全部字段(设计态不受字段级权限约束)。
+  applyFieldPerms?: boolean
 }
 
-export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange }: Props) {
-  const states = useMemo(() => computeFieldStates(fields, value, rules), [fields, value, rules])
+// 由字段的 visible_roles/edit_roles + 当前用户角色，推导出规则引擎可用的 FieldPermission[]。
+// 空/缺省 = 不限制；不可见→hidden；可见但不可编辑→readonly。
+export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]): FieldPermission[] {
+  const roles = new Set(userRoles || [])
+  const out: FieldPermission[] = []
+  for (const f of fields) {
+    const vr = f.visible_roles
+    if (vr && vr.length && !vr.some((r) => roles.has(r))) {
+      out.push({ fieldId: f.id, access: 'hidden' })
+      continue
+    }
+    const er = f.edit_roles
+    if (er && er.length && !er.some((r) => roles.has(r))) {
+      out.push({ fieldId: f.id, access: 'readonly' })
+    }
+  }
+  return out
+}
+
+export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true }: Props) {
+  const userRoles = useAuthStore((s) => s.user?.roles) || []
+  const rolePerms = useMemo(
+    () => (applyFieldPerms ? deriveRolePerms(fields, userRoles) : []),
+    [applyFieldPerms, fields, userRoles],
+  )
+  const states = useMemo(
+    () => computeFieldStates(fields, value, rules, rolePerms),
+    [fields, value, rules, rolePerms],
+  )
 
   const setField = (id: string, v: unknown) => {
     onChange?.({ ...value, [id]: v })

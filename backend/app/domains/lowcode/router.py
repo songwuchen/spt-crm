@@ -281,7 +281,10 @@ async def export_form_instances(
         db, tenant_id, template_id, keyword=keyword, status=status, owner_ids=scope,
         limit=_EXPORT_ROW_CAP,
     )
-    data_fields = [fd for fd in field_defs if fd.get("id")]
+    # 字段级权限：导出列同样剔除对该用户隐藏的字段
+    from app.domains.lowcode.field_permission import field_visible
+    _roles = set(_user.get("roles") or [])
+    data_fields = [fd for fd in field_defs if fd.get("id") and field_visible(fd, _roles)]
     headers = ["业务编号", "标题", "状态", "创建时间"] + [fd.get("label") or fd.get("id") for fd in data_fields]
     data_rows = []
     for inst in rows:
@@ -320,7 +323,7 @@ async def get_form_instance(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("form_data:view")),
 ):
-    return ok(await service.get_instance(db, tenant_id, instance_id))
+    return ok(await service.get_instance(db, tenant_id, instance_id, user=_user))
 
 
 @router.put("/form-instances/{instance_id}")

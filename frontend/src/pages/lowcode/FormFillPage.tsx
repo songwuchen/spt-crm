@@ -5,8 +5,9 @@ import { Card, Button, Space, message, Typography, Result } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
 import type { FieldDefinition, FormRule } from '@/types/lowcode'
-import FormRenderer, { validateRequired } from '@/components/lowcode/FormRenderer'
+import FormRenderer, { validateRequired, deriveRolePerms } from '@/components/lowcode/FormRenderer'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 const { Title } = Typography
 
@@ -34,9 +35,11 @@ export default function FormFillPage() {
     })()
   }, [id])
 
+  const userRoles = useAuthStore((s) => s.user?.roles) || []
+
   const submit = async (asDraft: boolean) => {
     if (!asDraft) {
-      const states = computeFieldStates(fields, value, rules)
+      const states = computeFieldStates(fields, value, rules, deriveRolePerms(fields, userRoles))
       const e = validateRequired(fields, states, value)
       if (e) { message.error(e); return }
     }
