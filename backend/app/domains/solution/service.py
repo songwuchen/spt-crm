@@ -83,9 +83,13 @@ async def update_solution(db: AsyncSession, tenant_id: str, solution_id: str, da
     # 将方案置为 approved（满足商机 S4「方案已审批」闸门）。无匹配策略时仍可手动批准。
     if solution.status == "reviewing" and old_status != "reviewing":
         try:
-            from app.domains.approval.service import auto_trigger_approval
-            await auto_trigger_approval(db, tenant_id, "solution", solution.id,
-                                        f"方案审批: {solution.solution_no}", user)
+            title = f"方案审批: {solution.solution_no}"
+            # 优先新表单引擎工作流（灰度按 biz_type 切换），未绑定则回退旧引擎
+            from app.domains.lowcode.workflow_service import start_for_biz
+            pinst = await start_for_biz(db, tenant_id, "solution", solution.id, user, title=title)
+            if pinst is None:
+                from app.domains.approval.service import auto_trigger_approval
+                await auto_trigger_approval(db, tenant_id, "solution", solution.id, title, user)
         except Exception:
             import logging
             logging.getLogger("spt_crm.solution").warning("Auto-trigger approval for solution failed", exc_info=True)

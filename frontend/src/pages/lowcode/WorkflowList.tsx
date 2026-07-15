@@ -88,8 +88,16 @@ export default function WorkflowList() {
               options={forms.map((f) => ({ label: f.name, value: f.id }))} />
           </Form.Item>
           <Form.Item name="biz_type" label="或 绑定业务类型" tooltip="绑定后,该业务单据提交审批时走此可视化流程,结果回写业务状态(灰度替换旧审批)">
-            <Select allowClear placeholder="订单 / 线索 / 工单(与表单二选一)"
-              options={[{ label: '订单', value: 'order' }, { label: '线索', value: 'lead' }, { label: '售后工单', value: 'service_ticket' }]} />
+            <Select allowClear showSearch optionFilterProp="label" placeholder="订单 / 线索 / 工单 / 报价 / 合同…(与表单二选一)"
+              options={[
+                { label: '订单', value: 'order' },
+                { label: '线索', value: 'lead' },
+                { label: '售后工单', value: 'service_ticket' },
+                { label: '报价单', value: 'quote_version' },
+                { label: '合同', value: 'contract_version' },
+                { label: '变更单', value: 'change_request' },
+                { label: '方案', value: 'solution' },
+              ]} />
           </Form.Item>
         </Form>
       </Modal>

@@ -293,12 +293,16 @@ async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data
     new_status = version.status if hasattr(version, 'status') else None
     if new_status == "submitted" and old_status != "submitted":
         try:
-            from app.domains.approval.service import auto_trigger_approval
             c = (await db.execute(
                 select(Contract).where(Contract.id == version.contract_id, Contract.tenant_id == tenant_id)
             )).scalar_one_or_none()
             title = f"合同审批: {c.contract_no if c else ''} V{version.version_no}"
-            await auto_trigger_approval(db, tenant_id, "contract_version", version_id, title, user)
+            # 优先新表单引擎工作流（灰度按 biz_type 切换），未绑定则回退旧引擎
+            from app.domains.lowcode.workflow_service import start_for_biz
+            pinst = await start_for_biz(db, tenant_id, "contract_version", version_id, user, title=title)
+            if pinst is None:
+                from app.domains.approval.service import auto_trigger_approval
+                await auto_trigger_approval(db, tenant_id, "contract_version", version_id, title, user)
         except Exception as e:
             logger.warning("Auto-trigger approval for contract version failed: %s", e)
 

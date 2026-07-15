@@ -168,10 +168,15 @@ async def update_order(db: AsyncSession, tenant_id: str, order_id: str, data: Or
 
 
 async def submit_for_approval(db: AsyncSession, tenant_id: str, order_id: str, user: dict) -> Order:
-    """提交订单审批（内勤发起）。按已配置的 order 审批策略自动建立审批流。"""
+    """提交订单审批（内勤发起）。优先走新表单引擎工作流（若 order 已绑定并发布流程），
+    否则回退到旧 approval 引擎策略。灰度按 biz_type 逐个切换。"""
     order = await get_order(db, tenant_id, order_id)
-    from app.domains.approval.service import auto_trigger_approval
-    await auto_trigger_approval(db, tenant_id, "order", order.id, f"订单审批: {order.order_no}", user)
+    title = f"订单审批: {order.order_no}"
+    from app.domains.lowcode.workflow_service import start_for_biz
+    pinst = await start_for_biz(db, tenant_id, "order", order.id, user, title=title)
+    if pinst is None:
+        from app.domains.approval.service import auto_trigger_approval
+        await auto_trigger_approval(db, tenant_id, "order", order.id, title, user)
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="submit", resource_type="order", resource_id=order.id,
                      summary=f"提交订单审批: {order.order_no}")

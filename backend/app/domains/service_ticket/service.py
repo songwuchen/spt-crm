@@ -111,11 +111,15 @@ async def create_ticket(db: AsyncSession, tenant_id: str, data: ServiceTicketCre
 
 
 async def submit_for_approval(db: AsyncSession, tenant_id: str, ticket_id: str, user: dict) -> ServiceTicket:
-    """提交售后工单审批（内勤发起）。按 service_ticket 审批策略自动建立审批流。"""
+    """提交售后工单审批（内勤发起）。优先走新表单引擎工作流（若 service_ticket 已绑定并发布流程），
+    否则回退到旧 approval 引擎策略。灰度按 biz_type 逐个切换。"""
     ticket = await get_ticket(db, tenant_id, ticket_id)
-    from app.domains.approval.service import auto_trigger_approval
-    await auto_trigger_approval(db, tenant_id, "service_ticket", ticket.id,
-                                f"售后工单审批: {ticket.ticket_no}", user)
+    title = f"售后工单审批: {ticket.ticket_no}"
+    from app.domains.lowcode.workflow_service import start_for_biz
+    pinst = await start_for_biz(db, tenant_id, "service_ticket", ticket.id, user, title=title)
+    if pinst is None:
+        from app.domains.approval.service import auto_trigger_approval
+        await auto_trigger_approval(db, tenant_id, "service_ticket", ticket.id, title, user)
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="submit", resource_type="service_ticket", resource_id=ticket.id,
                      summary=f"提交售后审批: {ticket.ticket_no}")

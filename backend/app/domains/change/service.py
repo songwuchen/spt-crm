@@ -47,11 +47,14 @@ async def create(db: AsyncSession, tenant_id: str, project_id: str, data: Change
                      action="create", resource_type="change_request", resource_id=cr.id,
                      summary=f"创建变更单: {cr.change_no}")
 
-    # Auto-trigger approval if matching policy exists
+    # Auto-trigger approval：优先新表单引擎工作流（灰度按 biz_type 切换），未绑定则回退旧引擎
     try:
-        from app.domains.approval.service import auto_trigger_approval
         title = f"变更审批: {cr.change_no}"
-        await auto_trigger_approval(db, tenant_id, "change_request", cr.id, title, user)
+        from app.domains.lowcode.workflow_service import start_for_biz
+        pinst = await start_for_biz(db, tenant_id, "change_request", cr.id, user, title=title)
+        if pinst is None:
+            from app.domains.approval.service import auto_trigger_approval
+            await auto_trigger_approval(db, tenant_id, "change_request", cr.id, title, user)
     except Exception as e:
         logger.warning("Auto-trigger approval for change request failed: %s", e)
 

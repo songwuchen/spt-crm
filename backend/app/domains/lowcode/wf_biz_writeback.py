@@ -10,10 +10,16 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # biz_type -> {table, status_col, approved, rejected}
+# 覆盖旧 approval 引擎 _on_approval_completed/_rejected 的全部 biz_type，保证任一业务
+# 灰度切换到新引擎后，完成/驳回都能把状态回写到对应业务表（值与旧引擎保持一致）。
 REGISTRY: dict[str, dict[str, str]] = {
     "order": {"table": "orders", "status_col": "status", "approved": "confirmed", "rejected": "cancelled"},
     "lead": {"table": "leads", "status_col": "review_status", "approved": "approved", "rejected": "rejected"},
     "service_ticket": {"table": "service_tickets", "status_col": "status", "approved": "processing", "rejected": "rejected"},
+    "quote_version": {"table": "quote_versions", "status_col": "status", "approved": "approved", "rejected": "rejected"},
+    "contract_version": {"table": "contract_versions", "status_col": "status", "approved": "approved", "rejected": "rejected"},
+    "change_request": {"table": "change_requests", "status_col": "status", "approved": "approved", "rejected": "rejected"},
+    "solution": {"table": "solutions", "status_col": "status", "approved": "approved", "rejected": "rejected"},
 }
 
 
