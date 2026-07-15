@@ -7,7 +7,7 @@ import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useAutoSave } from '@/hooks/useAutoSave'
 import { useAuthStore } from '@/stores/useAuthStore'
-import CustomFieldsPanel from '@/components/CustomFieldsPanel'
+import CustomFieldsPanel from '@/components/lowcode/EntityCustomFields'
 
 const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
 const defaultLevels = ['A', 'B', 'C', 'D'].map(l => ({ label: l, value: l }))

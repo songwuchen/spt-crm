@@ -12,12 +12,14 @@ const { Text } = Typography
 interface Props {
   entityType: string
   value?: Record<string, unknown>
+  values?: Record<string, unknown>   // 兼容旧 CustomFieldsPanel 的 values 命名(可作别名直接替换)
   onChange?: (v: Record<string, unknown>) => void
   readOnly?: boolean
   title?: string
 }
 
-export default function EntityCustomFields({ entityType, value, onChange, readOnly, title = '扩展字段' }: Props) {
+export default function EntityCustomFields({ entityType, value, values, onChange, readOnly, title = '扩展字段' }: Props) {
+  const val = value ?? values
   const [fields, setFields] = useState<FieldDefinition[]>([])
   const [loaded, setLoaded] = useState(false)
 
@@ -40,7 +42,7 @@ export default function EntityCustomFields({ entityType, value, onChange, readOn
       <FormRenderer
         fields={fields}
         mode={readOnly ? 'readonly' : 'edit'}
-        value={value || {}}
+        value={val || {}}
         onChange={(v) => onChange?.(v)}
       />
     </div>

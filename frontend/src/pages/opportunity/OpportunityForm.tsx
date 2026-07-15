@@ -10,7 +10,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useAutoSave } from '@/hooks/useAutoSave'
 import AttachmentPanel from '@/components/AttachmentPanel'
-import CustomFieldsPanel from '@/components/CustomFieldsPanel'
+import CustomFieldsPanel from '@/components/lowcode/EntityCustomFields'
 import dayjs from 'dayjs'
 
 const defaultRiskOptions = [
