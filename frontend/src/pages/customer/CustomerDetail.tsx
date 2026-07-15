@@ -64,6 +64,7 @@ export default function CustomerDetail() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [contactModal, setContactModal] = useState(false)
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
+  const [contactCustomFields, setContactCustomFields] = useState<Record<string, unknown>>({})
   const [contactView, setContactView] = useState<'table' | 'chart'>('table')
   const [form] = Form.useForm()
   const [relations, setRelations] = useState<{ id: string; from_customer_id: string; to_customer_id: string; relation_type: string; to_customer_name?: string; note?: string }[]>([])
@@ -121,7 +122,7 @@ export default function CustomerDetail() {
   }, [id])
 
   const handleContactSubmit = async () => {
-    const values = await form.validateFields()
+    const values = { ...(await form.validateFields()), custom_fields_json: contactCustomFields }
     if (editingContact) {
       await contactApi.update(id!, editingContact.id, values)
       message.success('联系人已更新')
@@ -159,7 +160,7 @@ export default function CustomerDetail() {
       render: (_, record) => (
         <Space size={4}>
           <a className="text-primary text-sm font-bold" onClick={() => {
-            setEditingContact(record); form.setFieldsValue(record); setContactModal(true)
+            setEditingContact(record); form.setFieldsValue(record); setContactCustomFields((record as unknown as { custom_fields_json?: Record<string, unknown> }).custom_fields_json || {}); setContactModal(true)
           }}>编辑</a>
           <a className="text-rose-500 text-sm font-bold" onClick={() => {
             Modal.confirm({
@@ -408,7 +409,7 @@ export default function CustomerDetail() {
                             onClick={() => setContactView('chart')}>组织架构</Button>
                         </div>
                         <Button type="primary" size="small" icon={<PlusOutlined />}
-                          onClick={() => { setEditingContact(null); form.resetFields(); setContactModal(true) }}>
+                          onClick={() => { setEditingContact(null); form.resetFields(); setContactCustomFields({}); setContactModal(true) }}>
                           添加联系人
                         </Button>
                       </div>
@@ -419,6 +420,7 @@ export default function CustomerDetail() {
                         <ContactOrgChart contacts={contacts} onSelect={(c) => {
                           setEditingContact(c)
                           form.setFieldsValue(c)
+                          setContactCustomFields((c as unknown as { custom_fields_json?: Record<string, unknown> }).custom_fields_json || {})
                           setContactModal(true)
                         }} />
                       )}
@@ -711,6 +713,7 @@ export default function CustomerDetail() {
               options={contacts.filter((c) => c.id !== editingContact?.id).map((c) => ({ label: `${c.name}${c.title ? ' · ' + c.title : ''}`, value: c.id }))} />
           </Form.Item>
           <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
+          <CustomFieldsPanel entityType="contact" value={contactCustomFields} onChange={setContactCustomFields} />
         </Form>
       </Modal>
 

@@ -92,6 +92,7 @@ class ContactCreate(BaseModel):
     is_primary: bool = False
     reports_to_id: Optional[str] = None
     remark: Optional[str] = None
+    custom_fields_json: Optional[dict] = None
 
 
 class ContactUpdate(BaseModel):
@@ -104,6 +105,7 @@ class ContactUpdate(BaseModel):
     is_primary: Optional[bool] = None
     reports_to_id: Optional[str] = None
     remark: Optional[str] = None
+    custom_fields_json: Optional[dict] = None
 
 
 class ContactOut(BaseModel):
@@ -118,6 +120,7 @@ class ContactOut(BaseModel):
     is_primary: bool
     reports_to_id: Optional[str] = None
     remark: Optional[str] = None
+    custom_fields_json: Optional[dict] = None
 
     model_config = {"from_attributes": True}
 

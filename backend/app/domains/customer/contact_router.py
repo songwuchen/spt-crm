@@ -80,6 +80,7 @@ async def list_contacts(
             "name": c.name, "title": c.title, "role_type": c.role_type,
             "phone": c.phone, "mobile": c.mobile, "email": c.email,
             "is_primary": c.is_primary, "remark": c.remark,
+            "custom_fields_json": c.custom_fields_json,
             "created_at": c.created_at.isoformat() if c.created_at else "",
         } for c in items],
         "total": total, "pageNo": pageNo, "pageSize": pageSize,
