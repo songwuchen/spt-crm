@@ -64,3 +64,10 @@ class WfActRequest(BaseModel):
     action: str                     # approve / reject / transfer / comment
     opinion: str | None = None
     transfer_to: str | None = None  # transfer 时的接收人
+
+
+class WfAgentCreate(BaseModel):
+    agent_id: str                   # 代理人 user_id
+    start_time: datetime
+    end_time: datetime
+    note: str | None = None

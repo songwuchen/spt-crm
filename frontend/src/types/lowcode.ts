@@ -208,6 +208,9 @@ export interface WfTodoItem {
   process_status?: string
   created_at?: string
   action_at?: string
+  on_behalf_of?: boolean       // 代理审批：该待办由本人代委托人处理
+  delegator_id?: string | null
+  delegator_name?: string | null
 }
 
 export interface WfTimelineItem {

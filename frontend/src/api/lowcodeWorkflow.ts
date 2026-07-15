@@ -35,4 +35,23 @@ export const workflowApi = {
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/tasks/${taskId}/act`, data),
   withdraw: (instanceId: string) =>
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/instances/${instanceId}/withdraw`),
+
+  // 代理审批（委托）
+  listAgents: () =>
+    client.get<unknown, ApiResponse<WfAgent[]>>('/api/v1/lc/wf/agents'),
+  createAgent: (data: { agent_id: string; start_time: string; end_time: string; note?: string }) =>
+    client.post<unknown, ApiResponse<{ id: string }>>('/api/v1/lc/wf/agents', data),
+  deleteAgent: (id: string) =>
+    client.delete<unknown, ApiResponse<void>>(`/api/v1/lc/wf/agents/${id}`),
+}
+
+export interface WfAgent {
+  id: string
+  agent_id: string
+  agent_name?: string
+  start_time?: string
+  end_time?: string
+  status: string
+  note?: string
+  active_now: boolean
 }

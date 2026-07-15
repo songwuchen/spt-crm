@@ -129,3 +129,28 @@ async def withdraw(instance_id: str, tenant_id: str = Depends(get_tenant_id),
                    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
     await WorkflowEngine(db, tenant_id).withdraw(instance_id, user)
     return ok(None)
+
+
+# ==================== 代理审批(委托) ====================
+
+@router.get("/agents")
+async def list_my_agents(tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+                         user: dict = Depends(get_current_user)):
+    """我设置的代理（谁在某时段代我审批）。"""
+    return ok(await wsvc.list_agents(db, tenant_id, user.get("sub")))
+
+
+@router.post("/agents")
+async def create_my_agent(body: ws.WfAgentCreate, tenant_id: str = Depends(get_tenant_id),
+                          db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """设置代理：本人在 [start,end] 期间由 agent_id 代为审批。"""
+    ua = await wsvc.create_agent(db, tenant_id, user.get("sub"), body.agent_id,
+                                 body.start_time, body.end_time, body.note)
+    return ok({"id": ua.id})
+
+
+@router.delete("/agents/{agent_row_id}")
+async def delete_my_agent(agent_row_id: str, tenant_id: str = Depends(get_tenant_id),
+                          db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    await wsvc.delete_agent(db, tenant_id, agent_row_id, user.get("sub"))
+    return ok(None)

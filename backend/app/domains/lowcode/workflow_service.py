@@ -208,13 +208,16 @@ async def start_for_biz(
 # ==================== 运行时查询 ====================
 
 async def list_todo(db, tenant_id, user_id, page_no, page_size):
-    conds = [WfTaskInstance.tenant_id == tenant_id, WfTaskInstance.assignee_id == user_id,
+    # 待办 = 本人被指派 + 本人作为「有效代理人」代办的委托人任务
+    principals = await active_principals(db, tenant_id, user_id)
+    assignees = [user_id, *principals]
+    conds = [WfTaskInstance.tenant_id == tenant_id, WfTaskInstance.assignee_id.in_(assignees),
              WfTaskInstance.status == "pending"]
     total = (await db.execute(select(func.count()).select_from(WfTaskInstance).where(*conds))).scalar_one()
     tasks = (await db.execute(select(WfTaskInstance).where(*conds)
              .order_by(WfTaskInstance.created_at.desc())
              .offset((page_no - 1) * page_size).limit(page_size))).scalars().all()
-    return await _enrich_tasks(db, list(tasks)), total
+    return await _enrich_tasks(db, list(tasks), viewer_id=user_id), total
 
 
 async def list_done(db, tenant_id, user_id, page_no, page_size):
@@ -236,10 +239,19 @@ async def list_initiated(db, tenant_id, user_id, page_no, page_size):
     return [_inst_dict(i) for i in rows], total
 
 
-async def _enrich_tasks(db, tasks: list[WfTaskInstance]) -> list[dict]:
+async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None = None) -> list[dict]:
+    # 若含代办任务，批量解析委托人姓名用于「代 XX 审批」标注
+    principal_ids = {t.assignee_id for t in tasks if viewer_id and t.assignee_id != viewer_id}
+    name_map: dict[str, str] = {}
+    if principal_ids:
+        from app.domains.auth.models import User
+        rows = (await db.execute(select(User.id, User.real_name, User.username)
+                .where(User.id.in_(principal_ids)))).all()
+        name_map = {r[0]: (r[1] or r[2]) for r in rows}
     out = []
     for t in tasks:
         inst = await db.get(WfProcessInstance, t.process_instance_id)
+        on_behalf = viewer_id is not None and t.assignee_id != viewer_id
         out.append({
             "task_id": t.id, "status": t.status, "opinion": t.opinion,
             "process_instance_id": t.process_instance_id,
@@ -249,8 +261,84 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance]) -> list[dict]:
             "process_status": inst.status if inst else None,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "action_at": t.action_at.isoformat() if t.action_at else None,
+            # 代理审批：非本人被指派的待办 = 代办，标注委托人
+            "on_behalf_of": on_behalf,
+            "delegator_id": t.assignee_id if on_behalf else None,
+            "delegator_name": name_map.get(t.assignee_id) if on_behalf else None,
         })
     return out
+
+
+# ==================== 代理审批(委托) ====================
+
+async def active_principals(db, tenant_id, agent_id) -> list[str]:
+    """返回当前时刻 agent_id 作为有效代理人所代理的委托人 user_id 列表。"""
+    from app.domains.organization.models import UserAgent
+    now = _now()
+    rows = (await db.execute(select(UserAgent.user_id).where(
+        UserAgent.tenant_id == tenant_id, UserAgent.agent_id == agent_id,
+        UserAgent.status == "active", UserAgent.start_time <= now, UserAgent.end_time >= now,
+    ))).scalars().all()
+    return list(rows)
+
+
+async def is_active_agent(db, tenant_id, principal_id: str, agent_id: str) -> bool:
+    """agent_id 当前是否为 principal_id 的有效代理人。"""
+    from app.domains.organization.models import UserAgent
+    now = _now()
+    r = (await db.execute(select(UserAgent.id).where(
+        UserAgent.tenant_id == tenant_id, UserAgent.user_id == principal_id,
+        UserAgent.agent_id == agent_id, UserAgent.status == "active",
+        UserAgent.start_time <= now, UserAgent.end_time >= now,
+    ).limit(1))).scalar_one_or_none()
+    return r is not None
+
+
+async def create_agent(db, tenant_id, principal_id: str, agent_id: str, start_time, end_time, note=None):
+    """设置代理：principal_id 在 [start,end] 期间由 agent_id 代为审批。"""
+    from app.domains.organization.models import UserAgent
+    if principal_id == agent_id:
+        raise BusinessException(code=BUSINESS_ERROR, message="不能设置自己为代理人")
+    if end_time <= start_time:
+        raise BusinessException(code=BUSINESS_ERROR, message="结束时间需晚于开始时间")
+    ua = UserAgent(id=generate_uuid(), tenant_id=tenant_id, user_id=principal_id, agent_id=agent_id,
+                   start_time=start_time, end_time=end_time, status="active", note=note)
+    db.add(ua)
+    await db.commit()
+    await db.refresh(ua)
+    return ua
+
+
+async def list_agents(db, tenant_id, principal_id: str) -> list[dict]:
+    """列出「我(principal_id)设置的代理」。"""
+    from app.domains.organization.models import UserAgent
+    from app.domains.auth.models import User
+    rows = (await db.execute(select(UserAgent).where(
+        UserAgent.tenant_id == tenant_id, UserAgent.user_id == principal_id,
+    ).order_by(UserAgent.created_at.desc()))).scalars().all()
+    agent_ids = {r.agent_id for r in rows}
+    name_map: dict[str, str] = {}
+    if agent_ids:
+        urows = (await db.execute(select(User.id, User.real_name, User.username)
+                 .where(User.id.in_(agent_ids)))).all()
+        name_map = {u[0]: (u[1] or u[2]) for u in urows}
+    now = _now()
+    return [{
+        "id": r.id, "agent_id": r.agent_id, "agent_name": name_map.get(r.agent_id),
+        "start_time": r.start_time.isoformat() if r.start_time else None,
+        "end_time": r.end_time.isoformat() if r.end_time else None,
+        "status": r.status, "note": r.note,
+        "active_now": r.status == "active" and (r.start_time <= now <= r.end_time),
+    } for r in rows]
+
+
+async def delete_agent(db, tenant_id, agent_row_id: str, principal_id: str) -> None:
+    """撤销代理（仅委托人本人可撤销自己设置的代理）。"""
+    from app.domains.organization.models import UserAgent
+    ua = await db.get(UserAgent, agent_row_id)
+    if ua and ua.tenant_id == tenant_id and ua.user_id == principal_id:
+        await db.delete(ua)
+        await db.commit()
 
 
 def _inst_dict(i: WfProcessInstance) -> dict:

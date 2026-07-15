@@ -255,10 +255,23 @@ class WorkflowEngine:
         )).scalar_one_or_none()
         if not task:
             raise BusinessException(code=NOT_FOUND, message="待办不存在")
+        delegated = False
         if task.assignee_id != actor.get("sub"):
-            raise BusinessException(code=FORBIDDEN, message="非当前待办的处理人")
+            # 允许有效代理人代办委托人的待办（代理审批）
+            from app.domains.organization.models import UserAgent
+            now = _now()
+            agent_ok = (await self.db.execute(select(UserAgent.id).where(
+                UserAgent.tenant_id == self.tenant_id, UserAgent.user_id == task.assignee_id,
+                UserAgent.agent_id == actor.get("sub"), UserAgent.status == "active",
+                UserAgent.start_time <= now, UserAgent.end_time >= now,
+            ).limit(1))).scalar_one_or_none()
+            if not agent_ok:
+                raise BusinessException(code=FORBIDDEN, message="非当前待办的处理人")
+            delegated = True
         if task.status != "pending":
             raise BusinessException(code=BUSINESS_ERROR, message="该待办已处理")
+        if delegated and action in ("approve", "reject") and opinion is not None:
+            opinion = f"{opinion}（代理审批）"
 
         inst = await self.db.get(WfProcessInstance, task.process_instance_id)
         if not inst or inst.status != "running":

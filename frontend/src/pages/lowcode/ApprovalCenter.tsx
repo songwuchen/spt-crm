@@ -2,8 +2,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Card, Tabs, Table, Button, Space, Tag, Drawer, Input, message, Timeline, Typography, Popconfirm, Divider,
+  Modal, DatePicker,
 } from 'antd'
+import dayjs from 'dayjs'
 import { workflowApi } from '@/api/lowcodeWorkflow'
+import type { WfAgent } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
 import type { WfTodoItem, WfInstanceDetail, FieldDefinition } from '@/types/lowcode'
 import FormRenderer from '@/components/lowcode/FormRenderer'
@@ -29,6 +32,7 @@ export default function ApprovalCenter() {
         { key: 'todo', label: '我的待办', children: <TodoTab active={tab === 'todo'} /> },
         { key: 'mine', label: '我发起的', children: <MineTab active={tab === 'mine'} /> },
         { key: 'done', label: '已办', children: <DoneTab active={tab === 'done'} /> },
+        { key: 'agents', label: '我的代理', children: <AgentTab active={tab === 'agents'} /> },
       ]} />
     </Card>
   )
@@ -128,6 +132,7 @@ function TodoTab({ active }: { active: boolean }) {
   const cols = [
     { title: '标题', dataIndex: 'title', render: (v: string) => v || '—' },
     { title: '单号', dataIndex: 'business_no', render: (v: string) => v || '—' },
+    { title: '来源', key: 'src', width: 130, render: (_: unknown, r: WfTodoItem) => (r.on_behalf_of ? <Tag color="purple">代 {r.delegator_name || '委托人'} 审批</Tag> : <Tag>本人</Tag>) },
     { title: '发起时间', dataIndex: 'created_at', render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—') },
     { title: '操作', key: 'op', width: 100, render: (_: unknown, r: WfTodoItem) => <Button size="small" type="primary" onClick={() => openWith(r.process_instance_id, r.task_id)}>处理</Button> },
   ]
@@ -150,6 +155,75 @@ function DoneTab({ active }: { active: boolean }) {
     { title: '操作', key: 'op', width: 90, render: (_: unknown, r: WfTodoItem) => <Button size="small" onClick={() => openWith(r.process_instance_id)}>查看</Button> },
   ]
   return <><Table rowKey="task_id" size="small" loading={loading} columns={cols} dataSource={items} pagination={false} />{node}</>
+}
+
+function AgentTab({ active }: { active: boolean }) {
+  const [items, setItems] = useState<WfAgent[]>([])
+  const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [agentId, setAgentId] = useState<unknown>(undefined)
+  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null)
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+  const load = useCallback(async () => {
+    setLoading(true)
+    try { const r = await workflowApi.listAgents(); setItems(r.data || []) } finally { setLoading(false) }
+  }, [])
+  useEffect(() => { if (active) load() }, [active, load])
+
+  const save = async () => {
+    if (!agentId) { message.error('请选择代理人'); return }
+    if (!range || !range[0] || !range[1]) { message.error('请选择代理时间段'); return }
+    setSaving(true)
+    try {
+      await workflowApi.createAgent({
+        agent_id: String(agentId), start_time: range[0].toISOString(), end_time: range[1].toISOString(),
+        note: note || undefined,
+      })
+      message.success('已设置代理')
+      setOpen(false); setAgentId(undefined); setRange(null); setNote('')
+      load()
+    } catch { message.error('设置失败') } finally { setSaving(false) }
+  }
+
+  const cols = [
+    { title: '代理人', dataIndex: 'agent_name', render: (v: string, r: WfAgent) => v || r.agent_id },
+    { title: '开始', dataIndex: 'start_time', render: (v: string) => (v ? v.slice(0, 16).replace('T', ' ') : '—') },
+    { title: '结束', dataIndex: 'end_time', render: (v: string) => (v ? v.slice(0, 16).replace('T', ' ') : '—') },
+    { title: '状态', key: 'st', width: 90, render: (_: unknown, r: WfAgent) => (r.active_now ? <Tag color="green">生效中</Tag> : <Tag>未生效</Tag>) },
+    { title: '备注', dataIndex: 'note', render: (v: string) => v || '—' },
+    { title: '操作', key: 'op', width: 80, render: (_: unknown, r: WfAgent) => (
+      <Popconfirm title="撤销该代理?" onConfirm={async () => { await workflowApi.deleteAgent(r.id); message.success('已撤销'); load() }}>
+        <Button size="small" type="link" danger>撤销</Button>
+      </Popconfirm>
+    ) },
+  ]
+  return (
+    <>
+      <div style={{ marginBottom: 12 }}>
+        <Text type="secondary">设置在某时间段由他人代你审批；代理人会在其「我的待办」看到你的待办并可代为处理。</Text>
+        <Button type="primary" size="small" style={{ marginLeft: 12 }} onClick={() => setOpen(true)}>新增代理</Button>
+      </div>
+      <Table rowKey="id" size="small" loading={loading} columns={cols} dataSource={items} pagination={false} />
+      <Modal title="新增代理" open={open} onOk={save} confirmLoading={saving} onCancel={() => setOpen(false)} destroyOnClose>
+        <div className="space-y-3">
+          <div>
+            <div style={{ marginBottom: 4, fontSize: 13 }}>代理人</div>
+            <PersonField value={agentId} onChange={setAgentId} placeholder="选择代理人" />
+          </div>
+          <div>
+            <div style={{ marginBottom: 4, fontSize: 13 }}>代理时间段</div>
+            <DatePicker.RangePicker showTime style={{ width: '100%' }} value={range as never}
+              onChange={(v) => setRange(v as [dayjs.Dayjs, dayjs.Dayjs] | null)} />
+          </div>
+          <div>
+            <div style={{ marginBottom: 4, fontSize: 13 }}>备注</div>
+            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="可选，如：出差期间" />
+          </div>
+        </div>
+      </Modal>
+    </>
+  )
 }
 
 function MineTab({ active }: { active: boolean }) {
