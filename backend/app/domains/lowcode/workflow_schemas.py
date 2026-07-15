@@ -61,9 +61,10 @@ class WfVersionOut(BaseModel):
 
 
 class WfActRequest(BaseModel):
-    action: str                     # approve / reject / transfer / comment
+    action: str                     # approve / reject / transfer / comment / return
     opinion: str | None = None
     transfer_to: str | None = None  # transfer 时的接收人
+    to_node_id: str | None = None   # return 时退回的目标审批节点
 
 
 class WfAgentCreate(BaseModel):

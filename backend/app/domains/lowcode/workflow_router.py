@@ -120,7 +120,8 @@ async def instance_detail(instance_id: str, tenant_id: str = Depends(get_tenant_
 @router.post("/tasks/{task_id}/act")
 async def act_task(task_id: str, body: ws.WfActRequest, tenant_id: str = Depends(get_tenant_id),
                    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
-    await WorkflowEngine(db, tenant_id).act(task_id, user, body.action, body.opinion, body.transfer_to)
+    await WorkflowEngine(db, tenant_id).act(task_id, user, body.action, body.opinion,
+                                            body.transfer_to, body.to_node_id)
     return ok(None)
 
 

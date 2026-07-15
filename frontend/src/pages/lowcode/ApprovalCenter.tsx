@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Card, Tabs, Table, Button, Space, Tag, Drawer, Input, message, Timeline, Typography, Popconfirm, Divider,
-  Modal, DatePicker,
+  Modal, DatePicker, Select,
 } from 'antd'
 import dayjs from 'dayjs'
 import { workflowApi } from '@/api/lowcodeWorkflow'
@@ -20,7 +20,7 @@ const PSTATUS: Record<string, { color: string; text: string }> = {
 }
 const ACTION_TXT: Record<string, string> = {
   submit: '发起', approve: '通过', reject: '驳回', transfer: '转交', comment: '评论',
-  withdraw: '撤回', auto_approve: '自动通过', auto_reject: '自动终止',
+  withdraw: '撤回', auto_approve: '自动通过', auto_reject: '自动终止', return: '退回',
 }
 
 export default function ApprovalCenter() {
@@ -47,11 +47,12 @@ function ProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const [formData, setFormData] = useState<Record<string, unknown>>({})
   const [opinion, setOpinion] = useState('')
   const [transferTo, setTransferTo] = useState<unknown>(undefined)
+  const [returnTo, setReturnTo] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (!open || !instanceId) return
-    setOpinion(''); setTransferTo(undefined)
+    setOpinion(''); setTransferTo(undefined); setReturnTo(undefined)
     ;(async () => {
       const d = await workflowApi.instance(instanceId)
       setDetail(d.data)
@@ -65,11 +66,13 @@ function ProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const act = async (action: string) => {
     if (!taskId) return
     if (action === 'transfer' && !transferTo) return message.error('请选择转交接收人')
+    if (action === 'return' && !returnTo) return message.error('请选择退回的目标节点')
     setBusy(true)
     try {
       await workflowApi.act(taskId, {
         action, opinion,
         transfer_to: action === 'transfer' ? (Array.isArray(transferTo) ? transferTo[0] : transferTo) as string : undefined,
+        to_node_id: action === 'return' ? returnTo : undefined,
       })
       message.success('已处理'); onDone(); onClose()
     } finally { setBusy(false) }
@@ -103,6 +106,15 @@ function ProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                   <Button loading={busy} onClick={() => act('transfer')}>转交</Button>
                 </Space>
               </div>
+              {(detail.approval_nodes?.length ?? 0) > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <Space>
+                    <Select style={{ width: 220 }} placeholder="退回到审批节点" value={returnTo} onChange={setReturnTo}
+                      options={(detail.approval_nodes || []).map((n) => ({ label: n.name, value: n.id }))} />
+                    <Button loading={busy} onClick={() => act('return')}>退回</Button>
+                  </Space>
+                </div>
+              )}
             </>
           )}
         </>
@@ -150,7 +162,7 @@ function DoneTab({ active }: { active: boolean }) {
   useEffect(() => { if (active) load() }, [active, load])
   const cols = [
     { title: '标题', dataIndex: 'title', render: (v: string) => v || '—' },
-    { title: '我的处理', dataIndex: 'status', render: (s: string) => <Tag color={s === 'approved' ? 'green' : s === 'rejected' ? 'red' : 'default'}>{s === 'approved' ? '已通过' : s === 'rejected' ? '已驳回' : s}</Tag> },
+    { title: '我的处理', dataIndex: 'status', render: (s: string) => <Tag color={s === 'approved' ? 'green' : s === 'rejected' ? 'red' : s === 'returned' ? 'orange' : 'default'}>{s === 'approved' ? '已通过' : s === 'rejected' ? '已驳回' : s === 'returned' ? '已退回' : s}</Tag> },
     { title: '处理时间', dataIndex: 'action_at', render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—') },
     { title: '操作', key: 'op', width: 90, render: (_: unknown, r: WfTodoItem) => <Button size="small" onClick={() => openWith(r.process_instance_id)}>查看</Button> },
   ]

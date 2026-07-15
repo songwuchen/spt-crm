@@ -247,7 +247,7 @@ class WorkflowEngine:
     # ---------- 审批动作 ----------
 
     async def act(self, task_id: str, actor: dict, action: str, opinion: str | None = None,
-                  transfer_to: str | None = None) -> None:
+                  transfer_to: str | None = None, return_to: str | None = None) -> None:
         task = (await self.db.execute(
             select(WfTaskInstance).where(
                 WfTaskInstance.id == task_id, WfTaskInstance.tenant_id == self.tenant_id,
@@ -297,6 +297,20 @@ class WorkflowEngine:
             await self.db.commit()
             return
 
+        if action == "return":
+            # 退回到指定审批节点：作废当前待办/节点，重新激活目标节点，流程仍进行中
+            target = self._nodes_by_id(version).get(return_to or "")
+            if not target or target.get("type") != "approval":
+                raise BusinessException(code=VALIDATION_ERROR, message="退回目标必须是有效的审批节点")
+            task.status = "returned"
+            task.opinion = opinion
+            task.action_at = _now()
+            task.version += 1
+            self._log(inst.id, task.node_instance_id, task.id, actor, "return", opinion)
+            await self._return_to_node(inst, version, target, ctx)
+            await self.db.commit()
+            return
+
         task.status = "approved" if action == "approve" else "rejected"
         task.opinion = opinion
         task.action_at = _now()
@@ -341,6 +355,24 @@ class WorkflowEngine:
             ni.completed_at = _now()
             await self.db.flush()
             await self._advance(inst, version, ni.node_def_id, ctx)
+
+    async def _return_to_node(self, inst, version, target: dict, ctx) -> None:
+        """退回：作废所有未处理待办与进行中的节点实例，然后重新激活目标审批节点。"""
+        tasks = (await self.db.execute(select(WfTaskInstance).where(
+            WfTaskInstance.process_instance_id == inst.id,
+            WfTaskInstance.status.in_(["pending", "waiting"]),
+        ))).scalars().all()
+        for t in tasks:
+            t.status = "cancelled"
+        nis = (await self.db.execute(select(WfNodeInstance).where(
+            WfNodeInstance.process_instance_id == inst.id,
+            WfNodeInstance.status == "running",
+        ))).scalars().all()
+        for ni in nis:
+            ni.status = "cancelled"
+        await self.db.flush()
+        # 重新激活目标节点（会重新解析审批人并建待办）
+        await self._activate_node(inst, version, target, ctx)
 
     async def _reject_flow(self, inst) -> None:
         # 作废所有未处理待办,流程置驳回

@@ -234,6 +234,7 @@ export interface WfInstanceDetail {
   timeline: WfTimelineItem[]
   tasks: { id: string; assignee_id: string; status: string; opinion?: string; task_order: number }[]
   comments: { user_id: string; user_name?: string; content: string; at?: string }[]
+  approval_nodes?: { id: string; name: string }[]  // 可退回的审批节点(退回选择)
 }
 
 // ===== 仪表盘 =====

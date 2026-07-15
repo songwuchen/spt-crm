@@ -31,7 +31,7 @@ export const workflowApi = {
     client.get<unknown, ApiResponse<PageData<{ id: string; title?: string; business_no?: string; status: string; form_instance_id?: string; created_at?: string }>>>('/api/v1/lc/wf/instances/mine', { params }),
   instance: (id: string) =>
     client.get<unknown, ApiResponse<WfInstanceDetail>>(`/api/v1/lc/wf/instances/${id}`),
-  act: (taskId: string, data: { action: string; opinion?: string; transfer_to?: string }) =>
+  act: (taskId: string, data: { action: string; opinion?: string; transfer_to?: string; to_node_id?: string }) =>
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/tasks/${taskId}/act`, data),
   withdraw: (instanceId: string) =>
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/instances/${instanceId}/withdraw`),

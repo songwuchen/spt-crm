@@ -222,7 +222,7 @@ async def list_todo(db, tenant_id, user_id, page_no, page_size):
 
 async def list_done(db, tenant_id, user_id, page_no, page_size):
     conds = [WfTaskInstance.tenant_id == tenant_id, WfTaskInstance.assignee_id == user_id,
-             WfTaskInstance.status.in_(["approved", "rejected", "transferred"])]
+             WfTaskInstance.status.in_(["approved", "rejected", "transferred", "returned"])]
     total = (await db.execute(select(func.count()).select_from(WfTaskInstance).where(*conds))).scalar_one()
     tasks = (await db.execute(select(WfTaskInstance).where(*conds)
              .order_by(WfTaskInstance.action_at.desc())
@@ -367,8 +367,14 @@ async def get_instance_detail(db, tenant_id, instance_id) -> dict:
     comments = (await db.execute(select(WfProcessComment).where(
         WfProcessComment.process_instance_id == instance_id,
     ).order_by(WfProcessComment.created_at.asc()))).scalars().all()
+    version = await db.get(WfProcessDefinitionVersion, inst.process_version_id)
+    approval_nodes = [
+        {"id": n.get("id"), "name": n.get("name") or "审批"}
+        for n in (version.node_definitions if version else []) if n.get("type") == "approval"
+    ]
     return {
         **_inst_dict(inst),
+        "approval_nodes": approval_nodes,
         "timeline": [{
             "action": l.action, "actor_id": l.actor_id, "actor_name": l.actor_name,
             "opinion": l.opinion, "at": l.created_at.isoformat() if l.created_at else None,
