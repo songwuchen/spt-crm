@@ -109,7 +109,10 @@ async def list_templates(
     name: str | None = None, published_only: bool = False,
     category: str | None = None,
 ) -> tuple[list[FormTemplate], int]:
-    conds = [FormTemplate.tenant_id == tenant_id, FormTemplate.is_deleted == False]  # noqa: E712
+    # 排除实体扩展字段的系统模板(is_system)：它们只用于定义业务实体表单的扩展字段，
+    # 由「字段管理」维护，不应作为独立表单出现在表单中心/被独立填报。
+    conds = [FormTemplate.tenant_id == tenant_id, FormTemplate.is_deleted == False,  # noqa: E712
+             FormTemplate.is_system == False]  # noqa: E712
     if name:
         conds.append(FormTemplate.name.ilike(f"%{name}%"))
     if category:
@@ -346,6 +349,10 @@ def _extract_amount(form_data: dict, field_defs: list[dict]) -> Decimal | None:
 async def create_instance(
     db: AsyncSession, tenant_id: str, data: schemas.FormInstanceCreate, user: dict
 ) -> FormInstance:
+    tpl = await get_template(db, tenant_id, data.template_id)
+    if tpl.is_system:
+        # 实体扩展字段模板只用于业务实体表单的扩展字段，不能作为独立表单填报(否则产生孤立数据)。
+        raise BusinessException(code=BUSINESS_ERROR, message="实体扩展字段模板仅用于业务表单，不能独立填报")
     published = await _get_published_version(db, tenant_id, data.template_id)
     if not published:
         raise BusinessException(code=VALIDATION_ERROR, message="该表单模板尚未发布，无法填报")
