@@ -3,6 +3,7 @@ import client from './client'
 import type { ApiResponse, PageData } from './types'
 import type {
   FieldDefinition, FormRule, FormTemplate, FormVersion, FormInstance, FormInstanceDetail,
+  BuiltinTemplate,
 } from '@/types/lowcode'
 
 export interface SaveDesignPayload {
@@ -23,6 +24,12 @@ export const lowcodeApi = {
     client.put<unknown, ApiResponse<FormTemplate>>(`/api/v1/lc/form-templates/${id}`, data),
   deleteTemplate: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/lc/form-templates/${id}`),
+
+  // ---- 模板市场(内置模板库) ----
+  listBuiltins: () =>
+    client.get<unknown, ApiResponse<BuiltinTemplate[]>>('/api/v1/lc/builtin-templates'),
+  installBuiltin: (key: string) =>
+    client.post<unknown, ApiResponse<FormTemplate>>(`/api/v1/lc/builtin-templates/${key}/install`),
 
   // ---- 设计 / 版本 / 发布 ----
   loadDesign: (id: string) =>

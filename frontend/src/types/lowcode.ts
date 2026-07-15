@@ -104,6 +104,15 @@ export interface FormTemplate {
   entity_type?: string
 }
 
+export interface BuiltinTemplate {
+  key: string
+  name: string
+  category?: string
+  icon?: string
+  description?: string
+  field_count: number
+}
+
 export interface FormVersion {
   id: string
   template_id: string

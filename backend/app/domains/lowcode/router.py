@@ -65,6 +65,27 @@ async def create_form_template(
     return ok(_tpl_dict(tpl))
 
 
+@router.get("/builtin-templates")
+async def list_builtin_templates(
+    _user=Depends(require_permissions("form:manage")),
+):
+    """模板市场: 列出可一键安装的内置表单模板。"""
+    from app.domains.lowcode.builtin_templates import list_builtin
+    return ok(list_builtin())
+
+
+@router.post("/builtin-templates/{key}/install")
+async def install_builtin_template(
+    key: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_permissions("form:manage")),
+):
+    """从模板市场安装内置模板为本租户草稿表单，返回新模板(可继续设计/发布)。"""
+    tpl = await service.install_builtin_template(db, tenant_id, key, user)
+    return ok(_tpl_dict(tpl))
+
+
 @router.get("/form-templates/{template_id}")
 async def get_form_template(
     template_id: str,

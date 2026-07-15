@@ -2,11 +2,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Card, Table, Button, Space, Tag, Modal, Form, Input, message, Popconfirm, Typography,
+  Card, Table, Button, Space, Tag, Modal, Form, Input, message, Popconfirm, Typography, List, Empty,
 } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined, AppstoreAddOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
-import type { FormTemplate } from '@/types/lowcode'
+import type { FormTemplate, BuiltinTemplate } from '@/types/lowcode'
 
 const { Title } = Typography
 
@@ -24,6 +24,26 @@ export default function FormTemplateList() {
   const [pageNo, setPageNo] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
   const [form] = Form.useForm()
+  const [marketOpen, setMarketOpen] = useState(false)
+  const [builtins, setBuiltins] = useState<BuiltinTemplate[]>([])
+  const [installingKey, setInstallingKey] = useState<string | null>(null)
+
+  const openMarket = async () => {
+    setMarketOpen(true)
+    if (builtins.length === 0) {
+      try { const res = await lowcodeApi.listBuiltins(); setBuiltins(res.data || []) } catch { /* ignore */ }
+    }
+  }
+
+  const handleInstall = async (key: string) => {
+    setInstallingKey(key)
+    try {
+      const res = await lowcodeApi.installBuiltin(key)
+      message.success('已安装到表单中心，去设计')
+      setMarketOpen(false)
+      nav(`/lowcode/forms/${res.data.id}/design`)
+    } catch { message.error('安装失败') } finally { setInstallingKey(null) }
+  }
 
   const load = async () => {
     setLoading(true)
@@ -83,7 +103,10 @@ export default function FormTemplateList() {
     <Card>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>表单中心</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建表单</Button>
+        <Space>
+          <Button icon={<AppstoreAddOutlined />} onClick={openMarket}>从模板库新建</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建表单</Button>
+        </Space>
       </div>
       <Table
         rowKey="id" loading={loading} columns={columns} dataSource={items}
@@ -102,6 +125,28 @@ export default function FormTemplateList() {
             <Input.TextArea rows={2} placeholder="可选" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal title="模板市场 · 一键安装" open={marketOpen} footer={null} onCancel={() => setMarketOpen(false)} width={640}>
+        {builtins.length === 0 ? <Empty description="暂无内置模板" /> : (
+          <List
+            itemLayout="horizontal"
+            dataSource={builtins}
+            renderItem={(b) => (
+              <List.Item
+                actions={[
+                  <Button key="install" type="primary" size="small" loading={installingKey === b.key}
+                    onClick={() => handleInstall(b.key)}>安装</Button>,
+                ]}
+              >
+                <List.Item.Meta
+                  title={<Space>{b.name}{b.category && <Tag>{b.category}</Tag>}<span className="text-xs text-slate-400">{b.field_count} 个字段</span></Space>}
+                  description={b.description}
+                />
+              </List.Item>
+            )}
+          />
+        )}
       </Modal>
     </Card>
   )

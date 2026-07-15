@@ -53,6 +53,35 @@ async def create_template(
     return tpl
 
 
+async def install_builtin_template(
+    db: AsyncSession, tenant_id: str, key: str, user: dict
+) -> FormTemplate:
+    """从内置模板库安装一个模板为本租户草稿表单（含字段的 v1 草稿版本），返回新模板。"""
+    from app.domains.lowcode.builtin_templates import get_builtin
+    bt = get_builtin(key)
+    if not bt:
+        raise BusinessException(code=NOT_FOUND, message="内置模板不存在")
+    code = f"BLT_{key.upper()}_{generate_uuid()[:6].upper()}"
+    tpl = FormTemplate(
+        id=generate_uuid(), tenant_id=tenant_id,
+        name=bt["name"], code=code, description=bt.get("description"),
+        category=bt.get("category"), icon=bt.get("icon"),
+        status="draft", current_version=0, created_by=user.get("sub"),
+    )
+    db.add(tpl)
+    await db.flush()
+    version = FormTemplateVersion(
+        id=generate_uuid(), tenant_id=tenant_id, template_id=tpl.id,
+        version_number=1, field_definitions=bt["field_definitions"],
+        layout_definition={}, rule_definitions=bt.get("rule_definitions", []),
+        status="draft",
+    )
+    db.add(version)
+    await db.commit()
+    await db.refresh(tpl)
+    return tpl
+
+
 async def get_template(db: AsyncSession, tenant_id: str, template_id: str) -> FormTemplate:
     tpl = (await db.execute(
         select(FormTemplate).where(
