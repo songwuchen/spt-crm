@@ -36,6 +36,10 @@ export const workflowApi = {
   withdraw: (instanceId: string) =>
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/instances/${instanceId}/withdraw`),
 
+  // 业务类型审批流的业务字段目录(业务流无表单时用于条件分支/字段选择)
+  bizFields: (bizType: string) =>
+    client.get<unknown, ApiResponse<{ id: string; label: string; type: string }[]>>(`/api/v1/lc/wf/biz-fields/${bizType}`),
+
   // 代理审批（委托）
   listAgents: () =>
     client.get<unknown, ApiResponse<WfAgent[]>>('/api/v1/lc/wf/agents'),

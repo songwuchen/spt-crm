@@ -200,8 +200,17 @@ async def start_for_biz(
     version = await _published_version(db, tenant_id, d.id)
     if not version:
         return None
+    # 业务流没有表单：载入业务实体字段(金额/优先级/来源...)作为条件上下文，
+    # 让连线条件能按业务字段分支(与业务字段目录、旧审批 _build_policy_context 一致)。
+    ctx = form_data
+    if ctx is None:
+        try:
+            from app.domains.approval.service import _build_policy_context
+            ctx = await _build_policy_context(db, tenant_id, biz_type, biz_id)
+        except Exception:
+            ctx = {}
     return await WorkflowEngine(db, tenant_id).submit(
-        d.id, version, user, biz_type=biz_type, biz_id=biz_id, title=title, form_data=form_data or {},
+        d.id, version, user, biz_type=biz_type, biz_id=biz_id, title=title, form_data=ctx or {},
     )
 
 

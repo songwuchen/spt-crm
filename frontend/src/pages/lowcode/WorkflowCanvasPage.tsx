@@ -98,6 +98,9 @@ function DesignerInner() {
         setName(def.data.name)
         if (def.data.form_template_id) {
           try { const v = await lowcodeApi.publishedVersion(def.data.form_template_id); setFormFields((v.data.field_definitions as FieldDefinition[]) || []) } catch { /* 未发布 */ }
+        } else if (def.data.biz_type) {
+          // 绑定业务类型的审批流没有表单：用业务字段目录填充条件分支/字段选择
+          try { const r = await workflowApi.bizFields(def.data.biz_type); setFormFields((r.data as unknown as FieldDefinition[]) || []) } catch { /* 无目录 */ }
         }
         const design = await workflowApi.loadDesign(id)
         let nodes = (design.data.node_definitions || []) as WfNode[]

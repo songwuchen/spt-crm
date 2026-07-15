@@ -1,7 +1,8 @@
 // 人员选择字段(person / person_multi)。值为用户 id(单)或 id 数组(多)。
 import { useEffect, useState } from 'react'
 import { Select, Spin } from 'antd'
-import { userApi } from '@/api/user'
+import client from '@/api/client'
+import type { ApiResponse } from '@/api/types'
 
 interface UserOpt { label: string; value: string }
 
@@ -13,12 +14,14 @@ let inflight: Promise<UserOpt[]> | null = null
 async function loadUsers(): Promise<UserOpt[]> {
   if (cache && Date.now() - cache.ts < TTL) return cache.opts
   if (inflight) return inflight
-  inflight = userApi.list({ pageNo: 1, pageSize: 100 }).then((res) => {
-    const opts = res.data.items.map((u) => ({ label: u.real_name || u.username, value: u.id }))
-    cache = { opts, ts: Date.now() }
-    inflight = null
-    return opts
-  }).catch(() => { inflight = null; return [] })
+  // 仅需登录即可访问的选择器接口(原 admin 接口需 user:view,非管理员选不了人)
+  inflight = client.get<unknown, ApiResponse<{ id: string; name: string }[]>>('/api/v1/lc/pickable-users')
+    .then((res) => {
+      const opts = (res.data || []).map((u) => ({ label: u.name, value: u.id }))
+      cache = { opts, ts: Date.now() }
+      inflight = null
+      return opts
+    }).catch(() => { inflight = null; return [] })
   return inflight
 }
 

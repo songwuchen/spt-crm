@@ -132,6 +132,13 @@ async def withdraw(instance_id: str, tenant_id: str = Depends(get_tenant_id),
     return ok(None)
 
 
+@router.get("/biz-fields/{biz_type}")
+async def biz_fields(biz_type: str, _u=Depends(get_current_user)):
+    """业务类型审批流的可用业务字段(供条件分支/字段选择;业务流无表单时使用)。"""
+    from app.domains.lowcode.biz_field_catalog import get_catalog
+    return ok(get_catalog(biz_type))
+
+
 # ==================== 代理审批(委托) ====================
 
 @router.get("/agents")

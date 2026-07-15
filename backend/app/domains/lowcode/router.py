@@ -5,6 +5,7 @@
 - 表单数据填报/查看: form_data:view / form_data:create / form_data:edit / form_data:delete
 """
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions, get_data_scope
@@ -18,6 +19,38 @@ router = APIRouter(prefix="/api/v1/lc", tags=["扩展平台-表单引擎"])
 
 # 允许配置扩展字段的既有业务实体
 ENTITY_TYPES = {"customer", "project", "lead", "contact", "service_ticket", "order", "contract", "quote", "payment"}
+
+
+# ==================== 人员/部门选择器(任意登录用户可用) ====================
+# 表单人员/部门字段、审批人指定人员等选择器都需要用户/部门列表；原先走 admin 接口
+# (需 user:view / dept:view),导致非管理员选不了人/部门。这里提供仅需登录的轻量选择接口。
+
+@router.get("/pickable-users")
+async def pickable_users(
+    keyword: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    from app.domains.auth.models import User
+    q = select(User.id, User.real_name, User.username).where(
+        User.tenant_id == tenant_id, User.is_active == True,  # noqa: E712
+    )
+    if keyword:
+        like = f"%{keyword}%"
+        q = q.where(or_(User.real_name.ilike(like), User.username.ilike(like)))
+    rows = (await db.execute(q.order_by(User.real_name).limit(500))).all()
+    return ok([{"id": r[0], "name": r[1] or r[2]} for r in rows])
+
+
+@router.get("/pickable-departments")
+async def pickable_departments(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    from app.domains.organization.service import get_department_tree
+    return ok(await get_department_tree(db, tenant_id))
 
 
 # ==================== 模板序列化 ====================

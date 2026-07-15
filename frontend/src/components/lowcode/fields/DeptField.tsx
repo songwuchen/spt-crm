@@ -1,8 +1,8 @@
 // 部门选择字段(department / department_multi)。值为部门 id(单)或 id 数组(多)。
 import { useEffect, useState } from 'react'
 import { TreeSelect } from 'antd'
-import { departmentApi } from '@/api/department'
-import type { Department } from '@/api/types'
+import client from '@/api/client'
+import type { ApiResponse, Department } from '@/api/types'
 
 interface TreeNode { title: string; value: string; children?: TreeNode[] }
 interface DeptCache { tree: TreeNode[]; names: Record<string, string>; ts: number }
@@ -21,7 +21,8 @@ function build(nodes: Department[], names: Record<string, string>): TreeNode[] {
 async function loadTree(): Promise<DeptCache> {
   if (cache && Date.now() - cache.ts < TTL) return cache
   if (inflight) return inflight
-  inflight = departmentApi.tree().then((res) => {
+  // 仅需登录即可访问(原 admin 接口需 dept:view,非管理员选不了部门)
+  inflight = client.get<unknown, ApiResponse<Department[]>>('/api/v1/lc/pickable-departments').then((res) => {
     const names: Record<string, string> = {}
     const tree = build((res.data as Department[]) || [], names)
     cache = { tree, names, ts: Date.now() }
