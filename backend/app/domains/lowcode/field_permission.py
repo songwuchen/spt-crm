@@ -85,3 +85,23 @@ def sanitize_write(
         else:
             result.pop(fid, None)
     return result
+
+
+# ===== 实体扩展字段(custom_fields_json)的字段级权限 =====
+# 业务实体(客户/商机/...)的扩展字段值存业务表 custom_fields_json，字段定义取自实体系统模板。
+# 下面两个 async 助手在业务读写路径调用；无权限配置时快路径原样返回，接近零开销。
+
+async def _entity_field_defs(db, tenant_id: str, entity_type: str) -> list[dict[str, Any]]:
+    from app.domains.lowcode.service import get_entity_fields  # 延迟导入避免循环
+    return await get_entity_fields(db, tenant_id, entity_type)
+
+
+async def sanitize_entity_write(db, tenant_id: str, entity_type: str, incoming: Any, prior: Any, user_roles) -> Any:
+    """丢弃用户对不可编辑/隐藏扩展字段的写入，保留原值（写入路径，后端权威边界）。
+    注意：实体扩展字段的读取隐藏目前仅前端 UX 强制，后端读取裁剪为后续项。"""
+    if incoming is None or not isinstance(incoming, dict):
+        return incoming
+    defs = await _entity_field_defs(db, tenant_id, entity_type)
+    if not has_any_field_permission(defs):
+        return incoming
+    return sanitize_write(incoming, prior if isinstance(prior, dict) else None, defs, user_roles)

@@ -196,6 +196,10 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     payload = data.model_dump()
     products = data.products  # 产品明细单独处理，不能 setattr 到模型
     payload.pop("products", None)
+    # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
+    from app.domains.lowcode.field_permission import sanitize_entity_write
+    payload["custom_fields_json"] = await sanitize_entity_write(
+        db, tenant_id, "lead", payload.get("custom_fields_json"), None, user.get("roles"))
     # If user picked an owner in the form, look up that user's name; otherwise fall back to creator.
     chosen_owner_id = payload.pop("owner_id", None)
     if chosen_owner_id:
@@ -260,6 +264,11 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     payload = data.model_dump(exclude_unset=True)
     products_given = "products" in payload
     payload.pop("products", None)  # 产品明细单独处理
+    # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    if "custom_fields_json" in payload:
+        from app.domains.lowcode.field_permission import sanitize_entity_write
+        payload["custom_fields_json"] = await sanitize_entity_write(
+            db, tenant_id, "lead", payload["custom_fields_json"], lead.custom_fields_json, user.get("roles"))
     # 审核门禁：未通过审核的线索不可经编辑直接置为「已转化」(移动端转化走 update)
     if payload.get("status") == "qualified" and getattr(lead, "review_status", "approved") != "approved":
         from app.common.error_codes import VALIDATION_ERROR

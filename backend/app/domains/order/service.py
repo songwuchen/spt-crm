@@ -82,6 +82,10 @@ async def get_order(db: AsyncSession, tenant_id: str, order_id: str) -> Order:
 
 async def create_order(db: AsyncSession, tenant_id: str, data: OrderCreate, user: dict) -> Order:
     payload = data.model_dump()
+    # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
+    from app.domains.lowcode.field_permission import sanitize_entity_write
+    payload["custom_fields_json"] = await sanitize_entity_write(
+        db, tenant_id, "order", payload.get("custom_fields_json"), None, user.get("roles"))
     lines = payload.pop("lines", None)
     chosen_owner_id = payload.pop("owner_id", None)
     if chosen_owner_id:
@@ -144,6 +148,11 @@ async def create_order(db: AsyncSession, tenant_id: str, data: OrderCreate, user
 async def update_order(db: AsyncSession, tenant_id: str, order_id: str, data: OrderUpdate, user: dict) -> Order:
     order = await get_order(db, tenant_id, order_id)
     dump = data.model_dump(exclude_unset=True)
+    # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    if "custom_fields_json" in dump:
+        from app.domains.lowcode.field_permission import sanitize_entity_write
+        dump["custom_fields_json"] = await sanitize_entity_write(
+            db, tenant_id, "order", dump["custom_fields_json"], order.custom_fields_json, user.get("roles"))
     lines_given = "lines" in dump
     dump.pop("lines", None)  # 明细单独处理，不能 setattr 到模型
     old_status = order.status

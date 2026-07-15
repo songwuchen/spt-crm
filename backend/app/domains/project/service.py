@@ -237,6 +237,10 @@ async def get_project(db: AsyncSession, tenant_id: str, project_id: str) -> Oppo
 async def create_project(db: AsyncSession, tenant_id: str, data: ProjectCreate, user: dict) -> OpportunityProject:
     actor_name = user.get("real_name") or user.get("username")
     payload = data.model_dump()
+    # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
+    from app.domains.lowcode.field_permission import sanitize_entity_write
+    payload["custom_fields_json"] = await sanitize_entity_write(
+        db, tenant_id, "project", payload.get("custom_fields_json"), None, user.get("roles"))
     # 创建时负责人默认 = 录入人（之后可由主管经 transfer_owner 转移）；
     # 若显式指定 owner_id（如批量导入按姓名指派），则查该用户名回填 owner_name
     chosen_owner_id = payload.pop("owner_id", None)
@@ -269,6 +273,11 @@ async def create_project(db: AsyncSession, tenant_id: str, data: ProjectCreate, 
 async def update_project(db: AsyncSession, tenant_id: str, project_id: str, data: ProjectUpdate, user: dict) -> OpportunityProject:
     project = await get_project(db, tenant_id, project_id)
     update_data = data.model_dump(exclude_unset=True)
+    # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    if "custom_fields_json" in update_data:
+        from app.domains.lowcode.field_permission import sanitize_entity_write
+        update_data["custom_fields_json"] = await sanitize_entity_write(
+            db, tenant_id, "project", update_data["custom_fields_json"], project.custom_fields_json, user.get("roles"))
 
     # Validate won/lost transition
     new_status = update_data.get("status")

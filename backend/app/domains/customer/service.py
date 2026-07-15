@@ -65,6 +65,10 @@ async def get_customer(db: AsyncSession, tenant_id: str, customer_id: str) -> Cu
 
 async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate, user: dict) -> Customer:
     dump = data.model_dump()
+    # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
+    from app.domains.lowcode.field_permission import sanitize_entity_write
+    dump["custom_fields_json"] = await sanitize_entity_write(
+        db, tenant_id, "customer", dump.get("custom_fields_json"), None, user.get("roles"))
     if not dump.get("customer_code"):
         dump["customer_code"] = await generate_code(db, tenant_id, "customer")
     # Resolve owner_name from owner_id if provided; default to creator
@@ -100,6 +104,11 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
 async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, data: CustomerUpdate, user: dict) -> Customer:
     customer = await get_customer(db, tenant_id, customer_id)
     update_data = data.model_dump(exclude_unset=True)
+    # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    if "custom_fields_json" in update_data:
+        from app.domains.lowcode.field_permission import sanitize_entity_write
+        update_data["custom_fields_json"] = await sanitize_entity_write(
+            db, tenant_id, "customer", update_data["custom_fields_json"], customer.custom_fields_json, user.get("roles"))
     # Resolve owner_name when owner_id changes
     reassigned_to = None
     if "owner_id" in update_data:
@@ -343,9 +352,14 @@ async def create_contact(db: AsyncSession, tenant_id: str, customer_id: str, dat
     # Verify customer exists
     await get_customer(db, tenant_id, customer_id)
 
+    dump = data.model_dump()
+    # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
+    from app.domains.lowcode.field_permission import sanitize_entity_write
+    dump["custom_fields_json"] = await sanitize_entity_write(
+        db, tenant_id, "contact", dump.get("custom_fields_json"), None, user.get("roles"))
     contact = Contact(
         id=generate_uuid(), tenant_id=tenant_id,
-        customer_id=customer_id, **data.model_dump(),
+        customer_id=customer_id, **dump,
     )
     db.add(contact)
     await db.commit()
@@ -364,7 +378,13 @@ async def update_contact(db: AsyncSession, tenant_id: str, contact_id: str, data
     if not contact:
         raise BusinessException(code=NOT_FOUND, message="联系人不存在")
 
-    for field, val in data.model_dump(exclude_unset=True).items():
+    _dump = data.model_dump(exclude_unset=True)
+    # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    if "custom_fields_json" in _dump:
+        from app.domains.lowcode.field_permission import sanitize_entity_write
+        _dump["custom_fields_json"] = await sanitize_entity_write(
+            db, tenant_id, "contact", _dump["custom_fields_json"], contact.custom_fields_json, user.get("roles"))
+    for field, val in _dump.items():
         setattr(contact, field, val)
     await db.commit()
     await db.refresh(contact)
