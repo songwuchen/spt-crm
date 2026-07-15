@@ -158,10 +158,9 @@ jobs:
             docker compose up -d
 
             # 4) Guard: fail the deploy loudly if the schema is not at head.
-            CUR=\$(docker compose exec -T backend alembic current 2>/dev/null | grep -oE '[0-9a-f]{12}' | head -1)
-            HEAD=\$(docker compose exec -T backend alembic heads 2>/dev/null | grep -oE '[0-9a-f]{12}' | head -1)
-            echo \"alembic current=\$CUR head=\$HEAD\"
-            { [ -n \"\$HEAD\" ] && [ \"\$CUR\" = \"\$HEAD\" ]; } || { echo 'DB migration drift: current != head'; exit 1; }
+            #    Format-agnostic: 'alembic current' 在处于最新版本时会标注 '(head)',
+            #    不再用 [0-9a-f]{12} 正则(会误判非纯 hex 的 revision id,如 lc00... 前缀)。
+            docker compose exec -T backend alembic current 2>/dev/null | grep -q '(head)' || { echo 'DB migration drift: DB not at head'; docker compose exec -T backend alembic current; exit 1; }
 
             # 5) Seed idempotent reference data (permissions, demo tenant, etc.).
             docker compose exec -T backend python -m scripts.seed
