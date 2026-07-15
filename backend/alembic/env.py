@@ -16,7 +16,7 @@ from app.database import Base, TenantScopedBase, PlatformBase
 # Import all models so they are registered on Base.metadata
 from app.domains.auth.models import User, Role, Permission, UserRole, RolePermission
 from app.domains.tenant.models import PlatformTenant
-from app.domains.organization.models import Department, UserDepartment
+from app.domains.organization.models import Department, UserDepartment, Post, UserPost, UserAgent
 from app.domains.customer.models import Customer, Contact, CustomerRelation, AclShare
 from app.domains.lead.models import Lead
 from app.domains.attachment.models import Attachment, AttachmentLink
@@ -41,6 +41,15 @@ from app.domains.admin.models import (
     StageDefinition, MarginPolicy, TenantAiPolicy, TenantAiBudget,
     IntegrationEndpoint, WebhookSubscription,
 )
+from app.domains.lowcode.models import (
+    FormTemplate, FormTemplateVersion, FormInstance,
+    FormInstanceDetailRow, SerialCounter,
+)
+from app.domains.lowcode.workflow_models import (
+    WfProcessDefinition, WfProcessDefinitionVersion, WfProcessInstance,
+    WfNodeInstance, WfTaskInstance, WfTaskActionLog, WfProcessComment, WfProcessCc,
+)
+from app.domains.lowcode.dashboard_models import Dashboard
 
 config = context.config
 if config.config_file_name is not None:

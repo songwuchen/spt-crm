@@ -36,6 +36,16 @@ const SettingsPage = lazy(() => import('@/pages/admin/settings/SettingsPage'))
 const AnalyticsPage = lazy(() => import('@/pages/analytics/AnalyticsPage'))
 const SalesTargetPage = lazy(() => import('@/pages/analytics/SalesTargetPage'))
 const ApprovalCenter = lazy(() => import('@/pages/approval/ApprovalCenter'))
+const FormTemplateList = lazy(() => import('@/pages/lowcode/FormTemplateList'))
+const FormDesignerPage = lazy(() => import('@/pages/lowcode/FormDesignerPage'))
+const FormFillPage = lazy(() => import('@/pages/lowcode/FormFillPage'))
+const FormDataListPage = lazy(() => import('@/pages/lowcode/FormDataListPage'))
+const WorkflowList = lazy(() => import('@/pages/lowcode/WorkflowList'))
+const WorkflowDesignerPage = lazy(() => import('@/pages/lowcode/WorkflowCanvasPage'))
+const LcApprovalCenter = lazy(() => import('@/pages/lowcode/ApprovalCenter'))
+const LcDashboardList = lazy(() => import('@/pages/lowcode/DashboardList'))
+const LcDashboardPage = lazy(() => import('@/pages/lowcode/DashboardPage'))
+const LcEntityFieldsAdmin = lazy(() => import('@/pages/lowcode/EntityFieldsAdmin'))
 const AiCenterPage = lazy(() => import('@/pages/ai/AiCenterPage'))
 const KnowledgeBasePage = lazy(() => import('@/pages/ai/KnowledgeBasePage'))
 const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'))
@@ -136,6 +146,17 @@ export const router = createBrowserRouter([
       { path: 'leads/new', element: <Guard permission="lead:create"><LeadForm /></Guard> },
       { path: 'leads/:id', element: <Guard permission="lead:view"><LeadDetail /></Guard> },
       { path: 'leads/:id/edit', element: <Guard permission="lead:edit"><LeadForm /></Guard> },
+      // 扩展平台 · 表单中心
+      { path: 'lowcode/forms', element: <Guard permission="form:view"><FormTemplateList /></Guard> },
+      { path: 'lowcode/forms/:id/design', element: <Guard permission="form:manage"><FormDesignerPage /></Guard> },
+      { path: 'lowcode/forms/:id/fill', element: <Guard permission="form_data:create"><FormFillPage /></Guard> },
+      { path: 'lowcode/forms/:id/data', element: <Guard permission="form_data:view"><FormDataListPage /></Guard> },
+      { path: 'lowcode/workflows', element: <Guard permission="workflow:view"><WorkflowList /></Guard> },
+      { path: 'lowcode/workflows/:id/design', element: <Guard permission="workflow:manage"><WorkflowDesignerPage /></Guard> },
+      { path: 'lowcode/approvals', element: <Lazy><LcApprovalCenter /></Lazy> },
+      { path: 'lowcode/dashboards', element: <Guard permission="dashboard:view"><LcDashboardList /></Guard> },
+      { path: 'lowcode/dashboards/:id', element: <Guard permission="dashboard:view"><LcDashboardPage /></Guard> },
+      { path: 'lowcode/entity-fields', element: <Guard permission="form:manage"><LcEntityFieldsAdmin /></Guard> },
       { path: 'opportunities', element: <Guard permission="project:view"><OpportunityList /></Guard> },
       { path: 'opportunities/kanban', element: <Guard permission="project:view"><KanbanBoard /></Guard> },
       { path: 'opportunities/new', element: <Guard permission="project:create"><OpportunityForm /></Guard> },

@@ -44,6 +44,7 @@ class Lead(TenantScopedBase):
     score: Mapped[int] = mapped_column(Integer, default=0)
     converted_customer_id: Mapped[str | None] = mapped_column(String(36))
     remark: Mapped[str | None] = mapped_column(Text)
+    custom_fields_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 扩展平台自定义字段
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
 

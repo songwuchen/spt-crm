@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, Numeric, Date, Boolean, Integer
+from sqlalchemy import String, Text, Numeric, Date, Boolean, Integer, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import TenantScopedBase
@@ -13,6 +13,7 @@ class Order(TenantScopedBase):
     project_id: Mapped[str | None] = mapped_column(String(36), index=True)
     contract_id: Mapped[str | None] = mapped_column(String(36), index=True)
     title: Mapped[str | None] = mapped_column(String(300))
+    custom_fields_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 扩展平台自定义字段
     amount: Mapped[float | None] = mapped_column(Numeric(18, 2))  # 合计金额（有明细时由明细汇总）
     currency: Mapped[str | None] = mapped_column(String(8), default="CNY")
     status: Mapped[str] = mapped_column(String(16), default="draft")

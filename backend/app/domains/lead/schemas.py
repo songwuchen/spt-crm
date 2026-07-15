@@ -52,6 +52,7 @@ class LeadCreate(BaseModel):
     biz_date: Optional[date] = None
     remark: Optional[str] = Field(None, max_length=2000)
     products: Optional[List[LeadProductIn]] = None
+    custom_fields_json: Optional[dict] = None
 
     @field_validator("contact_email")
     @classmethod
@@ -92,6 +93,7 @@ class LeadUpdate(BaseModel):
     status: Optional[str] = None
     remark: Optional[str] = Field(None, max_length=2000)
     products: Optional[List[LeadProductIn]] = None
+    custom_fields_json: Optional[dict] = None
 
     @field_validator("contact_email")
     @classmethod
@@ -131,6 +133,7 @@ class LeadOut(BaseModel):
     score: int
     converted_customer_id: Optional[str] = None
     remark: Optional[str] = None
+    custom_fields_json: Optional[dict] = None
     products: List[LeadProductOut] = []
     created_at: str = ""
     updated_at: str = ""

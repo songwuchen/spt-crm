@@ -1,4 +1,6 @@
-from sqlalchemy import String, Integer, ForeignKey
+from datetime import datetime
+
+from sqlalchemy import String, Integer, ForeignKey, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import TenantScopedBase
@@ -29,3 +31,49 @@ class UserDepartment(TenantScopedBase):
 
     user: Mapped["User"] = relationship(back_populates="user_departments")
     department: Mapped["Department"] = relationship(lazy="selectin")
+
+
+# ===== 组织模型扩展(Phase 3 审批人解析) =====
+
+class Post(TenantScopedBase):
+    """岗位。支持审批人类型「指定岗位」(specified_post)。"""
+    __tablename__ = "posts"
+
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+
+    __table_args__ = (
+        Index("uq_posts_tenant_code", "tenant_id", "code", unique=True),
+    )
+
+
+class UserPost(TenantScopedBase):
+    """用户-岗位关系(多对多)。"""
+    __tablename__ = "user_posts"
+
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    post_id: Mapped[str] = mapped_column(String(36), ForeignKey("posts.id"), nullable=False)
+
+    __table_args__ = (
+        Index("ix_user_posts_user", "user_id"),
+        Index("ix_user_posts_post", "post_id"),
+    )
+
+
+class UserAgent(TenantScopedBase):
+    """代理审批: 用户在指定时间段内由代理人代为审批。"""
+    __tablename__ = "user_agents"
+
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    agent_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    __table_args__ = (
+        Index("ix_user_agents_user", "user_id"),
+        Index("ix_user_agents_agent", "agent_id"),
+    )

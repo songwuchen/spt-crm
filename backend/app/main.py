@@ -51,6 +51,9 @@ from app.common.search.router import router as search_schema_router
 from app.domains.customer.contact_router import router as contact_router
 from app.domains.openapi.router import router as openapi_router
 from app.domains.openapi.admin_router import router as openapi_admin_router
+from app.domains.lowcode.router import router as lowcode_router
+from app.domains.lowcode.workflow_router import router as lowcode_workflow_router
+from app.domains.lowcode.dashboard_router import router as lowcode_dashboard_router
 
 from app.config import settings
 from app.common.logging_config import setup_logging
@@ -174,6 +177,9 @@ app.include_router(search_schema_router)
 app.include_router(contact_router)
 app.include_router(openapi_router)
 app.include_router(openapi_admin_router)
+app.include_router(lowcode_router)
+app.include_router(lowcode_workflow_router)
+app.include_router(lowcode_dashboard_router)
 
 
 @app.post("/api/v1/frontend-errors", tags=["系统"])

@@ -80,6 +80,17 @@ export const menuGroups: MenuGroup[] = [
     ],
   },
   {
+    key: 'group:lowcode',
+    titleKey: 'nav.groupLowcode',
+    items: [
+      { key: '/lowcode/forms', icon: 'dynamic_form', labelKey: 'nav.lowcodeForms', permission: 'form:view' },
+      { key: '/lowcode/workflows', icon: 'account_tree', labelKey: 'nav.lowcodeWorkflows', permission: 'workflow:view' },
+      { key: '/lowcode/approvals', icon: 'approval', labelKey: 'nav.lowcodeApprovals' },
+      { key: '/lowcode/dashboards', icon: 'insert_chart', labelKey: 'nav.lowcodeDashboards', permission: 'dashboard:view' },
+      { key: '/lowcode/entity-fields', icon: 'tune', labelKey: 'nav.lowcodeEntityFields', permission: 'form:manage' },
+    ],
+  },
+  {
     key: 'group:system',
     titleKey: 'nav.systemGroup',
     items: [

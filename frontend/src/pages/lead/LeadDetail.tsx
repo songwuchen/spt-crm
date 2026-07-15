@@ -13,6 +13,7 @@ import ActivityTimeline from '@/components/ActivityTimeline'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { leadStatusConfig as statusConfig, leadReviewStatusConfig } from '@/constants/labels'
 import { useDataDict } from '@/hooks/useDataDict'
+import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
 const countryLabels: Record<string, string> = { domestic: '国内', overseas: '国外' }
@@ -382,6 +383,7 @@ export default function LeadDetail() {
               } />
             )}
           </div>
+          <EntityCustomFields entityType="lead" value={(lead as unknown as { custom_fields_json?: Record<string, unknown> }).custom_fields_json || {}} readOnly />
         </div>
 
         {/* Center: Tabs Content */}

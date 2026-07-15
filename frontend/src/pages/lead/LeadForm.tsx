@@ -4,6 +4,7 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { leadApi } from '@/api/lead'
+import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
@@ -30,6 +31,7 @@ export default function LeadForm() {
   const navigate = useNavigate()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
   const isEdit = !!id
   usePageTitle(isEdit ? '编辑线索' : '新建线索')
 
@@ -51,6 +53,7 @@ export default function LeadForm() {
           products: d.products || [],
         })
         setCountryType(res.data.country_type)
+        setCustomFields(d.custom_fields_json || {})
         // Seed owner option so the Select shows the name, not the raw owner_id code
         if (res.data.owner_id && res.data.owner_name) {
           userSelect.setInitialOption({ label: res.data.owner_name, value: res.data.owner_id })
@@ -70,6 +73,7 @@ export default function LeadForm() {
         ...values,
         biz_date: values.biz_date ? (values.biz_date as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
         products,
+        custom_fields_json: customFields,
       }
       if (isEdit) {
         await leadApi.update(id!, payload)
@@ -252,6 +256,8 @@ export default function LeadForm() {
               <Input.TextArea rows={3} placeholder="备注信息" />
             </Form.Item>
           </div>
+
+          <EntityCustomFields entityType="lead" value={customFields} onChange={setCustomFields} />
 
           <div className="flex gap-3 pt-4 border-t border-slate-100">
             <Button type="primary" htmlType="submit" loading={loading} className="font-bold">

@@ -42,6 +42,7 @@ class Contact(TenantScopedBase):
     is_primary: Mapped[bool] = mapped_column(default=False)
     reports_to_id: Mapped[str | None] = mapped_column(String(36))  # parent contact id
     remark: Mapped[str | None] = mapped_column(Text)
+    custom_fields_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 扩展平台自定义字段
 
 
 class CustomerRelation(TenantScopedBase):

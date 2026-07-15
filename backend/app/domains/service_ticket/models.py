@@ -11,6 +11,7 @@ class ServiceTicket(TenantScopedBase):
     project_id: Mapped[str | None] = mapped_column(String(36), index=True)
     order_id: Mapped[str | None] = mapped_column(String(36), index=True)  # 关联客户订单，快速获取产品信息
     ticket_no: Mapped[str] = mapped_column(String(64), nullable=False)
+    custom_fields_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 扩展平台自定义字段
     type: Mapped[str] = mapped_column(String(32), nullable=False)
     # fault/maintenance/training/spare/upgrade
     priority: Mapped[str] = mapped_column(String(16), default="medium")

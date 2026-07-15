@@ -142,6 +142,16 @@ async def seed():
             ("dept:manage", "管理部门", "组织"),
             ("tenant:view", "查看租户", "平台"),
             ("tenant:manage", "管理租户", "平台"),
+            # ---- 扩展平台(低代码): 表单引擎 / 流程引擎 / 仪表盘 ----
+            ("form:view", "查看表单模板", "扩展平台"),
+            ("form:manage", "设计/管理表单模板", "扩展平台"),
+            ("form_data:view", "查看表单数据", "扩展平台"),
+            ("form_data:create", "填报表单数据", "扩展平台"),
+            ("form_data:edit", "编辑表单数据", "扩展平台"),
+            ("form_data:delete", "删除表单数据", "扩展平台"),
+            ("workflow:view", "查看流程定义", "扩展平台"),
+            ("workflow:manage", "设计/管理流程定义", "扩展平台"),
+            ("dashboard:manage", "设计/管理仪表盘", "扩展平台"),
         ]
         # ---- Permissions (global, keyed by code) ----
         existing_perms = {p.code: p for p in (await db.execute(select(Permission))).scalars().all()}

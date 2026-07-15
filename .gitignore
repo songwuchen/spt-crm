@@ -54,3 +54,4 @@ uploads/
 
 # Logs
 *.log
+.playwright-mcp/
