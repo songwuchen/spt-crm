@@ -1,16 +1,26 @@
 """Excel export utilities using openpyxl."""
 
 import io
+import re
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from fastapi.responses import StreamingResponse
+
+# openpyxl rejects these chars in a sheet title (raises ValueError). Titles can be
+# user-controlled (e.g. a form/template name), so sanitize before assigning.
+_INVALID_SHEET_CHARS = re.compile(r"[\\/?*\[\]:]")
+
+
+def _safe_sheet_title(title: str) -> str:
+    cleaned = _INVALID_SHEET_CHARS.sub(" ", title or "").strip()
+    return (cleaned or "Sheet")[:31]
 
 
 def build_excel(title: str, headers: list[str], rows: list[list]) -> io.BytesIO:
     """Build an Excel workbook from headers + rows, return BytesIO."""
     wb = Workbook()
     ws = wb.active
-    ws.title = title[:31]  # Excel sheet name max 31 chars
+    ws.title = _safe_sheet_title(title)  # sanitize + Excel 31-char sheet-name limit
 
     # Header style
     header_font = Font(bold=True, color="FFFFFF", size=11)
@@ -95,7 +105,7 @@ def build_excel_multi(sheets: list[tuple[str, list[str], list[list]]]) -> io.Byt
         wb.active.title = "Sheet1"
     for idx, (title, headers, rows) in enumerate(sheets):
         ws = wb.active if idx == 0 else wb.create_sheet()
-        ws.title = (title or f"Sheet{idx + 1}")[:31]
+        ws.title = _safe_sheet_title(title or f"Sheet{idx + 1}")
         _style_sheet(ws, headers, rows)
 
     buf = io.BytesIO()

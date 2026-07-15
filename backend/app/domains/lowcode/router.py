@@ -242,6 +242,9 @@ _INST_STATUS_LABELS = {
     "completed": "已通过", "rejected": "已驳回", "withdrawn": "已撤回",
 }
 
+# 单次导出行上限(与 service.export_instances 的 clamp 上限一致);命中即在末尾追加截断提示。
+_EXPORT_ROW_CAP = 50000
+
 
 def _fmt_export_cell(field_type: str | None, value) -> str:
     """把表单字段值格式化成单元格文本（列表/子表/文件等做可读摘要）。"""
@@ -276,6 +279,7 @@ async def export_form_instances(
     """导出当前筛选下的表单数据为 Excel（列＝表单字段，含业务编号/状态/创建时间）。"""
     tpl, field_defs, rows = await service.export_instances(
         db, tenant_id, template_id, keyword=keyword, status=status, owner_ids=scope,
+        limit=_EXPORT_ROW_CAP,
     )
     data_fields = [fd for fd in field_defs if fd.get("id")]
     headers = ["业务编号", "标题", "状态", "创建时间"] + [fd.get("label") or fd.get("id") for fd in data_fields]
@@ -289,7 +293,11 @@ async def export_form_instances(
         ]
         line += [_fmt_export_cell(fd.get("type"), fd_data.get(fd.get("id"))) for fd in data_fields]
         data_rows.append(line)
-    sheet = (tpl.name if tpl else "表单数据")[:31]
+    # 命中导出上限时显式提示截断，避免用户误以为导出完整（非静默截断）。
+    if len(rows) >= _EXPORT_ROW_CAP:
+        note = [f"⚠ 数据超过导出上限 {_EXPORT_ROW_CAP} 条，已按最新时间截断，请缩小筛选范围后再导出"]
+        data_rows.append(note + [""] * (len(headers) - 1))
+    sheet = tpl.name if tpl else "表单数据"
     buf = build_excel(sheet, headers, data_rows)
     return excel_response(buf, "form_data.xlsx")
 

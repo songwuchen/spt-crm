@@ -253,12 +253,18 @@ async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data
         try:
             q = (await db.execute(select(Quote).where(Quote.id == version.quote_id, Quote.tenant_id == tenant_id))).scalar_one_or_none()
             title = f"报价审批: {q.quote_no if q else ''} V{version.version_no}"
-            # 优先新表单引擎工作流（灰度按 biz_type 切换），未绑定则回退旧引擎
-            from app.domains.lowcode.workflow_service import start_for_biz
-            pinst = await start_for_biz(db, tenant_id, "quote_version", version_id, user, title=title)
-            if pinst is None:
-                from app.domains.approval.service import auto_trigger_approval
+            from app.domains.approval.service import _check_margin_redline, auto_trigger_approval
+            # 毛利红线是报价专有的业务闸门，只存在于旧 submit_approval。触及红线时不进新引擎，
+            # 交旧引擎按红线拦截（其结果在本 try 内处理），保证灰度切换不绕过财务管控。
+            margin = await _check_margin_redline(db, tenant_id, "quote_version", version_id)
+            if margin and margin.get("action") == "block":
                 await auto_trigger_approval(db, tenant_id, "quote_version", version_id, title, user)
+            else:
+                # 优先新表单引擎工作流（灰度按 biz_type 切换），未绑定则回退旧引擎
+                from app.domains.lowcode.workflow_service import start_for_biz
+                pinst = await start_for_biz(db, tenant_id, "quote_version", version_id, user, title=title)
+                if pinst is None:
+                    await auto_trigger_approval(db, tenant_id, "quote_version", version_id, title, user)
         except Exception as e:
             logger.warning("Auto-trigger approval for quote version failed: %s", e)
 

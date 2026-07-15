@@ -110,6 +110,10 @@ def _dim_col(col: str, granularity: str | None, is_date: bool) -> str:
         return f"to_char({col}, 'YYYY')"
     if is_date and granularity == "month":
         return f"to_char({col}, 'YYYY-MM')"
+    if is_date:
+        # 日期维度无粒度时按「天」分组: 先 ::date 截断, 否则 timestamptz(如 created_at)
+        # 会按微秒各成一组, 分组无意义且被 LIMIT 随机截断。
+        return f"{col}::date::text"
     return f"{col}::text"
 
 

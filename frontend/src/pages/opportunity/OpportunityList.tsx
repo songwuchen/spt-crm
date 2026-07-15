@@ -204,8 +204,10 @@ export default function OpportunityList() {
     },
   }
 
-  // 自定义字段列(issue #64)：值存在 custom_fields_json 中，按字段类型简单格式化
-  const customColumns: ColumnsType<OpportunityProject> = customFields.map((f) => ({
+  // 自定义字段列(issue #64)：值存在 custom_fields_json 中，按字段类型简单格式化。
+  // 跳过明细子表/文件/签名/富文本等非标量类型——它们在窄列里只会渲染成 [object Object]。
+  const LIST_SKIP_TYPES = new Set(['detail_table', 'sub_table_data', 'file', 'image', 'signature', 'rich_text'])
+  const customColumns: ColumnsType<OpportunityProject> = customFields.filter((f) => !LIST_SKIP_TYPES.has(f.type)).map((f) => ({
     title: f.label, key: `cf_${f.id}`, width: 140,
     render: (_: unknown, r: OpportunityProject) => {
       const raw = (r.custom_fields_json || {})[f.id]

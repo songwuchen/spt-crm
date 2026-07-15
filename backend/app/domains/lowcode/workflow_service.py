@@ -187,6 +187,16 @@ async def start_for_biz(
     ).limit(1))).scalar_one_or_none()
     if not d:
         return None
+    # 防重: 同一业务单据已有进行中的流程时不再重复发起(对齐旧引擎 submit_approval 的
+    # 「该对象已有进行中的审批流」保护),避免重复提交产生并发重复审批。返回已存在实例。
+    existing = (await db.execute(select(WfProcessInstance).where(
+        WfProcessInstance.tenant_id == tenant_id,
+        WfProcessInstance.biz_type == biz_type,
+        WfProcessInstance.biz_id == biz_id,
+        WfProcessInstance.status == "running",
+    ).limit(1))).scalar_one_or_none()
+    if existing:
+        return existing
     version = await _published_version(db, tenant_id, d.id)
     if not version:
         return None

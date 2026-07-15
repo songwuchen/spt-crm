@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Card, Table, Button, Space, Tag, Modal, Form, Input, message, Popconfirm, Typography, List, Empty,
+  Card, Table, Button, Space, Tag, Modal, Form, Input, message, Popconfirm, Typography, List, Empty, Spin,
 } from 'antd'
 import { PlusOutlined, AppstoreAddOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
@@ -26,12 +26,21 @@ export default function FormTemplateList() {
   const [form] = Form.useForm()
   const [marketOpen, setMarketOpen] = useState(false)
   const [builtins, setBuiltins] = useState<BuiltinTemplate[]>([])
+  const [marketLoading, setMarketLoading] = useState(false)
   const [installingKey, setInstallingKey] = useState<string | null>(null)
 
   const openMarket = async () => {
     setMarketOpen(true)
     if (builtins.length === 0) {
-      try { const res = await lowcodeApi.listBuiltins(); setBuiltins(res.data || []) } catch { /* ignore */ }
+      setMarketLoading(true)
+      try {
+        const res = await lowcodeApi.listBuiltins()
+        setBuiltins(res.data || [])
+      } catch {
+        message.error('加载模板库失败')
+      } finally {
+        setMarketLoading(false)
+      }
     }
   }
 
@@ -128,7 +137,9 @@ export default function FormTemplateList() {
       </Modal>
 
       <Modal title="模板市场 · 一键安装" open={marketOpen} footer={null} onCancel={() => setMarketOpen(false)} width={640}>
-        {builtins.length === 0 ? <Empty description="暂无内置模板" /> : (
+        {marketLoading ? (
+          <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+        ) : builtins.length === 0 ? <Empty description="暂无内置模板" /> : (
           <List
             itemLayout="horizontal"
             dataSource={builtins}

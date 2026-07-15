@@ -61,7 +61,15 @@ async def install_builtin_template(
     bt = get_builtin(key)
     if not bt:
         raise BusinessException(code=NOT_FOUND, message="内置模板不存在")
+    # 保证 code 在租户内唯一(uq_lc_form_template_tenant_code),避免极小概率碰撞抛 IntegrityError。
     code = f"BLT_{key.upper()}_{generate_uuid()[:6].upper()}"
+    for _ in range(5):
+        dup = (await db.execute(select(FormTemplate.id).where(
+            FormTemplate.tenant_id == tenant_id, FormTemplate.code == code,
+        ).limit(1))).scalar_one_or_none()
+        if not dup:
+            break
+        code = f"BLT_{key.upper()}_{generate_uuid()[:8].upper()}"
     tpl = FormTemplate(
         id=generate_uuid(), tenant_id=tenant_id,
         name=bt["name"], code=code, description=bt.get("description"),
