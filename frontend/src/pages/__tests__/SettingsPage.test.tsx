@@ -36,10 +36,6 @@ vi.mock('@/api/settings', () => ({
     updateEmailTemplate: vi.fn(),
     deleteEmailTemplate: vi.fn(),
     getDocTemplate: vi.fn(),
-    listCustomFields: vi.fn(),
-    createCustomField: vi.fn(),
-    updateCustomField: vi.fn(),
-    deleteCustomField: vi.fn(),
     backupStats: vi.fn(),
     backupDownloadUrl: vi.fn(),
     auditVerify: vi.fn(),
@@ -110,7 +106,6 @@ describe('SettingsPage', () => {
     ;(settingsApi.listApprovalPolicies as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(settingsApi.listDocTemplates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(settingsApi.listEmailTemplates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
-    ;(settingsApi.listCustomFields as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(settingsApi.backupStats as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} })
     ;(settingsApi.backupDownloadUrl as ReturnType<typeof vi.fn>).mockReturnValue('/api/v1/admin/backup')
     ;(settingsApi.getPoolRules as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} })

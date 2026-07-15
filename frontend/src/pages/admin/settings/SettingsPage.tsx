@@ -99,7 +99,6 @@ interface AiBudget { id: string; period: string; budget_cost?: number; used_cost
 interface ApprovalPolicyItem { id: string; biz_type: string; name: string; condition_json?: Record<string, unknown>; approver_rules_json?: Record<string, unknown>; approval_mode: string; sla_hours?: number; escalation_json?: Record<string, unknown>[]; priority: number; enabled: boolean }
 interface DocTemplateItem { id: string; doc_type: string; name: string; description?: string; content_json?: Record<string, unknown>; is_default: boolean; created_by_name?: string; created_at: string }
 interface EmailTemplateItem { id: string; code: string; name: string; subject?: string; body_html?: string; variables_json?: unknown; enabled: boolean; created_at: string }
-interface CustomFieldItem { id: string; entity_type: string; field_key: string; field_label: string; field_type: string; options_json?: string[]; required: boolean; sort_order: number; enabled: boolean }
 
 function JsonCell({ value }: { value: unknown }) {
   if (!value) return <span className="text-slate-300">-</span>
@@ -154,18 +153,11 @@ export default function SettingsPage() {
   const [approverNameMap, setApproverNameMap] = useState<Record<string, string>>({})
   const [docTemplates, setDocTemplates] = useState<DocTemplateItem[]>([])
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplateItem[]>([])
-  const [customFields, setCustomFields] = useState<CustomFieldItem[]>([])
   const [backupStats, setBackupStats] = useState<Record<string, number>>({})
   const [backupLoading, setBackupLoading] = useState(false)
   const [auditResult, setAuditResult] = useState<{ total_checked: number; no_hash: number; tampered_count: number; tampered: { id: string; created_at: string; summary: string }[] } | null>(null)
   const [auditLoading, setAuditLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  // Custom field
-  const [cfModal, setCfModal] = useState(false)
-  const [cfEditingId, setCfEditingId] = useState<string | null>(null)
-  const defaultCfForm = { entity_type: 'customer', field_key: '', field_label: '', field_type: 'text', options_json: [] as string[], required: false, sort_order: 0, enabled: true }
-  const [cfForm, setCfForm] = useState(defaultCfForm)
 
   // Doc template
   const [dtModal, setDtModal] = useState(false)
@@ -234,7 +226,6 @@ export default function SettingsPage() {
       settingsApi.listApprovalPolicies().then((r: { data: ApprovalPolicyItem[] }) => r.data && setApprovalPolicies(r.data)),
       settingsApi.listDocTemplates().then((r: { data: DocTemplateItem[] }) => r.data && setDocTemplates(r.data)),
       settingsApi.listEmailTemplates().then((r: { data: EmailTemplateItem[] }) => r.data && setEmailTemplates(r.data)),
-      settingsApi.listCustomFields().then((r: { data: CustomFieldItem[] }) => r.data && setCustomFields(r.data)),
       settingsApi.backupStats().then((r: { data: Record<string, number> }) => r.data && setBackupStats(r.data)),
       settingsApi.getPoolRules().then((r: any) => { if (r.data && typeof r.data === 'object') setPoolRules({ enabled: false, idle_days: { A: 90, B: 60, C: 30, D: 15 }, default_idle_days: 30, ...r.data }) }),
       client.get('/api/v1/notification_templates').then((r: any) => {
@@ -396,30 +387,6 @@ export default function SettingsPage() {
     } catch { message.error('保存邮件模板失败') }
   }
 
-  const handleSaveCf = async () => {
-    try {
-      const opts = (cfForm.options_json || []).map((o) => o.trim()).filter(Boolean)
-      if ((cfForm.field_type === 'select' || cfForm.field_type === 'multiselect') && opts.length === 0) {
-        message.error('单选/多选字段请至少添加一个选项'); return
-      }
-      const payload = { ...cfForm, options_json: opts.length ? opts : null }
-      if (cfEditingId) {
-        await settingsApi.updateCustomField(cfEditingId, payload)
-        message.success('自定义字段已更新')
-      } else {
-        await settingsApi.createCustomField(payload)
-        message.success('自定义字段已创建')
-      }
-      setCfModal(false); setCfEditingId(null); setCfForm(defaultCfForm); fetchAll()
-    } catch { message.error('保存自定义字段失败') }
-  }
-
-  const entityTypeLabels: Record<string, string> = {
-    customer: '客户', project: '商机', lead: '线索', contact: '联系人', service_ticket: '工单',
-  }
-  const fieldTypeLabels: Record<string, string> = {
-    text: '文本', number: '数字', date: '日期', select: '单选', multiselect: '多选', boolean: '开关',
-  }
 
   const openApEdit = (r: ApprovalPolicyItem) => {
     setApEditingId(r.id)
@@ -807,39 +774,6 @@ export default function SettingsPage() {
                     { title: '配置', dataIndex: 'config_json', render: (v: unknown) => <JsonCell value={v} /> },
                   ]} />
                 )}
-              </div>
-            ),
-          },
-          {
-            key: 'custom_fields', label: '自定义字段',
-            children: (
-              <div className="pb-6">
-                <div className="flex justify-end mb-3">
-                  <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => { setCfForm(defaultCfForm); setCfEditingId(null); setCfModal(true) }}>新增字段</Button>
-                </div>
-                <Table rowKey="id" dataSource={customFields} size="small" pagination={false} columns={[
-                  { title: '实体', dataIndex: 'entity_type', width: 80, render: (v: string) => entityTypeLabels[v] || v },
-                  { title: '字段Key', dataIndex: 'field_key', width: 120 },
-                  { title: '标签', dataIndex: 'field_label', width: 100 },
-                  { title: '类型', dataIndex: 'field_type', width: 80, render: (v: string) => fieldTypeLabels[v] || v },
-                  { title: '选项', dataIndex: 'options_json', render: (v: unknown) => <JsonCell value={v} /> },
-                  { title: '必填', dataIndex: 'required', width: 60, render: (v: boolean) => v ? '是' : '-' },
-                  { title: '排序', dataIndex: 'sort_order', width: 60 },
-                  { title: '启用', dataIndex: 'enabled', width: 60, render: (v: boolean) => v ? '是' : '否' },
-                  { title: '操作', key: 'actions', width: 120, render: (_: unknown, r: CustomFieldItem) => (
-                    <Space size={4}>
-                      <a onClick={() => {
-                        setCfEditingId(r.id)
-                        setCfForm({ entity_type: r.entity_type, field_key: r.field_key, field_label: r.field_label, field_type: r.field_type, options_json: Array.isArray(r.options_json) ? r.options_json : [], required: r.required, sort_order: r.sort_order, enabled: r.enabled })
-                        setCfModal(true)
-                      }} className="text-primary text-sm font-bold">编辑</a>
-                      <a className={`text-rose-500 text-sm font-bold ${deletingId === r.id ? 'opacity-50 pointer-events-none' : ''}`} onClick={async () => {
-                        setDeletingId(r.id); try { await settingsApi.deleteCustomField(r.id); message.success('已删除'); fetchAll() } catch { message.error('删除失败') } finally { setDeletingId(null) }
-                      }}>删除</a>
-                    </Space>
-                  )},
-                ]} />
-                {customFields.length === 0 && <div className="text-center py-8 text-slate-400 text-sm">暂无自定义字段</div>}
               </div>
             ),
           },
@@ -1412,52 +1346,6 @@ export default function SettingsPage() {
               测试 Webhook 连接
             </Button>
           )}
-        </div>
-      </Modal>
-
-      {/* Custom Field Modal */}
-      <Modal title={cfEditingId ? '编辑自定义字段' : '新增自定义字段'} open={cfModal} onOk={handleSaveCf}
-        onCancel={() => { setCfModal(false); setCfEditingId(null) }} width={520}>
-        <div className="space-y-4 py-2">
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">实体类型</label>
-            <Select className="w-full" value={cfForm.entity_type} onChange={(v) => setCfForm({ ...cfForm, entity_type: v })}
-              disabled={!!cfEditingId}
-              options={[{ value: 'customer', label: '客户' }, { value: 'project', label: '商机' }]} />
-            <div className="text-[13px] text-slate-400 mt-1">自定义字段会显示在「客户」和「商机」的新建/编辑表单及详情页。</div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">显示标签</label>
-            <Input value={cfForm.field_label} onChange={(e) => setCfForm({ ...cfForm, field_label: e.target.value })} placeholder="所在区域" />
-            <div className="text-[13px] text-slate-400 mt-1">字段 Key 由系统自动生成，无需填写。</div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">字段类型</label>
-            <Select className="w-full" value={cfForm.field_type} onChange={(v) => setCfForm({ ...cfForm, field_type: v })}
-              options={Object.entries(fieldTypeLabels).map(([k, v]) => ({ value: k, label: v }))} />
-          </div>
-          {(cfForm.field_type === 'select' || cfForm.field_type === 'multiselect') && (
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">选项</label>
-              <StringListEditor value={cfForm.options_json} placeholder="选项内容，如：华东区"
-                addText="添加选项" onChange={(v) => setCfForm({ ...cfForm, options_json: v })} />
-              <div className="text-[13px] text-slate-400 mt-1">这些选项会作为下拉项展示给填写人。</div>
-            </div>
-          )}
-          <div className="flex gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">必填</label>
-              <Switch checked={cfForm.required} onChange={(v) => setCfForm({ ...cfForm, required: v })} />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">启用</label>
-              <Switch checked={cfForm.enabled} onChange={(v) => setCfForm({ ...cfForm, enabled: v })} />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">排序</label>
-              <InputNumber value={cfForm.sort_order} onChange={(v) => setCfForm({ ...cfForm, sort_order: v || 0 })} min={0} />
-            </div>
-          </div>
         </div>
       </Modal>
     </div>

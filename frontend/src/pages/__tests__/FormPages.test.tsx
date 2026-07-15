@@ -38,7 +38,6 @@ vi.mock('@/api/department', () => ({
 vi.mock('@/api/settings', () => ({
   settingsApi: {
     listDataDict: vi.fn().mockResolvedValue({ data: [] }),
-    listCustomFields: vi.fn().mockResolvedValue({ data: [] }),
   },
 }))
 

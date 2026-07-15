@@ -6,7 +6,7 @@ import ImportModal from '@/components/ImportModal'
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { projectApi } from '@/api/project'
-import { settingsApi } from '@/api/settings'
+import { lowcodeApi } from '@/api/lowcode'
 import type { OpportunityProject } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
@@ -20,10 +20,9 @@ import ListToolbar from '@/components/list/ListToolbar'
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 
 interface CustomFieldDef {
-  field_key: string
-  field_label: string
-  field_type: string
-  enabled: boolean
+  id: string
+  label: string
+  type: string
 }
 
 export default function OpportunityList() {
@@ -51,8 +50,8 @@ export default function OpportunityList() {
   const didMount = useRef(false)
 
   useEffect(() => {
-    settingsApi.listCustomFields({ entity_type: 'project' })
-      .then((r: any) => setCustomFields((r.data || []).filter((f: CustomFieldDef) => f.enabled)))
+    lowcodeApi.entityFields('project')
+      .then((r) => setCustomFields((r.data?.field_definitions as unknown as CustomFieldDef[]) || []))
       .catch(() => { /* 自定义字段不可用时静默跳过，不影响列表 */ })
   }, [])
 
@@ -207,11 +206,11 @@ export default function OpportunityList() {
 
   // 自定义字段列(issue #64)：值存在 custom_fields_json 中，按字段类型简单格式化
   const customColumns: ColumnsType<OpportunityProject> = customFields.map((f) => ({
-    title: f.field_label, key: `cf_${f.field_key}`, width: 140,
+    title: f.label, key: `cf_${f.id}`, width: 140,
     render: (_: unknown, r: OpportunityProject) => {
-      const raw = (r.custom_fields_json || {})[f.field_key]
+      const raw = (r.custom_fields_json || {})[f.id]
       if (raw == null || raw === '' || (Array.isArray(raw) && raw.length === 0)) return <span className="text-slate-300">-</span>
-      if (f.field_type === 'boolean') return raw ? '是' : '否'
+      if (f.type === 'switch') return raw ? '是' : '否'
       if (Array.isArray(raw)) return raw.join('、')
       return <span className="text-sm text-slate-700">{String(raw)}</span>
     },

@@ -66,16 +66,6 @@ export const settingsApi = {
   deleteEmailTemplate: (id: string) =>
     client.delete(`/api/v1/admin/email-templates/${id}`),
 
-  // Custom fields
-  listCustomFields: (params?: Record<string, unknown>) =>
-    client.get('/api/v1/custom-fields', { params }),
-  createCustomField: (data: Record<string, unknown>) =>
-    client.post('/api/v1/custom-fields', data),
-  updateCustomField: (id: string, data: Record<string, unknown>) =>
-    client.put(`/api/v1/custom-fields/${id}`, data),
-  deleteCustomField: (id: string) =>
-    client.delete(`/api/v1/custom-fields/${id}`),
-
   // Backup
   backupStats: () => client.get('/api/v1/admin/backup/stats'),
   backupDownloadUrl: () => '/api/v1/admin/backup',
