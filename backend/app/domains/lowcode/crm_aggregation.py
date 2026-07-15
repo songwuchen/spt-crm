@@ -49,6 +49,45 @@ REGISTRY: dict[str, dict[str, Any]] = {
             {"op": "sum", "field": "amount", "label": "金额合计"},
         ],
     },
+    "opportunity": {
+        "label": "商机", "table": "opportunity_projects", "perm": "project:view",
+        "dimensions": [
+            {"field": "stage_code", "label": "阶段"},
+            {"field": "status", "label": "状态"},
+            {"field": "risk_level", "label": "风险"},
+            {"field": "owner_name", "label": "负责人"},
+            {"field": "close_date_expect", "label": "预计成交", "date": True},
+        ],
+        "metrics": [
+            {"op": "count", "label": "商机数"},
+            {"op": "sum", "field": "amount_expect", "label": "预计金额"},
+            {"op": "avg", "field": "probability", "label": "平均赢率"},
+        ],
+    },
+    "contract": {
+        "label": "合同", "table": "contracts", "perm": "contract:view", "soft_delete": False,
+        "dimensions": [
+            {"field": "status", "label": "状态"},
+            {"field": "signed_date", "label": "签约日期", "date": True},
+        ],
+        "metrics": [
+            {"op": "count", "label": "合同数"},
+            {"op": "sum", "field": "amount_total", "label": "合同额合计"},
+        ],
+    },
+    "service_ticket": {
+        "label": "售后工单", "table": "service_tickets", "perm": "service:view", "soft_delete": False,
+        "dimensions": [
+            {"field": "type", "label": "类型"},
+            {"field": "priority", "label": "优先级"},
+            {"field": "status", "label": "状态"},
+            {"field": "created_at", "label": "创建日期", "date": True},
+        ],
+        "metrics": [
+            {"op": "count", "label": "工单数"},
+            {"op": "avg", "field": "satisfaction_score", "label": "平均满意度"},
+        ],
+    },
 }
 
 _AGG = {"sum", "avg", "max", "min"}
@@ -116,7 +155,9 @@ async def aggregate_crm(
     if not select_parts:
         raise BusinessException(code=VALIDATION_ERROR, message="至少需要一个维度或指标")
 
-    where = ["tenant_id = :tenant", "is_deleted = false"]
+    where = ["tenant_id = :tenant"]
+    if reg.get("soft_delete", True):
+        where.append("is_deleted = false")
     for k, f in enumerate(filters or []):
         field = f.get("field_id") or f.get("field")
         if field not in dim_fields and field not in metric_fields:

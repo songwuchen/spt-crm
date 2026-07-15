@@ -11,6 +11,7 @@ from app.dependencies import get_db, get_tenant_id, get_current_user, require_pe
 from app.common.schemas import ok
 from app.common.exceptions import BusinessException
 from app.common.error_codes import VALIDATION_ERROR
+from app.common.export import build_excel, excel_response
 from app.domains.lowcode import schemas, service
 
 router = APIRouter(prefix="/api/v1/lc", tags=["扩展平台-表单引擎"])
@@ -213,6 +214,63 @@ async def list_form_instances(
         keyword=keyword, status=status, owner_ids=scope,
     )
     return ok({"items": [_inst_list_dict(i) for i in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+
+
+_INST_STATUS_LABELS = {
+    "draft": "草稿", "submitted": "已提交", "running": "审批中",
+    "completed": "已通过", "rejected": "已驳回", "withdrawn": "已撤回",
+}
+
+
+def _fmt_export_cell(field_type: str | None, value) -> str:
+    """把表单字段值格式化成单元格文本（列表/子表/文件等做可读摘要）。"""
+    if value is None or value == "":
+        return ""
+    if field_type in ("detail_table", "sub_table_data"):
+        return f"{len(value)} 行" if isinstance(value, list) else str(value)
+    if field_type in ("file", "image"):
+        return f"{len(value)} 个文件" if isinstance(value, list) else str(value)
+    if field_type == "switch" or isinstance(value, bool):
+        return "是" if value else "否"
+    if isinstance(value, list):
+        return "、".join(
+            str(v.get("name") or v.get("label") or v.get("id") or v) if isinstance(v, dict) else str(v)
+            for v in value
+        )
+    if isinstance(value, dict):
+        return str(value.get("name") or value.get("label") or value.get("text") or value)
+    return str(value)
+
+
+@router.get("/form-instances/export")
+async def export_form_instances(
+    template_id: str = Query(...),
+    keyword: str = Query(None),
+    status: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("form_data:view")),
+    scope: "list[str] | None" = Depends(get_data_scope),
+):
+    """导出当前筛选下的表单数据为 Excel（列＝表单字段，含业务编号/状态/创建时间）。"""
+    tpl, field_defs, rows = await service.export_instances(
+        db, tenant_id, template_id, keyword=keyword, status=status, owner_ids=scope,
+    )
+    data_fields = [fd for fd in field_defs if fd.get("id")]
+    headers = ["业务编号", "标题", "状态", "创建时间"] + [fd.get("label") or fd.get("id") for fd in data_fields]
+    data_rows = []
+    for inst in rows:
+        fd_data = inst.form_data or {}
+        line = [
+            inst.business_no or "", inst.title or "",
+            _INST_STATUS_LABELS.get(inst.status, inst.status or ""),
+            inst.created_at.strftime("%Y-%m-%d %H:%M") if inst.created_at else "",
+        ]
+        line += [_fmt_export_cell(fd.get("type"), fd_data.get(fd.get("id"))) for fd in data_fields]
+        data_rows.append(line)
+    sheet = (tpl.name if tpl else "表单数据")[:31]
+    buf = build_excel(sheet, headers, data_rows)
+    return excel_response(buf, "form_data.xlsx")
 
 
 @router.post("/form-instances")

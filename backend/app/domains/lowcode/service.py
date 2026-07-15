@@ -403,6 +403,43 @@ async def list_instances(
     return list(rows), total
 
 
+async def export_instances(
+    db: AsyncSession, tenant_id: str, template_id: str,
+    keyword: str | None = None, status: str | None = None,
+    owner_ids: list[str] | None = None, limit: int = 10000,
+) -> tuple[FormTemplate | None, list[dict], list[FormInstance]]:
+    """导出表单数据: 返回(模板, 列定义 field_defs, 数据行)。
+    列定义优先取已发布版本,否则最新版本(草稿态也可导出)。"""
+    tpl = (await db.execute(
+        select(FormTemplate).where(
+            FormTemplate.id == template_id, FormTemplate.tenant_id == tenant_id,
+            FormTemplate.is_deleted == False,  # noqa: E712
+        )
+    )).scalar_one_or_none()
+    ver = await _get_published_version(db, tenant_id, template_id)
+    if not ver:
+        ver = await _get_latest_version(db, tenant_id, template_id)
+    field_defs = (ver.field_definitions if ver else []) or []
+
+    conds = [
+        FormInstance.tenant_id == tenant_id,
+        FormInstance.template_id == template_id,
+        FormInstance.is_deleted == False,  # noqa: E712
+    ]
+    if keyword:
+        conds.append(FormInstance.title.ilike(f"%{keyword}%"))
+    if status:
+        conds.append(FormInstance.status == status)
+    if owner_ids is not None:
+        conds.append(FormInstance.initiator_id.in_(owner_ids or ["__none__"]))
+    rows = (await db.execute(
+        select(FormInstance).where(*conds)
+        .order_by(FormInstance.created_at.desc())
+        .limit(max(1, min(int(limit or 10000), 50000)))
+    )).scalars().all()
+    return tpl, field_defs, list(rows)
+
+
 async def update_instance(
     db: AsyncSession, tenant_id: str, instance_id: str,
     data: schemas.FormInstanceUpdate, user: dict,

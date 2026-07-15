@@ -4,8 +4,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   Card, Table, Button, Space, Tag, Modal, message, Popconfirm, Typography,
 } from 'antd'
-import { ArrowLeftOutlined, PlusOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
+import { downloadFile } from '@/utils/download'
 import type { FieldDefinition, FormRule, FormInstance } from '@/types/lowcode'
 import FormRenderer, { validateRequired } from '@/components/lowcode/FormRenderer'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
@@ -123,7 +124,13 @@ export default function FormDataListPage() {
           <Button icon={<ArrowLeftOutlined />} onClick={() => nav('/lowcode/forms')}>返回</Button>
           <Title level={4} style={{ margin: 0 }}>{name} · 数据</Title>
         </Space>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => nav(`/lowcode/forms/${id}/fill`)}>新增填报</Button>
+        <Space>
+          <Button icon={<DownloadOutlined />} disabled={total === 0}
+            onClick={() => downloadFile(`/api/v1/lc/form-instances/export?template_id=${encodeURIComponent(id)}`, `${name || '表单数据'}.xlsx`)}>
+            导出
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => nav(`/lowcode/forms/${id}/fill`)}>新增填报</Button>
+        </Space>
       </div>
       <Table
         rowKey="id" loading={loading} columns={columns} dataSource={items}
