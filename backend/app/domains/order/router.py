@@ -5,6 +5,7 @@ from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.common.export import build_excel, excel_response
 from app.domains.order import service
+from app.domains.lowcode.field_permission import strip_entity_dicts
 from app.domains.order.schemas import OrderCreate, OrderUpdate, OrderShip
 
 router = APIRouter(prefix="/api/v1/orders", tags=["订单管理"])
@@ -64,7 +65,9 @@ async def list_orders(
     items, total = await service.list_orders(
         db, tenant_id, pageNo, pageSize, customer_id, status, keyword,
         adv_filter=filter, sort_by=sort_by, sort_order=sort_order, current_user=_user)
-    return ok({"items": [_order_dict(o) for o in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+    dicts = [_order_dict(o) for o in items]
+    await strip_entity_dicts(db, tenant_id, "order", dicts, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
+    return ok({"items": dicts, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.get("/export/excel")
@@ -115,7 +118,9 @@ async def get_order(
 ):
     o = await service.get_order(db, tenant_id, order_id)
     lines = await service.list_lines(db, tenant_id, order_id)
-    return ok(_order_dict(o, lines))
+    d = _order_dict(o, lines)
+    await strip_entity_dicts(db, tenant_id, "order", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
+    return ok(d)
 
 
 @router.put("/{order_id}")

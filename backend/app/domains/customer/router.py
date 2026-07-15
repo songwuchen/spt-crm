@@ -8,6 +8,7 @@ from app.dependencies import get_db, get_tenant_id, get_current_user, require_pe
 from app.common.schemas import ok
 from app.common.export import build_excel, build_excel_multi, build_template, excel_response
 from app.domains.customer.models import Customer
+from app.domains.lowcode.field_permission import strip_entity_dicts
 from app.domains.customer.schemas import (
     CustomerCreate, CustomerUpdate, CustomerOut,
     ContactCreate, ContactUpdate, ContactOut,
@@ -53,7 +54,9 @@ async def list_customers(
     items, total = await service.list_customers(
         db, tenant_id, pageNo, pageSize, keyword, industry, region, owner_id, tag=tag, current_user=_user,
         adv_filter=filter, sort_by=sort_by, sort_order=sort_order)
-    return ok({"items": [_customer_dict(c) for c in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+    dicts = [_customer_dict(c) for c in items]
+    await strip_entity_dicts(db, tenant_id, "customer", dicts, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
+    return ok({"items": dicts, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.post("")
@@ -712,7 +715,9 @@ async def list_contacts(
     _user=Depends(require_permissions("contact:view")),
 ):
     contacts = await service.list_contacts(db, tenant_id, customer_id)
-    return ok([ContactOut.model_validate(c).model_dump() for c in contacts])
+    dicts = [ContactOut.model_validate(c).model_dump() for c in contacts]
+    await strip_entity_dicts(db, tenant_id, "contact", dicts, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
+    return ok(dicts)
 
 
 @router.post("/{customer_id}/contacts")
@@ -1156,7 +1161,9 @@ async def get_customer(
     _user=Depends(require_permissions("customer:view")),
 ):
     c = await service.get_customer(db, tenant_id, customer_id)
-    return ok(_customer_dict(c))
+    d = _customer_dict(c)
+    await strip_entity_dicts(db, tenant_id, "customer", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
+    return ok(d)
 
 
 @router.put("/{customer_id}")

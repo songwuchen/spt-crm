@@ -73,16 +73,19 @@ async def list_contacts(
         )).all()
         cust_map = {r[0]: r[1] for r in rows}
 
+    rows = [{
+        "id": c.id, "customer_id": c.customer_id,
+        "customer_name": cust_map.get(c.customer_id, ""),
+        "name": c.name, "title": c.title, "role_type": c.role_type,
+        "phone": c.phone, "mobile": c.mobile, "email": c.email,
+        "is_primary": c.is_primary, "remark": c.remark,
+        "custom_fields_json": c.custom_fields_json,
+        "created_at": c.created_at.isoformat() if c.created_at else "",
+    } for c in items]
+    from app.domains.lowcode.field_permission import strip_entity_dicts
+    await strip_entity_dicts(db, tenant_id, "contact", rows, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok({
-        "items": [{
-            "id": c.id, "customer_id": c.customer_id,
-            "customer_name": cust_map.get(c.customer_id, ""),
-            "name": c.name, "title": c.title, "role_type": c.role_type,
-            "phone": c.phone, "mobile": c.mobile, "email": c.email,
-            "is_primary": c.is_primary, "remark": c.remark,
-            "custom_fields_json": c.custom_fields_json,
-            "created_at": c.created_at.isoformat() if c.created_at else "",
-        } for c in items],
+        "items": rows,
         "total": total, "pageNo": pageNo, "pageSize": pageSize,
     })
 

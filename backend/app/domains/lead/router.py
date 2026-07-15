@@ -11,6 +11,7 @@ from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.common.export import build_excel, build_template, excel_response
 from app.domains.lead import service
+from app.domains.lowcode.field_permission import strip_entity_dicts
 
 router = APIRouter(prefix="/api/v1/leads", tags=["线索管理"])
 
@@ -105,7 +106,9 @@ async def list_leads(
         current_user=_user,
         adv_filter=filter, sort_by=sort_by, sort_order=sort_order,
     )
-    return ok({"items": [_lead_dict(l) for l in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+    dicts = [_lead_dict(l) for l in items]
+    await strip_entity_dicts(db, tenant_id, "lead", dicts, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
+    return ok({"items": dicts, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 async def _lead_department_names(db: AsyncSession, tenant_id: str, items) -> dict:
@@ -307,7 +310,9 @@ async def get_lead(
 ):
     l = await service.get_lead(db, tenant_id, lead_id)
     products = await service.list_lead_products(db, tenant_id, l.id)
-    return ok(_lead_dict(l, products))
+    d = _lead_dict(l, products)
+    await strip_entity_dicts(db, tenant_id, "lead", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
+    return ok(d)
 
 
 @router.put("/{lead_id}")

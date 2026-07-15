@@ -8,6 +8,7 @@ from app.dependencies import get_db, get_tenant_id, require_permissions, get_dat
 from app.common.schemas import ok
 from app.common.export import build_excel, build_template, excel_response
 from app.domains.project import service
+from app.domains.lowcode.field_permission import strip_entity_dicts
 from app.domains.project.schemas import (
     ProjectCreate, ProjectUpdate, ProjectTransfer, StageAdvance, StageRollback,
     ProjectMemberAdd, ProjectMemberUpdate,
@@ -144,7 +145,9 @@ async def list_projects(
     )
     name_map = await _customer_names(db, tenant_id, items)
     prog = await _delivery_progress(db, tenant_id, [p.id for p in items])
-    return ok({"items": [_project_dict(p, name_map.get(p.customer_id), prog.get(p.id)) for p in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+    dicts = [_project_dict(p, name_map.get(p.customer_id), prog.get(p.id)) for p in items]
+    await strip_entity_dicts(db, tenant_id, "project", dicts, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
+    return ok({"items": dicts, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.get("/export/excel")
@@ -321,7 +324,9 @@ async def get_project(
 ):
     p = await service.get_project(db, tenant_id, project_id)
     name_map = await _customer_names(db, tenant_id, [p])
-    return ok(_project_dict(p, name_map.get(p.customer_id)))
+    d = _project_dict(p, name_map.get(p.customer_id))
+    await strip_entity_dicts(db, tenant_id, "project", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
+    return ok(d)
 
 
 @router.put("/{project_id}")

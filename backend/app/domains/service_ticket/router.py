@@ -9,6 +9,7 @@ from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.common.export import build_excel, build_template, excel_response
 from app.domains.service_ticket import service
+from app.domains.lowcode.field_permission import strip_entity_dicts
 from app.domains.service_ticket.schemas import (
     ServiceTicketCreate, ServiceTicketUpdate, RenewalCreate, RenewalUpdate,
 )
@@ -244,6 +245,7 @@ async def list_tickets(
         "customer_name": cust_names.get(t.customer_id),
         "order_name": order_names.get(t.order_id),
     } for t in items]
+    await strip_entity_dicts(db, tenant_id, "service_ticket", rows, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok({"items": rows, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
@@ -263,7 +265,9 @@ async def get_ticket(
     db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("service:view")),
 ):
     t = await service.get_ticket(db, tenant_id, ticket_id)
-    return ok(_ticket_dict(t))
+    d = _ticket_dict(t)
+    await strip_entity_dicts(db, tenant_id, "service_ticket", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
+    return ok(d)
 
 
 @router.put("/api/v1/service_tickets/{ticket_id}")

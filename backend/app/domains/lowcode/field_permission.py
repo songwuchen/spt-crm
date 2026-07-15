@@ -97,11 +97,26 @@ async def _entity_field_defs(db, tenant_id: str, entity_type: str) -> list[dict[
 
 
 async def sanitize_entity_write(db, tenant_id: str, entity_type: str, incoming: Any, prior: Any, user_roles) -> Any:
-    """丢弃用户对不可编辑/隐藏扩展字段的写入，保留原值（写入路径，后端权威边界）。
-    注意：实体扩展字段的读取隐藏目前仅前端 UX 强制，后端读取裁剪为后续项。"""
+    """丢弃用户对不可编辑/隐藏扩展字段的写入，保留原值（写入路径，后端权威边界）。"""
     if incoming is None or not isinstance(incoming, dict):
         return incoming
     defs = await _entity_field_defs(db, tenant_id, entity_type)
     if not has_any_field_permission(defs):
         return incoming
     return sanitize_write(incoming, prior if isinstance(prior, dict) else None, defs, user_roles)
+
+
+async def strip_entity_dicts(db, tenant_id: str, entity_type: str, dicts, user_roles, key: str = "custom_fields_json"):
+    """就地按角色剔除一批已序列化 dict 的隐藏扩展字段值（读取路径；列表/详情共用，
+    每请求只查一次字段定义；无权限配置时快路径原样返回）。返回入参本身以便链式使用。"""
+    if not dicts:
+        return dicts
+    defs = await _entity_field_defs(db, tenant_id, entity_type)
+    if not has_any_field_permission(defs):
+        return dicts
+    roles = _roleset(user_roles)
+    for d in dicts:
+        cfj = d.get(key)
+        if isinstance(cfj, dict):
+            _, d[key] = filter_read(defs, cfj, roles)
+    return dicts
