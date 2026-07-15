@@ -26,6 +26,7 @@ class OrderCreate(BaseModel):
     delivery_date: Optional[date] = None
     owner_id: Optional[str] = None
     remark: Optional[str] = Field(None, max_length=2000)
+    custom_fields_json: Optional[dict] = None
     lines: Optional[List[OrderLineIn]] = None
 
     @field_validator("status")
@@ -47,6 +48,7 @@ class OrderUpdate(BaseModel):
     delivery_date: Optional[date] = None
     owner_id: Optional[str] = None
     remark: Optional[str] = Field(None, max_length=2000)
+    custom_fields_json: Optional[dict] = None
     lines: Optional[List[OrderLineIn]] = None
 
     @field_validator("status")

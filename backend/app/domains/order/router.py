@@ -37,7 +37,7 @@ def _order_dict(o, lines=None) -> dict:
         "order_date": str(o.order_date) if o.order_date else None,
         "delivery_date": str(o.delivery_date) if o.delivery_date else None,
         "owner_id": o.owner_id, "owner_name": o.owner_name,
-        "remark": o.remark,
+        "remark": o.remark, "custom_fields_json": o.custom_fields_json,
         "created_at": o.created_at.isoformat() if o.created_at else "",
         "updated_at": o.updated_at.isoformat() if o.updated_at else "",
     }

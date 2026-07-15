@@ -12,6 +12,7 @@ import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
 import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 
 const STATUS_OPTIONS = [
   { label: '草稿', value: 'draft' },
@@ -42,6 +43,7 @@ export default function OrderList() {
   const [reload, setReload] = useState(0)
   const didMount = useRef(false)
   const [form] = Form.useForm()
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
   const customerSelect = useCustomerSelect()
   const ownerSelect = useUserSelect()
 
@@ -77,6 +79,7 @@ export default function OrderList() {
   const openCreate = () => {
     setEditing(null)
     form.resetFields()
+    setCustomFields({})
     form.setFieldsValue({ status: 'draft', currency: 'CNY', lines: [{ product_name: '', quantity: 1, unit_price: 0 }] })
     setModalOpen(true)
   }
@@ -86,6 +89,7 @@ export default function OrderList() {
     // 拉取完整订单（含明细）回填
     let full = record
     try { full = (await orderApi.get(record.id)).data } catch { /* fall back to row */ }
+    setCustomFields((full as unknown as { custom_fields_json?: Record<string, unknown> }).custom_fields_json || {})
     form.setFieldsValue({
       ...full,
       order_date: full.order_date ? dayjs(full.order_date) : undefined,
@@ -115,6 +119,7 @@ export default function OrderList() {
       order_date: values.order_date ? values.order_date.format('YYYY-MM-DD') : undefined,
       delivery_date: values.delivery_date ? values.delivery_date.format('YYYY-MM-DD') : undefined,
       lines,
+      custom_fields_json: customFields,
     }
     delete payload.amount // 合计金额由明细汇总，后端计算
     try {
@@ -341,6 +346,7 @@ export default function OrderList() {
             />
           </Form.Item>
           <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
+          <EntityCustomFields entityType="order" value={customFields} onChange={setCustomFields} />
         </Form>
         {editing ? (
           <div className="border-t border-slate-100 pt-3 mt-1">
