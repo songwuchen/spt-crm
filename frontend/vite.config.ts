@@ -22,6 +22,11 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('node_modules')) {
             if (id.includes('@ant-design/charts') || id.includes('@antv')) return 'vendor-charts'
+            // 新增图形/图表/网格库单独成块,先于 antd/react 判定,避免被 id.includes('react')
+            // 卷入 vendor-react(@xyflow/react、react-grid-layout、echarts-for-react 等含 'react'),
+            // 从而改变 vendor-react 初始化顺序、令 antd 读取 React.version 时 React 为 undefined(生产白屏)。
+            if (id.includes('echarts') || id.includes('@xyflow') || id.includes('@dagrejs')
+              || id.includes('react-grid-layout') || id.includes('react-resizable') || id.includes('@dnd-kit')) return 'vendor-viz'
             if (id.includes('antd') || id.includes('rc-') || id.includes('@ant-design')) return 'vendor-antd'
             if (id.includes('react')) return 'vendor-react'
           }
