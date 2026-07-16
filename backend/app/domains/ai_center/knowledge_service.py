@@ -16,6 +16,9 @@ logger = logging.getLogger("spt_crm.ai.knowledge")
 # 进程级缓存:knowledge_chunks 是否有 pgvector 的 embedding 列(部署后进程重启即刷新)
 _HAS_EMBED_COL: bool | None = None
 
+# search_chunks 的 emb_cfg 哨兵:区分"未传入→自行解析"与"显式传 None→不用嵌入"
+_RESOLVE = object()
+
 
 async def _has_embedding_column(db: AsyncSession) -> bool:
     global _HAS_EMBED_COL
@@ -242,10 +245,15 @@ async def search_chunks(
     query: str,
     doc_type: Optional[str] = None,
     top_k: int = 5,
+    emb_cfg=_RESOLVE,
 ) -> list[dict]:
-    """语义检索(pgvector 余弦)优先,未启用嵌入/无向量列时回退关键词匹配。"""
+    """语义检索(pgvector 余弦)优先,未启用嵌入/无向量列时回退关键词匹配。
+
+    emb_cfg: 传入已解析的嵌入配置可省一次 resolve_ai_config(DB+解密);默认 _RESOLVE 自行解析。
+    """
     # ---- 向量检索路径 ----
-    emb_cfg = await _resolve_embedding_cfg(db, tenant_id)
+    if emb_cfg is _RESOLVE:
+        emb_cfg = await _resolve_embedding_cfg(db, tenant_id)
     if emb_cfg and await _has_embedding_column(db):
         vec = await _vector_search(db, tenant_id, query, doc_type, top_k, emb_cfg)
         if vec is not None:
@@ -296,12 +304,14 @@ async def search_chunks(
 async def retrieve_context(
     db: AsyncSession, tenant_id: str, query: str,
     doc_type: Optional[str] = None, top_k: int = 6, max_tokens: int = 2500,
+    emb_cfg=_RESOLVE,
 ) -> tuple[str, list[dict]]:
     """为 RAG 问答检索片段。返回 (拼接的上下文字符串, 引用来源列表)。
 
     来源列表元素: {index, document_id, doc_title, score}。
+    emb_cfg: 透传给 search_chunks,调用方已解析时可复用,避免重复 resolve。
     """
-    chunks = await search_chunks(db, tenant_id, query, doc_type=doc_type, top_k=top_k)
+    chunks = await search_chunks(db, tenant_id, query, doc_type=doc_type, top_k=top_k, emb_cfg=emb_cfg)
     parts: list[str] = []
     sources: list[dict] = []
     total = 0

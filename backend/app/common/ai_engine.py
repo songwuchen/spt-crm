@@ -79,7 +79,8 @@ async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 2000
     """
     if chat_cfg and chat_cfg.get("api_key"):
         api = chat_cfg.get("api", "openai")
-        base_url = chat_cfg.get("base_url") or "https://api.openai.com/v1"
+        default_base = "https://api.anthropic.com" if api == "anthropic" else "https://api.openai.com/v1"
+        base_url = chat_cfg.get("base_url") or default_base
         api_key = chat_cfg["api_key"]
         model = chat_cfg.get("model") or ("claude-sonnet-4-20250514" if api == "anthropic" else "gpt-4o")
         if api == "anthropic":
@@ -193,22 +194,27 @@ async def _call_anthropic(system_prompt: str, user_prompt: str, max_tokens: int,
 
 
 async def stream_llm(system_prompt: str, messages: list[dict], chat_cfg: dict | None = None,
-                     max_tokens: int = 1500):
+                     max_tokens: int = 1500, usage_out: dict | None = None):
     """流式对话生成器,逐段 yield 文本增量。
 
     messages: [{"role": "user"/"assistant", "content": ...}, ...](多轮对话)。
     chat_cfg: 同 _call_llm。未配置时回退 mock(把整段结果分片吐出)。
+    usage_out: 若提供,函数把本次调用的 token 用量写入该 dict(每请求独立,
+        避免并发时与全局 _last_usage 串写)。调用方读它而非 get_last_usage()。
     """
+    if usage_out is not None:
+        usage_out.update({"token_in": 0, "token_out": 0, "cost_est": 0.0, "model": (chat_cfg or {}).get("model", "mock")})
     if chat_cfg and chat_cfg.get("api_key"):
         api = chat_cfg.get("api", "openai")
-        base_url = chat_cfg.get("base_url") or "https://api.openai.com/v1"
+        default_base = "https://api.anthropic.com" if api == "anthropic" else "https://api.openai.com/v1"
+        base_url = chat_cfg.get("base_url") or default_base
         api_key = chat_cfg["api_key"]
         model = chat_cfg.get("model") or ("claude-sonnet-4-20250514" if api == "anthropic" else "gpt-4o")
         if api == "anthropic":
             async for d in _stream_anthropic(system_prompt, messages, max_tokens, base_url, api_key, model):
                 yield d
         else:
-            async for d in _stream_openai(system_prompt, messages, max_tokens, base_url, api_key, model):
+            async for d in _stream_openai(system_prompt, messages, max_tokens, base_url, api_key, model, usage_out):
                 yield d
         return
     # mock: 分片吐出示例文本
@@ -219,7 +225,7 @@ async def stream_llm(system_prompt: str, messages: list[dict], chat_cfg: dict | 
 
 
 async def _stream_openai(system_prompt: str, messages: list[dict], max_tokens: int,
-                         base_url: str, api_key: str, model: str):
+                         base_url: str, api_key: str, model: str, usage_out: dict | None = None):
     import httpx
     base_url = (base_url or "https://api.openai.com/v1").rstrip("/")
     payload = {
@@ -253,7 +259,10 @@ async def _stream_openai(system_prompt: str, messages: list[dict], max_tokens: i
                     ti = usage.get("prompt_tokens", 0); to = usage.get("completion_tokens", 0)
                     pricing = MODEL_PRICING.get(model, {"input": 0, "output": 0})
                     cost = (ti * pricing["input"] + to * pricing["output"]) / 1_000_000
-                    _last_usage.update({"token_in": ti, "token_out": to, "cost_est": round(cost, 6), "model": model})
+                    u = {"token_in": ti, "token_out": to, "cost_est": round(cost, 6), "model": model}
+                    _last_usage.update(u)
+                    if usage_out is not None:
+                        usage_out.update(u)  # 每请求独立,不受并发全局串写影响
                 choices = obj.get("choices") or [{}]
                 if choices:
                     delta = (choices[0].get("delta") or {}).get("content")

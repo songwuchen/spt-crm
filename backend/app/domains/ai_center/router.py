@@ -217,25 +217,7 @@ async def run_analysis(
         raise BusinessException(code=42300, message="AI 中心功能未启用，请联系管理员在功能开关中开启。")
 
     # AI budget quota check
-    try:
-        from datetime import datetime, timezone
-        from app.domains.admin.models import TenantAiBudget
-        period = datetime.now(timezone.utc).strftime("%Y-%m")
-        budget = (await db.execute(
-            select(TenantAiBudget).where(
-                TenantAiBudget.tenant_id == tenant_id,
-                TenantAiBudget.period == period,
-            )
-        )).scalar_one_or_none()
-        if budget and budget.hard_limit:
-            if budget.budget_cost and budget.used_cost and float(budget.used_cost) >= float(budget.budget_cost):
-                raise BusinessException(code=42900, message=f"本月 AI 预算已用尽（已用 ${float(budget.used_cost):.2f} / ${float(budget.budget_cost):.2f}），请联系管理员调整配额。")
-            if budget.budget_tokens and budget.used_tokens and budget.used_tokens >= budget.budget_tokens:
-                raise BusinessException(code=42900, message=f"本月 AI Token 配额已用尽（已用 {budget.used_tokens:,} / {budget.budget_tokens:,}），请联系管理员调整配额。")
-    except BusinessException:
-        raise
-    except Exception:
-        pass  # Non-critical: if budget check fails, allow the request
+    await _check_ai_budget(db, tenant_id)
 
     entity_data = {}
 
@@ -345,18 +327,35 @@ async def run_analysis(
         collected = 0.0
         plans = []
         if c.project_id:
-            collected = float((await db.execute(
-                select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
-                    PaymentRecord.project_id == c.project_id, PaymentRecord.tenant_id == tenant_id)
-            )).scalar() or 0)
-            plans = (await db.execute(
+            # 优先用本合同自己的回款计划(source_contract_id),此时实收按"匹配到本合同计划的
+            # 回款记录"口径,避免同一项目多合同时把别的合同回款算到本合同(串合同→超收/负未收)。
+            own_plans = (await db.execute(
                 select(PaymentPlan).where(PaymentPlan.source_contract_id == c.id, PaymentPlan.tenant_id == tenant_id)
             )).scalars().all()
-            if not plans:
+            if own_plans:
+                plans = own_plans
+                plan_ids = [p.id for p in own_plans]
+                collected = float((await db.execute(
+                    select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
+                        PaymentRecord.matched_plan_id.in_(plan_ids), PaymentRecord.tenant_id == tenant_id)
+                )).scalar() or 0)
+            else:
+                # 合同无独立计划:退回项目级口径(单合同项目准确)
                 plans = (await db.execute(
                     select(PaymentPlan).where(PaymentPlan.project_id == c.project_id, PaymentPlan.tenant_id == tenant_id)
                 )).scalars().all()
-        outstanding = round(amount_total - collected, 2)
+                collected = float((await db.execute(
+                    select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
+                        PaymentRecord.project_id == c.project_id, PaymentRecord.tenant_id == tenant_id)
+                )).scalar() or 0)
+                # 多合同项目共享项目级回款,夹取上限避免 collected 超过本合同额→>100%/负未收
+                contract_count = (await db.execute(
+                    select(func.count(Contract.id)).where(
+                        Contract.project_id == c.project_id, Contract.tenant_id == tenant_id)
+                )).scalar() or 1
+                if contract_count > 1 and amount_total:
+                    collected = min(collected, amount_total)
+        outstanding = round(max(0.0, amount_total - collected), 2)
         today = date.today()
         overdue_amount = 0.0
         overdue_days = 0
@@ -659,13 +658,37 @@ async def _require_ai(db: AsyncSession, tenant_id: str):
         raise BusinessException(code=42300, message="AI 中心功能未启用，请联系管理员在功能开关中开启。")
 
 
+async def _check_ai_budget(db: AsyncSession, tenant_id: str):
+    """月度 AI 预算硬上限拦截。/ai/analyze 与 AI 助手统一走此检查。"""
+    from app.common.exceptions import BusinessException
+    try:
+        from datetime import datetime as _dt, timezone as _tz
+        from app.domains.admin.models import TenantAiBudget
+        period = _dt.now(_tz.utc).strftime("%Y-%m")
+        budget = (await db.execute(
+            select(TenantAiBudget).where(
+                TenantAiBudget.tenant_id == tenant_id, TenantAiBudget.period == period)
+        )).scalar_one_or_none()
+        if budget and budget.hard_limit:
+            if budget.budget_cost and budget.used_cost and float(budget.used_cost) >= float(budget.budget_cost):
+                raise BusinessException(code=42900, message=f"本月 AI 预算已用尽（已用 ${float(budget.used_cost):.2f} / ${float(budget.budget_cost):.2f}），请联系管理员调整配额。")
+            if budget.budget_tokens and budget.used_tokens and budget.used_tokens >= budget.budget_tokens:
+                raise BusinessException(code=42900, message=f"本月 AI Token 配额已用尽（已用 {budget.used_tokens:,} / {budget.budget_tokens:,}），请联系管理员调整配额。")
+    except BusinessException:
+        raise
+    except Exception:
+        pass  # Non-critical: 预算表查询异常时放行请求
+
+
 async def _assistant_prepare(db: AsyncSession, tenant_id: str, body: "AssistantRequest"):
     from app.domains.admin.service import resolve_ai_config
     cfg = await resolve_ai_config(db, tenant_id)
     chat_cfg = cfg.get("chat")
     context, sources = "", []
     if body.use_knowledge:
-        context, sources = await knowledge_service.retrieve_context(db, tenant_id, body.question)
+        # 复用已解析的嵌入配置,避免 search_chunks 再解析一次(省一次 DB 查询+解密)
+        context, sources = await knowledge_service.retrieve_context(
+            db, tenant_id, body.question, emb_cfg=cfg.get("embedding"))
     system = _assistant_system(context)
     hist = [
         {"role": m.get("role"), "content": m.get("content")}
@@ -705,14 +728,19 @@ async def ai_assistant(
 ):
     """非流式 RAG 问答(整段返回)。"""
     await _require_ai(db, tenant_id)
+    await _check_ai_budget(db, tenant_id)
     chat_cfg, system, messages, sources = await _assistant_prepare(db, tenant_id, body)
     if not chat_cfg:
         return ok({"answer": _NO_AI_MSG, "sources": [], "usage": None})
-    from app.common.ai_engine import stream_llm, get_last_usage
+    from app.common.ai_engine import stream_llm
+    from app.common.exceptions import BusinessException
+    usage: dict = {}
     buf = []
-    async for delta in stream_llm(system, messages, chat_cfg):
-        buf.append(delta)
-    usage = get_last_usage()
+    try:
+        async for delta in stream_llm(system, messages, chat_cfg, usage_out=usage):
+            buf.append(delta)
+    except Exception as e:
+        raise BusinessException(code=50000, message=f"AI 问答失败: {str(e)}")
     await _charge_ai_budget(tenant_id, usage)
     return ok({"answer": "".join(buf), "sources": sources, "usage": usage})
 
@@ -726,6 +754,7 @@ async def ai_assistant_stream(
 ):
     """流式 RAG 问答(SSE)。事件: sources(一次) / delta(多次) / done(含usage) / error。"""
     await _require_ai(db, tenant_id)
+    await _check_ai_budget(db, tenant_id)
     chat_cfg, system, messages, sources = await _assistant_prepare(db, tenant_id, body)
 
     async def gen():
@@ -734,13 +763,13 @@ async def ai_assistant_stream(
             yield f"event: delta\ndata: {json.dumps({'t': _NO_AI_MSG}, ensure_ascii=False)}\n\n"
             yield "event: done\ndata: {}\n\n"
             return
-        from app.common.ai_engine import stream_llm, get_last_usage
+        from app.common.ai_engine import stream_llm
+        usage: dict = {}  # 每请求独立,避免并发时全局用量串写(见 code-review)
         try:
-            async for delta in stream_llm(system, messages, chat_cfg):
+            async for delta in stream_llm(system, messages, chat_cfg, usage_out=usage):
                 yield f"event: delta\ndata: {json.dumps({'t': delta}, ensure_ascii=False)}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {json.dumps({'error': str(e)[:200]}, ensure_ascii=False)}\n\n"
-        usage = get_last_usage()
         await _charge_ai_budget(tenant_id, usage)
         yield f"event: done\ndata: {json.dumps({'usage': usage}, ensure_ascii=False)}\n\n"
 

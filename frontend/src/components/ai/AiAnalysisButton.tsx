@@ -74,7 +74,9 @@ function ResultView({ type, result }: { type: string; result: Record<string, unk
 
   // 赢率
   if (type === 'win_probability') {
-    const p = Number(r.win_probability ?? 0)
+    // 容错:模型可能返回 "65%" / 非数值,parseFloat 提取数字,无效则 0
+    const parsed = parseFloat(String(r.win_probability ?? ''))
+    const p = Number.isFinite(parsed) ? Math.round(parsed) : 0
     const f = (r.factors || {}) as Record<string, unknown>
     return (
       <div className="space-y-3">

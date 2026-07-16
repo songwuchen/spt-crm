@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button, Space, Modal, Input, InputNumber, Select, Spin, Tabs, Table, Tag, Timeline, DatePicker, Form, Alert, message } from 'antd'
-import { EditOutlined, DeleteOutlined, PlusOutlined, RobotOutlined, FilePdfOutlined, UserSwitchOutlined, PaperClipOutlined } from '@ant-design/icons'
+import { EditOutlined, DeleteOutlined, PlusOutlined, FilePdfOutlined, UserSwitchOutlined, PaperClipOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { projectApi } from '@/api/project'
