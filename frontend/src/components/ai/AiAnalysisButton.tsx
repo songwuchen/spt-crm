@@ -5,17 +5,22 @@ import { ThunderboltOutlined } from '@ant-design/icons'
 import { aiApi } from '@/api/ai'
 import DataView from '@/components/DataView'
 
-type BizType = 'project' | 'customer' | 'quote_version' | 'contract_version'
+type BizType = 'project' | 'customer' | 'quote_version' | 'contract_version' | 'contract'
 
 const ANALYSES: Record<BizType, { type: string; label: string }[]> = {
   project: [
     { type: 'risk', label: '风险评估' },
     { type: 'win_probability', label: '赢率预测' },
     { type: 'next_actions', label: '下一步建议' },
+    { type: 'sales_script', label: '销售话术' },
   ],
-  customer: [{ type: 'profile', label: '客户画像' }],
+  customer: [
+    { type: 'profile', label: '客户画像' },
+    { type: 'sales_script', label: '销售话术' },
+  ],
   quote_version: [{ type: 'quote_review', label: '报价审核' }],
   contract_version: [{ type: 'contract_review', label: '合同审核' }],
+  contract: [{ type: 'receivable', label: '应收账款分析' }],
 }
 
 const riskColor = (v?: string) => (v === 'H' ? 'error' : v === 'M' ? 'warning' : v === 'L' ? 'success' : 'default')
@@ -119,6 +124,82 @@ function ResultView({ type, result }: { type: string; result: Record<string, unk
           </div>
         ))}
         {typeof r.stage_suggestion === 'string' && <div className="text-sm text-slate-700 bg-indigo-50/60 rounded-lg p-3">{r.stage_suggestion}</div>}
+      </div>
+    )
+  }
+
+  // 应收账款分析
+  if (type === 'receivable') {
+    const acts = (r.collection_actions || []) as Record<string, unknown>[]
+    return (
+      <div className="space-y-3">
+        {r.risk_level != null && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-500">回款风险</span>
+            <Tag color={riskColor(r.risk_level as string)}>{riskLabel(r.risk_level as string)}</Tag>
+          </div>
+        )}
+        {typeof r.overdue_summary === 'string' && (
+          <div><div className="text-xs font-bold text-slate-400 mb-0.5">逾期状况</div>
+            <p className="text-sm text-slate-700">{r.overdue_summary}</p></div>
+        )}
+        {Array.isArray(acts) && acts.length > 0 && (
+          <div>
+            <div className="text-xs font-bold text-slate-400 mb-1">催收动作</div>
+            <div className="space-y-2">
+              {acts.map((a, i) => (
+                <div key={i} className="flex items-start gap-2 border border-slate-100 rounded-lg p-3">
+                  <Tag color={riskColor(a.priority as string)}>{riskLabel(a.priority as string)}</Tag>
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-slate-800">{String(a.action || '')}</div>
+                    {a.deadline ? <div className="text-xs text-slate-400 mt-0.5">期限：{String(a.deadline)}</div> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {typeof r.cash_flow_comment === 'string' && (
+          <div className="text-sm text-amber-700 bg-amber-50/70 rounded-lg p-3">💰 {r.cash_flow_comment}</div>
+        )}
+        {typeof r.overall_comment === 'string' && (
+          <div className="text-sm text-slate-700 bg-indigo-50/60 rounded-lg p-3">{r.overall_comment}</div>
+        )}
+      </div>
+    )
+  }
+
+  // 销售话术推荐
+  if (type === 'sales_script') {
+    const obj = (r.objection_handling || []) as Record<string, unknown>[]
+    return (
+      <div className="space-y-3">
+        {typeof r.opening === 'string' && (
+          <div><div className="text-xs font-bold text-slate-400 mb-0.5">开场白</div>
+            <div className="text-sm text-slate-700 bg-slate-50 rounded-lg p-3 border-l-2 border-indigo-300">{r.opening}</div></div>
+        )}
+        <div><div className="text-xs font-bold text-slate-400 mb-0.5">核心价值主张</div><List items={r.value_props as unknown[]} /></div>
+        <div><div className="text-xs font-bold text-slate-400 mb-0.5">挖掘需求提问</div><List items={r.discovery_questions as unknown[]} /></div>
+        {Array.isArray(obj) && obj.length > 0 && (
+          <div>
+            <div className="text-xs font-bold text-slate-400 mb-1">异议应对</div>
+            <div className="space-y-2">
+              {obj.map((o, i) => (
+                <div key={i} className="border border-slate-100 rounded-lg p-3">
+                  <div className="text-sm font-semibold text-rose-500">❓ {String(o.objection || '')}</div>
+                  <div className="text-sm text-slate-700 mt-1">💬 {String(o.response || '')}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {typeof r.closing === 'string' && (
+          <div><div className="text-xs font-bold text-slate-400 mb-0.5">促成话术</div>
+            <div className="text-sm text-slate-700 bg-emerald-50/70 rounded-lg p-3 border-l-2 border-emerald-300">{r.closing}</div></div>
+        )}
+        {Array.isArray(r.tips) && (r.tips as unknown[]).length > 0 && (
+          <div><div className="text-xs font-bold text-slate-400 mb-0.5">实战提示</div><List items={r.tips as unknown[]} /></div>
+        )}
       </div>
     )
   }

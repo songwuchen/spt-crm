@@ -295,6 +295,32 @@ async def _stream_anthropic(system_prompt: str, messages: list[dict], max_tokens
 
 def _mock_response(prompt: str) -> str:
     """Generate mock AI response for development/testing."""
+    if "应收账款" in prompt or "receivable" in prompt.lower():
+        return json.dumps({
+            "risk_level": "M",
+            "overdue_summary": "存在部分逾期应收，需重点跟进逾期账期的回款。",
+            "collection_actions": [
+                {"action": "电话联系客户财务确认逾期款项付款计划", "priority": "H", "deadline": "3天内"},
+                {"action": "发送对账函并附逾期提醒", "priority": "M", "deadline": "1周内"},
+                {"action": "评估是否启动分期或担保措施", "priority": "L", "deadline": "2周内"},
+            ],
+            "cash_flow_comment": "未收比例偏高会占用现金流，建议加快回款节奏。",
+            "overall_comment": "整体回款风险中等，重点关注逾期部分，建议按上述动作分级催收。",
+        }, ensure_ascii=False)
+
+    if "销售话术" in prompt or "话术" in prompt or "script" in prompt.lower():
+        return json.dumps({
+            "opening": "您好，了解到贵司近期在推进相关项目，我们在同行业有成熟落地案例，想用几分钟同步一下可能的价值点。",
+            "value_props": ["行业标杆案例可复制", "分阶段实施降低风险", "服务响应快、总拥有成本低"],
+            "discovery_questions": ["当前最迫切要解决的问题是什么？", "决策与预算的时间窗口如何？", "对比方案时最看重哪些点？"],
+            "objection_handling": [
+                {"objection": "价格偏高", "response": "从总拥有成本和交付确定性看更划算，可提供分期方案"},
+                {"objection": "已有供应商", "response": "可先小范围试点验证效果，再评估切换"},
+            ],
+            "closing": "如果方向合适，本周安排一次技术方案交流，会后给到正式报价，您看周几方便？",
+            "tips": ["强调差异化价值而非比价", "尽快锁定下一步动作与时间点"],
+        }, ensure_ascii=False)
+
     if "风险" in prompt or "risk" in prompt.lower():
         return json.dumps({
             "risk_level": "M",
@@ -608,3 +634,52 @@ async def find_similar_projects(project_data: dict, candidates: list[dict], chat
         return _extract_json(result)
     except json.JSONDecodeError:
         return {"similar_projects": [], "insights": result[:200]}
+
+
+async def analyze_receivable(data: dict, chat_cfg: dict | None = None) -> dict:
+    """合同应收账款风险分析（回款/逾期/催收建议）。"""
+    prompt = f"""请对以下合同的应收账款与回款情况进行风险分析：
+合同编号: {data.get('contract_no', '')}
+客户: {data.get('customer_name', '')}
+合同总额: {data.get('amount_total', 0)}
+已回款: {data.get('collected', 0)}
+未回款: {data.get('outstanding', 0)}
+回款率: {data.get('collection_rate', 0)}%
+逾期金额: {data.get('overdue_amount', 0)}
+最长逾期天数: {data.get('overdue_days', 0)}
+逾期笔数: {data.get('overdue_plan_count', 0)} / 回款计划数: {data.get('plan_count', 0)}
+签约日期: {data.get('signed_date', '')}  到期日期: {data.get('end_date', '')}
+
+请评估回款风险、说明逾期状况、给出分级催收动作与现金流影响。
+严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
+{{"risk_level":"H|M|L","overdue_summary":"...","collection_actions":[{{"action":"...","priority":"H|M|L","deadline":"如3天内"}}],"cash_flow_comment":"...","overall_comment":"..."}}"""
+
+    system = "你是一位企业应收账款与回款管理专家。只输出符合要求的 JSON，键名用英文，值用中文。"
+    result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
+    try:
+        return _extract_json(result)
+    except json.JSONDecodeError:
+        return {"raw_response": result}
+
+
+async def recommend_sales_script(data: dict, chat_cfg: dict | None = None) -> dict:
+    """根据商机/客户上下文推荐销售话术。"""
+    prompt = f"""请为以下销售场景生成实战销售话术建议：
+名称: {data.get('name', '')}
+客户: {data.get('customer_name', '')}
+行业: {data.get('industry', '')}
+所处阶段: {data.get('stage_code', '')}
+预期金额: {data.get('amount_expect', 0)}
+风险等级: {data.get('risk_level', '')}
+近期动态: {data.get('last_activity', '暂无')}
+
+请给出：开场白、核心价值主张、挖掘需求的提问、常见异议及应对、促成话术、实战提示。
+严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
+{{"opening":"...","value_props":["..."],"discovery_questions":["..."],"objection_handling":[{{"objection":"...","response":"..."}}],"closing":"...","tips":["..."]}}"""
+
+    system = "你是一位资深B2B销售教练。只输出符合要求的 JSON，键名用英文，值用中文，话术要具体可用。"
+    result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
+    try:
+        return _extract_json(result)
+    except json.JSONDecodeError:
+        return {"raw_response": result}

@@ -206,6 +206,7 @@ async def run_analysis(
         analyze_project_risk, generate_customer_profile,
         predict_win_probability, suggest_next_actions,
         review_quote, review_contract,
+        analyze_receivable, recommend_sales_script,
     )
     from app.common.exceptions import BusinessException
     from app.common.error_codes import NOT_FOUND
@@ -317,6 +318,75 @@ async def run_analysis(
             "customer_name": "",
         }
 
+    elif body.biz_type == "contract":
+        # 合同 + 应收账款聚合（用于 receivable / sales_script）
+        from app.domains.contract.models import Contract
+        from app.domains.payment.models import PaymentPlan, PaymentRecord
+        from app.domains.customer.models import Customer
+        from sqlalchemy import select, func
+        from datetime import date, datetime
+
+        def _as_date(v):
+            if isinstance(v, date):
+                return v
+            if isinstance(v, str) and v:
+                try:
+                    return datetime.fromisoformat(v[:10]).date()
+                except ValueError:
+                    return None
+            return None
+
+        c = (await db.execute(
+            select(Contract).where(Contract.id == body.biz_id, Contract.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if not c:
+            raise BusinessException(code=NOT_FOUND, message="合同不存在")
+        amount_total = float(c.amount_total or 0)
+        collected = 0.0
+        plans = []
+        if c.project_id:
+            collected = float((await db.execute(
+                select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
+                    PaymentRecord.project_id == c.project_id, PaymentRecord.tenant_id == tenant_id)
+            )).scalar() or 0)
+            plans = (await db.execute(
+                select(PaymentPlan).where(PaymentPlan.source_contract_id == c.id, PaymentPlan.tenant_id == tenant_id)
+            )).scalars().all()
+            if not plans:
+                plans = (await db.execute(
+                    select(PaymentPlan).where(PaymentPlan.project_id == c.project_id, PaymentPlan.tenant_id == tenant_id)
+                )).scalars().all()
+        outstanding = round(amount_total - collected, 2)
+        today = date.today()
+        overdue_amount = 0.0
+        overdue_days = 0
+        overdue_cnt = 0
+        for p in plans:
+            d = _as_date(p.due_date)
+            if p.status != "paid" and d and d < today:
+                overdue_amount += float(p.amount or 0)
+                overdue_cnt += 1
+                overdue_days = max(overdue_days, (today - d).days)
+        customer_name = ""
+        if c.customer_id:
+            customer_name = (await db.execute(
+                select(Customer.name).where(Customer.id == c.customer_id, Customer.tenant_id == tenant_id)
+            )).scalar_one_or_none() or ""
+        entity_data = {
+            "contract_no": c.contract_no,
+            "amount_total": amount_total,
+            "collected": round(collected, 2),
+            "outstanding": outstanding,
+            "collection_rate": round(collected / amount_total * 100, 1) if amount_total else 0,
+            "overdue_amount": round(overdue_amount, 2),
+            "overdue_days": overdue_days,
+            "overdue_plan_count": overdue_cnt,
+            "plan_count": len(plans),
+            "customer_name": customer_name,
+            "signed_date": str(c.signed_date or ""),
+            "end_date": str(c.end_date or ""),
+        }
+
     else:
         raise BusinessException(code=42200, message=f"不支持的业务类型: {body.biz_type}")
 
@@ -339,6 +409,10 @@ async def run_analysis(
             result = await review_quote(entity_data, chat_cfg=chat_cfg)
         elif body.analysis_type == "contract_review":
             result = await review_contract(entity_data, chat_cfg=chat_cfg)
+        elif body.analysis_type == "receivable":
+            result = await analyze_receivable(entity_data, chat_cfg=chat_cfg)
+        elif body.analysis_type == "sales_script":
+            result = await recommend_sales_script(entity_data, chat_cfg=chat_cfg)
         else:
             raise BusinessException(code=42200, message=f"不支持的分析类型: {body.analysis_type}")
     except BusinessException:

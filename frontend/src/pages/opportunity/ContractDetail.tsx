@@ -9,6 +9,7 @@ import { deliveryApi } from '@/api/delivery'
 import { approvalApi } from '@/api/approval'
 import { aiApi } from '@/api/ai'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
 import SignaturePad from '@/components/SignaturePad'
 import DataView, { formatMoney } from '@/components/DataView'
 import { PaymentTermsView, ClauseTermsView, PaymentTermsEditor, LineItemsEditor, toCanonicalRows, PAY_FIELDS, LINE_FIELDS } from '@/components/ContractTerms'
@@ -293,6 +294,7 @@ export default function ContractDetail() {
           </p>
         </div>
         <Space>
+          <AiAnalysisButton bizType="contract" bizId={cid!} />
           {contract.status !== 'terminated' && (
             <Button icon={<EditOutlined />} onClick={openEditModal}>编辑条款</Button>
           )}
