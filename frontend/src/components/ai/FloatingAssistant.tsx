@@ -40,7 +40,7 @@ export default function FloatingAssistant() {
               showKnowledgeToggle
               welcome="你好，我是企业智能助手。可以问我知识库里的制度、流程，或让我帮你梳理业务问题。"
               placeholder="问我任何问题…"
-              onOpenDoc={(docId) => { setOpen(false); navigate(`/ai/knowledge?doc=${docId}`) }}
+              onOpenDoc={() => { setOpen(false); navigate('/knowledge-base') }}
             />
           </div>
         </div>
