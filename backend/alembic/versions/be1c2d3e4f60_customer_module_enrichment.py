@@ -93,15 +93,14 @@ def upgrade() -> None:
             sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
             sa.Column("sort_order", sa.Integer(), nullable=False, server_default="0"),
         )
-        op.create_index("ix_customer_pools_tenant_id", "customer_pools", ["tenant_id"], unique=False)
+        # 注：tenant_id 列上的 index=True 已自动建 ix_customer_pools_tenant_id，勿再显式建同名索引(会重复报错)
 
 
 def downgrade() -> None:
     bind = op.get_bind()
     insp = sa_inspect(bind)
     if insp.has_table("customer_pools"):
-        op.drop_index("ix_customer_pools_tenant_id", table_name="customer_pools")
-        op.drop_table("customer_pools")
+        op.drop_table("customer_pools")  # drop_table 会一并删除其索引
 
     idx = {i["name"] for i in insp.get_indexes("customers")}
     if "ix_customers_pool_id" in idx:
