@@ -10,6 +10,7 @@ import { downloadFile } from '@/utils/download'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import ApprovalPolicyModal from './ApprovalPolicyModal'
 import FileStorageTab from './FileStorageTab'
+import AiModelTab from './AiModelTab'
 import UiSettingsTab from './UiSettingsTab'
 import GateRulesEditor, { type GateRule, validateGateRules } from '@/components/GateRulesEditor'
 import DataView from '@/components/DataView'
@@ -686,6 +687,10 @@ export default function SettingsPage() {
           {
             key: 'file_storage', label: '文件存储',
             children: <FileStorageTab />,
+          },
+          {
+            key: 'ai_models', label: 'AI模型',
+            children: <AiModelTab />,
           },
           {
             key: 'ai_budget', label: 'AI用量',

@@ -8,7 +8,7 @@ from app.domains.admin.models import (
     TenantPlan, TenantUsageMeter, TenantProfile, TenantFeatureToggle,
     StageDefinition, MarginPolicy, TenantAiPolicy, TenantAiBudget,
     IntegrationEndpoint, WebhookSubscription, ApprovalPolicy,
-    TenantStorageConfig,
+    TenantStorageConfig, TenantAiSetting,
 )
 from app.domains.tenant.models import PlatformTenant
 from app.domains.audit.service import log_action
@@ -480,6 +480,158 @@ async def test_storage_connection(db: AsyncSession, tenant_id: str, storage_type
     except StorageError as e:
         return False, str(e)
     return await asyncio.to_thread(backend.test_connection)
+
+
+# ==================== Tenant: AI 模型接入 ====================
+
+async def _get_ai_setting_row(db: AsyncSession, tenant_id: str) -> TenantAiSetting | None:
+    return (await db.execute(
+        select(TenantAiSetting).where(TenantAiSetting.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+
+
+def _mask_ai_provider(cfg: dict | None) -> dict:
+    """UI 用:回显 base_url/model/dimensions,api_key 掩码为 *** 或空。"""
+    cfg = cfg or {}
+    out = {
+        "base_url": cfg.get("base_url") or "",
+        "model": cfg.get("model") or "",
+    }
+    if "dimensions" in cfg:
+        out["dimensions"] = cfg.get("dimensions")
+    out["api_key"] = "***" if cfg.get("api_key") else ""
+    return out
+
+
+async def get_ai_setting_masked(db: AsyncSession, tenant_id: str) -> dict:
+    from app.common.ai_providers import CHAT_PROVIDERS, EMBEDDING_PROVIDERS
+    row = await _get_ai_setting_row(db, tenant_id)
+    return {
+        "chat_provider": row.chat_provider if row else "mock",
+        "chat": _mask_ai_provider(row.chat_config_json if row else None),
+        "embedding_provider": row.embedding_provider if row else "none",
+        "embedding": _mask_ai_provider(row.embedding_config_json if row else None),
+        "enabled": bool(row.enabled) if row else False,
+        # 供前端渲染下拉与默认值
+        "chat_providers": CHAT_PROVIDERS,
+        "embedding_providers": EMBEDDING_PROVIDERS,
+    }
+
+
+def _merge_ai_provider(existing: dict | None, incoming: dict | None) -> dict | None:
+    """把 incoming 覆盖到已存配置,api_key 为空/*** 时保留原加密密钥。"""
+    from app.common.crypto import encrypt_config_json
+    if incoming is None:
+        return existing
+    merged = dict(existing or {})
+    for k, v in incoming.items():
+        if v is None:
+            continue
+        if k == "api_key" and v in ("", "***"):
+            continue  # 保留已存密钥
+        merged[k] = v
+    return encrypt_config_json(merged)
+
+
+async def upsert_ai_setting(db: AsyncSession, tenant_id: str, data: dict) -> TenantAiSetting:
+    row = await _get_ai_setting_row(db, tenant_id)
+    chat_cfg = (row.chat_config_json if row else None) or {}
+    emb_cfg = (row.embedding_config_json if row else None) or {}
+
+    if data.get("chat") is not None:
+        chat_cfg = _merge_ai_provider(chat_cfg, data["chat"])
+    if data.get("embedding") is not None:
+        emb_cfg = _merge_ai_provider(emb_cfg, data["embedding"])
+
+    chat_provider = data.get("chat_provider") or (row.chat_provider if row else "mock")
+    embedding_provider = data.get("embedding_provider") or (row.embedding_provider if row else "none")
+    enabled = data.get("enabled") if data.get("enabled") is not None else (row.enabled if row else False)
+
+    if row:
+        row.chat_provider = chat_provider
+        row.chat_config_json = chat_cfg
+        row.embedding_provider = embedding_provider
+        row.embedding_config_json = emb_cfg
+        row.enabled = enabled
+    else:
+        row = TenantAiSetting(
+            id=generate_uuid(), tenant_id=tenant_id,
+            chat_provider=chat_provider, chat_config_json=chat_cfg,
+            embedding_provider=embedding_provider, embedding_config_json=emb_cfg,
+            enabled=enabled,
+        )
+        db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return row
+
+
+async def resolve_ai_config(db: AsyncSession, tenant_id: str) -> dict:
+    """运行时用:返回已解密、含 provider/api 类型/base_url 默认值的配置。
+
+    {
+      "enabled": bool,
+      "chat": {"provider","api","base_url","api_key","model"} | None,
+      "embedding": {"provider","base_url","api_key","model","dimensions"} | None,
+    }
+    provider=mock/none 或未配置密钥时对应块为 None(调用方回退 mock/关键词)。
+    """
+    from app.common.crypto import decrypt_config_json
+    from app.common.ai_providers import (
+        chat_provider_meta, embedding_provider_meta, EMBEDDING_DIM,
+    )
+    row = await _get_ai_setting_row(db, tenant_id)
+    if not row or not row.enabled:
+        return {"enabled": False, "chat": None, "embedding": None}
+
+    chat = None
+    if row.chat_provider and row.chat_provider != "mock":
+        meta = chat_provider_meta(row.chat_provider)
+        cfg = decrypt_config_json(row.chat_config_json) or {}
+        api_key = cfg.get("api_key")
+        if api_key:
+            chat = {
+                "provider": row.chat_provider,
+                "api": meta.get("api", "openai"),
+                "base_url": cfg.get("base_url") or meta.get("base_url") or "",
+                "api_key": api_key,
+                "model": cfg.get("model") or (meta.get("models") or [""])[0],
+            }
+
+    embedding = None
+    if row.embedding_provider and row.embedding_provider != "none":
+        meta = embedding_provider_meta(row.embedding_provider)
+        cfg = decrypt_config_json(row.embedding_config_json) or {}
+        api_key = cfg.get("api_key")
+        if api_key:
+            embedding = {
+                "provider": row.embedding_provider,
+                "base_url": cfg.get("base_url") or meta.get("base_url") or "",
+                "api_key": api_key,
+                "model": cfg.get("model") or (meta.get("models") or [""])[0],
+                "dimensions": int(cfg.get("dimensions") or meta.get("default_dimensions") or EMBEDDING_DIM),
+            }
+
+    return {"enabled": True, "chat": chat, "embedding": embedding}
+
+
+async def test_ai_chat(db: AsyncSession, tenant_id: str) -> tuple[bool, str | None]:
+    cfg = await resolve_ai_config(db, tenant_id)
+    chat = cfg.get("chat")
+    if not chat:
+        return False, "对话模型未配置或未填写密钥,请先保存配置"
+    from app.common.ai_engine import ping_chat
+    return await ping_chat(chat)
+
+
+async def test_ai_embedding(db: AsyncSession, tenant_id: str) -> tuple[bool, str | None]:
+    cfg = await resolve_ai_config(db, tenant_id)
+    emb = cfg.get("embedding")
+    if not emb:
+        return False, "嵌入模型未配置或未填写密钥,请先保存配置"
+    from app.common.ai_embedding import test_embedding
+    ok, err, _dim = await test_embedding(emb)
+    return ok, err
 
 
 # ==================== Tenant: Webhooks ====================

@@ -22,7 +22,7 @@ from app.domains.admin.schemas import (
     MarginPolicyCreate, MarginPolicyUpdate, AiPolicyUpdate, AiBudgetUpdate,
     IntegrationCreate, IntegrationUpdate, WebhookCreate,
     ApprovalPolicyCreate, ApprovalPolicyUpdate, StorageConfigUpdate,
-    UiSettingsUpdate,
+    UiSettingsUpdate, AiSettingUpdate,
 )
 
 
@@ -571,6 +571,35 @@ async def test_file_storage(storage_type: str = Query(...), tenant_id: str = Dep
     if storage_type not in ("local", "minio", "oss"):
         raise BusinessException(message="不支持的存储类型")
     connected, err = await service.test_storage_connection(db, tenant_id, storage_type)
+    return ok({"connected": connected, "error": err})
+
+
+# ==================== Tenant: AI 模型接入 ====================
+
+@router.get("/api/admin/v1/tenant/ai-settings")
+async def get_ai_settings(tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    return ok(await service.get_ai_setting_masked(db, tenant_id))
+
+
+@router.put("/api/admin/v1/tenant/ai-settings")
+async def update_ai_settings(body: AiSettingUpdate, tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    data = body.model_dump(exclude_unset=True)
+    for key in ("chat", "embedding"):
+        if data.get(key) is not None and not isinstance(data[key], dict):
+            data[key] = data[key].model_dump(exclude_unset=True)
+    await service.upsert_ai_setting(db, tenant_id, data)
+    return ok(await service.get_ai_setting_masked(db, tenant_id))
+
+
+@router.post("/api/admin/v1/tenant/ai-settings/test-chat")
+async def test_ai_chat_conn(tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    connected, err = await service.test_ai_chat(db, tenant_id)
+    return ok({"connected": connected, "error": err})
+
+
+@router.post("/api/admin/v1/tenant/ai-settings/test-embedding")
+async def test_ai_embedding_conn(tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
+    connected, err = await service.test_ai_embedding(db, tenant_id)
     return ok({"connected": connected, "error": err})
 
 

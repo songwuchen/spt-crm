@@ -35,29 +35,64 @@ def get_last_usage() -> dict:
     return dict(_last_usage)
 
 
-async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 2000) -> str:
-    """Call configured LLM backend. Falls back to mock if no provider configured."""
+async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 2000, chat_cfg: dict | None = None) -> str:
+    """Call the LLM backend.
+
+    优先级: 显式 chat_cfg(租户后台配置) > 环境变量 AI_PROVIDER > mock。
+    chat_cfg = {"api": "openai"|"anthropic", "base_url", "api_key", "model"}。
+    """
+    if chat_cfg and chat_cfg.get("api_key"):
+        api = chat_cfg.get("api", "openai")
+        base_url = chat_cfg.get("base_url") or "https://api.openai.com/v1"
+        api_key = chat_cfg["api_key"]
+        model = chat_cfg.get("model") or ("claude-sonnet-4-20250514" if api == "anthropic" else "gpt-4o")
+        if api == "anthropic":
+            return await _call_anthropic(system_prompt, user_prompt, max_tokens, base_url, api_key, model)
+        return await _call_openai(system_prompt, user_prompt, max_tokens, base_url, api_key, model)
+
     from app.config import settings
-
     provider = getattr(settings, "AI_PROVIDER", "mock")
-
     if provider == "openai":
-        return await _call_openai(system_prompt, user_prompt, max_tokens)
+        return await _call_openai(
+            system_prompt, user_prompt, max_tokens,
+            getattr(settings, "AI_BASE_URL", "https://api.openai.com/v1"),
+            getattr(settings, "AI_API_KEY", ""),
+            getattr(settings, "AI_MODEL", "") or "gpt-4o",
+        )
     elif provider == "anthropic":
-        return await _call_anthropic(system_prompt, user_prompt, max_tokens)
+        return await _call_anthropic(
+            system_prompt, user_prompt, max_tokens,
+            "https://api.anthropic.com",
+            getattr(settings, "AI_API_KEY", ""),
+            getattr(settings, "AI_MODEL", "") or "claude-sonnet-4-20250514",
+        )
     else:
         _last_usage.update({"token_in": 0, "token_out": 0, "cost_est": 0.0, "model": "mock"})
         return _mock_response(user_prompt)
 
 
-async def _call_openai(system_prompt: str, user_prompt: str, max_tokens: int) -> str:
-    """Call OpenAI-compatible API."""
+async def ping_chat(chat_cfg: dict) -> tuple[bool, str | None]:
+    """后台"测试连接":用极小 prompt 实际调用一次配置的对话模型。"""
     import httpx
-    from app.config import settings
+    try:
+        txt = await _call_llm("You are a health check.", "回复两个字:正常", max_tokens=16, chat_cfg=chat_cfg)
+        return bool(txt is not None), None
+    except httpx.HTTPStatusError as e:
+        body = ""
+        try:
+            body = e.response.text[:200]
+        except Exception:
+            pass
+        return False, f"HTTP {e.response.status_code}: {body}"
+    except Exception as e:
+        return False, str(e)
 
-    api_key = getattr(settings, "AI_API_KEY", "")
-    model = getattr(settings, "AI_MODEL", "gpt-4o")
-    base_url = getattr(settings, "AI_BASE_URL", "https://api.openai.com/v1")
+
+async def _call_openai(system_prompt: str, user_prompt: str, max_tokens: int,
+                       base_url: str, api_key: str, model: str) -> str:
+    """Call OpenAI-compatible API (OpenAI / 通义 / DeepSeek / 自定义兼容端点)。"""
+    import httpx
+    base_url = (base_url or "https://api.openai.com/v1").rstrip("/")
 
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
@@ -86,17 +121,15 @@ async def _call_openai(system_prompt: str, user_prompt: str, max_tokens: int) ->
         return data["choices"][0]["message"]["content"]
 
 
-async def _call_anthropic(system_prompt: str, user_prompt: str, max_tokens: int) -> str:
+async def _call_anthropic(system_prompt: str, user_prompt: str, max_tokens: int,
+                          base_url: str, api_key: str, model: str) -> str:
     """Call Anthropic Claude API with structured JSON output."""
     import httpx
-    from app.config import settings
-
-    api_key = getattr(settings, "AI_API_KEY", "")
-    model = getattr(settings, "AI_MODEL", "claude-sonnet-4-20250514")
+    base_url = (base_url or "https://api.anthropic.com").rstrip("/")
 
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
+            f"{base_url}/v1/messages",
             headers={
                 "x-api-key": api_key,
                 "anthropic-version": "2023-06-01",
@@ -244,7 +277,7 @@ def _render_template(template: str, variables: dict) -> str:
     return result
 
 
-async def analyze_project_risk(project_data: dict, tenant_id: str | None = None) -> dict:
+async def analyze_project_risk(project_data: dict, tenant_id: str | None = None, chat_cfg: dict | None = None) -> dict:
     """Analyze project risk based on project data."""
     # Try to use a DB template first
     template = await _get_template_text("quote_risk_analysis", tenant_id)
@@ -261,14 +294,14 @@ async def analyze_project_risk(project_data: dict, tenant_id: str | None = None)
 请从技术、商务、竞争三个维度分析风险，输出JSON格式。"""
 
     system = "你是一位CRM销售风险分析专家。请以JSON格式输出风险评估结果。"
-    result = await _call_llm(system, prompt)
+    result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
         return json.loads(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
 
-async def generate_customer_profile(customer_data: dict, tenant_id: str | None = None) -> dict:
+async def generate_customer_profile(customer_data: dict, tenant_id: str | None = None, chat_cfg: dict | None = None) -> dict:
     """Generate AI customer profile/portrait."""
     template = await _get_template_text("customer_insight", tenant_id)
     if template:
@@ -284,14 +317,14 @@ async def generate_customer_profile(customer_data: dict, tenant_id: str | None =
 请分析客户的行业定位、决策模式、痛点和机会，输出JSON格式。"""
 
     system = "你是一位CRM客户分析专家。请以JSON格式输出客户画像分析。"
-    result = await _call_llm(system, prompt)
+    result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
         return json.loads(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
 
-async def predict_win_probability(project_data: dict) -> dict:
+async def predict_win_probability(project_data: dict, chat_cfg: dict | None = None) -> dict:
     """Predict win probability for a project."""
     prompt = f"""请预测以下商机的赢单概率：
 项目: {project_data.get('name', '')}
@@ -303,14 +336,14 @@ async def predict_win_probability(project_data: dict) -> dict:
 请评估赢率并给出积极/消极因素分析，输出JSON格式。"""
 
     system = "你是一位CRM销售预测专家。请以JSON格式输出赢率预测。"
-    result = await _call_llm(system, prompt)
+    result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
         return json.loads(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
 
-async def review_quote(quote_data: dict) -> dict:
+async def review_quote(quote_data: dict, chat_cfg: dict | None = None) -> dict:
     """Review a quote version for risk and pricing issues."""
     prompt = f"""请对以下报价进行审核分析：
 报价编号: {quote_data.get('quote_no', '')}
@@ -323,14 +356,14 @@ async def review_quote(quote_data: dict) -> dict:
 请从定价合理性、利润率、付款条款等维度审核，输出JSON格式。"""
 
     system = "你是一位CRM报价审核专家。请以JSON格式输出审核结果，包含 review_items 列表和 overall_comment。"
-    result = await _call_llm(system, prompt)
+    result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
         return json.loads(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
 
-async def review_contract(contract_data: dict) -> dict:
+async def review_contract(contract_data: dict, chat_cfg: dict | None = None) -> dict:
     """Review a contract for risk clauses."""
     prompt = f"""请对以下合同进行风险条款审核：
 合同编号: {contract_data.get('contract_no', '')}
@@ -341,14 +374,14 @@ async def review_contract(contract_data: dict) -> dict:
 请从交付周期、违约条款、知识产权、付款条件等维度审核合同风险，输出JSON格式。"""
 
     system = "你是一位CRM合同审核专家。请以JSON格式输出审核结果，包含 clauses 风险列表和 overall_comment。"
-    result = await _call_llm(system, prompt)
+    result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
         return json.loads(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
 
-async def suggest_next_actions(project_data: dict, tenant_id: str | None = None) -> dict:
+async def suggest_next_actions(project_data: dict, tenant_id: str | None = None, chat_cfg: dict | None = None) -> dict:
     """Suggest next actions for a project."""
     template = await _get_template_text("next_action", tenant_id)
     if template:
@@ -363,14 +396,14 @@ async def suggest_next_actions(project_data: dict, tenant_id: str | None = None)
 请推荐3-5个具体行动项，输出JSON格式。"""
 
     system = "你是一位CRM销售教练。请以JSON格式输出行动建议。"
-    result = await _call_llm(system, prompt)
+    result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
         return json.loads(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
 
-async def summarize_activity(activities: list[dict]) -> dict:
+async def summarize_activity(activities: list[dict], chat_cfg: dict | None = None) -> dict:
     """Summarize a list of activity records into a concise AI summary."""
     if not activities:
         return {"summary": "暂无活动记录。", "key_points": [], "suggestion": ""}
@@ -390,14 +423,14 @@ async def summarize_activity(activities: list[dict]) -> dict:
 3. suggestion: 下一步建议"""
 
     system = "你是一位CRM销售助理。请以JSON格式输出活动记录汇总分析。"
-    result = await _call_llm(system, prompt)
+    result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
         return json.loads(result)
     except json.JSONDecodeError:
         return {"summary": result[:200], "key_points": [], "suggestion": ""}
 
 
-async def find_similar_projects(project_data: dict, candidates: list[dict]) -> dict:
+async def find_similar_projects(project_data: dict, candidates: list[dict], chat_cfg: dict | None = None) -> dict:
     """Find similar projects from a list of candidates based on industry/amount/stage."""
     if not candidates:
         return {"similar_projects": [], "insights": ""}
@@ -421,7 +454,7 @@ async def find_similar_projects(project_data: dict, candidates: list[dict]) -> d
 {{"similar_projects": [{{"name": "...", "similarity_score": 85, "reason": "..."}}], "insights": "..."}}"""
 
     system = "你是一位CRM销售分析专家。请以JSON格式输出相似商机匹配结果。"
-    result = await _call_llm(system, prompt)
+    result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
         return json.loads(result)
     except json.JSONDecodeError:

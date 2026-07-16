@@ -317,20 +317,25 @@ async def run_analysis(
     else:
         raise BusinessException(code=42200, message=f"不支持的业务类型: {body.biz_type}")
 
+    # 解析租户后台配置的对话模型(未配置则 chat_cfg=None → ai_engine 回退 env/mock)
+    from app.domains.admin.service import resolve_ai_config
+    ai_cfg = await resolve_ai_config(db, tenant_id)
+    chat_cfg = ai_cfg.get("chat")
+
     # Run analysis
     try:
         if body.analysis_type == "risk":
-            result = await analyze_project_risk(entity_data)
+            result = await analyze_project_risk(entity_data, tenant_id=tenant_id, chat_cfg=chat_cfg)
         elif body.analysis_type == "profile":
-            result = await generate_customer_profile(entity_data)
+            result = await generate_customer_profile(entity_data, tenant_id=tenant_id, chat_cfg=chat_cfg)
         elif body.analysis_type == "win_probability":
-            result = await predict_win_probability(entity_data)
+            result = await predict_win_probability(entity_data, chat_cfg=chat_cfg)
         elif body.analysis_type == "next_actions":
-            result = await suggest_next_actions(entity_data)
+            result = await suggest_next_actions(entity_data, tenant_id=tenant_id, chat_cfg=chat_cfg)
         elif body.analysis_type == "quote_review":
-            result = await review_quote(entity_data)
+            result = await review_quote(entity_data, chat_cfg=chat_cfg)
         elif body.analysis_type == "contract_review":
-            result = await review_contract(entity_data)
+            result = await review_contract(entity_data, chat_cfg=chat_cfg)
         else:
             raise BusinessException(code=42200, message=f"不支持的分析类型: {body.analysis_type}")
     except BusinessException:
@@ -444,8 +449,10 @@ async def find_similar(
         for o in others
     ]
 
+    from app.domains.admin.service import resolve_ai_config
+    _cfg = await resolve_ai_config(db, tenant_id)
     try:
-        result = await find_similar_projects(project_data, candidates)
+        result = await find_similar_projects(project_data, candidates, chat_cfg=_cfg.get("chat"))
     except Exception as e:
         from app.common.exceptions import BusinessException
         raise BusinessException(code=50000, message=f"相似商机分析失败: {str(e)}")

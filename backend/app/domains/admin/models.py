@@ -105,6 +105,29 @@ class TenantAiBudget(TenantScopedBase):
     hard_limit: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class TenantAiSetting(TenantScopedBase):
+    """租户级 AI 模型接入配置（对话模型 + 向量嵌入模型）。
+
+    每租户单行（singleton）。密钥字段在 config_json 内以 AES 加密存储，
+    响应时掩码为 ***，参照 TenantStorageConfig 的做法。
+    """
+    __tablename__ = "tenant_ai_settings"
+
+    # 对话/分析模型
+    chat_provider: Mapped[str] = mapped_column(String(32), default="mock")
+    # mock / qwen / deepseek / openai / anthropic / custom
+    chat_config_json: Mapped[dict | None] = mapped_column(JSON)
+    # {"base_url": "...", "api_key": "enc:...", "model": "qwen-plus"}
+
+    # 向量嵌入模型（用于知识库语义检索）
+    embedding_provider: Mapped[str] = mapped_column(String(32), default="none")
+    # none / qwen / openai / custom
+    embedding_config_json: Mapped[dict | None] = mapped_column(JSON)
+    # {"base_url": "...", "api_key": "enc:...", "model": "text-embedding-v3", "dimensions": 1024}
+
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
 class ApprovalPolicy(TenantScopedBase):
     """审批策略配置"""
     __tablename__ = "approval_policies"

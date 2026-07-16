@@ -167,3 +167,18 @@ class StorageConfigUpdate(BaseModel):
     storage_type: str  # local / minio / oss
     minio: Optional[StorageProviderConfig] = None
     oss: Optional[StorageProviderConfig] = None
+
+
+# ---- AI 模型接入 ----
+class AiProviderConfigIn(BaseModel):
+    base_url: Optional[str] = None
+    model: Optional[str] = None
+    api_key: Optional[str] = None        # 空/"***" 表示不修改已存密钥
+    dimensions: Optional[int] = None     # 仅嵌入使用
+
+class AiSettingUpdate(BaseModel):
+    chat_provider: Optional[str] = None
+    chat: Optional[AiProviderConfigIn] = None
+    embedding_provider: Optional[str] = None
+    embedding: Optional[AiProviderConfigIn] = None
+    enabled: Optional[bool] = None

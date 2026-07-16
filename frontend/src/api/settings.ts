@@ -118,4 +118,11 @@ export const settingsApi = {
     client.put('/api/admin/v1/tenant/file-storage', data),
   testFileStorage: (storageType: string) =>
     client.post('/api/admin/v1/tenant/file-storage/test', null, { params: { storage_type: storageType } }),
+
+  // AI 模型接入
+  getAiSettings: () => client.get('/api/admin/v1/tenant/ai-settings'),
+  updateAiSettings: (data: Record<string, unknown>) =>
+    client.put('/api/admin/v1/tenant/ai-settings', data),
+  testAiChat: () => client.post('/api/admin/v1/tenant/ai-settings/test-chat'),
+  testAiEmbedding: () => client.post('/api/admin/v1/tenant/ai-settings/test-embedding'),
 }

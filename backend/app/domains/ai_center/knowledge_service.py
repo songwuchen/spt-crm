@@ -1,14 +1,115 @@
 """Knowledge base service — document management, chunking, and RAG search."""
 
+import logging
 import re
 from typing import Optional
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
 from app.common.error_codes import NOT_FOUND
 from app.domains.ai_center.knowledge_models import KnowledgeDocument, KnowledgeChunk
+
+logger = logging.getLogger("spt_crm.ai.knowledge")
+
+# 进程级缓存:knowledge_chunks 是否有 pgvector 的 embedding 列(部署后进程重启即刷新)
+_HAS_EMBED_COL: bool | None = None
+
+
+async def _has_embedding_column(db: AsyncSession) -> bool:
+    global _HAS_EMBED_COL
+    if _HAS_EMBED_COL is not None:
+        return _HAS_EMBED_COL
+    try:
+        r = await db.execute(text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'knowledge_chunks' AND column_name = 'embedding'"
+        ))
+        _HAS_EMBED_COL = bool(r.scalar())
+    except Exception:
+        _HAS_EMBED_COL = False
+    return _HAS_EMBED_COL
+
+
+async def _resolve_embedding_cfg(db: AsyncSession, tenant_id: str) -> dict | None:
+    """租户已启用且配置了嵌入模型时返回解密配置,否则 None。"""
+    from app.domains.admin.service import resolve_ai_config
+    cfg = await resolve_ai_config(db, tenant_id)
+    return cfg.get("embedding")
+
+
+async def _embed_document_chunks(db: AsyncSession, tenant_id: str, doc_id: str) -> None:
+    """尽力而为地为文档的所有 chunk 生成并写入向量。失败不影响文档本身。"""
+    cfg = await _resolve_embedding_cfg(db, tenant_id)
+    if not cfg or not await _has_embedding_column(db):
+        return
+    from app.common.ai_embedding import embed_texts, _to_vec_literal
+    rows = (await db.execute(
+        select(KnowledgeChunk).where(
+            KnowledgeChunk.document_id == doc_id,
+            KnowledgeChunk.tenant_id == tenant_id,
+        ).order_by(KnowledgeChunk.chunk_index)
+    )).scalars().all()
+    if not rows:
+        return
+    try:
+        vecs = await embed_texts(cfg, [r.content for r in rows])
+    except Exception as e:
+        logger.warning("知识库嵌入失败(doc=%s): %s", doc_id, e)
+        return
+    for r, v in zip(rows, vecs):
+        await db.execute(
+            text("UPDATE knowledge_chunks SET embedding = (:v)::vector WHERE id = :id AND tenant_id = :t"),
+            {"v": _to_vec_literal(v), "id": r.id, "t": tenant_id},
+        )
+    await db.commit()
+
+
+async def _vector_search(
+    db: AsyncSession, tenant_id: str, query: str,
+    doc_type: Optional[str], top_k: int, emb_cfg: dict,
+) -> Optional[list[dict]]:
+    """pgvector 余弦近邻检索。成功返回结果列表,任何失败返回 None 以触发关键词回退。"""
+    from app.common.ai_embedding import embed_query, _to_vec_literal
+    try:
+        qvec = await embed_query(emb_cfg, query)
+    except Exception as e:
+        logger.warning("查询向量化失败,回退关键词: %s", e)
+        return None
+    if not qvec:
+        return None
+    lit = _to_vec_literal(qvec)
+    sql = (
+        "SELECT c.id AS chunk_id, c.document_id, c.chunk_index, c.content, "
+        "       d.title AS doc_title, 1 - (c.embedding <=> (:q)::vector) AS score "
+        "FROM knowledge_chunks c "
+        "JOIN knowledge_documents d ON c.document_id = d.id "
+        "WHERE c.tenant_id = :t AND d.tenant_id = :t "
+        "      AND d.is_deleted = false AND d.status = 'active' "
+        "      AND c.embedding IS NOT NULL "
+        + ("AND d.doc_type = :dt " if doc_type else "")
+        + "ORDER BY c.embedding <=> (:q)::vector LIMIT :k"
+    )
+    params = {"q": lit, "t": tenant_id, "k": top_k}
+    if doc_type:
+        params["dt"] = doc_type
+    try:
+        rows = (await db.execute(text(sql), params)).mappings().all()
+    except Exception as e:
+        logger.warning("向量检索失败,回退关键词: %s", e)
+        return None
+    return [
+        {
+            "chunk_id": r["chunk_id"],
+            "document_id": r["document_id"],
+            "doc_title": r["doc_title"],
+            "chunk_index": r["chunk_index"],
+            "content": r["content"],
+            "score": round(float(r["score"]), 4),
+        }
+        for r in rows
+    ]
 
 
 # ==================== Document CRUD ====================
@@ -83,6 +184,7 @@ async def create_document(
     doc.chunk_count = len(chunks)
     await db.commit()
     await db.refresh(doc)
+    await _embed_document_chunks(db, tenant_id, doc.id)
     return doc
 
 
@@ -122,6 +224,8 @@ async def update_document(
 
     await db.commit()
     await db.refresh(doc)
+    if "content_text" in data:
+        await _embed_document_chunks(db, tenant_id, doc.id)
     return doc
 
 
@@ -139,7 +243,15 @@ async def search_chunks(
     doc_type: Optional[str] = None,
     top_k: int = 5,
 ) -> list[dict]:
-    """Search knowledge chunks by keyword matching. Returns top_k most relevant chunks."""
+    """语义检索(pgvector 余弦)优先,未启用嵌入/无向量列时回退关键词匹配。"""
+    # ---- 向量检索路径 ----
+    emb_cfg = await _resolve_embedding_cfg(db, tenant_id)
+    if emb_cfg and await _has_embedding_column(db):
+        vec = await _vector_search(db, tenant_id, query, doc_type, top_k, emb_cfg)
+        if vec is not None:
+            return vec
+
+    # ---- 关键词回退路径 ----
     q = (
         select(KnowledgeChunk, KnowledgeDocument.title.label("doc_title"))
         .join(KnowledgeDocument, KnowledgeChunk.document_id == KnowledgeDocument.id)
