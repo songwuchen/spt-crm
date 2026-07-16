@@ -430,7 +430,7 @@ async def analyze_project_risk(project_data: dict, tenant_id: str | None = None,
 
 请从技术、商务、竞争三个维度分析风险。
 严格按以下 JSON 输出，只输出 JSON、不要 markdown 或多余文字，键名保持英文原样：
-{"risk_level":"H|M|L","risks":[{"category":"技术/商务/竞争","description":"...","severity":"H|M|L","mitigation":"..."}],"overall_assessment":"一段总体评估"}"""
+{{"risk_level":"H|M|L","risks":[{{"category":"技术/商务/竞争","description":"...","severity":"H|M|L","mitigation":"..."}}],"overall_assessment":"一段总体评估"}}"""
 
     system = "你是一位CRM销售风险分析专家。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
@@ -455,7 +455,7 @@ async def generate_customer_profile(customer_data: dict, tenant_id: str | None =
 
 请分析客户的行业定位、决策模式、痛点和机会。
 严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
-{"industry_position":"...","decision_pattern":"...","pain_points":["..."],"opportunities":["..."],"recommended_approach":"..."}"""
+{{"industry_position":"...","decision_pattern":"...","pain_points":["..."],"opportunities":["..."],"recommended_approach":"..."}}"""
 
     system = "你是一位CRM客户分析专家。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
@@ -476,7 +476,7 @@ async def predict_win_probability(project_data: dict, chat_cfg: dict | None = No
 
 请评估赢率并给出积极/消极因素分析。
 严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
-{"win_probability":0-100的整数,"factors":{"positive":["..."],"negative":["..."]},"recommendation":"..."}"""
+{{"win_probability":0-100的整数,"factors":{{"positive":["..."],"negative":["..."]}},"recommendation":"..."}}"""
 
     system = "你是一位CRM销售预测专家。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
@@ -498,7 +498,7 @@ async def review_quote(quote_data: dict, chat_cfg: dict | None = None) -> dict:
 
 请从定价合理性、利润率、付款条款等维度审核。
 严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
-{"risk_level":"H|M|L","review_items":[{"item":"...","status":"pass|warning|fail","detail":"..."}],"overall_comment":"..."}"""
+{{"risk_level":"H|M|L","review_items":[{{"item":"...","status":"pass|warning|fail","detail":"..."}}],"overall_comment":"..."}}"""
 
     system = "你是一位CRM报价审核专家。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
@@ -518,7 +518,7 @@ async def review_contract(contract_data: dict, chat_cfg: dict | None = None) -> 
 
 请从交付周期、违约条款、知识产权、付款条件等维度审核合同风险。
 严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
-{"risk_level":"H|M|L","clauses":[{"clause":"...","risk":"H|M|L","detail":"..."}],"overall_comment":"..."}"""
+{{"risk_level":"H|M|L","clauses":[{{"clause":"...","risk":"H|M|L","detail":"..."}}],"overall_comment":"..."}}"""
 
     system = "你是一位CRM合同审核专家。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
@@ -542,7 +542,7 @@ async def suggest_next_actions(project_data: dict, tenant_id: str | None = None,
 
 请推荐3-5个具体行动项。
 严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
-{"next_actions":[{"action":"...","priority":"H|M|L","deadline":"如3天内","owner":"角色"}],"stage_suggestion":"..."}"""
+{{"next_actions":[{{"action":"...","priority":"H|M|L","deadline":"如3天内","owner":"角色"}}],"stage_suggestion":"..."}}"""
 
     system = "你是一位CRM销售教练。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
