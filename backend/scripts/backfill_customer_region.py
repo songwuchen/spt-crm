@@ -25,8 +25,10 @@ from app.database import async_session_factory  # noqa: E402
 from app.domains.customer.models import Customer  # noqa: E402
 
 # 行政区划数据（含 code + name），与前端同一份数据源。
-# 后端容器里可能没有 frontend/ 目录，因此按「显式参数 → 环境变量 → 若干候选路径」依次解析，
-# 找不到时给出可操作的报错，避免在生产容器中直接 FileNotFoundError。
+# backend/scripts/china-regions.json 是「烘焙进镜像」的副本(Dockerfile `COPY . .` 带入)，容器重建后
+# 依然可用；它与 frontend/src/data/ 的一致性由 tests/test_region_data_in_sync.py 守卫。
+# 解析顺序：显式参数 → 环境变量 → 前端源(完整仓库/本机) → 脚本同目录副本(容器内) → 当前目录；
+# 都找不到时给出可操作的报错，避免直接 FileNotFoundError。
 _REGION_CANDIDATES = [
     os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                   "..", "..", "frontend", "src", "data", "china-regions.json")),
