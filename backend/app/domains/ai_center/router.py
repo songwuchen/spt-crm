@@ -327,34 +327,26 @@ async def run_analysis(
         collected = 0.0
         plans = []
         if c.project_id:
-            # 优先用本合同自己的回款计划(source_contract_id),此时实收按"匹配到本合同计划的
-            # 回款记录"口径,避免同一项目多合同时把别的合同回款算到本合同(串合同→超收/负未收)。
+            # 回款计划:优先本合同自己的(source_contract_id),否则退回项目级
             own_plans = (await db.execute(
                 select(PaymentPlan).where(PaymentPlan.source_contract_id == c.id, PaymentPlan.tenant_id == tenant_id)
             )).scalars().all()
-            if own_plans:
-                plans = own_plans
-                plan_ids = [p.id for p in own_plans]
-                collected = float((await db.execute(
-                    select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
-                        PaymentRecord.matched_plan_id.in_(plan_ids), PaymentRecord.tenant_id == tenant_id)
-                )).scalar() or 0)
-            else:
-                # 合同无独立计划:退回项目级口径(单合同项目准确)
-                plans = (await db.execute(
-                    select(PaymentPlan).where(PaymentPlan.project_id == c.project_id, PaymentPlan.tenant_id == tenant_id)
-                )).scalars().all()
-                collected = float((await db.execute(
-                    select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
-                        PaymentRecord.project_id == c.project_id, PaymentRecord.tenant_id == tenant_id)
-                )).scalar() or 0)
-                # 多合同项目共享项目级回款,夹取上限避免 collected 超过本合同额→>100%/负未收
-                contract_count = (await db.execute(
-                    select(func.count(Contract.id)).where(
-                        Contract.project_id == c.project_id, Contract.tenant_id == tenant_id)
-                )).scalar() or 1
-                if contract_count > 1 and amount_total:
-                    collected = min(collected, amount_total)
+            plans = own_plans or (await db.execute(
+                select(PaymentPlan).where(PaymentPlan.project_id == c.project_id, PaymentPlan.tenant_id == tenant_id)
+            )).scalars().all()
+            # 实收:PaymentRecord 只按 project_id 关联(matched_plan_id 实际未启用),
+            # 故取项目级回款。单合同项目=准确;多合同项目共享项目级回款无法按合同拆分,
+            # 夹取上限避免把整项目回款算到单个合同→>100%/负未收(见 code-review)。
+            collected = float((await db.execute(
+                select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
+                    PaymentRecord.project_id == c.project_id, PaymentRecord.tenant_id == tenant_id)
+            )).scalar() or 0)
+            contract_count = (await db.execute(
+                select(func.count(Contract.id)).where(
+                    Contract.project_id == c.project_id, Contract.tenant_id == tenant_id)
+            )).scalar() or 1
+            if contract_count > 1 and amount_total:
+                collected = min(collected, amount_total)
         outstanding = round(max(0.0, amount_total - collected), 2)
         today = date.today()
         overdue_amount = 0.0
