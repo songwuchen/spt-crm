@@ -19,6 +19,12 @@ from app.domains.customer import service
 router = APIRouter(prefix="/api/v1/customers", tags=["客户管理"])
 
 
+def _format_region(c) -> str:
+    """展示用地区串：结构化省·市·区优先，回退 legacy 自由文本 region。"""
+    parts = [p for p in (c.province, c.city, c.district) if p]
+    return " · ".join(parts) if parts else (c.region or "")
+
+
 def _customer_dict(c) -> dict:
     return {
         "id": c.id, "customer_code": c.customer_code,
@@ -101,7 +107,7 @@ async def export_customers_excel(
     for c in items:
         rows.append([
             c.customer_code, c.name, c.short_name or "", c.industry or "",
-            c.scale_level or "", c.region or "", c.address or "",
+            c.scale_level or "", _format_region(c), c.address or "",
             c.owner_name or "", c.source or "", c.level or "", c.status or "",
             c.created_at.strftime("%Y-%m-%d %H:%M") if c.created_at else "",
         ])
@@ -168,7 +174,7 @@ async def export_pool_customers_excel(
     for c in items:
         rows.append([
             c.customer_code, c.name, c.short_name or "", c.industry or "",
-            c.scale_level or "", c.region or "", c.address or "",
+            c.scale_level or "", _format_region(c), c.address or "",
             c.source or "", c.level or "",
             c.updated_at.strftime("%Y-%m-%d %H:%M") if c.updated_at else "",
         ])

@@ -233,11 +233,14 @@ export default function CustomerDetail() {
                     <span className="material-symbols-outlined text-sm">factory</span> {industryMap[customer.industry] || customer.industry}
                   </span>
                 )}
-                {formatRegion(customer) && (
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">location_on</span> {formatRegion(customer)}
-                  </span>
-                )}
+                {(() => {
+                  const region = formatRegion(customer)
+                  return region ? (
+                    <span className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-sm">location_on</span> {region}
+                    </span>
+                  ) : null
+                })()}
                 {customer.customer_code && (
                   <span className="font-mono text-sm text-slate-400">#{customer.customer_code}</span>
                 )}

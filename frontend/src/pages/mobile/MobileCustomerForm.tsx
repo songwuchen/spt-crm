@@ -3,14 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import { customerApi } from '@/api/customer'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import RegionCascader from '@/components/RegionCascader'
+import type { RegionValue } from '@/components/RegionCascader'
 
 export default function MobileCustomerForm() {
   usePageTitle('新建客户')
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
-    name: '', short_name: '', industry: '', region: '', source: '', level: 'C',
+    name: '', short_name: '', industry: '', source: '', level: 'C',
   })
+  const [region, setRegion] = useState<RegionValue>({})
 
   const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }))
 
@@ -22,7 +25,10 @@ export default function MobileCustomerForm() {
         name: form.name.trim(),
         short_name: form.short_name || undefined,
         industry: form.industry || undefined,
-        region: form.region || undefined,
+        province: region.province || undefined,
+        city: region.city || undefined,
+        district: region.district || undefined,
+        region_code: region.regionCode || undefined,
         source: form.source || undefined,
         level: form.level || undefined,
       })
@@ -58,8 +64,7 @@ export default function MobileCustomerForm() {
         </div>
         <div>
           <label className="text-sm font-bold text-slate-500 mb-1 block">地区</label>
-          <input className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm"
-            placeholder="如：华东/上海" value={form.region} onChange={e => update('region', e.target.value)} />
+          <RegionCascader value={region} onChange={setRegion} placeholder="选择省/市/区县" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

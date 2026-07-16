@@ -45,8 +45,11 @@ export default function CustomerList() {
   const [pageNo, setPageNo] = useState(Number(searchParams.get('page')) || 1)
   const [keyword, setKeyword] = useState(searchParams.get('q') || '')
   const [industry, setIndustry] = useState<string | undefined>(searchParams.get('industry') || undefined)
-  // 结构化地址过滤：regionCode = 行政区划编码前缀(单值=级联精确，逗号多值=大区)；filterRegion 仅用于级联选择器回显
+  // 结构化地址过滤：regionCode = 行政区划编码前缀(单值=级联精确，逗号多值=大区)；
+  // regionName = 所选地区名(省/市/区县或大区名)，与 regionCode 取并集,兼容未回填的 legacy 文本客户；
+  // filterRegion 仅用于级联选择器回显
   const [regionCode, setRegionCode] = useState(searchParams.get('region_code') || '')
+  const [regionName, setRegionName] = useState(searchParams.get('region') || '')
   const [filterRegion, setFilterRegion] = useState<RegionValue>({})
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [importModal, setImportModal] = useState(false)
@@ -140,12 +143,13 @@ export default function CustomerList() {
     }
   }
 
-  const fetchData = async (page = pageNo, kw = keyword, ind = industry, rc = regionCode) => {
+  const fetchData = async (page = pageNo, kw = keyword, ind = industry, rc = regionCode, rn = regionName) => {
     setLoading(true)
     try {
       const res = await customerApi.list({
         pageNo: page, pageSize,
-        keyword: kw || undefined, industry: ind, region_code: rc || undefined,
+        keyword: kw || undefined, industry: ind,
+        region_code: rc || undefined, region: rn || undefined,
         ...view.buildParams(),
       })
       setData(res.data.items)
@@ -169,8 +173,9 @@ export default function CustomerList() {
     if (keyword) params.q = keyword
     if (industry) params.industry = industry
     if (regionCode) params.region_code = regionCode
+    if (regionName) params.region = regionName
     setSearchParams(params, { replace: true })
-    fetchData(1, keyword, industry, regionCode)
+    fetchData(1, keyword, industry, regionCode, regionName)
   }
 
   const levelColors: Record<string, string> = {
@@ -315,7 +320,7 @@ export default function CustomerList() {
 
       {showMap && (
         <div className="mb-4">
-          <RegionMap data={regionData} onRegionClick={(code) => { setRegionCode(code); setFilterRegion({}); setShowMap(false); fetchData(1, keyword, industry, code) }} />
+          <RegionMap data={regionData} onRegionClick={(code, name) => { setRegionCode(code); setRegionName(name); setFilterRegion({}); setShowMap(false); fetchData(1, keyword, industry, code, name) }} />
         </div>
       )}
 
@@ -337,7 +342,7 @@ export default function CustomerList() {
             allowClear
             style={{ width: 140 }}
             value={industry}
-            onChange={(v) => { setIndustry(v); setPageNo(1); fetchData(1, keyword, v, regionCode) }}
+            onChange={(v) => { setIndustry(v); setPageNo(1); fetchData(1, keyword, v, regionCode, regionName) }}
             options={industryDict.options}
           />
           <div style={{ width: 220 }}>
@@ -347,9 +352,12 @@ export default function CustomerList() {
               onChange={(v) => {
                 setFilterRegion(v)
                 const code = v.regionCode || ''
+                // 兼容 legacy 文本客户：同时按所选最深层级名称做包含匹配
+                const name = v.district || v.city || v.province || ''
                 setRegionCode(code)
+                setRegionName(name)
                 setPageNo(1)
-                fetchData(1, keyword, industry, code)
+                fetchData(1, keyword, industry, code, name)
               }}
             />
           </div>

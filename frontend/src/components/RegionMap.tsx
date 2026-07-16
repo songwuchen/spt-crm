@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 
 interface RegionMapProps {
   data: Array<{ region: string; count: number }>
-  /** 点击大区回调，参数为该大区各省份的行政区划编码前缀(逗号分隔)，用于 region_code 层级过滤 */
-  onRegionClick?: (regionCode: string) => void
+  /** 点击大区回调：regionCode = 该大区各省份编码前缀(逗号分隔)，regionName = 大区名(用于兼容 legacy 文本地区过滤) */
+  onRegionClick?: (regionCode: string, regionName: string) => void
 }
 
 // Simplified China regions with approximate SVG positions.
@@ -75,7 +75,7 @@ export default function RegionMap({ data, onRegionClick }: RegionMapProps) {
             return (
               <g key={r.name}
                 className="cursor-pointer transition-transform hover:scale-110"
-                onClick={() => onRegionClick?.(r.codes.join(','))}
+                onClick={() => onRegionClick?.(r.codes.join(','), r.name)}
               >
                 <circle cx={r.x} cy={r.y} r={size / 2} fill={color} opacity={0.85}
                   stroke="#fff" strokeWidth="2" />

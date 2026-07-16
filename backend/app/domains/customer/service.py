@@ -12,16 +12,28 @@ from app.common.code_generator import generate_code
 
 # ==================== Customer ====================
 
-def _apply_region_code(stmt, region_code: str | None):
-    """按行政区划编码前缀过滤客户。region_code 可为单个前缀(级联精确筛选)或
-    逗号分隔的多个前缀(大区，如 '31,32,33')；空/None 不过滤。"""
-    if not region_code:
-        return stmt
+def _esc_like(s: str) -> str:
+    """转义 LIKE 通配符，避免用户传入的 % / _ 改变匹配语义。"""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _apply_region_filter(stmt, region: str | None, region_code: str | None):
+    """地区过滤：结构化编码前缀(region_code) 与 legacy 自由文本(region) 取并集(OR)，
+    使已结构化与未回填的存量客户都能被同一次筛选命中。
+    - region_code: 单个前缀(级联精确)或逗号分隔多个前缀(大区，如 '31,32,33')
+    - region: 地区名称(省/市/区县名或大区名)，对 legacy 自由文本做包含匹配
+    两者通配符均转义。"""
     from sqlalchemy import or_
-    prefixes = [p.strip() for p in str(region_code).split(",") if p.strip()]
-    if not prefixes:
-        return stmt
-    return stmt.where(or_(*[Customer.region_code.like(f"{p}%") for p in prefixes]))
+    clauses = []
+    if region_code:
+        for p in (x.strip() for x in str(region_code).split(",")):
+            if p:
+                clauses.append(Customer.region_code.like(f"{_esc_like(p)}%", escape="\\"))
+    if region:
+        clauses.append(Customer.region.ilike(f"%{_esc_like(region)}%", escape="\\"))
+    if clauses:
+        stmt = stmt.where(or_(*clauses))
+    return stmt
 
 
 async def list_customers(
@@ -38,11 +50,8 @@ async def list_customers(
         base = base.where(Customer.name.ilike(f"%{keyword}%"))
     if industry:
         base = base.where(Customer.industry == industry)
-    if region:
-        base = base.where(Customer.region.ilike(f"%{region}%"))
-    # 结构化省市区层级过滤：region_code 为行政区划编码前缀，支持逗号分隔多个前缀(大区)。
-    # 因 GB 编码是层级前缀(省2位/市4位/区6位)，选到市即命中全市各区县。
-    base = _apply_region_code(base, region_code)
+    # 地区过滤：结构化编码前缀 OR legacy 文本，兼顾已结构化与未回填的存量客户。
+    base = _apply_region_filter(base, region, region_code)
     if isinstance(owner_id, (list, tuple, set)):
         base = base.where(Customer.owner_id.in_(list(owner_id)))  # [] -> 无可见数据
     elif owner_id:
@@ -300,9 +309,7 @@ async def list_pool_customers(
         base = base.where(Customer.name.ilike(f"%{keyword}%"))
     if industry:
         base = base.where(Customer.industry == industry)
-    if region:
-        base = base.where(Customer.region.ilike(f"%{region}%"))
-    base = _apply_region_code(base, region_code)
+    base = _apply_region_filter(base, region, region_code)
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
     items = (await db.execute(

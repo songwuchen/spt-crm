@@ -17,6 +17,7 @@ import ListToolbar from '@/components/list/ListToolbar'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import dayjs from 'dayjs'
 import { t } from '@/locales'
+import { formatRegion } from '@/utils/address'
 
 const { RangePicker } = DatePicker
 
@@ -236,9 +237,8 @@ export default function LeadList() {
         if (r.country_type === 'overseas') {
           return <span className="text-sm text-slate-600">{countryLabels.overseas}{r.country_name ? ` · ${r.country_name}` : ''}</span>
         }
-        const parts = [r.province, r.city, r.district].filter(Boolean)
-        if (parts.length > 0) return <span className="text-sm text-slate-600">{parts.join(' · ')}</span>
-        return r.region ? <span className="text-sm text-slate-600">{r.region}</span> : <span className="text-slate-300">-</span>
+        const label = formatRegion(r)
+        return label ? <span className="text-sm text-slate-600">{label}</span> : <span className="text-slate-300">-</span>
       },
     },
     { title: t('lead.score'), dataIndex: 'score', width: 140,

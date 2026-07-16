@@ -8,10 +8,12 @@ import { activityApi } from '@/api/activity'
 import { industryFallback } from '@/api/types'
 import { useDataDict } from '@/hooks/useDataDict'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { formatRegion } from '@/utils/address'
 
 interface CustomerInfo {
   id: string; name: string; customer_code?: string; short_name?: string
   industry?: string; scale_level?: string; region?: string; address?: string
+  province?: string; city?: string; district?: string; region_code?: string
   website?: string; owner_name?: string; source?: string; level?: string
   status: string; remark?: string; created_at: string
 }
@@ -113,9 +115,12 @@ export default function MobileCustomerDetail() {
           {customer.industry && (
             <div className="flex justify-between"><span className="text-sm text-slate-400">行业</span><span className="text-sm text-slate-700">{industryMap[customer.industry] || customer.industry}</span></div>
           )}
-          {customer.region && (
-            <div className="flex justify-between"><span className="text-sm text-slate-400">区域</span><span className="text-sm text-slate-700">{customer.region}</span></div>
-          )}
+          {(() => {
+            const region = formatRegion(customer)
+            return region ? (
+              <div className="flex justify-between"><span className="text-sm text-slate-400">区域</span><span className="text-sm text-slate-700">{region}</span></div>
+            ) : null
+          })()}
           <div className="flex justify-between"><span className="text-sm text-slate-400">负责人</span><span className="text-sm text-slate-700">{customer.owner_name || '-'}</span></div>
           {customer.source && (
             <div className="flex justify-between"><span className="text-sm text-slate-400">来源</span><span className="text-sm text-slate-700">{customer.source}</span></div>

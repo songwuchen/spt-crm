@@ -14,6 +14,7 @@ import DetailSkeleton from '@/components/DetailSkeleton'
 import { leadStatusConfig as statusConfig, leadReviewStatusConfig } from '@/constants/labels'
 import { useDataDict } from '@/hooks/useDataDict'
 import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
+import { formatRegion } from '@/utils/address'
 
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
 const countryLabels: Record<string, string> = { domestic: '国内', overseas: '国外' }
@@ -22,9 +23,7 @@ function formatLocation(lead: Lead): string | undefined {
   if (lead.country_type === 'overseas') {
     return `国外${lead.country_name ? ' · ' + lead.country_name : ''}`
   }
-  const parts = [lead.province, lead.city, lead.district].filter(Boolean)
-  if (parts.length > 0) return parts.join(' · ')
-  return lead.region || undefined
+  return formatRegion(lead) || undefined
 }
 
 const qualifySteps = [

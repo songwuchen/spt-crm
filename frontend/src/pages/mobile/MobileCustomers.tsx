@@ -9,6 +9,7 @@ import { useDataDict } from '@/hooks/useDataDict'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import PullToRefresh from '@/components/PullToRefresh'
 import SwipeAction from '@/components/SwipeAction'
+import { formatRegion } from '@/utils/address'
 
 const levelColors: Record<string, string> = {
   A: 'bg-red-100 text-red-700', B: 'bg-amber-100 text-amber-700',
@@ -100,7 +101,7 @@ export default function MobileCustomers() {
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-900 truncate">{c.name}</div>
                   <div className="text-sm text-slate-500 truncate">
-                    {[c.industry ? (industryMap[c.industry] || c.industry) : '', c.region].filter(Boolean).join(' · ') || '-'}
+                    {[c.industry ? (industryMap[c.industry] || c.industry) : '', formatRegion(c)].filter(Boolean).join(' · ') || '-'}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
