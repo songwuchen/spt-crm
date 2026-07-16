@@ -249,12 +249,13 @@ export default function SettingsPage() {
   useEffect(() => {
     Promise.all([
       roleApi.list().catch(() => ({ data: [] as { code: string; name: string }[] })),
-      // 取足够多用户以覆盖审批人 id→名字映射（默认分页只回第一页，靠后的审批人会显示成 id）
-      client.get('/api/admin/v1/tenant/users', { params: { pageNo: 1, pageSize: 1000 } }).catch(() => ({ data: { items: [] as { id: string; real_name?: string; username: string }[] } })),
+      // 审批人 id→名字映射：用 pickable-users 一次取全部租户用户(≤500,仅需登录)，
+      // 不再用分页版 tenant/users(其 pageSize 上限 100，传 1000 会 422)。
+      client.get('/api/v1/lc/pickable-users').catch(() => ({ data: [] as { id: string; name: string }[] })),
     ]).then(([rolesRes, usersRes]: any) => {
       const map: Record<string, string> = {}
       for (const r of rolesRes.data || []) map[r.code] = r.name
-      for (const u of usersRes.data?.items || []) map[u.id] = u.real_name || u.username
+      for (const u of usersRes.data || []) map[u.id] = u.name
       setApproverNameMap(map)
     })
   }, [])
