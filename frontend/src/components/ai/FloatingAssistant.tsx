@@ -10,14 +10,14 @@ export default function FloatingAssistant() {
 
   return (
     <>
-      {/* 悬浮按钮 */}
+      {/* 悬浮按钮：系统 LOGO */}
       <button
         onClick={() => setOpen((v) => !v)}
         title="AI 助手"
-        className="fixed z-[1000] bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-xl shadow-indigo-500/30 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+        className="fixed z-[1000] bottom-6 right-6 w-14 h-14 rounded-full bg-white ring-1 ring-slate-200 shadow-xl shadow-slate-400/30 flex items-center justify-center overflow-hidden hover:scale-105 active:scale-95 transition-transform"
         style={{ display: open ? 'none' : 'flex' }}
       >
-        <RobotOutlined style={{ fontSize: 24 }} />
+        <img src="/logo.png" alt="AI 助手" className="w-9 h-9 object-contain" />
       </button>
 
       {/* 对话面板 */}
