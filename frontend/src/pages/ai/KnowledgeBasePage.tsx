@@ -6,6 +6,7 @@ import type { KnowledgeDoc, KnowledgeSearchResult } from '@/api/ai'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { t } from '@/locales'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import AiChatPanel from '@/components/ai/AiChatPanel'
 
 const { TextArea } = Input
 
@@ -147,6 +148,21 @@ export default function KnowledgeBasePage() {
       </div>
 
       <Tabs items={[
+        {
+          key: 'qa',
+          label: 'AI 问答',
+          children: (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <AiChatPanel
+                height={520}
+                defaultUseKnowledge
+                welcome="向知识库提问，我会检索相关文档并给出带引用来源的答案。"
+                placeholder="输入问题，例如：报价审批的流程是怎样的？"
+                onOpenDoc={(docId) => handleViewDetail(docId)}
+              />
+            </div>
+          ),
+        },
         {
           key: 'docs',
           label: '文档管理',

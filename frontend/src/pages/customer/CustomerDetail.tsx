@@ -8,6 +8,7 @@ import { contactApi } from '@/api/contact'
 import { projectApi } from '@/api/project'
 import { roleApi } from '@/api/user'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
 import CustomFieldsPanel from '@/components/lowcode/EntityCustomFields'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import ChangeHistory from '@/components/ChangeHistory'
@@ -243,6 +244,7 @@ export default function CustomerDetail() {
             </div>
           </div>
           <Space>
+            <AiAnalysisButton bizType="customer" bizId={id!} />
             <Button icon={<EditOutlined />} onClick={() => navigate(`/customers/${id}/edit`)}>编辑</Button>
             {customer.status !== 'pool' && (
               <Button onClick={() => {

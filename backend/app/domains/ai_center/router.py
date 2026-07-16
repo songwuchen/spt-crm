@@ -1,4 +1,7 @@
+import json
+
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -550,3 +553,124 @@ async def search_knowledge(
         db, tenant_id, body.query, doc_type=body.doc_type, top_k=body.top_k,
     )
     return ok(chunks)
+
+
+# ==================== AI 助手 / RAG 问答 ====================
+
+class AssistantRequest(BaseModel):
+    question: str
+    history: Optional[list[dict]] = None   # [{role: user/assistant, content}]
+    use_knowledge: bool = True
+
+_NO_AI_MSG = "AI 对话未启用。请在 系统设置 → AI模型 配置对话模型并启用后再使用。"
+
+
+def _assistant_system(context: str) -> str:
+    if context:
+        return (
+            "你是企业 CRM 的智能助手。请优先依据下面提供的【知识库片段】回答用户问题；"
+            "若片段中确无相关信息，可基于常识回答，但要说明该结论未必来自企业知识库，切勿编造具体制度或数字。"
+            "回答用简体中文、条理清晰，引用知识库内容时可在句末用 [片段N] 标注来源。\n\n【知识库片段】\n" + context
+        )
+    return (
+        "你是企业 CRM 的智能助手。用简体中文、条理清晰地回答用户问题。"
+        "若涉及企业内部制度或数据而你不确定，请提示用户到知识库或系统中核实，不要编造。"
+    )
+
+
+async def _require_ai(db: AsyncSession, tenant_id: str):
+    from app.common.feature_flag import is_feature_enabled
+    from app.common.exceptions import BusinessException
+    if not await is_feature_enabled(db, tenant_id, "ai_center"):
+        raise BusinessException(code=42300, message="AI 中心功能未启用，请联系管理员在功能开关中开启。")
+
+
+async def _assistant_prepare(db: AsyncSession, tenant_id: str, body: "AssistantRequest"):
+    from app.domains.admin.service import resolve_ai_config
+    cfg = await resolve_ai_config(db, tenant_id)
+    chat_cfg = cfg.get("chat")
+    context, sources = "", []
+    if body.use_knowledge:
+        context, sources = await knowledge_service.retrieve_context(db, tenant_id, body.question)
+    system = _assistant_system(context)
+    hist = [
+        {"role": m.get("role"), "content": m.get("content")}
+        for m in (body.history or [])
+        if m.get("role") in ("user", "assistant") and m.get("content")
+    ][-8:]
+    messages = [*hist, {"role": "user", "content": body.question}]
+    return chat_cfg, system, messages, sources
+
+
+async def _charge_ai_budget(tenant_id: str, usage: dict):
+    """流式对话结束后计入月度 AI 预算(用独立会话,避免与请求会话生命周期耦合)。"""
+    try:
+        from datetime import datetime as _dt, timezone as _tz
+        from app.database import async_session_factory
+        from app.domains.admin.models import TenantAiBudget
+        async with async_session_factory() as db2:
+            period = _dt.now(_tz.utc).strftime("%Y-%m")
+            b = (await db2.execute(
+                select(TenantAiBudget).where(
+                    TenantAiBudget.tenant_id == tenant_id, TenantAiBudget.period == period)
+            )).scalar_one_or_none()
+            if b:
+                b.used_cost = float(b.used_cost or 0) + (usage.get("cost_est") or 0)
+                b.used_tokens = (b.used_tokens or 0) + (usage.get("token_in", 0) + usage.get("token_out", 0))
+                await db2.commit()
+    except Exception:
+        pass
+
+
+@router.post("/api/v1/ai/assistant")
+async def ai_assistant(
+    body: AssistantRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:view")),
+):
+    """非流式 RAG 问答(整段返回)。"""
+    await _require_ai(db, tenant_id)
+    chat_cfg, system, messages, sources = await _assistant_prepare(db, tenant_id, body)
+    if not chat_cfg:
+        return ok({"answer": _NO_AI_MSG, "sources": [], "usage": None})
+    from app.common.ai_engine import stream_llm, get_last_usage
+    buf = []
+    async for delta in stream_llm(system, messages, chat_cfg):
+        buf.append(delta)
+    usage = get_last_usage()
+    await _charge_ai_budget(tenant_id, usage)
+    return ok({"answer": "".join(buf), "sources": sources, "usage": usage})
+
+
+@router.post("/api/v1/ai/assistant/stream")
+async def ai_assistant_stream(
+    body: AssistantRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("project:view")),
+):
+    """流式 RAG 问答(SSE)。事件: sources(一次) / delta(多次) / done(含usage) / error。"""
+    await _require_ai(db, tenant_id)
+    chat_cfg, system, messages, sources = await _assistant_prepare(db, tenant_id, body)
+
+    async def gen():
+        yield f"event: sources\ndata: {json.dumps(sources, ensure_ascii=False)}\n\n"
+        if not chat_cfg:
+            yield f"event: delta\ndata: {json.dumps({'t': _NO_AI_MSG}, ensure_ascii=False)}\n\n"
+            yield "event: done\ndata: {}\n\n"
+            return
+        from app.common.ai_engine import stream_llm, get_last_usage
+        try:
+            async for delta in stream_llm(system, messages, chat_cfg):
+                yield f"event: delta\ndata: {json.dumps({'t': delta}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'error': str(e)[:200]}, ensure_ascii=False)}\n\n"
+        usage = get_last_usage()
+        await _charge_ai_budget(tenant_id, usage)
+        yield f"event: done\ndata: {json.dumps({'usage': usage}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        gen(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )

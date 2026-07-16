@@ -293,6 +293,34 @@ async def search_chunks(
     return scored[:top_k]
 
 
+async def retrieve_context(
+    db: AsyncSession, tenant_id: str, query: str,
+    doc_type: Optional[str] = None, top_k: int = 6, max_tokens: int = 2500,
+) -> tuple[str, list[dict]]:
+    """为 RAG 问答检索片段。返回 (拼接的上下文字符串, 引用来源列表)。
+
+    来源列表元素: {index, document_id, doc_title, score}。
+    """
+    chunks = await search_chunks(db, tenant_id, query, doc_type=doc_type, top_k=top_k)
+    parts: list[str] = []
+    sources: list[dict] = []
+    total = 0
+    for i, c in enumerate(chunks):
+        est = _estimate_tokens(c["content"])
+        if total + est > max_tokens:
+            break
+        idx = i + 1
+        parts.append(f"[片段{idx}] 《{c['doc_title']}》\n{c['content']}")
+        sources.append({
+            "index": idx,
+            "document_id": c["document_id"],
+            "doc_title": c["doc_title"],
+            "score": c.get("score"),
+        })
+        total += est
+    return "\n\n".join(parts), sources
+
+
 async def get_rag_context(
     db: AsyncSession, tenant_id: str, query: str,
     doc_type: Optional[str] = None, max_tokens: int = 2000,

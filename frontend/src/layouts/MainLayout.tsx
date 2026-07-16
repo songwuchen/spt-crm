@@ -9,6 +9,7 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import OnboardingTour from '@/components/OnboardingTour'
 import CommandPalette from '@/components/CommandPalette'
 import ContextualHelp from '@/components/ContextualHelp'
+import FloatingAssistant from '@/components/ai/FloatingAssistant'
 import { useAppStore } from '@/stores/useAppStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
@@ -193,6 +194,7 @@ export default function MainLayout() {
       <OnboardingTour />
       <CommandPalette />
       <ContextualHelp />
+      <FloatingAssistant />
     </Layout>
   )
 }

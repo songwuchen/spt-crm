@@ -13,6 +13,7 @@ import { changeApi } from '@/api/change'
 import { aiApi } from '@/api/ai'
 import { customerApi } from '@/api/customer'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
 import CustomFieldsPanel from '@/components/lowcode/EntityCustomFields'
 import ChangeHistory from '@/components/ChangeHistory'
 import DetailSkeleton from '@/components/DetailSkeleton'
@@ -136,7 +137,6 @@ export default function OpportunityDetail() {
   const [changeCreateForm] = Form.useForm()
 
   // AI analysis
-  const [aiLoading, setAiLoading] = useState(false)
   // Similar projects
   const [similarProjects, setSimilarProjects] = useState<{ name: string; similarity_score: number; reason: string }[] | null>(null)
   const [similarInsights, setSimilarInsights] = useState('')
@@ -213,42 +213,6 @@ export default function OpportunityDetail() {
     fetchAll(ac.signal)
     return () => ac.abort()
   }, [id])
-
-  const handleAiAnalysis = async () => {
-    setAiLoading(true)
-    try {
-      const res = await aiApi.analyze({
-        biz_type: 'project',
-        biz_id: id!,
-        analysis_type: 'risk',
-      })
-      const result = res.data?.result as Record<string, unknown> | undefined
-      Modal.info({
-        title: 'AI 风险分析结果',
-        width: 600,
-        content: (
-          <div className="mt-4 space-y-3">
-            {result?.overall_assessment ? (
-              <div className="p-3 bg-blue-50 rounded-lg text-sm text-slate-700">{String(result.overall_assessment)}</div>
-            ) : null}
-            {Array.isArray(result?.risks) && (result.risks as Array<Record<string, string>>).map((r, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-white border rounded-lg">
-                <Tag color={r.severity === 'H' ? 'red' : r.severity === 'M' ? 'orange' : 'green'}>{r.severity}</Tag>
-                <div>
-                  <div className="font-semibold text-sm">[{r.category}] {r.description}</div>
-                  <div className="text-sm text-slate-400 mt-1">缓解措施：{r.mitigation}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ),
-      })
-    } catch {
-      message.error('AI 分析失败')
-    } finally {
-      setAiLoading(false)
-    }
-  }
 
   const handleStageChange = async () => {
     if (!advanceTarget) return
@@ -571,7 +535,7 @@ export default function OpportunityDetail() {
             </div>
           </div>
           <Space>
-            <Button icon={<RobotOutlined />} loading={aiLoading} onClick={handleAiAnalysis}>AI 分析</Button>
+            <AiAnalysisButton bizType="project" bizId={id!} />
             {canTransfer && (
               <Button icon={<UserSwitchOutlined />} onClick={openTransfer}>转移负责人</Button>
             )}

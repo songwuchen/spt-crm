@@ -21,18 +21,54 @@ logger = logging.getLogger("spt_crm.ai")
 # Token usage tracking for the last call
 _last_usage = {"token_in": 0, "token_out": 0, "cost_est": 0.0, "model": "mock"}
 
-# Approximate pricing per 1M tokens (USD)
+# Approximate pricing per 1M tokens (USD). 国产模型按人民币官方价折算(≈÷7.2)。
 MODEL_PRICING = {
     "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
     "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.0},
     "gpt-4o": {"input": 2.50, "output": 10.0},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    # 通义千问(DashScope)
+    "qwen-plus": {"input": 0.11, "output": 0.28},
+    "qwen-turbo": {"input": 0.04, "output": 0.09},
+    "qwen-max": {"input": 0.33, "output": 1.33},
+    "qwen-long": {"input": 0.07, "output": 0.28},
+    # DeepSeek
+    "deepseek-chat": {"input": 0.14, "output": 0.28},
+    "deepseek-reasoner": {"input": 0.14, "output": 0.55},
     "mock": {"input": 0, "output": 0},
 }
+
+# 未知模型按 0 计(避免用 gpt-4o 定价高估国产模型成本)
+_ZERO_PRICE = {"input": 0.0, "output": 0.0}
 
 
 def get_last_usage() -> dict:
     """Get token usage from the last LLM call."""
     return dict(_last_usage)
+
+
+def _extract_json(text: str):
+    """从模型输出中稳健解析 JSON：剥离 ```json 围栏、提取最外层花括号。
+
+    解析失败时抛 json.JSONDecodeError,调用方据此回退 raw_response。
+    """
+    s = (text or "").strip()
+    if s.startswith("```"):
+        nl = s.find("\n")
+        if nl >= 0:
+            s = s[nl + 1:]
+        if s.rstrip().endswith("```"):
+            s = s.rstrip()[:-3]
+        s = s.strip()
+        if s.lower().startswith("json"):
+            s = s[4:].strip()
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        i, j = s.find("{"), s.rfind("}")
+        if i >= 0 and j > i:
+            return json.loads(s[i:j + 1])
+        raise
 
 
 async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 2000, chat_cfg: dict | None = None) -> str:
@@ -114,7 +150,7 @@ async def _call_openai(system_prompt: str, user_prompt: str, max_tokens: int,
         usage = data.get("usage", {})
         token_in = usage.get("prompt_tokens", 0)
         token_out = usage.get("completion_tokens", 0)
-        pricing = MODEL_PRICING.get(model, MODEL_PRICING["gpt-4o"])
+        pricing = MODEL_PRICING.get(model, _ZERO_PRICE)
         cost = (token_in * pricing["input"] + token_out * pricing["output"]) / 1_000_000
         _last_usage.update({"token_in": token_in, "token_out": token_out, "cost_est": round(cost, 6), "model": model})
         logger.info(f"OpenAI call: model={model} tokens_in={token_in} tokens_out={token_out} cost=${cost:.4f}")
@@ -154,6 +190,107 @@ async def _call_anthropic(system_prompt: str, user_prompt: str, max_tokens: int,
         _last_usage.update({"token_in": token_in, "token_out": token_out, "cost_est": round(cost, 6), "model": model})
         logger.info(f"Anthropic call: model={model} tokens_in={token_in} tokens_out={token_out} cost=${cost:.4f}")
         return data["content"][0]["text"]
+
+
+async def stream_llm(system_prompt: str, messages: list[dict], chat_cfg: dict | None = None,
+                     max_tokens: int = 1500):
+    """流式对话生成器,逐段 yield 文本增量。
+
+    messages: [{"role": "user"/"assistant", "content": ...}, ...](多轮对话)。
+    chat_cfg: 同 _call_llm。未配置时回退 mock(把整段结果分片吐出)。
+    """
+    if chat_cfg and chat_cfg.get("api_key"):
+        api = chat_cfg.get("api", "openai")
+        base_url = chat_cfg.get("base_url") or "https://api.openai.com/v1"
+        api_key = chat_cfg["api_key"]
+        model = chat_cfg.get("model") or ("claude-sonnet-4-20250514" if api == "anthropic" else "gpt-4o")
+        if api == "anthropic":
+            async for d in _stream_anthropic(system_prompt, messages, max_tokens, base_url, api_key, model):
+                yield d
+        else:
+            async for d in _stream_openai(system_prompt, messages, max_tokens, base_url, api_key, model):
+                yield d
+        return
+    # mock: 分片吐出示例文本
+    last = messages[-1]["content"] if messages else ""
+    text = _mock_response(last)
+    for i in range(0, len(text), 30):
+        yield text[i:i + 30]
+
+
+async def _stream_openai(system_prompt: str, messages: list[dict], max_tokens: int,
+                         base_url: str, api_key: str, model: str):
+    import httpx
+    base_url = (base_url or "https://api.openai.com/v1").rstrip("/")
+    payload = {
+        "model": model,
+        "messages": [{"role": "system", "content": system_prompt}, *messages],
+        "max_tokens": max_tokens,
+        "temperature": 0.4,
+        "stream": True,
+        "stream_options": {"include_usage": True},  # 末尾块携带 token 用量(OpenAI/通义兼容)
+    }
+    _last_usage.update({"token_in": 0, "token_out": 0, "cost_est": 0.0, "model": model})
+    async with httpx.AsyncClient(timeout=120) as client:
+        async with client.stream(
+            "POST", f"{base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload,
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line or not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    obj = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                usage = obj.get("usage")
+                if usage:
+                    ti = usage.get("prompt_tokens", 0); to = usage.get("completion_tokens", 0)
+                    pricing = MODEL_PRICING.get(model, {"input": 0, "output": 0})
+                    cost = (ti * pricing["input"] + to * pricing["output"]) / 1_000_000
+                    _last_usage.update({"token_in": ti, "token_out": to, "cost_est": round(cost, 6), "model": model})
+                choices = obj.get("choices") or [{}]
+                if choices:
+                    delta = (choices[0].get("delta") or {}).get("content")
+                    if delta:
+                        yield delta
+
+
+async def _stream_anthropic(system_prompt: str, messages: list[dict], max_tokens: int,
+                            base_url: str, api_key: str, model: str):
+    import httpx
+    base_url = (base_url or "https://api.anthropic.com").rstrip("/")
+    payload = {
+        "model": model,
+        "system": system_prompt,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": 0.4,
+        "stream": True,
+    }
+    async with httpx.AsyncClient(timeout=120) as client:
+        async with client.stream(
+            "POST", f"{base_url}/v1/messages",
+            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
+            json=payload,
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line or not line.startswith("data:"):
+                    continue
+                try:
+                    obj = json.loads(line[5:].strip())
+                except json.JSONDecodeError:
+                    continue
+                if obj.get("type") == "content_block_delta":
+                    txt = (obj.get("delta") or {}).get("text")
+                    if txt:
+                        yield txt
 
 
 def _mock_response(prompt: str) -> str:
@@ -291,12 +428,14 @@ async def analyze_project_risk(project_data: dict, tenant_id: str | None = None,
 客户: {project_data.get('customer_name', '')}
 行业: {project_data.get('industry', '')}
 
-请从技术、商务、竞争三个维度分析风险，输出JSON格式。"""
+请从技术、商务、竞争三个维度分析风险。
+严格按以下 JSON 输出，只输出 JSON、不要 markdown 或多余文字，键名保持英文原样：
+{"risk_level":"H|M|L","risks":[{"category":"技术/商务/竞争","description":"...","severity":"H|M|L","mitigation":"..."}],"overall_assessment":"一段总体评估"}"""
 
-    system = "你是一位CRM销售风险分析专家。请以JSON格式输出风险评估结果。"
+    system = "你是一位CRM销售风险分析专家。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
-        return json.loads(result)
+        return _extract_json(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
@@ -314,12 +453,14 @@ async def generate_customer_profile(customer_data: dict, tenant_id: str | None =
 商机数: {customer_data.get('project_count', 0)}
 总金额: {customer_data.get('total_amount', 0)}
 
-请分析客户的行业定位、决策模式、痛点和机会，输出JSON格式。"""
+请分析客户的行业定位、决策模式、痛点和机会。
+严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
+{"industry_position":"...","decision_pattern":"...","pain_points":["..."],"opportunities":["..."],"recommended_approach":"..."}"""
 
-    system = "你是一位CRM客户分析专家。请以JSON格式输出客户画像分析。"
+    system = "你是一位CRM客户分析专家。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
-        return json.loads(result)
+        return _extract_json(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
@@ -333,12 +474,14 @@ async def predict_win_probability(project_data: dict, chat_cfg: dict | None = No
 风险等级: {project_data.get('risk_level', 'M')}
 创建天数: {project_data.get('days_since_created', 0)}
 
-请评估赢率并给出积极/消极因素分析，输出JSON格式。"""
+请评估赢率并给出积极/消极因素分析。
+严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
+{"win_probability":0-100的整数,"factors":{"positive":["..."],"negative":["..."]},"recommendation":"..."}"""
 
-    system = "你是一位CRM销售预测专家。请以JSON格式输出赢率预测。"
+    system = "你是一位CRM销售预测专家。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
-        return json.loads(result)
+        return _extract_json(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
@@ -353,12 +496,14 @@ async def review_quote(quote_data: dict, chat_cfg: dict | None = None) -> dict:
 行项数量: {quote_data.get('line_count', 0)}
 客户: {quote_data.get('customer_name', '')}
 
-请从定价合理性、利润率、付款条款等维度审核，输出JSON格式。"""
+请从定价合理性、利润率、付款条款等维度审核。
+严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
+{"risk_level":"H|M|L","review_items":[{"item":"...","status":"pass|warning|fail","detail":"..."}],"overall_comment":"..."}"""
 
-    system = "你是一位CRM报价审核专家。请以JSON格式输出审核结果，包含 review_items 列表和 overall_comment。"
+    system = "你是一位CRM报价审核专家。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
-        return json.loads(result)
+        return _extract_json(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
@@ -371,12 +516,14 @@ async def review_contract(contract_data: dict, chat_cfg: dict | None = None) -> 
 版本: V{contract_data.get('version_no', 1)}
 客户: {contract_data.get('customer_name', '')}
 
-请从交付周期、违约条款、知识产权、付款条件等维度审核合同风险，输出JSON格式。"""
+请从交付周期、违约条款、知识产权、付款条件等维度审核合同风险。
+严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
+{"risk_level":"H|M|L","clauses":[{"clause":"...","risk":"H|M|L","detail":"..."}],"overall_comment":"..."}"""
 
-    system = "你是一位CRM合同审核专家。请以JSON格式输出审核结果，包含 clauses 风险列表和 overall_comment。"
+    system = "你是一位CRM合同审核专家。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
-        return json.loads(result)
+        return _extract_json(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
@@ -393,12 +540,14 @@ async def suggest_next_actions(project_data: dict, tenant_id: str | None = None,
 客户: {project_data.get('customer_name', '')}
 最近动态: {project_data.get('last_activity', '暂无')}
 
-请推荐3-5个具体行动项，输出JSON格式。"""
+请推荐3-5个具体行动项。
+严格按以下 JSON 输出，只输出 JSON、不要多余文字，键名保持英文原样：
+{"next_actions":[{"action":"...","priority":"H|M|L","deadline":"如3天内","owner":"角色"}],"stage_suggestion":"..."}"""
 
-    system = "你是一位CRM销售教练。请以JSON格式输出行动建议。"
+    system = "你是一位CRM销售教练。只输出符合要求的 JSON，键名用英文，值用中文。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
-        return json.loads(result)
+        return _extract_json(result)
     except json.JSONDecodeError:
         return {"raw_response": result}
 
@@ -425,7 +574,7 @@ async def summarize_activity(activities: list[dict], chat_cfg: dict | None = Non
     system = "你是一位CRM销售助理。请以JSON格式输出活动记录汇总分析。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
-        return json.loads(result)
+        return _extract_json(result)
     except json.JSONDecodeError:
         return {"summary": result[:200], "key_points": [], "suggestion": ""}
 
@@ -456,6 +605,6 @@ async def find_similar_projects(project_data: dict, candidates: list[dict], chat
     system = "你是一位CRM销售分析专家。请以JSON格式输出相似商机匹配结果。"
     result = await _call_llm(system, prompt, chat_cfg=chat_cfg)
     try:
-        return json.loads(result)
+        return _extract_json(result)
     except json.JSONDecodeError:
         return {"similar_projects": [], "insights": result[:200]}

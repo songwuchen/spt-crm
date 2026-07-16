@@ -15,6 +15,7 @@ import { quoteLineItemTypeLabels as itemTypeLabels, quoteStatusColors, quoteStat
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
 import ImportExcelModal from '@/components/ImportExcelModal'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 
@@ -460,6 +461,7 @@ export default function QuoteDetail() {
           }}>生成合同</Button>
           <Button icon={<SendOutlined />} onClick={() => { sendForm.resetFields(); setSendModal(true) }}>发送报价</Button>
           <Button icon={<AuditOutlined />} onClick={openApprovalModal}>提交审批</Button>
+          {currentVersion && <AiAnalysisButton bizType="quote_version" bizId={currentVersion.id} />}
           <Button icon={<FilePdfOutlined />} onClick={() => {
             const versionParam = currentVersion ? `?version_id=${currentVersion.id}` : ''
             downloadFile(`/api/v1/quotes/${qid}/export/pdf${versionParam}`, `quote_${quote?.quote_no || ''}.pdf`)
