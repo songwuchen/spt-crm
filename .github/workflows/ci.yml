@@ -104,6 +104,14 @@ jobs:
           docker tag redis:7-alpine ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/redis:7-alpine
           docker push ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/redis:7-alpine
 
+      # 同理把 pgvector/pgvector:pg16 备到 Harbor，供向量知识库切换数据库镜像时拉取。
+      # 注意: 该镜像仅入库备用，不改变 prod db 服务镜像; 切换是计划内的手动维护操作。
+      - name: Mirror pgvector image into Harbor
+        run: |
+          docker pull pgvector/pgvector:pg16
+          docker tag pgvector/pgvector:pg16 ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/pgvector:pg16
+          docker push ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/pgvector:pg16
+
   deploy:
     name: Deploy to Production
     runs-on: self-hosted
