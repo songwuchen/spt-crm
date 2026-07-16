@@ -1,6 +1,9 @@
 services:
   db:
-    image: postgres:16-alpine
+    # pgvector/pgvector:pg16(同 PG16,glibc)——支持向量语义检索(知识库 embedding 列)。
+    # prod 拉不通 Docker Hub,该镜像由 CI 从 docker.io 转推到私有 Harbor。
+    # 从 postgres:16-alpine 切换为本镜像时数据卷可复用,但需 REINDEX(musl→glibc collation)。
+    image: wmharbor.fourier.net.cn:39011/hengchao-dev/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_DB: spt_crm
