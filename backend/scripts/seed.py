@@ -181,22 +181,31 @@ async def seed():
             added["roles"] += 1
         await db.flush()
 
-        # ---- Role permissions (additive only) ----
-        existing_rp = {rp.permission_id for rp in (await db.execute(
-            select(RolePermission).where(
-                RolePermission.tenant_id == TENANT_ID,
-                RolePermission.role_id == admin_role.id,
-            )
-        )).scalars().all()}
-        for code, perm in existing_perms.items():
-            if perm.id in existing_rp:
-                continue
-            db.add(RolePermission(
-                id=generate_uuid(), tenant_id=TENANT_ID,
-                role_id=admin_role.id, permission_id=perm.id,
-            ))
-            existing_rp.add(perm.id)
-            added["role_perms"] += 1
+        # ---- Role permissions: 给「所有租户」的 admin 角色补齐全部全局权限 ----
+        # admin 角色定义即"拥有全部权限"。升级新增权限后,若只给 demo 租户补授,
+        # 其它客户(如已开通的老租户)的 admin 角色就缺新权限,新功能菜单/接口因权限
+        # 过滤而"看不到/无权限"。这里遍历所有 code=="admin" 的角色做增量补授(不动
+        # 已有授权、不影响自定义受限角色),保证每次部署后各客户 admin 权限自动完整。
+        all_perms = list(existing_perms.values())
+        admin_roles = (await db.execute(
+            select(Role).where(Role.code == "admin")
+        )).scalars().all()
+        for role in admin_roles:
+            granted = {rp.permission_id for rp in (await db.execute(
+                select(RolePermission).where(
+                    RolePermission.tenant_id == role.tenant_id,
+                    RolePermission.role_id == role.id,
+                )
+            )).scalars().all()}
+            for perm in all_perms:
+                if perm.id in granted:
+                    continue
+                db.add(RolePermission(
+                    id=generate_uuid(), tenant_id=role.tenant_id,
+                    role_id=role.id, permission_id=perm.id,
+                ))
+                granted.add(perm.id)
+                added["role_perms"] += 1
 
         # ---- Admin user (don't reset password if exists) ----
         admin = (await db.execute(
