@@ -2,19 +2,21 @@ import { useMemo } from 'react'
 
 interface RegionMapProps {
   data: Array<{ region: string; count: number }>
-  onRegionClick?: (region: string) => void
+  /** 点击大区回调，参数为该大区各省份的行政区划编码前缀(逗号分隔)，用于 region_code 层级过滤 */
+  onRegionClick?: (regionCode: string) => void
 }
 
-// Simplified China regions with approximate SVG positions
-const REGIONS: Array<{ name: string; keywords: string[]; x: number; y: number }> = [
-  { name: '华北', keywords: ['华北', '北京', '天津', '河北', '山西', '内蒙古'], x: 280, y: 100 },
-  { name: '东北', keywords: ['东北', '辽宁', '吉林', '黑龙江'], x: 360, y: 60 },
-  { name: '华东', keywords: ['华东', '上海', '江苏', '浙江', '安徽', '福建', '江西', '山东'], x: 340, y: 200 },
-  { name: '华中', keywords: ['华中', '河南', '湖北', '湖南'], x: 270, y: 220 },
-  { name: '华南', keywords: ['华南', '广东', '广西', '海南', '深圳'], x: 290, y: 310 },
-  { name: '西南', keywords: ['西南', '重庆', '四川', '贵州', '云南', '西藏'], x: 170, y: 270 },
-  { name: '西北', keywords: ['西北', '陕西', '甘肃', '青海', '宁夏', '新疆'], x: 120, y: 120 },
-  { name: '港澳台', keywords: ['港澳台', '香港', '澳门', '台湾'], x: 350, y: 310 },
+// Simplified China regions with approximate SVG positions.
+// codes = 该大区所含省级行政区划的 2 位 GB 编码前缀，点击时用于按 region_code 前缀过滤。
+const REGIONS: Array<{ name: string; keywords: string[]; codes: string[]; x: number; y: number }> = [
+  { name: '华北', keywords: ['华北', '北京', '天津', '河北', '山西', '内蒙古'], codes: ['11', '12', '13', '14', '15'], x: 280, y: 100 },
+  { name: '东北', keywords: ['东北', '辽宁', '吉林', '黑龙江'], codes: ['21', '22', '23'], x: 360, y: 60 },
+  { name: '华东', keywords: ['华东', '上海', '江苏', '浙江', '安徽', '福建', '江西', '山东'], codes: ['31', '32', '33', '34', '35', '36', '37'], x: 340, y: 200 },
+  { name: '华中', keywords: ['华中', '河南', '湖北', '湖南'], codes: ['41', '42', '43'], x: 270, y: 220 },
+  { name: '华南', keywords: ['华南', '广东', '广西', '海南', '深圳'], codes: ['44', '45', '46'], x: 290, y: 310 },
+  { name: '西南', keywords: ['西南', '重庆', '四川', '贵州', '云南', '西藏'], codes: ['50', '51', '52', '53', '54'], x: 170, y: 270 },
+  { name: '西北', keywords: ['西北', '陕西', '甘肃', '青海', '宁夏', '新疆'], codes: ['61', '62', '63', '64', '65'], x: 120, y: 120 },
+  { name: '港澳台', keywords: ['港澳台', '香港', '澳门', '台湾'], codes: ['71', '81', '82'], x: 350, y: 310 },
 ]
 
 function matchRegion(regionStr: string): string {
@@ -73,7 +75,7 @@ export default function RegionMap({ data, onRegionClick }: RegionMapProps) {
             return (
               <g key={r.name}
                 className="cursor-pointer transition-transform hover:scale-110"
-                onClick={() => onRegionClick?.(r.name)}
+                onClick={() => onRegionClick?.(r.codes.join(','))}
               >
                 <circle cx={r.x} cy={r.y} r={size / 2} fill={color} opacity={0.85}
                   stroke="#fff" strokeWidth="2" />

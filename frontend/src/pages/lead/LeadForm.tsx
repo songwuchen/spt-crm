@@ -173,15 +173,16 @@ export default function LeadForm() {
                         city: getFieldValue('city'),
                         district: getFieldValue('district'),
                       }}
-                      onChange={(v) => setFieldsValue({ province: v.province, city: v.city, district: v.district })}
+                      onChange={(v) => setFieldsValue({ province: v.province, city: v.city, district: v.district, region_code: v.regionCode })}
                     />
                   )}
                 </Form.Item>
               )}
-              {/* Hidden inputs so Form collects province/city/district on submit */}
+              {/* Hidden inputs so Form collects province/city/district/region_code on submit */}
               <Form.Item name="province" hidden><Input /></Form.Item>
               <Form.Item name="city" hidden><Input /></Form.Item>
               <Form.Item name="district" hidden><Input /></Form.Item>
+              <Form.Item name="region_code" hidden><Input /></Form.Item>
               <Form.Item name="region" label="详细地址/备注地点" className="col-span-2">
                 <Input placeholder="可补充详细地址，如厂区、街道等" />
               </Form.Item>

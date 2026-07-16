@@ -12,6 +12,18 @@ from app.common.code_generator import generate_code
 
 # ==================== Customer ====================
 
+def _apply_region_code(stmt, region_code: str | None):
+    """按行政区划编码前缀过滤客户。region_code 可为单个前缀(级联精确筛选)或
+    逗号分隔的多个前缀(大区，如 '31,32,33')；空/None 不过滤。"""
+    if not region_code:
+        return stmt
+    from sqlalchemy import or_
+    prefixes = [p.strip() for p in str(region_code).split(",") if p.strip()]
+    if not prefixes:
+        return stmt
+    return stmt.where(or_(*[Customer.region_code.like(f"{p}%") for p in prefixes]))
+
+
 async def list_customers(
     db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20,
     keyword: str | None = None, industry: str | None = None,
@@ -19,6 +31,7 @@ async def list_customers(
     tag: str | None = None,
     current_user: dict | None = None,
     adv_filter: str | None = None, sort_by: str | None = None, sort_order: str | None = None,
+    region_code: str | None = None,
 ):
     base = select(Customer).where(Customer.tenant_id == tenant_id, Customer.is_deleted == False)
     if keyword:
@@ -27,6 +40,9 @@ async def list_customers(
         base = base.where(Customer.industry == industry)
     if region:
         base = base.where(Customer.region.ilike(f"%{region}%"))
+    # 结构化省市区层级过滤：region_code 为行政区划编码前缀，支持逗号分隔多个前缀(大区)。
+    # 因 GB 编码是层级前缀(省2位/市4位/区6位)，选到市即命中全市各区县。
+    base = _apply_region_code(base, region_code)
     if isinstance(owner_id, (list, tuple, set)):
         base = base.where(Customer.owner_id.in_(list(owner_id)))  # [] -> 无可见数据
     elif owner_id:
@@ -272,6 +288,7 @@ async def merge_customers(db: AsyncSession, tenant_id: str, primary_id: str, sec
 async def list_pool_customers(
     db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20,
     keyword: str | None = None, industry: str | None = None, region: str | None = None,
+    region_code: str | None = None,
 ):
     """List customers in the pool (no owner)."""
     base = select(Customer).where(
@@ -285,6 +302,7 @@ async def list_pool_customers(
         base = base.where(Customer.industry == industry)
     if region:
         base = base.where(Customer.region.ilike(f"%{region}%"))
+    base = _apply_region_code(base, region_code)
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
     items = (await db.execute(

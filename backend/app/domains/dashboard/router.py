@@ -1525,17 +1525,18 @@ async def customer_region_stats(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    """Customer distribution by region."""
+    """Customer distribution by region. 优先按结构化省份分组，回退 legacy region 文本。"""
+    region_expr = func.coalesce(Customer.province, Customer.region)
     rows = (await db.execute(
         select(
-            Customer.region,
+            region_expr.label("region"),
             func.count(Customer.id).label("count"),
         ).where(
             Customer.tenant_id == tenant_id,
             Customer.is_deleted == False,
-            Customer.region.isnot(None),
-            Customer.region != "",
-        ).group_by(Customer.region)
+            region_expr.isnot(None),
+            region_expr != "",
+        ).group_by(region_expr)
         .order_by(func.count(Customer.id).desc())
     )).all()
 
@@ -1728,12 +1729,13 @@ async def _gather_export_data(db: AsyncSession, tenant_id: str, start_date: Opti
     )).all()
     top_customers = [{"name": r.name, "project_count": r.cnt, "total_amount": float(r.amt)} for r in top_rows]
 
-    # Region
+    # Region（优先结构化省份，回退 legacy region 文本）
+    region_expr = func.coalesce(Customer.province, Customer.region)
     region_rows = (await db.execute(
-        select(Customer.region, func.count(Customer.id).label("count"))
+        select(region_expr.label("region"), func.count(Customer.id).label("count"))
         .where(Customer.tenant_id == tenant_id, Customer.is_deleted == False,
-               Customer.region.isnot(None), Customer.region != "")
-        .group_by(Customer.region).order_by(func.count(Customer.id).desc())
+               region_expr.isnot(None), region_expr != "")
+        .group_by(region_expr).order_by(func.count(Customer.id).desc())
     )).all()
     regions = [{"region": r.region, "count": r.count} for r in region_rows]
 
@@ -1962,14 +1964,14 @@ async def global_search(
 
     # Customers
     customers = (await db.execute(
-        select(Customer.id, Customer.name, Customer.industry, Customer.region)
+        select(Customer.id, Customer.name, Customer.industry, Customer.province, Customer.region)
         .where(Customer.tenant_id == tenant_id, Customer.is_deleted == False,
                or_(Customer.name.ilike(pattern), Customer.short_name.ilike(pattern), Customer.customer_code.ilike(pattern)))
         .limit(5)
     )).all()
     for c in customers:
         results.append({"type": "customer", "id": c.id, "title": c.name,
-                        "subtitle": " · ".join(filter(None, [c.industry, c.region])),
+                        "subtitle": " · ".join(filter(None, [c.industry, c.province or c.region])),
                         "url": f"/customers/{c.id}"})
 
     # Leads

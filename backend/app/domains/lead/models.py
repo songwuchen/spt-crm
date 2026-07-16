@@ -28,6 +28,8 @@ class Lead(TenantScopedBase):
     province: Mapped[str | None] = mapped_column(String(50))
     city: Mapped[str | None] = mapped_column(String(50))
     district: Mapped[str | None] = mapped_column(String(50))
+    # 行政区划编码(GB/T 2260) 最深选中层级，支持层级前缀过滤，与 Customer 同构
+    region_code: Mapped[str | None] = mapped_column(String(12), index=True)
     department_id: Mapped[str | None] = mapped_column(String(36))
     budget_range: Mapped[str | None] = mapped_column(String(100))
     owner_id: Mapped[str | None] = mapped_column(String(36))

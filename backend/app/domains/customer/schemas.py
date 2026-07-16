@@ -8,7 +8,11 @@ class CustomerCreate(BaseModel):
     short_name: Optional[str] = Field(None, max_length=100)
     industry: Optional[str] = None
     scale_level: Optional[str] = None
-    region: Optional[str] = Field(None, max_length=100)
+    region: Optional[str] = Field(None, max_length=200)
+    province: Optional[str] = Field(None, max_length=50)
+    city: Optional[str] = Field(None, max_length=50)
+    district: Optional[str] = Field(None, max_length=50)
+    region_code: Optional[str] = Field(None, max_length=12)
     address: Optional[str] = Field(None, max_length=500)
     website: Optional[str] = Field(None, max_length=500)
     source: Optional[str] = None
@@ -32,7 +36,11 @@ class CustomerUpdate(BaseModel):
     short_name: Optional[str] = Field(None, max_length=100)
     industry: Optional[str] = None
     scale_level: Optional[str] = None
-    region: Optional[str] = Field(None, max_length=100)
+    region: Optional[str] = Field(None, max_length=200)
+    province: Optional[str] = Field(None, max_length=50)
+    city: Optional[str] = Field(None, max_length=50)
+    district: Optional[str] = Field(None, max_length=50)
+    region_code: Optional[str] = Field(None, max_length=12)
     address: Optional[str] = Field(None, max_length=500)
     website: Optional[str] = Field(None, max_length=500)
     source: Optional[str] = None
@@ -66,6 +74,10 @@ class CustomerOut(BaseModel):
     industry: Optional[str] = None
     scale_level: Optional[str] = None
     region: Optional[str] = None
+    province: Optional[str] = None
+    city: Optional[str] = None
+    district: Optional[str] = None
+    region_code: Optional[str] = None
     address: Optional[str] = None
     website: Optional[str] = None
     owner_id: Optional[str] = None

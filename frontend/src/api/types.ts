@@ -44,6 +44,10 @@ export interface Customer {
   industry?: string
   scale_level?: string
   region?: string
+  province?: string
+  city?: string
+  district?: string
+  region_code?: string
   address?: string
   website?: string
   owner_id?: string
@@ -104,6 +108,7 @@ export interface Lead {
   province?: string
   city?: string
   district?: string
+  region_code?: string
   department_id?: string
   budget_range?: string
   owner_id?: string

@@ -46,6 +46,7 @@ class LeadCreate(BaseModel):
     province: Optional[str] = Field(None, max_length=50)
     city: Optional[str] = Field(None, max_length=50)
     district: Optional[str] = Field(None, max_length=50)
+    region_code: Optional[str] = Field(None, max_length=12)
     department_id: Optional[str] = Field(None, max_length=36)
     budget_range: Optional[str] = None
     owner_id: Optional[str] = Field(None, max_length=36)
@@ -86,6 +87,7 @@ class LeadUpdate(BaseModel):
     province: Optional[str] = Field(None, max_length=50)
     city: Optional[str] = Field(None, max_length=50)
     district: Optional[str] = Field(None, max_length=50)
+    region_code: Optional[str] = Field(None, max_length=12)
     department_id: Optional[str] = Field(None, max_length=36)
     budget_range: Optional[str] = None
     owner_id: Optional[str] = Field(None, max_length=36)
@@ -121,6 +123,7 @@ class LeadOut(BaseModel):
     province: Optional[str] = None
     city: Optional[str] = None
     district: Optional[str] = None
+    region_code: Optional[str] = None
     department_id: Optional[str] = None
     budget_range: Optional[str] = None
     owner_id: Optional[str] = None

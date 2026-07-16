@@ -18,6 +18,7 @@ import { opportunityStatusMap, quoteStatusLabels, contractStatusLabels, orderSta
 import type { ColumnsType } from 'antd/es/table'
 import client from '@/api/client'
 import { downloadFile } from '@/utils/download'
+import { formatRegion } from '@/utils/address'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import CustomerRelationGraph from '@/components/CustomerRelationGraph'
@@ -232,9 +233,9 @@ export default function CustomerDetail() {
                     <span className="material-symbols-outlined text-sm">factory</span> {industryMap[customer.industry] || customer.industry}
                   </span>
                 )}
-                {customer.region && (
+                {formatRegion(customer) && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">location_on</span> {customer.region}
+                    <span className="material-symbols-outlined text-sm">location_on</span> {formatRegion(customer)}
                   </span>
                 )}
                 {customer.customer_code && (

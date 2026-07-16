@@ -8,6 +8,7 @@ import { useDataDict } from '@/hooks/useDataDict'
 import { useAutoSave } from '@/hooks/useAutoSave'
 import { useAuthStore } from '@/stores/useAuthStore'
 import CustomFieldsPanel from '@/components/lowcode/EntityCustomFields'
+import RegionCascader from '@/components/RegionCascader'
 
 const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
 const defaultLevels = ['A', 'B', 'C', 'D'].map(l => ({ label: l, value: l }))
@@ -147,11 +148,33 @@ export default function CustomerForm() {
           <Form.Item name="scale_level" label="企业规模">
             <Select placeholder="请选择企业规模" allowClear options={scaleDict.options} loading={scaleDict.loading} />
           </Form.Item>
-          <Form.Item name="region" label="区域">
-            <Input placeholder="请输入区域，如华东/华南" />
+          <Form.Item
+            label="省/市/区县"
+            shouldUpdate={(prev, curr) =>
+              prev.province !== curr.province || prev.city !== curr.city || prev.district !== curr.district
+            }
+          >
+            {({ getFieldValue, setFieldsValue }) => (
+              <RegionCascader
+                value={{
+                  province: getFieldValue('province'),
+                  city: getFieldValue('city'),
+                  district: getFieldValue('district'),
+                }}
+                onChange={(v) => {
+                  setFieldsValue({ province: v.province, city: v.city, district: v.district, region_code: v.regionCode })
+                  markDirty()
+                }}
+              />
+            )}
           </Form.Item>
+          {/* 隐藏字段：提交时随表单一起收集 省/市/区县/编码 */}
+          <Form.Item name="province" hidden><Input /></Form.Item>
+          <Form.Item name="city" hidden><Input /></Form.Item>
+          <Form.Item name="district" hidden><Input /></Form.Item>
+          <Form.Item name="region_code" hidden><Input /></Form.Item>
           <Form.Item name="address" label="详细地址">
-            <Input placeholder="请输入详细地址" />
+            <Input placeholder="请输入详细地址（门牌/街道等）" />
           </Form.Item>
           <Form.Item name="website" label="网站"
             rules={[{ type: 'url', message: '请输入正确的网址' }]}>

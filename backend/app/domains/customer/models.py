@@ -12,8 +12,14 @@ class Customer(TenantScopedBase):
     short_name: Mapped[str | None] = mapped_column(String(100))
     industry: Mapped[str | None] = mapped_column(String(100))  # industry_code
     scale_level: Mapped[str | None] = mapped_column(String(50))  # 规模等级
-    region: Mapped[str | None] = mapped_column(String(200))
-    address: Mapped[str | None] = mapped_column(String(500))
+    region: Mapped[str | None] = mapped_column(String(200))  # legacy 自由文本，保留做展示回退/兼容
+    # 结构化省市区（级联地址）：与 Lead 同构。region_code = 最深选中层级的行政区划编码(GB/T 2260)，
+    # 支持层级前缀过滤（选到市即命中全市各区）。名称列用于展示与按省/市分组统计。
+    province: Mapped[str | None] = mapped_column(String(50))
+    city: Mapped[str | None] = mapped_column(String(50))
+    district: Mapped[str | None] = mapped_column(String(50))
+    region_code: Mapped[str | None] = mapped_column(String(12), index=True)
+    address: Mapped[str | None] = mapped_column(String(500))  # 详细地址（门牌/街道等）
     website: Mapped[str | None] = mapped_column(String(300))
     owner_id: Mapped[str | None] = mapped_column(String(36))
     owner_name: Mapped[str | None] = mapped_column(String(100))

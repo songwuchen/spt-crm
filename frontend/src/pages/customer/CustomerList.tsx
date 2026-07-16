@@ -20,6 +20,9 @@ import EditableCell from '@/components/EditableCell'
 import FeatureTip from '@/components/FeatureTip'
 import RegionMap from '@/components/RegionMap'
 import CustomerTagCloud from '@/components/CustomerTagCloud'
+import RegionCascader from '@/components/RegionCascader'
+import type { RegionValue } from '@/components/RegionCascader'
+import { formatRegion } from '@/utils/address'
 
 const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
 
@@ -42,7 +45,9 @@ export default function CustomerList() {
   const [pageNo, setPageNo] = useState(Number(searchParams.get('page')) || 1)
   const [keyword, setKeyword] = useState(searchParams.get('q') || '')
   const [industry, setIndustry] = useState<string | undefined>(searchParams.get('industry') || undefined)
-  const [region, setRegion] = useState(searchParams.get('region') || '')
+  // 结构化地址过滤：regionCode = 行政区划编码前缀(单值=级联精确，逗号多值=大区)；filterRegion 仅用于级联选择器回显
+  const [regionCode, setRegionCode] = useState(searchParams.get('region_code') || '')
+  const [filterRegion, setFilterRegion] = useState<RegionValue>({})
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [importModal, setImportModal] = useState(false)
   const [transferModal, setTransferModal] = useState(false)
@@ -135,12 +140,12 @@ export default function CustomerList() {
     }
   }
 
-  const fetchData = async (page = pageNo, kw = keyword, ind = industry, reg = region) => {
+  const fetchData = async (page = pageNo, kw = keyword, ind = industry, rc = regionCode) => {
     setLoading(true)
     try {
       const res = await customerApi.list({
         pageNo: page, pageSize,
-        keyword: kw || undefined, industry: ind, region: reg || undefined,
+        keyword: kw || undefined, industry: ind, region_code: rc || undefined,
         ...view.buildParams(),
       })
       setData(res.data.items)
@@ -163,9 +168,9 @@ export default function CustomerList() {
     const params: Record<string, string> = {}
     if (keyword) params.q = keyword
     if (industry) params.industry = industry
-    if (region) params.region = region
+    if (regionCode) params.region_code = regionCode
     setSearchParams(params, { replace: true })
-    fetchData(1, keyword, industry, region)
+    fetchData(1, keyword, industry, regionCode)
   }
 
   const levelColors: Record<string, string> = {
@@ -193,11 +198,11 @@ export default function CustomerList() {
       render: (v) => v ? (industryMap[v] || v) : <span className="text-slate-300">-</span> },
     { title: t('customer.level'), dataIndex: 'scale_level', width: 80, responsive: ['lg'],
       render: (v) => v || <span className="text-slate-300">-</span> },
-    { title: t('customer.region'), dataIndex: 'region', width: 100,
-      render: (v: string, record: Customer) => (
-        <EditableCell value={v} type="text" placeholder={t('customer.region')}
-          onSave={async (val) => { await customerApi.update(record.id, { region: val }); fetchData() }} />
-      ),
+    { title: t('customer.region'), key: 'region', width: 150,
+      render: (_: unknown, record: Customer) => {
+        const label = formatRegion(record)
+        return label ? <span className="text-sm text-slate-700">{label}</span> : <span className="text-slate-300">-</span>
+      },
     },
     { title: t('customer.level'), dataIndex: 'level', width: 90,
       render: (v: string, record: Customer) => (
@@ -310,7 +315,7 @@ export default function CustomerList() {
 
       {showMap && (
         <div className="mb-4">
-          <RegionMap data={regionData} onRegionClick={(r) => { setRegion(r); setShowMap(false); fetchData(1, keyword, industry, r) }} />
+          <RegionMap data={regionData} onRegionClick={(code) => { setRegionCode(code); setFilterRegion({}); setShowMap(false); fetchData(1, keyword, industry, code) }} />
         </div>
       )}
 
@@ -332,17 +337,22 @@ export default function CustomerList() {
             allowClear
             style={{ width: 140 }}
             value={industry}
-            onChange={(v) => { setIndustry(v); setPageNo(1); fetchData(1, keyword, v, region) }}
+            onChange={(v) => { setIndustry(v); setPageNo(1); fetchData(1, keyword, v, regionCode) }}
             options={industryDict.options}
           />
-          <Input
-            placeholder={t('customer.region')}
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
-            onPressEnter={doSearch}
-            allowClear
-            style={{ width: 140 }}
-          />
+          <div style={{ width: 220 }}>
+            <RegionCascader
+              value={filterRegion}
+              placeholder={t('customer.region')}
+              onChange={(v) => {
+                setFilterRegion(v)
+                const code = v.regionCode || ''
+                setRegionCode(code)
+                setPageNo(1)
+                fetchData(1, keyword, industry, code)
+              }}
+            />
+          </div>
           <Button onClick={doSearch}>
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             {t('common.filter')}

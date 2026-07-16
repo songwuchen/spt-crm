@@ -58,6 +58,7 @@ def _lead_dict(l, products=None) -> dict:
         "province": l.province,
         "city": l.city,
         "district": l.district,
+        "region_code": l.region_code,
         "department_id": l.department_id,
         "budget_range": l.budget_range,
         "owner_id": l.owner_id, "owner_name": l.owner_name,

@@ -24,7 +24,9 @@ def _customer_dict(c) -> dict:
         "id": c.id, "customer_code": c.customer_code,
         "name": c.name, "short_name": c.short_name,
         "industry": c.industry, "scale_level": c.scale_level,
-        "region": c.region, "address": c.address, "website": c.website,
+        "region": c.region,
+        "province": c.province, "city": c.city, "district": c.district, "region_code": c.region_code,
+        "address": c.address, "website": c.website,
         "owner_id": c.owner_id, "owner_name": c.owner_name,
         "source": c.source, "level": c.level, "status": c.status,
         "tags_json": c.tags_json, "remark": c.remark, "custom_fields_json": c.custom_fields_json,
@@ -40,6 +42,7 @@ async def list_customers(
     keyword: str = Query(None),
     industry: str = Query(None),
     region: str = Query(None),
+    region_code: str = Query(None, description="行政区划编码前缀，支持逗号分隔多个前缀(大区)"),
     owner_id: str = Query(None),
     tag: str = Query(None),
     filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
@@ -53,7 +56,7 @@ async def list_customers(
     # 由 service 内 apply_data_scope 统一处理（owner_id 为前端显式筛选，仍受数据范围约束）。
     items, total = await service.list_customers(
         db, tenant_id, pageNo, pageSize, keyword, industry, region, owner_id, tag=tag, current_user=_user,
-        adv_filter=filter, sort_by=sort_by, sort_order=sort_order)
+        adv_filter=filter, sort_by=sort_by, sort_order=sort_order, region_code=region_code)
     dicts = [_customer_dict(c) for c in items]
     await strip_entity_dicts(db, tenant_id, "customer", dicts, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok({"items": dicts, "total": total, "pageNo": pageNo, "pageSize": pageSize})
@@ -114,15 +117,19 @@ async def region_distribution(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
 ):
-    """Get customer count grouped by region."""
+    """Get customer count grouped by region.
+
+    优先按结构化省份(province)分组，回退到 legacy 自由文本 region，
+    保证前端地图/统计基于规范化的省级数据。"""
     from sqlalchemy import func
+    region_expr = func.coalesce(Customer.province, Customer.region)
     rows = (await db.execute(
-        select(Customer.region, func.count(Customer.id).label("count")).where(
+        select(region_expr.label("region"), func.count(Customer.id).label("count")).where(
             Customer.tenant_id == tenant_id,
             Customer.is_deleted == False,
-            Customer.region != None,
-            Customer.region != "",
-        ).group_by(Customer.region)
+            region_expr.isnot(None),
+            region_expr != "",
+        ).group_by(region_expr)
     )).all()
     return ok([{"region": r.region, "count": r.count} for r in rows])
 
