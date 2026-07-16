@@ -14,7 +14,7 @@ import ActivityTimeline from '@/components/ActivityTimeline'
 import ChangeHistory from '@/components/ChangeHistory'
 import type { Customer, Contact, OpportunityProject, CustomerReport } from '@/api/types'
 import { sourceLabels, stageLabels, stageColors } from '@/api/types'
-import { opportunityStatusMap, quoteStatusLabels, contractStatusLabels, orderStatusLabels, tenderStatusLabels, ticketStatusLabels, ticketTypeLabels, ticketPriorityLabels } from '@/constants/labels'
+import { opportunityStatusMap, quoteStatusLabels, contractStatusLabels, orderStatusLabels, tenderStatusLabels, ticketStatusLabels, ticketTypeLabels, ticketPriorityLabels, intentLevelColors, intentLevelLabels, matchLevelLabels, poolSourceLabels } from '@/constants/labels'
 import type { ColumnsType } from 'antd/es/table'
 import client from '@/api/client'
 import { downloadFile } from '@/utils/download'
@@ -151,16 +151,28 @@ export default function CustomerDetail() {
     { title: '电话', dataIndex: 'phone', width: 130 },
     { title: '手机', dataIndex: 'mobile', width: 130 },
     { title: '邮箱', dataIndex: 'email', width: 180 },
-    { title: '主要', dataIndex: 'is_primary', width: 70,
-      render: (v) => v ? (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 text-primary text-[12px] font-bold">
-          <span className="material-symbols-outlined text-sm">star</span> 主要
-        </span>
-      ) : null,
+    { title: '标记', dataIndex: 'is_primary', width: 110,
+      render: (v, record) => (
+        <div className="flex items-center gap-1 flex-wrap">
+          {v ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 text-primary text-[12px] font-bold">
+              <span className="material-symbols-outlined text-sm">star</span> 主要
+            </span>
+          ) : null}
+          {customer?.key_contact_id === record.id && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[12px] font-bold">关键人</span>
+          )}
+        </div>
+      ),
     },
-    { title: '', width: 100,
+    { title: '', width: 150,
       render: (_, record) => (
         <Space size={4}>
+          {customer?.key_contact_id !== record.id && (
+            <a className="text-amber-600 text-sm font-bold" onClick={async () => {
+              await customerApi.update(id!, { key_contact_id: record.id }); message.success('已设为关键人'); fetchCustomer()
+            }}>设为关键人</a>
+          )}
           <a className="text-primary text-sm font-bold" onClick={() => {
             setEditingContact(record); form.setFieldsValue(record); setContactCustomFields((record as unknown as { custom_fields_json?: Record<string, unknown> }).custom_fields_json || {}); setContactModal(true)
           }}>编辑</a>
@@ -392,6 +404,48 @@ export default function CustomerDetail() {
             <div className="pt-3">
               <CustomFieldsPanel entityType="customer" values={customer.custom_fields_json} readOnly />
             </div>
+          </div>
+
+          {/* 商机要素 · 采购意向 (BANT) */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mt-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">商机要素 · 采购意向</h3>
+            {(() => {
+              const kc = contacts.find((c) => c.id === customer.key_contact_id)
+              return <InfoField label="关键人" value={kc ? `${kc.name}${(kc.mobile || kc.phone) ? ' · ' + (kc.mobile || kc.phone) : ''}` : undefined} />
+            })()}
+            <div className="py-3 border-b border-slate-50 flex items-center justify-between">
+              <span className="text-[12px] text-slate-400 uppercase font-bold tracking-wider">采购意向类别</span>
+              {customer.intent_level
+                ? <Tag color={intentLevelColors[customer.intent_level] || 'default'}>{intentLevelLabels[customer.intent_level] || customer.intent_level}</Tag>
+                : <span className="text-slate-300 text-sm">-</span>}
+            </div>
+            <InfoField label="预计采购时间" value={customer.expected_purchase_date} />
+            <InfoField label="客户预算" value={customer.budget_amount != null ? `${customer.currency || 'CNY'} ${Number(customer.budget_amount).toLocaleString()}` : undefined} />
+            <InfoField label="需求匹配程度" value={customer.need_match_level ? (matchLevelLabels[customer.need_match_level] || customer.need_match_level) : undefined} />
+            <InfoField label="核心需求" value={customer.demand} />
+            <InfoField label="结单商机数" value={customer.won_deal_count ? String(customer.won_deal_count) : undefined} />
+          </div>
+
+          {/* 跟进 / 归属 / 公海生命周期 */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mt-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">跟进 / 归属</h3>
+            <InfoField label="最新跟进人" value={customer.last_activity_by_name} />
+            <InfoField label="最新活动时间" value={customer.last_activity_at ? new Date(customer.last_activity_at).toLocaleString('zh-CN') : undefined} />
+            {customer.status === 'active' && customer.expected_recycle_at && (
+              <div className="py-3 border-b border-slate-50">
+                <div className="text-[12px] text-slate-400 uppercase font-bold tracking-wider mb-1">预计回收公海</div>
+                <div className={`text-sm font-semibold ${new Date(customer.expected_recycle_at).getTime() < Date.now() ? 'text-rose-600' : 'text-amber-600'}`}>
+                  {new Date(customer.expected_recycle_at).toLocaleDateString('zh-CN')}
+                </div>
+              </div>
+            )}
+            {customer.status === 'pool' && (
+              <InfoField label="入池方式" value={customer.pool_source ? (poolSourceLabels[customer.pool_source] || customer.pool_source) : undefined} />
+            )}
+            <InfoField label="所属部门" value={customer.department_name} />
+            <InfoField label="国家 / 邮编" value={[customer.country, customer.postal_code].filter(Boolean).join(' ') || undefined} />
+            <InfoField label="币种" value={customer.currency} />
+            <InfoField label="最新修改人" value={customer.updated_by_name} />
           </div>
         </div>
 

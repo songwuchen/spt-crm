@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Button, Input, Space, Tag, Select, Modal, Form, message } from 'antd'
+import { Table, Button, Input, Space, Tag, Select, Modal, Form, Tooltip, message } from 'antd'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined, MailOutlined } from '@ant-design/icons'
 import ImportModal from '@/components/ImportModal'
 import { downloadFile } from '@/utils/download'
@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
 import type { Customer } from '@/api/types'
 import { sourceLabels } from '@/api/types'
+import { intentLevelColors, intentLevelShortLabels } from '@/constants/labels'
 import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { t } from '@/locales'
@@ -216,6 +217,11 @@ export default function CustomerList() {
           onSave={async (val) => { await customerApi.update(record.id, { level: val }); fetchData() }} />
       ),
     },
+    { title: '采购意向', dataIndex: 'intent_level', width: 92, responsive: ['lg'],
+      render: (v: string) => v
+        ? <Tag color={intentLevelColors[v] || 'default'} className="m-0">{intentLevelShortLabels[v] || v}</Tag>
+        : <span className="text-slate-300">-</span>,
+    },
     { title: t('lead.source'), dataIndex: 'source', width: 100, responsive: ['lg'],
       render: (v) => v ? (sourceLabels[v] || v) : <span className="text-slate-300">-</span> },
     { title: t('customer.status'), dataIndex: 'status', width: 80,
@@ -226,6 +232,20 @@ export default function CustomerList() {
         </div>
       ),
     },
+    { title: '跟进状态', key: 'idle', width: 112, responsive: ['lg'],
+      render: (_: unknown, record: Customer) => {
+        const d = record.idle_days
+        if (d == null) return <span className="text-slate-300">-</span>
+        const recycleAt = record.expected_recycle_at ? new Date(record.expected_recycle_at) : null
+        const overdue = recycleAt ? recycleAt.getTime() < Date.now() : d >= 30
+        const cls = overdue ? 'text-rose-600 font-semibold' : d >= 14 ? 'text-amber-600' : 'text-slate-500'
+        const tip = recycleAt ? `预计 ${recycleAt.toLocaleDateString('zh-CN')} 自动回收公海` : ''
+        const label = d === 0 ? '今日已跟进' : `${d}天未跟进`
+        return tip
+          ? <Tooltip title={tip}><span className={`text-sm ${cls}`}>{label}</span></Tooltip>
+          : <span className={`text-sm ${cls}`}>{label}</span>
+      },
+    },
     { title: '标签', dataIndex: 'tags_json', width: 150, responsive: ['lg'],
       render: (v: string[]) => v?.length ? (
         <div className="flex gap-1 flex-wrap">{v.slice(0, 3).map((tag) => <Tag key={tag} className="text-[12px] m-0">{tag}</Tag>)}{v.length > 3 && <span className="text-[12px] text-slate-400">+{v.length - 3}</span>}</div>
@@ -233,6 +253,8 @@ export default function CustomerList() {
     },
     { title: t('common.owner'), dataIndex: 'owner_name', width: 100,
       render: (v) => v || <span className="text-slate-300">-</span> },
+    { title: '结单', dataIndex: 'won_deal_count', width: 64, responsive: ['xl'], align: 'center',
+      render: (v: number) => v ? <span className="font-semibold text-emerald-600">{v}</span> : <span className="text-slate-300">0</span> },
     { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, responsive: ['xl'],
       render: (v) => v ? <span className="text-sm text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-' },
     { title: '', key: 'actions', width: 150, fixed: 'right',

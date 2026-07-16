@@ -314,6 +314,7 @@ async def check_pool_auto_release(db: AsyncSession) -> int:
     from app.domains.activity.models import Activity
     from app.domains.admin.models import TenantProfile
     from app.domains.notification.service import send_notification
+    from app.domains.customer import service as customer_service
 
     profiles = (await db.execute(
         select(TenantProfile).limit(500)
@@ -321,12 +322,13 @@ async def check_pool_auto_release(db: AsyncSession) -> int:
 
     released = 0
     for profile in profiles:
-        policy = (profile.security_policy_json or {}).get("pool_rules")
-        if not policy or not policy.get("enabled"):
+        tenant_rules = (profile.security_policy_json or {}).get("pool_rules")
+        tenant_enabled = bool(tenant_rules and tenant_rules.get("enabled"))
+        # 区域公海可携带各自的回收规则，覆盖租户级
+        pools = await customer_service.list_active_pools(db, profile.tenant_id)
+        pool_rules_exist = any(p.rules_json and p.rules_json.get("enabled") for p in pools)
+        if not tenant_enabled and not pool_rules_exist:
             continue
-
-        idle_by_level = policy.get("idle_days", {})
-        default_idle = policy.get("default_idle_days", 30)
 
         # Get active customers with owners (batch limit)
         customers = (await db.execute(
@@ -339,16 +341,31 @@ async def check_pool_auto_release(db: AsyncSession) -> int:
         )).scalars().all()
 
         for cust in customers:
-            idle_days = idle_by_level.get(cust.level or "D", default_idle)
+            # 解析该客户所归属的区域公海及其生效回收规则（分池优先，回退租户级）
+            routed = customer_service.match_pool(cust, pools) if pools else None
+            if routed and routed.rules_json and routed.rules_json.get("enabled"):
+                rules = routed.rules_json
+            elif tenant_enabled:
+                rules = tenant_rules
+            else:
+                continue
+
+            idle_days = (rules.get("idle_days", {}) or {}).get(cust.level or "D", rules.get("default_idle_days", 30))
+            try:
+                idle_days = int(idle_days)  # rules_json 为自由 JSON，防非数字(如 "30")导致 timedelta 抛错中断整轮回收
+            except (TypeError, ValueError):
+                idle_days = 30
             cutoff = datetime.now(timezone.utc) - timedelta(days=idle_days)
 
-            # Check last activity
-            last = (await db.execute(
-                select(func.max(Activity.created_at)).where(
-                    Activity.biz_type == "customer",
-                    Activity.biz_id == cust.id,
-                )
-            )).scalar()
+            # 优先用冗余的最新活动时间，避免逐客户查询；无则回退查 activities
+            last = cust.last_activity_at
+            if last is None:
+                last = (await db.execute(
+                    select(func.max(Activity.created_at)).where(
+                        Activity.biz_type == "customer",
+                        Activity.biz_id == cust.id,
+                    )
+                )).scalar()
 
             is_idle = False
             if last is None and cust.created_at and cust.created_at < cutoff:
@@ -361,16 +378,22 @@ async def check_pool_auto_release(db: AsyncSession) -> int:
                 cust.status = "pool"
                 cust.owner_id = None
                 cust.owner_name = None
+                cust.department_id = None
+                cust.department_name = None
+                cust.pool_source = "auto_recycle"
+                cust.pool_entered_at = datetime.now(timezone.utc)
+                cust.pool_id = routed.id if routed else None
                 released += 1
 
                 if old_owner:
                     try:
+                        pool_label = f"「{routed.name}」" if routed else "公海池"
                         await send_notification(
                             db=db, tenant_id=profile.tenant_id,
                             recipient_id=old_owner,
                             type="system",
                             title=f"客户自动释放到公海: {cust.name}",
-                            content=f"客户「{cust.name}」因 {idle_days} 天无跟进活动已自动释放到公海池。",
+                            content=f"客户「{cust.name}」因 {idle_days} 天无跟进活动已自动释放到{pool_label}。",
                             biz_type="customer", biz_id=cust.id,
                         )
                     except Exception:

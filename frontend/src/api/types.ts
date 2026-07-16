@@ -58,8 +58,53 @@ export interface Customer {
   tags_json?: string[]
   custom_fields_json?: Record<string, unknown>
   remark?: string
+  // 商机要素 / 采购意向（BANT 快照）
+  intent_level?: string
+  key_contact_id?: string
+  demand?: string
+  need_match_level?: string
+  budget_amount?: number
+  expected_purchase_date?: string
+  headcount?: number
+  // 公司档案增补
+  industry_l1?: string
+  industry_l2?: string
+  industry_l3?: string
+  country?: string
+  postal_code?: string
+  currency?: string
+  // 归属 / 审计
+  department_id?: string
+  department_name?: string
+  created_by_id?: string
+  created_by_name?: string
+  updated_by_id?: string
+  updated_by_name?: string
+  // 跟进 / 公海生命周期（含派生指标）
+  last_activity_at?: string
+  last_activity_by_id?: string
+  last_activity_by_name?: string
+  idle_days?: number | null
+  expected_recycle_at?: string | null
+  won_deal_count?: number
+  pool_id?: string | null
+  pool_source?: string
+  pool_entered_at?: string
   created_at: string
   updated_at: string
+}
+
+export interface CustomerPool {
+  id: string
+  name: string
+  description?: string
+  region_scope?: string
+  rules_json?: { enabled?: boolean; idle_days?: Record<string, number>; default_idle_days?: number } | null
+  is_default: boolean
+  is_active: boolean
+  sort_order: number
+  customer_count?: number
+  created_at?: string
 }
 
 export interface Contact {

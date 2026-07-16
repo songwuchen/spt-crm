@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { Form, Input, Select, Button, Card, Alert, message } from 'antd'
+import { Form, Input, Select, Button, Card, Alert, DatePicker, InputNumber, message } from 'antd'
+import dayjs from 'dayjs'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -17,6 +18,20 @@ const defaultSources = [
   { label: '展会', value: 'expo' }, { label: '转介绍', value: 'referral' },
   { label: '广告', value: 'ad' }, { label: '官网/入站', value: 'inbound' },
   { label: '合作伙伴', value: 'partner' }, { label: '电话', value: 'call' },
+]
+const intentOptions = [
+  { label: 'A · 3个月内会订购', value: 'A' }, { label: 'B · 半年内', value: 'B' },
+  { label: 'C · 一年内', value: 'C' }, { label: 'D · 一年以上/暂无', value: 'D' },
+]
+const matchOptions = [
+  { label: '有需求有预算', value: 'has_need_budget' },
+  { label: '有需求与需求负责人', value: 'has_need_owner' },
+  { label: '仅有需求', value: 'need_only' },
+  { label: '需求不明确', value: 'unclear' },
+]
+const currencyOptions = [
+  { label: '人民币 CNY', value: 'CNY' }, { label: '美元 USD', value: 'USD' },
+  { label: '欧元 EUR', value: 'EUR' }, { label: '日元 JPY', value: 'JPY' },
 ]
 
 export default function CustomerForm() {
@@ -62,7 +77,10 @@ export default function CustomerForm() {
   useEffect(() => {
     if (id) {
       customerApi.get(id).then((res) => {
-        form.setFieldsValue(res.data)
+        const d: Record<string, unknown> = { ...res.data }
+        // DatePicker 需要 dayjs 对象，后端返回的是 'YYYY-MM-DD' 字符串
+        if (d.expected_purchase_date) d.expected_purchase_date = dayjs(d.expected_purchase_date as string)
+        form.setFieldsValue(d)
         setCustomFields((res.data.custom_fields_json as Record<string, unknown>) || {})
         // Seed owner option so Select shows name instead of raw ID
         if (res.data.owner_id && res.data.owner_name) {
@@ -71,7 +89,12 @@ export default function CustomerForm() {
       }).catch(() => message.error('加载客户数据失败'))
     } else {
       const restored = restoreDraft()
-      if (restored) message.info('已恢复上次未保存的草稿')
+      if (restored) {
+        message.info('已恢复上次未保存的草稿')
+        // 草稿序列化后日期可能是字符串，转回 dayjs 供 DatePicker 使用
+        const epd = form.getFieldValue('expected_purchase_date')
+        if (epd && typeof epd === 'string') form.setFieldValue('expected_purchase_date', dayjs(epd))
+      }
       // Pre-fill current user as owner for normal customers; pool customers stay unassigned.
       if (currentUser && !toPool) {
         form.setFieldsValue({ owner_id: currentUser.id })
@@ -85,6 +108,8 @@ export default function CustomerForm() {
     setLoading(true)
     try {
       const payload = { ...values, owner_id: toPool ? null : (values.owner_id || null), custom_fields_json: customFields } as any
+      // DatePicker 值为 dayjs 对象，提交为 'YYYY-MM-DD' 字符串
+      if (payload.expected_purchase_date) payload.expected_purchase_date = dayjs(payload.expected_purchase_date).format('YYYY-MM-DD')
       if (isEdit) {
         await customerApi.update(id!, payload)
         message.success('客户已更新')
@@ -183,9 +208,53 @@ export default function CustomerForm() {
           <Form.Item name="source" label="客户来源">
             <Select placeholder="请选择来源" allowClear options={sourceDict.options} loading={sourceDict.loading} />
           </Form.Item>
-          <Form.Item name="level" label="客户级别">
+          <Form.Item name="level" label="客户级别" tooltip="价值等级：客户对我方的重要程度（与「采购意向类别」是两个维度）">
             <Select placeholder="请选择级别" allowClear options={levelDict.options} loading={levelDict.loading} />
           </Form.Item>
+
+          {/* ===== 商机要素 · 采购意向（BANT 快照）===== */}
+          <div className="text-sm font-semibold text-slate-500 mt-6 mb-3 pb-1 border-b border-slate-100">商机要素 · 采购意向</div>
+          <div className="grid grid-cols-2 gap-x-4">
+            <Form.Item name="expected_purchase_date" label="预计采购时间">
+              <DatePicker className="w-full" placeholder="选择预计采购日期" />
+            </Form.Item>
+            <Form.Item name="intent_level" label="采购意向类别"
+              tooltip="留空则由预计采购时间自动推算：3个月内=A、半年内=B、一年内=C、更久/已过期=D">
+              <Select placeholder="留空自动推算" allowClear options={intentOptions} />
+            </Form.Item>
+            <Form.Item name="budget_amount" label="客户预算(元)">
+              <InputNumber<number> className="w-full" min={0} step={1000} placeholder="预算金额" controls={false}
+                formatter={(v) => (v === undefined || v === null ? '' : `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ','))}
+                parser={(v) => {
+                  const s = String(v ?? '').replace(/,/g, '')
+                  // 清空时返回 undefined(而非 0)，允许把预算置空，不被强制写成 0
+                  return (s === '' ? undefined : Number(s)) as unknown as number
+                }} />
+            </Form.Item>
+            <Form.Item name="need_match_level" label="需求匹配程度">
+              <Select placeholder="选择匹配程度" allowClear options={matchOptions} />
+            </Form.Item>
+          </div>
+          <Form.Item name="demand" label="核心需求">
+            <Input.TextArea rows={2} placeholder="客户的核心需求（如：除铁设备）" />
+          </Form.Item>
+
+          {/* ===== 公司档案 ===== */}
+          <div className="text-sm font-semibold text-slate-500 mt-6 mb-3 pb-1 border-b border-slate-100">公司档案</div>
+          <div className="grid grid-cols-3 gap-x-4">
+            <Form.Item name="industry_l1" label="一级行业"><Input placeholder="一级" /></Form.Item>
+            <Form.Item name="industry_l2" label="二级行业"><Input placeholder="二级" /></Form.Item>
+            <Form.Item name="industry_l3" label="三级行业"><Input placeholder="三级" /></Form.Item>
+          </div>
+          <div className="grid grid-cols-3 gap-x-4">
+            <Form.Item name="country" label="国家"><Input placeholder="如：中国" /></Form.Item>
+            <Form.Item name="postal_code" label="邮政编码"><Input placeholder="邮编" /></Form.Item>
+            <Form.Item name="headcount" label="公司总人数"><InputNumber className="w-full" min={0} placeholder="人数" /></Form.Item>
+          </div>
+          <Form.Item name="currency" label="币种">
+            <Select placeholder="默认人民币 CNY" allowClear style={{ maxWidth: 220 }} options={currencyOptions} />
+          </Form.Item>
+
           {!toPool && (
             <Form.Item name="owner_id" label="负责人">
               <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}

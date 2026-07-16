@@ -19,6 +19,7 @@ from app.domains.auth.router import router as auth_router
 from app.domains.tenant.router import router as tenant_router
 from app.domains.organization.router import router as org_router
 from app.domains.customer.router import router as customer_router
+from app.domains.customer.router import pool_router as customer_pool_router
 from app.domains.lead.router import router as lead_router, public_router as lead_public_router
 from app.domains.attachment.router import router as attachment_router
 from app.domains.audit.router import router as audit_router
@@ -144,6 +145,7 @@ app.include_router(auth_router)
 app.include_router(tenant_router)
 app.include_router(org_router)
 app.include_router(customer_router)
+app.include_router(customer_pool_router)
 app.include_router(lead_router)
 app.include_router(attachment_router)
 app.include_router(audit_router)

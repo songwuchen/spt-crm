@@ -1,13 +1,107 @@
+from datetime import date, datetime, timezone
+
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
 from app.common.error_codes import NOT_FOUND, VALIDATION_ERROR
-from app.domains.customer.models import Customer, Contact, CustomerRelation, AclShare
+from app.domains.customer.models import Customer, Contact, CustomerRelation, AclShare, CustomerPool
 from app.domains.customer.schemas import CustomerCreate, CustomerUpdate, ContactCreate, ContactUpdate
 from app.domains.audit.service import log_action
 from app.common.code_generator import generate_code
+
+
+# ==================== 采购意向 / 归属 / 冗余指标 helpers ====================
+
+# 采购意向类别（友商「客户类别」）推档：距今天数 → A/B/C/D，独立于价值等级 level。
+# A=3个月内会订购(最热)，B=半年内，C=一年内，D=一年以上或已过期(最冷)。
+INTENT_THRESHOLDS = (("A", 90), ("B", 180), ("C", 365))
+
+
+def derive_intent_level(expected_purchase_date, today: date | None = None) -> str | None:
+    """由预计采购时间推导采购意向类别 A/B/C/D。无日期返回 None。"""
+    if not expected_purchase_date:
+        return None
+    if isinstance(expected_purchase_date, datetime):
+        expected_purchase_date = expected_purchase_date.date()
+    today = today or date.today()
+    delta = (expected_purchase_date - today).days
+    if delta < 0:
+        return "D"  # 采购时间已过期，视为最冷
+    for level, upper in INTENT_THRESHOLDS:
+        if delta <= upper:
+            return level
+    return "D"
+
+
+async def _resolve_owner_department(db: AsyncSession, tenant_id: str, owner_id: str | None):
+    """解析负责人的（首个）所属部门，冗余到客户便于按部门统计/查询。"""
+    if not owner_id:
+        return None, None
+    from app.domains.organization.models import UserDepartment, Department
+    # 用户可能属多个部门：按加入时间取最早一个，保证冗余部门在多次编辑间稳定(否则 limit(1) 无序，结果可能抖动)
+    dept_id = (await db.execute(
+        select(UserDepartment.department_id).where(
+            UserDepartment.tenant_id == tenant_id, UserDepartment.user_id == owner_id
+        ).order_by(UserDepartment.created_at).limit(1)
+    )).scalar_one_or_none()
+    if not dept_id:
+        return None, None
+    dept = (await db.execute(
+        select(Department).where(Department.id == dept_id, Department.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    return dept_id, (dept.name if dept else None)
+
+
+async def refresh_won_deal_count(db: AsyncSession, tenant_id: str, customer_id: str) -> None:
+    """重算并冗余客户「结单商机数」(status=won)。不提交，交由外层事务统一提交。"""
+    from app.domains.project.models import OpportunityProject
+    cnt = (await db.execute(
+        select(func.count(OpportunityProject.id)).where(
+            OpportunityProject.tenant_id == tenant_id,
+            OpportunityProject.customer_id == customer_id,
+            OpportunityProject.status == "won",
+        )
+    )).scalar() or 0
+    cust = (await db.execute(
+        select(Customer).where(Customer.id == customer_id, Customer.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if cust and (cust.won_deal_count or 0) != cnt:
+        cust.won_deal_count = cnt
+
+
+def match_pool(customer, pools):
+    """按客户 region_code 前缀在已加载的公海列表中匹配区域公海；无匹配则回退默认公海(is_default)。
+    返回 CustomerPool 或 None。纯内存计算，供释放/回收循环复用避免逐行查询。"""
+    code = customer.region_code or ""
+    default_pool = None
+    for p in pools:
+        if p.is_default and default_pool is None:
+            default_pool = p
+        scope = (p.region_scope or "").strip()
+        if scope and code:
+            for prefix in (x.strip() for x in scope.split(",")):
+                if prefix and code.startswith(prefix):
+                    return p
+    return default_pool
+
+
+async def list_active_pools(db: AsyncSession, tenant_id: str):
+    return (await db.execute(
+        select(CustomerPool).where(
+            CustomerPool.tenant_id == tenant_id, CustomerPool.is_active == True
+        ).order_by(CustomerPool.sort_order)
+    )).scalars().all()
+
+
+async def _route_pool_id(db: AsyncSession, tenant_id: str, customer) -> str | None:
+    """按客户地区路由到区域公海 id；无任何公海配置时返回 None（=默认公海，兼容存量行为）。"""
+    pools = await list_active_pools(db, tenant_id)
+    if not pools:
+        return None
+    p = match_pool(customer, pools)
+    return p.id if p else None
 
 
 # ==================== Customer ====================
@@ -105,11 +199,20 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
             select(User).where(User.id == owner_id, User.tenant_id == tenant_id)
         )).scalar_one_or_none()
         owner_name = owner.real_name or owner.username if owner else None
+    # 采购意向类别：未显式指定则由预计采购时间自动推档
+    if not dump.get("intent_level"):
+        dump["intent_level"] = derive_intent_level(dump.get("expected_purchase_date"))
+    # 所属部门：冗余自负责人
+    dept_id, dept_name = await _resolve_owner_department(db, tenant_id, owner_id)
+    _uname = user.get("real_name") or user.get("username")
     customer = Customer(
         id=generate_uuid(), tenant_id=tenant_id,
         owner_id=owner_id, owner_name=owner_name,
+        department_id=dept_id, department_name=dept_name,
         created_by_id=user.get("sub"),
-        created_by_name=user.get("real_name") or user.get("username"),
+        created_by_name=_uname,
+        updated_by_id=user.get("sub"),
+        updated_by_name=_uname,
         **dump,
     )
     db.add(customer)
@@ -134,6 +237,14 @@ async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, da
         from app.domains.lowcode.field_permission import sanitize_entity_write
         update_data["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "customer", update_data["custom_fields_json"], customer.custom_fields_json, user.get("roles"))
+    # 最新修改人
+    update_data["updated_by_id"] = user.get("sub")
+    update_data["updated_by_name"] = user.get("real_name") or user.get("username")
+    # 采购意向类别：改了采购时间且意向为空(未显式指定)时随之重算。
+    # 注意用 not .get() 而非 "not in"——前端表单总会带上 intent_level 字段(可能为 null)，
+    # 用 "not in" 会让自动推档在编辑态永远失效。
+    if "expected_purchase_date" in update_data and not update_data.get("intent_level"):
+        update_data["intent_level"] = derive_intent_level(update_data["expected_purchase_date"])
     # Resolve owner_name when owner_id changes
     reassigned_to = None
     if "owner_id" in update_data:
@@ -148,6 +259,10 @@ async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, da
                 reassigned_to = new_owner_id
         else:
             update_data["owner_name"] = None
+        # 所属部门随负责人同步冗余
+        dept_id, dept_name = await _resolve_owner_department(db, tenant_id, new_owner_id)
+        update_data["department_id"] = dept_id
+        update_data["department_name"] = dept_name
     changes = {}
     for field, val in update_data.items():
         old_val = getattr(customer, field, None)
@@ -282,6 +397,8 @@ async def merge_customers(db: AsyncSession, tenant_id: str, primary_id: str, sec
 
     # Soft-delete secondary
     secondary.is_deleted = True
+    # 次客户的商机已并入主客户 → 重算主客户的「结单商机数」冗余，避免合并后计数偏低
+    await refresh_won_deal_count(db, tenant_id, primary_id)
     await db.commit()
     await db.refresh(primary)
 
@@ -297,9 +414,9 @@ async def merge_customers(db: AsyncSession, tenant_id: str, primary_id: str, sec
 async def list_pool_customers(
     db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20,
     keyword: str | None = None, industry: str | None = None, region: str | None = None,
-    region_code: str | None = None,
+    region_code: str | None = None, pool_id: str | None = None,
 ):
-    """List customers in the pool (no owner)."""
+    """List customers in the pool (no owner). pool_id='__default__' 表示归属默认公海(pool_id 为空)。"""
     base = select(Customer).where(
         Customer.tenant_id == tenant_id,
         Customer.is_deleted == False,
@@ -309,6 +426,10 @@ async def list_pool_customers(
         base = base.where(Customer.name.ilike(f"%{keyword}%"))
     if industry:
         base = base.where(Customer.industry == industry)
+    if pool_id == "__default__":
+        base = base.where(Customer.pool_id.is_(None))
+    elif pool_id:
+        base = base.where(Customer.pool_id == pool_id)
     base = _apply_region_filter(base, region, region_code)
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
@@ -318,8 +439,8 @@ async def list_pool_customers(
     return items, total
 
 
-async def release_to_pool(db: AsyncSession, tenant_id: str, customer_id: str, user: dict):
-    """Release a customer to the pool."""
+async def release_to_pool(db: AsyncSession, tenant_id: str, customer_id: str, user: dict, pools=None):
+    """Release a customer to the pool. 传入预加载的 pools 可避免批量释放时逐客户查询公海列表。"""
     customer = await get_customer(db, tenant_id, customer_id)
     if customer.status == "pool":
         raise BusinessException(message="客户已在公海池中")
@@ -327,6 +448,14 @@ async def release_to_pool(db: AsyncSession, tenant_id: str, customer_id: str, us
     customer.status = "pool"
     customer.owner_id = None
     customer.owner_name = None
+    customer.department_id = None
+    customer.department_name = None
+    customer.pool_source = "manual_release"
+    customer.pool_entered_at = datetime.now(timezone.utc)
+    if pools is None:
+        pools = await list_active_pools(db, tenant_id)
+    matched = match_pool(customer, pools) if pools else None
+    customer.pool_id = matched.id if matched else None
     await db.commit()
     await db.refresh(customer)
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
@@ -343,6 +472,12 @@ async def claim_from_pool(db: AsyncSession, tenant_id: str, customer_id: str, us
     customer.status = "active"
     customer.owner_id = user["sub"]
     customer.owner_name = user.get("real_name") or user.get("username")
+    dept_id, dept_name = await _resolve_owner_department(db, tenant_id, user["sub"])
+    customer.department_id = dept_id
+    customer.department_name = dept_name
+    customer.pool_id = None
+    customer.pool_source = None
+    customer.pool_entered_at = None
     await db.commit()
     await db.refresh(customer)
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
@@ -353,10 +488,11 @@ async def claim_from_pool(db: AsyncSession, tenant_id: str, customer_id: str, us
 
 async def batch_release_to_pool(db: AsyncSession, tenant_id: str, customer_ids: list[str], user: dict):
     """Batch release customers to pool."""
+    pools = await list_active_pools(db, tenant_id)  # 加载一次，复用于每个客户的归池匹配
     released = 0
     for cid in customer_ids:
         try:
-            await release_to_pool(db, tenant_id, cid, user)
+            await release_to_pool(db, tenant_id, cid, user, pools=pools)
             released += 1
         except BusinessException:
             pass
@@ -518,3 +654,83 @@ async def delete_share(db: AsyncSession, tenant_id: str, share_id: str, user: di
         raise BusinessException(code=NOT_FOUND, message="共享记录不存在")
     await db.delete(share)
     await db.commit()
+
+
+# ==================== Customer Pool 配置(区域公海) ====================
+
+async def list_pools(db: AsyncSession, tenant_id: str):
+    return (await db.execute(
+        select(CustomerPool).where(CustomerPool.tenant_id == tenant_id)
+        .order_by(CustomerPool.sort_order, CustomerPool.created_at)
+    )).scalars().all()
+
+
+async def _clear_default_pool(db: AsyncSession, tenant_id: str, exclude_id: str | None = None):
+    from sqlalchemy import update as sql_update
+    stmt = sql_update(CustomerPool).where(
+        CustomerPool.tenant_id == tenant_id, CustomerPool.is_default == True
+    )
+    if exclude_id:
+        stmt = stmt.where(CustomerPool.id != exclude_id)
+    await db.execute(stmt.values(is_default=False))
+
+
+async def create_pool(db: AsyncSession, tenant_id: str, data: dict, user: dict) -> CustomerPool:
+    if data.get("is_default"):
+        await _clear_default_pool(db, tenant_id)
+    pool = CustomerPool(id=generate_uuid(), tenant_id=tenant_id, **data)
+    db.add(pool)
+    await db.commit()
+    await db.refresh(pool)
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="create", resource_type="customer_pool", resource_id=pool.id,
+                     summary=f"创建区域公海: {pool.name}")
+    return pool
+
+
+async def update_pool(db: AsyncSession, tenant_id: str, pool_id: str, data: dict, user: dict) -> CustomerPool:
+    pool = (await db.execute(
+        select(CustomerPool).where(CustomerPool.id == pool_id, CustomerPool.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not pool:
+        raise BusinessException(code=NOT_FOUND, message="公海不存在")
+    if data.get("is_default"):
+        await _clear_default_pool(db, tenant_id, exclude_id=pool_id)
+    for field, val in data.items():
+        setattr(pool, field, val)
+    await db.commit()
+    await db.refresh(pool)
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="update", resource_type="customer_pool", resource_id=pool.id,
+                     summary=f"更新区域公海: {pool.name}")
+    return pool
+
+
+async def delete_pool(db: AsyncSession, tenant_id: str, pool_id: str, user: dict):
+    pool = (await db.execute(
+        select(CustomerPool).where(CustomerPool.id == pool_id, CustomerPool.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not pool:
+        raise BusinessException(code=NOT_FOUND, message="公海不存在")
+    # 归属该公海的客户回落默认公海(pool_id=NULL)，不丢失客户
+    from sqlalchemy import update as sql_update
+    await db.execute(
+        sql_update(Customer).where(Customer.tenant_id == tenant_id, Customer.pool_id == pool_id)
+        .values(pool_id=None)
+    )
+    name = pool.name
+    await db.delete(pool)
+    await db.commit()
+    await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
+                     action="delete", resource_type="customer_pool", resource_id=pool_id,
+                     summary=f"删除区域公海: {name}")
+
+
+async def pool_counts(db: AsyncSession, tenant_id: str) -> dict:
+    """各区域公海当前在库客户数(status=pool)，含默认公海(键 '__default__')。"""
+    rows = (await db.execute(
+        select(Customer.pool_id, func.count(Customer.id)).where(
+            Customer.tenant_id == tenant_id, Customer.is_deleted == False, Customer.status == "pool"
+        ).group_by(Customer.pool_id)
+    )).all()
+    return {(pid or "__default__"): cnt for pid, cnt in rows}

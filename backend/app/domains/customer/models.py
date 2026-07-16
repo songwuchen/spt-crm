@@ -1,4 +1,7 @@
-from sqlalchemy import String, Text, JSON, Boolean
+from datetime import datetime, date
+from decimal import Decimal
+
+from sqlalchemy import String, Text, JSON, Boolean, Integer, Numeric, Date, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import TenantScopedBase
@@ -32,6 +35,41 @@ class Customer(TenantScopedBase):
     tags_json: Mapped[dict | None] = mapped_column(JSON)
     remark: Mapped[str | None] = mapped_column(Text)
     custom_fields_json: Mapped[dict | None] = mapped_column(JSON)
+
+    # ===== 商机要素 / 采购意向（BANT 快照，客户早期即可承载「为何是潜在商机」）=====
+    intent_level: Mapped[str | None] = mapped_column(String(10))
+    # 采购意向类别 A/B/C/D，由 expected_purchase_date 推档（A=3月内…），独立于价值等级 level
+    key_contact_id: Mapped[str | None] = mapped_column(String(36))  # 关键人（指向 contacts.id）
+    demand: Mapped[str | None] = mapped_column(Text)  # 核心需求
+    need_match_level: Mapped[str | None] = mapped_column(String(32))  # 产品与需求匹配程度
+    budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))  # 客户预算
+    expected_purchase_date: Mapped[date | None] = mapped_column(Date)  # 预计采购时间
+    headcount: Mapped[int | None] = mapped_column(Integer)  # 公司总人数
+
+    # ===== 公司档案增补 =====
+    industry_l1: Mapped[str | None] = mapped_column(String(100))  # 一级行业
+    industry_l2: Mapped[str | None] = mapped_column(String(100))  # 二级行业
+    industry_l3: Mapped[str | None] = mapped_column(String(100))  # 三级行业
+    country: Mapped[str | None] = mapped_column(String(50))  # 国家
+    postal_code: Mapped[str | None] = mapped_column(String(20))  # 邮政编码
+    currency: Mapped[str | None] = mapped_column(String(10))  # 币种（CNY/USD…）
+
+    # ===== 归属 / 审计增补 =====
+    department_id: Mapped[str | None] = mapped_column(String(36))  # 所属部门（冗余自负责人，便于按部门统计/查询）
+    department_name: Mapped[str | None] = mapped_column(String(100))
+    updated_by_id: Mapped[str | None] = mapped_column(String(36))  # 最新修改人
+    updated_by_name: Mapped[str | None] = mapped_column(String(100))
+
+    # ===== 跟进 / 公海生命周期（冗余，驱动列表「N天未跟进」展示与自动回收）=====
+    last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)  # 最新活动时间
+    last_activity_by_id: Mapped[str | None] = mapped_column(String(36))  # 最新跟进人
+    last_activity_by_name: Mapped[str | None] = mapped_column(String(100))
+    won_deal_count: Mapped[int] = mapped_column(Integer, default=0)  # 结单商机数（冗余，卡片信任信号）
+    pool_id: Mapped[str | None] = mapped_column(String(36), index=True)  # 所属区域公海（NULL=默认公海）
+    pool_source: Mapped[str | None] = mapped_column(String(32))
+    # 进入公海来源: self_built(自建) / manual_release(手动释放) / auto_recycle(系统回收) / assigned(分配后回收)
+    pool_entered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # 进入公海时间
+
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
 
@@ -75,3 +113,20 @@ class AclShare(TenantScopedBase):
     # view/edit
     shared_by_id: Mapped[str | None] = mapped_column(String(36))
     shared_by_name: Mapped[str | None] = mapped_column(String(100))
+
+
+class CustomerPool(TenantScopedBase):
+    """区域公海：把单一全局公海拆成多个可按区域/团队管理的公海池。
+    客户 pool_id 指向此表；NULL 视为默认公海。回收规则可分池覆盖租户级。"""
+
+    __tablename__ = "customer_pools"
+
+    name: Mapped[str] = mapped_column(String(100), nullable=False)  # 公海名称（总部/华东区…）
+    description: Mapped[str | None] = mapped_column(String(300))
+    region_scope: Mapped[str | None] = mapped_column(String(300))
+    # 覆盖的行政区划编码前缀，逗号分隔（如 "31,32,33"）；释放到公海时按客户 region_code 自动归池
+    rules_json: Mapped[dict | None] = mapped_column(JSON)
+    # 回收规则 {enabled, idle_days:{A,B,C,D}, default_idle_days}；非空则覆盖租户级 pool_rules
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)

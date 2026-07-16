@@ -1,5 +1,5 @@
 import client from './client'
-import type { ApiResponse, PageData, Customer, CustomerReport } from './types'
+import type { ApiResponse, PageData, Customer, CustomerReport, CustomerPool } from './types'
 
 export const customerApi = {
   list: (params: Record<string, unknown>) =>
@@ -73,4 +73,16 @@ export const customerApi = {
     client.post<unknown, ApiResponse<{ sent: number; failed: number; results: { customer_id: string; contact: string; target?: string; status: string; reason?: string }[] }>>(
       '/api/v1/customers/batch_message', data
     ),
+}
+
+// 区域公海配置（读取：customer:view；增删改：role:manage）
+export const customerPoolApi = {
+  list: () =>
+    client.get<unknown, ApiResponse<{ items: CustomerPool[]; default_count: number }>>('/api/v1/customer-pools'),
+  create: (data: Partial<CustomerPool>) =>
+    client.post<unknown, ApiResponse<CustomerPool>>('/api/v1/customer-pools', data),
+  update: (id: string, data: Partial<CustomerPool>) =>
+    client.put<unknown, ApiResponse<CustomerPool>>(`/api/v1/customer-pools/${id}`, data),
+  delete: (id: string) =>
+    client.delete<unknown, ApiResponse<{ deleted: boolean }>>(`/api/v1/customer-pools/${id}`),
 }

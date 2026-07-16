@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from openpyxl import load_workbook
+from datetime import datetime, timezone, timedelta
 import io
 
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions
@@ -13,6 +14,7 @@ from app.domains.customer.schemas import (
     CustomerCreate, CustomerUpdate, CustomerOut,
     ContactCreate, ContactUpdate, ContactOut,
     RelationCreate, ShareCreate, BatchReleaseRequest,
+    CustomerPoolCreate, CustomerPoolUpdate,
 )
 from app.domains.customer import service
 
@@ -25,7 +27,47 @@ def _format_region(c) -> str:
     return " · ".join(parts) if parts else (c.region or "")
 
 
-def _customer_dict(c) -> dict:
+async def _tenant_pool_rules(db: AsyncSession, tenant_id: str) -> dict | None:
+    """租户级公海回收规则(security_policy_json.pool_rules)，用于计算「预计回收时间」。"""
+    from app.domains.admin.models import TenantProfile
+    p = (await db.execute(
+        select(TenantProfile).where(TenantProfile.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    return (p.security_policy_json or {}).get("pool_rules") if p else None
+
+
+def _expected_recycle_iso(c, rules: dict | None) -> str | None:
+    """在职有主客户「预计回收时间」= 最后活动(或创建)时间 + 该级别闲置天数。规则未启用/公海客户返回 None。"""
+    if not rules or not rules.get("enabled"):
+        return None
+    if c.status != "active" or not c.owner_id:
+        return None
+    base = c.last_activity_at or c.created_at
+    if not base:
+        return None
+    idle = (rules.get("idle_days") or {}).get(c.level or "D", rules.get("default_idle_days", 30))
+    try:
+        idle = int(idle)
+    except (TypeError, ValueError):
+        idle = 30
+    return (base + timedelta(days=idle)).isoformat()
+
+
+def _effective_recycle_rules(c, tenant_rules: dict | None, pools) -> dict | None:
+    """客户实际生效的回收规则：其(将)归属区域公海的规则优先，回退租户级——与 reminder_worker 归池逻辑保持一致，
+    避免列表展示的「预计回收时间」与实际自动回收行为不一致。"""
+    routed = service.match_pool(c, pools) if pools else None
+    if routed and routed.rules_json and routed.rules_json.get("enabled"):
+        return routed.rules_json
+    if tenant_rules and tenant_rules.get("enabled"):
+        return tenant_rules
+    return None
+
+
+def _customer_dict(c, tenant_rules: dict | None = None, pools=None) -> dict:
+    base_activity = c.last_activity_at or c.created_at
+    idle_days = max(0, (datetime.now(timezone.utc) - base_activity).days) if base_activity else None
+    eff_rules = _effective_recycle_rules(c, tenant_rules, pools)
     return {
         "id": c.id, "customer_code": c.customer_code,
         "name": c.name, "short_name": c.short_name,
@@ -36,6 +78,28 @@ def _customer_dict(c) -> dict:
         "owner_id": c.owner_id, "owner_name": c.owner_name,
         "source": c.source, "level": c.level, "status": c.status,
         "tags_json": c.tags_json, "remark": c.remark, "custom_fields_json": c.custom_fields_json,
+        # 商机要素 / 采购意向
+        "intent_level": c.intent_level, "key_contact_id": c.key_contact_id,
+        "demand": c.demand, "need_match_level": c.need_match_level,
+        "budget_amount": float(c.budget_amount) if c.budget_amount is not None else None,
+        "expected_purchase_date": c.expected_purchase_date.isoformat() if c.expected_purchase_date else None,
+        "headcount": c.headcount,
+        # 公司档案
+        "industry_l1": c.industry_l1, "industry_l2": c.industry_l2, "industry_l3": c.industry_l3,
+        "country": c.country, "postal_code": c.postal_code, "currency": c.currency,
+        # 归属 / 审计
+        "department_id": c.department_id, "department_name": c.department_name,
+        "created_by_id": c.created_by_id, "created_by_name": c.created_by_name,
+        "updated_by_id": c.updated_by_id, "updated_by_name": c.updated_by_name,
+        # 跟进 / 公海生命周期（含派生指标）
+        "last_activity_at": c.last_activity_at.isoformat() if c.last_activity_at else None,
+        "last_activity_by_id": c.last_activity_by_id,
+        "last_activity_by_name": c.last_activity_by_name,
+        "idle_days": idle_days,
+        "expected_recycle_at": _expected_recycle_iso(c, eff_rules),
+        "won_deal_count": c.won_deal_count or 0,
+        "pool_id": c.pool_id, "pool_source": c.pool_source,
+        "pool_entered_at": c.pool_entered_at.isoformat() if c.pool_entered_at else None,
         "created_at": c.created_at.isoformat() if c.created_at else "",
         "updated_at": c.updated_at.isoformat() if c.updated_at else "",
     }
@@ -63,7 +127,9 @@ async def list_customers(
     items, total = await service.list_customers(
         db, tenant_id, pageNo, pageSize, keyword, industry, region, owner_id, tag=tag, current_user=_user,
         adv_filter=filter, sort_by=sort_by, sort_order=sort_order, region_code=region_code)
-    dicts = [_customer_dict(c) for c in items]
+    tenant_rules = await _tenant_pool_rules(db, tenant_id)
+    pools = await service.list_active_pools(db, tenant_id)
+    dicts = [_customer_dict(c, tenant_rules, pools) for c in items]
     await strip_entity_dicts(db, tenant_id, "customer", dicts, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok({"items": dicts, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
@@ -84,7 +150,12 @@ async def create_customer(
         # create_customer always assigns an owner (creator fallback) — flip it to pool state.
         c.owner_id = None
         c.owner_name = None
+        c.department_id = None
+        c.department_name = None
         c.status = "pool"
+        c.pool_source = "self_built"
+        c.pool_entered_at = datetime.now(timezone.utc)
+        c.pool_id = await service._route_pool_id(db, tenant_id, c)
         await db.commit()
         await db.refresh(c)
     return ok(_customer_dict(c))
@@ -149,11 +220,13 @@ async def list_pool_customers(
     keyword: str = Query(None),
     industry: str = Query(None),
     region: str = Query(None),
+    pool_id: str = Query(None, description="按区域公海筛选；'__default__' 表示默认公海(未归池)"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
 ):
-    items, total = await service.list_pool_customers(db, tenant_id, pageNo, pageSize, keyword, industry, region)
+    items, total = await service.list_pool_customers(
+        db, tenant_id, pageNo, pageSize, keyword, industry, region, pool_id=pool_id)
     return ok({"items": [_customer_dict(c) for c in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
@@ -162,13 +235,15 @@ async def export_pool_customers_excel(
     keyword: str = Query(None),
     industry: str = Query(None),
     region: str = Query(None),
+    pool_id: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
 ):
     """Export pool customers to Excel."""
     from app.config import settings
-    items, _ = await service.list_pool_customers(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, industry, region)
+    items, _ = await service.list_pool_customers(
+        db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, industry, region, pool_id=pool_id)
     headers = ["客户编码", "客户名称", "简称", "行业", "规模", "地区", "地址", "来源", "级别", "释放时间"]
     rows = []
     for c in items:
@@ -1174,7 +1249,7 @@ async def get_customer(
     _user=Depends(require_permissions("customer:view")),
 ):
     c = await service.get_customer(db, tenant_id, customer_id)
-    d = _customer_dict(c)
+    d = _customer_dict(c, await _tenant_pool_rules(db, tenant_id), await service.list_active_pools(db, tenant_id))
     await strip_entity_dicts(db, tenant_id, "customer", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok(d)
 
@@ -1188,4 +1263,66 @@ async def update_customer(
     current_user: dict = Depends(require_permissions("customer:edit")),
 ):
     c = await service.update_customer(db, tenant_id, customer_id, body, current_user)
-    return ok(_customer_dict(c))
+    return ok(_customer_dict(c, await _tenant_pool_rules(db, tenant_id), await service.list_active_pools(db, tenant_id)))
+
+
+# ==================== 区域公海配置 (customer_pools) ====================
+# 读取用 customer:view（公海页筛选需要）；增删改属租户配置，用 role:manage（管理员）。
+
+pool_router = APIRouter(prefix="/api/v1/customer-pools", tags=["区域公海"])
+
+
+def _pool_dict(p, counts: dict | None = None) -> dict:
+    return {
+        "id": p.id, "name": p.name, "description": p.description,
+        "region_scope": p.region_scope, "rules_json": p.rules_json,
+        "is_default": p.is_default, "is_active": p.is_active, "sort_order": p.sort_order,
+        "customer_count": (counts or {}).get(p.id, 0),
+        "created_at": p.created_at.isoformat() if p.created_at else "",
+    }
+
+
+@pool_router.get("")
+async def list_customer_pools(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("customer:view")),
+):
+    pools = await service.list_pools(db, tenant_id)
+    counts = await service.pool_counts(db, tenant_id)
+    return ok({"items": [_pool_dict(p, counts) for p in pools],
+               "default_count": counts.get("__default__", 0)})
+
+
+@pool_router.post("")
+async def create_customer_pool(
+    body: CustomerPoolCreate,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("role:manage")),
+):
+    p = await service.create_pool(db, tenant_id, body.model_dump(), current_user)
+    return ok(_pool_dict(p))
+
+
+@pool_router.put("/{pool_id}")
+async def update_customer_pool(
+    pool_id: str,
+    body: CustomerPoolUpdate,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("role:manage")),
+):
+    p = await service.update_pool(db, tenant_id, pool_id, body.model_dump(exclude_unset=True), current_user)
+    return ok(_pool_dict(p))
+
+
+@pool_router.delete("/{pool_id}")
+async def delete_customer_pool(
+    pool_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("role:manage")),
+):
+    await service.delete_pool(db, tenant_id, pool_id, current_user)
+    return ok({"deleted": True})

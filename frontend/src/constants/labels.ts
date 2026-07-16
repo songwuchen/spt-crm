@@ -153,3 +153,21 @@ export const renewalStatusLabels: Record<string, string> = {
 export const renewalStatusColors: Record<string, string> = {
   open: 'processing', won: 'success', lost: 'error',
 }
+
+// --- Customer (级别/采购意向/需求匹配/入池方式) ---
+// 价值等级(level)与采购意向(intent_level)共用同一套 A/B/C/D 颜色。
+export const customerLevelColors: Record<string, string> = { A: 'red', B: 'orange', C: 'blue', D: 'default' }
+export const intentLevelColors = customerLevelColors
+// 详情页用长标签，列表列用短标签（列窄），二者集中于此避免各页手写导致漂移。
+export const intentLevelLabels: Record<string, string> = {
+  A: 'A · 3个月内', B: 'B · 半年内', C: 'C · 一年内', D: 'D · 更久/暂无',
+}
+export const intentLevelShortLabels: Record<string, string> = {
+  A: 'A·3月内', B: 'B·半年', C: 'C·一年', D: 'D·更久',
+}
+export const matchLevelLabels: Record<string, string> = {
+  has_need_budget: '有需求有预算', has_need_owner: '有需求与需求负责人', need_only: '仅有需求', unclear: '需求不明确',
+}
+export const poolSourceLabels: Record<string, string> = {
+  self_built: '自建', manual_release: '手动释放', auto_recycle: '系统回收', assigned: '分配回收',
+}

@@ -308,6 +308,13 @@ async def update_project(db: AsyncSession, tenant_id: str, project_id: str, data
             "status": new_status,
             "amount_expect": float(project.amount_expect) if project.amount_expect else None,
         })
+    # 结单商机数：赢单/丢单后重算所属客户的冗余计数
+    if new_status and new_status in ("won", "lost") and project.customer_id:
+        try:
+            from app.domains.customer.service import refresh_won_deal_count
+            await refresh_won_deal_count(db, tenant_id, project.customer_id)
+        except Exception as e:
+            logger.warning("refresh won_deal_count failed: %s", e)
     await db.commit()
     await db.refresh(project)
 
