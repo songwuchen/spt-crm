@@ -114,7 +114,7 @@ describe('SettingsPage', () => {
     ;(settingsApi.getUiSettings as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { system_name: null, menu_aliases: {}, hidden_menus: [] } })
     ;(settingsApi.updateUiSettings as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { system_name: null, menu_aliases: {}, hidden_menus: [] } })
     ;(roleApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [{ id: 'r-1', code: 'admin', name: '管理员' }] })
-    ;(client.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [{ id: 'u-1', real_name: 'Admin', username: 'admin' }] } })
+    ;(client.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [{ id: 'u-1', name: 'Admin' }] })
   })
 
   it('renders stage gate tab and loads data', async () => {
