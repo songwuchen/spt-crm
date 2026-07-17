@@ -55,7 +55,8 @@ export default function MobileLowcodeFormFill() {
   )
 
   return (
-    <div className="pb-20">
+    // 底部留白清出「固定提交栏 + 底部 Tab 导航(h-14=56px)」的高度,避免表单被遮挡。
+    <div style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 132px)' }}>
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => nav(-1)} className="flex items-center text-primary bg-transparent border-0 cursor-pointer p-0"><MobileIcon name="arrow_back_ios" /></button>
         <h2 className="text-lg font-bold text-slate-900 flex-1 text-center truncate px-2">{name}</h2>
@@ -64,7 +65,9 @@ export default function MobileLowcodeFormFill() {
       <div className="bg-white rounded-xl border border-slate-100 p-4">
         <FormRenderer fields={fields} rules={rules} mode="edit" value={value} onChange={setValue} />
       </div>
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
+      {/* 提交栏置于底部 Tab 导航(fixed bottom-0 h-14 z-20)之上,z-30 确保不被遮挡。 */}
+      <div className="fixed left-0 right-0 z-30 bg-white border-t border-slate-100 p-3"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 56px)' }}>
         <button onClick={submit} disabled={submitting}
           className="w-full h-11 rounded-xl bg-primary text-white font-bold border-0 disabled:opacity-60">
           {submitting ? '提交中…' : '提交'}
