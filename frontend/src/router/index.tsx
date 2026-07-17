@@ -76,6 +76,10 @@ const MobileKanban = lazy(() => import('@/pages/mobile/MobileKanban'))
 const MobileProducts = lazy(() => import('@/pages/mobile/MobileProducts'))
 const MobileSearch = lazy(() => import('@/pages/mobile/MobileSearch'))
 const MobileLeads = lazy(() => import('@/pages/mobile/MobileLeads'))
+const MobileLowcodeForms = lazy(() => import('@/pages/mobile/MobileLowcodeForms'))
+const MobileLowcodeFormFill = lazy(() => import('@/pages/mobile/MobileLowcodeFormFill'))
+const MobileLowcodeApprovals = lazy(() => import('@/pages/mobile/MobileLowcodeApprovals'))
+const MobileLowcodeApprovalDetail = lazy(() => import('@/pages/mobile/MobileLowcodeApprovalDetail'))
 const NotificationCenter = lazy(() => import('@/pages/notification/NotificationCenter'))
 const PlatformTenants = lazy(() => import('@/pages/platform/PlatformTenants'))
 const ProductList = lazy(() => import('@/pages/product/ProductList'))
@@ -241,6 +245,10 @@ export const router = createBrowserRouter([
       { path: 'products', element: <Lazy><MobileProducts /></Lazy> },
       { path: 'search', element: <Lazy><MobileSearch /></Lazy> },
       { path: 'profile', element: <Lazy><MobileProfile /></Lazy> },
+      { path: 'lowcode/forms', element: <Lazy><MobileLowcodeForms /></Lazy> },
+      { path: 'lowcode/forms/:id/fill', element: <Lazy><MobileLowcodeFormFill /></Lazy> },
+      { path: 'lowcode/approvals', element: <Lazy><MobileLowcodeApprovals /></Lazy> },
+      { path: 'lowcode/approvals/:id', element: <Lazy><MobileLowcodeApprovalDetail /></Lazy> },
     ],
   },
   { path: '*', element: <Lazy><NotFound /></Lazy> },

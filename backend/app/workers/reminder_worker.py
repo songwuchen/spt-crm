@@ -196,6 +196,20 @@ async def check_approval_sla(db: AsyncSession) -> int:
     return notified
 
 
+async def check_lc_workflow_timeouts(db: AsyncSession) -> int:
+    """扩展平台可视化审批引擎的节点超时(SLA)处理:notify/auto_approve/auto_reject/auto_transfer。"""
+    from app.domains.lowcode.workflow_timeout import scan_and_fire
+    try:
+        return await scan_and_fire(db)
+    except Exception as e:
+        logger.warning(f"LC workflow timeout scan failed: {e}")
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        return 0
+
+
 async def check_expiring_contracts(db: AsyncSession) -> int:
     """Find contracts expiring within CONTRACT_WARN_DAYS and notify owners.
 
@@ -703,6 +717,7 @@ async def run_once():
         stale = await check_stale_projects(db)
         payments = await check_upcoming_payments(db)
         sla = await check_approval_sla(db)
+        lc_timeouts = await check_lc_workflow_timeouts(db)
         contracts = await check_expiring_contracts(db)
         audit_cleanup = await cleanup_old_audit_logs(db)
         notif_cleanup = await cleanup_old_notifications(db)
@@ -720,14 +735,15 @@ async def run_once():
         dingtalk_synced = await check_dingtalk_auto_sync(db)
         if dingtalk_synced:
             logger.info("DingTalk auto-sync ran for %d tenant(s)", dingtalk_synced)
-        total = (stale + payments + sla + contracts + followups + pool_released + reports
+        total = (stale + payments + sla + lc_timeouts + contracts + followups + pool_released + reports
                  + overdue_payments + overdue_receivables + expiring_guarantees)
         if total > 0:
             logger.info(
                 f"Reminders sent: stale_projects={stale}, upcoming_payments={payments}, "
-                f"sla_violations={sla}, expiring_contracts={contracts}, followups={followups}, "
-                f"pool_released={pool_released}, reports={reports}, overdue_payments={overdue_payments}, "
-                f"overdue_receivables={overdue_receivables}, expiring_guarantees={expiring_guarantees}"
+                f"sla_violations={sla}, lc_workflow_timeouts={lc_timeouts}, expiring_contracts={contracts}, "
+                f"followups={followups}, pool_released={pool_released}, reports={reports}, "
+                f"overdue_payments={overdue_payments}, overdue_receivables={overdue_receivables}, "
+                f"expiring_guarantees={expiring_guarantees}"
             )
         cleanup_total = audit_cleanup + notif_cleanup + session_cleanup + deleted_cleanup + outbox_cleanup + inactive_sessions
         if cleanup_total > 0:

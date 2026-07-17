@@ -6,16 +6,20 @@
 - 动作: submit / approve / reject / withdraw / transfer / comment;
 - 空审批人策略: auto_approve(跳过) / terminate(终止驳回);
 - 待办为独立 WfTaskInstance,version 乐观锁防并发重复审批;全程留痕 WfTaskActionLog。
+- 并行网关: parallel(fork,激活所有出边分支) + merge(AND-join,advisory lock 串行化到达记账);
+- 超时(SLA): 审批节点 timeout={hours,action},由 reminder_worker 扫描触发 fire_timeout;
+- 催办: 发起人对进行中待办人发提醒(urge)。
 
 统一入口保证: 状态推进 + 待办生成/作废 + 日志 + (表单实例)回写 集中处理,避免散落。
-高级能力(并行网关/加签/退回指定节点/子流程/超时/代理落地)后续迭代。
+高级能力(加签/退回指定节点/子流程/代理落地)见 act();其余按需迭代。
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text as sa_text
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import BusinessException
@@ -184,7 +188,13 @@ class WorkflowEngine:
         if ntype == "approval":
             await self._activate_approval(inst, version, node, ctx)
             return
-        # 其它类型(condition/parallel 等)MVP 视为直通
+        if ntype == "parallel":
+            await self._activate_parallel(inst, version, node, ctx)
+            return
+        if ntype == "merge":
+            await self._arrive_merge(inst, version, node, ctx)
+            return
+        # 其它类型(condition 等)视为直通(分支条件挂在连线上)
         await self._advance(inst, version, node["id"], ctx)
 
     async def _resolve_approvers(self, version, node, ctx) -> list[str]:
@@ -210,10 +220,15 @@ class WorkflowEngine:
             return
 
         mode = node.get("multi_mode") or (node.get("config") or {}).get("multi_mode") or "or_sign"
+        # 超时配置(可选): {hours, action: notify/auto_approve/auto_reject/auto_transfer, transfer_to?}
+        timeout = node.get("timeout") or (node.get("config") or {}).get("timeout")
+        cfg: dict = {"mode": mode}
+        if isinstance(timeout, dict) and timeout.get("hours"):
+            cfg["timeout"] = timeout
         ni = WfNodeInstance(
             id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
             node_def_id=node["id"], node_type="approval", node_name=node.get("name") or "审批",
-            status="running", config={"mode": mode}, started_at=_now(),
+            status="running", config=cfg, started_at=_now(),
         )
         self.db.add(ni)
         await self.db.flush()
@@ -243,6 +258,85 @@ class WorkflowEngine:
                 id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
                 node_instance_id=ni.id, user_id=uid, is_read=False,
             ))
+
+    # ---------- 并行网关(fork / AND-join) ----------
+
+    async def _activate_parallel(self, inst, version, node, ctx) -> None:
+        """并行网关(fork): 记录网关节点并激活全部出边分支(忽略连线条件,全部并行)。"""
+        ni = WfNodeInstance(
+            id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
+            node_def_id=node["id"], node_type="parallel", node_name=node.get("name") or "并行",
+            status="completed", config={}, started_at=_now(), completed_at=_now(),
+        )
+        self.db.add(ni)
+        await self.db.flush()
+        nodes = self._nodes_by_id(version)
+        for r in self._outgoing(version, node["id"]):
+            tnode = nodes.get(r.get("target"))
+            if not tnode:
+                continue
+            await self._activate_node(inst, version, tnode, ctx)
+            if inst.status != "running":
+                return
+
+    async def _arrive_merge(self, inst, version, node, ctx) -> None:
+        """并行汇聚(AND-join): 每条分支到达时记账,全部到达后再推进。
+
+        并发到达(两条分支的审批人同时通过)用事务级 advisory lock 串行化,
+        防止重复建 merge 实例或漏计到达数。expected = 指向该节点的入边数。
+        """
+        expected = len([r for r in (version.route_definitions or []) if r.get("target") == node["id"]])
+        if expected <= 1:
+            # 退化: 单入边等同直通
+            self.db.add(WfNodeInstance(
+                id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
+                node_def_id=node["id"], node_type="merge", node_name=node.get("name") or "汇聚",
+                status="completed", config={"arrived": 1, "expected": expected}, started_at=_now(), completed_at=_now(),
+            ))
+            await self.db.flush()
+            await self._advance(inst, version, node["id"], ctx)
+            return
+        await self.db.execute(sa_text("SELECT pg_advisory_xact_lock(hashtext(:k)::bigint)")
+                              .bindparams(k=f"wfmerge:{inst.id}:{node['id']}"))
+        ni = (await self.db.execute(select(WfNodeInstance).where(
+            WfNodeInstance.process_instance_id == inst.id,
+            WfNodeInstance.node_def_id == node["id"],
+            WfNodeInstance.status == "running",
+        ))).scalar_one_or_none()
+        if ni is None:
+            ni = WfNodeInstance(
+                id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
+                node_def_id=node["id"], node_type="merge", node_name=node.get("name") or "汇聚",
+                status="running", config={"arrived": 1, "expected": expected}, started_at=_now(),
+            )
+            self.db.add(ni)
+            await self.db.flush()
+            arrived = 1
+        else:
+            cfg = dict(ni.config or {})
+            arrived = int(cfg.get("arrived", 0)) + 1
+            cfg["arrived"] = arrived
+            ni.config = cfg
+            flag_modified(ni, "config")
+        done = arrived >= expected
+        if not done:
+            # 防止漏到达永久卡住(某并行分支因条件走向未到达 merge): 若已无其它在途分支
+            # (除本 merge 外无 running 节点、且全实例无 pending/waiting 待办),视为已全部收敛。
+            other_running = (await self.db.execute(select(WfNodeInstance.id).where(
+                WfNodeInstance.process_instance_id == inst.id,
+                WfNodeInstance.status == "running",
+                WfNodeInstance.id != ni.id,
+            ).limit(1))).scalar_one_or_none()
+            live_task = (await self.db.execute(select(WfTaskInstance.id).where(
+                WfTaskInstance.process_instance_id == inst.id,
+                WfTaskInstance.status.in_(["pending", "waiting"]),
+            ).limit(1))).scalar_one_or_none()
+            done = other_running is None and live_task is None
+        if done:
+            ni.status = "completed"
+            ni.completed_at = _now()
+            await self.db.flush()
+            await self._advance(inst, version, node["id"], ctx)
 
     # ---------- 审批动作 ----------
 
@@ -448,3 +542,132 @@ class WorkflowEngine:
             if fi:
                 fi.status = "withdrawn"
         await self.db.commit()
+
+    # ---------- 超时(SLA) ----------
+
+    async def fire_timeout(self, ni: WfNodeInstance) -> dict | None:
+        """处理一个已超时的审批节点实例(由 reminder_worker 判定超时后调用)。
+
+        依据 ni.config['timeout']={hours, action, transfer_to?}:
+          notify/remind → 仅提醒(不改状态);auto_approve/auto_reject/auto_transfer → 相应处置。
+        幂等: 处理后置 config['sla_fired']=True,避免重复触发。不在此 commit(由调用方批量提交)。
+        返回给 worker 用于发通知的描述 dict(recipients/title/content/instance_id),或 None。
+        """
+        cfg = dict(ni.config or {})
+        to = cfg.get("timeout") or {}
+        action = to.get("action", "notify")
+        inst = await self.db.get(WfProcessInstance, ni.process_instance_id)
+        notify: dict | None = None
+        sys_actor = {"sub": "system", "real_name": "系统"}
+
+        if inst is None or inst.status != "running" or ni.status != "running":
+            action = "noop"  # 状态已变,仅标记防重
+
+        if action in ("notify", "remind"):
+            pend = (await self.db.execute(select(WfTaskInstance).where(
+                WfTaskInstance.node_instance_id == ni.id, WfTaskInstance.status == "pending",
+            ))).scalars().all()
+            self._log(ni.process_instance_id, ni.id, None, sys_actor, "timeout", "审批超时提醒")
+            notify = {
+                "recipients": [t.assignee_id for t in pend],
+                "title": f"审批超时提醒: {(inst.title if inst else None) or '待办'}",
+                "content": "有一条审批任务已超时未处理,请尽快处理。",
+                "instance_id": ni.process_instance_id,
+            }
+        elif action == "auto_approve":
+            version = await self.db.get(WfProcessDefinitionVersion, inst.process_version_id)
+            ctx = ApprovalContext(initiator_id=inst.initiator_id, form_data=await self._form_data(inst),
+                                  nominated=inst.nominated_approvers or {})
+            # 强制完成该节点: pending 置通过, 顺序会签的 waiting 兄弟任务作废(否则悬挂)。
+            sibs = (await self.db.execute(select(WfTaskInstance).where(
+                WfTaskInstance.node_instance_id == ni.id,
+                WfTaskInstance.status.in_(["pending", "waiting"]),
+            ))).scalars().all()
+            for t in sibs:
+                t.status = "approved" if t.status == "pending" else "cancelled"
+                if t.status == "approved":
+                    t.opinion = "超时自动通过"
+                t.action_at = _now(); t.version += 1
+            self._log(inst.id, ni.id, None, sys_actor, "auto_approve", "审批超时,自动通过")
+            ni.status = "completed"; ni.completed_at = _now()
+            await self.db.flush()
+            await self._advance(inst, version, ni.node_def_id, ctx)
+            notify = {"recipients": [inst.initiator_id], "title": f"审批超时自动通过: {inst.title or '流程'}",
+                      "content": "一条审批因超时已自动通过,流程继续。", "instance_id": inst.id}
+        elif action == "auto_reject":
+            pend = (await self.db.execute(select(WfTaskInstance).where(
+                WfTaskInstance.node_instance_id == ni.id, WfTaskInstance.status == "pending",
+            ))).scalars().all()
+            for t in pend:
+                t.status = "rejected"; t.opinion = "超时自动驳回"; t.action_at = _now(); t.version += 1
+            self._log(inst.id, ni.id, None, sys_actor, "auto_reject", "审批超时,自动驳回")
+            ni.status = "rejected"; ni.completed_at = _now()
+            await self._reject_flow(inst)
+            notify = {"recipients": [inst.initiator_id], "title": f"审批超时自动驳回: {inst.title or '流程'}",
+                      "content": "一条审批因超时已自动驳回。", "instance_id": inst.id}
+        elif action == "auto_transfer":
+            to_user = to.get("transfer_to")
+            pend = (await self.db.execute(select(WfTaskInstance).where(
+                WfTaskInstance.node_instance_id == ni.id, WfTaskInstance.status == "pending",
+            ))).scalars().all()
+            if to_user:
+                for t in pend:
+                    t.assignee_id = to_user; t.version += 1
+                self._log(inst.id, ni.id, None, sys_actor, "auto_transfer", "审批超时,自动转交")
+                notify = {"recipients": [to_user], "title": f"审批超时转交给你: {inst.title or '待办'}",
+                          "content": "一条审批因原处理人超时已转交给你,请尽快处理。", "instance_id": inst.id}
+            else:
+                # 未配置转交人: 退化为提醒当前待办人, 避免静默无动作。
+                self._log(inst.id, ni.id, None, sys_actor, "timeout", "审批超时提醒(未配置转交人)")
+                notify = {"recipients": [t.assignee_id for t in pend],
+                          "title": f"审批超时提醒: {inst.title or '待办'}",
+                          "content": "有一条审批任务已超时未处理,请尽快处理。", "instance_id": inst.id}
+
+        cfg["sla_fired"] = True
+        ni.config = cfg
+        flag_modified(ni, "config")
+        return notify
+
+    # ---------- 催办 ----------
+
+    async def urge(self, process_instance_id: str, actor: dict) -> int:
+        """催办: 发起人对进行中流程的当前待办人发提醒。返回被催办人数。"""
+        inst = (await self.db.execute(select(WfProcessInstance).where(
+            WfProcessInstance.id == process_instance_id,
+            WfProcessInstance.tenant_id == self.tenant_id,
+        ))).scalar_one_or_none()
+        if not inst:
+            raise BusinessException(code=NOT_FOUND, message="流程不存在")
+        if inst.initiator_id != actor.get("sub"):
+            raise BusinessException(code=FORBIDDEN, message="仅发起人可催办")
+        if inst.status != "running":
+            raise BusinessException(code=BUSINESS_ERROR, message="流程已结束,无需催办")
+        recent = (await self.db.execute(select(WfTaskActionLog.id).where(
+            WfTaskActionLog.process_instance_id == inst.id,
+            WfTaskActionLog.action == "urge",
+            WfTaskActionLog.created_at > _now() - timedelta(minutes=10),
+        ).limit(1))).scalar_one_or_none()
+        if recent:
+            raise BusinessException(code=BUSINESS_ERROR, message="10 分钟内已催办过,请稍后再试")
+        pend = (await self.db.execute(select(WfTaskInstance).where(
+            WfTaskInstance.process_instance_id == inst.id,
+            WfTaskInstance.status == "pending",
+        ))).scalars().all()
+        if not pend:
+            raise BusinessException(code=BUSINESS_ERROR, message="当前没有待处理的审批")
+        self._log(inst.id, None, None, actor, "urge", None)
+        from app.domains.notification.service import send_notification
+        n = 0
+        for t in pend:
+            try:
+                await send_notification(
+                    db=self.db, tenant_id=self.tenant_id, recipient_id=t.assignee_id,
+                    type="system", title=f"审批催办: {inst.title or '待办'}",
+                    content=f"发起人{actor.get('real_name') or ''}催办,请尽快处理该审批。",
+                    biz_type="wf_instance", biz_id=inst.id,
+                )
+                n += 1
+            except Exception:
+                pass
+        await self.db.commit()
+        return n

@@ -14,6 +14,10 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import PersonField from './fields/PersonField'
 import DeptField from './fields/DeptField'
 import FileField from './fields/FileField'
+import AddressField from './fields/AddressField'
+import CascadeField, { type CascadeOption } from './fields/CascadeField'
+import RichTextField from './fields/RichTextField'
+import SignatureField from './fields/SignatureField'
 
 const { TextArea } = Input
 const { Text } = Typography
@@ -24,11 +28,13 @@ const SUPPORTED = new Set([
   'select', 'multi_select', 'radio', 'checkbox', 'switch',
   'formula', 'auto_number', 'detail_table',
   'person', 'person_multi', 'department', 'department_multi', 'file', 'image',
+  'address', 'cascade', 'rich_text', 'signature',
 ])
 
-// 这些类型自行渲染只读态(名称/URL 需异步解析),不走通用 ReadonlyValue。
+// 这些类型自行渲染只读态(名称/URL 需异步解析或富媒体展示),不走通用 ReadonlyValue。
 const SELF_RENDER_READONLY = new Set([
   'detail_table', 'person', 'person_multi', 'department', 'department_multi', 'file', 'image',
+  'address', 'cascade', 'rich_text', 'signature',
 ])
 
 const GROUP_TYPES = new Set(['tab_group', 'collapse_section'])
@@ -170,6 +176,29 @@ function FieldWidget({
       return <FileField value={value} onChange={onChange} readonly={readonly} />
     case 'image':
       return <FileField value={value} onChange={onChange} image readonly={readonly} />
+    case 'address':
+      return (
+        <AddressField
+          value={value as never} onChange={onChange} readonly={readonly}
+          placeholder={ph} showDetail={field.props?.show_detail !== false}
+        />
+      )
+    case 'cascade':
+      return (
+        <CascadeField
+          value={value as string[]} onChange={onChange} readonly={readonly} placeholder={ph}
+          options={(field.props?.cascade_options as CascadeOption[]) || []}
+        />
+      )
+    case 'rich_text':
+      return <RichTextField value={value as string} onChange={onChange} readonly={readonly} placeholder={ph} />
+    case 'signature':
+      return (
+        <SignatureField
+          value={value as string} onChange={onChange} readonly={readonly}
+          width={(field.props?.sign_width as number) || 360} height={(field.props?.sign_height as number) || 140}
+        />
+      )
     case 'text':
       return <Input value={value as string} placeholder={ph} onChange={(e) => onChange(e.target.value)} />
     case 'textarea':

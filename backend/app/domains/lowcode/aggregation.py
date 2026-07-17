@@ -36,6 +36,9 @@ def _dim_expr(key_param: str, granularity: str | None) -> str:
         return f"substr({base}, 1, 4)"
     if granularity == "month":
         return f"substr({base}, 1, 7)"
+    if granularity == "day":
+        # 日期时间字段(YYYY-MM-DD HH:MM:SS)按天分组,避免按时间戳打散
+        return f"substr({base}, 1, 10)"
     return base
 
 

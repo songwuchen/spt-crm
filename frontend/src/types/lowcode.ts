@@ -38,7 +38,8 @@ export interface FieldDefinition {
 export interface FormRule {
   id: string
   type: 'visibility' | 'validation' | 'formula' | 'readonly' | 'required'
-  target_field_id: string
+  // 目标字段: 单个(target_field_id)或多个(target_field_ids)。规则引擎优先取 target_field_ids。
+  target_field_id?: string
   target_field_ids?: string[]
   condition: RuleCondition
   action: Record<string, unknown>
@@ -147,8 +148,15 @@ export interface FormInstanceDetail extends FormInstance {
 
 // ===== 审批流程 =====
 
-export type WfNodeType = 'start' | 'approval' | 'cc' | 'condition' | 'end'
+export type WfNodeType = 'start' | 'approval' | 'cc' | 'condition' | 'parallel' | 'merge' | 'end'
 export type WfMultiMode = 'or_sign' | 'countersign' | 'sequential'
+
+export type WfTimeoutAction = 'notify' | 'auto_approve' | 'auto_reject' | 'auto_transfer'
+export interface WfTimeout {
+  hours: number
+  action: WfTimeoutAction
+  transfer_to?: string | null   // auto_transfer 时的接收人
+}
 export type ApproverType =
   | 'specified_user' | 'specified_role' | 'specified_post'
   | 'direct_supervisor' | 'dept_head' | 'multi_level_superior'
@@ -170,6 +178,7 @@ export interface WfNode {
   approver_rule?: WfApproverRule
   multi_mode?: WfMultiMode
   empty_strategy?: 'auto_approve' | 'terminate'
+  timeout?: WfTimeout | null            // 审批节点超时(SLA)配置
   position?: { x: number; y: number }  // 可视化画布节点坐标
 }
 
@@ -239,7 +248,9 @@ export interface WfInstanceDetail {
 
 // ===== 仪表盘 =====
 
-export type ChartType = 'bar' | 'line' | 'pie' | 'number'
+export type ChartType =
+  | 'bar' | 'line' | 'area' | 'pie' | 'funnel' | 'radar'
+  | 'scatter' | 'gauge' | 'dual_axis' | 'pivot' | 'number'
 
 export interface AggDimensionDef { field_id: string; granularity?: 'year' | 'month' | 'day' }
 export interface AggMetricDef { op: 'count' | 'count_distinct' | 'sum' | 'avg' | 'max' | 'min'; field_id?: string }

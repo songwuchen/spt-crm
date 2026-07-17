@@ -11,17 +11,9 @@ import { lowcodeApi } from '@/api/lowcode'
 import type { WfTodoItem, WfInstanceDetail, FieldDefinition } from '@/types/lowcode'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import PersonField from '@/components/lowcode/fields/PersonField'
+import { WF_ACTION_TEXT as ACTION_TXT, WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 
 const { Title, Text } = Typography
-
-const PSTATUS: Record<string, { color: string; text: string }> = {
-  running: { color: 'gold', text: '审批中' }, completed: { color: 'green', text: '已通过' },
-  rejected: { color: 'red', text: '已驳回' }, withdrawn: { color: 'default', text: '已撤回' },
-}
-const ACTION_TXT: Record<string, string> = {
-  submit: '发起', approve: '通过', reject: '驳回', transfer: '转交', comment: '评论',
-  withdraw: '撤回', auto_approve: '自动通过', auto_reject: '自动终止', return: '退回',
-}
 
 export default function ApprovalCenter() {
   const [tab, setTab] = useState('todo')
@@ -248,14 +240,24 @@ function MineTab({ active }: { active: boolean }) {
   const { openWith, node } = useDrawer(load)
   useEffect(() => { if (active) load() }, [active, load])
   const withdraw = async (id: string) => { await workflowApi.withdraw(id); message.success('已撤回'); load() }
+  const urge = async (id: string) => {
+    try {
+      const r = await workflowApi.urge(id)
+      message.success(`已催办 ${r.data?.notified ?? 0} 人`)
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.warning(msg || '催办失败')
+    }
+  }
   const cols = [
     { title: '标题', dataIndex: 'title', render: (v: string) => v || '—' },
     { title: '状态', dataIndex: 'status', render: (s: string) => { const t = PSTATUS[s] || { color: 'default', text: s }; return <Tag color={t.color}>{t.text}</Tag> } },
     { title: '发起时间', dataIndex: 'created_at', render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—') },
     {
-      title: '操作', key: 'op', width: 160, render: (_: unknown, r: { id: string; status: string }) => (
+      title: '操作', key: 'op', width: 200, render: (_: unknown, r: { id: string; status: string }) => (
         <Space size="small">
           <Button size="small" onClick={() => openWith(r.id)}>查看</Button>
+          {r.status === 'running' && <Button size="small" type="link" onClick={() => urge(r.id)}>催办</Button>}
           {r.status === 'running' && <Popconfirm title="确认撤回?" onConfirm={() => withdraw(r.id)}><Button size="small" type="link" danger>撤回</Button></Popconfirm>}
         </Space>
       ),

@@ -132,6 +132,14 @@ async def withdraw(instance_id: str, tenant_id: str = Depends(get_tenant_id),
     return ok(None)
 
 
+@router.post("/instances/{instance_id}/urge")
+async def urge(instance_id: str, tenant_id: str = Depends(get_tenant_id),
+               db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """催办: 发起人提醒当前待办人尽快处理。"""
+    n = await WorkflowEngine(db, tenant_id).urge(instance_id, user)
+    return ok({"notified": n})
+
+
 @router.get("/biz-fields/{biz_type}")
 async def biz_fields(biz_type: str, _u=Depends(get_current_user)):
     """业务类型审批流的可用业务字段(供条件分支/字段选择;业务流无表单时使用)。"""

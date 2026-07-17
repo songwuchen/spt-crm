@@ -35,6 +35,8 @@ export const workflowApi = {
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/tasks/${taskId}/act`, data),
   withdraw: (instanceId: string) =>
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/instances/${instanceId}/withdraw`),
+  urge: (instanceId: string) =>
+    client.post<unknown, ApiResponse<{ notified: number }>>(`/api/v1/lc/wf/instances/${instanceId}/urge`),
 
   // 业务类型审批流的业务字段目录(业务流无表单时用于条件分支/字段选择)
   bizFields: (bizType: string) =>

@@ -105,6 +105,8 @@ export default function MobileWorkbench() {
             { icon: 'contact_phone', label: '写跟进', path: '/m/follow-up/new', color: 'text-purple-600 bg-purple-50' },
             { icon: 'checklist', label: '待办', path: '/m/tasks', color: 'text-emerald-600 bg-emerald-50' },
             { icon: 'task_alt', label: '审批', path: '/m/approvals', color: 'text-amber-600 bg-amber-50' },
+            { icon: 'assignment', label: '表单填报', path: '/m/lowcode/forms', color: 'text-indigo-600 bg-indigo-50' },
+            { icon: 'account_tree', label: '扩展审批', path: '/m/lowcode/approvals', color: 'text-cyan-600 bg-cyan-50' },
           ].map((a) => (
             <button key={a.label} onClick={() => navigate(a.path)}
               className="flex flex-col items-center gap-1.5 py-2 bg-transparent border-0 cursor-pointer">

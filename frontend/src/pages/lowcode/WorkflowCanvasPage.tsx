@@ -9,7 +9,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import dagre from '@dagrejs/dagre'
 import {
-  Card, Button, Space, Input, Select, Typography, Tag, message, Empty, Divider,
+  Card, Button, Space, Input, InputNumber, Select, Switch, Typography, Tag, message, Empty, Divider,
 } from 'antd'
 import {
   ArrowLeftOutlined, PlusOutlined, AuditOutlined, SendOutlined, PlayCircleOutlined, StopOutlined,
@@ -47,7 +47,14 @@ const genId = (p: string) => p + Math.random().toString(36).slice(2, 7)
 const NODE_META: Record<string, { color: string; label: string }> = {
   start: { color: '#12b876', label: '开始' }, approval: { color: '#2f6bff', label: '审批' },
   cc: { color: '#12b876', label: '抄送' }, end: { color: '#8c8c8c', label: '结束' },
+  parallel: { color: '#fa8c16', label: '并行' }, merge: { color: '#fa8c16', label: '汇聚' },
 }
+const TIMEOUT_ACTIONS = [
+  { value: 'notify', label: '仅提醒' },
+  { value: 'auto_approve', label: '自动通过' },
+  { value: 'auto_reject', label: '自动驳回' },
+  { value: 'auto_transfer', label: '自动转交' },
+]
 
 // ---- 自定义节点 ----
 function WfNodeComp({ data, selected }: NodeProps) {
@@ -122,12 +129,14 @@ function DesignerInner() {
     setEdges((eds) => addEdge({ ...c, id: rid, data: { route: { id: rid, source: c.source!, target: c.target! } } }, eds))
   }, [setEdges])
 
-  const addNode = (type: 'approval' | 'cc') => {
-    const nid = genId(type === 'approval' ? 'ap' : 'cc')
+  const addNode = (type: 'approval' | 'cc' | 'parallel' | 'merge') => {
+    const prefix = { approval: 'ap', cc: 'cc', parallel: 'par', merge: 'mrg' }[type]
+    const nid = genId(prefix)
+    const names = { approval: '审批', cc: '抄送', parallel: '并行网关', merge: '汇聚节点' }
     const node: WfNode = {
-      id: nid, type, name: type === 'approval' ? '审批' : '抄送',
-      approver_rule: { type: type === 'approval' ? 'direct_supervisor' : 'specified_user' },
-      ...(type === 'approval' ? { multi_mode: 'or_sign' as const } : {}),
+      id: nid, type, name: names[type],
+      ...(type === 'approval' ? { approver_rule: { type: 'direct_supervisor' }, multi_mode: 'or_sign' as const } : {}),
+      ...(type === 'cc' ? { approver_rule: { type: 'specified_user' } } : {}),
     }
     setNodes((nds) => [...nds, { id: nid, type: 'wf', position: { x: 120 + Math.random() * 80, y: 160 + nds.length * 40 }, data: { node } }])
   }
@@ -178,6 +187,8 @@ function DesignerInner() {
         <Space>
           <Button icon={<PlusOutlined />} onClick={() => addNode('approval')}>审批节点</Button>
           <Button icon={<PlusOutlined />} onClick={() => addNode('cc')}>抄送节点</Button>
+          <Button icon={<PlusOutlined />} onClick={() => addNode('parallel')}>并行网关</Button>
+          <Button icon={<PlusOutlined />} onClick={() => addNode('merge')}>汇聚节点</Button>
           <Button onClick={() => save(false)}>保存草稿</Button>
           <Button type="primary" onClick={() => save(true)}>保存并发布</Button>
         </Space>
@@ -205,6 +216,7 @@ function DesignerInner() {
               onName={(v) => patchNode(selectedNode.id, { name: v })}
               onRule={(p) => patchRule(selectedNode.id, p)}
               onMode={(v) => patchNode(selectedNode.id, { multi_mode: v })}
+              onPatch={(p) => patchNode(selectedNode.id, p)}
               onDelete={delSelected} />
           ) : selectedEdge ? (
             <EdgeConfig route={(selectedEdge.data as { route: WfRoute }).route} formFields={formFields}
@@ -218,19 +230,28 @@ function DesignerInner() {
   )
 }
 
-function NodeConfig({ node, formFields, onName, onRule, onMode, onDelete }: {
+function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelete }: {
   node: WfNode; formFields: FieldDefinition[]
-  onName: (v: string) => void; onRule: (p: Record<string, unknown>) => void; onMode: (v: WfNode['multi_mode']) => void; onDelete: () => void
+  onName: (v: string) => void; onRule: (p: Record<string, unknown>) => void; onMode: (v: WfNode['multi_mode']) => void
+  onPatch: (p: Partial<WfNode>) => void; onDelete: () => void
 }) {
   const isEditable = node.type === 'approval' || node.type === 'cc'
   const meta = APPROVER_TYPES.find((a) => a.value === node.approver_rule?.type)
   const personFields = formFields.filter((f) => f.type === 'person' || f.type === 'person_multi')
   const deptFields = formFields.filter((f) => f.type === 'department' || f.type === 'department_multi')
+  const to = node.timeout
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="small">
       <Tag color={NODE_META[node.type]?.color}>{NODE_META[node.type]?.label}</Tag>
       <div><Text type="secondary" style={{ fontSize: 12 }}>节点名</Text>
-        <Input size="small" value={node.name} disabled={!isEditable && node.type !== 'start' && node.type !== 'end'} onChange={(e) => onName(e.target.value)} /></div>
+        <Input size="small" value={node.name} onChange={(e) => onName(e.target.value)} /></div>
+      {(node.type === 'parallel' || node.type === 'merge') && (
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {node.type === 'parallel'
+            ? '并行网关: 从此节点引出的所有分支会同时进入审批。'
+            : '汇聚节点: 等待所有并行分支到达后再继续(AND-join)。请让各并行分支都连到本节点。'}
+        </Text>
+      )}
       {isEditable && (
         <>
           <div><Text type="secondary" style={{ fontSize: 12 }}>{node.type === 'approval' ? '审批人' : '抄送人'}</Text>
@@ -250,8 +271,32 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onDelete }: {
               onChange={(e) => onRule({ value: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
           )}
           {node.type === 'approval' && (
-            <div><Text type="secondary" style={{ fontSize: 12 }}>多人模式</Text>
-              <Select size="small" style={{ width: '100%' }} value={node.multi_mode || 'or_sign'} options={MULTI_MODES} onChange={onMode} /></div>
+            <>
+              <div><Text type="secondary" style={{ fontSize: 12 }}>多人模式</Text>
+                <Select size="small" style={{ width: '100%' }} value={node.multi_mode || 'or_sign'} options={MULTI_MODES} onChange={onMode} /></div>
+              <Divider style={{ margin: '8px 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>审批超时(SLA)</Text>
+                <Switch size="small" checked={!!to}
+                  onChange={(on) => onPatch({ timeout: on ? { hours: 24, action: 'notify' } : null })} />
+              </div>
+              {to && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 12 }}>超过</Text>
+                    <InputNumber size="small" min={0.1} step={1} style={{ width: 90 }} value={to.hours}
+                      onChange={(v) => onPatch({ timeout: { ...to, hours: Number(v) || 1 } })} />
+                    <Text style={{ fontSize: 12 }}>小时后</Text>
+                  </div>
+                  <Select size="small" style={{ width: '100%' }} value={to.action} options={TIMEOUT_ACTIONS}
+                    onChange={(v) => onPatch({ timeout: { ...to, action: v } })} />
+                  {to.action === 'auto_transfer' && (
+                    <PersonField value={to.transfer_to || undefined}
+                      onChange={(v) => onPatch({ timeout: { ...to, transfer_to: (Array.isArray(v) ? v[0] : v) as string } })} />
+                  )}
+                </>
+              )}
+            </>
           )}
         </>
       )}
