@@ -206,9 +206,12 @@ async def list_projects(
     if owner_id:
         base = base.where(OpportunityProject.owner_id == owner_id)
 
-    # 高级筛选（多字段/多条件）
-    from app.common.search import filter_clause_or_400, resolve_sort
-    clause = filter_clause_or_400("project", adv_filter, {"user_id": filter_user_id})
+    # 高级筛选（多字段/多条件，含自定义扩展字段）
+    from app.common.search import (
+        entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,
+    )
+    search_schema = await entity_search_context("project", db, tenant_id)
+    clause = filter_clause_from_schema_or_400(search_schema, adv_filter, {"user_id": filter_user_id})
     if clause is not None:
         base = base.where(clause)
 
@@ -218,7 +221,7 @@ async def list_projects(
         base = await apply_data_scope(base, db, tenant_id, current_user, OpportunityProject, "project")
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
-    order = resolve_sort("project", sort_by, sort_order, OpportunityProject.created_at.desc())
+    order = resolve_sort_from_schema(search_schema, sort_by, sort_order, OpportunityProject.created_at.desc())
     items = (await db.execute(
         base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()

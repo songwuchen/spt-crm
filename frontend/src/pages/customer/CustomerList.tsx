@@ -280,7 +280,7 @@ export default function CustomerList() {
     },
   ]
 
-  const view = useListView<Customer>('customer', columns, { pageKey: 'customers' })
+  const view = useListView<Customer>('customer', columns, { pageKey: 'customers', entityType: 'customer' })
 
   return (
     <div>

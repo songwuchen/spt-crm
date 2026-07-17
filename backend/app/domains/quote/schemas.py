@@ -10,6 +10,7 @@ class QuoteCreate(BaseModel):
     assignee_name: Optional[str] = None
     department_id: Optional[str] = None
     department_name: Optional[str] = None
+    custom_fields_json: Optional[dict] = None
 
 
 class QuoteUpdate(BaseModel):
@@ -18,6 +19,7 @@ class QuoteUpdate(BaseModel):
     assignee_name: Optional[str] = None
     department_id: Optional[str] = None
     department_name: Optional[str] = None
+    custom_fields_json: Optional[dict] = None
 
 
 class QuoteVersionUpdate(BaseModel):

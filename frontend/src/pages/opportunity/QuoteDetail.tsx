@@ -4,6 +4,8 @@ import { PlusOutlined, CopyOutlined, SwapOutlined, CameraOutlined, HistoryOutlin
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { quoteApi } from '@/api/quote'
+import { lowcodeApi } from '@/api/lowcode'
+import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import { downloadFile } from '@/utils/download'
 import { productApi } from '@/api/product'
 import { contractApi } from '@/api/contract'
@@ -53,6 +55,11 @@ export default function QuoteDetail() {
   const [versionEditModal, setVersionEditModal] = useState(false)
   const [versionForm] = Form.useForm()
   const [versionSaving, setVersionSaving] = useState(false)
+
+  // 报价扩展(自定义)字段
+  const [quoteCf, setQuoteCf] = useState<Record<string, unknown>>({})
+  const [quoteCfDefs, setQuoteCfDefs] = useState<any[]>([])
+  const [savingCf, setSavingCf] = useState(false)
 
   // Version comparison
   const [compareModal, setCompareModal] = useState(false)
@@ -142,6 +149,28 @@ export default function QuoteDetail() {
   }
 
   useEffect(() => { fetchQuote(); fetchSendLogs() }, [qid])
+
+  // 加载报价扩展字段定义（决定是否展示扩展字段卡片）
+  useEffect(() => {
+    lowcodeApi.entityFields('quote')
+      .then((r) => setQuoteCfDefs(r.data?.field_definitions || []))
+      .catch(() => { /* 无扩展字段时静默 */ })
+  }, [])
+
+  // 报价加载后回填扩展字段值
+  useEffect(() => { setQuoteCf(((quote as any)?.custom_fields_json as Record<string, unknown>) || {}) }, [quote])
+
+  const handleSaveQuoteCf = async () => {
+    if (!qid) return
+    setSavingCf(true)
+    try {
+      await quoteApi.update(qid, { custom_fields_json: quoteCf })
+      message.success('已保存扩展字段')
+      fetchQuote()
+    } finally {
+      setSavingCf(false)
+    }
+  }
 
   const handleVersionChange = (vid: string) => {
     fetchVersion(vid)
@@ -506,6 +535,16 @@ export default function QuoteDetail() {
           </Descriptions>
         )}
       </div>
+
+      {/* 报价扩展(自定义)字段 */}
+      {quoteCfDefs.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+          <EntityCustomFields entityType="quote" value={quoteCf} onChange={setQuoteCf} />
+          <div className="flex justify-end mt-2">
+            <Button type="primary" size="small" loading={savingCf} onClick={handleSaveQuoteCf}>保存扩展字段</Button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs: Line Items + Send Logs */}
       <Tabs defaultActiveKey="lines" items={[

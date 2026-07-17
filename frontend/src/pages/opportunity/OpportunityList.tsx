@@ -6,7 +6,6 @@ import ImportModal from '@/components/ImportModal'
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { projectApi } from '@/api/project'
-import { lowcodeApi } from '@/api/lowcode'
 import type { OpportunityProject } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
@@ -18,12 +17,6 @@ import { usePageSize } from '@/hooks/usePageSize'
 import ListToolbar from '@/components/list/ListToolbar'
 
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
-
-interface CustomFieldDef {
-  id: string
-  label: string
-  type: string
-}
 
 export default function OpportunityList() {
   usePageTitle(t('opportunity.title'))
@@ -44,16 +37,8 @@ export default function OpportunityList() {
   const [transferForm] = Form.useForm()
   const userSelect = useUserSelect()
   const [pageSize, setPageSize] = usePageSize('opportunities')
-  // 自定义字段定义，用于在列表上以列的形式展示自定义字段值(issue #64)
-  const [customFields, setCustomFields] = useState<CustomFieldDef[]>([])
   const [reload, setReload] = useState(0)
   const didMount = useRef(false)
-
-  useEffect(() => {
-    lowcodeApi.entityFields('project')
-      .then((r) => setCustomFields((r.data?.field_definitions as unknown as CustomFieldDef[]) || []))
-      .catch(() => { /* 自定义字段不可用时静默跳过，不影响列表 */ })
-  }, [])
 
   const handleBatchStageChange = async () => {
     const results = await Promise.allSettled(
@@ -204,20 +189,6 @@ export default function OpportunityList() {
     },
   }
 
-  // 自定义字段列(issue #64)：值存在 custom_fields_json 中，按字段类型简单格式化。
-  // 跳过明细子表/文件/签名/富文本等非标量类型——它们在窄列里只会渲染成 [object Object]。
-  const LIST_SKIP_TYPES = new Set(['detail_table', 'sub_table_data', 'file', 'image', 'signature', 'rich_text'])
-  const customColumns: ColumnsType<OpportunityProject> = customFields.filter((f) => !LIST_SKIP_TYPES.has(f.type)).map((f) => ({
-    title: f.label, key: `cf_${f.id}`, width: 140,
-    render: (_: unknown, r: OpportunityProject) => {
-      const raw = (r.custom_fields_json || {})[f.id]
-      if (raw == null || raw === '' || (Array.isArray(raw) && raw.length === 0)) return <span className="text-slate-300">-</span>
-      if (f.type === 'switch') return raw ? '是' : '否'
-      if (Array.isArray(raw)) return raw.join('、')
-      return <span className="text-sm text-slate-700">{String(raw)}</span>
-    },
-  }))
-
   const actionsColumn: ColumnsType<OpportunityProject>[number] = {
     title: '', key: 'actions', width: 150, fixed: 'right',
     render: (_, r) => (
@@ -234,9 +205,9 @@ export default function OpportunityList() {
     ),
   }
 
-  const allColumns: ColumnsType<OpportunityProject> = [...baseColumns, deliveryColumn, ...customColumns, actionsColumn]
+  const allColumns: ColumnsType<OpportunityProject> = [...baseColumns, deliveryColumn, actionsColumn]
 
-  const view = useListView<OpportunityProject>('project', allColumns, { pageKey: 'opportunities' })
+  const view = useListView<OpportunityProject>('project', allColumns, { pageKey: 'opportunities', entityType: 'project' })
 
   return (
     <div>

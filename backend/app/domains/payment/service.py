@@ -309,10 +309,16 @@ async def auto_complete_plans_if_fully_paid(db: AsyncSession, tenant_id: str, pr
 
 
 async def create_record(db: AsyncSession, tenant_id: str, project_id: str, data: PaymentRecordCreate, user: dict) -> PaymentRecord:
+    payload = data.model_dump(exclude_unset=True)
+    # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
+    if "custom_fields_json" in payload:
+        from app.domains.lowcode.field_permission import sanitize_entity_write
+        payload["custom_fields_json"] = await sanitize_entity_write(
+            db, tenant_id, "payment", payload.get("custom_fields_json"), None, user.get("roles"))
     rec = PaymentRecord(
         id=generate_uuid(), tenant_id=tenant_id, project_id=project_id,
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
-        **data.model_dump(exclude_unset=True),
+        **payload,
     )
     db.add(rec)
     from app.domains.outbox.service import emit_event

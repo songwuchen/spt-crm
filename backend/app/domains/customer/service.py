@@ -154,9 +154,12 @@ async def list_customers(
         from sqlalchemy import cast, String
         base = base.where(cast(Customer.tags_json, String).ilike(f"%{tag}%"))
 
-    # 高级筛选（多字段/多条件）
-    from app.common.search import filter_clause_or_400, resolve_sort
-    clause = filter_clause_or_400("customer", adv_filter, {"user_id": (current_user or {}).get("sub")})
+    # 高级筛选（多字段/多条件，含自定义扩展字段）
+    from app.common.search import (
+        entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,
+    )
+    search_schema = await entity_search_context("customer", db, tenant_id)
+    clause = filter_clause_from_schema_or_400(search_schema, adv_filter, {"user_id": (current_user or {}).get("sub")})
     if clause is not None:
         base = base.where(clause)
 
@@ -166,7 +169,7 @@ async def list_customers(
         base = await apply_data_scope(base, db, tenant_id, current_user, Customer, "customer")
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
-    order = resolve_sort("customer", sort_by, sort_order, Customer.created_at.desc())
+    order = resolve_sort_from_schema(search_schema, sort_by, sort_order, Customer.created_at.desc())
     items = (await db.execute(
         base.order_by(order).offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all()

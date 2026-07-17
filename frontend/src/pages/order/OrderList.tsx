@@ -217,7 +217,7 @@ export default function OrderList() {
     },
   ]
 
-  const view = useListView<Order>('order', columns, { pageKey: 'orders' })
+  const view = useListView<Order>('order', columns, { pageKey: 'orders', entityType: 'order' })
 
   return (
     <div>

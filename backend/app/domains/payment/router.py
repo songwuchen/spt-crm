@@ -56,6 +56,7 @@ def _rec_dict(r) -> dict:
         "channel": r.channel, "reference_no": r.reference_no,
         "matched_plan_id": r.matched_plan_id, "remark": r.remark,
         "created_by_id": r.created_by_id, "created_by_name": r.created_by_name,
+        "custom_fields_json": r.custom_fields_json,
         "created_at": r.created_at.isoformat() if r.created_at else "",
     }
 
@@ -347,9 +348,12 @@ async def list_all_records(
         q = q.where(flt)
         count_q = count_q.where(flt)
 
-    # 高级筛选（多字段/多条件）
-    from app.common.search import filter_clause_or_400, resolve_sort
-    clause = filter_clause_or_400("payment", filter, {"user_id": current_user.get("sub")})
+    # 高级筛选（多字段/多条件，含自定义扩展字段）
+    from app.common.search import (
+        entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,
+    )
+    search_schema = await entity_search_context("payment", db, tenant_id)
+    clause = filter_clause_from_schema_or_400(search_schema, filter, {"user_id": current_user.get("sub")})
     if clause is not None:
         q = q.where(clause)
         count_q = count_q.where(clause)
@@ -357,7 +361,7 @@ async def list_all_records(
     from app.common.data_scope import apply_project_child_scope
     q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, PaymentRecord)
     total = (await db.execute(count_q)).scalar() or 0
-    order = resolve_sort("payment", sort_by, sort_order, PaymentRecord.received_date.desc())
+    order = resolve_sort_from_schema(search_schema, sort_by, sort_order, PaymentRecord.received_date.desc())
     rows = (await db.execute(
         q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)
@@ -371,6 +375,8 @@ async def list_all_records(
         d["project_code"] = row.project_code
         items.append(d)
 
+    from app.domains.lowcode.field_permission import strip_entity_dicts
+    await strip_entity_dicts(db, tenant_id, "payment", items, current_user.get("roles"))  # 字段级权限：剔除隐藏扩展字段
     return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 

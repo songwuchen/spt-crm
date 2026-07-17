@@ -50,15 +50,18 @@ async def list_contacts(
         q = q.where(Contact.customer_id == customer_id)
         count_q = count_q.where(Contact.customer_id == customer_id)
 
-    # 高级筛选（多字段/多条件）
-    from app.common.search import filter_clause_or_400, resolve_sort
-    clause = filter_clause_or_400("contact", filter, {"user_id": _user.get("sub")})
+    # 高级筛选（多字段/多条件，含自定义扩展字段）
+    from app.common.search import (
+        entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,
+    )
+    search_schema = await entity_search_context("contact", db, tenant_id)
+    clause = filter_clause_from_schema_or_400(search_schema, filter, {"user_id": _user.get("sub")})
     if clause is not None:
         q = q.where(clause)
         count_q = count_q.where(clause)
 
     total = (await db.execute(count_q)).scalar() or 0
-    order = resolve_sort("contact", sort_by, sort_order, Contact.created_at.desc())
+    order = resolve_sort_from_schema(search_schema, sort_by, sort_order, Contact.created_at.desc())
     items = (await db.execute(
         q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)

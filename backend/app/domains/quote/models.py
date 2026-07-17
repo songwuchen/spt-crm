@@ -18,6 +18,7 @@ class Quote(TenantScopedBase):
     assignee_name: Mapped[str | None] = mapped_column(String(100))
     department_id: Mapped[str | None] = mapped_column(String(36))
     department_name: Mapped[str | None] = mapped_column(String(100))
+    custom_fields_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 扩展平台自定义字段
 
 
 class QuoteVersion(TenantScopedBase):

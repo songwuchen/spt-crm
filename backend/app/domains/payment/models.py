@@ -50,3 +50,4 @@ class PaymentRecord(TenantScopedBase):
     remark: Mapped[str | None] = mapped_column(Text)
     created_by_id: Mapped[str | None] = mapped_column(String(36))
     created_by_name: Mapped[str | None] = mapped_column(String(100))
+    custom_fields_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 扩展平台自定义字段

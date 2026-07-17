@@ -64,16 +64,19 @@ async def list_contracts(
         like = f"%{keyword}%"
         q = q.where(Contract.contract_no.ilike(like))
         cq = cq.where(Contract.contract_no.ilike(like))
-    # 高级筛选（多字段/多条件）
-    from app.common.search import filter_clause_or_400, resolve_sort
-    clause = filter_clause_or_400("contract", filter, {"user_id": current_user.get("sub")})
+    # 高级筛选（多字段/多条件，含自定义扩展字段）
+    from app.common.search import (
+        entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,
+    )
+    search_schema = await entity_search_context("contract", db, tenant_id)
+    clause = filter_clause_from_schema_or_400(search_schema, filter, {"user_id": current_user.get("sub")})
     if clause is not None:
         q = q.where(clause)
         cq = cq.where(clause)
     from app.common.data_scope import apply_project_child_scope
     q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Contract)
     total = (await db.execute(cq)).scalar() or 0
-    order = resolve_sort("contract", sort_by, sort_order, Contract.created_at.desc())
+    order = resolve_sort_from_schema(search_schema, sort_by, sort_order, Contract.created_at.desc())
     items = (await db.execute(
         q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)

@@ -12,6 +12,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
+import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 
 interface PlanRow {
   id: string; project_id: string; plan_no: string; due_date?: string | null
@@ -95,9 +96,10 @@ export default function PaymentPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [createForm] = Form.useForm()
   const [creating, setCreating] = useState(false)
+  const [recordCf, setRecordCf] = useState<Record<string, unknown>>({})  // 到账记录的扩展字段值
   const createTitle = { plan: '新增回款计划', record: '新增到账记录', invoice: '新增发票' }[createType]
   const openCreate = (type: 'plan' | 'record' | 'invoice') => {
-    setCreateType(type); createForm.resetFields(); setProjOpts([]); searchProjects(); setCreateOpen(true)
+    setCreateType(type); createForm.resetFields(); setRecordCf({}); setProjOpts([]); searchProjects(); setCreateOpen(true)
   }
   const handleCreate = async () => {
     let v
@@ -108,7 +110,7 @@ export default function PaymentPage() {
       if (createType === 'plan') {
         await paymentApi.createPlan(pid, { due_date: v.due_date ? v.due_date.format('YYYY-MM-DD') : undefined, amount: v.amount, status: v.status || 'pending', remark: v.remark })
       } else if (createType === 'record') {
-        await paymentApi.createRecord(pid, { received_date: v.received_date ? v.received_date.format('YYYY-MM-DD') : undefined, amount: v.amount, channel: v.channel, reference_no: v.reference_no, remark: v.remark })
+        await paymentApi.createRecord(pid, { received_date: v.received_date ? v.received_date.format('YYYY-MM-DD') : undefined, amount: v.amount, channel: v.channel, reference_no: v.reference_no, remark: v.remark, custom_fields_json: recordCf })
       } else {
         await paymentApi.createInvoice(pid, { invoice_no: v.invoice_no, amount: v.amount, invoice_date: v.invoice_date ? v.invoice_date.format('YYYY-MM-DD') : undefined, remark: v.remark })
       }
@@ -227,7 +229,7 @@ export default function PaymentPage() {
     ) },
   ]
 
-  const view = useListView<RecordRow>('payment', recordColumns, { pageKey: 'payments' })
+  const view = useListView<RecordRow>('payment', recordColumns, { pageKey: 'payments', entityType: 'payment' })
 
   return (
     <div>
@@ -421,6 +423,7 @@ export default function PaymentPage() {
               <Form.Item name="channel" label="渠道"><Input placeholder="如 电汇 / 承兑" /></Form.Item>
               <Form.Item name="reference_no" label="凭证号"><Input /></Form.Item>
             </div>
+            <EntityCustomFields entityType="payment" value={recordCf} onChange={setRecordCf} />
           </>)}
           {createType === 'invoice' && (<>
             <div className="grid grid-cols-2 gap-3">

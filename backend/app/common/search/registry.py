@@ -20,6 +20,12 @@ class ResourceSchema:
     def field(self, key):
         return self._map.get(key)
 
+    def with_extra(self, fields):
+        """返回「静态字段 + 额外字段(如自定义字段)」合并后的新 schema(不改原对象)。"""
+        if not fields:
+            return self
+        return ResourceSchema(self.resource, self.label, list(self.fields) + list(fields))
+
     def schema_dict(self) -> dict:
         return {
             "resource": self.resource,

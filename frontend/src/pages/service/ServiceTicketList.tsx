@@ -129,7 +129,7 @@ export default function ServiceTicketList() {
     { title: t('common.createdAt'), dataIndex: 'created_at', responsive: ['xl'] as any, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
   ]
 
-  const view = useListView<ServiceTicketItem>('service_ticket', ticketColumns, { pageKey: 'service_tickets' })
+  const view = useListView<ServiceTicketItem>('service_ticket', ticketColumns, { pageKey: 'service_tickets', entityType: 'service_ticket' })
 
   useEffect(() => { fetchTickets(); fetchRenewals(); fetchSlaStats() }, [])
 

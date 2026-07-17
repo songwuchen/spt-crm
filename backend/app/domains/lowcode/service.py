@@ -227,6 +227,10 @@ async def publish(
     tpl.current_version = latest.version_number
     await db.commit()
     await db.refresh(latest)
+    # 实体扩展字段模板发布后，清高级搜索的字段定义缓存，使新字段立即可筛选/显示。
+    if tpl.is_system and tpl.entity_type:
+        from app.common.search import invalidate_custom_fields
+        invalidate_custom_fields(tenant_id, tpl.entity_type)
     return latest
 
 

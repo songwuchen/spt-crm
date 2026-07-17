@@ -58,15 +58,18 @@ async def list_tickets(
         q = q.where(ServiceTicket.type == ticket_type)
         count_q = count_q.where(ServiceTicket.type == ticket_type)
 
-    # 高级筛选（多字段/多条件）
-    from app.common.search import filter_clause_or_400, resolve_sort
-    clause = filter_clause_or_400("service_ticket", adv_filter, {"user_id": (current_user or {}).get("sub")})
+    # 高级筛选（多字段/多条件，含自定义扩展字段）
+    from app.common.search import (
+        entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,
+    )
+    search_schema = await entity_search_context("service_ticket", db, tenant_id)
+    clause = filter_clause_from_schema_or_400(search_schema, adv_filter, {"user_id": (current_user or {}).get("sub")})
     if clause is not None:
         q = q.where(clause)
         count_q = count_q.where(clause)
 
     total = (await db.execute(count_q)).scalar() or 0
-    order = resolve_sort("service_ticket", sort_by, sort_order, ServiceTicket.created_at.desc())
+    order = resolve_sort_from_schema(search_schema, sort_by, sort_order, ServiceTicket.created_at.desc())
     result = await db.execute(
         q.order_by(order)
         .offset((page - 1) * page_size).limit(page_size)

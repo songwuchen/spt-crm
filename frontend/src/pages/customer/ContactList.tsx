@@ -218,7 +218,7 @@ export default function ContactList() {
     } as ColumnsType<ContactItem>[number]] : []),
   ]
 
-  const view = useListView<ContactItem>('contact', columns, { pageKey: 'contacts' })
+  const view = useListView<ContactItem>('contact', columns, { pageKey: 'contacts', entityType: 'contact' })
 
   return (
     <div>

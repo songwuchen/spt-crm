@@ -105,7 +105,7 @@ export default function ContractList() {
       render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
   ]
 
-  const view = useListView<ContractItem>('contract', columns, { pageKey: 'contracts' })
+  const view = useListView<ContractItem>('contract', columns, { pageKey: 'contracts', entityType: 'contract' })
 
   return (
     <div>

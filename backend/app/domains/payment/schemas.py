@@ -57,3 +57,4 @@ class PaymentRecordCreate(BaseModel):
     reference_no: Optional[str] = Field(None, max_length=100)
     matched_plan_id: Optional[str] = None
     remark: Optional[str] = Field(None, max_length=1000)
+    custom_fields_json: Optional[dict] = None

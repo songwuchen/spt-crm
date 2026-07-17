@@ -1,8 +1,6 @@
-import { Dropdown, Button, Checkbox } from 'antd'
+import { Dropdown, Button, Checkbox, Tag } from 'antd'
 import { SettingOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
-import type { ColumnState } from '@/hooks/useListView'
-
-interface ColMeta { key: string; title: React.ReactNode }
+import type { ColumnState, ColMeta } from '@/hooks/useListView'
 
 interface Props {
   allMeta: ColMeta[]
@@ -11,7 +9,7 @@ interface Props {
   onReset: () => void
 }
 
-/** 列配置：显隐 + 上下移排序 + 恢复默认。 */
+/** 列配置：显隐 + 上下移排序 + 恢复默认。自定义字段列默认隐藏，勾选即「调出显示」。 */
 export default function ColumnConfigPanel({ allMeta, colState, onChange, onReset }: Props) {
   // 有效顺序 = 已保存顺序(过滤掉已不存在的) + 其余按原始顺序补齐
   const known = allMeta.map((m) => m.key)
@@ -20,6 +18,10 @@ export default function ColumnConfigPanel({ allMeta, colState, onChange, onReset
     ...known.filter((k) => !colState.order.includes(k)),
   ]
   const metaByKey = new Map(allMeta.map((m) => [m.key, m]))
+  const shown = colState.shown || []
+
+  const isChecked = (m: ColMeta) =>
+    m.optIn ? shown.includes(m.key) : !colState.hidden.includes(m.key)
 
   const move = (idx: number, dir: -1 | 1) => {
     const next = [...ordered]
@@ -29,11 +31,17 @@ export default function ColumnConfigPanel({ allMeta, colState, onChange, onReset
     onChange({ ...colState, order: next })
   }
 
-  const toggle = (key: string, visible: boolean) => {
-    const hidden = visible
-      ? colState.hidden.filter((k) => k !== key)
-      : [...colState.hidden, key]
-    onChange({ ...colState, hidden })
+  const toggle = (m: ColMeta, visible: boolean) => {
+    if (m.optIn) {
+      // 自定义字段列：用 shown 白名单控制
+      const nextShown = visible ? [...shown, m.key] : shown.filter((k) => k !== m.key)
+      onChange({ ...colState, shown: nextShown })
+    } else {
+      const hidden = visible
+        ? colState.hidden.filter((k) => k !== m.key)
+        : [...colState.hidden, m.key]
+      onChange({ ...colState, hidden })
+    }
   }
 
   return (
@@ -49,10 +57,11 @@ export default function ColumnConfigPanel({ allMeta, colState, onChange, onReset
           return (
             <div key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-50 rounded">
               <Checkbox
-                checked={!colState.hidden.includes(key)}
-                onChange={(e) => toggle(key, e.target.checked)}
+                checked={isChecked(m)}
+                onChange={(e) => toggle(m, e.target.checked)}
               />
               <span className="flex-1 text-sm text-slate-700 truncate">{m.title}</span>
+              {m.optIn && <Tag color="blue" style={{ marginInlineEnd: 0, transform: 'scale(0.85)' }}>自定义</Tag>}
               <Button type="text" size="small" icon={<ArrowUpOutlined />} disabled={idx === 0} onClick={() => move(idx, -1)} />
               <Button type="text" size="small" icon={<ArrowDownOutlined />} disabled={idx === ordered.length - 1} onClick={() => move(idx, 1)} />
             </div>

@@ -65,7 +65,7 @@ export default function QuoteList() {
       render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
   ]
 
-  const view = useListView<QuoteItem>('quote', columns, { pageKey: 'quotes' })
+  const view = useListView<QuoteItem>('quote', columns, { pageKey: 'quotes', entityType: 'quote' })
 
   return (
     <div>

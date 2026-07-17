@@ -14,6 +14,10 @@
 from .errors import FilterError
 from .compiler import parse_filter, compile_filter
 from .registry import get_schema, get_registry, ResourceSchema
+from .custom_fields import (
+    entity_search_context, get_entity_custom_fields, invalidate as invalidate_custom_fields,
+    ENTITY_RESOURCES,
+)
 
 
 def build_filter_clause(resource: str, raw_filter, ctx: dict | None = None):
@@ -44,8 +48,28 @@ def resolve_sort(resource: str, sort_by: str | None, sort_order: str | None, def
     return clause if clause is not None else default
 
 
+# ---- 基于「已构建 schema」的入口（供含自定义字段的实体列表复用同一个增强 schema）----
+def filter_clause_from_schema_or_400(schema, raw_filter, ctx: dict | None = None):
+    """用已构建好的 schema（含自定义字段）把 FilterDsl 编译成条件；FilterError→400。"""
+    if schema is None:
+        return None
+    from app.common.exceptions import BusinessException
+    try:
+        return compile_filter(schema, parse_filter(raw_filter), ctx or {})
+    except FilterError as e:
+        raise BusinessException(code=400, message=f"高级筛选条件无效：{e}")
+
+
+def resolve_sort_from_schema(schema, sort_by: str | None, sort_order: str | None, default=None):
+    """同 resolve_sort，但直接用已构建的 schema（支持 cf_* 自定义字段排序）。"""
+    clause = schema.sort_clause(sort_by, sort_order) if schema is not None else None
+    return clause if clause is not None else default
+
+
 __all__ = [
     "FilterError", "parse_filter", "compile_filter", "ResourceSchema",
     "get_schema", "get_registry", "build_filter_clause", "filter_clause_or_400",
     "resolve_sort",
+    "entity_search_context", "filter_clause_from_schema_or_400", "resolve_sort_from_schema",
+    "get_entity_custom_fields", "invalidate_custom_fields", "ENTITY_RESOURCES",
 ]

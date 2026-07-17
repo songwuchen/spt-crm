@@ -61,6 +61,9 @@ async def get_quote(db: AsyncSession, tenant_id: str, quote_id: str) -> Quote:
 
 
 async def create_quote(db: AsyncSession, tenant_id: str, project_id: str, data: QuoteCreate, user: dict) -> dict:
+    # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
+    from app.domains.lowcode.field_permission import sanitize_entity_write
+    cf = await sanitize_entity_write(db, tenant_id, "quote", data.custom_fields_json, None, user.get("roles"))
     quote = Quote(
         id=generate_uuid(), tenant_id=tenant_id,
         project_id=project_id, quote_no=await generate_code(db, tenant_id, "quote"),
@@ -68,6 +71,7 @@ async def create_quote(db: AsyncSession, tenant_id: str, project_id: str, data: 
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
         assignee_id=data.assignee_id, assignee_name=data.assignee_name,
         department_id=data.department_id, department_name=data.department_name,
+        custom_fields_json=cf,
     )
     db.add(quote)
 
@@ -101,7 +105,13 @@ async def create_quote(db: AsyncSession, tenant_id: str, project_id: str, data: 
 
 async def update_quote(db: AsyncSession, tenant_id: str, quote_id: str, data: QuoteUpdate, user: dict) -> Quote:
     quote = await get_quote(db, tenant_id, quote_id)
-    for field, val in data.model_dump(exclude_unset=True).items():
+    dump = data.model_dump(exclude_unset=True)
+    # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    if "custom_fields_json" in dump:
+        from app.domains.lowcode.field_permission import sanitize_entity_write
+        dump["custom_fields_json"] = await sanitize_entity_write(
+            db, tenant_id, "quote", dump["custom_fields_json"], quote.custom_fields_json, user.get("roles"))
+    for field, val in dump.items():
         setattr(quote, field, val)
     await db.commit()
     await db.refresh(quote)

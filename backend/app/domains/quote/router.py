@@ -34,6 +34,7 @@ def _quote_dict(q) -> dict:
         "created_by_id": q.created_by_id, "created_by_name": q.created_by_name,
         "assignee_id": q.assignee_id, "assignee_name": q.assignee_name,
         "department_id": q.department_id, "department_name": q.department_name,
+        "custom_fields_json": q.custom_fields_json,
         "created_at": q.created_at.isoformat() if q.created_at else "",
         "updated_at": q.updated_at.isoformat() if q.updated_at else "",
     }
@@ -94,16 +95,19 @@ async def list_quotes(
         like = f"%{keyword}%"
         q = q.where(Quote.quote_no.ilike(like))
         cq = cq.where(Quote.quote_no.ilike(like))
-    # 高级筛选（多字段/多条件）
-    from app.common.search import filter_clause_or_400, resolve_sort
-    clause = filter_clause_or_400("quote", filter, {"user_id": current_user.get("sub")})
+    # 高级筛选（多字段/多条件，含自定义扩展字段）
+    from app.common.search import (
+        entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,
+    )
+    search_schema = await entity_search_context("quote", db, tenant_id)
+    clause = filter_clause_from_schema_or_400(search_schema, filter, {"user_id": current_user.get("sub")})
     if clause is not None:
         q = q.where(clause)
         cq = cq.where(clause)
     from app.common.data_scope import apply_project_child_scope
     q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Quote)
     total = (await db.execute(cq)).scalar() or 0
-    order = resolve_sort("quote", sort_by, sort_order, Quote.created_at.desc())
+    order = resolve_sort_from_schema(search_schema, sort_by, sort_order, Quote.created_at.desc())
     quotes = (await db.execute(
         q.order_by(order)
         .offset((pageNo - 1) * pageSize).limit(pageSize)
@@ -137,6 +141,8 @@ async def list_quotes(
     perms = current_user.get("permissions", [])
     policies = await load_mask_policies(db, tenant_id)
     rows = apply_field_mask(rows, "quote", perms, policies)
+    from app.domains.lowcode.field_permission import strip_entity_dicts
+    await strip_entity_dicts(db, tenant_id, "quote", rows, current_user.get("roles"))  # 字段级权限：剔除隐藏扩展字段
     return ok({"items": rows, "total": total})
 
 

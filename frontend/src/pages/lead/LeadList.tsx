@@ -296,7 +296,7 @@ export default function LeadList() {
     },
   ]
 
-  const view = useListView<Lead>('lead', allColumns, { pageKey: 'leads' })
+  const view = useListView<Lead>('lead', allColumns, { pageKey: 'leads', entityType: 'lead' })
 
   return (
     <div>

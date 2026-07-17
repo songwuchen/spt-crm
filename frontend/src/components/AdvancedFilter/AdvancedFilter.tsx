@@ -7,6 +7,7 @@ import { OP_LABELS, valueKind, RELATIVE_OPTIONS } from './operators'
 import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import { userApi } from '@/api/user'
 import { customerApi } from '@/api/customer'
+import { departmentApi } from '@/api/department'
 
 const { RangePicker } = DatePicker
 
@@ -229,6 +230,17 @@ function OptionSelect({ source, multiple, value, onChange }: {
       const r = await customerApi.list({ pageNo: 1, pageSize: 50, keyword: kw || undefined }) as any
       return (r.data?.items || []).map((c: any) => ({ label: c.name, value: c.id }))
     }
+    if (source === 'departments') {
+      const r = await departmentApi.tree() as any
+      const flat: { label: string; value: string }[] = []
+      const walk = (nodes: any[]) => (nodes || []).forEach((n) => {
+        flat.push({ label: n.name, value: n.id })
+        if (n.children) walk(n.children)
+      })
+      walk(r.data || [])
+      const k = (kw || '').trim()
+      return k ? flat.filter((o) => o.label.includes(k)) : flat
+    }
     const r = await userApi.list({ pageNo: 1, pageSize: 50, keyword: kw || undefined }) as any
     return (r.data?.items || []).map((u: any) => ({ label: u.real_name || u.username, value: u.id }))
   })
@@ -237,7 +249,7 @@ function OptionSelect({ source, multiple, value, onChange }: {
       size="small" style={{ width: '100%' }} showSearch filterOption={false}
       mode={multiple ? 'multiple' : undefined}
       value={value as any}
-      placeholder={source === 'customers' ? '搜索客户' : '搜索用户'}
+      placeholder={source === 'customers' ? '搜索客户' : source === 'departments' ? '搜索部门' : '搜索用户'}
       loading={sel.loading}
       options={sel.options}
       onSearch={sel.onSearch}
