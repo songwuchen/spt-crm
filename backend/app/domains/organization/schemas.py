@@ -101,3 +101,30 @@ class RoleOut(BaseModel):
 
 class GrantPermissions(BaseModel):
     permission_ids: List[str]
+
+
+# --- Dept -> Role auto-assignment rules ---
+class DeptRoleRuleCreate(BaseModel):
+    department_id: str
+    role_id: str
+    include_children: bool = True
+    enabled: bool = True
+
+
+class DeptRoleRuleUpdate(BaseModel):
+    include_children: Optional[bool] = None
+    enabled: Optional[bool] = None
+
+
+class DeptRoleRuleOut(BaseModel):
+    id: str
+    department_id: str
+    department_name: Optional[str] = None
+    department_path: Optional[str] = None
+    role_id: str
+    role_code: Optional[str] = None
+    role_name: Optional[str] = None
+    include_children: bool
+    enabled: bool
+
+    model_config = {"from_attributes": True}

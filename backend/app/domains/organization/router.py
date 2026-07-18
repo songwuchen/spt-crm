@@ -16,6 +16,7 @@ from app.domains.organization.schemas import (
     DepartmentCreate, DepartmentUpdate, DepartmentOut,
     UserCreate, UserUpdate, UserBulkRoles, UserOut, ResetPassword,
     RoleCreate, RoleUpdate, RoleOut, GrantPermissions,
+    DeptRoleRuleCreate, DeptRoleRuleUpdate, DeptRoleRuleOut,
 )
 from app.domains.organization import service
 
@@ -315,6 +316,62 @@ async def list_permissions(
 ):
     perms = await service.list_permissions(db)
     return ok([{"id": p.id, "code": p.code, "name": p.name, "group_name": p.group_name} for p in perms])
+
+
+# ---- Dept -> Role auto-assignment rules ----
+@router.get("/dept-role-rules")
+async def list_dept_role_rules(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:view")),
+):
+    rules = await service.list_dept_role_rules(db, tenant_id)
+    return ok([DeptRoleRuleOut.model_validate(r).model_dump() for r in rules])
+
+
+@router.post("/dept-role-rules")
+async def create_dept_role_rule(
+    body: DeptRoleRuleCreate,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    rule = await service.create_dept_role_rule(db, tenant_id, body)
+    return ok({"id": rule.id})
+
+
+@router.put("/dept-role-rules/{rule_id}")
+async def update_dept_role_rule(
+    rule_id: str,
+    body: DeptRoleRuleUpdate,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    rule = await service.update_dept_role_rule(db, tenant_id, rule_id, body)
+    return ok({"id": rule.id, "include_children": rule.include_children, "enabled": rule.enabled})
+
+
+@router.delete("/dept-role-rules/{rule_id}")
+async def delete_dept_role_rule(
+    rule_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    await service.delete_dept_role_rule(db, tenant_id, rule_id)
+    return ok()
+
+
+@router.post("/dept-role-rules/apply-all")
+async def apply_dept_role_rules_all(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """把当前规则立即应用到全部存量用户（仅新增角色，不删除）。"""
+    result = await service.apply_dept_role_rules_now(db, tenant_id)
+    return ok(result)
 
 
 # ==================== DingTalk OA Integration ====================

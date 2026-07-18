@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import String, Integer, ForeignKey, DateTime, Index
+from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import TenantScopedBase
@@ -31,6 +31,29 @@ class UserDepartment(TenantScopedBase):
 
     user: Mapped["User"] = relationship(back_populates="user_departments")
     department: Mapped["Department"] = relationship(lazy="selectin")
+
+
+class DeptRoleRule(TenantScopedBase):
+    """部门 → 角色 自动分配规则。
+
+    用户被加入(新建/编辑)或从钉钉同步进匹配部门时，自动补上对应角色。
+    仅新增、绝不删除已有角色(additive)——不会覆盖管理员手工设置或升级的角色。
+    include_children=True 时，子部门成员也命中(按 Department.path 前缀匹配)。
+    role_id 直接指向本租户的 Role 行，从模型层杜绝跨租户角色注入。
+    """
+    __tablename__ = "dept_role_rules"
+
+    department_id: Mapped[str] = mapped_column(String(36), ForeignKey("departments.id"), nullable=False)
+    role_id: Mapped[str] = mapped_column(String(36), ForeignKey("roles.id"), nullable=False)
+    include_children: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    __table_args__ = (
+        # 同一部门+角色只允许一条规则
+        Index("uq_dept_role_rule", "tenant_id", "department_id", "role_id", unique=True),
+        # 角色维度的清理/查询(如删除角色时按 role_id 清规则)走索引，避免全表扫
+        Index("ix_dept_role_rule_role", "tenant_id", "role_id"),
+    )
 
 
 # ===== 组织模型扩展(Phase 3 审批人解析) =====

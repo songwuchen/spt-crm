@@ -9,10 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
 from app.common.error_codes import NOT_FOUND, DUPLICATE_ENTRY
-from app.domains.organization.models import Department, UserDepartment
+from app.domains.organization.models import Department, UserDepartment, DeptRoleRule
 from app.domains.auth.models import User, Role, UserRole, RolePermission, Permission
 from app.domains.organization.schemas import (
     DepartmentCreate, DepartmentUpdate, UserCreate, UserUpdate, RoleCreate, GrantPermissions,
+    DeptRoleRuleCreate, DeptRoleRuleUpdate,
 )
 
 
@@ -125,6 +126,10 @@ async def delete_department(db: AsyncSession, tenant_id: str, dept_id: str):
     if children > 0:
         raise BusinessException(message="请先删除子部门")
 
+    # 清理引用该部门的「部门→角色」规则，避免外键冲突
+    await db.execute(delete(DeptRoleRule).where(
+        DeptRoleRule.department_id == dept_id, DeptRoleRule.tenant_id == tenant_id
+    ))
     await db.delete(dept)
     await db.commit()
 
@@ -205,6 +210,9 @@ async def create_user(db: AsyncSession, tenant_id: str, data: UserCreate) -> Use
         await db.rollback()
         raise BusinessException(code=DUPLICATE_ENTRY, message=f"用户名 {data.username} 已存在")
     await db.refresh(user)
+    # 按「部门→角色」规则自动补角色(仅新增，不覆盖显式传入的角色)
+    from app.common.dept_role_auto import apply_dept_role_rules
+    await apply_dept_role_rules(db, tenant_id, user.id)
     return user
 
 
@@ -229,13 +237,26 @@ async def update_user(db: AsyncSession, tenant_id: str, user_id: str, data: User
         for rid in role_ids:
             db.add(UserRole(id=generate_uuid(), tenant_id=tenant_id, user_id=user_id, role_id=rid))
 
+    # 只有部门集合「实际发生变化」时才触发自动补角色——避免仅改手机号/姓名(前端把
+    # 当前部门原样回传)时，把管理员刚手工去掉的角色又加回来。
+    depts_changed = False
     if department_ids is not None:
+        old_dept_ids = set((await db.execute(
+            select(UserDepartment.department_id).where(
+                UserDepartment.user_id == user_id, UserDepartment.tenant_id == tenant_id)
+        )).scalars().all())
+        depts_changed = old_dept_ids != set(department_ids)
         await db.execute(delete(UserDepartment).where(UserDepartment.user_id == user_id, UserDepartment.tenant_id == tenant_id))
         for did in department_ids:
             db.add(UserDepartment(id=generate_uuid(), tenant_id=tenant_id, user_id=user_id, department_id=did))
 
     await db.commit()
     await db.refresh(user)
+    # 部门确有变更后，按「部门→角色」规则自动补角色(仅新增)。
+    # 内部会自行失效缓存；置于 role 缓存失效之前避免重复。
+    if depts_changed:
+        from app.common.dept_role_auto import apply_dept_role_rules
+        await apply_dept_role_rules(db, tenant_id, user_id)
     # 角色变更后失效该用户的权限/角色缓存，使其重新登录立即生效（issue #49）
     if role_ids is not None:
         from app.domains.auth.service import invalidate_user_auth_cache
@@ -305,6 +326,7 @@ async def import_users(db: AsyncSession, tenant_id: str, rows: list) -> dict:
 
     success = 0
     failed = []
+    created_ids: list[str] = []
 
     for i, row in enumerate(rows):
         try:
@@ -349,11 +371,16 @@ async def import_users(db: AsyncSession, tenant_id: str, rows: list) -> dict:
             for did in dept_ids:
                 db.add(UserDepartment(id=generate_uuid(), tenant_id=tenant_id, user_id=user.id, department_id=did))
             await db.flush()
+            created_ids.append(user.id)
             success += 1
         except Exception as e:
             failed.append({"row": i + 2, "reason": str(e)})
 
     await db.commit()
+    # 按「部门→角色」规则给导入的用户自动补角色(仅新增)
+    if created_ids:
+        from app.common.dept_role_auto import apply_dept_role_rules_bulk
+        await apply_dept_role_rules_bulk(db, tenant_id, created_ids)
     return {"success": success, "failed": failed, "total": len(rows)}
 
 
@@ -414,6 +441,8 @@ async def delete_role(db: AsyncSession, tenant_id: str, role_id: str):
         raise BusinessException(message=f"该角色下有 {user_count} 个用户，请先移除用户再删除角色")
     # Delete role permissions
     await db.execute(delete(RolePermission).where(RolePermission.role_id == role_id, RolePermission.tenant_id == tenant_id))
+    # 清理引用该角色的「部门→角色」规则，避免外键冲突
+    await db.execute(delete(DeptRoleRule).where(DeptRoleRule.role_id == role_id, DeptRoleRule.tenant_id == tenant_id))
     await db.delete(role)
     await db.commit()
 
@@ -436,3 +465,87 @@ async def grant_permissions(db: AsyncSession, tenant_id: str, role_id: str, perm
 async def list_permissions(db: AsyncSession):
     result = await db.execute(select(Permission).order_by(Permission.group_name, Permission.code))
     return result.scalars().all()
+
+
+# ==================== Dept -> Role auto-assignment rules ====================
+
+async def list_dept_role_rules(db: AsyncSession, tenant_id: str) -> list[dict]:
+    """列出本租户的部门→角色规则，附带部门/角色的展示名。"""
+    rows = (await db.execute(
+        select(DeptRoleRule, Department.name, Department.path, Role.code, Role.name)
+        .outerjoin(Department, (Department.id == DeptRoleRule.department_id) & (Department.tenant_id == DeptRoleRule.tenant_id))
+        .outerjoin(Role, (Role.id == DeptRoleRule.role_id) & (Role.tenant_id == DeptRoleRule.tenant_id))
+        .where(DeptRoleRule.tenant_id == tenant_id)
+        .order_by(Department.path)
+    )).all()
+    out = []
+    for rule, dept_name, dept_path, role_code, role_name in rows:
+        out.append({
+            "id": rule.id,
+            "department_id": rule.department_id,
+            "department_name": dept_name,
+            "department_path": dept_path,
+            "role_id": rule.role_id,
+            "role_code": role_code,
+            "role_name": role_name,
+            "include_children": rule.include_children,
+            "enabled": rule.enabled,
+        })
+    return out
+
+
+async def create_dept_role_rule(db: AsyncSession, tenant_id: str, data: DeptRoleRuleCreate) -> DeptRoleRule:
+    # 校验部门/角色都属于本租户（防跨租户注入）
+    await _validate_role_dept_ids(db, tenant_id, [data.role_id], [data.department_id])
+    existing = (await db.execute(
+        select(DeptRoleRule).where(
+            DeptRoleRule.tenant_id == tenant_id,
+            DeptRoleRule.department_id == data.department_id,
+            DeptRoleRule.role_id == data.role_id,
+        )
+    )).scalar_one_or_none()
+    if existing:
+        raise BusinessException(code=DUPLICATE_ENTRY, message="该部门与角色的规则已存在")
+    rule = DeptRoleRule(
+        id=generate_uuid(), tenant_id=tenant_id,
+        department_id=data.department_id, role_id=data.role_id,
+        include_children=data.include_children, enabled=data.enabled,
+    )
+    db.add(rule)
+    try:
+        await db.commit()
+    except IntegrityError:
+        # 与并发创建撞上 uq_dept_role_rule 唯一键 —— 回滚并给出干净提示，而非 500
+        await db.rollback()
+        raise BusinessException(code=DUPLICATE_ENTRY, message="该部门与角色的规则已存在")
+    await db.refresh(rule)
+    return rule
+
+
+async def update_dept_role_rule(db: AsyncSession, tenant_id: str, rule_id: str, data: DeptRoleRuleUpdate) -> DeptRoleRule:
+    rule = (await db.execute(
+        select(DeptRoleRule).where(DeptRoleRule.id == rule_id, DeptRoleRule.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not rule:
+        raise BusinessException(code=NOT_FOUND, message="规则不存在")
+    for field, val in data.model_dump(exclude_unset=True).items():
+        setattr(rule, field, val)
+    await db.commit()
+    await db.refresh(rule)
+    return rule
+
+
+async def delete_dept_role_rule(db: AsyncSession, tenant_id: str, rule_id: str):
+    rule = (await db.execute(
+        select(DeptRoleRule).where(DeptRoleRule.id == rule_id, DeptRoleRule.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not rule:
+        raise BusinessException(code=NOT_FOUND, message="规则不存在")
+    await db.delete(rule)
+    await db.commit()
+
+
+async def apply_dept_role_rules_now(db: AsyncSession, tenant_id: str) -> dict:
+    """把当前所有规则立即应用到本租户全部存量用户（仅新增角色）。"""
+    from app.common.dept_role_auto import apply_dept_role_rules_bulk
+    return await apply_dept_role_rules_bulk(db, tenant_id, None)

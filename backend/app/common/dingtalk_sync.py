@@ -430,6 +430,8 @@ async def sync_users(
     failed: list[dict] = []
     # Track dept leaders: local_dept_id -> local_user_id
     dept_leaders: dict[str, str] = {}
+    # 部门成员同步完成后，按「部门→角色」规则给这些用户补角色
+    synced_user_ids: set[str] = set()
 
     total_users = len(all_dt_users)
     processed = 0
@@ -503,6 +505,8 @@ async def sync_users(
             if local_user is None:
                 continue
 
+            synced_user_ids.add(local_user.id)
+
             # Sync dept memberships: replace with current DT assignments
             await db.execute(
                 delete(UserDepartment).where(
@@ -549,11 +553,22 @@ async def sync_users(
         if leader_updated:
             await db.commit()
 
+    # 依「部门→角色」规则给同步进来的用户自动补角色(仅新增，不覆盖已有角色)
+    roles_added = 0
+    if synced_user_ids:
+        try:
+            from app.common.dept_role_auto import apply_dept_role_rules_bulk
+            res = await apply_dept_role_rules_bulk(db, tenant_id, list(synced_user_ids))
+            roles_added = res.get("roles_added", 0)
+        except Exception as e:
+            logger.warning("钉钉同步后自动补部门角色失败: %s", e)
+
     return {
         "created": created,
         "updated": updated,
         "skipped": skipped,
         "total": len(all_dt_users),
         "leader_updated": leader_updated,
+        "roles_added": roles_added,
         "failed": failed,
     }

@@ -1,4 +1,4 @@
-from sqlalchemy import String, Boolean, Text, ForeignKey, DateTime
+from sqlalchemy import String, Boolean, Text, ForeignKey, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 
@@ -51,6 +51,12 @@ class UserRole(TenantScopedBase):
 
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
     role_id: Mapped[str] = mapped_column(String(36), ForeignKey("roles.id"), nullable=False)
+
+    # 同一用户同一角色只允许一行——支撑「部门→角色」自动补角色的 ON CONFLICT 幂等，
+    # 并防止并发/重复分配产生重复角色行。
+    __table_args__ = (
+        Index("uq_user_role", "tenant_id", "user_id", "role_id", unique=True),
+    )
 
     user: Mapped["User"] = relationship(back_populates="user_roles")
     role: Mapped["Role"] = relationship(back_populates=None, lazy="selectin")
