@@ -1564,3 +1564,56 @@ async def cancel_purge(
     )
 
     return ok({"status": "cancelled", "task_id": task_info["task_id"]})
+
+
+# ==================== 同步标准角色与权限 (Standard RBAC sync) ====================
+
+class RbacSyncApply(BaseModel):
+    # additive: 只增不删(默认,安全); reset: 额外移除标准角色上的非标准授权
+    mode: str = Field("additive", pattern=r"^(additive|reset)$")
+    create_missing_roles: bool = True
+
+
+@router.get("/api/admin/v1/rbac/standard-sync/preview")
+async def rbac_standard_sync_preview(
+    mode: str = Query("additive", pattern=r"^(additive|reset)$"),
+    create_missing_roles: bool = Query(True),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """预览:把本租户的标准角色对齐到系统标准目录会发生哪些变化(只读)。"""
+    from app.common import rbac_sync
+    plan = await rbac_sync.preview(db, tenant_id, mode=mode, create_missing_roles=create_missing_roles)
+    return ok(plan)
+
+
+@router.post("/api/admin/v1/rbac/standard-sync/apply")
+async def rbac_standard_sync_apply(
+    body: RbacSyncApply,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permissions("role:manage")),
+):
+    """应用标准角色与权限同步(仅本租户);写审计并刷新本租户权限缓存。
+    只动标准角色,不触碰自定义/人名角色。"""
+    from app.common import rbac_sync
+    report = await rbac_sync.apply(
+        db, tenant_id, mode=body.mode, create_missing_roles=body.create_missing_roles)
+    await db.commit()
+
+    # 角色权限变更后必须失效本租户缓存,否则最长 5 分钟才生效(issue #49)
+    from app.domains.auth.service import invalidate_tenant_auth_cache
+    await invalidate_tenant_auth_cache(tenant_id)
+
+    from app.domains.audit.service import log_action
+    await log_action(
+        db, tenant_id=tenant_id,
+        user_id=current_user["sub"], user_name=current_user.get("real_name"),
+        action="rbac_standard_sync", resource_type="role",
+        summary=(f"同步标准角色与权限(mode={report['mode']}):新建 "
+                 f"{len(report['created_roles'])} 个角色、新增 {report['perms_added']} 项授权、"
+                 f"移除 {report['perms_removed']} 项"),
+        detail=report,
+    )
+    return ok(report)

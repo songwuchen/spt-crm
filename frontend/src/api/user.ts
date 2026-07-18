@@ -56,6 +56,31 @@ export const roleApi = {
     client.delete<unknown, ApiResponse<null>>(`/api/admin/v1/tenant/roles/${roleId}`),
 }
 
+export interface RbacSyncPreview {
+  mode: 'additive' | 'reset'
+  roles_to_create: { code: string; name: string; perm_count: number }[]
+  perms_to_add: Record<string, { code: string; name: string }[]>
+  perms_to_remove: Record<string, { code: string; name: string }[]>
+  permissions_to_create: string[]
+  summary: { roles_to_create: number; perms_to_add: number; perms_to_remove: number; permissions_to_create: number }
+}
+
+export interface RbacSyncReport {
+  mode: 'additive' | 'reset'
+  created_roles: string[]
+  perms_added: number
+  perms_removed: number
+  roles_touched: string[]
+}
+
+// 同步「标准角色与权限」到系统标准目录(仅本租户)。只动标准角色,不碰自定义角色。
+export const rbacApi = {
+  previewStandardSync: (mode: 'additive' | 'reset' = 'additive') =>
+    client.get<unknown, ApiResponse<RbacSyncPreview>>('/api/admin/v1/rbac/standard-sync/preview', { params: { mode } }),
+  applyStandardSync: (mode: 'additive' | 'reset' = 'additive') =>
+    client.post<unknown, ApiResponse<RbacSyncReport>>('/api/admin/v1/rbac/standard-sync/apply', { mode }),
+}
+
 export const permissionApi = {
   list: () =>
     client.get<unknown, ApiResponse<PermissionItem[]>>('/api/admin/v1/tenant/permissions'),

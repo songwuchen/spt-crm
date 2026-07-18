@@ -49,114 +49,10 @@ async def seed(include_demo: bool = True):
 
         admin_user_id = "00000000-0000-0000-0000-000000000010"
 
-        # Permissions — complete list matching all require_permissions() in routers
-        perm_codes = [
-            ("customer:view", "查看客户", "客户"),
-            ("customer:create", "创建客户", "客户"),
-            ("customer:edit", "编辑客户", "客户"),
-            ("customer:delete", "删除客户", "客户"),
-            ("contact:view", "查看联系人", "联系人"),
-            ("contact:create", "创建联系人", "联系人"),
-            ("contact:edit", "编辑联系人", "联系人"),
-            ("contact:delete", "删除联系人", "联系人"),
-            ("lead:view", "查看线索", "线索"),
-            ("lead:create", "创建线索", "线索"),
-            ("lead:edit", "编辑线索", "线索"),
-            ("lead:delete", "删除线索", "线索"),
-            ("lead:qualify", "转化线索", "线索"),
-            ("lead:discard", "废弃线索", "线索"),
-            ("lead:review", "审核线索", "线索"),
-            ("project:view", "查看商机", "商机"),
-            ("project:create", "创建商机", "商机"),
-            ("project:edit", "编辑商机", "商机"),
-            ("project:delete", "删除商机", "商机"),
-            ("project:advance", "推进商机阶段", "商机"),
-            ("project:transfer", "转移商机负责人", "商机"),
-            ("quote:view", "查看报价", "报价"),
-            ("quote:create", "创建报价", "报价"),
-            ("quote:edit", "编辑报价", "报价"),
-            ("quote:delete", "删除报价", "报价"),
-            ("quote:view_cost", "查看报价成本/毛利", "报价"),
-            ("quote:view_discount", "查看报价折扣", "报价"),
-            ("contract:view", "查看合同", "合同"),
-            ("contract:create", "创建合同", "合同"),
-            ("contract:edit", "编辑合同", "合同"),
-            ("contract:delete", "删除合同", "合同"),
-            ("contract:sign", "签署合同", "合同"),
-            ("solution:view", "查看方案", "方案"),
-            ("solution:create", "创建方案", "方案"),
-            ("solution:edit", "编辑方案", "方案"),
-            ("solution:delete", "删除方案", "方案"),
-            ("delivery:view", "查看交付", "交付"),
-            ("delivery:edit", "编辑交付", "交付"),
-            ("delivery:delete", "删除交付", "交付"),
-            ("payment:view", "查看回款", "回款"),
-            ("payment:edit", "编辑回款", "回款"),
-            ("change:view", "查看变更", "变更"),
-            ("change:create", "创建变更", "变更"),
-            ("change:edit", "编辑变更", "变更"),
-            ("change:delete", "删除变更", "变更"),
-            ("service:view", "查看工单", "工单"),
-            ("service:create", "创建工单", "工单"),
-            ("service:edit", "编辑工单", "工单"),
-            ("service:delete", "删除工单", "工单"),
-            ("approval:view", "查看审批", "审批"),
-            ("approval:approve", "审批操作", "审批"),
-            ("approval:decide", "审批决定", "审批"),
-            ("approval:delegate", "委托审批", "审批"),
-            ("approval:withdraw", "撤回审批", "审批"),
-            ("approval:resubmit", "重新提交审批", "审批"),
-            ("approval:manage", "管理审批", "审批"),
-            ("attachment:upload", "上传附件", "附件"),
-            ("attachment:download", "下载附件", "附件"),
-            ("task:view", "查看任务", "任务"),
-            ("task:create", "创建任务", "任务"),
-            ("task:edit", "编辑任务", "任务"),
-            ("task:delete", "删除任务", "任务"),
-            ("notification:view", "查看通知", "通知"),
-            ("notification:manage", "管理通知", "通知"),
-            ("product:view", "查看产品", "产品"),
-            ("product:create", "创建产品", "产品"),
-            ("product:edit", "编辑产品", "产品"),
-            ("product:delete", "删除产品", "产品"),
-            ("order:view", "查看订单", "订单"),
-            ("order:create", "创建订单", "订单"),
-            ("order:edit", "编辑订单", "订单"),
-            ("order:delete", "删除订单", "订单"),
-            ("tender:view", "查看标书", "标书"),
-            ("tender:create", "创建标书", "标书"),
-            ("tender:edit", "编辑标书", "标书"),
-            ("tender:delete", "删除标书", "标书"),
-            ("commission:view", "查看提成", "提成"),
-            ("commission:edit", "编辑提成", "提成"),
-            ("commission:manage", "管理提成政策", "提成"),
-            ("collection:view", "查看应收清欠", "应收清欠"),
-            ("collection:edit", "编辑应收清欠", "应收清欠"),
-            ("collection:manage", "管理应收清欠", "应收清欠"),
-            ("guarantee:view", "查看保函", "保函"),
-            ("guarantee:edit", "编辑保函", "保函"),
-            ("audit:view", "查看审计", "审计"),
-            ("dashboard:view", "查看销售目标/仪表盘", "报表"),
-            ("role:view", "查看角色", "系统"),
-            ("role:edit", "编辑角色", "系统"),
-            ("role:manage", "管理角色", "系统"),
-            ("user:view", "查看用户", "系统"),
-            ("user:manage", "管理用户", "系统"),
-            ("dept:view", "查看部门", "组织"),
-            ("dept:manage", "管理部门", "组织"),
-            ("tenant:view", "查看租户", "平台"),
-            ("tenant:manage", "管理租户", "平台"),
-            # ---- 扩展平台(低代码): 表单引擎 / 流程引擎 / 仪表盘 ----
-            ("form:view", "查看表单模板", "扩展平台"),
-            ("form:manage", "设计/管理表单模板", "扩展平台"),
-            ("form_data:view", "查看表单数据", "扩展平台"),
-            ("form_data:create", "填报表单数据", "扩展平台"),
-            ("form_data:edit", "编辑表单数据", "扩展平台"),
-            ("form_data:delete", "删除表单数据", "扩展平台"),
-            ("workflow:view", "查看流程定义", "扩展平台"),
-            ("workflow:manage", "设计/管理流程定义", "扩展平台"),
-            ("dashboard:manage", "设计/管理仪表盘", "扩展平台"),
-        ]
+        # Permission catalog — single source of truth (shared with the admin
+        # 「同步标准角色与权限」API and scripts/seed_function_roles.py).
+        from app.common.rbac_catalog import PERMISSIONS as perm_codes
+
         # ---- Permissions (global, keyed by code) ----
         existing_perms = {p.code: p for p in (await db.execute(select(Permission))).scalars().all()}
         for code, name, group in perm_codes:
@@ -345,6 +241,13 @@ async def seed(include_demo: bool = True):
                 approval_mode="sequential", enabled=True, priority=0,
             ))
             added["approval_policies"] += 1
+
+        # 跨所有租户增量下发标准角色权限:任何已拥有标准角色的租户,其标准角色
+        # 都会自动补齐目录里的新权限(只增不删、不给缺角色的租户凭空建角色)。
+        # 这样每次部署后,新功能权限自动到达所有环境的标准角色。
+        from app.common.rbac_sync import sync_all_tenants_additive
+        _rbac = await sync_all_tenants_additive(db)
+        added["role_perms"] += _rbac.get("_total_perms_added", 0)
 
         await db.commit()
 
