@@ -473,10 +473,18 @@ input, textarea, select {
 
 /*
  * 全站图标（components/Icon.tsx）默认字号。
- * 用 class 而非内联样式，是为了保持与原 .material-symbols-outlined 相同的层叠行为：
- * 调用方的 Tailwind text-sm / text-lg / text-5xl 等仍能正常覆盖这个默认值。
+ *
+ * 必须放在 @layer base 里：Tailwind 的 utilities 层排在 base 之后，而 .app-icon 与
+ * .text-sm 特异度相同(0,1,0)，同特异度看层叠顺序。若把这条规则直接写在本文件末尾
+ * （即 @tailwind utilities 之后），它会反过来盖掉调用方的 text-sm/text-lg，把所有
+ * 图标钉死在 24px —— 这正是旧 .material-symbols-outlined 靠「单独文件、在 index.css
+ * 之前 import」才避开的坑。
+ *
+ * 不设 line-height：antd 的 .anticon 用 inline-flex + line-height:0 自行处理垂直居中，
+ * 覆盖它反而会让图标与相邻文字错位（字体连字时代才需要 line-height:1）。
  */
-.app-icon {
-  font-size: 24px;
-  line-height: 1;
+@layer base {
+  .app-icon {
+    font-size: 24px;
+  }
 }

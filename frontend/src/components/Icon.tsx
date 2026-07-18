@@ -32,7 +32,7 @@ import {
   RiseOutlined, FallOutlined, RadarChartOutlined,
   BulbOutlined, ThunderboltOutlined, RocketOutlined, RobotOutlined, StarOutlined,
   ExperimentOutlined, ApiOutlined, ToolOutlined, BuildOutlined, ControlOutlined,
-  SettingOutlined, GlobalOutlined, EnvironmentOutlined, AimOutlined, CompassOutlined,
+  SettingOutlined, GlobalOutlined, EnvironmentOutlined, AimOutlined,
   DesktopOutlined, MobileOutlined, TabletOutlined, CameraOutlined, PictureOutlined,
   AudioOutlined, CloudOutlined, FlagOutlined, HighlightOutlined, NodeIndexOutlined,
   ColumnWidthOutlined, CustomerServiceOutlined, AppstoreOutlined,
@@ -135,27 +135,35 @@ const MAP: Record<string, IconComp> = {
   computer: DesktopOutlined, smartphone: MobileOutlined, phonelink_ring: MobileOutlined,
   tablet: TabletOutlined, photo_camera: CameraOutlined,
   location_on: EnvironmentOutlined, distance: ColumnWidthOutlined,
-  directions_walk: NodeIndexOutlined, compass: CompassOutlined,
+  directions_walk: NodeIndexOutlined,
 }
 
 const Fallback = AppstoreOutlined
 
+// 未登记图标名只在 DEV 首次出现时告警一次。放在模块级而非 render 内累加，
+// 避免长列表里每行每次渲染都刷屏（StrictMode 下还会翻倍）。
+const warned = new Set<string>()
+
 export default function Icon(
-  { name, className, style }: { name?: string; className?: string; style?: React.CSSProperties },
+  { name, className, style, defaultSize = true }: {
+    name?: string
+    className?: string
+    style?: React.CSSProperties
+    /** 是否套用 app-icon 的 24px 默认字号。移动端传 false：那边多处调用不指定尺寸，
+     *  依赖继承字号，套上 24px 会变大。 */
+    defaultSize?: boolean
+  },
 ) {
   const C = (name && MAP[name]) || Fallback
-  if (import.meta.env.DEV && name && !MAP[name]) {
+  if (import.meta.env.DEV && name && !MAP[name] && !warned.has(name)) {
+    warned.add(name)
     console.warn(`[Icon] 未登记的图标名 "${name}"，已回退到通用图标。请在 components/Icon.tsx 补充映射。`)
   }
-  // app-icon 用 class 而非内联样式提供 24px 默认字号，保持与原 .material-symbols-outlined
-  // 一致的层叠行为：调用方的 Tailwind text-sm / text-5xl 等仍能正常覆盖。
-  return <C className={className ? `app-icon ${className}` : 'app-icon'} style={style} />
+  // app-icon 提供 24px 默认字号；它定义在 index.css 的 @layer base 中，
+  // 因此调用方的 Tailwind text-sm / text-5xl（utilities 层，排在 base 之后）能正常覆盖。
+  const cls = [defaultSize ? 'app-icon' : '', className].filter(Boolean).join(' ')
+  return <C className={cls || undefined} style={style} />
 }
 
-// 供测试/开发校验图标名是否已登记
+/** 图标名是否已登记。Icon.test.tsx 用它校验源码里所有可达图标名都有映射。 */
 export const hasIcon = (name?: string) => !!(name && MAP[name])
-
-// 移动端 MobileIcon 复用同一份映射(但不套 app-icon 默认字号 —— 移动端有 12 处未显式指定
-// 尺寸的调用,套上 24px 会变大)。故此处只共享 MAP,不共享外层组件。
-export const ICON_MAP = MAP
-export const ICON_FALLBACK = Fallback

@@ -75,12 +75,18 @@ export default function FieldTypeIcon(
 }
 
 // 字段类型中文名。原先私有在 FormDesignerPage 里,现与图标映射放在一起,便于各处“图标+名称”成对使用。
-export const FIELD_TYPE_LABEL: Record<string, string> = {
+// 与 FIELD_TYPE_ICON 一样用 Record<FieldType, ...> 强约束:两张表必须成对维护,
+// 漏配会编译报错(此前是 Record<string,string>,少了 5 个类型也没人发现,界面直接显示英文原名)。
+export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   text: '单行文本', textarea: '多行文本', number: '数字', amount: '金额', date: '日期', datetime: '日期时间',
   select: '下拉单选', multi_select: '下拉多选', radio: '单选框', checkbox: '复选框', switch: '开关', cascade: '级联选择',
   person: '人员单选', person_multi: '人员多选', department: '部门单选', department_multi: '部门多选',
   file: '附件', image: '图片', address: '地址', rich_text: '富文本', signature: '手写签名',
   formula: '公式', auto_number: '流水号', detail_table: '明细子表',
+  // 设计器控件面板暂未开放这 5 类(PALETTE 里没有),但表单 JSON / 后端模板可能带过来,
+  // 缺了就会在画布和属性面板显示 sub_table_data 这种英文原名。
+  related_doc: '关联文档', location: '定位', select_data: '数据联动',
+  relation: '关联记录', sub_table_data: '子表数据',
 }
 
 /**
@@ -97,7 +103,8 @@ export function fieldOption<T extends string>(
     title: label,
     label: (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <FieldTypeIcon type={type} style={{ color: '#8c8c8c' }} />
+        {/* 用 opacity 而非写死灰色:颜色从上下文继承,深色主题下同样能看清 */}
+        <FieldTypeIcon type={type} style={{ opacity: 0.55 }} />
         {label}
       </span>
     ),
