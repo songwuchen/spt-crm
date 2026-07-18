@@ -2,11 +2,12 @@ import re
 import csv
 import io
 import bcrypt
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, false
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
+from app.common.dept_tree import LIKE_ESCAPE, escape_like, subtree_dept_ids_select
 from app.common.exceptions import BusinessException
 from app.common.error_codes import NOT_FOUND, DUPLICATE_ENTRY
 from app.domains.organization.models import Department, UserDepartment, DeptRoleRule
@@ -145,10 +146,47 @@ async def get_user(db: AsyncSession, tenant_id: str, user_id: str) -> User:
     return user
 
 
-async def list_users(db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20, keyword: str | None = None):
+async def list_users(
+    db: AsyncSession, tenant_id: str, page_no: int = 1, page_size: int = 20,
+    keyword: str | None = None,
+    role_id: str | None = None,
+    dept_id: str | None = None,
+    is_active: bool | None = None,
+):
     base = select(User).where(User.tenant_id == tenant_id)
     if keyword:
-        base = base.where(User.real_name.ilike(f"%{keyword}%") | User.username.ilike(f"%{keyword}%"))
+        # 转义 LIKE 元字符，否则搜 "_" / "50%" 会当成通配符命中一大片
+        kw = f"%{escape_like(keyword)}%"
+        base = base.where(
+            User.real_name.ilike(kw, escape=LIKE_ESCAPE)
+            | User.username.ilike(kw, escape=LIKE_ESCAPE)
+            | User.phone.ilike(kw, escape=LIKE_ESCAPE)
+            | User.email.ilike(kw, escape=LIKE_ESCAPE)
+        )
+    if role_id:
+        base = base.where(User.id.in_(
+            select(UserRole.user_id).where(
+                UserRole.role_id == role_id, UserRole.tenant_id == tenant_id
+            )
+        ))
+    if dept_id:
+        # 选中某部门时连同其所有下级部门的成员一起返回（物化路径前缀匹配）
+        dept = (await db.execute(select(Department).where(
+            Department.id == dept_id, Department.tenant_id == tenant_id
+        ))).scalar_one_or_none()
+        if dept is None:
+            base = base.where(false())
+        else:
+            base = base.where(User.id.in_(
+                select(UserDepartment.user_id).where(
+                    UserDepartment.tenant_id == tenant_id,
+                    UserDepartment.department_id.in_(
+                        subtree_dept_ids_select(tenant_id, [dept.id], [dept.path])
+                    ),
+                )
+            ))
+    if is_active is not None:
+        base = base.where(User.is_active == is_active)
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
     items = (await db.execute(base.order_by(User.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size))).scalars().all()

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Tree, Button, Modal, Form, Input, InputNumber, message, Table, Switch, Select, TreeSelect, Tag, Popconfirm, Tooltip } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { useState, useEffect, useMemo } from 'react'
+import { Tree, Button, Modal, Form, Input, InputNumber, message, Table, Switch, Select, TreeSelect, Tag, Popconfirm, Tooltip, Empty } from 'antd'
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { departmentApi, deptRoleRuleApi } from '@/api/department'
 import type { DeptRoleRule } from '@/api/department'
 import { roleApi } from '@/api/user'
@@ -8,15 +8,57 @@ import type { Department, Role } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 
-function toTreeData(departments: Department[]): any[] {
+// 命中的关键词高亮显示，便于在大组织树里一眼定位。
+// 用 localeCompare 逐位比对而不是在 toLowerCase() 后的串上取下标——'İ'.toLowerCase()
+// 长度会变，拿小写串的下标去切原串会整体错位。
+function matchIndex(name: string, kw: string): number {
+  for (let i = 0; i + kw.length <= name.length; i++) {
+    if (name.slice(i, i + kw.length).toLowerCase() === kw) return i
+  }
+  return -1
+}
+
+function highlight(name: string, kw: string) {
+  if (!kw) return name
+  const idx = matchIndex(name, kw)
+  if (idx < 0) return name
+  return (
+    <>
+      {name.slice(0, idx)}
+      <span className="bg-amber-200/70 text-amber-900 rounded px-0.5">{name.slice(idx, idx + kw.length)}</span>
+      {name.slice(idx + kw.length)}
+    </>
+  )
+}
+
+function toTreeData(departments: Department[], kw = ''): any[] {
   return departments.map((d) => ({
     key: d.id,
     title: (
-      <span className="text-sm font-medium text-slate-700">{d.name}</span>
+      <span className="text-sm font-medium text-slate-700">{highlight(d.name, kw)}</span>
     ),
     data: d,
-    children: d.children?.length ? toTreeData(d.children) : [],
+    children: d.children?.length ? toTreeData(d.children, kw) : [],
   }))
+}
+
+// 保留命中节点及其祖先链；节点自身命中时整棵子树都保留，方便继续往下点。
+function filterDeptTree(departments: Department[], kw: string): Department[] {
+  const result: Department[] = []
+  for (const d of departments) {
+    const selfMatch = d.name.toLowerCase().includes(kw)
+    const matchedChildren = d.children?.length ? filterDeptTree(d.children, kw) : []
+    if (selfMatch) {
+      result.push(d)
+    } else if (matchedChildren.length > 0) {
+      result.push({ ...d, children: matchedChildren })
+    }
+  }
+  return result
+}
+
+function collectKeys(departments: Department[]): string[] {
+  return departments.flatMap((d) => [d.id, ...(d.children?.length ? collectKeys(d.children) : [])])
 }
 
 export default function DepartmentPage() {
@@ -26,12 +68,21 @@ export default function DepartmentPage() {
   const [editing, setEditing] = useState<Department | null>(null)
   const [parentId, setParentId] = useState<string | undefined>()
   const [selectedDept, setSelectedDept] = useState<Department | null>(null)
+  const [search, setSearch] = useState('')
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
   const [form] = Form.useForm()
 
   const fetchTree = async () => {
     const res = await departmentApi.tree()
     setTree(res.data)
   }
+
+  const kw = search.trim().toLowerCase()
+  const shownTree = useMemo(() => (kw ? filterDeptTree(tree, kw) : tree), [tree, kw])
+
+  // 当前可见的树一变（首次加载、搜索词变化）就整体展开，
+  // 否则命中的子部门还藏在折叠的父节点里。只依赖 shownTree，避免和上面的过滤重复计算。
+  useEffect(() => { setExpandedKeys(collectKeys(shownTree)) }, [shownTree])
 
   useEffect(() => { fetchTree() }, [])
 
@@ -104,14 +155,34 @@ export default function DepartmentPage() {
                 <h3 className="text-sm font-bold text-slate-900">组织架构</h3>
               </div>
               <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-sm font-bold">
-                {countNodes(tree)} 个部门
+                {kw ? `${countNodes(shownTree)} / ${countNodes(tree)}` : countNodes(tree)} 个部门
               </span>
             </div>
+            <div className="px-4 pt-4">
+              <Input
+                placeholder="搜索部门名称..."
+                prefix={<SearchOutlined className="text-slate-400" />}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                allowClear
+                style={{ background: '#f1f5f9', borderColor: 'transparent' }}
+                className="rounded-lg"
+              />
+            </div>
             <div className="p-4">
-              {tree.length > 0 ? (
+              {tree.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <span className="material-symbols-outlined text-4xl text-slate-200 mb-3">account_tree</span>
+                  <p className="text-sm text-slate-400">暂无部门数据</p>
+                  <p className="text-sm text-slate-300 mt-1">点击上方按钮创建第一个部门</p>
+                </div>
+              ) : shownTree.length === 0 ? (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`没有匹配「${search}」的部门`} />
+              ) : (
                 <Tree
-                  treeData={toTreeData(tree)}
-                  defaultExpandAll
+                  treeData={toTreeData(shownTree, kw)}
+                  expandedKeys={expandedKeys}
+                  onExpand={setExpandedKeys}
                   showIcon
                   blockNode
                   onSelect={(_, info) => {
@@ -120,12 +191,6 @@ export default function DepartmentPage() {
                   selectedKeys={selectedDept ? [selectedDept.id] : []}
                   className="[&_.ant-tree-node-content-wrapper]:rounded-lg [&_.ant-tree-node-selected]:!bg-primary/5"
                 />
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <span className="material-symbols-outlined text-4xl text-slate-200 mb-3">account_tree</span>
-                  <p className="text-sm text-slate-400">暂无部门数据</p>
-                  <p className="text-sm text-slate-300 mt-1">点击上方按钮创建第一个部门</p>
-                </div>
               )}
             </div>
           </div>
@@ -224,6 +289,7 @@ function DeptRoleRulesSection({ tree }: { tree: Department[] }) {
   const [loading, setLoading] = useState(false)
   const [applying, setApplying] = useState(false)
   const [modal, setModal] = useState(false)
+  const [ruleSearch, setRuleSearch] = useState('')
   const [form] = Form.useForm()
 
   const fetchRules = async () => {
@@ -305,6 +371,13 @@ function DeptRoleRulesSection({ tree }: { tree: Department[] }) {
     }
   }
 
+  // 规则条数不多，前端过滤即可（本区块在 canView 早退之后，不能用 hook）
+  const rk = ruleSearch.trim().toLowerCase()
+  const filteredRules = rk
+    ? rules.filter((r) => [r.department_name, r.department_path, r.role_name, r.role_code]
+        .some((v) => (v || '').toLowerCase().includes(rk)))
+    : rules
+
   const columns = [
     {
       title: '部门',
@@ -385,14 +458,23 @@ function DeptRoleRulesSection({ tree }: { tree: Department[] }) {
         )}
       </div>
       <div className="p-4">
+        <Input
+          placeholder="搜索部门 / 角色..."
+          prefix={<SearchOutlined className="text-slate-400" />}
+          value={ruleSearch}
+          onChange={(e) => setRuleSearch(e.target.value)}
+          allowClear
+          style={{ width: 260, background: '#f1f5f9', borderColor: 'transparent' }}
+          className="rounded-lg mb-3"
+        />
         <Table
           rowKey="id"
           size="small"
           loading={loading}
-          dataSource={rules}
+          dataSource={filteredRules}
           columns={columns as any}
           pagination={false}
-          locale={{ emptyText: '暂无规则，点击「新增规则」添加' }}
+          locale={{ emptyText: ruleSearch ? `没有匹配「${ruleSearch}」的规则` : '暂无规则，点击「新增规则」添加' }}
         />
       </div>
 

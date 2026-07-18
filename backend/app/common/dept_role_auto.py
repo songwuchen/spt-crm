@@ -23,6 +23,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.dept_tree import subtree_prefix
 from app.database import generate_uuid, utcnow
 from app.domains.auth.models import UserRole, Role
 from app.domains.organization.models import Department, UserDepartment, DeptRoleRule
@@ -44,10 +45,11 @@ def _rule_matches(user_dept_ids: set[str], user_dept_paths: list[str],
     """
     if rule_dept_id in user_dept_ids:
         return True
-    if include_children and rule_dept_path:
-        # 只有像 "/销售中心/" 这样的合法路径才做前缀匹配，空串会误命中全部
-        prefix = rule_dept_path if rule_dept_path.endswith("/") else rule_dept_path + "/"
-        return any(p and p.startswith(prefix) for p in user_dept_paths)
+    if include_children:
+        # subtree_prefix 只对合法路径返回前缀，空串返回 None(否则会误命中全部)
+        prefix = subtree_prefix(rule_dept_path)
+        if prefix:
+            return any(p and p.startswith(prefix) for p in user_dept_paths)
     return False
 
 

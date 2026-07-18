@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Table, Select, DatePicker, Input, Button, message, Segmented } from 'antd'
+import { Table, Select, DatePicker, Input, Button, message, Segmented, Tabs, Spin, Alert } from 'antd'
 import { SearchOutlined, DownloadOutlined, UnorderedListOutlined, FieldTimeOutlined, ReloadOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import client from '@/api/client'
@@ -350,7 +350,10 @@ export default function AuditLogPage() {
   const [keyword, setKeyword] = useState('')
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
   const [stats, setStats] = useState<AuditStats | null>(null)
-  const [showStats, setShowStats] = useState(true)
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [statsError, setStatsError] = useState<string | null>(null)
+  const [statsDays, setStatsDays] = useState(30)
+  const [tab, setTab] = useState<'list' | 'stats'>('list')
   const [viewMode, setViewMode] = useState<'table' | 'timeline'>('table')
 
   const fetchData = async (
@@ -375,14 +378,27 @@ export default function AuditLogPage() {
     }
   }
 
-  const fetchStats = async () => {
+  const fetchStats = async (days = statsDays) => {
+    setStatsLoading(true)
+    setStatsError(null)
     try {
-      const res = await client.get<unknown, ApiResponse<AuditStats>>('/api/v1/audit_logs/statistics', { params: { days: 30 } })
+      const res = await client.get<unknown, ApiResponse<AuditStats>>('/api/v1/audit_logs/statistics', { params: { days } })
       setStats(res.data)
-    } catch { /* ignore */ }
+    } catch (e: any) {
+      // 不能静默吞掉：否则接口 500/403 会被渲染成「暂无统计数据」，看起来像真的没日志
+      setStatsError(e?.response?.data?.message || '统计数据加载失败')
+    } finally {
+      setStatsLoading(false)
+    }
   }
 
-  useEffect(() => { fetchData(); fetchStats() }, [])
+  useEffect(() => { fetchData() }, [])
+
+  // 统计接口只在首次切到「统计分析」时才拉，避免打开页面就多发一次重查询
+  const onTabChange = (key: string) => {
+    setTab(key as 'list' | 'stats')
+    if (key === 'stats' && !stats && !statsLoading) fetchStats()
+  }
 
   const doSearch = () => { setPageNo(1); fetchData(1) }
 
@@ -466,18 +482,52 @@ export default function AuditLogPage() {
           <p className="text-sm text-slate-500 mt-0.5">查看系统操作记录和变更历史</p>
         </div>
         <div className="flex gap-2">
-          <Button icon={<ReloadOutlined />} onClick={() => { fetchStats(); fetchData(pageNo) }}>刷新统计</Button>
-          <button onClick={() => setShowStats(!showStats)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold hover:bg-slate-200 transition-colors border-0 cursor-pointer">
-            <span className="material-symbols-outlined text-base">{showStats ? 'visibility_off' : 'bar_chart'}</span>
-            {showStats ? '隐藏统计' : '显示统计'}
-          </button>
+          <Button icon={<ReloadOutlined />} onClick={() => (tab === 'stats' ? fetchStats() : fetchData(pageNo))}>
+            刷新
+          </Button>
         </div>
       </div>
 
-      {/* Statistics Panel */}
-      {showStats && stats && (
+      {/* Tabs: 列表 / 分析 */}
+      <Tabs
+        activeKey={tab}
+        onChange={onTabChange}
+        items={[
+          { key: 'list', label: '日志列表' },
+          { key: 'stats', label: '统计分析' },
+        ]}
+      />
+
+      {/* ---------- 统计分析 ---------- */}
+      {tab === 'stats' && (statsLoading && !stats ? (
+        <div className="flex justify-center py-24"><Spin /></div>
+      ) : statsError ? (
+        <Alert
+          type="error"
+          showIcon
+          className="my-6"
+          message="统计数据加载失败"
+          description={statsError}
+          action={<Button size="small" onClick={() => fetchStats()}>重试</Button>}
+        />
+      ) : !stats ? (
+        <div className="text-center text-slate-400 text-sm py-24">暂无统计数据</div>
+      ) : (
         <div className="mb-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">统计区间</span>
+            <Segmented
+              size="small"
+              value={statsDays}
+              onChange={(v) => { setStatsDays(v as number); fetchStats(v as number) }}
+              options={[
+                { value: 7, label: '近 7 天' },
+                { value: 30, label: '近 30 天' },
+                { value: 90, label: '近 90 天' },
+              ]}
+            />
+            {statsLoading && <Spin size="small" />}
+          </div>
           {/* Summary Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
@@ -604,8 +654,10 @@ export default function AuditLogPage() {
             </div>
           )}
         </div>
-      )}
+      ))}
 
+      {/* ---------- 日志列表 ---------- */}
+      {tab === 'list' && (<>
       {/* Filters */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
         <div className="flex gap-3 flex-wrap items-center">
@@ -689,6 +741,7 @@ export default function AuditLogPage() {
           </div>
         )}
       </div>
+      </>)}
     </div>
   )
 }

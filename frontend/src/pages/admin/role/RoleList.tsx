@@ -27,6 +27,9 @@ export default function RoleList() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([])
   const [permSearch, setPermSearch] = useState('')
+  const [roleSearch, setRoleSearch] = useState('')
+  const [roleType, setRoleType] = useState<'system' | 'custom' | undefined>()
+  const [roleScope, setRoleScope] = useState<string | undefined>()
   const [editingRole, setEditingRole] = useState<Role | null>(null)
   const [form] = Form.useForm()
 
@@ -143,6 +146,18 @@ export default function RoleList() {
     setPermModal(false)
     fetchRoles()
   }
+
+  // 角色列表前端过滤（角色数量有限，列表本身也未分页）
+  const filteredRoles = useMemo(() => {
+    const kw = roleSearch.trim().toLowerCase()
+    return roles.filter((r) => {
+      if (kw && ![r.name, r.code, r.description].some((v) => (v || '').toLowerCase().includes(kw))) return false
+      if (roleType === 'system' && !r.is_system) return false
+      if (roleType === 'custom' && r.is_system) return false
+      if (roleScope && (r.data_scope || 'self') !== roleScope) return false
+      return true
+    })
+  }, [roles, roleSearch, roleType, roleScope])
 
   // Build permission matrix: group → { resource → action[] }
   const permGroups = useMemo(() => {
@@ -266,9 +281,43 @@ export default function RoleList() {
         </Space>
       </div>
 
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+        <div className="flex gap-3 items-center flex-wrap">
+          <Input
+            placeholder="搜索角色名称/编码/描述..."
+            prefix={<SearchOutlined className="text-slate-400" />}
+            value={roleSearch}
+            onChange={(e) => setRoleSearch(e.target.value)}
+            allowClear
+            style={{ width: 240, background: '#f1f5f9', borderColor: 'transparent' }}
+            className="rounded-lg"
+          />
+          <Select
+            placeholder="类型"
+            allowClear
+            style={{ width: 130 }}
+            value={roleType}
+            onChange={setRoleType}
+            options={[{ label: '系统内置', value: 'system' }, { label: '自定义', value: 'custom' }]}
+          />
+          <Select
+            placeholder="数据范围"
+            allowClear
+            style={{ width: 150 }}
+            value={roleScope}
+            onChange={setRoleScope}
+            options={DATA_SCOPE_OPTIONS}
+          />
+          <span className="text-sm text-slate-400 ml-auto">
+            共 {filteredRoles.length}{filteredRoles.length !== roles.length ? ` / ${roles.length}` : ''} 个角色
+          </span>
+        </div>
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={roles} pagination={false}
+        <Table rowKey="id" columns={columns} dataSource={filteredRoles} pagination={false}
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors" />
       </div>
 
@@ -329,12 +378,17 @@ export default function RoleList() {
                   <span className="text-sm font-bold uppercase tracking-widest text-slate-500">{group}</span>
                   <span className="text-[12px] text-slate-400 ml-auto">{checkedCount}/{groupIds.length}</span>
                 </div>
-                <div className="p-3 grid grid-cols-4 gap-2">
+                <div className="p-3 grid grid-cols-2 lg:grid-cols-3 gap-2">
                   {perms.map((p) => {
                     const checked = selectedPermIds.includes(p.id)
                     const action = p.code.split(':')[1]
+                    // 用权限全名(如「查看表单模板」)而不是动作名，否则同一分组下
+                    // 多个资源会全部显示成「查看」「管理」，分不清是哪一项。
+                    const label = p.name || actionLabels[action] || p.code
                     return (
-                      <label key={p.id}
+                      <label
+                        key={p.id}
+                        title={`${label} (${p.code})`}
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all
                           ${checked
                             ? 'border-primary/30 bg-primary/5 text-primary'
@@ -351,8 +405,9 @@ export default function RoleList() {
                             }
                           }}
                         />
-                        <span className="text-sm font-medium truncate">
-                          {actionLabels[action] || p.name}
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium truncate">{label}</span>
+                          <span className="block text-[11px] font-mono text-slate-400 truncate">{p.code}</span>
                         </span>
                       </label>
                     )

@@ -13,6 +13,8 @@ from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
+from app.common.dept_tree import subtree_dept_ids_select
+
 
 def _is_admin(user: dict) -> bool:
     perms = user.get("permissions", [])
@@ -50,13 +52,10 @@ async def resolve_owner_scope(db: AsyncSession, user: dict, tenant_id: str | Non
                 select(Department.path).where(
                     Department.id.in_(my_dept_ids), Department.tenant_id == tid)
             )).scalars().all()
-            # 子树（含本部门）：path 以本部门 path 为前缀的所有部门
-            conds = [Department.path.like(p + "%") for p in my_paths if p]
-            subtree_ids = set(my_dept_ids)
-            if conds:
-                subtree_ids |= set((await db.execute(
-                    select(Department.id).where(Department.tenant_id == tid, or_(*conds))
-                )).scalars().all())
+            # 子树（含本部门）：统一走 dept_tree 助手，内含空路径/LIKE 元字符/结尾斜杠防御
+            subtree_ids = set(my_dept_ids) | set((await db.execute(
+                subtree_dept_ids_select(tid, my_dept_ids, my_paths)
+            )).scalars().all())
             members = (await db.execute(
                 select(UserDepartment.user_id).where(
                     UserDepartment.department_id.in_(subtree_ids), UserDepartment.tenant_id == tid)

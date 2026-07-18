@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Table, Button, Modal, Form, Input, Select, TreeSelect, Space, message, Switch, Popconfirm, Upload, Alert, Radio } from 'antd'
 import { PlusOutlined, SearchOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { userApi, roleApi } from '@/api/user'
@@ -42,6 +42,9 @@ export default function UserList() {
   const [loading, setLoading] = useState(false)
   const [pageNo, setPageNo] = useState(1)
   const [keyword, setKeyword] = useState('')
+  const [filterRoleId, setFilterRoleId] = useState<string | undefined>()
+  const [filterDeptId, setFilterDeptId] = useState<string | undefined>()
+  const [filterActive, setFilterActive] = useState<boolean | undefined>()
   const [pageSize, setPageSize] = usePageSize('users')
   const [roles, setRoles] = useState<Role[]>([])
   const [deptTree, setDeptTree] = useState<Department[]>([])
@@ -49,6 +52,8 @@ export default function UserList() {
   const [modal, setModal] = useState(false)
   const [editingUser, setEditingUser] = useState<UserItem | null>(null)
   const [form] = Form.useForm()
+  // 部门树加载后就不再变，按引用缓存，避免每次输入关键字都递归重建整棵树
+  const deptTreeData = useMemo(() => toTreeData(deptTree), [deptTree])
 
   // Import state
   const [importModal, setImportModal] = useState(false)
@@ -84,10 +89,22 @@ export default function UserList() {
     }
   }
 
-  const fetchData = async (page = pageNo, kw = keyword) => {
+  // 当前筛选条件。overrides 用于 Select 的 onChange —— 那一刻 state 还没更新，
+  // 必须把新值直接传进来，否则会用上一次的旧值发请求。
+  const buildFilters = (overrides: Record<string, unknown> = {}) => ({
+    keyword: keyword || undefined,
+    role_id: filterRoleId,
+    dept_id: filterDeptId,
+    is_active: filterActive,
+    ...overrides,
+  })
+
+  // size 需显式传入：切换「每页条数」时 setPageSize 尚未生效，读 state 会拿到旧值，
+  // 导致分页器显示 50/页、实际却按 20 条请求。
+  const fetchData = async (page = pageNo, overrides: Record<string, unknown> = {}, size = pageSize) => {
     setLoading(true)
     try {
-      const res = await userApi.list({ pageNo: page, pageSize, keyword: kw || undefined })
+      const res = await userApi.list({ pageNo: page, pageSize: size, ...buildFilters(overrides) })
       setData(res.data.items)
       setTotal(res.data.total)
     } finally { setLoading(false) }
@@ -106,7 +123,17 @@ export default function UserList() {
 
   useEffect(() => { fetchData(); fetchRoles(); fetchDepts() }, [])
 
-  const doSearch = () => { setPageNo(1); fetchData(1, keyword) }
+  const doSearch = () => { setPageNo(1); fetchData(1) }
+
+  const resetFilters = () => {
+    setKeyword(''); setFilterRoleId(undefined); setFilterDeptId(undefined); setFilterActive(undefined)
+    setPageNo(1)
+    fetchData(1, { keyword: undefined, role_id: undefined, dept_id: undefined, is_active: undefined })
+  }
+
+  const activeFilterCount = [keyword, filterRoleId, filterDeptId, filterActive].filter(
+    (v) => v !== undefined && v !== '',
+  ).length
 
   const handleSubmit = async () => {
     const values = await form.validateFields()
@@ -129,7 +156,7 @@ export default function UserList() {
 
   const handleExport = async () => {
     try {
-      const res = await userApi.exportCsv(keyword || undefined) as unknown as Blob
+      const res = await userApi.exportCsv(buildFilters()) as unknown as Blob
       const url = URL.createObjectURL(res)
       const a = document.createElement('a')
       a.href = url
@@ -295,21 +322,56 @@ export default function UserList() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-3 items-center flex-wrap">
           <Input
-            placeholder="搜索用户名/姓名..."
+            placeholder="搜索用户名/姓名/手机/邮箱..."
             prefix={<SearchOutlined className="text-slate-400" />}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             onPressEnter={doSearch}
             allowClear
-            style={{ width: 220, background: '#f1f5f9', borderColor: 'transparent' }}
+            onClear={() => { setPageNo(1); fetchData(1, { keyword: undefined }) }}
+            style={{ width: 240, background: '#f1f5f9', borderColor: 'transparent' }}
             className="rounded-lg"
           />
-          <Button onClick={doSearch}>
+          <Select
+            placeholder="角色"
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            style={{ width: 160 }}
+            value={filterRoleId}
+            onChange={(v) => { setFilterRoleId(v); setPageNo(1); fetchData(1, { role_id: v }) }}
+            options={roles.map((r) => ({ label: r.name, value: r.id }))}
+          />
+          <TreeSelect
+            placeholder="部门"
+            allowClear
+            showSearch
+            treeNodeFilterProp="title"
+            treeDefaultExpandAll
+            style={{ width: 180 }}
+            value={filterDeptId}
+            onChange={(v) => { setFilterDeptId(v); setPageNo(1); fetchData(1, { dept_id: v }) }}
+            treeData={deptTreeData}
+          />
+          <Select
+            placeholder="状态"
+            allowClear
+            style={{ width: 110 }}
+            value={filterActive}
+            onChange={(v) => { setFilterActive(v); setPageNo(1); fetchData(1, { is_active: v }) }}
+            options={[{ label: '启用', value: true }, { label: '停用', value: false }]}
+          />
+          <Button type="primary" ghost onClick={doSearch}>
             <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
             筛选
           </Button>
+          {activeFilterCount > 0 && (
+            <Button type="link" onClick={resetFilters} className="px-1">
+              清空筛选 ({activeFilterCount})
+            </Button>
+          )}
         </div>
       </div>
 
@@ -321,8 +383,11 @@ export default function UserList() {
           pagination={{
             current: pageNo, total, pageSize, showTotal: (t) => `共 ${t} 条`,
             showSizeChanger: true, pageSizeOptions: ['20', '50', '100'],
-            onChange: (p) => { setPageNo(p); fetchData(p) },
-            onShowSizeChange: (_current, size) => { setPageSize(size); setPageNo(1); fetchData(1) },
+            // 改每页条数时 antd 会同时触发 onShowSizeChange 和 onChange。
+            // 只在 onChange 里发请求(它带着新的 size)，onShowSizeChange 仅负责持久化，
+            // 否则两次请求里后落地的那次会用上旧 pageSize 把结果覆盖回去。
+            onChange: (p, size) => { setPageNo(p); fetchData(p, {}, size) },
+            onShowSizeChange: (_current, size) => { setPageSize(size); setPageNo(1) },
           }}
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors"
         />
@@ -347,7 +412,7 @@ export default function UserList() {
           </Form.Item>
           <Form.Item name="department_ids" label="部门">
             <TreeSelect
-              treeData={toTreeData(deptTree)}
+              treeData={deptTreeData}
               multiple
               placeholder="选择部门"
               treeDefaultExpandAll

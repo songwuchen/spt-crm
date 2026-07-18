@@ -32,9 +32,9 @@ export const userApi = {
       { headers: { 'Content-Type': 'multipart/form-data' } },
     )
   },
-  exportCsv: (keyword?: string) =>
+  exportCsv: (params: Record<string, unknown> = {}) =>
     client.get('/api/admin/v1/tenant/users/export', {
-      params: keyword ? { keyword } : {},
+      params,
       responseType: 'blob',
     }),
   resetPassword: (id: string, newPassword: string) =>

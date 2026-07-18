@@ -92,11 +92,17 @@ async def list_users(
     pageNo: int = Query(1, ge=1),
     pageSize: int = Query(20, ge=1, le=100),
     keyword: str = Query(None),
+    role_id: str = Query(None, description="按角色筛选"),
+    dept_id: str = Query(None, description="按部门筛选(含下级部门)"),
+    is_active: Optional[bool] = Query(None, description="按启用状态筛选"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("user:view")),
 ):
-    items, total = await service.list_users(db, tenant_id, pageNo, pageSize, keyword)
+    items, total = await service.list_users(
+        db, tenant_id, pageNo, pageSize, keyword,
+        role_id=role_id, dept_id=dept_id, is_active=is_active,
+    )
     user_list = []
     for u in items:
         user_list.append({
@@ -133,11 +139,18 @@ async def create_user(
 @router.get("/users/export")
 async def export_users(
     keyword: str = Query(None),
+    role_id: str = Query(None),
+    dept_id: str = Query(None),
+    is_active: Optional[bool] = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("user:view")),
 ):
-    items, _ = await service.list_users(db, tenant_id, 1, 10000, keyword)
+    # 导出跟随列表当前筛选条件，避免「筛选后导出却拿到全量」
+    items, _ = await service.list_users(
+        db, tenant_id, 1, 10000, keyword,
+        role_id=role_id, dept_id=dept_id, is_active=is_active,
+    )
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["username", "real_name", "phone", "email", "role_codes", "department_names", "status"])
