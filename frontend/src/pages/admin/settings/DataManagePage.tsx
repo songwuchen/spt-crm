@@ -4,6 +4,7 @@ import { ExclamationCircleOutlined, DeleteOutlined, StopOutlined, CheckCircleOut
 import client from '@/api/client'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
+import Icon from '@/components/Icon'
 const { Title, Text, Paragraph } = Typography
 
 interface PurgeStatus {
@@ -170,7 +171,7 @@ export default function DataManagePage() {
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <Title level={3}>
-        <span className="material-symbols-outlined align-middle mr-2" style={{ fontSize: 28 }}>delete_sweep</span>
+        <Icon name="delete_sweep" className="align-middle mr-2" style={{ fontSize: 28 }} />
         数据管理
       </Title>
       <Paragraph type="secondary">管理租户数据的清理与维护操作。</Paragraph>

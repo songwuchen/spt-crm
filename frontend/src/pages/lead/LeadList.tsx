@@ -19,6 +19,7 @@ import dayjs from 'dayjs'
 import { t } from '@/locales'
 import { formatRegion } from '@/utils/address'
 
+import Icon from '@/components/Icon'
 const { RangePicker } = DatePicker
 
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
@@ -191,7 +192,7 @@ export default function LeadList() {
       render: (_, record) => (
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-sm text-slate-400">trending_up</span>
+            <Icon name="trending_up" className="text-sm text-slate-400" />
           </div>
           <div>
             <a onClick={() => navigate(`/leads/${record.id}`)} className="text-sm font-bold text-slate-900 hover:text-primary">
@@ -443,7 +444,7 @@ export default function LeadList() {
             <DepartmentSelect value={departmentId} onChange={setDepartmentId} placeholder="部门" />
           </div>
           <Button onClick={doSearch}>
-            <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
+            <Icon name="filter_list" className="text-sm mr-1" />
             {t('common.filter')}
           </Button>
           <ListToolbar resource="lead" view={view} onChange={() => setReload((r) => r + 1)} />

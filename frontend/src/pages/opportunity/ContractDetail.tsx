@@ -21,6 +21,7 @@ import DetailSkeleton from '@/components/DetailSkeleton'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import dayjs from 'dayjs'
 
+import Icon from '@/components/Icon'
 export default function ContractDetail() {
   usePageTitle('合同详情')
   const { id: projectId, cid } = useParams<{ id: string; cid: string }>()
@@ -445,7 +446,7 @@ export default function ContractDetail() {
             {
               title: '草稿',
               description: contract.status === 'draft' && !approvalFlow ? '当前' : '完成',
-              icon: <span className="material-symbols-outlined" style={{ fontSize: 20 }}>edit_document</span>,
+              icon: <Icon name="edit_document" style={{ fontSize: 20 }} />,
             },
             {
               title: '审批',
@@ -456,22 +457,20 @@ export default function ContractDetail() {
                   : approvalFlow.status === 'rejected' ? '已驳回'
                   : approvalFlow.status === 'withdrawn' ? '已撤回' : approvalFlow.status
                 : '待提交',
-              icon: <span className="material-symbols-outlined" style={{ fontSize: 20 }}>approval</span>,
+              icon: <Icon name="approval" style={{ fontSize: 20 }} />,
             },
             {
               title: '签章',
               description: contract.status === 'signed' ? '已签署' :
                 approvalFlow?.status === 'approved' ? '待签署' : '等待中',
-              icon: <span className="material-symbols-outlined" style={{ fontSize: 20 }}>draw</span>,
+              icon: <Icon name="draw" style={{ fontSize: 20 }} />,
             },
             {
               title: contract.status === 'terminated' ? '已终止' : '生效',
               description: contract.status === 'signed'
                 ? `${contract.signed_date || ''}`
                 : contract.status === 'terminated' ? '合同已终止' : '等待中',
-              icon: <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
-                {contract.status === 'terminated' ? 'cancel' : 'verified'}
-              </span>,
+              icon: <Icon name={contract.status === 'terminated' ? 'cancel' : 'verified'} style={{ fontSize: 20 }} />,
             },
           ]}
         />
@@ -487,9 +486,7 @@ export default function ContractDetail() {
                   t.status === 'pending' ? 'bg-blue-50 border-blue-200 text-blue-700' :
                   'bg-slate-50 border-slate-200 text-slate-500'
                 }`}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
-                    {t.status === 'approved' ? 'check_circle' : t.status === 'rejected' ? 'cancel' : t.status === 'pending' ? 'schedule' : 'more_horiz'}
-                  </span>
+                  <Icon name={t.status === 'approved' ? 'check_circle' : t.status === 'rejected' ? 'cancel' : t.status === 'pending' ? 'schedule' : 'more_horiz'} style={{ fontSize: 14 }} />
                   {t.assignee_name || '审批人'}
                   {t.comment && <span className="text-slate-400 ml-1">"{t.comment}"</span>}
                 </div>
@@ -515,7 +512,7 @@ export default function ContractDetail() {
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400">付款条款</h4>
               {canGenerate && (
-                <Button size="small" icon={<span className="material-symbols-outlined" style={{ fontSize: 16 }}>savings</span>}
+                <Button size="small" icon={<Icon name="savings" style={{ fontSize: 16 }} />}
                   onClick={openGenModal}>生成回款计划</Button>
               )}
             </div>
@@ -625,7 +622,7 @@ export default function ContractDetail() {
                             return (
                               <div key={i} className={`p-3 rounded-lg border ${rc.bg} ${rc.border}`}>
                                 <div className="flex items-center gap-2 mb-1">
-                                  <span className={`material-symbols-outlined text-sm ${rc.iconColor}`}>{rc.icon}</span>
+                                  <Icon name={rc.icon} className={`text-sm ${rc.iconColor}`} />
                                   <span className="text-sm font-bold text-slate-800">{c.clause}</span>
                                   <Tag color={c.risk === 'H' ? 'error' : c.risk === 'M' ? 'warning' : 'success'}>
                                     {rc.label}风险
@@ -682,7 +679,7 @@ export default function ContractDetail() {
               />
             ) : (
               <Button onClick={() => setShowSignPad(true)} className="border-dashed">
-                <span className="material-symbols-outlined text-sm mr-1">draw</span>
+                <Icon name="draw" className="text-sm mr-1" />
                 添加手写签名
               </Button>
             )}

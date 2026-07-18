@@ -32,6 +32,7 @@ import DepartmentSelect from '@/components/DepartmentSelect'
 import InternalNotes from '@/components/InternalNotes'
 import { PaymentTermsEditor, LineItemsEditor } from '@/components/ContractTerms'
 
+import Icon from '@/components/Icon'
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 
 const MEMBER_ROLE_OPTIONS = [
@@ -256,7 +257,7 @@ export default function OpportunityDetail() {
               </div>
               {failedRules.map((r: { name: string; message: string; fix_action?: string }, i: number) => (
                 <div key={i} className="flex items-start gap-2 p-3 bg-amber-50 rounded-lg border border-amber-100">
-                  <span className="material-symbols-outlined text-amber-500 mt-0.5" style={{ fontSize: 18 }}>warning</span>
+                  <Icon name="warning" className="text-amber-500 mt-0.5" style={{ fontSize: 18 }} />
                   <div className="flex-1">
                     <div className="text-sm font-bold text-slate-800">{r.name}</div>
                     <div className="text-sm text-slate-500 mt-0.5">{r.message}</div>
@@ -523,12 +524,12 @@ export default function OpportunityDetail() {
                 <span className="font-mono text-sm text-slate-400">#{project.project_code}</span>
                 {customer && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">business</span> {customer.name}
+                    <Icon name="business" className="text-sm" /> {customer.name}
                   </span>
                 )}
                 {project.owner_name && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">person</span> {project.owner_name}
+                    <Icon name="person" className="text-sm" /> {project.owner_name}
                   </span>
                 )}
               </div>
@@ -681,7 +682,7 @@ export default function OpportunityDetail() {
                 <div className="space-y-1.5 border-t border-slate-100 pt-3">
                   {healthScore.risks.map((r: string, i: number) => (
                     <div key={i} className="flex items-start gap-1.5 text-[13px] text-amber-600">
-                      <span className="material-symbols-outlined" style={{ fontSize: 14, marginTop: 1 }}>warning</span>
+                      <Icon name="warning" style={{ fontSize: 14, marginTop: 1 }} />
                       {r}
                     </div>
                   ))}
@@ -703,7 +704,7 @@ export default function OpportunityDetail() {
                 } catch { message.error('查询失败') }
                 finally { setSimilarLoading(false) }
               }}>
-                <span className="material-symbols-outlined text-sm mr-1">auto_awesome</span>
+                <Icon name="auto_awesome" className="text-sm mr-1" />
                 AI 匹配
               </Button>
             </div>
@@ -933,7 +934,7 @@ export default function OpportunityDetail() {
                           </div>
                           {delayed > 0 && (
                             <div className="mt-3 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                              <span className="material-symbols-outlined text-sm">warning</span>
+                              <Icon name="warning" className="text-sm" />
                               {delayed} 个里程碑已延迟，请关注交付风险
                             </div>
                           )}
@@ -1509,7 +1510,7 @@ export default function OpportunityDetail() {
                     <div className="space-y-1">
                       {((editingChange.impact_json as Record<string, unknown>).risk_summary as string[]).map((r: string, i: number) => (
                         <div key={i} className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                          <span className="material-symbols-outlined text-sm mt-px">warning</span>
+                          <Icon name="warning" className="text-sm mt-px" />
                           {r}
                         </div>
                       ))}

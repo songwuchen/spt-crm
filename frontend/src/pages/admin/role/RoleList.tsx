@@ -6,6 +6,7 @@ import type { RbacSyncPreview } from '@/api/user'
 import type { Role, PermissionItem } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
+import Icon from '@/components/Icon'
 const actionLabels: Record<string, string> = {
   view: '查看', create: '创建', edit: '编辑', delete: '删除',
   advance: '推进', sign: '签署', manage: '管理', export: '导出',
@@ -209,9 +210,7 @@ export default function RoleList() {
           <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
             record.is_system ? 'bg-primary/10 border border-primary/20' : 'bg-slate-100 border border-slate-200'
           }`}>
-            <span className={`material-symbols-outlined text-sm ${record.is_system ? 'text-primary' : 'text-slate-400'}`}>
-              {record.is_system ? 'verified_user' : 'shield'}
-            </span>
+            <Icon name={record.is_system ? 'verified_user' : 'shield'} className={`text-sm ${record.is_system ? 'text-primary' : 'text-slate-400'}`} />
           </div>
           <div>
             <div className="text-sm font-bold text-slate-900">{record.name}</div>
@@ -247,7 +246,7 @@ export default function RoleList() {
         <Space size={8}>
           <a className="text-slate-600 text-sm font-bold uppercase tracking-widest" onClick={() => openEditRole(record)}>编辑</a>
           <a className="text-primary text-sm font-bold uppercase tracking-widest flex items-center gap-1" onClick={() => openPermMatrix(record)}>
-            <span className="material-symbols-outlined text-sm">tune</span>
+            <Icon name="tune" className="text-sm" />
             配置权限
           </a>
           {!record.is_system && (

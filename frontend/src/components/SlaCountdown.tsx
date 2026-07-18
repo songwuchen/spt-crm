@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 
+import Icon from '@/components/Icon'
 interface SlaCountdownProps {
   label: string
   deadline?: string | null
@@ -36,9 +37,7 @@ export default function SlaCountdown({ label, deadline, completedAt }: SlaCountd
     const met = diff >= 0
     return (
       <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${met ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
-        <span className={`material-symbols-outlined ${met ? 'text-emerald-500' : 'text-red-500'}`} style={{ fontSize: 18 }}>
-          {met ? 'check_circle' : 'cancel'}
-        </span>
+        <Icon name={met ? 'check_circle' : 'cancel'} className={`${met ? 'text-emerald-500' : 'text-red-500'}`} style={{ fontSize: 18 }} />
         <div>
           <div className="text-[13px] text-slate-500 font-bold">{label}</div>
           <div className={`text-sm font-black ${met ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -69,7 +68,7 @@ export default function SlaCountdown({ label, deadline, completedAt }: SlaCountd
 
   return (
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${bgClass}`}>
-      <span className={`material-symbols-outlined ${textClass} ${!breached && !completedAt ? 'animate-pulse' : ''}`} style={{ fontSize: 18 }}>{icon}</span>
+      <Icon name={icon} className={`${textClass} ${!breached && !completedAt ? 'animate-pulse' : ''}`} style={{ fontSize: 18 }} />
       <div>
         <div className="text-[13px] text-slate-500 font-bold">{label}</div>
         <div className={`text-sm font-black tabular-nums ${textClass}`}>

@@ -7,6 +7,7 @@ import { stageLabels, riskLabels } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 
+import Icon from '@/components/Icon'
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 const STAGE_COLORS: Record<string, { bg: string; border: string; text: string; headerBg: string; dropBg: string }> = {
   S1: { bg: '#f8fafc', border: '#e2e8f0', text: '#475569', headerBg: '#f1f5f9', dropBg: '#e2e8f0' },
@@ -189,7 +190,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
             ]} />
           <button onClick={switchToTable}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>table_rows</span>
+            <Icon name="table_rows" style={{ fontSize: 18 }} />
             表格视图
           </button>
         </div>
@@ -278,7 +279,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
                       <div className="text-[13px] text-slate-400 font-mono mb-2">{card.project_code}</div>
                       {card.customer_name && (
                         <div className="text-[13px] text-slate-500 mb-1.5 flex items-center gap-1">
-                          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>business</span>
+                          <Icon name="business" style={{ fontSize: 13 }} />
                           {card.customer_name}
                         </div>
                       )}
@@ -301,7 +302,7 @@ export default function KanbanBoard({ onSwitchView }: KanbanBoardProps) {
                       </div>
                       {card.owner_name && (
                         <div className="mt-2 pt-2 border-t border-slate-100 text-[13px] text-slate-400 flex items-center gap-1">
-                          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>person</span>
+                          <Icon name="person" style={{ fontSize: 13 }} />
                           {card.owner_name}
                         </div>
                       )}

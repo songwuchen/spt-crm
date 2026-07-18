@@ -7,6 +7,7 @@ import type { Role, Department } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePageSize } from '@/hooks/usePageSize'
 
+import Icon from '@/components/Icon'
 interface UserItem {
   id: string; username: string; real_name: string
   phone?: string; email?: string; is_active: boolean
@@ -364,7 +365,7 @@ export default function UserList() {
             options={[{ label: '启用', value: true }, { label: '停用', value: false }]}
           />
           <Button type="primary" ghost onClick={doSearch}>
-            <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
+            <Icon name="filter_list" className="text-sm mr-1" />
             筛选
           </Button>
           {activeFilterCount > 0 && (

@@ -28,6 +28,7 @@ import { useDataDict } from '@/hooks/useDataDict'
 import InternalNotes from '@/components/InternalNotes'
 import ContactOrgChart from '@/components/ContactOrgChart'
 
+import Icon from '@/components/Icon'
 const roleTypeMap: Record<string, { label: string; color: string }> = {
   decision_maker: { label: '决策者', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
   influencer: { label: '影响者', color: 'bg-blue-50 text-blue-600 border-blue-100' },
@@ -156,7 +157,7 @@ export default function CustomerDetail() {
         <div className="flex items-center gap-1 flex-wrap">
           {v ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 text-primary text-[12px] font-bold">
-              <span className="material-symbols-outlined text-sm">star</span> 主要
+              <Icon name="star" className="text-sm" /> 主要
             </span>
           ) : null}
           {customer?.key_contact_id === record.id && (
@@ -242,14 +243,14 @@ export default function CustomerDetail() {
               <div className="flex items-center gap-4 text-sm text-slate-500">
                 {customer.industry && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">factory</span> {industryMap[customer.industry] || customer.industry}
+                    <Icon name="factory" className="text-sm" /> {industryMap[customer.industry] || customer.industry}
                   </span>
                 )}
                 {(() => {
                   const region = formatRegion(customer)
                   return region ? (
                     <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-sm">location_on</span> {region}
+                      <Icon name="location_on" className="text-sm" /> {region}
                     </span>
                   ) : null
                 })()}
@@ -300,7 +301,7 @@ export default function CustomerDetail() {
           <div key={s.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
             <div className="flex items-center gap-3 mb-2">
               <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${s.color}`}>
-                <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{s.icon}</span>
+                <Icon name={s.icon} style={{ fontSize: 20 }} />
               </div>
               <div>
                 <div className="text-[12px] uppercase font-bold tracking-wider text-slate-400">{s.label}</div>
@@ -355,7 +356,7 @@ export default function CustomerDetail() {
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-emerald-600" style={{ fontSize: 22 }}>emoji_events</span>
+              <Icon name="emoji_events" className="text-emerald-600" style={{ fontSize: 22 }} />
             </div>
             <div>
               <div className="text-[12px] uppercase font-bold tracking-wider text-slate-400">赢单率</div>
@@ -367,7 +368,7 @@ export default function CustomerDetail() {
           </div>
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-blue-600" style={{ fontSize: 22 }}>account_balance</span>
+              <Icon name="account_balance" className="text-blue-600" style={{ fontSize: 22 }} />
             </div>
             <div>
               <div className="text-[12px] uppercase font-bold tracking-wider text-slate-400">回款率</div>
@@ -378,7 +379,7 @@ export default function CustomerDetail() {
           </div>
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-full bg-violet-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-violet-600" style={{ fontSize: 22 }}>payments</span>
+              <Icon name="payments" className="text-violet-600" style={{ fontSize: 22 }} />
             </div>
             <div>
               <div className="text-[12px] uppercase font-bold tracking-wider text-slate-400">签约总额</div>
@@ -685,7 +686,7 @@ export default function CustomerDetail() {
                       <div className="flex items-center justify-between mb-4">
                         <div className="text-sm text-slate-500">该客户关联的商机 / 报价 / 合同 / 订单 / 标书 / 回款 / 工单 / 交付</div>
                         <Button
-                          icon={<span className="material-symbols-outlined text-sm mr-1">download</span>}
+                          icon={<Icon name="download" className="text-sm mr-1" />}
                           onClick={() => downloadFile(`/api/v1/customers/${id}/report/export`, `客户报告_${customer.name}.xlsx`)}
                         >
                           导出Excel

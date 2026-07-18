@@ -5,6 +5,7 @@ import { userApi } from '@/api/user'
 import type { ActivityItem } from '@/api/types'
 import VoiceInput from '@/components/VoiceInput'
 
+import Icon from '@/components/Icon'
 interface InternalNotesProps {
   bizType: string
   bizId: string
@@ -190,11 +191,11 @@ export default function InternalNotes({ bizType, bizId }: InternalNotesProps) {
                   <button onClick={() => handlePin(note.id)}
                     className={`p-1 rounded hover:bg-slate-100 ${note.pinned ? 'text-amber-500' : 'text-slate-300 hover:text-slate-500'}`}
                     title={note.pinned ? '取消置顶' : '置顶'}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>push_pin</span>
+                    <Icon name="push_pin" style={{ fontSize: 16 }} />
                   </button>
                   <Popconfirm title="确认删除？" onConfirm={() => handleDelete(note.id)} okText="删除" cancelText="取消">
                     <button className="p-1 rounded hover:bg-slate-100 text-slate-300 hover:text-red-500" title="删除">
-                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+                      <Icon name="delete" style={{ fontSize: 16 }} />
                     </button>
                   </Popconfirm>
                 </div>

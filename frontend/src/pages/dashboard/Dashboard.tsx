@@ -8,6 +8,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import type { ApprovalPendingItem } from '@/api/types'
 import { TrendChart, CollectionChart, RevenueChart, WinLossChart, FunnelChartPanel, LeaderboardChart, ContractExpiryPanel } from './DashboardCharts'
 
+import Icon from '@/components/Icon'
 interface Stats {
   customer_total: number
   lead_total: number
@@ -104,7 +105,7 @@ const KpiCard = memo(function KpiCard({ icon, label, value, trend, trendType, sp
   return (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
-        <span className="material-symbols-outlined text-primary text-xl">{icon}</span>
+        <Icon name={icon} className="text-primary text-xl" />
         <span className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
         {sparkData && sparkData.length >= 2 && (
           <span className="ml-auto"><Sparkline data={sparkData} color={sparkColor} /></span>
@@ -114,8 +115,8 @@ const KpiCard = memo(function KpiCard({ icon, label, value, trend, trendType, sp
         <span className="text-3xl font-black text-slate-900">{value}</span>
         {trend && trendType && (
           <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[13px] font-bold ${trendColors[trendType]}`}>
-            {trendType === 'up' && <span className="material-symbols-outlined text-sm">trending_up</span>}
-            {trendType === 'down' && <span className="material-symbols-outlined text-sm">trending_down</span>}
+            {trendType === 'up' && <Icon name="trending_up" className="text-sm" />}
+            {trendType === 'down' && <Icon name="trending_down" className="text-sm" />}
             {trend}
           </span>
         )}
@@ -131,7 +132,7 @@ const TaskRow = memo(function TaskRow({ icon, iconColor, label, count, urgent }:
     <div className={`flex items-center gap-3 p-3.5 rounded-lg border ${
       urgent ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'
     }`}>
-      <span className={`material-symbols-outlined ${iconColor}`}>{icon}</span>
+      <Icon name={icon} className={`${iconColor}`} />
       <span className="flex-1 text-sm font-medium text-slate-700">{label}</span>
       <span className={`text-sm font-bold ${urgent ? 'text-red-600' : 'text-slate-900'}`}>{count}</span>
     </div>
@@ -405,15 +406,15 @@ export default function Dashboard() {
                           const url = `${window.location.origin}/dashboard/shared/${s.share_token}`
                           navigator.clipboard.writeText(url).then(() => message.success('链接已复制'))
                         }} className="text-slate-400 hover:text-primary" title="复制链接">
-                          <span className="material-symbols-outlined text-base">content_copy</span>
+                          <Icon name="content_copy" className="text-base" />
                         </button>
                         <button onClick={() => navigate(`/dashboard/shared/${s.share_token}`)}
                           className="text-slate-400 hover:text-primary" title="查看">
-                          <span className="material-symbols-outlined text-base">visibility</span>
+                          <Icon name="visibility" className="text-base" />
                         </button>
                         <button onClick={() => handleDeleteSnapshot(s.id)}
                           className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100" title="删除">
-                          <span className="material-symbols-outlined text-base">delete</span>
+                          <Icon name="delete" className="text-base" />
                         </button>
                       </div>
                     ))}
@@ -424,23 +425,23 @@ export default function Dashboard() {
           >
             <button className="flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 transition-colors"
               title="分享快照">
-              <span className="material-symbols-outlined text-base">share</span>
+              <Icon name="share" className="text-base" />
             </button>
           </Popover>
           <button onClick={() => setSettingsOpen(true)}
             className="flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 transition-colors"
             title="看板设置">
-            <span className="material-symbols-outlined text-base">settings</span>
+            <Icon name="settings" className="text-base" />
           </button>
           <Select size="small" value={refreshInterval} onChange={setRefreshInterval}
             options={REFRESH_INTERVALS} style={{ width: 100 }}
-            suffixIcon={<span className="material-symbols-outlined text-sm">timer</span>} />
+            suffixIcon={<Icon name="timer" className="text-sm" />} />
           <span className="text-[12px] text-slate-400 hidden sm:inline">
             {lastRefresh.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 更新
           </span>
           <button onClick={() => { fetchData(); setLastRefresh(new Date()) }}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-colors">
-            <span className="material-symbols-outlined text-lg">refresh</span>
+            <Icon name="refresh" className="text-lg" />
             刷新
           </button>
         </div>
@@ -476,9 +477,9 @@ export default function Dashboard() {
               <div key={cardKey} {...dragProps} className={`mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
                 <div className="bg-gradient-to-r from-primary/5 to-blue-50 dark:from-slate-800 dark:to-slate-800 rounded-xl border border-primary/10 dark:border-slate-700 p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-primary">person</span>
+                    <Icon name="person" className="text-primary" />
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">我的概览</h3>
-                    <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
+                    <Icon name="drag_indicator" className="text-slate-300 ml-auto text-base cursor-grab" />
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <div className="text-center">
@@ -516,7 +517,7 @@ export default function Dashboard() {
                               <div key={p.id} role="button" tabIndex={0} onClick={() => navigate(`/opportunities/${p.id}`)}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/opportunities/${p.id}`) } }}
                                 className="flex items-center gap-2 p-2 rounded-lg bg-white/70 dark:bg-slate-700/50 border border-amber-100 dark:border-slate-600 cursor-pointer hover:shadow-sm transition-shadow">
-                                <span className="material-symbols-outlined text-amber-500 text-base">schedule</span>
+                                <Icon name="schedule" className="text-amber-500 text-base" />
                                 <span className="text-sm font-medium text-slate-800 flex-1 truncate">{p.name}</span>
                                 <span className="text-sm font-bold text-amber-600">{p.days_stalled}天未更新</span>
                               </div>
@@ -530,7 +531,7 @@ export default function Dashboard() {
                           <div className="space-y-1.5">
                             {myOv.expiring_contracts.map((c) => (
                               <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/70 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-600">
-                                <span className="material-symbols-outlined text-blue-500 text-base">description</span>
+                                <Icon name="description" className="text-blue-500 text-base" />
                                 <span className="text-sm font-medium text-slate-800 flex-1 truncate">{c.contract_no}</span>
                                 <span className="text-sm text-slate-500">¥{c.amount_total?.toLocaleString()}</span>
                               </div>
@@ -588,15 +589,15 @@ export default function Dashboard() {
               <div key={cardKey} {...dragProps} className={`mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-amber-500">pending_actions</span>
+                    <Icon name="pending_actions" className="text-amber-500" />
                     <h3 className="text-sm font-bold text-slate-900">待我审批</h3>
                     <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-sm font-bold">{pendingApprovals.length}</span>
-                    <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
+                    <Icon name="drag_indicator" className="text-slate-300 ml-auto text-base cursor-grab" />
                   </div>
                   <div className="space-y-2">
                     {pendingApprovals.map((item) => (
                       <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
-                        <span className="material-symbols-outlined text-amber-500">task_alt</span>
+                        <Icon name="task_alt" className="text-amber-500" />
                         <div className="flex-1">
                           <div className="text-sm font-bold text-slate-800">{item.flow?.title || item.flow?.biz_type}</div>
                           <div className="text-sm text-slate-500">
@@ -626,10 +627,10 @@ export default function Dashboard() {
               <div key={cardKey} {...dragProps} className={`mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-red-500">notifications_active</span>
+                    <Icon name="notifications_active" className="text-red-500" />
                     <h3 className="text-sm font-bold text-slate-900">风险预警</h3>
                     <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-sm font-bold">{alerts.length}</span>
-                    <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
+                    <Icon name="drag_indicator" className="text-slate-300 ml-auto text-base cursor-grab" />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                     {alerts.slice(0, 6).map((a, i) => {
@@ -655,7 +656,7 @@ export default function Dashboard() {
                         }} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:shadow-sm transition-shadow ${
                           a.severity === 'critical' ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'
                         }`}>
-                          <span className={`material-symbols-outlined ${t.color} mt-0.5`}>{t.icon}</span>
+                          <Icon name={t.icon} className={`${t.color} mt-0.5`} />
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-bold text-slate-800 truncate">{a.title}</div>
                             <div className="text-[13px] text-slate-500 truncate">{a.content}</div>
@@ -673,9 +674,9 @@ export default function Dashboard() {
               <div key={cardKey} {...dragProps} className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-blue-500">filter_alt</span>
+                    <Icon name="filter_alt" className="text-blue-500" />
                     <h3 className="text-sm font-bold text-slate-900">销售漏斗</h3>
-                    <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
+                    <Icon name="drag_indicator" className="text-slate-300 ml-auto text-base cursor-grab" />
                   </div>
                   {funnel.length > 0 ? (
                     <FunnelChartPanel funnel={funnel} />
@@ -685,7 +686,7 @@ export default function Dashboard() {
                 </div>
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-emerald-500">account_balance</span>
+                    <Icon name="account_balance" className="text-emerald-500" />
                     <h3 className="text-sm font-bold text-slate-900">回款概览</h3>
                   </div>
                   {paymentOv ? (
@@ -756,9 +757,9 @@ export default function Dashboard() {
               <div key={cardKey} {...dragProps} className={`mb-6 cursor-grab ${dragKey === cardKey ? 'opacity-50' : ''}`}>
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-indigo-500">verified</span>
+                    <Icon name="verified" className="text-indigo-500" />
                     <h3 className="text-sm font-bold text-slate-900">审批SLA概览</h3>
-                    <span className="material-symbols-outlined text-slate-300 ml-auto text-base cursor-grab">drag_indicator</span>
+                    <Icon name="drag_indicator" className="text-slate-300 ml-auto text-base cursor-grab" />
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                     <div className="text-center p-3 rounded-lg bg-slate-50">
@@ -814,7 +815,7 @@ export default function Dashboard() {
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary">calendar_today</span>
+                      <Icon name="calendar_today" className="text-primary" />
                       <h3 className="text-sm font-bold text-slate-900">今日任务</h3>
                     </div>
                     <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-sm font-bold">
@@ -829,13 +830,13 @@ export default function Dashboard() {
                 </div>
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-amber-500">bolt</span>
+                    <Icon name="bolt" className="text-amber-500" />
                     <h3 className="text-sm font-bold text-slate-900">快捷操作</h3>
                   </div>
                   <div className="space-y-2">
                     <button onClick={() => navigate('/customers/new')}
                       className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-slate-100 bg-slate-50 hover:border-primary/40 hover:bg-primary/5 transition-all text-left">
-                      <span className="material-symbols-outlined text-primary">add_business</span>
+                      <Icon name="add_business" className="text-primary" />
                       <div>
                         <div className="text-sm font-bold text-slate-800">新建客户</div>
                         <div className="text-[13px] text-slate-500">录入新的客户信息</div>
@@ -843,7 +844,7 @@ export default function Dashboard() {
                     </button>
                     <button onClick={() => navigate('/leads/new')}
                       className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-slate-100 bg-slate-50 hover:border-primary/40 hover:bg-primary/5 transition-all text-left">
-                      <span className="material-symbols-outlined text-emerald-600">add_circle</span>
+                      <Icon name="add_circle" className="text-emerald-600" />
                       <div>
                         <div className="text-sm font-bold text-slate-800">新建线索</div>
                         <div className="text-[13px] text-slate-500">创建新的销售线索</div>
@@ -851,7 +852,7 @@ export default function Dashboard() {
                     </button>
                     <button onClick={() => navigate('/opportunities/new')}
                       className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-slate-100 bg-slate-50 hover:border-primary/40 hover:bg-primary/5 transition-all text-left">
-                      <span className="material-symbols-outlined text-amber-500">rocket_launch</span>
+                      <Icon name="rocket_launch" className="text-amber-500" />
                       <div>
                         <div className="text-sm font-bold text-slate-800">新建商机</div>
                         <div className="text-[13px] text-slate-500">创建新的商机项目</div>
@@ -861,7 +862,7 @@ export default function Dashboard() {
                 </div>
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-amber-500">emoji_events</span>
+                    <Icon name="emoji_events" className="text-amber-500" />
                     <h3 className="text-sm font-bold text-slate-900">业绩排行</h3>
                   </div>
                   {leaderboard.length > 0 ? (
@@ -935,7 +936,7 @@ export default function Dashboard() {
                     ? 'border-primary/30 bg-primary/5'
                     : 'border-slate-100 hover:border-slate-200'
                 } ${dragKey === card.key ? 'opacity-50' : ''}`}>
-                <span className="material-symbols-outlined text-slate-300 text-base cursor-grab">drag_indicator</span>
+                <Icon name="drag_indicator" className="text-slate-300 text-base cursor-grab" />
                 <input type="checkbox" className="accent-primary w-4 h-4"
                   checked={cardVisibility[card.key] !== false}
                   onChange={(e) => {

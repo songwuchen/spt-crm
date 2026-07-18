@@ -470,3 +470,13 @@ input, textarea, select {
   padding: 7px 14px;
   margin-top: 2px;
 }
+
+/*
+ * 全站图标（components/Icon.tsx）默认字号。
+ * 用 class 而非内联样式，是为了保持与原 .material-symbols-outlined 相同的层叠行为：
+ * 调用方的 Tailwind text-sm / text-lg / text-5xl 等仍能正常覆盖这个默认值。
+ */
+.app-icon {
+  font-size: 24px;
+  line-height: 1;
+}

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { Button, Tooltip } from 'antd'
 
+import Icon from '@/components/Icon'
 interface VoiceInputProps {
   onResult: (text: string) => void
   className?: string
@@ -65,9 +66,7 @@ export default function VoiceInput({ onResult, className }: VoiceInputProps) {
         className={className}
         onClick={listening ? stop : start}
         icon={
-          <span className={`material-symbols-outlined ${listening ? 'animate-pulse' : ''}`} style={{ fontSize: 16 }}>
-            {listening ? 'stop_circle' : 'mic'}
-          </span>
+          <Icon name={listening ? 'stop_circle' : 'mic'} className={`${listening ? 'animate-pulse' : ''}`} style={{ fontSize: 16 }} />
         }
       />
     </Tooltip>

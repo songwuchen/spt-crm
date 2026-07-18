@@ -15,6 +15,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
 import { authApi } from '@/api/auth'
 
+import Icon from '@/components/Icon'
 const { Sider, Content } = Layout
 
 const breadcrumbNameMap: Record<string, string> = {
@@ -169,7 +170,7 @@ export default function MainLayout() {
       <Layout className="bg-bg-light dark:!bg-slate-900" style={{ height: '100vh', overflow: 'hidden' }}>
         {!online && (
           <div className="bg-amber-500 text-white text-sm font-bold text-center py-1 px-2 flex items-center justify-center gap-1">
-            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>cloud_off</span>
+            <Icon name="cloud_off" style={{ fontSize: 14 }} />
             网络已断开 — 部分功能可能不可用
           </div>
         )}

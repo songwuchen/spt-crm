@@ -9,6 +9,7 @@ import client from '@/api/client'
 import { t, useLocale, localeLabels, type LocaleCode } from '@/locales'
 import { useThemeStore } from '@/stores/useThemeStore'
 
+import Icon from '@/components/Icon'
 interface SearchResult {
   type: string
   id: string
@@ -133,9 +134,7 @@ export default function Header() {
           onClick={toggleSidebar}
           className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
         >
-          <span className="material-symbols-outlined text-xl">
-            {sidebarCollapsed ? 'menu_open' : 'menu'}
-          </span>
+          <Icon name={sidebarCollapsed ? 'menu_open' : 'menu'} className="text-xl" />
         </button>
         <div ref={searchRef} style={{ position: 'relative' }} data-tour="search">
           <Input
@@ -178,7 +177,7 @@ export default function Header() {
                         >
                           <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                             style={{ background: `${ti.color}15` }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 18, color: ti.color }}>{ti.icon}</span>
+                            <Icon name={ti.icon} style={{ fontSize: 18, color: ti.color }} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-semibold text-slate-800 truncate">{highlightMatch(r.title, searchText)}</div>
@@ -217,7 +216,7 @@ export default function Header() {
           placement="bottomRight"
         >
           <button className="flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-100 text-sm font-bold text-slate-500 transition-colors">
-            <span className="material-symbols-outlined text-base">translate</span>
+            <Icon name="translate" className="text-base" />
             <span className="hidden sm:inline">{locale === 'zh-CN' ? '中文' : 'EN'}</span>
           </button>
         </Dropdown>
@@ -228,9 +227,7 @@ export default function Header() {
           title={theme === 'dark' ? '浅色模式' : '深色模式'}
           data-tour="theme"
         >
-          <span className="material-symbols-outlined text-lg">
-            {theme === 'dark' ? 'light_mode' : 'dark_mode'}
-          </span>
+          <Icon name={theme === 'dark' ? 'light_mode' : 'dark_mode'} className="text-lg" />
         </button>
 
         <span data-tour="notifications"><NotificationBell /></span>

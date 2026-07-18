@@ -16,6 +16,7 @@ import { useListView } from '@/hooks/useListView'
 import { usePageSize } from '@/hooks/usePageSize'
 import ListToolbar from '@/components/list/ListToolbar'
 
+import Icon from '@/components/Icon'
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 
 export default function OpportunityList() {
@@ -230,7 +231,7 @@ export default function OpportunityList() {
           <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/projects/export/excel', 'projects.xlsx')}>{t('common.export')}</Button>
           <button onClick={() => navigate('/opportunities/kanban')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>view_kanban</span>
+            <Icon name="view_kanban" style={{ fontSize: 18 }} />
             {t('common.kanban')}
           </button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/opportunities/new')}
@@ -252,7 +253,7 @@ export default function OpportunityList() {
             onChange={(v) => { setStatus(v); setPageNo(1); fetchData(1, keyword, stageCode, v) }}
             options={Object.entries(statusMap).map(([k, v]) => ({ label: v.label, value: k }))} />
           <Button onClick={doSearch}>
-            <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
+            <Icon name="filter_list" className="text-sm mr-1" />
             {t('common.filter')}
           </Button>
           <ListToolbar resource="project" view={view} onChange={() => setReload((r) => r + 1)} />

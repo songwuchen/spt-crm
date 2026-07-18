@@ -5,6 +5,7 @@ import { menuGroups, PROTECTED_MENU_KEYS } from '@/config/menus'
 import { useUiSettingsStore, type UiSettings } from '@/stores/useUiSettingsStore'
 import { t } from '@/locales'
 
+import Icon from '@/components/Icon'
 export default function UiSettingsTab() {
   const applyStore = useUiSettingsStore((s) => s.apply)
   const [loading, setLoading] = useState(true)
@@ -96,7 +97,7 @@ export default function UiSettingsTab() {
             <div key={group.key} className="border border-slate-200 rounded-xl overflow-hidden">
               {/* 分组头 */}
               <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
-                <span className="material-symbols-outlined text-slate-400 text-lg">folder</span>
+                <Icon name="folder" className="text-slate-400 text-lg" />
                 <Input
                   size="small"
                   value={aliases[group.key] ?? ''}
@@ -116,7 +117,7 @@ export default function UiSettingsTab() {
                   const isProtected = PROTECTED_MENU_KEYS.includes(item.key)
                   return (
                     <div key={item.key} className="flex items-center gap-3 px-4 py-2 border-b border-slate-100 last:border-b-0">
-                      <span className="material-symbols-outlined text-slate-300 text-base">{item.icon}</span>
+                      <Icon name={item.icon} className="text-slate-300 text-base" />
                       <span className="text-sm text-slate-600 w-24 shrink-0">{t(item.labelKey)}</span>
                       <Input
                         size="small"

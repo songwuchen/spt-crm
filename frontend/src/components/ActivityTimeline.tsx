@@ -11,6 +11,7 @@ import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import VoiceInput from '@/components/VoiceInput'
 import dayjs from 'dayjs'
 
+import Icon from '@/components/Icon'
 const { TextArea } = Input
 
 const typeConfig: Record<string, { label: string; icon: string; color: string }> = {
@@ -117,7 +118,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId, openCreat
           } catch { message.error('AI 总结失败') }
           finally { setSummaryLoading(false) }
         }}>
-          <span className="material-symbols-outlined text-sm mr-1">auto_awesome</span>
+          <Icon name="auto_awesome" className="text-sm mr-1" />
           AI 总结
         </Button>
         <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setModal(true)}>
@@ -130,7 +131,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId, openCreat
       {aiSummary && (
         <div className="mb-6 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl border border-indigo-100 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <span className="material-symbols-outlined text-indigo-500" style={{ fontSize: 18 }}>auto_awesome</span>
+            <Icon name="auto_awesome" className="text-indigo-500" style={{ fontSize: 18 }} />
             <span className="text-sm font-bold uppercase tracking-wider text-indigo-500">AI 智能总结</span>
           </div>
           <p className="text-sm text-slate-700 mb-3">{aiSummary.summary}</p>
@@ -171,7 +172,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId, openCreat
                   className="absolute -left-8 top-1 w-[26px] h-[26px] rounded-full flex items-center justify-center border-2 border-white shadow-sm"
                   style={{ background: cfg.color }}
                 >
-                  <span className="material-symbols-outlined text-white" style={{ fontSize: 14 }}>{cfg.icon}</span>
+                  <Icon name={cfg.icon} className="text-white" style={{ fontSize: 14 }} />
                 </div>
 
                 {/* Card */}
@@ -191,7 +192,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId, openCreat
                     <div className="flex items-center gap-3 text-sm text-slate-400">
                       {item.contact_name && (
                         <span className="flex items-center gap-1">
-                          <span className="material-symbols-outlined text-sm">person</span>
+                          <Icon name="person" className="text-sm" />
                           {item.contact_name}
                         </span>
                       )}
@@ -206,13 +207,13 @@ export default function ActivityTimeline({ bizType, bizId, customerId, openCreat
                       <span className="text-sm text-slate-400">{item.created_by_name || '系统'}</span>
                       {(item as any).mentions_json?.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-[12px] text-blue-500">
-                          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>alternate_email</span>
+                          <Icon name="alternate_email" style={{ fontSize: 12 }} />
                           {(item as any).mentions_json.map((m: any) => m.user_name).join(', ')}
                         </span>
                       )}
                       {item.next_follow_date && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-100 text-[12px] font-bold text-amber-600">
-                          <span className="material-symbols-outlined" style={{ fontSize: 12 }}>event</span>
+                          <Icon name="event" style={{ fontSize: 12 }} />
                           下次跟进: {item.next_follow_date}
                         </span>
                       )}
@@ -221,9 +222,7 @@ export default function ActivityTimeline({ bizType, bizId, customerId, openCreat
                       onClick={() => setExpandedId(isExpanded ? null : item.id)}
                       className="text-sm text-slate-400 hover:text-primary"
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                        {isExpanded ? 'expand_less' : 'attach_file'}
-                      </span>
+                      <Icon name={isExpanded ? 'expand_less' : 'attach_file'} style={{ fontSize: 16 }} />
                     </button>
                   </div>
                   {isExpanded && (

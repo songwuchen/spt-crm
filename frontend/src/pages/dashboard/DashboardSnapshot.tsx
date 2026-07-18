@@ -4,6 +4,7 @@ import { message, Spin } from 'antd'
 import { dashboardApi } from '@/api/dashboard'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
+import Icon from '@/components/Icon'
 interface SnapshotData {
   title: string
   created_by_name: string
@@ -50,7 +51,7 @@ export default function DashboardSnapshot() {
   if (error || !data) {
     return (
       <div className="text-center py-20">
-        <span className="material-symbols-outlined text-5xl text-slate-300 mb-4 block">link_off</span>
+        <Icon name="link_off" className="text-5xl text-slate-300 mb-4 block" />
         <h2 className="text-lg font-bold text-slate-600 mb-2">{error || '快照不存在'}</h2>
         <button onClick={() => navigate('/')} className="text-primary text-sm font-bold hover:underline">返回工作台</button>
       </div>
@@ -71,7 +72,7 @@ export default function DashboardSnapshot() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="material-symbols-outlined text-primary text-xl">photo_camera</span>
+            <Icon name="photo_camera" className="text-primary text-xl" />
             <h1 className="text-2xl font-extrabold text-slate-900">{data.title}</h1>
           </div>
           <p className="text-sm text-slate-500">
@@ -104,7 +105,7 @@ export default function DashboardSnapshot() {
         ].map((kpi) => (
           <div key={kpi.label} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
-              <span className="material-symbols-outlined text-primary text-lg">{kpi.icon}</span>
+              <Icon name={kpi.icon} className="text-primary text-lg" />
               <span className="text-[12px] font-bold uppercase tracking-wider text-slate-400">{kpi.label}</span>
             </div>
             <div className="text-2xl font-black text-slate-900">{kpi.value}</div>
@@ -116,7 +117,7 @@ export default function DashboardSnapshot() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-blue-500">filter_alt</span>
+            <Icon name="filter_alt" className="text-blue-500" />
             <h3 className="text-sm font-bold text-slate-900">销售漏斗</h3>
           </div>
           {funnel.length > 0 ? (
@@ -141,7 +142,7 @@ export default function DashboardSnapshot() {
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-emerald-500">account_balance</span>
+            <Icon name="account_balance" className="text-emerald-500" />
             <h3 className="text-sm font-bold text-slate-900">回款概览</h3>
           </div>
           {paymentOv ? (
@@ -174,7 +175,7 @@ export default function DashboardSnapshot() {
         {approvalStats && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <div className="flex items-center gap-2 mb-4">
-              <span className="material-symbols-outlined text-indigo-500">verified</span>
+              <Icon name="verified" className="text-indigo-500" />
               <h3 className="text-sm font-bold text-slate-900">审批SLA概览</h3>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -201,7 +202,7 @@ export default function DashboardSnapshot() {
         {leaderboard.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <div className="flex items-center gap-2 mb-4">
-              <span className="material-symbols-outlined text-amber-500">emoji_events</span>
+              <Icon name="emoji_events" className="text-amber-500" />
               <h3 className="text-sm font-bold text-slate-900">业绩排行</h3>
             </div>
             <div className="space-y-2">

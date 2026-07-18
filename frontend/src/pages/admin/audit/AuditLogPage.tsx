@@ -8,6 +8,7 @@ import type { Dayjs } from 'dayjs'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DataView from '@/components/DataView'
 
+import Icon from '@/components/Icon'
 const { RangePicker } = DatePicker
 
 const actionConfig: Record<string, { label: string; bg: string; text: string; border: string; icon: string }> = {
@@ -90,7 +91,7 @@ function DiffView({ detail }: { detail: Record<string, unknown> }) {
           <div key={i} className="flex items-start gap-2 text-sm">
             <span className="font-bold text-slate-600 min-w-[80px]">{c.field}</span>
             <span className="text-red-500 line-through">{String(c.old ?? '-')}</span>
-            <span className="material-symbols-outlined text-sm text-slate-400">arrow_forward</span>
+            <Icon name="arrow_forward" className="text-sm text-slate-400" />
             <span className="text-emerald-600 font-medium">{String(c.new ?? '-')}</span>
           </div>
         ))}
@@ -315,7 +316,7 @@ function TimelineView({ data, actionCfg }: { data: AuditLog[]; actionCfg: typeof
         return (
           <div key={log.id} className="flex items-start gap-3 py-2 px-3 hover:bg-slate-50 rounded-lg transition-colors">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${cfg?.bg || 'bg-slate-100'} ${cfg?.text || 'text-slate-500'}`}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{cfg?.icon || 'info'}</span>
+              <Icon name={cfg?.icon || 'info'} style={{ fontSize: 16 }} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -445,7 +446,7 @@ export default function AuditLogPage() {
         const cfg = actionConfig[v]
         return cfg ? (
           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[12px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-            <span className="material-symbols-outlined text-sm">{cfg.icon}</span>
+            <Icon name={cfg.icon} className="text-sm" />
             {cfg.label}
           </span>
         ) : v
@@ -695,7 +696,7 @@ export default function AuditLogPage() {
             }}
           />
           <Button onClick={doSearch}>
-            <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
+            <Icon name="filter_list" className="text-sm mr-1" />
             筛选
           </Button>
           <Button icon={<DownloadOutlined />} onClick={handleExport}>导出Excel</Button>

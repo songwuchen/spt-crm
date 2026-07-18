@@ -7,6 +7,7 @@ import client from '@/api/client'
 import type { SessionItem } from '@/api/auth'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
+import Icon from '@/components/Icon'
 const deviceIcons: Record<string, { icon: string; label: string }> = {
   desktop: { icon: 'computer', label: '桌面端' },
   mobile: { icon: 'smartphone', label: '移动端' },
@@ -312,7 +313,7 @@ export default function ProfilePage() {
                     <div key={s.id} className={`flex items-center gap-3 p-3 rounded-lg border ${
                       s.is_current ? 'bg-primary/5 border-primary/20' : 'bg-slate-50 border-slate-100'
                     }`}>
-                      <span className="material-symbols-outlined text-xl text-slate-500">{dev.icon}</span>
+                      <Icon name={dev.icon} className="text-xl text-slate-500" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold text-slate-800">{dev.label}</span>

@@ -5,6 +5,7 @@ import { contractApi } from '@/api/contract'
 import { Column, Line, Pie, Funnel as FunnelChart } from '@ant-design/charts'
 import { dashboardApi } from '@/api/dashboard'
 
+import Icon from '@/components/Icon'
 interface TrendItem {
   label: string; new: number; won: number; lost: number; won_amount: number
 }
@@ -42,7 +43,7 @@ export function TrendChart() {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-blue-500">show_chart</span>
+        <Icon name="show_chart" className="text-blue-500" />
         <h3 className="text-sm font-bold text-slate-900">商机月度趋势</h3>
       </div>
       {data.length > 0 ? (
@@ -81,7 +82,7 @@ export function CollectionChart() {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-emerald-500">bar_chart</span>
+        <Icon name="bar_chart" className="text-emerald-500" />
         <h3 className="text-sm font-bold text-slate-900">回款月度分析（万元）</h3>
       </div>
       {data.length > 0 ? (
@@ -114,7 +115,7 @@ export function RevenueChart() {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-amber-500">trending_up</span>
+        <Icon name="trending_up" className="text-amber-500" />
         <h3 className="text-sm font-bold text-slate-900">月度回款额（万元）</h3>
       </div>
       {data.length > 0 ? (
@@ -150,7 +151,7 @@ export function WinLossChart() {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-emerald-500">pie_chart</span>
+        <Icon name="pie_chart" className="text-emerald-500" />
         <h3 className="text-sm font-bold text-slate-900">赢单/丢单</h3>
         <span className="ml-auto text-sm font-bold text-emerald-600">赢率 {data.win_rate}%</span>
       </div>
@@ -240,7 +241,7 @@ export function ContractExpiryPanel() {
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-red-500">event_busy</span>
+          <Icon name="event_busy" className="text-red-500" />
           <h3 className="text-sm font-bold text-slate-900">合同到期预警</h3>
           {items.length > 0 && (
             <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-sm font-bold">{items.length}</span>

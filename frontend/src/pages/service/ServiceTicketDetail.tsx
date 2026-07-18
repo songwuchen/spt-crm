@@ -17,6 +17,7 @@ import SlaCountdown from '@/components/SlaCountdown'
 import InternalNotes from '@/components/InternalNotes'
 import DataView from '@/components/DataView'
 
+import Icon from '@/components/Icon'
 const { TextArea } = Input
 const statusFlow: Record<string, string[]> = {
   open: ['assigned', 'in_progress'],
@@ -204,7 +205,7 @@ export default function ServiceTicketDetail() {
           {/* Description */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-              <span className="material-symbols-outlined text-slate-400" style={{ fontSize: 18 }}>description</span>
+              <Icon name="description" className="text-slate-400" style={{ fontSize: 18 }} />
               问题描述
             </h3>
             <p className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.description || '暂无描述'}</p>
@@ -215,7 +216,7 @@ export default function ServiceTicketDetail() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-indigo-500" style={{ fontSize: 18 }}>inventory_2</span>
+                  <Icon name="inventory_2" className="text-indigo-500" style={{ fontSize: 18 }} />
                   关联订单 · 产品信息
                 </h3>
                 <a className="text-primary text-sm font-bold" onClick={() => navigate('/orders')}>
@@ -240,7 +241,7 @@ export default function ServiceTicketDetail() {
           {/* Resolution */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-              <span className="material-symbols-outlined text-emerald-500" style={{ fontSize: 18 }}>check_circle</span>
+              <Icon name="check_circle" className="text-emerald-500" style={{ fontSize: 18 }} />
               解决方案
             </h3>
             <p className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.resolution || '暂未填写'}</p>
@@ -250,7 +251,7 @@ export default function ServiceTicketDetail() {
           {(ticket.status === 'resolved' || ticket.status === 'closed') && (
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
               <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <span className="material-symbols-outlined text-amber-500" style={{ fontSize: 18 }}>star</span>
+                <Icon name="star" className="text-amber-500" style={{ fontSize: 18 }} />
                 满意度评价
               </h3>
               {ticket.satisfaction_score ? (
@@ -292,7 +293,7 @@ export default function ServiceTicketDetail() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <span className="material-symbols-outlined text-blue-500" style={{ fontSize: 18 }}>menu_book</span>
+                <Icon name="menu_book" className="text-blue-500" style={{ fontSize: 18 }} />
                 知识库
               </h3>
               <Button size="small" onClick={() => setKbOpen(!kbOpen)}>{kbOpen ? '收起' : '搜索类似工单'}</Button>
@@ -333,7 +334,7 @@ export default function ServiceTicketDetail() {
           {/* Internal Notes */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-              <span className="material-symbols-outlined text-amber-500" style={{ fontSize: 18 }}>sticky_note_2</span>
+              <Icon name="sticky_note_2" className="text-amber-500" style={{ fontSize: 18 }} />
               内部备忘
             </h3>
             <InternalNotes bizType="service_ticket" bizId={id!} />
@@ -379,7 +380,7 @@ export default function ServiceTicketDetail() {
           {ticket.ai_summary_json && (
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
               <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <span className="material-symbols-outlined text-purple-500" style={{ fontSize: 18 }}>psychology</span>
+                <Icon name="psychology" className="text-purple-500" style={{ fontSize: 18 }} />
                 AI 摘要
               </h3>
               <DataView value={ticket.ai_summary_json} />

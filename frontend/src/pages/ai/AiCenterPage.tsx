@@ -7,6 +7,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DataView from '@/components/DataView'
 
+import Icon from '@/components/Icon'
 const { TextArea } = Input
 
 const taskTypeLabels: Record<string, string> = {
@@ -197,7 +198,7 @@ export default function AiCenterPage() {
         ].map((card) => (
           <div key={card.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
             <div className={`w-10 h-10 rounded-lg ${card.color} flex items-center justify-center`}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{card.icon}</span>
+              <Icon name={card.icon} style={{ fontSize: 20 }} />
             </div>
             <div>
               <div className="text-2xl font-black text-slate-900">{card.value}</div>

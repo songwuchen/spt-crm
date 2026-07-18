@@ -4,9 +4,10 @@ import EmptyState from '../EmptyState'
 
 describe('EmptyState', () => {
   it('renders with default props', () => {
-    render(<EmptyState />)
+    const { container } = render(<EmptyState />)
     expect(screen.getByText('暂无数据')).toBeInTheDocument()
-    expect(screen.getByText('inbox')).toBeInTheDocument()
+    // 图标现为 antd 内联 SVG(inbox -> InboxOutlined),不再是 Material Symbols 连字文本
+    expect(container.querySelector('.anticon-inbox')).toBeInTheDocument()
   })
 
   it('renders custom title', () => {
@@ -15,8 +16,8 @@ describe('EmptyState', () => {
   })
 
   it('renders custom icon', () => {
-    render(<EmptyState icon="search_off" />)
-    expect(screen.getByText('search_off')).toBeInTheDocument()
+    const { container } = render(<EmptyState icon="search_off" />)
+    expect(container.querySelector('.anticon-search')).toBeInTheDocument()
   })
 
   it('renders description when provided', () => {

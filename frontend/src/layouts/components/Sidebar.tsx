@@ -4,6 +4,7 @@ import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
 import { menuGroups, PROTECTED_MENU_KEYS } from '@/config/menus'
 import { t } from '@/locales'
 
+import Icon from '@/components/Icon'
 function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/customers/)) return '/customers'
   if (pathname.match(/^\/customer-pool/)) return '/customer-pool'
@@ -90,7 +91,7 @@ export default function Sidebar() {
                       onClick={() => navigate(item.key)}
                       className={`sidebar-item ${isActive ? 'sidebar-item--active' : ''}`}
                     >
-                      <span className="material-symbols-outlined sidebar-item-icon">{item.icon}</span>
+                      <Icon name={item.icon} className="sidebar-item-icon" />
                       <span className="sidebar-item-label">{menuAliases[item.key] || t(item.labelKey)}</span>
                     </button>
                   )
@@ -105,7 +106,7 @@ export default function Sidebar() {
       <div className="sidebar-footer">
         <div className="sidebar-ai-panel">
           <div className="sidebar-ai-header">
-            <span className="material-symbols-outlined sidebar-ai-icon">insights</span>
+            <Icon name="insights" className="sidebar-ai-icon" />
             <span className="sidebar-ai-title">AI 智能监控</span>
           </div>
           <p className="sidebar-ai-desc">

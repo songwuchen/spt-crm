@@ -8,6 +8,7 @@ import type { ActivityItem } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import dayjs from 'dayjs'
 
+import Icon from '@/components/Icon'
 const { TextArea } = Input
 
 const activityTypeConfig: Record<string, { label: string; color: string; icon: string }> = {
@@ -160,7 +161,7 @@ export default function FollowUpPage() {
                 const cfg = activityTypeConfig[v]
                 return cfg ? (
                   <Tag color={cfg.color}>
-                    <span className="material-symbols-outlined text-sm mr-0.5" style={{ verticalAlign: 'text-bottom' }}>{cfg.icon}</span>
+                    <Icon name={cfg.icon} className="text-sm mr-0.5" style={{ verticalAlign: 'text-bottom' }} />
                     {cfg.label}
                   </Tag>
                 ) : v

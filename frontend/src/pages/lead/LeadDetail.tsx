@@ -16,6 +16,7 @@ import { useDataDict } from '@/hooks/useDataDict'
 import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import { formatRegion } from '@/utils/address'
 
+import Icon from '@/components/Icon'
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
 const countryLabels: Record<string, string> = { domestic: '国内', overseas: '国外' }
 
@@ -52,7 +53,7 @@ function ScoreGauge({ score }: { score: number }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
       <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-primary text-lg">auto_awesome</span>
+        <Icon name="auto_awesome" className="text-primary text-lg" />
         <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400">AI 线索评分</h3>
       </div>
       <div className="flex items-center gap-4 mb-3">
@@ -208,7 +209,7 @@ export default function LeadDetail() {
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-5">
             <div className="w-16 h-16 rounded-xl bg-primary/5 border border-primary/10 shadow-sm flex items-center justify-center">
-              <span className="material-symbols-outlined text-2xl text-primary">trending_up</span>
+              <Icon name="trending_up" className="text-2xl text-primary" />
             </div>
             <div>
               <div className="flex items-center gap-3 mb-1">
@@ -219,7 +220,7 @@ export default function LeadDetail() {
                 </span>
                 {reviewCfg && (
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${reviewCfg.bg} ${reviewCfg.text} ${reviewCfg.border}`}>
-                    <span className="material-symbols-outlined text-sm">{reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'}</span>
+                    <Icon name={reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'} className="text-sm" />
                     {reviewCfg.label}
                   </span>
                 )}
@@ -227,18 +228,18 @@ export default function LeadDetail() {
               <div className="flex items-center gap-4 text-sm text-slate-500">
                 {lead.company_name && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">business</span> {lead.company_name}
+                    <Icon name="business" className="text-sm" /> {lead.company_name}
                   </span>
                 )}
                 {lead.industry && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">factory</span>
+                    <Icon name="factory" className="text-sm" />
                     {industryDict.options.find(o => o.value === lead.industry)?.label || lead.industry}
                   </span>
                 )}
                 {formatLocation(lead) && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">location_on</span> {formatLocation(lead)}
+                    <Icon name="location_on" className="text-sm" /> {formatLocation(lead)}
                   </span>
                 )}
               </div>
@@ -250,7 +251,7 @@ export default function LeadDetail() {
                 <Button icon={<EditOutlined />} onClick={() => navigate(`/leads/${id}/edit`)}>编辑</Button>
                 {reviewStatus === 'rejected' && (
                   <Button type="primary" onClick={handleResubmit}>
-                    <span className="material-symbols-outlined text-sm mr-1">restart_alt</span>
+                    <Icon name="restart_alt" className="text-sm mr-1" />
                     重新提交审核
                   </Button>
                 )}
@@ -259,12 +260,12 @@ export default function LeadDetail() {
                     type="primary"
                     onClick={handleQualify}
                   >
-                    <span className="material-symbols-outlined text-sm mr-1">check_circle</span>
+                    <Icon name="check_circle" className="text-sm mr-1" />
                     转化为客户
                   </Button>
                 )}
                 <Button danger onClick={handleDiscard}>
-                  <span className="material-symbols-outlined text-sm mr-1">block</span>
+                  <Icon name="block" className="text-sm mr-1" />
                   废弃
                 </Button>
               </>
@@ -299,7 +300,7 @@ export default function LeadDetail() {
                     <div className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                       isCurrent ? 'bg-primary/10 text-primary' : isActive ? 'text-emerald-600' : 'text-slate-300'
                     }`}>
-                      <span className="material-symbols-outlined text-lg">{step.icon}</span>
+                      <Icon name={step.icon} className="text-lg" />
                       <span className="text-sm font-bold uppercase tracking-wider">{step.label}</span>
                     </div>
                     {idx < qualifySteps.length - 1 && (
@@ -317,7 +318,7 @@ export default function LeadDetail() {
       {myTask && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 mb-6 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary">approval</span>
+            <Icon name="approval" className="text-primary" />
             <div>
               <div className="text-sm font-bold text-slate-900">该线索待您审批</div>
               <div className="text-sm text-slate-500">
@@ -336,9 +337,7 @@ export default function LeadDetail() {
       {/* Review status banner */}
       {reviewCfg && (
         <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-4 mb-6 flex items-start gap-3`}>
-          <span className={`material-symbols-outlined ${reviewCfg.text}`}>
-            {reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'}
-          </span>
+          <Icon name={reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'} className={`${reviewCfg.text}`} />
           <div className="flex-1">
             <div className={`text-sm font-bold ${reviewCfg.text}`}>
               {reviewStatus === 'pending' ? '线索待信息情报部内勤审核' : '线索审核被驳回'}
@@ -464,7 +463,7 @@ export default function LeadDetail() {
         <div className="lg:col-span-3">
           <div className="bg-blue-50/50 rounded-xl border border-blue-100 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-5">
-              <span className="material-symbols-outlined text-primary">auto_awesome</span>
+              <Icon name="auto_awesome" className="text-primary" />
               <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-900">AI 智能洞察</h3>
             </div>
 
@@ -472,7 +471,7 @@ export default function LeadDetail() {
               {/* Score Analysis */}
               <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-primary text-sm">analytics</span>
+                  <Icon name="analytics" className="text-primary text-sm" />
                   <span className="text-sm font-bold text-slate-800">评分分析</span>
                 </div>
                 <p className="text-sm text-slate-500 leading-relaxed">
@@ -490,7 +489,7 @@ export default function LeadDetail() {
               {canOperate && reviewApproved && (
                 <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-amber-500 text-sm">lightbulb</span>
+                    <Icon name="lightbulb" className="text-amber-500 text-sm" />
                     <span className="text-sm font-bold text-slate-800">建议操作</span>
                   </div>
                   <p className="text-sm text-slate-500 leading-relaxed mb-3">
@@ -511,7 +510,7 @@ export default function LeadDetail() {
               {lead.converted_customer_id && (
                 <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span>
+                    <Icon name="check_circle" className="text-emerald-500 text-sm" />
                     <span className="text-sm font-bold text-slate-800">已转化</span>
                   </div>
                   <p className="text-sm text-slate-500 leading-relaxed mb-3">
@@ -530,7 +529,7 @@ export default function LeadDetail() {
               {lead.budget_range && (
                 <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-slate-500 text-sm">payments</span>
+                    <Icon name="payments" className="text-slate-500 text-sm" />
                     <span className="text-sm font-bold text-slate-800">预算洞察</span>
                   </div>
                   <p className="text-sm text-slate-500 leading-relaxed">

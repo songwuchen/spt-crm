@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import Icon from '@/components/Icon'
 interface Command {
   id: string
   label: string
@@ -97,7 +98,7 @@ export default function CommandPalette() {
         onClick={(e) => e.stopPropagation()}>
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
-          <span className="material-symbols-outlined text-slate-400" style={{ fontSize: 20 }}>search</span>
+          <Icon name="search" className="text-slate-400" style={{ fontSize: 20 }} />
           <input
             ref={inputRef}
             value={query}
@@ -126,7 +127,7 @@ export default function CommandPalette() {
                       }`}
                       onClick={() => execute(cmd)}
                       onMouseEnter={() => setSelectedIdx(idx)}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{cmd.icon}</span>
+                      <Icon name={cmd.icon} style={{ fontSize: 18 }} />
                       <span className="text-sm font-medium">{cmd.label}</span>
                     </div>
                   )

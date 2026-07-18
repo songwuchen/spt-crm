@@ -21,6 +21,7 @@ import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
 import ImportExcelModal from '@/components/ImportExcelModal'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 
+import Icon from '@/components/Icon'
 const BREAKDOWN_LABELS: Record<string, string> = {
   material: '材料费', processing: '加工费', outsource: '外协费',
   install: '安装费', transport: '运输费', admin: '管理费', risk: '风险费',
@@ -667,12 +668,7 @@ export default function QuoteDetail() {
                             'bg-emerald-50 border-emerald-200'
                           }`}>
                             <div className="flex items-center gap-2 mb-1">
-                              <span className={`material-symbols-outlined text-sm ${
-                                ri.status === 'warning' ? 'text-amber-500' :
-                                ri.status === 'fail' ? 'text-red-500' : 'text-emerald-500'
-                              }`}>
-                                {ri.status === 'pass' ? 'check_circle' : ri.status === 'warning' ? 'warning' : 'cancel'}
-                              </span>
+                              <Icon name={ri.status === 'pass' ? 'check_circle' : ri.status === 'warning' ? 'warning' : 'cancel'} className={`text-sm ${ ri.status === 'warning' ? 'text-amber-500' : ri.status === 'fail' ? 'text-red-500' : 'text-emerald-500' }`} />
                               <span className="text-sm font-bold text-slate-800">{ri.item}</span>
                               <Tag color={ri.status === 'pass' ? 'success' : ri.status === 'warning' ? 'warning' : 'error'}>
                                 {ri.status === 'pass' ? '通过' : ri.status === 'warning' ? '警告' : '不通过'}
@@ -900,7 +896,7 @@ export default function QuoteDetail() {
                         <div className="text-[12px] text-slate-400 font-bold uppercase">{fieldLabels[field] || field}</div>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-sm text-slate-500">{formatVal(change.a, field)}</span>
-                          <span className="material-symbols-outlined text-slate-300" style={{ fontSize: 14 }}>arrow_forward</span>
+                          <Icon name="arrow_forward" className="text-slate-300" style={{ fontSize: 14 }} />
                           <span className="text-sm font-bold text-slate-800">{formatVal(change.b, field)}</span>
                         </div>
                         {diff(field) && (

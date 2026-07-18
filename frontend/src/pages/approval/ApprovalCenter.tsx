@@ -20,6 +20,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 
+import Icon from '@/components/Icon'
 export default function ApprovalCenter() {
   usePageTitle('审批中心')
   const navigate = useNavigate()
@@ -590,9 +591,7 @@ export default function ApprovalCenter() {
                       isPending ? 'bg-amber-100 text-amber-600' :
                       'bg-slate-100 text-slate-400'
                     }`}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                        {isApproved ? 'check' : isRejected ? 'close' : isCancelled ? 'block' : isPending ? 'schedule' : 'hourglass_empty'}
-                      </span>
+                      <Icon name={isApproved ? 'check' : isRejected ? 'close' : isCancelled ? 'block' : isPending ? 'schedule' : 'hourglass_empty'} style={{ fontSize: 16 }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">

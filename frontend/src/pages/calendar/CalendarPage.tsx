@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 import { dashboardApi } from '@/api/dashboard'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
+import Icon from '@/components/Icon'
 interface CalendarEvent {
   id: string
   date: string
@@ -121,7 +122,7 @@ export default function CalendarPage() {
             <div key={type} role="button" tabIndex={0} className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:border-primary/40 transition-colors"
               onClick={() => setTypeFilter(typeFilter === type ? '' : type)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter(typeFilter === type ? '' : type) } }}>
-              <span className="material-symbols-outlined text-base text-slate-400">{tl.icon}</span>
+              <Icon name={tl.icon} className="text-base text-slate-400" />
               <span className="text-sm font-bold text-slate-700">{tl.label}</span>
               <span className="text-sm font-black text-primary">{count}</span>
             </div>
@@ -179,7 +180,7 @@ export default function CalendarPage() {
                   <div className="text-sm font-semibold text-slate-800 mt-1">{e.title}</div>
                   {link && (
                     <div className="text-[13px] text-primary mt-1 flex items-center gap-0.5">
-                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>open_in_new</span>
+                      <Icon name="open_in_new" style={{ fontSize: 12 }} />
                       查看详情
                     </div>
                   )}

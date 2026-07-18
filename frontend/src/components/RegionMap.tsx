@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 
+import Icon from '@/components/Icon'
 interface RegionMapProps {
   data: Array<{ region: string; count: number }>
   /** 点击大区回调：regionCode = 该大区各省份编码前缀(逗号分隔)，regionName = 大区名(用于兼容 legacy 文本地区过滤) */
@@ -57,7 +58,7 @@ export default function RegionMap({ data, onRegionClick }: RegionMapProps) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
       <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-        <span className="material-symbols-outlined text-blue-500" style={{ fontSize: 18 }}>map</span>
+        <Icon name="map" className="text-blue-500" style={{ fontSize: 18 }} />
         客户区域分布
       </h3>
       <div className="relative" style={{ width: '100%', maxWidth: 460, height: 380, margin: '0 auto' }}>

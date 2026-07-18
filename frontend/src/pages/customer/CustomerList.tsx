@@ -25,6 +25,7 @@ import RegionCascader from '@/components/RegionCascader'
 import type { RegionValue } from '@/components/RegionCascader'
 import { formatRegion } from '@/utils/address'
 
+import Icon from '@/components/Icon'
 const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
 
 function Monogram({ name }: { name: string }) {
@@ -293,12 +294,12 @@ export default function CustomerList() {
         <Space wrap>
           <Button onClick={() => setShowTagCloud(!showTagCloud)}
             type={showTagCloud ? 'primary' : 'default'} ghost={showTagCloud}>
-            <span className="material-symbols-outlined text-sm mr-1" style={{ fontSize: 14 }}>sell</span>
+            <Icon name="sell" className="text-sm mr-1" style={{ fontSize: 14 }} />
             标签云
           </Button>
           <Button onClick={() => setShowMap(!showMap)}
             type={showMap ? 'primary' : 'default'} ghost={showMap}>
-            <span className="material-symbols-outlined text-sm mr-1" style={{ fontSize: 14 }}>map</span>
+            <Icon name="map" className="text-sm mr-1" style={{ fontSize: 14 }} />
             {showMap ? '列表' : '地图'}
           </Button>
           <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>{t('common.import')}</Button>
@@ -384,7 +385,7 @@ export default function CustomerList() {
             />
           </div>
           <Button onClick={doSearch}>
-            <span className="material-symbols-outlined text-sm mr-1">filter_list</span>
+            <Icon name="filter_list" className="text-sm mr-1" />
             {t('common.filter')}
           </Button>
           <ListToolbar resource="customer" view={view} onChange={() => setReload((r) => r + 1)} />

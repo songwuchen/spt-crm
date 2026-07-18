@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { Contact } from '@/api/types'
 
+import Icon from '@/components/Icon'
 interface ContactOrgChartProps {
   contacts: Contact[]
   onSelect?: (contact: Contact) => void
@@ -52,7 +53,7 @@ function ContactNode({ node, onSelect }: { node: TreeNode; onSelect?: (c: Contac
       >
         {c.is_primary && (
           <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center">
-            <span className="material-symbols-outlined text-white" style={{ fontSize: 12 }}>star</span>
+            <Icon name="star" className="text-white" style={{ fontSize: 12 }} />
           </span>
         )}
         <div className="text-sm font-bold text-slate-800 text-center">{c.name}</div>
@@ -111,7 +112,7 @@ export default function ContactOrgChart({ contacts, onSelect }: ContactOrgChartP
         ))}
         <div className="flex items-center gap-1">
           <span className="w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center">
-            <span className="material-symbols-outlined text-white" style={{ fontSize: 10 }}>star</span>
+            <Icon name="star" className="text-white" style={{ fontSize: 10 }} />
           </span>
           <span className="text-[12px] font-bold text-amber-600">主要联系人</span>
         </div>

@@ -9,6 +9,7 @@ import { dashboardApi } from '@/api/dashboard'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 
+import Icon from '@/components/Icon'
 interface FunnelItem {
   stage: string
   label: string
@@ -248,7 +249,7 @@ export default function AnalyticsPage() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>payments</span>
+                  <Icon name="payments" style={{ fontSize: 20 }} />
                 </div>
                 <div>
                   <div className="text-sm text-slate-400 font-bold">已回款</div>
@@ -260,7 +261,7 @@ export default function AnalyticsPage() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>warning</span>
+                  <Icon name="warning" style={{ fontSize: 20 }} />
                 </div>
                 <div>
                   <div className="text-sm text-slate-400 font-bold">逾期回款</div>
@@ -276,7 +277,7 @@ export default function AnalyticsPage() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>flag</span>
+                  <Icon name="flag" style={{ fontSize: 20 }} />
                 </div>
                 <div>
                   <div className="text-sm text-slate-400 font-bold">里程碑完成</div>
@@ -288,7 +289,7 @@ export default function AnalyticsPage() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined" style={{ fontSize: 20 }}>schedule</span>
+                  <Icon name="schedule" style={{ fontSize: 20 }} />
                 </div>
                 <div>
                   <div className="text-sm text-slate-400 font-bold">延期里程碑</div>
@@ -305,7 +306,7 @@ export default function AnalyticsPage() {
         {/* Sales Funnel Chart */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">filter_alt</span>
+            <Icon name="filter_alt" className="text-primary" />
             销售漏斗
           </h3>
           {funnelData.length > 0 ? (
@@ -330,7 +331,7 @@ export default function AnalyticsPage() {
         {/* Win/Loss Pie */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-emerald-500">analytics</span>
+            <Icon name="analytics" className="text-emerald-500" />
             赢单/丢单分析
           </h3>
           {winLoss && (winLoss.won_count + winLoss.lost_count > 0) ? (
@@ -381,7 +382,7 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">trending_up</span>
+            <Icon name="trending_up" className="text-primary" />
             月度回款趋势 (万元)
           </h3>
           {monthlyData.length > 0 ? (
@@ -406,7 +407,7 @@ export default function AnalyticsPage() {
         {milestones && milestones.total > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-indigo-500">pie_chart</span>
+              <Icon name="pie_chart" className="text-indigo-500" />
               交付里程碑分布
             </h3>
             <div className="flex items-center gap-4">
@@ -454,7 +455,7 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-emerald-500">account_balance</span>
+              <Icon name="account_balance" className="text-emerald-500" />
               回款概览
             </h3>
             <div className="space-y-4">
@@ -484,7 +485,7 @@ export default function AnalyticsPage() {
           {/* Top Customers Bar Chart */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-amber-500">leaderboard</span>
+              <Icon name="leaderboard" className="text-amber-500" />
               客户排行 (管线金额 Top 8, 万元)
             </h3>
             {topCustomerBarData.length === 0 ? (
@@ -519,7 +520,7 @@ export default function AnalyticsPage() {
         {trendData.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-indigo-500">show_chart</span>
+              <Icon name="show_chart" className="text-indigo-500" />
               商机趋势 (新增/赢单/丢单)
             </h3>
             <Line
@@ -544,7 +545,7 @@ export default function AnalyticsPage() {
         {collectionData.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-emerald-500">account_balance_wallet</span>
+              <Icon name="account_balance_wallet" className="text-emerald-500" />
               回款分析 (应收/已收/逾期, 万元)
             </h3>
             <Column
@@ -571,7 +572,7 @@ export default function AnalyticsPage() {
       {leaderboard.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-6">
           <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-amber-500">emoji_events</span>
+            <Icon name="emoji_events" className="text-amber-500" />
             销售排行榜 (赢单金额)
           </h3>
           <div className="overflow-x-auto">
@@ -621,7 +622,7 @@ export default function AnalyticsPage() {
       {regionStats.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <h2 className="text-lg font-extrabold text-slate-800 mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-lg text-indigo-500">location_on</span>
+            <Icon name="location_on" className="text-lg text-indigo-500" />
             客户区域分布
           </h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

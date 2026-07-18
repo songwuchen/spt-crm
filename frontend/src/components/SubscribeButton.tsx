@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Button, message, Tooltip } from 'antd'
 import client from '@/api/client'
 
+import Icon from '@/components/Icon'
 interface SubscribeButtonProps {
   bizType: string
   bizId: string
@@ -58,9 +59,7 @@ export default function SubscribeButton({ bizType, bizId, bizName }: SubscribeBu
         type={subscribed ? 'primary' : 'default'}
         ghost={subscribed}
       >
-        <span className="material-symbols-outlined text-sm mr-1" style={{ fontSize: 14 }}>
-          {subscribed ? 'notifications_active' : 'notifications_none'}
-        </span>
+        <Icon name={subscribed ? 'notifications_active' : 'notifications_none'} className="text-sm mr-1" style={{ fontSize: 14 }} />
         {subscribed ? '已关注' : '关注'}
       </Button>
     </Tooltip>

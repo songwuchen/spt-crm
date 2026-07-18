@@ -8,6 +8,7 @@ import type { Department, Role } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 
+import Icon from '@/components/Icon'
 // 命中的关键词高亮显示，便于在大组织树里一眼定位。
 // 用 localeCompare 逐位比对而不是在 toLowerCase() 后的串上取下标——'İ'.toLowerCase()
 // 长度会变，拿小写串的下标去切原串会整体错位。
@@ -151,7 +152,7 @@ export default function DepartmentPage() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary">account_tree</span>
+                <Icon name="account_tree" className="text-primary" />
                 <h3 className="text-sm font-bold text-slate-900">组织架构</h3>
               </div>
               <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-sm font-bold">
@@ -172,7 +173,7 @@ export default function DepartmentPage() {
             <div className="p-4">
               {tree.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <span className="material-symbols-outlined text-4xl text-slate-200 mb-3">account_tree</span>
+                  <Icon name="account_tree" className="text-4xl text-slate-200 mb-3" />
                   <p className="text-sm text-slate-400">暂无部门数据</p>
                   <p className="text-sm text-slate-300 mt-1">点击上方按钮创建第一个部门</p>
                 </div>
@@ -200,7 +201,7 @@ export default function DepartmentPage() {
         <div className="col-span-7">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
-              <span className="material-symbols-outlined text-slate-400">info</span>
+              <Icon name="info" className="text-slate-400" />
               <h3 className="text-sm font-bold text-slate-900">
                 {selectedDept ? selectedDept.name : '部门详情'}
               </h3>
@@ -225,22 +226,22 @@ export default function DepartmentPage() {
 
                 <div className="flex gap-3">
                   <Button onClick={() => openCreate(selectedDept.id)}>
-                    <span className="material-symbols-outlined text-sm mr-1">add</span>
+                    <Icon name="add" className="text-sm mr-1" />
                     添加子部门
                   </Button>
                   <Button onClick={() => openEdit(selectedDept)}>
-                    <span className="material-symbols-outlined text-sm mr-1">edit</span>
+                    <Icon name="edit" className="text-sm mr-1" />
                     编辑
                   </Button>
                   <Button danger onClick={() => handleDelete(selectedDept)}>
-                    <span className="material-symbols-outlined text-sm mr-1">delete</span>
+                    <Icon name="delete" className="text-sm mr-1" />
                     删除
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <span className="material-symbols-outlined text-5xl text-slate-200 mb-3">touch_app</span>
+                <Icon name="touch_app" className="text-5xl text-slate-200 mb-3" />
                 <p className="text-sm text-slate-400">请从左侧选择部门</p>
                 <p className="text-sm text-slate-300 mt-1">选择部门后可查看详情和管理操作</p>
               </div>
@@ -434,7 +435,7 @@ function DeptRoleRulesSection({ tree }: { tree: Department[] }) {
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">rule</span>
+          <Icon name="rule" className="text-primary" />
           <div>
             <h3 className="text-sm font-bold text-slate-900">部门自动角色规则</h3>
             <p className="text-[12px] text-slate-400 mt-0.5">新建用户、修改部门或钉钉同步时，命中部门的成员会自动补上对应角色（仅新增、不删除已有角色）</p>
@@ -449,7 +450,7 @@ function DeptRoleRulesSection({ tree }: { tree: Department[] }) {
               okText="应用"
             >
               <Button loading={applying}>
-                <span className="material-symbols-outlined text-sm mr-1">bolt</span>
+                <Icon name="bolt" className="text-sm mr-1" />
                 立即应用到存量用户
               </Button>
             </Popconfirm>
