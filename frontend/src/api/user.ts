@@ -61,8 +61,9 @@ export interface RbacSyncPreview {
   roles_to_create: { code: string; name: string; perm_count: number }[]
   perms_to_add: Record<string, { code: string; name: string }[]>
   perms_to_remove: Record<string, { code: string; name: string }[]>
+  roles_to_update: { code: string; changes: string[] }[]
   permissions_to_create: string[]
-  summary: { roles_to_create: number; perms_to_add: number; perms_to_remove: number; permissions_to_create: number }
+  summary: { roles_to_create: number; perms_to_add: number; perms_to_remove: number; roles_to_update: number; permissions_to_create: number }
 }
 
 export interface RbacSyncReport {
@@ -70,6 +71,7 @@ export interface RbacSyncReport {
   created_roles: string[]
   perms_added: number
   perms_removed: number
+  roles_updated: string[]
   roles_touched: string[]
 }
 

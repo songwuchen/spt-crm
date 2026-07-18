@@ -66,9 +66,12 @@ export default function RoleList() {
     try {
       const res = await rbacApi.applyStandardSync(syncMode)
       const r = res.data
-      message.success(`同步完成:新建 ${r.created_roles.length} 个角色、新增 ${r.perms_added} 项授权、移除 ${r.perms_removed} 项`)
+      const extra = r.roles_updated.length ? `、更新 ${r.roles_updated.length} 个角色` : ''
+      message.success(`同步完成:新建 ${r.created_roles.length} 个角色、新增 ${r.perms_added} 项授权、移除 ${r.perms_removed} 项${extra}`)
       setSyncModal(false)
+      // 同步可能新建了权限行,一并刷新权限目录,否则权限矩阵看不到新权限
       fetchRoles()
+      fetchPermissions()
     } catch (e: any) {
       message.error(e?.response?.data?.message || '同步失败')
     } finally {
@@ -373,7 +376,8 @@ export default function RoleList() {
           loading: syncApplying,
           danger: syncMode === 'reset',
           disabled: syncLoading || !syncPreview
-            || (syncPreview.summary.roles_to_create + syncPreview.summary.perms_to_add + syncPreview.summary.perms_to_remove === 0),
+            || (syncPreview.summary.roles_to_create + syncPreview.summary.perms_to_add + syncPreview.summary.perms_to_remove
+                + syncPreview.summary.roles_to_update + syncPreview.summary.permissions_to_create === 0),
         }}
       >
         <Alert
@@ -397,7 +401,8 @@ export default function RoleList() {
         ) : (
           (() => {
             const s = syncPreview.summary
-            const nothing = s.roles_to_create + s.perms_to_add + s.perms_to_remove === 0
+            const nothing = s.roles_to_create + s.perms_to_add + s.perms_to_remove
+              + s.roles_to_update + s.permissions_to_create === 0
             if (nothing) {
               return <Alert type="success" showIcon message="已是最新 — 本租户标准角色权限无需变更。" />
             }
@@ -407,8 +412,23 @@ export default function RoleList() {
                   <Tag color="blue">新建角色 {s.roles_to_create}</Tag>
                   <Tag color="green">新增授权 {s.perms_to_add}</Tag>
                   {syncMode === 'reset' && <Tag color="red">移除授权 {s.perms_to_remove}</Tag>}
+                  {syncMode === 'reset' && s.roles_to_update > 0 && <Tag color="orange">更新角色 {s.roles_to_update}</Tag>}
                   {s.permissions_to_create > 0 && <Tag>补权限目录 {s.permissions_to_create}</Tag>}
                 </div>
+
+                {syncPreview.roles_to_update.length > 0 && (
+                  <div className="border border-orange-100 bg-orange-50/40 rounded-lg p-3">
+                    <div className="text-sm font-bold text-orange-500 mb-2">将对齐角色属性(名称/描述/数据范围)</div>
+                    <div className="space-y-1">
+                      {syncPreview.roles_to_update.map((r) => (
+                        <div key={r.code} className="text-[13px]">
+                          <span className="font-mono font-semibold text-slate-700">{r.code}</span>
+                          <span className="text-slate-500">:{r.changes.join('、')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {syncPreview.roles_to_create.length > 0 && (
                   <div className="border border-slate-100 rounded-lg p-3">

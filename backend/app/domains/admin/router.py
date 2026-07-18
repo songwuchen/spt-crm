@@ -1602,10 +1602,7 @@ async def rbac_standard_sync_apply(
         db, tenant_id, mode=body.mode, create_missing_roles=body.create_missing_roles)
     await db.commit()
 
-    # 角色权限变更后必须失效本租户缓存,否则最长 5 分钟才生效(issue #49)
-    from app.domains.auth.service import invalidate_tenant_auth_cache
-    await invalidate_tenant_auth_cache(tenant_id)
-
+    # Audit first (own session, non-fatal) so it always records the committed change.
     from app.domains.audit.service import log_action
     await log_action(
         db, tenant_id=tenant_id,
@@ -1616,4 +1613,14 @@ async def rbac_standard_sync_apply(
                  f"移除 {report['perms_removed']} 项"),
         detail=report,
     )
+
+    # 角色权限变更后失效本租户缓存,否则最长 5 分钟才生效(issue #49)。缓存后端
+    # (Redis)短暂不可用不应让一次已提交成功的同步返回 500 —— 兜底吞掉并记日志。
+    try:
+        from app.domains.auth.service import invalidate_tenant_auth_cache
+        await invalidate_tenant_auth_cache(tenant_id)
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "rbac_standard_sync: tenant auth cache invalidation failed (non-fatal); "
+            "perms take effect within the cache TTL", exc_info=True)
     return ok(report)

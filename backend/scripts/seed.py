@@ -245,9 +245,17 @@ async def seed(include_demo: bool = True):
         # 跨所有租户增量下发标准角色权限:任何已拥有标准角色的租户,其标准角色
         # 都会自动补齐目录里的新权限(只增不删、不给缺角色的租户凭空建角色)。
         # 这样每次部署后,新功能权限自动到达所有环境的标准角色。
+        #
+        # 用 SAVEPOINT 包住:这一步只是"锦上添花"的增量补授,万一在某租户数据上
+        # 出错,不能连累整个 seed(权限/admin/演示数据)提交而导致部署失败。传入
+        # 已建好的 existing_perms,避免重复扫描 permissions 表。
         from app.common.rbac_sync import sync_all_tenants_additive
-        _rbac = await sync_all_tenants_additive(db)
-        added["role_perms"] += _rbac.get("_total_perms_added", 0)
+        try:
+            async with db.begin_nested():
+                _rbac = await sync_all_tenants_additive(db, perms_by_code=existing_perms)
+            added["role_perms"] += _rbac.get("_total_perms_added", 0)
+        except Exception as e:  # noqa: BLE001 — non-fatal by design
+            print(f"  ! cross-tenant standard-role sync skipped (non-fatal): {e}")
 
         await db.commit()
 

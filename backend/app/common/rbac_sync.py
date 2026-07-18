@@ -9,9 +9,10 @@ Used by:
 Modes:
   - ``additive`` (default): create missing standard roles (when
     ``create_missing_roles``), ADD missing standard perms to standard roles.
-    Never removes anything, never touches custom / person-named roles.
-  - ``reset``: additionally REMOVE non-standard perms from standard roles
-    (full realignment to the catalog).
+    Never removes anything, never modifies an existing role's name/scope, never
+    touches custom / person-named roles.
+  - ``reset``: full realignment — also REMOVE non-catalog perms from standard
+    roles AND realign their name/description/data_scope to the catalog.
 
 Service functions do NOT commit — the caller owns the transaction.
 """
@@ -24,6 +25,7 @@ from app.common.rbac_catalog import (
 )
 
 _ROLE_BY_CODE = {r["code"]: r for r in STANDARD_ROLES}
+_ALL_CATALOG_CODES = frozenset(c for c, _, _ in PERMISSIONS)
 
 
 async def _ensure_permissions(db, *, write: bool) -> dict:
@@ -47,13 +49,22 @@ async def _ensure_permissions(db, *, write: bool) -> dict:
     return existing
 
 
-async def _plan(db, tenant_id, perms_by_code, *, mode, create_missing_roles):
+async def _plan(db, tenant_id, perms_by_code, *, mode, create_missing_roles, valid_codes=None):
     """Compute the sync plan for one tenant in code-space (no writes).
 
-    Returns ``(existing_roles, creates, adds, removes)`` where
-    ``creates`` is a list of ``{code,name,scope,perms}``, and ``adds`` / ``removes``
-    are ``{role_code: [perm_code, ...]}`` for existing standard roles only.
+    ``valid_codes`` = permission codes considered assignable (defaults to the
+    codes present in ``perms_by_code``). Preview passes existing ∪ catalog codes
+    so a not-yet-created catalog perm still shows up in ``adds`` (apply creates
+    then assigns it — keeping preview and apply in agreement).
+
+    Returns ``(existing_roles, creates, adds, removes, meta_updates)``:
+      - ``creates``       list of ``{code,name,scope,perms}``
+      - ``adds``/``removes`` ``{role_code: [perm_code, ...]}`` (existing roles)
+      - ``meta_updates``  ``{role_code: [changed_field_label, ...]}`` (reset only)
     """
+    if valid_codes is None:
+        valid_codes = set(perms_by_code)
+
     roles = {r.code: r for r in (await db.execute(
         select(Role).where(Role.tenant_id == tenant_id, Role.code.in_(STANDARD_ROLE_CODES))
     )).scalars().all()}
@@ -72,11 +83,12 @@ async def _plan(db, tenant_id, perms_by_code, *, mode, create_missing_roles):
             if rc and code:
                 now[rc].add(code)
 
-    creates, adds, removes = [], {}, {}
+    creates, adds, removes, meta_updates = [], {}, {}, {}
     for rd in STANDARD_ROLES:
-        want = [c for c in role_perm_codes(rd) if c in perms_by_code]  # only known perms
+        want = [c for c in role_perm_codes(rd) if c in valid_codes]
         want_set = set(want)
-        if rd["code"] not in roles:
+        role = roles.get(rd["code"])
+        if role is None:
             if create_missing_roles:
                 creates.append({"code": rd["code"], "name": rd["name"],
                                 "scope": rd["scope"], "perms": want})
@@ -89,16 +101,28 @@ async def _plan(db, tenant_id, perms_by_code, *, mode, create_missing_roles):
             rem = sorted(cur - want_set)
             if rem:
                 removes[rd["code"]] = rem
-    return roles, creates, adds, removes
+            changed = []
+            if role.name != rd["name"]:
+                changed.append("名称")
+            if (role.description or None) != (rd.get("desc") or None):
+                changed.append("描述")
+            if (role.data_scope or "self") != rd["scope"]:
+                changed.append("数据范围")
+            if changed:
+                meta_updates[rd["code"]] = changed
+    return roles, creates, adds, removes, meta_updates
 
 
 async def preview(db, tenant_id, *, mode="additive", create_missing_roles=True) -> dict:
     """Read-only diff of what a sync would change for ``tenant_id``."""
     perms_by_code = await _ensure_permissions(db, write=False)
-    _, creates, adds, removes = await _plan(
-        db, tenant_id, perms_by_code, mode=mode, create_missing_roles=create_missing_roles)
+    # Include catalog codes not yet in the DB so preview matches what apply grants.
+    valid_codes = set(perms_by_code) | _ALL_CATALOG_CODES
+    _, creates, adds, removes, meta_updates = await _plan(
+        db, tenant_id, perms_by_code, mode=mode,
+        create_missing_roles=create_missing_roles, valid_codes=valid_codes)
     perm_names = {p[0]: p[1] for p in PERMISSIONS}
-    missing_perm_rows = [c for c, _, _ in PERMISSIONS if c not in perms_by_code]
+    missing_perm_rows = [c for c in _ALL_CATALOG_CODES if c not in perms_by_code]
     return {
         "mode": mode,
         "roles_to_create": [
@@ -109,11 +133,13 @@ async def preview(db, tenant_id, *, mode="additive", create_missing_roles=True) 
                          for rc, codes in adds.items()},
         "perms_to_remove": {rc: [{"code": c, "name": perm_names.get(c, c)} for c in codes]
                             for rc, codes in removes.items()},
+        "roles_to_update": [{"code": c, "changes": ch} for c, ch in meta_updates.items()],
         "permissions_to_create": missing_perm_rows,
         "summary": {
             "roles_to_create": len(creates),
             "perms_to_add": sum(len(v) for v in adds.values()) + sum(len(c["perms"]) for c in creates),
             "perms_to_remove": sum(len(v) for v in removes.values()),
+            "roles_to_update": len(meta_updates),
             "permissions_to_create": len(missing_perm_rows),
         },
     }
@@ -122,7 +148,7 @@ async def preview(db, tenant_id, *, mode="additive", create_missing_roles=True) 
 async def apply(db, tenant_id, *, mode="additive", create_missing_roles=True) -> dict:
     """Apply the sync for ``tenant_id`` (flush only — caller commits)."""
     perms_by_code = await _ensure_permissions(db, write=True)
-    roles, creates, adds, removes = await _plan(
+    roles, creates, adds, removes, meta_updates = await _plan(
         db, tenant_id, perms_by_code, mode=mode, create_missing_roles=create_missing_roles)
 
     for c in creates:
@@ -151,29 +177,42 @@ async def apply(db, tenant_id, *, mode="additive", create_missing_roles=True) ->
                     RolePermission.role_id == roles[rcode].id,
                     RolePermission.permission_id.in_(ids),
                 ))
+        # Realign role name/description/data_scope to the catalog.
+        for rcode in meta_updates:
+            role, rd = roles[rcode], _ROLE_BY_CODE[rcode]
+            role.name = rd["name"]
+            role.description = rd.get("desc")
+            role.data_scope = rd["scope"]
+
     await db.flush()
     return {
         "mode": mode,
         "created_roles": [c["code"] for c in creates],
         "perms_added": sum(len(v) for v in adds.values()) + sum(len(c["perms"]) for c in creates),
         "perms_removed": sum(len(v) for v in removes.values()),
-        "roles_touched": sorted(set(c["code"] for c in creates) | set(adds) | set(removes)),
+        "roles_updated": list(meta_updates.keys()),
+        "roles_touched": sorted(set(c["code"] for c in creates) | set(adds) | set(removes) | set(meta_updates)),
     }
 
 
-async def sync_all_tenants_additive(db) -> dict:
+async def sync_all_tenants_additive(db, perms_by_code=None) -> dict:
     """Deploy hook: additively sync standard roles for EVERY tenant that already
     has at least one standard role. Never creates roles in tenants that lack them,
-    never removes. Flush only — caller commits. Returns a per-tenant add count."""
-    perms_by_code = await _ensure_permissions(db, write=True)
+    never removes. Flush only — caller commits. Returns a per-tenant add count.
+
+    ``perms_by_code`` may be supplied by a caller that already loaded/created the
+    permission rows (e.g. scripts/seed.py) to avoid re-scanning the table."""
+    if perms_by_code is None:
+        perms_by_code = await _ensure_permissions(db, write=True)
+    valid = set(perms_by_code)
     tenant_ids = [row[0] for row in (await db.execute(
         select(Role.tenant_id).where(Role.code.in_(STANDARD_ROLE_CODES)).distinct()
     )).all()]
 
     result, total = {}, 0
     for tid in tenant_ids:
-        roles, _, adds, _ = await _plan(
-            db, tid, perms_by_code, mode="additive", create_missing_roles=False)
+        roles, _, adds, _, _ = await _plan(
+            db, tid, perms_by_code, mode="additive", create_missing_roles=False, valid_codes=valid)
         n = 0
         for rcode, codes in adds.items():
             role = roles.get(rcode)
