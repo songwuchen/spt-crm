@@ -10,6 +10,7 @@ import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
 import type { WfNode, WfDesign, ApproverType, FieldDefinition } from '@/types/lowcode'
 import PersonField from '@/components/lowcode/fields/PersonField'
+import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 
 const { Title, Text } = Typography
 
@@ -201,7 +202,7 @@ function ApproverValue({ node, personFields, deptFields, onChange }: {
     return (
       <Select size="small" style={{ width: '100%' }} placeholder="选择表单字段"
         value={(node.approver_rule?.value as string) || undefined}
-        options={fields.map((f) => ({ label: f.label, value: f.id }))}
+        options={fields.map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))}
         notFoundContent="绑定表单无此类字段" onChange={onChange} />
     )
   }

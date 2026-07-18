@@ -6,6 +6,7 @@ import ColumnConfigPanel from './ColumnConfigPanel'
 import ViewManager from './ViewManager'
 import { getSearchSchema, type SchemaField } from '@/api/searchSchema'
 import type { ListViewController } from '@/hooks/useListView'
+import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 
 interface Props {
   resource: string
@@ -45,7 +46,7 @@ export default function ListToolbar({ resource, view, onChange }: Props) {
         placeholder="排序字段" allowClear size="middle" style={{ width: 130 }}
         value={view.sort?.by}
         onChange={(by) => { view.setSort(by ? { by, order: view.sort?.order || 'desc' } : null); onChange() }}
-        options={sortableFields.map((f) => ({ value: f.key, label: f.label }))}
+        options={sortableFields.map((f) => fieldOption({ value: f.key, label: f.label, type: f.type }))}
       />
       {view.sort && (
         <Button

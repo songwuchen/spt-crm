@@ -8,6 +8,7 @@ import { useRemoteSelect } from '@/hooks/useRemoteSelect'
 import { userApi } from '@/api/user'
 import { customerApi } from '@/api/customer'
 import { departmentApi } from '@/api/department'
+import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 
 const { RangePicker } = DatePicker
 
@@ -102,10 +103,10 @@ export default function AdvancedFilter({ open, onClose, fields, value, onApply }
           return (
             <div key={i} className="flex items-start gap-2">
               <Select
-                size="small" showSearch optionFilterProp="label" style={{ width: 130, flexShrink: 0 }}
+                size="small" showSearch optionFilterProp="title" style={{ width: 130, flexShrink: 0 }}
                 value={row.field}
                 onChange={(v) => onFieldChange(i, v)}
-                options={fields.map((x) => ({ value: x.key, label: x.label }))}
+                options={fields.map((x) => fieldOption({ value: x.key, label: x.label, type: x.type }))}
               />
               <Select
                 size="small" style={{ width: 110, flexShrink: 0 }}

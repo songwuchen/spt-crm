@@ -9,6 +9,7 @@ import {
 import {
   DeleteOutlined, PlusOutlined, ArrowLeftOutlined, HolderOutlined, EyeOutlined, BranchesOutlined,
 } from '@ant-design/icons'
+import FieldTypeIcon, { FIELD_TYPE_LABEL as TYPE_LABEL, fieldOption } from '@/components/lowcode/fieldTypeIcon'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core'
@@ -25,13 +26,6 @@ import FormRenderer from '@/components/lowcode/FormRenderer'
 
 const { Title, Text } = Typography
 
-const TYPE_LABEL: Record<string, string> = {
-  text: '单行文本', textarea: '多行文本', number: '数字', amount: '金额', date: '日期', datetime: '日期时间',
-  select: '下拉单选', multi_select: '下拉多选', radio: '单选框', checkbox: '复选框', switch: '开关', cascade: '级联选择',
-  person: '人员单选', person_multi: '人员多选', department: '部门单选', department_multi: '部门多选',
-  file: '附件', image: '图片', address: '地址', rich_text: '富文本', signature: '手写签名',
-  formula: '公式', auto_number: '流水号', detail_table: '明细子表',
-}
 const PALETTE: { group: string; types: FieldType[] }[] = [
   { group: '基础', types: ['text', 'textarea', 'number', 'amount', 'date', 'datetime', 'switch'] },
   { group: '选择', types: ['select', 'multi_select', 'radio', 'checkbox', 'cascade'] },
@@ -162,7 +156,7 @@ export default function FormDesignerPage() {
               <Text type="secondary" style={{ fontSize: 12 }}>{g.group}</Text>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                 {g.types.map((t) => (
-                  <Button key={t} size="small" onClick={() => addField(t)} style={{ fontSize: 12, padding: '0 8px' }}>+ {TYPE_LABEL[t]}</Button>
+                  <Button key={t} size="small" onClick={() => addField(t)} icon={<FieldTypeIcon type={t} />} style={{ fontSize: 12, padding: '0 8px' }}>{TYPE_LABEL[t]}</Button>
                 ))}
               </div>
             </div>
@@ -229,7 +223,7 @@ function SortableFieldCard({ field, selected, onSelect, onDelete }: {
       <span {...attributes} {...listeners} style={{ cursor: 'grab', color: '#bbb' }} onClick={(e) => e.stopPropagation()}><HolderOutlined /></span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <span style={{ fontWeight: 500 }}>{field.required && <span style={{ color: '#ff4d4f', marginRight: 4 }}>*</span>}{field.label}</span>
-        <Tag style={{ marginLeft: 8 }}>{TYPE_LABEL[field.type] || field.type}</Tag>
+        <Tag style={{ marginLeft: 8 }} icon={<FieldTypeIcon type={field.type} />}>{TYPE_LABEL[field.type] || field.type}</Tag>
       </div>
       <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={(e) => { e.stopPropagation(); onDelete() }} />
     </div>
@@ -246,7 +240,7 @@ function FieldProps({ field, roleOptions, onPatch }: {
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="small">
-      <Tag color="blue">{TYPE_LABEL[field.type] || field.type}</Tag>
+      <Tag color="blue" icon={<FieldTypeIcon type={field.type} />}>{TYPE_LABEL[field.type] || field.type}</Tag>
       <div><Text type="secondary" style={{ fontSize: 12 }}>标签</Text>
         <Input size="small" value={field.label} onChange={(e) => onPatch({ label: e.target.value })} /></div>
       <div><Text type="secondary" style={{ fontSize: 12 }}>字段 id</Text>
@@ -342,7 +336,7 @@ function actionKeyOf(r: FormRule): string {
 function RulesEditor({ fields, rules, onChange }: {
   fields: FieldDefinition[]; rules: FormRule[]; onChange: (r: FormRule[]) => void
 }) {
-  const fieldOpts = fields.filter((f) => f.type !== 'detail_table').map((f) => ({ label: f.label, value: f.id }))
+  const fieldOpts = fields.filter((f) => f.type !== 'detail_table').map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))
   const upd = (i: number, r: FormRule) => onChange(rules.map((x, k) => (k === i ? r : x)))
   const addRule = () => onChange([...rules, {
     id: 'rule' + Math.random().toString(36).slice(2, 8), type: 'visibility', target_field_ids: [],

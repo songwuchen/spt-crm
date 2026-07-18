@@ -18,6 +18,7 @@ import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
 import type { WfNode, WfRoute, WfDesign, ApproverType, FieldDefinition } from '@/types/lowcode'
 import PersonField from '@/components/lowcode/fields/PersonField'
+import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 
 const { Title, Text } = Typography
 
@@ -262,7 +263,7 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
           {(meta?.needValue === 'field_person' || meta?.needValue === 'field_dept') && (
             <Select size="small" style={{ width: '100%' }} placeholder="选择表单字段"
               value={(node.approver_rule?.value as string) || undefined}
-              options={(meta.needValue === 'field_person' ? personFields : deptFields).map((f) => ({ label: f.label, value: f.id }))}
+              options={(meta.needValue === 'field_person' ? personFields : deptFields).map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))}
               onChange={(v) => onRule({ value: v })} />
           )}
           {meta?.needValue === 'text' && (
@@ -325,7 +326,7 @@ function EdgeConfig({ route, formFields, onCond, onDelete }: {
       {hasCond && (
         <>
           <Select size="small" style={{ width: '100%' }} placeholder="字段" value={c?.field}
-            options={formFields.filter((f) => f.type !== 'detail_table').map((f) => ({ label: f.label, value: f.id }))}
+            options={formFields.filter((f) => f.type !== 'detail_table').map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))}
             onChange={(v) => setLeaf({ field: v })} />
           <Select size="small" style={{ width: '100%' }} value={c?.operator || 'gt'} options={OPERATORS} onChange={(v) => setLeaf({ operator: v })} />
           <Input size="small" placeholder="值" value={(c?.value as string) ?? ''} onChange={(e) => setLeaf({ value: e.target.value })} />

@@ -14,6 +14,7 @@ import { dashboardApi } from '@/api/lowcodeDashboard'
 import { lowcodeApi } from '@/api/lowcode'
 import type { Dashboard, DashComponent, ChartType, FieldDefinition, FormTemplate, CrmSource } from '@/types/lowcode'
 import ChartWidget from '@/components/lowcode/ChartWidget'
+import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 
 const GridLayout = WidthProvider(RGL)
 const { Title } = Typography
@@ -192,7 +193,7 @@ function WidgetConfigModal({ open, onClose, onOk }: { open: boolean; onClose: ()
             </Form.Item>
             {!NO_DIM.has(chartType) && (
               <Form.Item name="dim_field" label="分组维度" rules={[{ required: true, message: '请选择维度字段' }]}>
-                <Select placeholder="按哪个字段分组" options={dimFields.map((f) => ({ label: f.label, value: f.id }))} />
+                <Select placeholder="按哪个字段分组" options={dimFields.map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))} />
               </Form.Item>
             )}
             {!NO_DIM.has(chartType) && dimIsDate && (
@@ -203,7 +204,7 @@ function WidgetConfigModal({ open, onClose, onOk }: { open: boolean; onClose: ()
             {SERIES_TYPES.has(chartType) && (
               <Form.Item name="dim_field2" label="第二维度(系列,可选)" tooltip="设置后按此维度拆分多条序列(多序列/透视表)">
                 <Select allowClear placeholder="可选:按第二维度拆分序列"
-                  options={dimFields.filter((f) => f.id !== dimField).map((f) => ({ label: f.label, value: f.id }))} />
+                  options={dimFields.filter((f) => f.id !== dimField).map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))} />
               </Form.Item>
             )}
             <Form.Item name="metric_op" label={TWO_METRIC.has(chartType) ? '指标1 · 统计方式' : '统计方式'}>
@@ -211,7 +212,7 @@ function WidgetConfigModal({ open, onClose, onOk }: { open: boolean; onClose: ()
             </Form.Item>
             {metricOp !== 'count' && (
               <Form.Item name="metric_field" label="统计字段(数值)" rules={[{ required: true, message: '请选择数值字段' }]}>
-                <Select placeholder="对哪个数值字段统计" options={numFields.map((f) => ({ label: f.label, value: f.id }))} />
+                <Select placeholder="对哪个数值字段统计" options={numFields.map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))} />
               </Form.Item>
             )}
             {TWO_METRIC.has(chartType) && (
@@ -221,7 +222,7 @@ function WidgetConfigModal({ open, onClose, onOk }: { open: boolean; onClose: ()
                 </Form.Item>
                 {metricOp2 !== 'count' && (
                   <Form.Item name="metric_field2" label="指标2 · 统计字段(数值)" rules={[{ required: true, message: '请选择数值字段' }]}>
-                    <Select placeholder="第二个数值字段" options={numFields.map((f) => ({ label: f.label, value: f.id }))} />
+                    <Select placeholder="第二个数值字段" options={numFields.map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))} />
                   </Form.Item>
                 )}
               </>
