@@ -24,11 +24,15 @@ import app.domains.admin.models  # noqa: F401
 TENANT_ID = "00000000-0000-0000-0000-000000000001"
 
 
-async def seed():
+async def seed(include_demo: bool = True):
     # Per-row upsert. Safe to re-run on every deploy: missing permissions, roles,
     # demo customers / projects / stages / feature toggles are added; existing rows
     # are left alone (so operator edits — passwords, customized stage gates,
     # toggle states, real customer data sharing a demo name — are not clobbered).
+    #
+    # include_demo=False (production installs): seed permissions / roles / admin /
+    # stage defs / toggles / default approval policies, but SKIP the fake demo
+    # customers & projects. Real customer deployments call this via deploy.sh.
     from sqlalchemy import select
 
     async with engine.begin() as conn:
@@ -244,7 +248,7 @@ async def seed():
             ("鼎信电子", "Electronics", "B"),
             ("远航新材料", "Materials", "B"),
             ("瑞德工业", "Manufacturing", "C"),
-        ]
+        ] if include_demo else []  # 生产安装(include_demo=False)不注入演示客户/项目
         existing_demo = {c.name: c for c in (await db.execute(
             select(Customer).where(
                 Customer.tenant_id == TENANT_ID,
@@ -352,4 +356,7 @@ async def seed():
 
 
 if __name__ == "__main__":
-    asyncio.run(seed())
+    # Default = include demo data (unchanged CI behavior: `python -m scripts.seed`).
+    # Production installs pass --production / --no-demo to skip demo customers/projects.
+    _include_demo = not ({"--production", "--no-demo"} & set(sys.argv[1:]))
+    asyncio.run(seed(include_demo=_include_demo))

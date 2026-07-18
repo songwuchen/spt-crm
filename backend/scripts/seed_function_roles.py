@@ -33,7 +33,16 @@ CORE = [
     "attachment:download", "attachment:upload",
     "task:view", "task:create", "task:edit",
     "approval:view", "approval:resubmit", "approval:withdraw",
+    # 扩展平台(低代码)——「使用」层:全员可填报表单 / 查看流程 / 查看仪表盘。
+    # 「设计」层(form:manage / workflow:manage / dashboard:manage / form_data:delete)
+    # 只发给标了 lowcode_admin 的主管/总监角色,见 LOWCODE_DESIGN。
+    "form:view", "form_data:view", "form_data:create", "form_data:edit",
+    "workflow:view", "dashboard:view",
 ]
+
+# 扩展平台「设计/管理」权限:仅管理员 + 各部门主管/总监(role def 里 lowcode_admin=True)。
+# form_data:delete 归到设计层(删表单数据比填报更敏感,不给普通角色)。
+LOWCODE_DESIGN = ["form:manage", "workflow:manage", "dashboard:manage", "form_data:delete"]
 
 # scope: self / dept / all   (None == self)
 ROLE_DEFS = [
@@ -53,6 +62,7 @@ ROLE_DEFS = [
     {
         "code": "sales_manager", "name": "销售主管", "scope": "dept",
         "desc": "本部门子树销售数据 + 审批 + 提成查看",
+        "lowcode_admin": True,
         "perms": CORE + [
             "customer:view", "customer:create", "customer:edit",
             "contact:view", "contact:create", "contact:edit",
@@ -67,6 +77,7 @@ ROLE_DEFS = [
     {
         "code": "sales_director", "name": "销售总监", "scope": "all",
         "desc": "全租户销售数据 + 审批",
+        "lowcode_admin": True,
         "perms": CORE + [
             "customer:view", "customer:create", "customer:edit",
             "contact:view", "contact:create", "contact:edit",
@@ -110,6 +121,7 @@ ROLE_DEFS = [
     {
         "code": "tech_chief", "name": "技术总工/评审", "scope": "all",
         "desc": "全局技术只读 + 方案/变更评审与审批",
+        "lowcode_admin": True,
         "perms": CORE + [
             "customer:view", "project:view", "quote:view", "contract:view", "product:view",
             "solution:view", "solution:create", "solution:edit",
@@ -129,6 +141,7 @@ ROLE_DEFS = [
     {
         "code": "production_manager", "name": "生产主管", "scope": "dept",
         "desc": "生产负责人：交付/订单全权 + 交付审批",
+        "lowcode_admin": True,
         "perms": CORE + [
             "customer:view", "project:view", "contract:view", "product:view", "quote:view",
             "delivery:view", "delivery:edit", "delivery:delete",
@@ -150,6 +163,7 @@ ROLE_DEFS = [
     {
         "code": "finance_manager", "name": "财务主管", "scope": "all",
         "desc": "财务负责人：+ 合同财务条款 + 金额/毛利红线审批",
+        "lowcode_admin": True,
         "perms": CORE + [
             "customer:view", "project:view", "quote:view", "order:view",
             "contract:view", "contract:edit",
@@ -180,6 +194,7 @@ ROLE_DEFS = [
     {
         "code": "service_manager", "name": "售后主管", "scope": "dept",
         "desc": "售后负责人：工单全权 + 审批",
+        "lowcode_admin": True,
         "perms": CORE + [
             "customer:view", "contract:view", "product:view",
             "service:view", "service:create", "service:edit", "service:delete",
@@ -226,7 +241,8 @@ async def main():
 
         print(f"tenant={TENANT_ID}  mode={'APPLY' if APPLY else 'DRY-RUN (use --apply to write)'}\n")
         for rd in ROLE_DEFS:
-            codes = list(dict.fromkeys(rd["perms"]))  # dedupe, keep order
+            perms = rd["perms"] + (LOWCODE_DESIGN if rd.get("lowcode_admin") else [])
+            codes = list(dict.fromkeys(perms))  # dedupe, keep order
             missing = [c for c in codes if c not in pid]
             if missing:
                 print(f"  !! {rd['code']}: unknown permission codes -> {missing}")

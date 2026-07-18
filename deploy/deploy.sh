@@ -178,8 +178,11 @@ run_seed() {
         log "Seeding database (with demo data — customers, projects)..."
         dc run --rm backend python -m scripts.seed
     else
+        # Canonical seed in production mode (no demo customers/projects). Historically
+        # this ran the stale backend/seed.py, which lacked the 扩展平台 (form/workflow/
+        # dashboard) permissions — now unified on scripts.seed so no path drifts.
         log "Seeding database (production: permissions, roles, admin user)..."
-        dc run --rm backend python seed.py
+        dc run --rm backend python -m scripts.seed --production
     fi
 
     # Lead classification data dictionary (issue #17): customer_type + industry options.
