@@ -16,7 +16,12 @@ logger = logging.getLogger("spt_crm.change")
 
 
 
-async def list_by_project(db: AsyncSession, tenant_id: str, project_id: str):
+async def list_by_project(db: AsyncSession, tenant_id: str, project_id: str, user: dict | None = None):
+    # 按商机列变更单绕开了全局列表的 apply_project_child_scope（那里只按 project_id+tenant 查），
+    # 先校验父商机可见性，否则知道商机 id 就能读它下面的全部变更单
+    if user is not None:
+        from app.domains.project.service import get_project
+        await get_project(db, tenant_id, project_id, user)
     result = await db.execute(
         select(ChangeRequest).where(ChangeRequest.tenant_id == tenant_id, ChangeRequest.project_id == project_id)
         .order_by(ChangeRequest.created_at.desc())
@@ -24,12 +29,18 @@ async def list_by_project(db: AsyncSession, tenant_id: str, project_id: str):
     return result.scalars().all()
 
 
-async def get(db: AsyncSession, tenant_id: str, cr_id: str) -> ChangeRequest:
+async def get(db: AsyncSession, tenant_id: str, cr_id: str, user: dict | None = None) -> ChangeRequest:
+    """按 id 取变更单。传入 user 时按所属商机的可见性校验（列表口径一致）。
+
+    user=None 表示系统内部调用（审批引擎回调等），不做范围校验。
+    """
     cr = (await db.execute(
         select(ChangeRequest).where(ChangeRequest.id == cr_id, ChangeRequest.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not cr:
         raise BusinessException(code=NOT_FOUND, message="变更单不存在")
+    from app.common.data_scope import assert_project_child_in_scope
+    await assert_project_child_in_scope(db, tenant_id, user, cr, label="该变更单")
     return cr
 
 
@@ -71,7 +82,7 @@ VALID_STATUS_TRANSITIONS = {
 
 
 async def update(db: AsyncSession, tenant_id: str, cr_id: str, data: ChangeRequestUpdate, user: dict) -> ChangeRequest:
-    cr = await get(db, tenant_id, cr_id)
+    cr = await get(db, tenant_id, cr_id, user)
     update_data = data.model_dump(exclude_unset=True)
     # Validate status transition
     new_status = update_data.get("status")
@@ -106,7 +117,7 @@ async def update(db: AsyncSession, tenant_id: str, cr_id: str, data: ChangeReque
 
 async def estimate_impact(db: AsyncSession, tenant_id: str, cr_id: str, user: dict) -> dict:
     """Estimate the impact of a change request based on scope: affected milestones + budget deviation."""
-    cr = await get(db, tenant_id, cr_id)
+    cr = await get(db, tenant_id, cr_id, user)
 
     # Gather delivery milestones for this project
     from app.domains.delivery.models import DeliveryMilestone
@@ -187,7 +198,7 @@ async def estimate_impact(db: AsyncSession, tenant_id: str, cr_id: str, user: di
 
 
 async def delete(db: AsyncSession, tenant_id: str, cr_id: str, user: dict):
-    cr = await get(db, tenant_id, cr_id)
+    cr = await get(db, tenant_id, cr_id, user)
     await db.delete(cr)
     await db.commit()
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),

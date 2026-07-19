@@ -219,7 +219,7 @@ async def list_by_biz(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("attachment:download")),
 ):
-    items = await service.list_by_biz(db, tenant_id, biz_type, biz_id)
+    items = await service.list_by_biz(db, tenant_id, biz_type, biz_id, _user)
     return ok([{
         "id": a.id, "original_name": a.original_name,
         "content_type": a.content_type, "file_size": a.file_size,
@@ -247,7 +247,7 @@ async def get_download_url(
     Object storage → a presigned URL (browser fetches OSS/MinIO directly).
     Local storage  → a short token-bearing URL back to this API.
     """
-    att = await service.get_attachment(db, tenant_id, attachment_id)
+    att = await service.get_attachment(db, tenant_id, attachment_id, current_user)
     _check_secrecy(att, current_user)
     storage_type = att.storage_backend or "local"
     inline = not download
@@ -288,7 +288,7 @@ async def download(
     if "attachment:download" not in current_user.get("permissions", []):
         raise BusinessException(code=FORBIDDEN, message="缺少权限: attachment:download")
 
-    att = await service.get_attachment(db, tenant_id, attachment_id)
+    att = await service.get_attachment(db, tenant_id, attachment_id, current_user)
     _check_secrecy(att, current_user)
 
     storage_type = att.storage_backend or "local"
@@ -323,5 +323,5 @@ async def delete_attachment(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("attachment:upload")),
 ):
-    await service.delete_attachment(db, tenant_id, attachment_id)
+    await service.delete_attachment(db, tenant_id, attachment_id, _user)
     return ok(None)

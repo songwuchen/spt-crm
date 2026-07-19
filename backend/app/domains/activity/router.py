@@ -68,6 +68,12 @@ async def list_all_activities(
         q = q.where(flt)
         count_q = count_q.where(flt)
 
+    # 数据范围：此前只按 tenant 过滤，业务员能刷到全公司的跟进流（客户名、联系人、谈话内容）
+    scope_clause = await service.visible_activity_clause(db, tenant_id, _user)
+    if scope_clause is not None:
+        q = q.where(scope_clause)
+        count_q = count_q.where(scope_clause)
+
     total = (await db.execute(count_q)).scalar() or 0
     items = (await db.execute(
         q.order_by(Activity.created_at.desc())
@@ -90,7 +96,7 @@ async def list_activities(
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
 ):
-    items = await service.list_activities(db, tenant_id, biz_type, biz_id, limit=pageSize, offset=offset)
+    items = await service.list_activities(db, tenant_id, biz_type, biz_id, limit=pageSize, offset=offset, user=_user)
     return ok([_activity_dict(a) for a in items])
 
 
@@ -120,7 +126,7 @@ async def delete_activity(
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:edit")),
 ):
-    await service.delete_activity(db, tenant_id, activity_id)
+    await service.delete_activity(db, tenant_id, activity_id, _user)
     return ok(None)
 
 
@@ -130,13 +136,7 @@ async def toggle_pin(
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:edit")),
 ):
-    a = (await db.execute(
-        select(Activity).where(Activity.id == activity_id, Activity.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not a:
-        from app.common.exceptions import BusinessException
-        from app.common.error_codes import NOT_FOUND
-        raise BusinessException(code=NOT_FOUND, message="记录不存在")
+    a = await service.get_activity(db, tenant_id, activity_id, _user)
     a.pinned = not bool(a.pinned)
     await db.commit()
     await db.refresh(a)
@@ -150,7 +150,7 @@ async def ai_summarize_activities(
     _user=Depends(require_permissions("customer:view")),
 ):
     """Generate an AI summary of recent activities for a business entity."""
-    items = await service.list_activities(db, tenant_id, biz_type, biz_id)
+    items = await service.list_activities(db, tenant_id, biz_type, biz_id, user=_user)
     activities = [_activity_dict(a) for a in items[:30]]
     from app.common.ai_engine import summarize_activity
     result = await summarize_activity(activities)

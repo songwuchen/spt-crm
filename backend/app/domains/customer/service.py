@@ -176,12 +176,20 @@ async def list_customers(
     return items, total
 
 
-async def get_customer(db: AsyncSession, tenant_id: str, customer_id: str) -> Customer:
+async def get_customer(
+    db: AsyncSession, tenant_id: str, customer_id: str, user: dict | None = None
+) -> Customer:
+    """按 id 取客户。传入 user 时校验数据范围（列表能查到的，按 id 才读得到）。
+
+    user=None 表示系统内部调用（审批引擎/提醒/统计等），不做范围校验。
+    """
     c = (await db.execute(
         select(Customer).where(Customer.id == customer_id, Customer.tenant_id == tenant_id, Customer.is_deleted == False)
     )).scalar_one_or_none()
     if not c:
         raise BusinessException(code=NOT_FOUND, message="客户不存在")
+    from app.common.data_scope import assert_in_scope
+    await assert_in_scope(db, tenant_id, user, c, "customer", label="该客户")
     return c
 
 
@@ -240,7 +248,7 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
 
 
 async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, data: CustomerUpdate, user: dict) -> Customer:
-    customer = await get_customer(db, tenant_id, customer_id)
+    customer = await get_customer(db, tenant_id, customer_id, user)
     update_data = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
     from app.domains.lowcode.field_permission import (
@@ -307,7 +315,7 @@ async def delete_customer(db: AsyncSession, tenant_id: str, customer_id: str, us
     from app.domains.project.models import OpportunityProject
     from app.domains.contract.models import Contract
 
-    customer = await get_customer(db, tenant_id, customer_id)
+    customer = await get_customer(db, tenant_id, customer_id, user)
     customer_name = customer.name
 
     # Check for active projects
@@ -365,8 +373,8 @@ async def merge_customers(db: AsyncSession, tenant_id: str, primary_id: str, sec
     if primary_id == secondary_id:
         raise BusinessException(code=VALIDATION_ERROR, message="不能合并同一个客户")
 
-    primary = await get_customer(db, tenant_id, primary_id)
-    secondary = await get_customer(db, tenant_id, secondary_id)
+    primary = await get_customer(db, tenant_id, primary_id, user)
+    secondary = await get_customer(db, tenant_id, secondary_id, user)
 
     from sqlalchemy import update
     from app.domains.project.models import OpportunityProject
@@ -457,7 +465,7 @@ async def list_pool_customers(
 
 async def release_to_pool(db: AsyncSession, tenant_id: str, customer_id: str, user: dict, pools=None):
     """Release a customer to the pool. 传入预加载的 pools 可避免批量释放时逐客户查询公海列表。"""
-    customer = await get_customer(db, tenant_id, customer_id)
+    customer = await get_customer(db, tenant_id, customer_id, user)
     if customer.status == "pool":
         raise BusinessException(message="客户已在公海池中")
     old_owner = customer.owner_name or customer.owner_id
@@ -482,7 +490,8 @@ async def release_to_pool(db: AsyncSession, tenant_id: str, customer_id: str, us
 
 async def claim_from_pool(db: AsyncSession, tenant_id: str, customer_id: str, user: dict):
     """Claim a customer from the pool."""
-    customer = await get_customer(db, tenant_id, customer_id)
+    # 公海客户对全员可见（is_in_scope 放行 status='pool'），领取动作本身不受归属限制
+    customer = await get_customer(db, tenant_id, customer_id, user)
     if customer.status != "pool":
         raise BusinessException(message="客户不在公海池中")
     customer.status = "active"
@@ -517,7 +526,28 @@ async def batch_release_to_pool(db: AsyncSession, tenant_id: str, customer_ids: 
 
 # ==================== Contact ====================
 
-async def list_contacts(db: AsyncSession, tenant_id: str, customer_id: str):
+async def _load_contact_scoped(
+    db: AsyncSession, tenant_id: str, contact_id: str, user: dict | None
+) -> Contact:
+    """取联系人并按「所属客户」的可见性校验。
+
+    Contact 自身没有 owner_id，可见性只能由父客户决定；同时这里不接受调用方传来的
+    customer_id 作为凭据——历史上路由把 /customers/{cid}/contacts/{id} 的 cid 直接丢弃，
+    导致任意 cid 都能改到任意联系人。
+    """
+    contact = (await db.execute(
+        select(Contact).where(Contact.id == contact_id, Contact.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not contact:
+        raise BusinessException(code=NOT_FOUND, message="联系人不存在")
+    if user is not None and contact.customer_id:
+        await get_customer(db, tenant_id, contact.customer_id, user)  # 越权即 403
+    return contact
+
+
+async def list_contacts(db: AsyncSession, tenant_id: str, customer_id: str, user: dict | None = None):
+    if user is not None:
+        await get_customer(db, tenant_id, customer_id, user)  # 父客户不可见则不给列联系人
     result = await db.execute(
         select(Contact).where(Contact.tenant_id == tenant_id, Contact.customer_id == customer_id)
         .order_by(Contact.is_primary.desc(), Contact.created_at)
@@ -526,8 +556,8 @@ async def list_contacts(db: AsyncSession, tenant_id: str, customer_id: str):
 
 
 async def create_contact(db: AsyncSession, tenant_id: str, customer_id: str, data: ContactCreate, user: dict) -> Contact:
-    # Verify customer exists
-    await get_customer(db, tenant_id, customer_id)
+    # Verify customer exists（并且在本人数据范围内——否则可给他人客户挂联系人）
+    await get_customer(db, tenant_id, customer_id, user)
 
     dump = data.model_dump()
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
@@ -554,11 +584,7 @@ async def create_contact(db: AsyncSession, tenant_id: str, customer_id: str, dat
 
 
 async def update_contact(db: AsyncSession, tenant_id: str, contact_id: str, data: ContactUpdate, user: dict) -> Contact:
-    contact = (await db.execute(
-        select(Contact).where(Contact.id == contact_id, Contact.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not contact:
-        raise BusinessException(code=NOT_FOUND, message="联系人不存在")
+    contact = await _load_contact_scoped(db, tenant_id, contact_id, user)
 
     _dump = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
@@ -584,11 +610,7 @@ async def update_contact(db: AsyncSession, tenant_id: str, contact_id: str, data
 
 
 async def delete_contact(db: AsyncSession, tenant_id: str, contact_id: str, user: dict):
-    contact = (await db.execute(
-        select(Contact).where(Contact.id == contact_id, Contact.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not contact:
-        raise BusinessException(code=NOT_FOUND, message="联系人不存在")
+    contact = await _load_contact_scoped(db, tenant_id, contact_id, user)
 
     contact_name = contact.name
     await db.delete(contact)

@@ -32,6 +32,44 @@ class TaskUpdate(BaseModel):
     is_completed: Optional[bool] = None
 
 
+async def _load_task(db: AsyncSession, tenant_id: str, task_id: str, user: dict) -> UserTask:
+    """按 id 取任务并校验数据范围。
+
+    此前 update/delete 只按 tenant_id 取任务，列表里看不到的任务照样能按 id 改掉/删掉。
+    可见口径与列表一致：本人负责/本人创建，或负责人落在自己的数据范围内（dept 档看下属）。
+    """
+    from app.common.exceptions import BusinessException
+    from app.common.error_codes import FORBIDDEN
+    from app.common.data_scope import resolve_owner_scope
+
+    t = (await db.execute(
+        select(UserTask).where(UserTask.tenant_id == tenant_id, UserTask.id == task_id)
+    )).scalar()
+    if not t:
+        raise BusinessException(message="任务不存在")
+    uid = user.get("sub")
+    if t.assignee_id == uid or t.created_by_id == uid:
+        return t
+    scope = await resolve_owner_scope(db, user, tenant_id)
+    if scope is None or (t.assignee_id and t.assignee_id in scope):
+        return t
+    raise BusinessException(code=FORBIDDEN, message="无权访问该任务（不在您的数据范围内）")
+
+
+async def _scope_clause(db: AsyncSession, tenant_id: str, user: dict):
+    """批量操作的范围约束；None 表示不限（管理员 / data_scope=all）。"""
+    from app.common.data_scope import resolve_owner_scope
+    scope = await resolve_owner_scope(db, user, tenant_id)
+    if scope is None:
+        return None
+    uid = user.get("sub")
+    return or_(
+        UserTask.assignee_id.in_(scope),
+        UserTask.assignee_id == uid,
+        UserTask.created_by_id == uid,
+    )
+
+
 def _task_dict(t) -> dict:
     return {
         "id": t.id, "title": t.title, "description": t.description,
@@ -61,7 +99,16 @@ async def list_tasks(
     q = select(UserTask).where(UserTask.tenant_id == tenant_id)
     # By default show user's own tasks unless assignee_id is specified
     if assignee_id:
-        q = q.where(UserTask.assignee_id == assignee_id)
+        # 显式按人筛选不能越权：assignee_id 必须落在自己的数据范围内，否则
+        # 传个别人的 id 就绕过了默认的「只看自己」，把他的任务全列出来。
+        from app.common.data_scope import resolve_owner_scope, scoped_owners
+        scope = await resolve_owner_scope(db, current_user, tenant_id)
+        allowed = scoped_owners(assignee_id, scope)
+        if allowed:
+            q = q.where(UserTask.assignee_id.in_(allowed))
+        else:  # 目标不在范围内：只剩下「我派给他的」那部分可见
+            q = q.where(UserTask.assignee_id == assignee_id,
+                        UserTask.created_by_id == current_user["sub"])
     else:
         q = q.where(or_(UserTask.assignee_id == current_user["sub"], UserTask.created_by_id == current_user["sub"]))
     if status:
@@ -123,12 +170,7 @@ async def update_task(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    from app.common.exceptions import BusinessException
-    t = (await db.execute(
-        select(UserTask).where(UserTask.tenant_id == tenant_id, UserTask.id == task_id)
-    )).scalar()
-    if not t:
-        raise BusinessException(message="任务不存在")
+    t = await _load_task(db, tenant_id, task_id, current_user)
     data = body.model_dump(exclude_unset=True)
     if "due_date" in data and data["due_date"]:
         from datetime import date as date_type
@@ -149,12 +191,7 @@ async def delete_task(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    from app.common.exceptions import BusinessException
-    t = (await db.execute(
-        select(UserTask).where(UserTask.tenant_id == tenant_id, UserTask.id == task_id)
-    )).scalar()
-    if not t:
-        raise BusinessException(message="任务不存在")
+    t = await _load_task(db, tenant_id, task_id, current_user)
     await db.delete(t)
     await db.commit()
     return ok()
@@ -182,15 +219,17 @@ async def batch_assign(
 ):
     """Batch assign tasks to a user."""
     from sqlalchemy import update
+    # 批量改派此前是裸 UPDATE ... WHERE id IN (...)，只认 tenant：
+    # 拼一串别人的任务 id 就能整批改派。这里补上与列表一致的范围约束。
+    scope_clause = await _scope_clause(db, tenant_id, current_user)
+    conds = [UserTask.tenant_id == tenant_id, UserTask.id.in_(body.ids)]
+    if scope_clause is not None:
+        conds.append(scope_clause)
     # 取一个任务标题用于通知文案（在更新前读取）
-    sample = (await db.execute(
-        select(UserTask).where(UserTask.tenant_id == tenant_id, UserTask.id.in_(body.ids)).limit(1)
-    )).scalar()
+    sample = (await db.execute(select(UserTask).where(*conds).limit(1))).scalar()
     result = await db.execute(
-        update(UserTask).where(
-            UserTask.tenant_id == tenant_id,
-            UserTask.id.in_(body.ids),
-        ).values(assignee_id=body.assignee_id, assignee_name=body.assignee_name)
+        update(UserTask).where(*conds)
+        .values(assignee_id=body.assignee_id, assignee_name=body.assignee_name)
     )
     await db.commit()
     # 批量分配给他人时，给被分配人发一条汇总通知
@@ -216,11 +255,13 @@ async def batch_complete(
 ):
     """Batch mark tasks as completed."""
     from sqlalchemy import update
+    # 同 batch_assign：裸 UPDATE 只认 tenant，等于任何人都能把别人的任务标记完成
+    scope_clause = await _scope_clause(db, tenant_id, current_user)
+    conds = [UserTask.tenant_id == tenant_id, UserTask.id.in_(body.ids)]
+    if scope_clause is not None:
+        conds.append(scope_clause)
     result = await db.execute(
-        update(UserTask).where(
-            UserTask.tenant_id == tenant_id,
-            UserTask.id.in_(body.ids),
-        ).values(is_completed=True, status="done")
+        update(UserTask).where(*conds).values(is_completed=True, status="done")
     )
     await db.commit()
     return ok({"updated": result.rowcount})

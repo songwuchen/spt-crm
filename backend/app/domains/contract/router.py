@@ -107,7 +107,7 @@ async def list_project_contracts(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("contract:view")),
 ):
-    items = await service.list_contracts_by_project(db, tenant_id, project_id)
+    items = await service.list_contracts_by_project(db, tenant_id, project_id, _user)
     return ok([_contract_dict(c) for c in items])
 
 
@@ -148,7 +148,7 @@ async def get_contract(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("contract:view")),
 ):
-    contract = await service.get_contract(db, tenant_id, contract_id)
+    contract = await service.get_contract(db, tenant_id, contract_id, current_user)
     versions = await service.get_versions_by_contract(db, tenant_id, contract_id)
     perms = current_user.get("permissions", [])
     policies = await load_mask_policies(db, tenant_id)
@@ -215,7 +215,7 @@ async def get_version(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("contract:view")),
 ):
-    v = await service.get_version(db, tenant_id, version_id)
+    v = await service.get_version(db, tenant_id, version_id, _user)
     return ok(_version_dict(v))
 
 
@@ -241,16 +241,11 @@ async def create_renewal_from_contract(
     current_user: dict = Depends(require_permissions("contract:edit")),
 ):
     """Create a renewal opportunity from an expiring contract."""
-    from app.domains.contract.models import Contract
     from app.domains.project.models import OpportunityProject
     from app.domains.service_ticket.models import RenewalOpportunity
 
-    contract = (await db.execute(
-        select(Contract).where(Contract.tenant_id == tenant_id, Contract.id == contract_id)
-    )).scalar_one_or_none()
-    if not contract:
-        from app.common.exceptions import BusinessException
-        raise BusinessException(message="合同不存在")
+    # 走 service 取，才能同时做数据范围校验（原先按 id 直查，看不见的合同也能发起续约）
+    contract = await service.get_contract(db, tenant_id, contract_id, current_user)
 
     # Get project info for customer_id
     project = (await db.execute(
@@ -290,7 +285,7 @@ async def export_contract_pdf(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("contract:view")),
 ):
-    contract = await service.get_contract(db, tenant_id, contract_id)
+    contract = await service.get_contract(db, tenant_id, contract_id, _user)
     versions = await service.get_versions_by_contract(db, tenant_id, contract_id)
     cur_ver = next((v for v in versions if v.version_no == contract.current_version_no), None)
 
@@ -349,7 +344,8 @@ async def batch_export_contract_pdf(
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for cid in ids[:50]:
             try:
-                contract = await service.get_contract(db, tenant_id, cid)
+                # 越权的 id 会抛 403，被下面的 except 跳过（批量导出静默略过不可见项）
+                contract = await service.get_contract(db, tenant_id, cid, _user)
                 versions = await service.get_versions_by_contract(db, tenant_id, cid)
                 cur_ver = next((v for v in versions if v.version_no == contract.current_version_no), None)
                 pdf_bytes = build_contract_pdf(

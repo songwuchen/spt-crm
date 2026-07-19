@@ -86,7 +86,7 @@ async def list_project_solutions(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("solution:view")),
 ):
-    items = await service.list_solutions_by_project(db, tenant_id, project_id)
+    items = await service.list_solutions_by_project(db, tenant_id, project_id, _user)
     return ok([_solution_dict(s) for s in items])
 
 
@@ -114,7 +114,7 @@ async def get_solution(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("solution:view")),
 ):
-    solution = await service.get_solution(db, tenant_id, solution_id)
+    solution = await service.get_solution(db, tenant_id, solution_id, _user)
     versions = await service.get_versions_by_solution(db, tenant_id, solution_id)
     current_ver = next((v for v in versions if v.version_no == solution.current_version_no), None)
 
@@ -168,7 +168,7 @@ async def get_version(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("solution:view")),
 ):
-    v = await service.get_version(db, tenant_id, version_id)
+    v = await service.get_version(db, tenant_id, version_id, _user)
     return ok(_version_dict(v))
 
 
@@ -195,6 +195,8 @@ async def compare_versions(
 ):
     """Compare two solution versions side by side, highlighting differences."""
     from app.domains.solution.models import SolutionVersion
+
+    await service.get_solution(db, tenant_id, solution_id, _user)  # 对比接口同样按所属商机校验可见性
 
     ver1 = (await db.execute(
         select(SolutionVersion).where(

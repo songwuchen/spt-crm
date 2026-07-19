@@ -461,6 +461,7 @@ async def customer_stats(
     _user=Depends(require_permissions("customer:view")),
 ):
     """Customer 360 stats: project/quote/contract/ticket counts + totals."""
+    await service.get_customer(db, tenant_id, customer_id, _user)  # 数据范围校验
     from sqlalchemy import select, func
     from app.domains.project.models import OpportunityProject
     from app.domains.quote.models import Quote
@@ -553,7 +554,7 @@ async def customer_stats(
     })
 
 
-async def _gather_customer_report(db: AsyncSession, tenant_id: str, customer_id: str) -> dict:
+async def _gather_customer_report(db: AsyncSession, tenant_id: str, customer_id: str, user: dict | None = None) -> dict:
     """Collect a customer's related business entities (商机/报价/合同/订单/标书/回款/工单/交付)."""
     from sqlalchemy import func
     from app.domains.project.models import OpportunityProject
@@ -565,7 +566,8 @@ async def _gather_customer_report(db: AsyncSession, tenant_id: str, customer_id:
     from app.domains.order.models import Order
     from app.domains.tender.models import Tender
 
-    customer = await service.get_customer(db, tenant_id, customer_id)
+    # 客户不可见 → 整份 360 报表（商机/合同/回款/工单…）都不该给
+    customer = await service.get_customer(db, tenant_id, customer_id, user)
 
     projects = (await db.execute(
         select(OpportunityProject).where(
@@ -645,7 +647,7 @@ async def customer_report(
     _user=Depends(require_permissions("customer:view")),
 ):
     """客户关联报表：商机/报价/合同/订单/标书/回款/工单/交付 的明细 + 汇总。"""
-    data = await _gather_customer_report(db, tenant_id, customer_id)
+    data = await _gather_customer_report(db, tenant_id, customer_id, _user)
 
     c = data["customer"]
     projects = data["projects"]
@@ -741,7 +743,7 @@ async def export_customer_report(
     _user=Depends(require_permissions("customer:view")),
 ):
     """导出客户关联报表为多 Sheet Excel。"""
-    data = await _gather_customer_report(db, tenant_id, customer_id)
+    data = await _gather_customer_report(db, tenant_id, customer_id, _user)
     qa = data["quote_amount"]
 
     def _f(v):
@@ -805,7 +807,7 @@ async def list_contacts(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("contact:view")),
 ):
-    contacts = await service.list_contacts(db, tenant_id, customer_id)
+    contacts = await service.list_contacts(db, tenant_id, customer_id, _user)
     dicts = [ContactOut.model_validate(c).model_dump() for c in contacts]
     await strip_entity_dicts(db, tenant_id, "contact", dicts, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok(dicts)
@@ -939,18 +941,40 @@ async def check_similar(
     exclude_id: str = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_permissions("customer:view")),
 ):
-    """Find customers with similar names or matching contact phone for duplicate detection."""
+    """Find customers with similar names or matching contact phone for duplicate detection.
+
+    查重必须跨数据范围（否则「客户已被同事持有」根本查不出来，重复建档照样发生），
+    但范围外的命中只回「有这么个客户 + 归属人」，不回 id/电话/联系人——
+    否则这个接口就成了任意手机号反查客户的探针。
+    """
     from sqlalchemy import or_
+    from app.common.data_scope import resolve_owner_scope
+
     from app.domains.customer.models import Contact
+
+    scope = await resolve_owner_scope(db, _user, tenant_id)
+    uid = _user.get("sub")
+
+    def _visible(owner_id: str | None, status: str | None = None) -> bool:
+        return scope is None or status == "pool" or (owner_id is not None and owner_id in scope)
+
+    def _entry(c_id, name, short_name, industry, owner_id, owner_name, status, match_type, **extra) -> dict:
+        if _visible(owner_id, status):
+            return {"id": c_id, "name": name, "short_name": short_name, "industry": industry,
+                    "owner_name": owner_name, "match_type": match_type, **extra}
+        # 范围外：只提示存在与归属，不给可跳转的 id，也不回显匹配到的电话
+        return {"id": None, "name": name, "short_name": None, "industry": None,
+                "owner_name": owner_name, "match_type": match_type, "restricted": True}
 
     results: list[dict] = []
     seen_ids: set[str] = set()
 
     # Match by name / short_name
     if name:
-        q = select(Customer.id, Customer.name, Customer.short_name, Customer.industry, Customer.owner_name).where(
+        q = select(Customer.id, Customer.name, Customer.short_name, Customer.industry,
+                   Customer.owner_id, Customer.owner_name, Customer.status).where(
             Customer.tenant_id == tenant_id,
             Customer.is_deleted == False,
             or_(Customer.name.ilike(f"%{name}%"), Customer.short_name.ilike(f"%{name}%")),
@@ -960,8 +984,8 @@ async def check_similar(
         items = (await db.execute(q.limit(5))).all()
         for r in items:
             seen_ids.add(r.id)
-            results.append({"id": r.id, "name": r.name, "short_name": r.short_name,
-                            "industry": r.industry, "owner_name": r.owner_name, "match_type": "name"})
+            results.append(_entry(r.id, r.name, r.short_name, r.industry,
+                                  r.owner_id, r.owner_name, r.status, "name"))
 
     # Match by contact phone
     if phone and len(phone) >= 4:
@@ -987,10 +1011,9 @@ async def check_similar(
                 c = cust_map.get(m.customer_id)
                 if c:
                     seen_ids.add(c.id)
-                    results.append({"id": c.id, "name": c.name, "short_name": c.short_name,
-                                    "industry": c.industry, "owner_name": c.owner_name,
-                                    "match_type": "phone", "match_phone": m.phone,
-                                    "match_contact": m.contact_name})
+                    results.append(_entry(c.id, c.name, c.short_name, c.industry,
+                                          c.owner_id, c.owner_name, c.status, "phone",
+                                          match_phone=m.phone, match_contact=m.contact_name))
 
     return ok(results[:10])
 
@@ -1053,21 +1076,37 @@ async def batch_transfer(
     current_user: dict = Depends(require_permissions("customer:edit")),
 ):
     """Batch transfer customers to a new owner. Also lifts pool customers back to active
-    so this endpoint doubles as 'assign from pool to salesperson'."""
-    from sqlalchemy import update, case
+    so this endpoint doubles as 'assign from pool to salesperson'.
+
+    只能转移「自己数据范围内 + 公海」的客户：否则任何持 customer:edit 的销售
+    都能把别人名下的客户批量改成自己的（改完还会因为归属变更而合法地出现在自己列表里）。
+    """
+    from sqlalchemy import update, case, or_
+    from app.common.data_scope import resolve_owner_scope
+
+    scope = await resolve_owner_scope(db, current_user, tenant_id)
+    conds = [
+        Customer.tenant_id == tenant_id,
+        Customer.id.in_(body.ids),
+        Customer.is_deleted == False,
+    ]
+    if scope is not None:
+        conds.append(or_(
+            Customer.owner_id.in_(scope),
+            Customer.status == "pool",
+            Customer.created_by_id == current_user.get("sub"),
+        ))
     result = await db.execute(
-        update(Customer).where(
-            Customer.tenant_id == tenant_id,
-            Customer.id.in_(body.ids),
-            Customer.is_deleted == False,
-        ).values(
+        update(Customer).where(*conds).values(
             owner_id=body.owner_id,
             owner_name=body.owner_name,
             status=case((Customer.status == "pool", "active"), else_=Customer.status),
         )
     )
     await db.commit()
-    return ok({"updated": result.rowcount})
+    updated = result.rowcount or 0
+    # 静默少转是最难查的一类问题，明确回报被跳过的条数
+    return ok({"updated": updated, "skipped": max(0, len(body.ids) - updated)})
 
 
 @router.get("/{customer_id}/health")
@@ -1075,9 +1114,10 @@ async def customer_health(
     customer_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_permissions("customer:view")),
 ):
     """Compute a health score (0-100, grade A-D) for a customer."""
+    await service.get_customer(db, tenant_id, customer_id, _user)  # 数据范围校验
     from datetime import datetime, timedelta
     from sqlalchemy import func
     from app.domains.project.models import OpportunityProject
@@ -1251,7 +1291,7 @@ async def get_customer(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("customer:view")),
 ):
-    c = await service.get_customer(db, tenant_id, customer_id)
+    c = await service.get_customer(db, tenant_id, customer_id, _user)
     d = _customer_dict(c, await _tenant_pool_rules(db, tenant_id), await service.list_active_pools(db, tenant_id))
     await strip_entity_dicts(db, tenant_id, "customer", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok(d)

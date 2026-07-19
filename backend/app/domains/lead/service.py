@@ -140,12 +140,18 @@ async def _replace_lead_products(db: AsyncSession, tenant_id: str, lead_id: str,
         ))
 
 
-async def get_lead(db: AsyncSession, tenant_id: str, lead_id: str) -> Lead:
+async def get_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict | None = None) -> Lead:
+    """按 id 取线索。传入 user 时校验数据范围（列表能查到的，按 id 才读得到）。
+
+    user=None 表示系统内部调用（审批引擎读被审线索、提醒、开放平台等），不做范围校验。
+    """
     lead = (await db.execute(
         select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant_id, Lead.is_deleted == False)
     )).scalar_one_or_none()
     if not lead:
         raise BusinessException(code=NOT_FOUND, message="线索不存在")
+    from app.common.data_scope import assert_in_scope
+    await assert_in_scope(db, tenant_id, user, lead, "lead", label="该线索")
     return lead
 
 
@@ -283,7 +289,7 @@ async def _apply_review_flow(db: AsyncSession, tenant_id: str, lead: Lead, inst,
 
 
 async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: LeadUpdate, user: dict) -> Lead:
-    lead = await get_lead(db, tenant_id, lead_id)
+    lead = await get_lead(db, tenant_id, lead_id, user)
     payload = data.model_dump(exclude_unset=True)
     products_given = "products" in payload
     payload.pop("products", None)  # 产品明细单独处理
@@ -336,7 +342,11 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
 async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict,
                        create_opportunity: bool = False) -> dict:
     """Convert a lead into a customer. Optionally also spin up an opportunity (商机)
-    carrying the lead's demand/budget context, so sales doesn't re-key it."""
+    carrying the lead's demand/budget context, so sales doesn't re-key it.
+
+    这里刻意不把 user 传进 get_lead 做范围校验：开放平台(app_key 鉴权)也调本函数，传的是
+    伪用户，按它的 owner 范围判定会把租户内非本 app 创建的线索一律 403，等于静默改坏集成。
+    登录用户走的 HTTP 入口在 router 里先 get_lead(user) 校验过范围。"""
     lead = await get_lead(db, tenant_id, lead_id)
     if lead.status == "qualified":
         raise BusinessException(code=LEAD_ALREADY_QUALIFIED, message="线索已转化")
@@ -444,7 +454,7 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
 
 
 async def delete_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict):
-    lead = await get_lead(db, tenant_id, lead_id)
+    lead = await get_lead(db, tenant_id, lead_id, user)
     lead_title = lead.title
 
     if lead.status == "qualified":
@@ -461,6 +471,7 @@ async def delete_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict
 
 
 async def discard_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dict) -> Lead:
+    # 同 qualify_lead：开放平台也调本函数（伪用户），范围校验放在 router 的登录用户入口
     lead = await get_lead(db, tenant_id, lead_id)
     if lead.status == "qualified":
         raise BusinessException(code=LEAD_ALREADY_QUALIFIED, message="线索已转化，无法废弃")
@@ -490,7 +501,7 @@ async def discard_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
 async def resubmit_lead_review(db: AsyncSession, tenant_id: str, lead_id: str, user: dict) -> Lead:
     """被驳回的线索修改后重新提交内勤审核。"""
     from app.common.error_codes import VALIDATION_ERROR
-    lead = await get_lead(db, tenant_id, lead_id)
+    lead = await get_lead(db, tenant_id, lead_id, user)
     if lead.review_status != "rejected":
         raise BusinessException(code=VALIDATION_ERROR, message="仅被驳回的线索可重新提交审核")
 

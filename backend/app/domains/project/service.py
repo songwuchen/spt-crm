@@ -228,12 +228,19 @@ async def list_projects(
     return items, total
 
 
-async def get_project(db: AsyncSession, tenant_id: str, project_id: str) -> OpportunityProject:
+async def get_project(db: AsyncSession, tenant_id: str, project_id: str,
+                      user: dict | None = None) -> OpportunityProject:
+    """按 id 取商机。传入 user 时校验数据范围（列表能查到的，按 id 才读得到）。
+
+    user=None 表示系统内部调用（审批引擎、提醒、跨域统计等），不做范围校验。
+    """
     p = (await db.execute(
         select(OpportunityProject).where(OpportunityProject.id == project_id, OpportunityProject.tenant_id == tenant_id, OpportunityProject.is_deleted == False)
     )).scalar_one_or_none()
     if not p:
         raise BusinessException(code=NOT_FOUND, message="商机项目不存在")
+    from app.common.data_scope import assert_in_scope
+    await assert_in_scope(db, tenant_id, user, p, "project", label="该商机")
     return p
 
 
@@ -280,7 +287,7 @@ async def create_project(db: AsyncSession, tenant_id: str, data: ProjectCreate, 
 
 
 async def update_project(db: AsyncSession, tenant_id: str, project_id: str, data: ProjectUpdate, user: dict) -> OpportunityProject:
-    project = await get_project(db, tenant_id, project_id)
+    project = await get_project(db, tenant_id, project_id, user)
     update_data = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
     from app.domains.lowcode.field_permission import (
@@ -366,7 +373,7 @@ async def transfer_owner(db: AsyncSession, tenant_id: str, project_id: str,
     与普通编辑分离：改负责人会改变该商机在数据范围(data_scope)下对其他人的可见性，
     并把后续赢单/丢单/回款等通知导向新负责人，故单独鉴权 + 审计 + 通知新负责人。
     录入人(created_by)不受影响，始终保留。"""
-    project = await get_project(db, tenant_id, project_id)
+    project = await get_project(db, tenant_id, project_id, user)
 
     from app.domains.auth.models import User as AuthUser
     new_owner = (await db.execute(
@@ -404,7 +411,7 @@ async def transfer_owner(db: AsyncSession, tenant_id: str, project_id: str,
 
 
 async def delete_project(db: AsyncSession, tenant_id: str, project_id: str, user: dict):
-    project = await get_project(db, tenant_id, project_id)
+    project = await get_project(db, tenant_id, project_id, user)
     project_name = project.name
 
     # Cascade: soft-delete related payment data
@@ -535,7 +542,7 @@ async def _check_pending_approvals(db: AsyncSession, tenant_id: str, project_id:
 
 
 async def advance_stage(db: AsyncSession, tenant_id: str, project_id: str, to_stage: str, note: str | None, user: dict, force: bool = False) -> OpportunityProject:
-    project = await get_project(db, tenant_id, project_id)
+    project = await get_project(db, tenant_id, project_id, user)
     from_stage = project.stage_code
 
     if to_stage not in STAGE_ORDER:
@@ -620,7 +627,7 @@ async def advance_stage(db: AsyncSession, tenant_id: str, project_id: str, to_st
 
 
 async def rollback_stage(db: AsyncSession, tenant_id: str, project_id: str, to_stage: str, note: str | None, user: dict) -> OpportunityProject:
-    project = await get_project(db, tenant_id, project_id)
+    project = await get_project(db, tenant_id, project_id, user)
     from_stage = project.stage_code
 
     if to_stage not in STAGE_ORDER:
@@ -647,9 +654,10 @@ async def rollback_stage(db: AsyncSession, tenant_id: str, project_id: str, to_s
     return project
 
 
-async def calculate_health_score(db: AsyncSession, tenant_id: str, project_id: str) -> dict:
+async def calculate_health_score(db: AsyncSession, tenant_id: str, project_id: str,
+                                 user: dict | None = None) -> dict:
     """Calculate project health score (0-100) based on multiple dimensions."""
-    project = await get_project(db, tenant_id, project_id)
+    project = await get_project(db, tenant_id, project_id, user)
 
     dimensions = {}
     reasons = []
@@ -825,7 +833,10 @@ async def calculate_health_score(db: AsyncSession, tenant_id: str, project_id: s
     }
 
 
-async def list_stage_history(db: AsyncSession, tenant_id: str, project_id: str):
+async def list_stage_history(db: AsyncSession, tenant_id: str, project_id: str,
+                             user: dict | None = None):
+    # 子资源按 project_id 直查会绕过数据范围：先确认父商机对当前用户可见
+    await get_project(db, tenant_id, project_id, user)
     result = await db.execute(
         select(ProjectStageHistory).where(
             ProjectStageHistory.tenant_id == tenant_id,
@@ -837,7 +848,10 @@ async def list_stage_history(db: AsyncSession, tenant_id: str, project_id: str):
 
 # ==================== Project Members (多部门/多人协作) ====================
 
-async def list_members(db: AsyncSession, tenant_id: str, project_id: str):
+async def list_members(db: AsyncSession, tenant_id: str, project_id: str,
+                       user: dict | None = None):
+    # 同上：成员名单也只对能看见该商机的人开放
+    await get_project(db, tenant_id, project_id, user)
     result = await db.execute(
         select(ProjectMember).where(
             ProjectMember.tenant_id == tenant_id,
@@ -848,8 +862,8 @@ async def list_members(db: AsyncSession, tenant_id: str, project_id: str):
 
 
 async def add_member(db: AsyncSession, tenant_id: str, project_id: str, data: ProjectMemberAdd, user: dict) -> ProjectMember:
-    # 404 if project missing
-    await get_project(db, tenant_id, project_id)
+    # 404 if project missing（并校验数据范围：看不见的商机不能往里加人）
+    await get_project(db, tenant_id, project_id, user)
 
     # De-dupe / upsert: one row per (project, user)
     existing = (await db.execute(
@@ -891,6 +905,7 @@ async def add_member(db: AsyncSession, tenant_id: str, project_id: str, data: Pr
 
 
 async def update_member(db: AsyncSession, tenant_id: str, project_id: str, member_id: str, data: ProjectMemberUpdate, user: dict) -> ProjectMember:
+    await get_project(db, tenant_id, project_id, user)  # 数据范围校验
     member = (await db.execute(
         select(ProjectMember).where(
             ProjectMember.id == member_id,
@@ -912,6 +927,7 @@ async def update_member(db: AsyncSession, tenant_id: str, project_id: str, membe
 
 
 async def remove_member(db: AsyncSession, tenant_id: str, project_id: str, member_id: str, user: dict):
+    await get_project(db, tenant_id, project_id, user)  # 数据范围校验
     member = (await db.execute(
         select(ProjectMember).where(
             ProjectMember.id == member_id,

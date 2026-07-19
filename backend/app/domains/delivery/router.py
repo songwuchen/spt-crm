@@ -59,7 +59,7 @@ async def list_order_links(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("delivery:view")),
 ):
-    items = await service.list_order_links(db, tenant_id, project_id)
+    items = await service.list_order_links(db, tenant_id, project_id, _user)
     return ok([_link_dict(l) for l in items])
 
 
@@ -136,7 +136,7 @@ async def list_milestones(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("delivery:view")),
 ):
-    items = await service.list_milestones(db, tenant_id, project_id)
+    items = await service.list_milestones(db, tenant_id, project_id, _user)
     counts = await _ms_attachment_counts(db, tenant_id, [m.id for m in items])
     return ok([_ms_dict(m, counts.get(m.id, 0)) for m in items])
 
@@ -160,7 +160,7 @@ async def get_milestone(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("delivery:view")),
 ):
-    ms = await service.get_milestone(db, tenant_id, milestone_id)
+    ms = await service.get_milestone(db, tenant_id, milestone_id, _user)
     return ok(_ms_dict(ms))
 
 

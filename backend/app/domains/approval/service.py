@@ -1,12 +1,12 @@
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
-from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR
+from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR, FORBIDDEN
 from app.domains.approval.models import ApprovalFlow, ApprovalTask
 from app.domains.approval.schemas import ApprovalSubmit
 from app.domains.audit.service import log_action
@@ -15,8 +15,28 @@ from app.domains.notification.service import send_notification
 logger = logging.getLogger("spt_crm.approval")
 
 
-async def list_flows(db: AsyncSession, tenant_id: str, biz_type: str | None = None, biz_id: str | None = None, status: str | None = None, page: int = 1, page_size: int = 50):
+def _involved_clause(user: dict):
+    """「与我相关」：我发起的，或有一个节点指派给我（含已办）。"""
+    uid = user.get("sub")
+    return or_(
+        ApprovalFlow.submitted_by_id == uid,
+        ApprovalFlow.id.in_(
+            select(ApprovalTask.flow_id).where(ApprovalTask.assignee_id == uid)
+        ),
+    )
+
+
+def _can_see_all_flows(user: dict) -> bool:
+    perms = user.get("permissions", []) or []
+    return "*" in perms or "approval:manage" in perms
+
+
+async def list_flows(db: AsyncSession, tenant_id: str, biz_type: str | None = None, biz_id: str | None = None, status: str | None = None, page: int = 1, page_size: int = 50, user: dict | None = None):
     q = select(ApprovalFlow).where(ApprovalFlow.tenant_id == tenant_id)
+    # 「所有审批」tab 过去对任何持 approval:view 的人开放全租户审批流（含标题里的客户名/项目名
+    # 和详情里的 biz_detail）。approval:view 属于全员基础权限，等于全公司审批对所有人可见。
+    if user is not None and not _can_see_all_flows(user):
+        q = q.where(_involved_clause(user))
     if biz_type:
         q = q.where(ApprovalFlow.biz_type == biz_type)
     if biz_id:
@@ -30,12 +50,28 @@ async def list_flows(db: AsyncSession, tenant_id: str, biz_type: str | None = No
     return items, total
 
 
-async def get_flow(db: AsyncSession, tenant_id: str, flow_id: str) -> ApprovalFlow:
+async def get_flow(db: AsyncSession, tenant_id: str, flow_id: str, user: dict | None = None) -> ApprovalFlow:
+    """取审批流。传入 user 时校验「与我相关」——审批详情会带出 biz_detail（被审业务对象的
+    公司名/金额等），不能让任何持 approval:view 的人按 id 翻别人的审批。
+
+    user=None 为内部调用（撤回/重提/引擎回调自身另有身份校验）。
+    """
     f = (await db.execute(
         select(ApprovalFlow).where(ApprovalFlow.id == flow_id, ApprovalFlow.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not f:
         raise BusinessException(code=NOT_FOUND, message="审批流不存在")
+    if user is not None and not _can_see_all_flows(user):
+        uid = user.get("sub")
+        involved = f.submitted_by_id == uid or (await db.execute(
+            select(ApprovalTask.id).where(
+                ApprovalTask.flow_id == flow_id,
+                ApprovalTask.tenant_id == tenant_id,
+                ApprovalTask.assignee_id == uid,
+            ).limit(1)
+        )).scalar_one_or_none() is not None
+        if not involved:
+            raise BusinessException(code=FORBIDDEN, message="无权查看该审批（不是发起人或审批人）")
     return f
 
 
@@ -948,12 +984,18 @@ async def bulk_decide(db: AsyncSession, tenant_id: str, task_ids: list[str], act
     return results
 
 
-async def get_statistics(db: AsyncSession, tenant_id: str, date_from: str | None = None, date_to: str | None = None) -> dict:
-    """Get approval statistics for the tenant using SQL aggregation."""
+async def get_statistics(db: AsyncSession, tenant_id: str, date_from: str | None = None, date_to: str | None = None, user: dict | None = None) -> dict:
+    """Get approval statistics for the tenant using SQL aggregation.
+
+    传入 user 且其无 approval:manage 时，只统计与本人相关的审批——
+    否则 工作台「审批SLA概览」会把全公司审批量、通过率和审批人排行摊给每个销售看。
+    """
     from sqlalchemy import extract, case
 
     # Build shared WHERE conditions
     conditions = [ApprovalFlow.tenant_id == tenant_id]
+    if user is not None and not _can_see_all_flows(user):
+        conditions.append(_involved_clause(user))
     if date_from:
         conditions.append(ApprovalFlow.created_at >= date_from)
     if date_to:
@@ -1037,13 +1079,24 @@ async def get_statistics(db: AsyncSession, tenant_id: str, date_from: str | None
     sla_rate = round(sla_compliant / sla_total, 2) if sla_total > 0 else 1.0
 
     # 7. Top approvers via GROUP BY (already uses SQL)
+    # 注意这里查的是 ApprovalTask，不受上面 conditions 约束，需要单独限范围，
+    # 否则「审批人排行」会把全公司同事的审批次数列给普通销售看。
+    task_conditions = [
+        ApprovalTask.tenant_id == tenant_id,
+        ApprovalTask.status.in_(["approved", "rejected"]),
+    ]
+    if user is not None and not _can_see_all_flows(user):
+        task_conditions.append(
+            ApprovalTask.flow_id.in_(
+                select(ApprovalFlow.id).where(
+                    ApprovalFlow.tenant_id == tenant_id, _involved_clause(user)
+                )
+            )
+        )
     task_base = select(
         ApprovalTask.assignee_name,
         func.count(ApprovalTask.id).label("cnt"),
-    ).where(
-        ApprovalTask.tenant_id == tenant_id,
-        ApprovalTask.status.in_(["approved", "rejected"]),
-    ).group_by(ApprovalTask.assignee_name).order_by(func.count(ApprovalTask.id).desc()).limit(10)
+    ).where(*task_conditions).group_by(ApprovalTask.assignee_name).order_by(func.count(ApprovalTask.id).desc()).limit(10)
     top_rows = (await db.execute(task_base)).all()
     top_approvers = [{"name": r[0] or "未知", "count": r[1]} for r in top_rows]
 

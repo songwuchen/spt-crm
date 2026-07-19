@@ -107,6 +107,7 @@ async def test_solution_review_triggers_approval_and_approve_marks_approved(clie
     from app.domains.solution.service import create_solution, update_solution
     from app.domains.approval.models import ApprovalFlow, ApprovalTask
     from app.domains.approval.service import decide
+    from app.domains.project.models import OpportunityProject
 
     user = {"sub": ADMIN, "real_name": "Admin", "username": "admin"}
     async with db_module.async_session_factory() as db:
@@ -114,6 +115,14 @@ async def test_solution_review_triggers_approval_and_approve_marks_approved(clie
         policy_id = generate_uuid()
         sid = None
         try:
+            # 方案必须挂在真实商机下：create_solution 会校验父商机可见性（数据范围），
+            # 用一个凭空生成的 project_id 会直接 404。
+            db.add(OpportunityProject(
+                id=pid, tenant_id=TENANT, project_code=f"PJ-{pid[:8]}",
+                name="方案审批测试商机", stage_code="S1", status="active",
+                owner_id=ADMIN, is_deleted=False,
+            ))
+            await db.commit()
             # Policy: any solution submitted for review -> approved by the admin user
             db.add(ApprovalPolicy(
                 id=policy_id, tenant_id=TENANT, biz_type="solution", name="方案审批",
@@ -151,4 +160,5 @@ async def test_solution_review_triggers_approval_and_approve_marks_approved(clie
                 await db.execute(delete(SolutionVersion).where(SolutionVersion.solution_id == sid))
                 await db.execute(delete(Solution).where(Solution.id == sid))
             await db.execute(delete(ApprovalPolicy).where(ApprovalPolicy.id == policy_id))
+            await db.execute(delete(OpportunityProject).where(OpportunityProject.id == pid))
             await db.commit()

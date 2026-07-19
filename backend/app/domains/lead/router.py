@@ -328,7 +328,7 @@ async def get_lead(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("lead:view")),
 ):
-    l = await service.get_lead(db, tenant_id, lead_id)
+    l = await service.get_lead(db, tenant_id, lead_id, _user)
     products = await service.list_lead_products(db, tenant_id, l.id)
     d = _lead_dict(l, products, await _lead_department_names(db, tenant_id, [l]))
     await strip_entity_dicts(db, tenant_id, "lead", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
@@ -361,6 +361,7 @@ async def qualify_lead(
     current_user: dict = Depends(require_permissions("lead:qualify")),
 ):
     create_opp = body.create_opportunity if body else False
+    await service.get_lead(db, tenant_id, lead_id, current_user)  # 数据范围校验
     result = await service.qualify_lead(db, tenant_id, lead_id, current_user, create_opportunity=create_opp)
     return ok(result)
 
@@ -385,6 +386,7 @@ async def discard_lead(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("lead:discard")),
 ):
+    await service.get_lead(db, tenant_id, lead_id, current_user)  # 数据范围校验
     l = await service.discard_lead(db, tenant_id, lead_id, current_user)
     return await ok_entity(db, tenant_id, "lead", _lead_dict(l), current_user.get("roles"))
 
@@ -456,6 +458,19 @@ class BatchStatusBody(BaseModel):
     status: str  # new / following / qualified / discarded
 
 
+async def _visible_lead_ids(db: AsyncSession, tenant_id: str, user: dict, ids: list[str]) -> list[str]:
+    """把批量操作的 id 列表收敛到当前用户数据范围内的那些，口径与列表一致。"""
+    from sqlalchemy import select
+    from app.common.data_scope import apply_data_scope
+    from app.domains.lead.models import Lead
+    if not ids:
+        return []
+    q = select(Lead.id).where(
+        Lead.tenant_id == tenant_id, Lead.id.in_(ids), Lead.is_deleted == False)
+    q = await apply_data_scope(q, db, tenant_id, user, Lead, "lead")
+    return list((await db.execute(q)).scalars().all())
+
+
 @router.post("/batch_assign")
 async def batch_assign(
     body: BatchAssignBody,
@@ -466,13 +481,18 @@ async def batch_assign(
     """Batch assign leads to a new owner."""
     from sqlalchemy import select, update
     from app.domains.lead.models import Lead
+    # 数据范围：批量入口同样只能操作可见线索，否则「列表看不到」的线索仍能被整批改派，
+    # 就是详情越权(IDOR)的批量版本。
+    ids = await _visible_lead_ids(db, tenant_id, current_user, body.ids)
+    if not ids:
+        return ok({"updated": 0})
     sample = (await db.execute(
-        select(Lead).where(Lead.tenant_id == tenant_id, Lead.id.in_(body.ids), Lead.is_deleted == False).limit(1)
+        select(Lead).where(Lead.tenant_id == tenant_id, Lead.id.in_(ids), Lead.is_deleted == False).limit(1)
     )).scalar()
     result = await db.execute(
         update(Lead).where(
             Lead.tenant_id == tenant_id,
-            Lead.id.in_(body.ids),
+            Lead.id.in_(ids),
             Lead.is_deleted == False,
         ).values(owner_id=body.owner_id, owner_name=body.owner_name)
     )
@@ -504,9 +524,13 @@ async def batch_status(
     if body.status not in ("new", "following", "qualified", "discarded"):
         from app.common.exceptions import BusinessException
         raise BusinessException(message="无效状态")
+    # 同 batch_assign：批量改状态也必须落在数据范围内
+    ids = await _visible_lead_ids(db, tenant_id, current_user, body.ids)
+    if not ids:
+        return ok({"updated": 0})
     stmt = update(Lead).where(
         Lead.tenant_id == tenant_id,
-        Lead.id.in_(body.ids),
+        Lead.id.in_(ids),
         Lead.is_deleted == False,
     )
     # 批量转化时跳过尚未通过审核的线索，避免绕过审核门禁

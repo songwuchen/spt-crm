@@ -13,15 +13,20 @@ from app.domains.audit.service import log_action
 
 # ==================== ErpOrderLink ====================
 
-async def list_order_links(db: AsyncSession, tenant_id: str, project_id: str):
-    result = await db.execute(
-        select(ErpOrderLink).where(ErpOrderLink.tenant_id == tenant_id, ErpOrderLink.project_id == project_id)
-        .order_by(ErpOrderLink.created_at.desc())
-    )
+async def list_order_links(db: AsyncSession, tenant_id: str, project_id: str, user: dict | None = None):
+    q = select(ErpOrderLink).where(ErpOrderLink.tenant_id == tenant_id, ErpOrderLink.project_id == project_id)
+    # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机的 ERP 关联
+    if user is not None:
+        from app.common.data_scope import apply_project_child_scope
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, ErpOrderLink)
+    result = await db.execute(q.order_by(ErpOrderLink.created_at.desc()))
     return result.scalars().all()
 
 
 async def create_order_link(db: AsyncSession, tenant_id: str, project_id: str, data: ErpOrderLinkCreate, user: dict) -> ErpOrderLink:
+    # 创建前校验父商机可见性：否则可以往看不到的商机下塞子记录（越权写入）
+    from app.domains.project.service import get_project
+    await get_project(db, tenant_id, project_id, user)
     link = ErpOrderLink(
         id=generate_uuid(), tenant_id=tenant_id,
         project_id=project_id,
@@ -42,6 +47,8 @@ async def delete_order_link(db: AsyncSession, tenant_id: str, link_id: str, user
     )).scalar_one_or_none()
     if not link:
         raise BusinessException(code=NOT_FOUND, message="订单关联不存在")
+    from app.common.data_scope import assert_project_child_in_scope
+    await assert_project_child_in_scope(db, tenant_id, user, link, label="该订单关联")
     await db.delete(link)
     await db.commit()
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
@@ -51,25 +58,37 @@ async def delete_order_link(db: AsyncSession, tenant_id: str, link_id: str, user
 
 # ==================== DeliveryMilestone ====================
 
-async def list_milestones(db: AsyncSession, tenant_id: str, project_id: str):
-    result = await db.execute(
-        select(DeliveryMilestone).where(
-            DeliveryMilestone.tenant_id == tenant_id, DeliveryMilestone.project_id == project_id,
-        ).order_by(DeliveryMilestone.sort_order, DeliveryMilestone.created_at)
+async def list_milestones(db: AsyncSession, tenant_id: str, project_id: str, user: dict | None = None):
+    q = select(DeliveryMilestone).where(
+        DeliveryMilestone.tenant_id == tenant_id, DeliveryMilestone.project_id == project_id,
     )
+    # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机的交付计划
+    if user is not None:
+        from app.common.data_scope import apply_project_child_scope
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, DeliveryMilestone)
+    result = await db.execute(q.order_by(DeliveryMilestone.sort_order, DeliveryMilestone.created_at))
     return result.scalars().all()
 
 
-async def get_milestone(db: AsyncSession, tenant_id: str, milestone_id: str) -> DeliveryMilestone:
+async def get_milestone(db: AsyncSession, tenant_id: str, milestone_id: str, user: dict | None = None) -> DeliveryMilestone:
+    """按 id 取里程碑。传入 user 时按所属商机校验数据范围（列表查不到的，按 id 也不该读到/改到）。
+
+    user=None 表示系统内部调用（提醒 worker / ERP 同步等），不做范围校验。
+    """
     ms = (await db.execute(
         select(DeliveryMilestone).where(DeliveryMilestone.id == milestone_id, DeliveryMilestone.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not ms:
         raise BusinessException(code=NOT_FOUND, message="里程碑不存在")
+    from app.common.data_scope import assert_project_child_in_scope
+    await assert_project_child_in_scope(db, tenant_id, user, ms, label="该里程碑")
     return ms
 
 
 async def create_milestone(db: AsyncSession, tenant_id: str, project_id: str, data: MilestoneCreate, user: dict) -> DeliveryMilestone:
+    # 创建前校验父商机可见性：否则可以往看不到的商机下塞子记录（越权写入）
+    from app.domains.project.service import get_project
+    await get_project(db, tenant_id, project_id, user)
     ms = DeliveryMilestone(
         id=generate_uuid(), tenant_id=tenant_id,
         project_id=project_id,
@@ -115,11 +134,7 @@ async def create_milestone(db: AsyncSession, tenant_id: str, project_id: str, da
 
 
 async def update_milestone(db: AsyncSession, tenant_id: str, milestone_id: str, data: MilestoneUpdate, user: dict) -> DeliveryMilestone:
-    ms = (await db.execute(
-        select(DeliveryMilestone).where(DeliveryMilestone.id == milestone_id, DeliveryMilestone.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not ms:
-        raise BusinessException(code=NOT_FOUND, message="里程碑不存在")
+    ms = await get_milestone(db, tenant_id, milestone_id, user)
     old_status = ms.status
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(ms, field, val)
@@ -153,11 +168,7 @@ async def update_milestone(db: AsyncSession, tenant_id: str, milestone_id: str, 
 
 
 async def delete_milestone(db: AsyncSession, tenant_id: str, milestone_id: str, user: dict):
-    ms = (await db.execute(
-        select(DeliveryMilestone).where(DeliveryMilestone.id == milestone_id, DeliveryMilestone.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not ms:
-        raise BusinessException(code=NOT_FOUND, message="里程碑不存在")
+    ms = await get_milestone(db, tenant_id, milestone_id, user)
     await db.delete(ms)
     await db.commit()
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),

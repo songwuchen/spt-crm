@@ -104,9 +104,11 @@ async def order_options_for_ticket(
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("service:view")),
 ):
+    # 工单关联订单的下拉同样要按数据范围过滤，否则这个选择器会把全租户的订单号/标题露出来
     items, _ = await order_service.list_orders(
         db, tenant_id, page_no=1, page_size=20,
-        customer_id=customer_id or None, keyword=keyword or None)
+        customer_id=customer_id or None, keyword=keyword or None,
+        current_user=_user)
     return ok({"items": [{"id": o.id, "order_no": o.order_no, "title": o.title} for o in items]})
 
 

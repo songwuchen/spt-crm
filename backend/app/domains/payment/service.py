@@ -93,15 +93,32 @@ async def check_overdue_and_notify(db: AsyncSession, tenant_id: str):
 
 # ==================== Invoice ====================
 
-async def list_invoices(db: AsyncSession, tenant_id: str, project_id: str):
-    result = await db.execute(
-        select(Invoice).where(Invoice.tenant_id == tenant_id, Invoice.project_id == project_id)
-        .order_by(Invoice.created_at.desc())
-    )
+async def list_invoices(db: AsyncSession, tenant_id: str, project_id: str, user: dict | None = None):
+    q = select(Invoice).where(Invoice.tenant_id == tenant_id, Invoice.project_id == project_id)
+    # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机的开票明细
+    if user is not None:
+        from app.common.data_scope import apply_project_child_scope
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, Invoice)
+    result = await db.execute(q.order_by(Invoice.created_at.desc()))
     return result.scalars().all()
 
 
+async def get_invoice(db: AsyncSession, tenant_id: str, invoice_id: str, user: dict | None = None) -> Invoice:
+    """按 id 取发票。传入 user 时按所属商机校验数据范围。user=None 为系统内部调用。"""
+    inv = (await db.execute(
+        select(Invoice).where(Invoice.id == invoice_id, Invoice.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not inv:
+        raise BusinessException(code=NOT_FOUND, message="发票不存在")
+    from app.common.data_scope import assert_project_child_in_scope
+    await assert_project_child_in_scope(db, tenant_id, user, inv, label="该发票")
+    return inv
+
+
 async def create_invoice(db: AsyncSession, tenant_id: str, project_id: str, data: InvoiceCreate, user: dict) -> Invoice:
+    # 创建前校验父商机可见性：否则可以往看不到的商机下塞子记录（越权写入）
+    from app.domains.project.service import get_project
+    await get_project(db, tenant_id, project_id, user)
     dump = data.model_dump(exclude_unset=True)
     if not dump.get("invoice_no"):
         dump["invoice_no"] = await generate_code(db, tenant_id, "invoice")
@@ -120,11 +137,7 @@ async def create_invoice(db: AsyncSession, tenant_id: str, project_id: str, data
 
 
 async def update_invoice(db: AsyncSession, tenant_id: str, invoice_id: str, data: InvoiceUpdate, user: dict) -> Invoice:
-    inv = (await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not inv:
-        raise BusinessException(code=NOT_FOUND, message="发票不存在")
+    inv = await get_invoice(db, tenant_id, invoice_id, user)
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(inv, field, val)
     await db.commit()
@@ -136,11 +149,7 @@ async def update_invoice(db: AsyncSession, tenant_id: str, invoice_id: str, data
 
 
 async def delete_invoice(db: AsyncSession, tenant_id: str, invoice_id: str, user: dict):
-    inv = (await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not inv:
-        raise BusinessException(code=NOT_FOUND, message="发票不存在")
+    inv = await get_invoice(db, tenant_id, invoice_id, user)
     await db.delete(inv)
     await db.commit()
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
@@ -150,16 +159,33 @@ async def delete_invoice(db: AsyncSession, tenant_id: str, invoice_id: str, user
 
 # ==================== PaymentPlan ====================
 
-async def list_plans(db: AsyncSession, tenant_id: str, project_id: str):
+async def list_plans(db: AsyncSession, tenant_id: str, project_id: str, user: dict | None = None):
     await mark_overdue_plans(db, tenant_id)
-    result = await db.execute(
-        select(PaymentPlan).where(PaymentPlan.tenant_id == tenant_id, PaymentPlan.project_id == project_id)
-        .order_by(PaymentPlan.due_date)
-    )
+    q = select(PaymentPlan).where(PaymentPlan.tenant_id == tenant_id, PaymentPlan.project_id == project_id)
+    # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机的回款计划与金额
+    if user is not None:
+        from app.common.data_scope import apply_project_child_scope
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, PaymentPlan)
+    result = await db.execute(q.order_by(PaymentPlan.due_date))
     return result.scalars().all()
 
 
+async def get_plan(db: AsyncSession, tenant_id: str, plan_id: str, user: dict | None = None) -> PaymentPlan:
+    """按 id 取回款计划。传入 user 时按所属商机校验数据范围。user=None 为系统内部调用。"""
+    plan = (await db.execute(
+        select(PaymentPlan).where(PaymentPlan.id == plan_id, PaymentPlan.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not plan:
+        raise BusinessException(code=NOT_FOUND, message="回款计划不存在")
+    from app.common.data_scope import assert_project_child_in_scope
+    await assert_project_child_in_scope(db, tenant_id, user, plan, label="该回款计划")
+    return plan
+
+
 async def create_plan(db: AsyncSession, tenant_id: str, project_id: str, data: PaymentPlanCreate, user: dict) -> PaymentPlan:
+    # 创建前校验父商机可见性：否则可以往看不到的商机下塞子记录（越权写入）
+    from app.domains.project.service import get_project
+    await get_project(db, tenant_id, project_id, user)
     dump = data.model_dump(exclude_unset=True)
     if not dump.get("plan_no"):
         dump["plan_no"] = await generate_code(db, tenant_id, "payment_plan")
@@ -191,6 +217,9 @@ async def bulk_create_plans(
     回款计划 in one shot. generate_code only flushes (no commit), so the whole
     batch shares a single commit.
     """
+    # 同 create_plan：批量入口也要校验父商机可见性
+    from app.domains.project.service import get_project
+    await get_project(db, tenant_id, project_id, user)
     # 覆盖重生成：先删除本合同上次生成的计划（仅限同项目+同来源合同）
     deleted = 0
     if data.replace_existing and data.source_contract_id:
@@ -235,11 +264,7 @@ async def bulk_create_plans(
 
 
 async def update_plan(db: AsyncSession, tenant_id: str, plan_id: str, data: PaymentPlanUpdate, user: dict) -> PaymentPlan:
-    plan = (await db.execute(
-        select(PaymentPlan).where(PaymentPlan.id == plan_id, PaymentPlan.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not plan:
-        raise BusinessException(code=NOT_FOUND, message="回款计划不存在")
+    plan = await get_plan(db, tenant_id, plan_id, user)
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(plan, field, val)
     await db.commit()
@@ -251,11 +276,7 @@ async def update_plan(db: AsyncSession, tenant_id: str, plan_id: str, data: Paym
 
 
 async def delete_plan(db: AsyncSession, tenant_id: str, plan_id: str, user: dict):
-    plan = (await db.execute(
-        select(PaymentPlan).where(PaymentPlan.id == plan_id, PaymentPlan.tenant_id == tenant_id)
-    )).scalar_one_or_none()
-    if not plan:
-        raise BusinessException(code=NOT_FOUND, message="回款计划不存在")
+    plan = await get_plan(db, tenant_id, plan_id, user)
     await db.delete(plan)
     await db.commit()
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
@@ -265,11 +286,13 @@ async def delete_plan(db: AsyncSession, tenant_id: str, plan_id: str, user: dict
 
 # ==================== PaymentRecord ====================
 
-async def list_records(db: AsyncSession, tenant_id: str, project_id: str):
-    result = await db.execute(
-        select(PaymentRecord).where(PaymentRecord.tenant_id == tenant_id, PaymentRecord.project_id == project_id)
-        .order_by(PaymentRecord.received_date.desc())
-    )
+async def list_records(db: AsyncSession, tenant_id: str, project_id: str, user: dict | None = None):
+    q = select(PaymentRecord).where(PaymentRecord.tenant_id == tenant_id, PaymentRecord.project_id == project_id)
+    # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机的到账流水
+    if user is not None:
+        from app.common.data_scope import apply_project_child_scope
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, PaymentRecord)
+    result = await db.execute(q.order_by(PaymentRecord.received_date.desc()))
     return result.scalars().all()
 
 
@@ -309,6 +332,9 @@ async def auto_complete_plans_if_fully_paid(db: AsyncSession, tenant_id: str, pr
 
 
 async def create_record(db: AsyncSession, tenant_id: str, project_id: str, data: PaymentRecordCreate, user: dict) -> PaymentRecord:
+    # 创建前校验父商机可见性：否则可以往看不到的商机下塞子记录（越权写入）
+    from app.domains.project.service import get_project
+    await get_project(db, tenant_id, project_id, user)
     payload = data.model_dump(exclude_unset=True)
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
     from app.domains.lowcode.field_permission import (
@@ -383,6 +409,8 @@ async def delete_record(db: AsyncSession, tenant_id: str, record_id: str, user: 
     )).scalar_one_or_none()
     if not rec:
         raise BusinessException(code=NOT_FOUND, message="回款记录不存在")
+    from app.common.data_scope import assert_project_child_in_scope
+    await assert_project_child_in_scope(db, tenant_id, user, rec, label="该回款记录")
     await db.delete(rec)
     await db.commit()
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),

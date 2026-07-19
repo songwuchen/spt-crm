@@ -80,7 +80,9 @@ async def export_orders_excel(
     _user=Depends(require_permissions("order:view")),
 ):
     from app.config import settings
-    items, _ = await service.list_orders(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, customer_id, status, keyword)
+    # 导出与列表同口径过滤数据范围，否则「列表看不到但能导出来」就是绕过范围的后门
+    items, _ = await service.list_orders(
+        db, tenant_id, 1, settings.MAX_EXPORT_ROWS, customer_id, status, keyword, current_user=_user)
     headers = ["订单号", "标题", "金额", "币种", "状态", "下单日期", "交付日期", "负责人", "创建时间"]
     # 导出与列表/详情同口径脱敏（隐藏→空、脱敏→***）。不做的话，
     # 「页面看不到但能导出来」就是一条绕过字段权限的后门。
@@ -124,7 +126,7 @@ async def get_order(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("order:view")),
 ):
-    o = await service.get_order(db, tenant_id, order_id)
+    o = await service.get_order(db, tenant_id, order_id, _user)
     lines = await service.list_lines(db, tenant_id, order_id)
     d = _order_dict(o, lines)
     await strip_entity_dicts(db, tenant_id, "order", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段

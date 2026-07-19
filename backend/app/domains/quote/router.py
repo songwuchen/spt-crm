@@ -155,7 +155,7 @@ async def list_project_quotes(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("quote:view")),
 ):
-    items = await service.list_quotes_by_project(db, tenant_id, project_id)
+    items = await service.list_quotes_by_project(db, tenant_id, project_id, _user)
     return ok([_quote_dict(q) for q in items])
 
 
@@ -182,7 +182,7 @@ async def get_quote(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("quote:view")),
 ):
-    quote = await service.get_quote(db, tenant_id, quote_id)
+    quote = await service.get_quote(db, tenant_id, quote_id, current_user)
     versions = await service.get_versions_by_quote(db, tenant_id, quote_id)
 
     # Get current version lines
@@ -253,7 +253,7 @@ async def get_version(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("quote:view")),
 ):
-    version = await service.get_version(db, tenant_id, version_id)
+    version = await service.get_version(db, tenant_id, version_id, current_user)
     lines = await service.list_lines(db, tenant_id, version_id)
     perms = current_user.get("permissions", [])
     policies = await load_mask_policies(db, tenant_id)
@@ -342,7 +342,7 @@ async def import_quote_lines(
     列顺序：类型, 编码, 品名, 规格, 数量, 单位, 单价, 估计成本, 交期(天)。
     导入前校验版本存在（且属于本租户）。"""
     # 校验版本存在，避免把行项目挂到不存在/越权的版本上
-    await service.get_version(db, tenant_id, version_id)
+    await service.get_version(db, tenant_id, version_id, current_user)
 
     content = await file.read()
     wb = load_workbook(io.BytesIO(content), read_only=True)
@@ -395,7 +395,7 @@ async def compare_versions(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("quote:view")),
 ):
-    result = await service.compare_versions(db, tenant_id, version_a, version_b)
+    result = await service.compare_versions(db, tenant_id, version_a, version_b, _user)
     return ok(result)
 
 
@@ -434,7 +434,7 @@ async def list_cost_snapshots(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("quote:view")),
 ):
-    items = await service.list_cost_snapshots(db, tenant_id, version_id)
+    items = await service.list_cost_snapshots(db, tenant_id, version_id, current_user)
     perms = current_user.get("permissions", [])
     policies = await load_mask_policies(db, tenant_id)
     return ok(apply_field_mask([_snapshot_dict(s) for s in items], "cost_snapshot", perms, policies))
@@ -462,7 +462,7 @@ async def send_quote(
     current_user: dict = Depends(require_permissions("quote:edit")),
 ):
     # Get quote_id from version
-    version = await service.get_version(db, tenant_id, version_id)
+    version = await service.get_version(db, tenant_id, version_id, current_user)
     log = await service.create_send_log(db, tenant_id, version.quote_id, version_id, body, current_user)
     return ok(_send_log_dict(log))
 
@@ -474,7 +474,7 @@ async def list_send_logs(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("quote:view")),
 ):
-    items = await service.list_send_logs(db, tenant_id, quote_id)
+    items = await service.list_send_logs(db, tenant_id, quote_id, _user)
     return ok([_send_log_dict(l) for l in items])
 
 
@@ -489,7 +489,7 @@ async def export_quote_pdf(
     """Export quote as PDF."""
     from app.common.pdf_builder import build_quote_pdf
 
-    quote = await service.get_quote(db, tenant_id, quote_id)
+    quote = await service.get_quote(db, tenant_id, quote_id, _user)
     versions = await service.get_versions_by_quote(db, tenant_id, quote_id)
 
     if version_id:
@@ -557,7 +557,8 @@ async def batch_export_quote_pdf(
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for qid in ids[:50]:  # cap at 50
             try:
-                quote = await service.get_quote(db, tenant_id, qid)
+                # 越权的 id 会抛 403，被下面的 except 跳过（批量导出静默略过不可见项）
+                quote = await service.get_quote(db, tenant_id, qid, _user)
                 versions = await service.get_versions_by_quote(db, tenant_id, qid)
                 ver = next((v for v in versions if v.version_no == quote.current_version_no), None)
                 if not ver:

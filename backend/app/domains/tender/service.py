@@ -30,6 +30,11 @@ async def list_tenders(
     if clause is not None:
         base = base.where(clause)
 
+    # 数据范围：此前标书列表只按 tenant 过滤，投标金额/预算金额对全员可见
+    if current_user:
+        from app.common.data_scope import apply_data_scope
+        base = await apply_data_scope(base, db, tenant_id, current_user, Tender, "tender")
+
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
     order = resolve_sort("tender", sort_by, sort_order, Tender.created_at.desc())
     items = (await db.execute(
@@ -38,12 +43,18 @@ async def list_tenders(
     return items, total
 
 
-async def get_tender(db: AsyncSession, tenant_id: str, tender_id: str) -> Tender:
+async def get_tender(db: AsyncSession, tenant_id: str, tender_id: str, user: dict | None = None) -> Tender:
+    """按 id 取标书。传入 user 时校验数据范围（列表查不到的，按 id 也不该读到/改到）。
+
+    user=None 表示系统内部调用（审批引擎/提醒/统计等），不做范围校验。
+    """
     t = (await db.execute(
         select(Tender).where(Tender.id == tender_id, Tender.tenant_id == tenant_id, Tender.is_deleted == False)
     )).scalar_one_or_none()
     if not t:
         raise BusinessException(code=NOT_FOUND, message="标书不存在")
+    from app.common.data_scope import assert_in_scope
+    await assert_in_scope(db, tenant_id, user, t, "tender", label="该标书")
     return t
 
 
@@ -78,7 +89,7 @@ async def create_tender(db: AsyncSession, tenant_id: str, data: TenderCreate, us
 
 
 async def update_tender(db: AsyncSession, tenant_id: str, tender_id: str, data: TenderUpdate, user: dict) -> Tender:
-    tender = await get_tender(db, tenant_id, tender_id)
+    tender = await get_tender(db, tenant_id, tender_id, user)
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(tender, field, val)
     await db.commit()
@@ -91,7 +102,7 @@ async def update_tender(db: AsyncSession, tenant_id: str, tender_id: str, data: 
 
 
 async def delete_tender(db: AsyncSession, tenant_id: str, tender_id: str, user: dict):
-    tender = await get_tender(db, tenant_id, tender_id)
+    tender = await get_tender(db, tenant_id, tender_id, user)
     tender.is_deleted = True
     await db.commit()
 

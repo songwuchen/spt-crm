@@ -329,7 +329,7 @@ async def get_project(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("project:view")),
 ):
-    p = await service.get_project(db, tenant_id, project_id)
+    p = await service.get_project(db, tenant_id, project_id, _user)
     name_map = await _customer_names(db, tenant_id, [p])
     d = _project_dict(p, name_map.get(p.customer_id))
     await strip_entity_dicts(db, tenant_id, "project", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
@@ -405,7 +405,7 @@ async def gate_check(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("project:view")),
 ):
-    project = await service.get_project(db, tenant_id, project_id)
+    project = await service.get_project(db, tenant_id, project_id, _user)
     failed = await service.check_gate_rules(db, tenant_id, project, to_stage)
     return ok({"pass": len(failed) == 0, "failed_rules": failed})
 
@@ -417,7 +417,7 @@ async def project_health(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("project:view")),
 ):
-    result = await service.calculate_health_score(db, tenant_id, project_id)
+    result = await service.calculate_health_score(db, tenant_id, project_id, _user)
     return ok(result)
 
 
@@ -428,7 +428,7 @@ async def list_stage_history(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("project:view")),
 ):
-    items = await service.list_stage_history(db, tenant_id, project_id)
+    items = await service.list_stage_history(db, tenant_id, project_id, _user)
     return ok([_history_dict(h) for h in items])
 
 
@@ -440,6 +440,7 @@ async def list_project_shares(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("project:view")),
 ):
+    await service.get_project(db, tenant_id, project_id, _user)  # 数据范围校验
     from app.domains.customer.service import list_shares
     items = await list_shares(db, tenant_id, "project", project_id)
     return ok([{
@@ -459,6 +460,8 @@ async def create_project_share(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("project:edit")),
 ):
+    # 不能把自己看不见的商机共享出去（否则等于用共享绕开数据范围）
+    await service.get_project(db, tenant_id, project_id, current_user)
     from app.domains.customer.service import create_share
     body["biz_type"] = "project"
     body["biz_id"] = project_id
@@ -474,6 +477,7 @@ async def delete_project_share(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("project:edit")),
 ):
+    await service.get_project(db, tenant_id, project_id, current_user)  # 数据范围校验
     from app.domains.customer.service import delete_share
     await delete_share(db, tenant_id, share_id, current_user)
     return ok()
@@ -499,7 +503,7 @@ async def list_project_members(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("project:view")),
 ):
-    items = await service.list_members(db, tenant_id, project_id)
+    items = await service.list_members(db, tenant_id, project_id, _user)
     return ok([_member_dict(m) for m in items])
 
 

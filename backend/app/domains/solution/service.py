@@ -20,24 +20,35 @@ def _generate_solution_no() -> str:
 
 # ==================== Solution ====================
 
-async def list_solutions_by_project(db: AsyncSession, tenant_id: str, project_id: str):
-    result = await db.execute(
-        select(Solution).where(Solution.tenant_id == tenant_id, Solution.project_id == project_id)
-        .order_by(Solution.created_at.desc())
-    )
+async def list_solutions_by_project(db: AsyncSession, tenant_id: str, project_id: str, user: dict | None = None):
+    q = select(Solution).where(Solution.tenant_id == tenant_id, Solution.project_id == project_id)
+    # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机下的全部方案
+    if user is not None:
+        from app.common.data_scope import apply_project_child_scope
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, Solution)
+    result = await db.execute(q.order_by(Solution.created_at.desc()))
     return result.scalars().all()
 
 
-async def get_solution(db: AsyncSession, tenant_id: str, solution_id: str) -> Solution:
+async def get_solution(db: AsyncSession, tenant_id: str, solution_id: str, user: dict | None = None) -> Solution:
+    """按 id 取方案。传入 user 时按所属商机校验数据范围（列表查不到的，按 id 也不该读到/改到）。
+
+    user=None 表示系统内部调用（审批引擎/提醒等），不做范围校验。
+    """
     s = (await db.execute(
         select(Solution).where(Solution.id == solution_id, Solution.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not s:
         raise BusinessException(code=NOT_FOUND, message="方案不存在")
+    from app.common.data_scope import assert_project_child_in_scope
+    await assert_project_child_in_scope(db, tenant_id, user, s, label="该方案")
     return s
 
 
 async def create_solution(db: AsyncSession, tenant_id: str, project_id: str, data: SolutionCreate, user: dict) -> dict:
+    # 创建前校验父商机可见性：否则可以往看不到的商机下塞子记录（越权写入）
+    from app.domains.project.service import get_project
+    await get_project(db, tenant_id, project_id, user)
     solution = Solution(
         id=generate_uuid(), tenant_id=tenant_id,
         project_id=project_id, solution_no=_generate_solution_no(),
@@ -68,7 +79,7 @@ async def create_solution(db: AsyncSession, tenant_id: str, project_id: str, dat
 
 
 async def update_solution(db: AsyncSession, tenant_id: str, solution_id: str, data: SolutionUpdate, user: dict) -> Solution:
-    solution = await get_solution(db, tenant_id, solution_id)
+    solution = await get_solution(db, tenant_id, solution_id, user)
     old_status = solution.status
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(solution, field, val)
@@ -97,7 +108,7 @@ async def update_solution(db: AsyncSession, tenant_id: str, solution_id: str, da
 
 
 async def delete_solution(db: AsyncSession, tenant_id: str, solution_id: str, user: dict):
-    solution = await get_solution(db, tenant_id, solution_id)
+    solution = await get_solution(db, tenant_id, solution_id, user)
 
     # Delete all versions
     versions = (await db.execute(
@@ -116,7 +127,7 @@ async def delete_solution(db: AsyncSession, tenant_id: str, solution_id: str, us
 
 async def new_version(db: AsyncSession, tenant_id: str, solution_id: str, user: dict) -> SolutionVersion:
     """Create a new version by copying config_json and risk_list_json from current version."""
-    solution = await get_solution(db, tenant_id, solution_id)
+    solution = await get_solution(db, tenant_id, solution_id, user)
 
     current_version = (await db.execute(
         select(SolutionVersion).where(
@@ -160,17 +171,20 @@ async def get_versions_by_solution(db: AsyncSession, tenant_id: str, solution_id
     return result.scalars().all()
 
 
-async def get_version(db: AsyncSession, tenant_id: str, version_id: str) -> SolutionVersion:
+async def get_version(db: AsyncSession, tenant_id: str, version_id: str, user: dict | None = None) -> SolutionVersion:
+    """按 id 取方案版本。版本自身没有归属，可见性取决于所属方案（再取决于所属商机）。"""
     v = (await db.execute(
         select(SolutionVersion).where(SolutionVersion.id == version_id, SolutionVersion.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not v:
         raise BusinessException(code=NOT_FOUND, message="方案版本不存在")
+    if user is not None:
+        await get_solution(db, tenant_id, v.solution_id, user)  # 借父方案的判定，越权即 403
     return v
 
 
 async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data: SolutionVersionUpdate, user: dict) -> SolutionVersion:
-    version = await get_version(db, tenant_id, version_id)
+    version = await get_version(db, tenant_id, version_id, user)
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(version, field, val)
     await db.commit()

@@ -63,7 +63,9 @@ async def export_tenders_excel(
     _user=Depends(require_permissions("tender:view")),
 ):
     from app.config import settings
-    items, _ = await service.list_tenders(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, customer_id, status, keyword)
+    # 导出与列表同口径过滤数据范围，否则「列表看不到但能导出来」就是绕过范围的后门
+    items, _ = await service.list_tenders(
+        db, tenant_id, 1, settings.MAX_EXPORT_ROWS, customer_id, status, keyword, current_user=_user)
     headers = ["标书号", "标题", "投标金额", "预算金额", "状态", "提交日期", "开标日期", "结果", "负责人", "创建时间"]
     rows = []
     for t in items:
@@ -99,7 +101,7 @@ async def get_tender(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("tender:view")),
 ):
-    t = await service.get_tender(db, tenant_id, tender_id)
+    t = await service.get_tender(db, tenant_id, tender_id, _user)
     return ok(_tender_dict(t))
 
 

@@ -69,7 +69,45 @@ async def register_uploaded(
     return att
 
 
-async def list_by_biz(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str) -> list[Attachment]:
+async def assert_attachment_visible(db: AsyncSession, tenant_id: str, user: dict | None, att: Attachment) -> None:
+    """附件自身没有归属，可见性取决于它挂在哪些业务对象上。
+
+    此前只按 tenant 取附件，任何人拿到 id（或 biz_type/biz_id）就能下载别人客户的合同扫描件。
+    任一父对象可见即放行；上传者本人始终可见。
+    未挂任何业务对象的附件（上传后尚未关联、导入产物等）无从判定，按原样放行。
+    user=None 为系统内部调用（PDF 生成/导出任务等），跳过。
+    """
+    if user is None:
+        return
+    if att.uploader_id and att.uploader_id == user.get("sub"):
+        return
+    links = (await db.execute(
+        select(AttachmentLink).where(
+            AttachmentLink.tenant_id == tenant_id,
+            AttachmentLink.attachment_id == att.id,
+        )
+    )).scalars().all()
+    if not links:
+        return
+
+    from app.common.error_codes import FORBIDDEN
+    from app.domains.activity.service import assert_biz_object_visible
+    for ln in links:
+        try:
+            await assert_biz_object_visible(db, tenant_id, user, ln.biz_type, ln.biz_id, label="该附件")
+            return
+        except BusinessException:
+            continue
+    raise BusinessException(code=FORBIDDEN, message="无权访问该附件（不在您的数据范围内）")
+
+
+async def list_by_biz(
+    db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str, user: dict | None = None,
+) -> list[Attachment]:
+    # 先确认父对象可见：此前只按 biz_type/biz_id 取，等于把任意记录的附件开放给全员
+    from app.domains.activity.service import assert_biz_object_visible
+    await assert_biz_object_visible(db, tenant_id, user, biz_type, biz_id, label="该业务对象的附件")
+
     link_q = select(AttachmentLink.attachment_id).where(
         AttachmentLink.tenant_id == tenant_id,
         AttachmentLink.biz_type == biz_type,
@@ -81,17 +119,19 @@ async def list_by_biz(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: s
     return list(result.scalars().all())
 
 
-async def get_attachment(db: AsyncSession, tenant_id: str, attachment_id: str) -> Attachment:
+async def get_attachment(db: AsyncSession, tenant_id: str, attachment_id: str, user: dict | None = None) -> Attachment:
+    """按 id 取附件。传入 user 时按所挂业务对象校验可见性。user=None 为系统内部调用。"""
     att = (await db.execute(
         select(Attachment).where(Attachment.id == attachment_id, Attachment.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not att:
         raise BusinessException(code=NOT_FOUND, message="附件不存在")
+    await assert_attachment_visible(db, tenant_id, user, att)
     return att
 
 
-async def delete_attachment(db: AsyncSession, tenant_id: str, attachment_id: str):
-    att = await get_attachment(db, tenant_id, attachment_id)
+async def delete_attachment(db: AsyncSession, tenant_id: str, attachment_id: str, user: dict | None = None):
+    att = await get_attachment(db, tenant_id, attachment_id, user)
     # Delete links
     links = (await db.execute(
         select(AttachmentLink).where(AttachmentLink.attachment_id == attachment_id)

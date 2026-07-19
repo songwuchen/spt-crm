@@ -66,6 +66,11 @@ async def list_orders(
     if clause is not None:
         base = base.where(clause)
 
+    # 数据范围：此前订单列表只按 tenant 过滤，任何业务员都能翻到全公司的订单与金额
+    if current_user:
+        from app.common.data_scope import apply_data_scope
+        base = await apply_data_scope(base, db, tenant_id, current_user, Order, "order")
+
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
     order = resolve_sort_from_schema(search_schema, sort_by, sort_order, Order.created_at.desc())
     items = (await db.execute(
@@ -74,12 +79,23 @@ async def list_orders(
     return items, total
 
 
-async def get_order(db: AsyncSession, tenant_id: str, order_id: str) -> Order:
+async def get_order(db: AsyncSession, tenant_id: str, order_id: str, user: dict | None = None) -> Order:
+    """按 id 取订单。传入 user 时校验数据范围（列表查不到的，按 id 也不该读到/改到）。
+
+    user=None 表示系统内部调用（审批引擎/提醒/统计等），不做范围校验。
+    开放平台的系统主体（SYSTEM_ROLE）同样按内部调用处理：它不属于任何部门，
+    若按登录用户口径判定，ERP 的订单状态回写会被自己的数据范围拒掉。
+    """
     o = (await db.execute(
         select(Order).where(Order.id == order_id, Order.tenant_id == tenant_id, Order.is_deleted == False)
     )).scalar_one_or_none()
     if not o:
         raise BusinessException(code=NOT_FOUND, message="订单不存在")
+    from app.common.data_scope import assert_in_scope
+    from app.domains.lowcode.field_permission import is_system_principal
+    if user is not None and is_system_principal(user.get("roles")):
+        user = None
+    await assert_in_scope(db, tenant_id, user, o, "order", label="该订单")
     return o
 
 
@@ -155,7 +171,7 @@ async def create_order(db: AsyncSession, tenant_id: str, data: OrderCreate, user
 
 
 async def update_order(db: AsyncSession, tenant_id: str, order_id: str, data: OrderUpdate, user: dict) -> Order:
-    order = await get_order(db, tenant_id, order_id)
+    order = await get_order(db, tenant_id, order_id, user)
     dump = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
     from app.domains.lowcode.field_permission import (
@@ -194,7 +210,7 @@ async def update_order(db: AsyncSession, tenant_id: str, order_id: str, data: Or
 async def submit_for_approval(db: AsyncSession, tenant_id: str, order_id: str, user: dict) -> Order:
     """提交订单审批（内勤发起）。优先走新表单引擎工作流（若 order 已绑定并发布流程），
     否则回退到旧 approval 引擎策略。灰度按 biz_type 逐个切换。"""
-    order = await get_order(db, tenant_id, order_id)
+    order = await get_order(db, tenant_id, order_id, user)
     title = f"订单审批: {order.order_no}"
     from app.domains.lowcode.workflow_service import start_for_biz
     pinst = await start_for_biz(db, tenant_id, "order", order.id, user, title=title)
@@ -222,7 +238,7 @@ def ship_status(lines) -> str:
 
 async def ship_order(db: AsyncSession, tenant_id: str, order_id: str, data: OrderShip, user: dict) -> Order:
     """发货：支持部分发货（按行登记本次发货数量）或一键全部发货。"""
-    order = await get_order(db, tenant_id, order_id)
+    order = await get_order(db, tenant_id, order_id, user)
     lines = await list_lines(db, tenant_id, order_id)
     if not lines:
         raise BusinessException(code=BUSINESS_ERROR, message="订单无明细，无法发货")
@@ -257,7 +273,7 @@ async def ship_order(db: AsyncSession, tenant_id: str, order_id: str, data: Orde
 
 
 async def delete_order(db: AsyncSession, tenant_id: str, order_id: str, user: dict):
-    order = await get_order(db, tenant_id, order_id)
+    order = await get_order(db, tenant_id, order_id, user)
     order.is_deleted = True
     await db.execute(sql_delete(OrderLine).where(
         OrderLine.tenant_id == tenant_id, OrderLine.order_id == order_id))

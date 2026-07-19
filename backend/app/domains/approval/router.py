@@ -50,7 +50,7 @@ async def list_flows(
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    items, total = await service.list_flows(db, tenant_id, biz_type=biz_type, biz_id=biz_id, status=status, page=pageNo, page_size=pageSize)
+    items, total = await service.list_flows(db, tenant_id, biz_type=biz_type, biz_id=biz_id, status=status, page=pageNo, page_size=pageSize, user=_user)
     return ok({"items": [_flow_dict(f) for f in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
@@ -85,7 +85,7 @@ async def statistics(
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("approval:view")),
 ):
-    data = await service.get_statistics(db, tenant_id, date_from=date_from, date_to=date_to)
+    data = await service.get_statistics(db, tenant_id, date_from=date_from, date_to=date_to, user=_user)
     return ok(data)
 
 
@@ -95,7 +95,7 @@ async def get_flow(
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    f = await service.get_flow(db, tenant_id, flow_id)
+    f = await service.get_flow(db, tenant_id, flow_id, user=_user)
     tasks = await service.get_flow_tasks(db, tenant_id, flow_id)
     data = _flow_dict(f)
     data["tasks"] = [_task_dict(t) for t in tasks]

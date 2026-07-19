@@ -43,7 +43,12 @@ async def _recalc_totals(db: AsyncSession, tenant_id: str, version_id: str):
 
 # ==================== Quote ====================
 
-async def list_quotes_by_project(db: AsyncSession, tenant_id: str, project_id: str):
+async def list_quotes_by_project(db: AsyncSession, tenant_id: str, project_id: str,
+                                 user: dict | None = None):
+    # 按 project_id 直查会绕过数据范围：先确认父商机对当前用户可见
+    if user is not None:
+        from app.domains.project.service import get_project
+        await get_project(db, tenant_id, project_id, user)
     result = await db.execute(
         select(Quote).where(Quote.tenant_id == tenant_id, Quote.project_id == project_id)
         .order_by(Quote.created_at.desc())
@@ -51,16 +56,25 @@ async def list_quotes_by_project(db: AsyncSession, tenant_id: str, project_id: s
     return result.scalars().all()
 
 
-async def get_quote(db: AsyncSession, tenant_id: str, quote_id: str) -> Quote:
+async def get_quote(db: AsyncSession, tenant_id: str, quote_id: str, user: dict | None = None) -> Quote:
+    """按 id 取报价。传入 user 时按「所属商机的可见性」校验数据范围。
+
+    user=None 表示系统内部调用（审批引擎读被审报价、提醒等），不做范围校验。
+    """
     q = (await db.execute(
         select(Quote).where(Quote.id == quote_id, Quote.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not q:
         raise BusinessException(code=NOT_FOUND, message="报价不存在")
+    from app.common.data_scope import assert_project_child_in_scope
+    await assert_project_child_in_scope(db, tenant_id, user, q, label="该报价")
     return q
 
 
 async def create_quote(db: AsyncSession, tenant_id: str, project_id: str, data: QuoteCreate, user: dict) -> dict:
+    # 不能往看不见的商机里挂报价（写入侧与读取侧同口径）
+    from app.domains.project.service import get_project
+    await get_project(db, tenant_id, project_id, user)
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
     from app.domains.lowcode.field_permission import (
         sanitize_entity_write, validate_entity_custom_fields,
@@ -107,7 +121,7 @@ async def create_quote(db: AsyncSession, tenant_id: str, project_id: str, data: 
 
 
 async def update_quote(db: AsyncSession, tenant_id: str, quote_id: str, data: QuoteUpdate, user: dict) -> Quote:
-    quote = await get_quote(db, tenant_id, quote_id)
+    quote = await get_quote(db, tenant_id, quote_id, user)
     dump = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
     from app.domains.lowcode.field_permission import (
@@ -132,7 +146,7 @@ async def update_quote(db: AsyncSession, tenant_id: str, quote_id: str, data: Qu
 
 
 async def delete_quote(db: AsyncSession, tenant_id: str, quote_id: str, user: dict):
-    quote = await get_quote(db, tenant_id, quote_id)
+    quote = await get_quote(db, tenant_id, quote_id, user)
     quote_no = quote.quote_no
 
     # Delete all versions and lines
@@ -184,7 +198,7 @@ async def delete_quote(db: AsyncSession, tenant_id: str, quote_id: str, user: di
 
 async def new_version(db: AsyncSession, tenant_id: str, quote_id: str, user: dict) -> QuoteVersion:
     """Create a new version by copying lines from current version."""
-    quote = await get_quote(db, tenant_id, quote_id)
+    quote = await get_quote(db, tenant_id, quote_id, user)
 
     # Get current version
     current_version = (await db.execute(
@@ -239,16 +253,23 @@ async def new_version(db: AsyncSession, tenant_id: str, quote_id: str, user: dic
 
 # ==================== QuoteVersion ====================
 
-async def get_version(db: AsyncSession, tenant_id: str, version_id: str) -> QuoteVersion:
+async def get_version(db: AsyncSession, tenant_id: str, version_id: str,
+                      user: dict | None = None) -> QuoteVersion:
+    """按 id 取报价版本。版本自身没有 project_id，可见性由父报价决定。"""
     v = (await db.execute(
         select(QuoteVersion).where(QuoteVersion.id == version_id, QuoteVersion.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not v:
         raise BusinessException(code=NOT_FOUND, message="报价版本不存在")
+    if user is not None:
+        await get_quote(db, tenant_id, v.quote_id, user)  # 越权即 403
     return v
 
 
-async def get_versions_by_quote(db: AsyncSession, tenant_id: str, quote_id: str):
+async def get_versions_by_quote(db: AsyncSession, tenant_id: str, quote_id: str,
+                                user: dict | None = None):
+    if user is not None:
+        await get_quote(db, tenant_id, quote_id, user)  # 数据范围校验
     result = await db.execute(
         select(QuoteVersion).where(QuoteVersion.tenant_id == tenant_id, QuoteVersion.quote_id == quote_id)
         .order_by(QuoteVersion.version_no)
@@ -257,7 +278,7 @@ async def get_versions_by_quote(db: AsyncSession, tenant_id: str, quote_id: str)
 
 
 async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data: QuoteVersionUpdate, user: dict) -> QuoteVersion:
-    version = await get_version(db, tenant_id, version_id)
+    version = await get_version(db, tenant_id, version_id, user)
     old_status = version.status if hasattr(version, 'status') else None
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(version, field, val)
@@ -292,7 +313,10 @@ async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data
 
 # ==================== QuoteLine ====================
 
-async def list_lines(db: AsyncSession, tenant_id: str, version_id: str):
+async def list_lines(db: AsyncSession, tenant_id: str, version_id: str,
+                     user: dict | None = None):
+    if user is not None:
+        await get_version(db, tenant_id, version_id, user)  # 数据范围校验
     result = await db.execute(
         select(QuoteLine).where(QuoteLine.tenant_id == tenant_id, QuoteLine.quote_version_id == version_id)
         .order_by(QuoteLine.line_no)
@@ -301,6 +325,7 @@ async def list_lines(db: AsyncSession, tenant_id: str, version_id: str):
 
 
 async def add_line(db: AsyncSession, tenant_id: str, version_id: str, data: QuoteLineCreate, user: dict) -> QuoteLine:
+    await get_version(db, tenant_id, version_id, user)  # 数据范围校验
     # Auto line_no
     max_line_no = (await db.execute(
         select(func.max(QuoteLine.line_no)).where(
@@ -334,6 +359,7 @@ async def update_line(db: AsyncSession, tenant_id: str, line_id: str, data: Quot
     )).scalar_one_or_none()
     if not line:
         raise BusinessException(code=NOT_FOUND, message="行项目不存在")
+    await get_version(db, tenant_id, line.quote_version_id, user)  # 数据范围校验
 
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(line, field, val)
@@ -354,6 +380,7 @@ async def delete_line(db: AsyncSession, tenant_id: str, line_id: str, user: dict
     )).scalar_one_or_none()
     if not line:
         raise BusinessException(code=NOT_FOUND, message="行项目不存在")
+    await get_version(db, tenant_id, line.quote_version_id, user)  # 数据范围校验
 
     version_id = line.quote_version_id
     await db.delete(line)
@@ -363,10 +390,11 @@ async def delete_line(db: AsyncSession, tenant_id: str, line_id: str, user: dict
 
 # ==================== Version Comparison ====================
 
-async def compare_versions(db: AsyncSession, tenant_id: str, version_id_a: str, version_id_b: str) -> dict:
+async def compare_versions(db: AsyncSession, tenant_id: str, version_id_a: str, version_id_b: str,
+                           user: dict | None = None) -> dict:
     """Compare two quote versions: header fields + line items."""
-    ver_a = await get_version(db, tenant_id, version_id_a)
-    ver_b = await get_version(db, tenant_id, version_id_b)
+    ver_a = await get_version(db, tenant_id, version_id_a, user)
+    ver_b = await get_version(db, tenant_id, version_id_b, user)
     lines_a = await list_lines(db, tenant_id, version_id_a)
     lines_b = await list_lines(db, tenant_id, version_id_b)
 
@@ -434,7 +462,7 @@ async def compare_versions(db: AsyncSession, tenant_id: str, version_id_a: str, 
 # ==================== Cost Snapshot ====================
 
 async def create_cost_snapshot(db: AsyncSession, tenant_id: str, version_id: str, user: dict, data: CostSnapshotCreate | None = None) -> CostSnapshot:
-    version = await get_version(db, tenant_id, version_id)
+    version = await get_version(db, tenant_id, version_id, user)
     lines = await list_lines(db, tenant_id, version_id)
 
     cost_total = sum(float(l.cost_est or 0) * float(l.qty or 0) for l in lines)
@@ -465,7 +493,10 @@ async def create_cost_snapshot(db: AsyncSession, tenant_id: str, version_id: str
     return snapshot
 
 
-async def list_cost_snapshots(db: AsyncSession, tenant_id: str, version_id: str):
+async def list_cost_snapshots(db: AsyncSession, tenant_id: str, version_id: str,
+                              user: dict | None = None):
+    if user is not None:
+        await get_version(db, tenant_id, version_id, user)  # 数据范围校验
     result = await db.execute(
         select(CostSnapshot).where(CostSnapshot.tenant_id == tenant_id, CostSnapshot.quote_version_id == version_id)
         .order_by(CostSnapshot.created_at.desc())
@@ -476,9 +507,9 @@ async def list_cost_snapshots(db: AsyncSession, tenant_id: str, version_id: str)
 # ==================== Quote Send Log ====================
 
 async def create_send_log(db: AsyncSession, tenant_id: str, quote_id: str, version_id: str, data: QuoteSendLogCreate, user: dict) -> QuoteSendLog:
-    # Verify quote and version exist
-    await get_quote(db, tenant_id, quote_id)
-    await get_version(db, tenant_id, version_id)
+    # Verify quote and version exist（并校验数据范围）
+    await get_quote(db, tenant_id, quote_id, user)
+    await get_version(db, tenant_id, version_id, user)
 
     log = QuoteSendLog(
         id=generate_uuid(), tenant_id=tenant_id,
@@ -502,7 +533,10 @@ async def create_send_log(db: AsyncSession, tenant_id: str, quote_id: str, versi
     return log
 
 
-async def list_send_logs(db: AsyncSession, tenant_id: str, quote_id: str):
+async def list_send_logs(db: AsyncSession, tenant_id: str, quote_id: str,
+                         user: dict | None = None):
+    if user is not None:
+        await get_quote(db, tenant_id, quote_id, user)  # 数据范围校验
     result = await db.execute(
         select(QuoteSendLog).where(QuoteSendLog.tenant_id == tenant_id, QuoteSendLog.quote_id == quote_id)
         .order_by(QuoteSendLog.created_at.desc())

@@ -69,7 +69,7 @@ async def list_invoices(
     project_id: str, tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("payment:view")),
 ):
-    items = await service.list_invoices(db, tenant_id, project_id)
+    items = await service.list_invoices(db, tenant_id, project_id, _user)
     return ok([_inv_dict(i) for i in items])
 
 
@@ -110,7 +110,7 @@ async def list_plans(
     project_id: str, tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("payment:view")),
 ):
-    items = await service.list_plans(db, tenant_id, project_id)
+    items = await service.list_plans(db, tenant_id, project_id, _user)
     return ok([_plan_dict(p) for p in items])
 
 
@@ -162,7 +162,7 @@ async def list_records(
     project_id: str, tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("payment:view")),
 ):
-    items = await service.list_records(db, tenant_id, project_id)
+    items = await service.list_records(db, tenant_id, project_id, _user)
     return ok([_rec_dict(r) for r in items])
 
 
@@ -444,21 +444,27 @@ async def export_payments_excel(
 ):
     """Export payment plans + records to Excel."""
     from app.config import settings
+    from app.common.data_scope import apply_project_child_scope
+    # 导出与列表同口径按所属商机过滤，否则「列表看不到但能导出来」就是绕过范围的后门
     # Plans
-    plan_rows = (await db.execute(
+    plan_q = (
         select(PaymentPlan, OpportunityProject.name.label("project_name"))
         .outerjoin(OpportunityProject, OpportunityProject.id == PaymentPlan.project_id)
         .where(PaymentPlan.tenant_id == tenant_id)
-        .order_by(PaymentPlan.due_date.asc())
-        .limit(settings.MAX_EXPORT_ROWS)
+    )
+    plan_q, _ = await apply_project_child_scope(plan_q, plan_q, db, tenant_id, _user, PaymentPlan)
+    plan_rows = (await db.execute(
+        plan_q.order_by(PaymentPlan.due_date.asc()).limit(settings.MAX_EXPORT_ROWS)
     )).all()
     # Records
-    rec_rows = (await db.execute(
+    rec_q = (
         select(PaymentRecord, OpportunityProject.name.label("project_name"))
         .outerjoin(OpportunityProject, OpportunityProject.id == PaymentRecord.project_id)
         .where(PaymentRecord.tenant_id == tenant_id)
-        .order_by(PaymentRecord.received_date.desc())
-        .limit(settings.MAX_EXPORT_ROWS)
+    )
+    rec_q, _ = await apply_project_child_scope(rec_q, rec_q, db, tenant_id, _user, PaymentRecord)
+    rec_rows = (await db.execute(
+        rec_q.order_by(PaymentRecord.received_date.desc()).limit(settings.MAX_EXPORT_ROWS)
     )).all()
 
     from openpyxl import Workbook

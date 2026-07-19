@@ -76,7 +76,7 @@ async def list_change_requests(
     project_id: str, tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("change:view")),
 ):
-    items = await service.list_by_project(db, tenant_id, project_id)
+    items = await service.list_by_project(db, tenant_id, project_id, _user)
     return ok([_cr_dict(c) for c in items])
 
 
@@ -95,7 +95,7 @@ async def get_change_request(
     cr_id: str, tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("change:view")),
 ):
-    cr = await service.get(db, tenant_id, cr_id)
+    cr = await service.get(db, tenant_id, cr_id, _user)
     return ok(_cr_dict(cr))
 
 

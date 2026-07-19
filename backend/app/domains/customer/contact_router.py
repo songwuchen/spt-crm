@@ -33,6 +33,14 @@ async def list_contacts(
     q = select(Contact).where(Contact.tenant_id == tenant_id)
     count_q = select(func.count(Contact.id)).where(Contact.tenant_id == tenant_id)
 
+    # 数据范围：联系人自身无 owner_id，可见性跟随所属客户
+    # （否则「我的客户 0 条」的销售照样能列出全公司联系人的手机号/邮箱）
+    from app.common.data_scope import visible_customer_ids_select
+    visible_ids = await visible_customer_ids_select(db, tenant_id, _user)
+    if visible_ids is not None:
+        q = q.where(Contact.customer_id.in_(visible_ids))
+        count_q = count_q.where(Contact.customer_id.in_(visible_ids))
+
     if keyword:
         like = f"%{keyword}%"
         q = q.where(
@@ -103,6 +111,11 @@ async def export_contacts(
 ):
     """Export contacts as Excel file."""
     q = select(Contact).where(Contact.tenant_id == tenant_id)
+    # 导出与列表同口径的数据范围——导出是这类泄露的高发口
+    from app.common.data_scope import visible_customer_ids_select
+    visible_ids = await visible_customer_ids_select(db, tenant_id, _user)
+    if visible_ids is not None:
+        q = q.where(Contact.customer_id.in_(visible_ids))
     if keyword:
         like = f"%{keyword}%"
         q = q.where(
@@ -188,13 +201,17 @@ async def import_contacts(
         text = content.decode("utf-8-sig")
         rows_iter = list(csv.DictReader(io.StringIO(text)))
 
-    # Pre-fetch all customer name -> id mapping for this tenant
-    cust_rows = (await db.execute(
-        select(Customer.id, Customer.name).where(
-            Customer.tenant_id == tenant_id,
-            Customer.is_deleted == False,
-        )
-    )).all()
+    # Pre-fetch customer name -> id mapping（仅限本人可见的客户，
+    # 否则导入就成了「给任意客户挂联系人」的旁路）
+    from app.common.data_scope import visible_customer_ids_select
+    visible_ids = await visible_customer_ids_select(db, tenant_id, current_user)
+    cust_q = select(Customer.id, Customer.name).where(
+        Customer.tenant_id == tenant_id,
+        Customer.is_deleted == False,
+    )
+    if visible_ids is not None:
+        cust_q = cust_q.where(Customer.id.in_(visible_ids))
+    cust_rows = (await db.execute(cust_q)).all()
     cust_map: dict[str, str] = {r[1].strip(): r[0] for r in cust_rows}
 
     success = 0

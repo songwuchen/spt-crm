@@ -18,7 +18,12 @@ logger = logging.getLogger("spt_crm.contract")
 
 # ==================== Contract ====================
 
-async def list_contracts_by_project(db: AsyncSession, tenant_id: str, project_id: str):
+async def list_contracts_by_project(db: AsyncSession, tenant_id: str, project_id: str,
+                                    user: dict | None = None):
+    # 按 project_id 直查会绕过数据范围：先确认父商机对当前用户可见
+    if user is not None:
+        from app.domains.project.service import get_project
+        await get_project(db, tenant_id, project_id, user)
     result = await db.execute(
         select(Contract).where(Contract.tenant_id == tenant_id, Contract.project_id == project_id)
         .order_by(Contract.created_at.desc())
@@ -26,16 +31,26 @@ async def list_contracts_by_project(db: AsyncSession, tenant_id: str, project_id
     return result.scalars().all()
 
 
-async def get_contract(db: AsyncSession, tenant_id: str, contract_id: str) -> Contract:
+async def get_contract(db: AsyncSession, tenant_id: str, contract_id: str,
+                       user: dict | None = None) -> Contract:
+    """按 id 取合同。传入 user 时按「所属商机的可见性」校验数据范围。
+
+    user=None 表示系统内部调用（审批引擎读被审合同、到期提醒等），不做范围校验。
+    """
     c = (await db.execute(
         select(Contract).where(Contract.id == contract_id, Contract.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not c:
         raise BusinessException(code=NOT_FOUND, message="合同不存在")
+    from app.common.data_scope import assert_project_child_in_scope
+    await assert_project_child_in_scope(db, tenant_id, user, c, label="该合同")
     return c
 
 
 async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, data: ContractCreate, user: dict) -> dict:
+    # 不能往看不见的商机里挂合同（写入侧与读取侧同口径）
+    from app.domains.project.service import get_project
+    await get_project(db, tenant_id, project_id, user)
     # 字段级权限：丢弃用户对不可编辑/隐藏/脱敏扩展字段的写入，并校验必填
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
@@ -81,7 +96,7 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, dat
 
 
 async def update_contract(db: AsyncSession, tenant_id: str, contract_id: str, data: ContractUpdate, user: dict) -> Contract:
-    contract = await get_contract(db, tenant_id, contract_id)
+    contract = await get_contract(db, tenant_id, contract_id, user)
     payload = data.model_dump(exclude_unset=True)
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
@@ -108,7 +123,7 @@ async def update_contract(db: AsyncSession, tenant_id: str, contract_id: str, da
 
 
 async def delete_contract(db: AsyncSession, tenant_id: str, contract_id: str, user: dict):
-    contract = await get_contract(db, tenant_id, contract_id)
+    contract = await get_contract(db, tenant_id, contract_id, user)
     contract_no = contract.contract_no
 
     versions = (await db.execute(
@@ -153,7 +168,7 @@ async def delete_contract(db: AsyncSession, tenant_id: str, contract_id: str, us
 
 
 async def new_version(db: AsyncSession, tenant_id: str, contract_id: str, user: dict) -> ContractVersion:
-    contract = await get_contract(db, tenant_id, contract_id)
+    contract = await get_contract(db, tenant_id, contract_id, user)
 
     current_version = (await db.execute(
         select(ContractVersion).where(
@@ -190,6 +205,9 @@ async def create_from_quote(db: AsyncSession, tenant_id: str, quote_id: str, use
     )).scalar_one_or_none()
     if not quote:
         raise BusinessException(code=NOT_FOUND, message="报价不存在")
+    # 源报价看不见就不能转成合同，否则可借转换把越权数据搬进自己的合同
+    from app.common.data_scope import assert_project_child_in_scope
+    await assert_project_child_in_scope(db, tenant_id, user, quote, label="该报价")
 
     # Get current quote version
     current_ver = (await db.execute(
@@ -231,7 +249,7 @@ async def create_from_quote(db: AsyncSession, tenant_id: str, quote_id: str, use
 
 
 async def sign_contract(db: AsyncSession, tenant_id: str, contract_id: str, signed_date: str, user: dict) -> Contract:
-    contract = await get_contract(db, tenant_id, contract_id)
+    contract = await get_contract(db, tenant_id, contract_id, user)
     if contract.status == "signed":
         raise BusinessException(code=BUSINESS_ERROR, message="合同已签署")
 
@@ -292,16 +310,23 @@ async def sign_contract(db: AsyncSession, tenant_id: str, contract_id: str, sign
 
 # ==================== ContractVersion ====================
 
-async def get_version(db: AsyncSession, tenant_id: str, version_id: str) -> ContractVersion:
+async def get_version(db: AsyncSession, tenant_id: str, version_id: str,
+                      user: dict | None = None) -> ContractVersion:
+    """按 id 取合同版本。版本自身没有 project_id，可见性由父合同决定。"""
     v = (await db.execute(
         select(ContractVersion).where(ContractVersion.id == version_id, ContractVersion.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not v:
         raise BusinessException(code=NOT_FOUND, message="合同版本不存在")
+    if user is not None:
+        await get_contract(db, tenant_id, v.contract_id, user)  # 越权即 403
     return v
 
 
-async def get_versions_by_contract(db: AsyncSession, tenant_id: str, contract_id: str):
+async def get_versions_by_contract(db: AsyncSession, tenant_id: str, contract_id: str,
+                                   user: dict | None = None):
+    if user is not None:
+        await get_contract(db, tenant_id, contract_id, user)  # 数据范围校验
     result = await db.execute(
         select(ContractVersion).where(ContractVersion.tenant_id == tenant_id, ContractVersion.contract_id == contract_id)
         .order_by(ContractVersion.version_no)
@@ -310,7 +335,7 @@ async def get_versions_by_contract(db: AsyncSession, tenant_id: str, contract_id
 
 
 async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data: ContractVersionUpdate, user: dict) -> ContractVersion:
-    version = await get_version(db, tenant_id, version_id)
+    version = await get_version(db, tenant_id, version_id, user)
     old_status = version.status if hasattr(version, 'status') else None
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(version, field, val)
