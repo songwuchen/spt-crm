@@ -12,6 +12,7 @@ from typing import Optional
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions
 from app.common.schemas import ok
 from app.common.export import build_template, excel_response
+from app.common.data_scope import resolve_owner_scope, visible_customer_ids_select
 from app.domains.customer.models import Customer
 from app.domains.lead.models import Lead
 from app.domains.project.models import OpportunityProject
@@ -28,6 +29,105 @@ from app.domains.payment.models import PaymentPlan
 from app.domains.dashboard.models import SalesTarget, DashboardSnapshot
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["工作台"])
+
+
+# ---------- 数据可见范围（工作台 / 报表中心的统一口径） ----------
+#
+# 本域每个聚合都必须按调用者的数据范围过滤：否则 data_scope=self 的业务员即使在
+# 客户/商机列表里查不到任何数据，也能从「总数、业绩排行、到期预警、风险预警」里
+# 反推出全租户的客户名、同事姓名与成交额；预警卡片还带 biz_id 可点开，等于给出了
+# 一条越权进详情的点击路径。报表中心的 Excel/PDF 导出走的是同一批聚合，同理。
+#
+# resolve_owner_scope 返回 None = 不限（管理员 / data_scope=all）——这类用户的
+# 每个 _*_scope_where 都返回空列表，SQL 与改造前逐字相同，数字不会有任何变化。
+# 各 helper 的判定口径分别对齐 apply_data_scope / apply_project_child_scope /
+# visible_customer_ids_select，保证「聚合里算得到的，点开也读得到」。
+
+
+async def _scope_owner_ids(db: AsyncSession, tenant_id: str, user: dict) -> list[str] | None:
+    """本次请求可见的 owner_id 集合；None 表示不限。每个接口只解析一次后向下透传。"""
+    return await resolve_owner_scope(db, user, tenant_id)
+
+
+def _project_scope_where(tenant_id: str, user: dict, scope: list[str] | None) -> list:
+    """商机可见条件，口径对齐 apply_data_scope(OpportunityProject, "project")：
+    归属在范围内 / 本人创建 / 共享给我 / 我是项目成员。"""
+    if scope is None:
+        return []
+    uid = user.get("sub", "")
+    conds = [
+        OpportunityProject.owner_id.in_(scope),
+        OpportunityProject.created_by_id == uid,
+    ]
+    try:
+        from app.domains.customer.models import AclShare
+        conds.append(OpportunityProject.id.in_(select(AclShare.biz_id).where(
+            AclShare.tenant_id == tenant_id,
+            AclShare.biz_type == "project",
+            or_(AclShare.shared_to_id == uid, AclShare.shared_to_type == "all"),
+        )))
+    except Exception:
+        pass
+    try:
+        from app.domains.project.models import ProjectMember
+        conds.append(OpportunityProject.id.in_(select(ProjectMember.project_id).where(
+            ProjectMember.tenant_id == tenant_id,
+            ProjectMember.user_id == uid,
+        )))
+    except Exception:
+        pass
+    return [or_(*conds)]
+
+
+def _visible_project_ids(tenant_id: str, user: dict, scope: list[str] | None):
+    """可见商机 id 子查询，供「挂在商机下、自身没有 owner_id」的实体做父级过滤。"""
+    return select(OpportunityProject.id).where(
+        OpportunityProject.tenant_id == tenant_id,
+        *_project_scope_where(tenant_id, user, scope),
+    )
+
+
+def _child_scope_where(model, tenant_id: str, user: dict, scope: list[str] | None) -> list:
+    """商机子实体（报价/方案/里程碑/发票/回款计划/回款记录/变更/合同…）的可见条件。
+
+    这些表没有 owner_id，可见性只能由父商机决定，口径对齐 apply_project_child_scope：
+    父商机可见 / 本行由本人创建 / 本行指派给本人。合同的 project_id 可为空（外部导入的
+    独立合同），这种行只能靠 assignee/created_by 命中，与合同列表的行为一致。
+    """
+    if scope is None:
+        return []
+    uid = user.get("sub", "")
+    conds = [model.project_id.in_(_visible_project_ids(tenant_id, user, scope))]
+    if hasattr(model, "created_by_id"):
+        conds.append(model.created_by_id == uid)
+    if hasattr(model, "assignee_id"):
+        conds.append(model.assignee_id == uid)
+    return [or_(*conds)]
+
+
+def _lead_scope_where(tenant_id: str, user: dict, scope: list[str] | None) -> list:
+    """线索可见条件，口径对齐 apply_data_scope(Lead, "lead")。"""
+    if scope is None:
+        return []
+    uid = user.get("sub", "")
+    conds = [Lead.owner_id.in_(scope), Lead.created_by_id == uid]
+    try:
+        from app.domains.customer.models import AclShare
+        conds.append(Lead.id.in_(select(AclShare.biz_id).where(
+            AclShare.tenant_id == tenant_id,
+            AclShare.biz_type == "lead",
+            or_(AclShare.shared_to_id == uid, AclShare.shared_to_type == "all"),
+        )))
+    except Exception:
+        pass
+    return [or_(*conds)]
+
+
+async def _customer_scope_where(db: AsyncSession, tenant_id: str, user: dict) -> list:
+    """客户可见条件。直接复用共享的 visible_customer_ids_select（含公海/共享口径），
+    避免工作台自己再造一套判定后与客户列表对不上。"""
+    visible_ids = await visible_customer_ids_select(db, tenant_id, user)
+    return [] if visible_ids is None else [Customer.id.in_(visible_ids)]
 
 
 async def _signed_contract_amount(db: AsyncSession, tenant_id: str, *extra_where) -> float:
@@ -64,13 +164,17 @@ async def stats(
     _user=Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc)
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    cust_where = await _customer_scope_where(db, tenant_id, _user)
+    lead_where = _lead_scope_where(tenant_id, _user, scope)
+    proj_where = _project_scope_where(tenant_id, _user, scope)
 
     customer_total = (await db.execute(
-        select(func.count(Customer.id)).where(Customer.tenant_id == tenant_id)
+        select(func.count(Customer.id)).where(Customer.tenant_id == tenant_id, *cust_where)
     )).scalar() or 0
 
     lead_total = (await db.execute(
-        select(func.count(Lead.id)).where(Lead.tenant_id == tenant_id)
+        select(func.count(Lead.id)).where(Lead.tenant_id == tenant_id, *lead_where)
     )).scalar() or 0
 
     monthly_new_customers = (await db.execute(
@@ -78,6 +182,7 @@ async def stats(
             Customer.tenant_id == tenant_id,
             extract("year", Customer.created_at) == now.year,
             extract("month", Customer.created_at) == now.month,
+            *cust_where,
         )
     )).scalar() or 0
 
@@ -85,51 +190,63 @@ async def stats(
         select(func.count(Lead.id)).where(
             Lead.tenant_id == tenant_id,
             Lead.status.in_(["new", "following"]),
+            *lead_where,
         )
     )).scalar() or 0
 
     project_total = (await db.execute(
-        select(func.count(OpportunityProject.id)).where(OpportunityProject.tenant_id == tenant_id)
+        select(func.count(OpportunityProject.id)).where(
+            OpportunityProject.tenant_id == tenant_id, *proj_where)
     )).scalar() or 0
 
     active_projects = (await db.execute(
         select(func.count(OpportunityProject.id)).where(
             OpportunityProject.tenant_id == tenant_id,
             OpportunityProject.status == "active",
+            *proj_where,
         )
     )).scalar() or 0
 
     quote_total = (await db.execute(
-        select(func.count(Quote.id)).where(Quote.tenant_id == tenant_id)
+        select(func.count(Quote.id)).where(
+            Quote.tenant_id == tenant_id, *_child_scope_where(Quote, tenant_id, _user, scope))
     )).scalar() or 0
 
     solution_total = (await db.execute(
-        select(func.count(Solution.id)).where(Solution.tenant_id == tenant_id)
+        select(func.count(Solution.id)).where(
+            Solution.tenant_id == tenant_id, *_child_scope_where(Solution, tenant_id, _user, scope))
     )).scalar() or 0
 
+    milestone_where = _child_scope_where(DeliveryMilestone, tenant_id, _user, scope)
     milestone_total = (await db.execute(
-        select(func.count(DeliveryMilestone.id)).where(DeliveryMilestone.tenant_id == tenant_id)
+        select(func.count(DeliveryMilestone.id)).where(
+            DeliveryMilestone.tenant_id == tenant_id, *milestone_where)
     )).scalar() or 0
 
     milestone_delayed = (await db.execute(
         select(func.count(DeliveryMilestone.id)).where(
             DeliveryMilestone.tenant_id == tenant_id,
             DeliveryMilestone.status == "delayed",
+            *milestone_where,
         )
     )).scalar() or 0
 
     invoice_total = (await db.execute(
-        select(func.count(Invoice.id)).where(Invoice.tenant_id == tenant_id)
+        select(func.count(Invoice.id)).where(
+            Invoice.tenant_id == tenant_id, *_child_scope_where(Invoice, tenant_id, _user, scope))
     )).scalar() or 0
 
     payment_received = (await db.execute(
         select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
             PaymentRecord.tenant_id == tenant_id,
+            *_child_scope_where(PaymentRecord, tenant_id, _user, scope),
         )
     )).scalar() or 0
 
     change_total = (await db.execute(
-        select(func.count(ChangeRequest.id)).where(ChangeRequest.tenant_id == tenant_id)
+        select(func.count(ChangeRequest.id)).where(
+            ChangeRequest.tenant_id == tenant_id,
+            *_child_scope_where(ChangeRequest, tenant_id, _user, scope))
     )).scalar() or 0
 
     ticket_total = (await db.execute(
@@ -143,12 +260,16 @@ async def stats(
         )
     )).scalar() or 0
 
+    # 动态/AI 任务只记 created_by_id，按「本人产生的记录」计数即可；
+    # 受限用户看自己的活动量，不限范围的用户仍是全租户口径。
+    activity_where = [] if scope is None else [Activity.created_by_id == _user.get("sub")]
     activity_total = (await db.execute(
-        select(func.count(Activity.id)).where(Activity.tenant_id == tenant_id)
+        select(func.count(Activity.id)).where(Activity.tenant_id == tenant_id, *activity_where)
     )).scalar() or 0
 
+    ai_where = [] if scope is None else [AiTask.created_by_id == _user.get("sub")]
     ai_task_total = (await db.execute(
-        select(func.count(AiTask.id)).where(AiTask.tenant_id == tenant_id)
+        select(func.count(AiTask.id)).where(AiTask.tenant_id == tenant_id, *ai_where)
     )).scalar() or 0
 
     # Pipeline value
@@ -156,11 +277,13 @@ async def stats(
         select(func.coalesce(func.sum(OpportunityProject.amount_expect), 0)).where(
             OpportunityProject.tenant_id == tenant_id,
             OpportunityProject.status == "active",
+            *proj_where,
         )
     )).scalar() or 0
 
     contract_total = (await db.execute(
-        select(func.count(Contract.id)).where(Contract.tenant_id == tenant_id)
+        select(func.count(Contract.id)).where(
+            Contract.tenant_id == tenant_id, *_child_scope_where(Contract, tenant_id, _user, scope))
     )).scalar() or 0
 
     return ok({
@@ -203,23 +326,30 @@ async def trends(
         prev_month += 12
         prev_year -= 1
 
-    def _month_filter(model_cls, date_col, y, m):
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    cust_where = await _customer_scope_where(db, tenant_id, _user)
+    lead_where = _lead_scope_where(tenant_id, _user, scope)
+    proj_where = _project_scope_where(tenant_id, _user, scope)
+
+    def _month_filter(model_cls, date_col, y, m, scope_where=()):
         col = getattr(model_cls, date_col)
         return select(func.count(model_cls.id)).where(
             model_cls.tenant_id == tenant_id,
             extract("year", col) == y,
             extract("month", col) == m,
+            *scope_where,
         )
 
-    cur_customers = (await db.execute(_month_filter(Customer, "created_at", cur_year, cur_month))).scalar() or 0
-    prev_customers = (await db.execute(_month_filter(Customer, "created_at", prev_year, prev_month))).scalar() or 0
+    cur_customers = (await db.execute(_month_filter(Customer, "created_at", cur_year, cur_month, cust_where))).scalar() or 0
+    prev_customers = (await db.execute(_month_filter(Customer, "created_at", prev_year, prev_month, cust_where))).scalar() or 0
 
-    cur_leads = (await db.execute(_month_filter(Lead, "created_at", cur_year, cur_month))).scalar() or 0
-    prev_leads = (await db.execute(_month_filter(Lead, "created_at", prev_year, prev_month))).scalar() or 0
+    cur_leads = (await db.execute(_month_filter(Lead, "created_at", cur_year, cur_month, lead_where))).scalar() or 0
+    prev_leads = (await db.execute(_month_filter(Lead, "created_at", prev_year, prev_month, lead_where))).scalar() or 0
 
-    cur_projects = (await db.execute(_month_filter(OpportunityProject, "created_at", cur_year, cur_month))).scalar() or 0
-    prev_projects = (await db.execute(_month_filter(OpportunityProject, "created_at", prev_year, prev_month))).scalar() or 0
+    cur_projects = (await db.execute(_month_filter(OpportunityProject, "created_at", cur_year, cur_month, proj_where))).scalar() or 0
+    prev_projects = (await db.execute(_month_filter(OpportunityProject, "created_at", prev_year, prev_month, proj_where))).scalar() or 0
 
+    # 工单没有归属维度（service_tickets 全租户共享，服务台按 service:view 授权），保持原口径
     cur_tickets = (await db.execute(_month_filter(ServiceTicket, "created_at", cur_year, cur_month))).scalar() or 0
     prev_tickets = (await db.execute(_month_filter(ServiceTicket, "created_at", prev_year, prev_month))).scalar() or 0
 
@@ -249,6 +379,11 @@ async def alerts(
     now = datetime.now(timezone.utc)
     alerts_list = []
 
+    # 预警卡片带 biz_id 且前端可点开，等于一条进详情的入口——必须按数据范围过滤，
+    # 否则会把别人的商机名/回款金额直接摆到受限用户面前。
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    proj_where = _project_scope_where(tenant_id, _user, scope)
+
     # Stalled projects (no update in 14+ days)
     from sqlalchemy import text
     stalled = (await db.execute(
@@ -256,6 +391,7 @@ async def alerts(
             OpportunityProject.tenant_id == tenant_id,
             OpportunityProject.status == "active",
             OpportunityProject.updated_at < func.now() - text("interval '14 days'"),
+            *proj_where,
         ).order_by(OpportunityProject.updated_at.asc()).limit(10)
     )).scalars().all()
     for p in stalled:
@@ -272,6 +408,7 @@ async def alerts(
         select(DeliveryMilestone).where(
             DeliveryMilestone.tenant_id == tenant_id,
             DeliveryMilestone.status == "delayed",
+            *_child_scope_where(DeliveryMilestone, tenant_id, _user, scope),
         ).limit(10)
     )).scalars().all()
     for m in delayed:
@@ -288,6 +425,7 @@ async def alerts(
             OpportunityProject.tenant_id == tenant_id,
             OpportunityProject.status == "active",
             OpportunityProject.risk_level == "H",
+            *proj_where,
         ).limit(10)
     )).scalars().all()
     for p in high_risk:
@@ -298,7 +436,8 @@ async def alerts(
             "biz_type": "project", "biz_id": p.id,
         })
 
-    # Open tickets
+    # Open tickets —— 工单本身没有归属维度（服务台按 service:view 授权、列表就是全租户可见），
+    # 这里不额外收窄，否则工作台会比工单列表还严，服务台同事看不到自己该处理的告警。
     open_tickets = (await db.execute(
         select(ServiceTicket).where(
             ServiceTicket.tenant_id == tenant_id,
@@ -322,6 +461,7 @@ async def alerts(
             PaymentPlan.status == "pending",
             PaymentPlan.due_date != None,
             PaymentPlan.due_date < date.today(),
+            *_child_scope_where(PaymentPlan, tenant_id, _user, scope),
         ).limit(10)
     )).scalars().all()
     for p in overdue_plans:
@@ -340,6 +480,7 @@ async def alerts(
             OpportunityProject.status == "active",
             OpportunityProject.amount_expect > 100000,
             OpportunityProject.stage_code.in_(["S3", "S4"]),
+            *proj_where,
         ).limit(10)
     )).scalars().all()
     for p in big_no_quote:
@@ -366,6 +507,8 @@ async def funnel(
     """Sales funnel: count + amount by stage for active projects."""
     stages = ["S1", "S2", "S3", "S4", "S5", "S6"]
     stage_labels = {"S1": "线索确认", "S2": "需求分析", "S3": "方案报价", "S4": "商务谈判", "S5": "合同签订", "S6": "交付验收"}
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    proj_where = _project_scope_where(tenant_id, _user, scope)
     result = []
     for s in stages:
         row = await db.execute(
@@ -376,6 +519,7 @@ async def funnel(
                 OpportunityProject.tenant_id == tenant_id,
                 OpportunityProject.status == "active",
                 OpportunityProject.stage_code == s,
+                *proj_where,
             )
         )
         count, amount = row.one()
@@ -393,21 +537,28 @@ async def win_loss(
     _user=Depends(get_current_user),
 ):
     """Win/loss stats."""
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    proj_where = _project_scope_where(tenant_id, _user, scope)
+    contract_where = _child_scope_where(Contract, tenant_id, _user, scope)
+
     won_count = (await db.execute(
         select(func.count(OpportunityProject.id)).where(
-            OpportunityProject.tenant_id == tenant_id, OpportunityProject.status == "won"
+            OpportunityProject.tenant_id == tenant_id, OpportunityProject.status == "won",
+            *proj_where,
         )
     )).scalar() or 0
     lost_count = (await db.execute(
         select(func.count(OpportunityProject.id)).where(
-            OpportunityProject.tenant_id == tenant_id, OpportunityProject.status == "lost"
+            OpportunityProject.tenant_id == tenant_id, OpportunityProject.status == "lost",
+            *proj_where,
         )
     )).scalar() or 0
     # 赢单金额 = 已签合同额（签单额口径），不再用商机预计额
-    won_amount = await _signed_contract_amount(db, tenant_id)
+    won_amount = await _signed_contract_amount(db, tenant_id, *contract_where)
     lost_amount = (await db.execute(
         select(func.coalesce(func.sum(OpportunityProject.amount_expect), 0)).where(
-            OpportunityProject.tenant_id == tenant_id, OpportunityProject.status == "lost"
+            OpportunityProject.tenant_id == tenant_id, OpportunityProject.status == "lost",
+            *proj_where,
         )
     )).scalar() or 0
     total = won_count + lost_count
@@ -428,6 +579,11 @@ async def top_customers(
 ):
     """Top 10 customers by project pipeline value."""
     from app.domains.customer.models import Customer
+    # 返回客户 id + 名称（前端可点开），两侧都要卡：客户本身可见 且 计入的商机可见，
+    # 否则受限用户会从「TOP 客户」里读到别人的客户名和管道金额。
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    cust_where = await _customer_scope_where(db, tenant_id, _user)
+    proj_where = _project_scope_where(tenant_id, _user, scope)
     result = await db.execute(
         select(
             Customer.id, Customer.name,
@@ -439,6 +595,8 @@ async def top_customers(
             Customer.tenant_id == tenant_id,
             OpportunityProject.tenant_id == tenant_id,
             OpportunityProject.status == "active",
+            *cust_where,
+            *proj_where,
         ).group_by(Customer.id, Customer.name)
         .order_by(func.sum(OpportunityProject.amount_expect).desc())
         .limit(10)
@@ -464,10 +622,16 @@ async def payment_overview(
     from sqlalchemy import text, cast, Date as SaDate
     now = datetime.now(timezone.utc).date()
 
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    plan_where = _child_scope_where(PaymentPlan, tenant_id, _user, scope)
+    record_where = _child_scope_where(PaymentRecord, tenant_id, _user, scope)
+    contract_where = _child_scope_where(Contract, tenant_id, _user, scope)
+
     # Total planned
     total_planned = (await db.execute(
         select(func.coalesce(func.sum(PaymentPlan.amount), 0)).where(
             PaymentPlan.tenant_id == tenant_id,
+            *plan_where,
         )
     )).scalar() or 0
 
@@ -475,14 +639,17 @@ async def payment_overview(
     total_received = (await db.execute(
         select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
             PaymentRecord.tenant_id == tenant_id,
+            *record_where,
         )
     )).scalar() or 0
 
     # Total contract receivable (合同应收) — 回款率的标准分母，避免「计划回款」未录全导致回款率虚高
-    from app.domains.contract.models import Contract
+    # （Contract 已在模块顶部导入；这里原有的函数内 import 会让 Contract 变成局部名，
+    #  导致上面算 contract_where 时报 UnboundLocalError，故删除）
     total_receivable = (await db.execute(
         select(func.coalesce(func.sum(Contract.amount_total), 0)).where(
             Contract.tenant_id == tenant_id,
+            *contract_where,
         )
     )).scalar() or 0
 
@@ -492,6 +659,7 @@ async def payment_overview(
             PaymentPlan.tenant_id == tenant_id,
             PaymentPlan.status.in_(["pending", "overdue"]),
             PaymentPlan.due_date < now,
+            *plan_where,
         )
     )).scalar() or 0
 
@@ -500,6 +668,7 @@ async def payment_overview(
             PaymentPlan.tenant_id == tenant_id,
             PaymentPlan.status.in_(["pending", "overdue"]),
             PaymentPlan.due_date < now,
+            *plan_where,
         )
     )).scalar() or 0
 
@@ -512,6 +681,7 @@ async def payment_overview(
             PaymentPlan.status == "pending",
             PaymentPlan.due_date >= now,
             PaymentPlan.due_date <= upcoming_date,
+            *plan_where,
         )
     )).scalar() or 0
 
@@ -544,12 +714,15 @@ async def milestone_overview(
         "done": "completed",
         "delayed": "delayed",
     }
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    milestone_where = _child_scope_where(DeliveryMilestone, tenant_id, _user, scope)
     result = {}
     for db_status, display_key in status_map.items():
         count = (await db.execute(
             select(func.count(DeliveryMilestone.id)).where(
                 DeliveryMilestone.tenant_id == tenant_id,
                 DeliveryMilestone.status == db_status,
+                *milestone_where,
             )
         )).scalar() or 0
         result[display_key] = count
@@ -567,6 +740,8 @@ async def monthly_revenue(
 ):
     """Monthly revenue (payment received) for the last 6 months."""
     now = datetime.now(timezone.utc)
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    record_where = _child_scope_where(PaymentRecord, tenant_id, _user, scope)
     months = []
     for i in range(5, -1, -1):
         m = now.month - i
@@ -579,6 +754,7 @@ async def monthly_revenue(
                 PaymentRecord.tenant_id == tenant_id,
                 extract("year", PaymentRecord.received_date) == y,
                 extract("month", PaymentRecord.received_date) == m,
+                *record_where,
             )
         )).scalar() or 0
         months.append({
@@ -596,9 +772,15 @@ async def leaderboard(
     _user=Depends(get_current_user),
 ):
     """Performance leaderboard: top salespeople by won deals（签单数/成交额=已签合同）。"""
+    # 排行榜逐行就是「同事姓名 + 成交额」，是本域泄露面最大的一个接口：
+    # 按业绩归属人（credited_owner）落在数据范围内来卡——self 只剩自己一行，
+    # dept 剩本部门子树，data_scope=all/管理员仍是全员榜。功能保留，只收窄行集。
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+
     # 签单数 + 成交额：已签合同，归到商机负责人；无关联商机的外部合同回退到合同负责人
     credited_owner_id = func.coalesce(OpportunityProject.owner_id, Contract.assignee_id)
     credited_owner_name = func.coalesce(OpportunityProject.owner_name, Contract.assignee_name)
+    won_scope_where = [] if scope is None else [credited_owner_id.in_(scope)]
     won_rows = (await db.execute(
         select(
             credited_owner_id.label("owner_id"),
@@ -618,12 +800,14 @@ async def leaderboard(
             Contract.tenant_id == tenant_id,
             Contract.status == "signed",
             credited_owner_id.isnot(None),
+            *won_scope_where,
         )
         .group_by(credited_owner_id, credited_owner_name)
     )).all()
     won_map = {r.owner_id: {"owner_name": r.owner_name, "won_count": r.won_count, "won_amount": float(r.won_amount)} for r in won_rows}
 
     # Active pipeline by owner
+    pipeline_scope_where = [] if scope is None else [OpportunityProject.owner_id.in_(scope)]
     pipeline_result = await db.execute(
         select(
             OpportunityProject.owner_id,
@@ -633,6 +817,7 @@ async def leaderboard(
             OpportunityProject.tenant_id == tenant_id,
             OpportunityProject.status == "active",
             OpportunityProject.owner_id.isnot(None),
+            *pipeline_scope_where,
         ).group_by(OpportunityProject.owner_id)
     )
     pipeline_map = {r.owner_id: {"active_count": r.active_count, "pipeline_amount": float(r.pipeline_amount)} for r in pipeline_result.all()}
@@ -664,6 +849,9 @@ async def trend(
     """Monthly trend: new opportunities, won, lost, and pipeline amount."""
     from datetime import timedelta
     now = datetime.now(timezone.utc)
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    proj_where = _project_scope_where(tenant_id, _user, scope)
+    contract_where = _child_scope_where(Contract, tenant_id, _user, scope)
     result = []
     for i in range(months - 1, -1, -1):
         m = now.month - i
@@ -677,6 +865,7 @@ async def trend(
                 OpportunityProject.tenant_id == tenant_id,
                 extract("year", OpportunityProject.created_at) == y,
                 extract("month", OpportunityProject.created_at) == m,
+                *proj_where,
             )
         )).scalar() or 0
 
@@ -686,6 +875,7 @@ async def trend(
             Contract.signed_date.isnot(None),
             extract("year", Contract.signed_date) == y,
             extract("month", Contract.signed_date) == m,
+            *contract_where,
         )
 
         lost_count = (await db.execute(
@@ -694,6 +884,7 @@ async def trend(
                 OpportunityProject.status == "lost",
                 extract("year", OpportunityProject.updated_at) == y,
                 extract("month", OpportunityProject.updated_at) == m,
+                *proj_where,
             )
         )).scalar() or 0
 
@@ -703,6 +894,7 @@ async def trend(
             Contract.signed_date.isnot(None),
             extract("year", Contract.signed_date) == y,
             extract("month", Contract.signed_date) == m,
+            *contract_where,
         )
 
         result.append({
@@ -723,6 +915,9 @@ async def collection(
 ):
     """Monthly collection analysis: receivable, received, overdue."""
     now = datetime.now(timezone.utc)
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    plan_where = _child_scope_where(PaymentPlan, tenant_id, _user, scope)
+    record_where = _child_scope_where(PaymentRecord, tenant_id, _user, scope)
     result = []
     for i in range(months - 1, -1, -1):
         m = now.month - i
@@ -737,6 +932,7 @@ async def collection(
                 PaymentPlan.tenant_id == tenant_id,
                 extract("year", PaymentPlan.due_date) == y,
                 extract("month", PaymentPlan.due_date) == m,
+                *plan_where,
             )
         )).scalar() or 0
 
@@ -746,6 +942,7 @@ async def collection(
                 PaymentRecord.tenant_id == tenant_id,
                 extract("year", PaymentRecord.received_date) == y,
                 extract("month", PaymentRecord.received_date) == m,
+                *record_where,
             )
         )).scalar() or 0
 
@@ -763,6 +960,7 @@ async def collection(
                     PaymentPlan.status.in_(["pending", "overdue"]),
                     extract("year", PaymentPlan.due_date) == y,
                     extract("month", PaymentPlan.due_date) == m,
+                    *plan_where,
                 )
             )).scalar() or 0
 
@@ -908,11 +1106,17 @@ async def global_search(
     results = []
     LIMIT = 5
 
+    # 全局搜索直接吐 id + 名称 + 详情 url，不按数据范围过滤等于给了一个枚举全租户的入口。
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    visible_cust_ids = await visible_customer_ids_select(db, tenant_id, _user)  # None=不限
+    cust_where = [] if visible_cust_ids is None else [Customer.id.in_(visible_cust_ids)]
+
     # Customers
     rows = (await db.execute(
         select(Customer.id, Customer.name, Customer.customer_code).where(
             Customer.tenant_id == tenant_id,
             or_(Customer.name.ilike(keyword), Customer.customer_code.ilike(keyword), Customer.short_name.ilike(keyword)),
+            *cust_where,
         ).limit(LIMIT)
     )).all()
     for r in rows:
@@ -923,6 +1127,7 @@ async def global_search(
         select(Lead.id, Lead.lead_code, Lead.title, Lead.company_name, Lead.contact_name).where(
             Lead.tenant_id == tenant_id,
             or_(Lead.title.ilike(keyword), Lead.company_name.ilike(keyword), Lead.contact_name.ilike(keyword), Lead.lead_code.ilike(keyword)),
+            *_lead_scope_where(tenant_id, _user, scope),
         ).limit(LIMIT)
     )).all()
     for r in rows:
@@ -933,23 +1138,26 @@ async def global_search(
         select(OpportunityProject.id, OpportunityProject.name, OpportunityProject.project_code).where(
             OpportunityProject.tenant_id == tenant_id,
             or_(OpportunityProject.name.ilike(keyword), OpportunityProject.project_code.ilike(keyword)),
+            *_project_scope_where(tenant_id, _user, scope),
         ).limit(LIMIT)
     )).all()
     for r in rows:
         results.append({"type": "project", "id": r.id, "title": r.name, "subtitle": r.project_code or "", "url": f"/opportunities/{r.id}"})
 
-    # Contacts
+    # Contacts —— 联系人没有 owner_id，可见性跟着父客户走（与联系人列表同口径）
     from app.domains.customer.models import Contact
+    contact_where = [] if visible_cust_ids is None else [Contact.customer_id.in_(visible_cust_ids)]
     rows = (await db.execute(
         select(Contact.id, Contact.name, Contact.phone, Contact.customer_id).where(
             Contact.tenant_id == tenant_id,
             or_(Contact.name.ilike(keyword), Contact.phone.ilike(keyword), Contact.email.ilike(keyword)),
+            *contact_where,
         ).limit(LIMIT)
     )).all()
     for r in rows:
         results.append({"type": "contact", "id": r.id, "title": r.name, "subtitle": r.phone or "", "url": f"/customers/{r.customer_id}"})
 
-    # Service Tickets
+    # Service Tickets —— 工单无归属维度（服务台全租户可见），保持原口径
     rows = (await db.execute(
         select(ServiceTicket.id, ServiceTicket.ticket_no, ServiceTicket.description).where(
             ServiceTicket.tenant_id == tenant_id,
@@ -997,6 +1205,21 @@ async def list_targets(
         q = q.where(SalesTarget.user_id.isnot(None), SalesTarget.department_id.is_(None))
     elif target_type == "department":
         q = q.where(SalesTarget.department_id.isnot(None))
+
+    # 销售目标逐行是「同事姓名 + 目标金额」，与业绩排行同级敏感：
+    # 个人目标按 user_id 落在数据范围内；部门目标按「该部门至少有一名成员在范围内」，
+    # 这样 dept 档能看到自己部门子树的目标，self 档只剩自己。管理员 / all 不受影响。
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    if scope is not None:
+        from app.domains.organization.models import UserDepartment
+        scoped_dept_ids = select(UserDepartment.department_id).where(
+            UserDepartment.tenant_id == tenant_id,
+            UserDepartment.user_id.in_(scope),
+        )
+        q = q.where(or_(
+            SalesTarget.user_id.in_(scope),
+            SalesTarget.department_id.in_(scoped_dept_ids),
+        ))
     items = (await db.execute(q.order_by(SalesTarget.month, SalesTarget.user_name))).scalars().all()
     return ok([{
         "id": t.id, "user_id": t.user_id, "user_name": t.user_name,
@@ -1279,10 +1502,14 @@ async def targets_import_preview(
     file: UploadFile = File(...),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(get_current_user),
+    _user=Depends(require_permissions("role:manage")),
 ):
     """Parse + validate an import file, resolving 姓名/部门 to ids. Rows that fail to
-    match are returned in `errors` (keyed by row index) so they show up in the preview."""
+    match are returned in `errors` (keyed by row index) so they show up in the preview.
+
+    权限与真正的导入(/targets/import/excel)对齐：预览会把 姓名→用户、部门名→部门 在全租户
+    范围内解析出来，只挂 get_current_user 的话，任何员工都能拿它当通讯录/组织架构探针。
+    """
     from app.common.exceptions import BusinessException
 
     content = await file.read()
@@ -1401,10 +1628,23 @@ async def target_achievement(
     """Get target vs actual achievement for users and/or departments."""
     from app.domains.organization.models import UserDepartment
 
+    # 达成率表 = 目标 + 实际签单额 + 人名/部门名，与 /targets、/leaderboard 同一份敏感数据，
+    # 三处必须同口径收窄，否则从任意一处都能把全员业绩拼回来。
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+
     # Get targets
     tq = select(SalesTarget).where(SalesTarget.tenant_id == tenant_id, SalesTarget.year == year)
     if month:
         tq = tq.where(SalesTarget.month == month)
+    if scope is not None:
+        scoped_dept_ids = select(UserDepartment.department_id).where(
+            UserDepartment.tenant_id == tenant_id,
+            UserDepartment.user_id.in_(scope),
+        )
+        tq = tq.where(or_(
+            SalesTarget.user_id.in_(scope),
+            SalesTarget.department_id.in_(scoped_dept_ids),
+        ))
     targets = (await db.execute(tq)).scalars().all()
 
     # 实际业绩 = 已签合同金额（签单额口径）。
@@ -1433,6 +1673,7 @@ async def target_achievement(
             Contract.signed_date.isnot(None),
             credited_owner_id.isnot(None),
             extract("year", Contract.signed_date) == year,
+            *([] if scope is None else [credited_owner_id.in_(scope)]),
         )
     )
     if month:
@@ -1527,6 +1768,7 @@ async def customer_region_stats(
 ):
     """Customer distribution by region. 优先按结构化省份分组，回退 legacy region 文本。"""
     region_expr = func.coalesce(Customer.province, Customer.region)
+    cust_where = await _customer_scope_where(db, tenant_id, _user)
     rows = (await db.execute(
         select(
             region_expr.label("region"),
@@ -1536,6 +1778,7 @@ async def customer_region_stats(
             Customer.is_deleted == False,
             region_expr.isnot(None),
             region_expr != "",
+            *cust_where,
         ).group_by(region_expr)
         .order_by(func.count(Customer.id).desc())
     )).all()
@@ -1557,6 +1800,13 @@ async def calendar_events(
     uid = user["sub"]
     first_day = date_type(year, month, 1)
     last_day = date_type(year, month, cal_mod.monthrange(year, month)[1])
+
+    # 日历里回款/合同/里程碑三类原本是全租户的，跟进计划才按本人过滤——
+    # 结果是「我的日历」上排满了别人的回款金额和合同号。三类统一按数据范围收窄。
+    scope = await _scope_owner_ids(db, tenant_id, user)
+    plan_where = _child_scope_where(PaymentPlan, tenant_id, user, scope)
+    contract_where = _child_scope_where(Contract, tenant_id, user, scope)
+    milestone_where = _child_scope_where(DeliveryMilestone, tenant_id, user, scope)
 
     events = []
 
@@ -1583,6 +1833,7 @@ async def calendar_events(
             PaymentPlan.tenant_id == tenant_id,
             PaymentPlan.due_date >= first_day,
             PaymentPlan.due_date <= last_day,
+            *plan_where,
         )
     )).all()
     for r in pay_rows:
@@ -1601,6 +1852,7 @@ async def calendar_events(
             Contract.end_date.isnot(None),
             Contract.end_date >= first_day,
             Contract.end_date <= last_day,
+            *contract_where,
         )
     )).all()
     for r in contract_rows:
@@ -1618,6 +1870,7 @@ async def calendar_events(
             DeliveryMilestone.plan_date.isnot(None),
             DeliveryMilestone.plan_date >= first_day,
             DeliveryMilestone.plan_date <= last_day,
+            *milestone_where,
         )
     )).all()
     for r in milestone_rows:
@@ -1643,6 +1896,11 @@ async def contract_expiry(
     now = datetime.now(timezone.utc).date()
     cutoff = now + timedelta(days=days)
 
+    # 到期预警逐行带 contract_no / 金额 / 客户（商机）名 / 负责人姓名，
+    # 不按范围过滤等于把全租户合同台账贴到工作台上。
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    contract_where = _child_scope_where(Contract, tenant_id, _user, scope)
+
     rows = (await db.execute(
         select(
             Contract.id, Contract.contract_no, Contract.project_id, Contract.status,
@@ -1656,6 +1914,7 @@ async def contract_expiry(
             Contract.status == "signed",
             Contract.end_date.isnot(None),
             Contract.end_date <= cutoff,
+            *contract_where,
         ).order_by(Contract.end_date.asc())
         .limit(50)
     )).all()
@@ -1680,10 +1939,19 @@ async def contract_expiry(
 
 # ---------- Export helpers ----------
 
-async def _gather_export_data(db: AsyncSession, tenant_id: str, start_date: Optional[str], end_date: Optional[str]):
-    """Gather analytics summary data for export."""
+async def _gather_export_data(db: AsyncSession, tenant_id: str, user: dict, start_date: Optional[str], end_date: Optional[str]):
+    """Gather analytics summary data for export.
+
+    报表中心的 Excel/PDF 导出走的就是这一份聚合，所以数据范围必须在这里就卡住——
+    否则受限用户在页面上看到的是收窄后的数字，一点「导出」又把全租户口径落到文件里。
+    """
     # created_at 是 timestamptz，asyncpg 下必须与 datetime 比较（与字符串比较会报 timestamptz>=text 类型错误）
-    filters = [OpportunityProject.tenant_id == tenant_id]
+    scope = await _scope_owner_ids(db, tenant_id, user)
+    proj_where = _project_scope_where(tenant_id, user, scope)
+    contract_where = _child_scope_where(Contract, tenant_id, user, scope)
+    cust_where = await _customer_scope_where(db, tenant_id, user)
+
+    filters = [OpportunityProject.tenant_id == tenant_id, *proj_where]
     if start_date:
         filters.append(OpportunityProject.created_at >= datetime.fromisoformat(start_date[:10]).replace(tzinfo=timezone.utc))
     if end_date:
@@ -1703,7 +1971,7 @@ async def _gather_export_data(db: AsyncSession, tenant_id: str, start_date: Opti
     lost_count = (await db.execute(select(func.count(OpportunityProject.id)).where(*filters, OpportunityProject.status == "lost"))).scalar() or 0
     # 赢单金额 = 已签合同额（按签约日 signed_date 落在导出区间内）
     # signed_date 是 Date 列，asyncpg 下必须与 date 对象比较（与字符串比较会报 date>=text 类型错误）
-    signed_filters = [Contract.signed_date.isnot(None)]
+    signed_filters = [Contract.signed_date.isnot(None), *contract_where]
     if start_date:
         signed_filters.append(Contract.signed_date >= date.fromisoformat(start_date[:10]))
     if end_date:
@@ -1724,7 +1992,7 @@ async def _gather_export_data(db: AsyncSession, tenant_id: str, start_date: Opti
             OpportunityProject.tenant_id == tenant_id,
         ))
         .join(Customer, and_(Customer.id == cust_id_expr, Customer.tenant_id == tenant_id))
-        .where(Contract.tenant_id == tenant_id, Contract.status == "signed", *signed_filters)
+        .where(Contract.tenant_id == tenant_id, Contract.status == "signed", *signed_filters, *cust_where)
         .group_by(Customer.name).order_by(func.sum(Contract.amount_total).desc()).limit(10)
     )).all()
     top_customers = [{"name": r.name, "project_count": r.cnt, "total_amount": float(r.amt)} for r in top_rows]
@@ -1734,7 +2002,7 @@ async def _gather_export_data(db: AsyncSession, tenant_id: str, start_date: Opti
     region_rows = (await db.execute(
         select(region_expr.label("region"), func.count(Customer.id).label("count"))
         .where(Customer.tenant_id == tenant_id, Customer.is_deleted == False,
-               region_expr.isnot(None), region_expr != "")
+               region_expr.isnot(None), region_expr != "", *cust_where)
         .group_by(region_expr).order_by(func.count(Customer.id).desc())
     )).all()
     regions = [{"region": r.region, "count": r.count} for r in region_rows]
@@ -1759,7 +2027,7 @@ async def export_excel(
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
-    data = await _gather_export_data(db, tenant_id, start_date, end_date)
+    data = await _gather_export_data(db, tenant_id, _user, start_date, end_date)
     wb = Workbook()
 
     header_font = Font(bold=True, size=11, color="FFFFFF")
@@ -1871,7 +2139,7 @@ async def export_pdf(
             except Exception:
                 continue
 
-    data = await _gather_export_data(db, tenant_id, start_date, end_date)
+    data = await _gather_export_data(db, tenant_id, _user, start_date, end_date)
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20 * mm, bottomMargin=15 * mm)
 
@@ -1948,83 +2216,6 @@ async def export_pdf(
     )
 
 
-# --- Global Search ---
-
-@router.get("/search")
-async def global_search(
-    q: str = Query(..., min_length=1, max_length=100),
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(get_current_user),
-):
-    """Search across customers, leads, projects, contacts, and tickets."""
-    from app.domains.customer.models import Contact as ContactModel
-    pattern = f"%{q}%"
-    results = []
-
-    # Customers
-    customers = (await db.execute(
-        select(Customer.id, Customer.name, Customer.industry, Customer.province, Customer.region)
-        .where(Customer.tenant_id == tenant_id, Customer.is_deleted == False,
-               or_(Customer.name.ilike(pattern), Customer.short_name.ilike(pattern), Customer.customer_code.ilike(pattern)))
-        .limit(5)
-    )).all()
-    for c in customers:
-        results.append({"type": "customer", "id": c.id, "title": c.name,
-                        "subtitle": " · ".join(filter(None, [c.industry, c.province or c.region])),
-                        "url": f"/customers/{c.id}"})
-
-    # Leads
-    leads = (await db.execute(
-        select(Lead.id, Lead.company_name, Lead.contact_name, Lead.source)
-        .where(Lead.tenant_id == tenant_id, Lead.is_deleted == False,
-               or_(Lead.company_name.ilike(pattern), Lead.contact_name.ilike(pattern)))
-        .limit(5)
-    )).all()
-    for l in leads:
-        results.append({"type": "lead", "id": l.id, "title": l.company_name or l.contact_name,
-                        "subtitle": l.contact_name or "",
-                        "url": f"/leads/{l.id}"})
-
-    # Projects
-    projects = (await db.execute(
-        select(OpportunityProject.id, OpportunityProject.name, OpportunityProject.stage_code, OpportunityProject.status)
-        .where(OpportunityProject.tenant_id == tenant_id, OpportunityProject.is_deleted == False,
-               OpportunityProject.name.ilike(pattern))
-        .limit(5)
-    )).all()
-    for p in projects:
-        results.append({"type": "project", "id": p.id, "title": p.name,
-                        "subtitle": f"{p.stage_code} · {p.status}",
-                        "url": f"/opportunities/{p.id}"})
-
-    # Contacts
-    contacts = (await db.execute(
-        select(ContactModel.id, ContactModel.name, ContactModel.customer_id, ContactModel.title)
-        .where(ContactModel.tenant_id == tenant_id,
-               or_(ContactModel.name.ilike(pattern), ContactModel.phone.ilike(pattern), ContactModel.email.ilike(pattern)))
-        .limit(5)
-    )).all()
-    for c in contacts:
-        results.append({"type": "contact", "id": c.id, "title": c.name,
-                        "subtitle": c.title or "",
-                        "url": f"/customers/{c.customer_id}"})
-
-    # Tickets
-    tickets = (await db.execute(
-        select(ServiceTicket.id, ServiceTicket.ticket_no, ServiceTicket.description, ServiceTicket.status)
-        .where(ServiceTicket.tenant_id == tenant_id,
-               or_(ServiceTicket.ticket_no.ilike(pattern), ServiceTicket.description.ilike(pattern)))
-        .limit(5)
-    )).all()
-    for t in tickets:
-        results.append({"type": "ticket", "id": t.id, "title": t.ticket_no,
-                        "subtitle": (t.description or "")[:60],
-                        "url": f"/service-tickets"})
-
-    return ok(results)
-
-
 # --- Win Forecast ---
 
 STAGE_PROBABILITIES = {"S1": 0.10, "S2": 0.20, "S3": 0.40, "S4": 0.60, "S5": 0.80, "S6": 0.95}
@@ -2037,6 +2228,7 @@ async def win_forecast(
     _user=Depends(get_current_user),
 ):
     """Calculate weighted pipeline forecast by stage."""
+    scope = await _scope_owner_ids(db, tenant_id, _user)
     projects = (await db.execute(
         select(
             OpportunityProject.stage_code,
@@ -2046,6 +2238,7 @@ async def win_forecast(
             OpportunityProject.tenant_id == tenant_id,
             OpportunityProject.is_deleted == False,
             OpportunityProject.status == "active",
+            *_project_scope_where(tenant_id, _user, scope),
         ).group_by(OpportunityProject.stage_code)
     )).all()
 
@@ -2103,9 +2296,14 @@ async def stage_duration(
     from app.domains.project.models import ProjectStageHistory
     from collections import defaultdict
 
+    # 阶段耗时按可见商机的推进记录统计（ProjectStageHistory 无 owner_id，只能靠父商机）
+    scope = await _scope_owner_ids(db, tenant_id, _user)
+    history_where = ([] if scope is None else
+                     [ProjectStageHistory.project_id.in_(_visible_project_ids(tenant_id, _user, scope))])
     rows = (await db.execute(
         select(ProjectStageHistory).where(
             ProjectStageHistory.tenant_id == tenant_id,
+            *history_where,
         ).order_by(ProjectStageHistory.project_id, ProjectStageHistory.created_at)
     )).scalars().all()
 
@@ -2141,81 +2339,10 @@ async def stage_duration(
     return ok(stages)
 
 
-# --- Sales Targets ---
-
-@router.get("/targets")
-async def list_targets(
-    year: int = Query(..., ge=2020),
-    month: int | None = Query(None),
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("dashboard:view")),
-):
-    q = select(SalesTarget).where(SalesTarget.tenant_id == tenant_id, SalesTarget.year == year)
-    if month is not None:
-        q = q.where(SalesTarget.month == month)
-    items = (await db.execute(q.order_by(SalesTarget.month, SalesTarget.user_name))).scalars().all()
-    return ok([{
-        "id": t.id, "user_id": t.user_id, "user_name": t.user_name,
-        "year": t.year, "month": t.month,
-        "target_amount": float(t.target_amount) if t.target_amount else 0,
-        "target_count": t.target_count,
-    } for t in items])
-
-
-@router.post("/targets")
-async def upsert_target(
-    body: dict,
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("dashboard:view")),
-):
-    user_id = body.get("user_id", "")
-    year = body.get("year", 0)
-    month = body.get("month", 0)
-    existing = (await db.execute(
-        select(SalesTarget).where(
-            SalesTarget.tenant_id == tenant_id,
-            SalesTarget.user_id == user_id,
-            SalesTarget.year == year,
-            SalesTarget.month == month,
-        )
-    )).scalar_one_or_none()
-
-    if existing:
-        existing.target_amount = body.get("target_amount", existing.target_amount)
-        existing.target_count = body.get("target_count", existing.target_count)
-        existing.user_name = body.get("user_name", existing.user_name)
-    else:
-        t = SalesTarget(
-            tenant_id=tenant_id,
-            user_id=user_id,
-            user_name=body.get("user_name"),
-            year=year,
-            month=month,
-            target_amount=body.get("target_amount", 0),
-            target_count=body.get("target_count"),
-        )
-        db.add(t)
-    await db.commit()
-    return ok(None)
-
-
-@router.delete("/targets/{target_id}")
-async def delete_target(
-    target_id: str,
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("dashboard:view")),
-):
-    t = (await db.execute(
-        select(SalesTarget).where(SalesTarget.tenant_id == tenant_id, SalesTarget.id == target_id)
-    )).scalar_one_or_none()
-    if t:
-        await db.delete(t)
-        await db.commit()
-    return ok(None)
-
+# 说明：这里原本还有第二份 GET/POST/DELETE /targets（守卫写成 dashboard:view）。
+# FastAPI 首个匹配优先，实际生效的一直是文件上方那一份（写操作守 role:manage），
+# 第二份从未被路由到，属于死代码，已删除。不要改用 dashboard:view 当写守卫——
+# 它在核心权限集里人人都有，等于放开任意员工增删销售目标。
 
 # ── Dashboard Snapshot Sharing ─────────────────────────────────────
 
