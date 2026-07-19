@@ -13,7 +13,8 @@ import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels,
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
-import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
+import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 import { t } from '@/locales'
 
 const { TextArea } = Input
@@ -40,8 +41,11 @@ export default function ServiceTicketList() {
   const didMount = useRef(false)
   const [createModal, setCreateModal] = useState(false)
   const [importModal, setImportModal] = useState(false)
-  const [form, setForm] = useState<Record<string, any>>({ type: 'fault', priority: 'medium', description: '' })
+  const [ticketForm] = Form.useForm()
+  // 关联订单的搜索依赖当前选中的客户，故需订阅该字段
+  const watchedCustomerId = Form.useWatch('customer_id', ticketForm)
   const [ticketCustomFields, setTicketCustomFields] = useState<Record<string, unknown>>({})
+  const ticketCustomFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const customerSelect = useCustomerSelect()
 
   // 关联订单（可选）——按所选客户过滤，便于售后获取产品信息
@@ -140,17 +144,22 @@ export default function ServiceTicketList() {
   }, [reload])
 
   const handleCreate = async () => {
-    if (!form.description?.trim()) {
-      message.warning(t('service.descriptionRequired'))
+    let values: Record<string, any>
+    try { values = await ticketForm.validateFields() } catch { return }
+    // 扩展字段不在 antd Form 状态里，validateFields 覆盖不到；后端也会二次校验
+    const cfError = ticketCustomFieldsRef.current?.validate()
+    if (cfError) {
+      message.error(cfError)
       return
     }
     try {
-      const data: Record<string, any> = { ...form, custom_fields_json: ticketCustomFields }
+      const data: Record<string, any> = { ...values, custom_fields_json: ticketCustomFields }
       if (!data.customer_id) delete data.customer_id
       await serviceTicketApi.create(data)
       message.success(t('service.ticketCreated'))
       setCreateModal(false)
-      setForm({ type: 'fault', priority: 'medium', description: '' })
+      ticketForm.resetFields()
+      setTicketCustomFields({})
       fetchTickets()
     } catch {
       message.error(t('service.ticketCreateFailed'))
@@ -158,7 +167,8 @@ export default function ServiceTicketList() {
   }
 
   const openCreate = () => {
-    setForm({ type: 'fault', priority: 'medium', description: '' })
+    ticketForm.resetFields()
+    ticketForm.setFieldsValue({ type: 'fault', priority: 'medium' })
     setTicketCustomFields({})
     setCreateModal(true)
   }
@@ -388,42 +398,38 @@ export default function ServiceTicketList() {
 
       {/* Create Ticket Modal */}
       <Modal title={t('service.createTicketTitle')} open={createModal} onOk={handleCreate} onCancel={() => setCreateModal(false)} width={500}>
-        <div className="space-y-4 py-2">
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.relatedCustomer')}</label>
-            <Select className="w-full" allowClear showSearch filterOption={false} placeholder={t('service.relatedCustomerPlaceholder')}
-              value={form.customer_id} onChange={(v) => setForm({ ...form, customer_id: v, order_id: undefined })}
+       <FieldPolicyProvider entityType="service_ticket" form={ticketForm} customFieldValues={ticketCustomFields}>
+        <Form form={ticketForm} layout="vertical" className="py-2">
+          <Form.Item name="customer_id" label={t('service.relatedCustomer')}>
+            <Select allowClear showSearch filterOption={false} placeholder={t('service.relatedCustomerPlaceholder')}
+              onChange={() => ticketForm.setFieldValue('order_id', undefined)}
               loading={customerSelect.loading}
               options={customerSelect.options}
               onSearch={customerSelect.onSearch}
               onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">关联订单（选填，便于获取产品信息）</label>
-            <Select className="w-full" allowClear showSearch filterOption={false} placeholder="搜索订单号 / 标题"
-              value={form.order_id} onChange={(v) => setForm({ ...form, order_id: v })}
+          </Form.Item>
+          <Form.Item name="order_id" label="关联订单（选填，便于获取产品信息）">
+            <Select allowClear showSearch filterOption={false} placeholder="搜索订单号 / 标题"
               loading={orderLoading} options={orderOpts}
-              onSearch={(kw) => searchOrders(kw, form.customer_id)}
-              onDropdownVisibleChange={(o) => { if (o) searchOrders(undefined, form.customer_id) }} />
-          </div>
+              onSearch={(kw) => searchOrders(kw, watchedCustomerId)}
+              onDropdownVisibleChange={(o) => { if (o) searchOrders(undefined, watchedCustomerId) }} />
+          </Form.Item>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.type')}</label>
-              <Select className="w-full" value={form.type} onChange={(v) => setForm({ ...form, type: v })}
-                options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v }))} />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.priority')}</label>
-              <Select className="w-full" value={form.priority} onChange={(v) => setForm({ ...form, priority: v })}
-                options={Object.entries(priorityLabels).map(([k, v]) => ({ value: k, label: v }))} />
-            </div>
+            <Form.Item name="type" label={t('service.type')}>
+              <Select options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v }))} />
+            </Form.Item>
+            <PolicyItem name="priority" label={t('service.priority')}>
+              <Select options={Object.entries(priorityLabels).map(([k, v]) => ({ value: k, label: v }))} />
+            </PolicyItem>
           </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">{t('service.description')}</label>
-            <TextArea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={t('service.descriptionPlaceholder')} />
-          </div>
-          <EntityCustomFields entityType="service_ticket" value={ticketCustomFields} onChange={setTicketCustomFields} />
-        </div>
+          <PolicyItem name="description" label={t('service.description')}
+            rules={[{ required: true, message: t('service.descriptionRequired') }]}>
+            <TextArea rows={3} placeholder={t('service.descriptionPlaceholder')} />
+          </PolicyItem>
+          <EntityCustomFields ref={ticketCustomFieldsRef} entityType="service_ticket"
+            value={ticketCustomFields} onChange={setTicketCustomFields} />
+        </Form>
+       </FieldPolicyProvider>
       </Modal>
 
       {/* Renewal Modal */}

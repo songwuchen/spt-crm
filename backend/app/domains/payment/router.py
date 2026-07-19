@@ -10,6 +10,7 @@ from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.common.exceptions import BusinessException
 from app.common.export import build_excel, excel_response
+from app.common.field_mask import load_mask_policies, apply_field_mask
 from app.domains.payment import service
 from app.domains.payment.models import PaymentPlan, PaymentRecord, Invoice
 from app.domains.payment.schemas import (
@@ -318,6 +319,11 @@ async def list_all_plans(
         d["project_code"] = row.project_code
         items.append(d)
 
+    # 回款计划没有 custom_fields_json 列、不属于 entity_type="payment"，
+    # 其金额改由按权限脱敏的 field_mask 覆盖（与报价成本/毛利同一套引擎）
+    items = apply_field_mask(items, "payment_plan",
+                             current_user.get("permissions", []),
+                             await load_mask_policies(db, tenant_id))
     return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
@@ -424,6 +430,9 @@ async def list_all_invoices(
         d["project_code"] = row.project_code
         items.append(d)
 
+    items = apply_field_mask(items, "invoice",
+                             current_user.get("permissions", []),
+                             await load_mask_policies(db, tenant_id))
     return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 

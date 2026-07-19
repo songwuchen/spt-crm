@@ -219,6 +219,8 @@ async def enforce_native_field_policy(
         fid = fd.get("id")
         if fd.get("form_editable") is False:
             continue  # 表单上没有该输入项（系统/专用流程写入），配必填只会造成无法保存
+        if prior is None and fd.get("available_on_create") is False:
+            continue  # 该字段只在记录建立后才出现（如工单解决方案），新建时无从填写
         if required_scope != "all" and fid not in payload:
             continue
         st = final_states.get(fid) or {}

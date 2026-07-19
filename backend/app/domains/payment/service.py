@@ -311,10 +311,17 @@ async def auto_complete_plans_if_fully_paid(db: AsyncSession, tenant_id: str, pr
 async def create_record(db: AsyncSession, tenant_id: str, project_id: str, data: PaymentRecordCreate, user: dict) -> PaymentRecord:
     payload = data.model_dump(exclude_unset=True)
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     if "custom_fields_json" in payload:
-        from app.domains.lowcode.field_permission import sanitize_entity_write
         payload["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "payment", payload.get("custom_fields_json"), None, user.get("roles"))
+        await validate_entity_custom_fields(
+            db, tenant_id, "payment", payload["custom_fields_json"], user.get("roles"))
+    # 原生字段策略：读取侧已按角色隐藏/脱敏，写入侧必须对称拦截
+    payload = await enforce_native_field_policy(
+        db, tenant_id, "payment", payload, None, user.get("roles"))
     rec = PaymentRecord(
         id=generate_uuid(), tenant_id=tenant_id, project_id=project_id,
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),

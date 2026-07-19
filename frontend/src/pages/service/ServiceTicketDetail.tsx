@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Button, Tag, Select, Input, Space, Spin, Descriptions, Modal, Rate, Table, message } from 'antd'
+import { Button, Tag, Select, Input, Space, Spin, Descriptions, Modal, Form, Rate, Table, message } from 'antd'
 import { useParams, useNavigate } from 'react-router-dom'
 import { serviceTicketApi } from '@/api/serviceTicket'
 import { orderApi } from '@/api/order'
 import { activityApi } from '@/api/activity'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import type { ServiceTicketItem, ActivityItem, Order } from '@/api/types'
 import { ticketTypeLabels as typeLabels, ticketPriorityLabels as priorityLabels, ticketPriorityColors as priorityColors, ticketStatusColors as statusColors, ticketStatusLabels as statusLabels } from '@/constants/labels'
@@ -39,9 +40,7 @@ export default function ServiceTicketDetail() {
 
   // Edit fields
   const [editModal, setEditModal] = useState(false)
-  const [editDesc, setEditDesc] = useState('')
-  const [editResolution, setEditResolution] = useState('')
-  const [editPriority, setEditPriority] = useState('')
+  const [editForm] = Form.useForm()
 
   // Assign modal
   const [assignModal, setAssignModal] = useState(false)
@@ -116,11 +115,9 @@ export default function ServiceTicketDetail() {
   }
 
   const handleEditSave = async () => {
-    await serviceTicketApi.update(id!, {
-      description: editDesc,
-      resolution: editResolution,
-      priority: editPriority,
-    })
+    let values: Record<string, unknown>
+    try { values = await editForm.validateFields() } catch { return }
+    await serviceTicketApi.update(id!, values)
     message.success('已更新')
     setEditModal(false)
     fetchTicket()
@@ -128,9 +125,11 @@ export default function ServiceTicketDetail() {
 
   const openEditModal = () => {
     if (!ticket) return
-    setEditDesc(ticket.description || '')
-    setEditResolution(ticket.resolution || '')
-    setEditPriority(ticket.priority)
+    editForm.setFieldsValue({
+      description: ticket.description || '',
+      resolution: ticket.resolution || '',
+      priority: ticket.priority,
+    })
     setEditModal(true)
   }
 
@@ -391,21 +390,19 @@ export default function ServiceTicketDetail() {
 
       {/* Edit Modal */}
       <Modal title="编辑工单" open={editModal} onOk={handleEditSave} onCancel={() => setEditModal(false)} width={600}>
-        <div className="space-y-4 py-2">
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">优先级</label>
-            <Select className="w-full" value={editPriority} onChange={setEditPriority}
-              options={Object.entries(priorityLabels).map(([k, v]) => ({ value: k, label: v }))} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">问题描述</label>
-            <TextArea rows={4} value={editDesc} onChange={(e) => setEditDesc(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">解决方案</label>
-            <TextArea rows={4} value={editResolution} onChange={(e) => setEditResolution(e.target.value)} placeholder="填写解决方案..." />
-          </div>
-        </div>
+       <FieldPolicyProvider entityType="service_ticket" form={editForm}>
+        <Form form={editForm} layout="vertical" className="py-2">
+          <PolicyItem name="priority" label="优先级">
+            <Select options={Object.entries(priorityLabels).map(([k, v]) => ({ value: k, label: v }))} />
+          </PolicyItem>
+          <PolicyItem name="description" label="问题描述">
+            <TextArea rows={4} />
+          </PolicyItem>
+          <PolicyItem name="resolution" label="解决方案">
+            <TextArea rows={4} placeholder="填写解决方案..." />
+          </PolicyItem>
+        </Form>
+       </FieldPolicyProvider>
       </Modal>
 
       {/* Assign Modal */}

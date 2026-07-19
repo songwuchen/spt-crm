@@ -90,10 +90,17 @@ async def create_ticket(db: AsyncSession, tenant_id: str, data: ServiceTicketCre
     now = datetime.now(timezone.utc)
     dump = data.model_dump(exclude_unset=True)
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     if "custom_fields_json" in dump:
-        from app.domains.lowcode.field_permission import sanitize_entity_write
         dump["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "service_ticket", dump["custom_fields_json"], None, user.get("roles"))
+        await validate_entity_custom_fields(
+            db, tenant_id, "service_ticket", dump["custom_fields_json"], user.get("roles"))
+    # 原生字段策略：读取侧已按角色隐藏/脱敏，写入侧必须对称拦截
+    dump = await enforce_native_field_policy(
+        db, tenant_id, "service_ticket", dump, None, user.get("roles"))
     priority = dump.get("priority", "medium")
     respond_h, resolve_h = SLA_TARGETS.get(priority, SLA_TARGETS["medium"])
     ticket = ServiceTicket(
@@ -140,10 +147,16 @@ async def update_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, data: 
     old_status = ticket.status
     _dump = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     if "custom_fields_json" in _dump:
-        from app.domains.lowcode.field_permission import sanitize_entity_write
         _dump["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "service_ticket", _dump["custom_fields_json"], ticket.custom_fields_json, user.get("roles"))
+        await validate_entity_custom_fields(
+            db, tenant_id, "service_ticket", _dump["custom_fields_json"], user.get("roles"))
+    _dump = await enforce_native_field_policy(
+        db, tenant_id, "service_ticket", _dump, ticket, user.get("roles"), required_scope="payload")
     for field, val in _dump.items():
         setattr(ticket, field, val)
     now = datetime.now(timezone.utc)

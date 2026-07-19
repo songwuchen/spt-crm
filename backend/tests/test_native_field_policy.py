@@ -79,6 +79,38 @@ async def test_non_form_editable_field_can_be_masked_but_not_required(
         await publish([])
 
 
+async def test_edit_only_field_does_not_block_creation(
+    client: AsyncClient, auth_headers: dict,
+):
+    """available_on_create=False 的字段（如工单「解决方案」）配了必填也不得挡住新建 ——
+    新建工单时还谈不上解决方案，界面上本就没有该输入项。
+    """
+    h = auth_headers
+    tpl = (await client.get("/api/v1/lc/entity-templates/service_ticket", headers=h)).json()["data"]
+
+    async def publish(defs):
+        await client.post(f"/api/v1/lc/form-templates/{tpl['id']}/design", headers=h, json={
+            "field_definitions": defs, "layout_definition": {}, "rule_definitions": []})
+        await client.post(f"/api/v1/lc/form-templates/{tpl['id']}/publish", headers=h)
+
+    try:
+        await publish([{"id": "resolution", "native": True, "label": "解决方案",
+                        "type": "textarea", "required": True}])
+        r = (await client.post("/api/v1/service_tickets", headers=h, json={
+            "type": "fault", "description": "设备无法启动",
+        })).json()
+        assert r["code"] == 0, f"新建工单不该被「解决方案」必填拦住: {r}"
+
+        # 但编辑时该字段可见可填，必填照常生效
+        tid = r["data"]["id"]
+        upd = (await client.put(f"/api/v1/service_tickets/{tid}", headers=h,
+                                json={"resolution": ""})).json()
+        assert upd["code"] != 0 and "解决方案" in upd["message"]
+        await client.delete(f"/api/v1/service_tickets/{tid}", headers=h)
+    finally:
+        await publish([])
+
+
 def test_override_cannot_change_id_or_type():
     merged = merge_native_overrides("lead", [
         {"id": "industry", "native": True, "type": "detail_table", "label": "所属行业"},
@@ -126,30 +158,39 @@ def test_catalog_fields_all_have_a_form_control():
     from pathlib import Path
     from app.domains.lowcode.native_field_catalog import FORM_WIRED
 
-    # 一个实体可能有多处表单（新建 Modal 与编辑页各一份），每一处都要能填全部目录字段
+    # 一个实体可能有多处表单，且新建与编辑能填的字段并不相同：
+    # (相对路径, 该表单覆盖的场景)  场景 ∈ {"create", "edit", "both"}
     forms = {
-        "lead": ["frontend/src/pages/lead/LeadForm.tsx"],
-        "customer": ["frontend/src/pages/customer/CustomerForm.tsx"],
+        "lead": [("frontend/src/pages/lead/LeadForm.tsx", "both")],
+        "customer": [("frontend/src/pages/customer/CustomerForm.tsx", "both")],
         "contact": [
-            "frontend/src/pages/customer/CustomerDetail.tsx",   # 编辑+新建
-            "frontend/src/pages/customer/ContactList.tsx",      # 仅新建
+            ("frontend/src/pages/customer/CustomerDetail.tsx", "both"),
+            ("frontend/src/pages/customer/ContactList.tsx", "create"),
         ],
-        "project": ["frontend/src/pages/opportunity/OpportunityForm.tsx"],
-        "contract": ["frontend/src/pages/contract/ContractList.tsx"],
-        "order": ["frontend/src/pages/order/OrderList.tsx"],
+        "project": [("frontend/src/pages/opportunity/OpportunityForm.tsx", "both")],
+        "contract": [("frontend/src/pages/contract/ContractList.tsx", "create")],
+        "order": [("frontend/src/pages/order/OrderList.tsx", "both")],
+        "service_ticket": [
+            ("frontend/src/pages/service/ServiceTicketList.tsx", "create"),
+            ("frontend/src/pages/service/ServiceTicketDetail.tsx", "edit"),
+        ],
+        "payment": [("frontend/src/pages/payment/PaymentPage.tsx", "create")],
     }
     root = Path(__file__).resolve().parents[2]
     for entity in FORM_WIRED:
         assert entity in forms, f"{entity} 已声明接入表单，但测试不知道它的表单文件在哪"
-        for rel in forms[entity]:
+        for rel, scope in forms[entity]:
             src = (root / rel).read_text(encoding="utf-8")
             rendered = set(re.findall(r'<PolicyItem\s+name="([^"]+)"', src))
-            missing = [
-                fd["id"] for fd in get_native_fields(entity)
-                # form_editable=False 的字段由系统/专用流程写入，表单上本就没有输入项
-                if fd.get("form_editable", True) and fd["id"] not in rendered
-            ]
-            assert not missing, f"{entity} @ {rel}: 目录里有但表单没有对应 PolicyItem: {missing}"
+            missing = []
+            for fd in get_native_fields(entity):
+                if not fd.get("form_editable", True):
+                    continue  # 由系统/专用流程写入，表单上本就没有输入项
+                if scope == "create" and not fd.get("available_on_create", True):
+                    continue  # 只在记录建立后才出现的字段（如工单解决方案）
+                if fd["id"] not in rendered:
+                    missing.append(fd["id"])
+            assert not missing, f"{entity} @ {rel}({scope}): 目录里有但表单没有对应 PolicyItem: {missing}"
 
 
 # 目录里的实体 -> (模型模块, 类名)，用于校验字段 id 都是真实列

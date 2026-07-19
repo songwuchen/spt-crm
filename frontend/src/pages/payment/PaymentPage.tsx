@@ -12,7 +12,8 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
-import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
+import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 
 interface PlanRow {
   id: string; project_id: string; plan_no: string; due_date?: string | null
@@ -97,6 +98,7 @@ export default function PaymentPage() {
   const [createForm] = Form.useForm()
   const [creating, setCreating] = useState(false)
   const [recordCf, setRecordCf] = useState<Record<string, unknown>>({})  // 到账记录的扩展字段值
+  const recordCfRef = useRef<EntityCustomFieldsRef>(null)
   const createTitle = { plan: '新增回款计划', record: '新增到账记录', invoice: '新增发票' }[createType]
   const openCreate = (type: 'plan' | 'record' | 'invoice') => {
     setCreateType(type); createForm.resetFields(); setRecordCf({}); setProjOpts([]); searchProjects(); setCreateOpen(true)
@@ -105,6 +107,14 @@ export default function PaymentPage() {
     let v
     try { v = await createForm.validateFields() } catch { return }
     const pid = v.project_id as string
+    if (createType === 'record') {
+      // 扩展字段不在 antd Form 状态里，validateFields 覆盖不到；后端也会二次校验
+      const cfError = recordCfRef.current?.validate()
+      if (cfError) {
+        message.error(cfError)
+        return
+      }
+    }
     setCreating(true)
     try {
       if (createType === 'plan') {
@@ -399,6 +409,7 @@ export default function PaymentPage() {
       {/* 新增回款（计划/到账/发票） */}
       <Modal title={createTitle} open={createOpen} onOk={handleCreate} confirmLoading={creating}
         onCancel={() => setCreateOpen(false)} okText="保存" width={520} destroyOnClose>
+       <FieldPolicyProvider entityType="payment" form={createForm} customFieldValues={recordCf}>
         <Form form={createForm} layout="vertical" className="mt-3">
           <Form.Item name="project_id" label="关联商机" rules={[{ required: true, message: '请选择关联商机' }]}>
             <Select showSearch filterOption={false} placeholder="搜索商机名称 / 编号"
@@ -414,16 +425,19 @@ export default function PaymentPage() {
               <Select options={[{ value: 'pending', label: '待回款' }, { value: 'paid', label: '已回款' }, { value: 'overdue', label: '逾期' }]} />
             </Form.Item>
           </>)}
+          {/* 到账记录分支才走字段策略：entity_type="payment" 只绑 PaymentRecord，
+              而本 Modal 的 amount / remark 三个分支共用同名字段，套错分支会把
+              到账记录的策略施加到计划与发票上 */}
           {createType === 'record' && (<>
             <div className="grid grid-cols-2 gap-3">
-              <Form.Item name="received_date" label="到账日期" rules={[{ required: true, message: '请选择到账日期' }]}><DatePicker className="w-full" /></Form.Item>
-              <Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><InputNumber className="w-full" min={0} /></Form.Item>
+              <PolicyItem name="received_date" label="到账日期" rules={[{ required: true, message: '请选择到账日期' }]}><DatePicker className="w-full" /></PolicyItem>
+              <PolicyItem name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><InputNumber className="w-full" min={0} /></PolicyItem>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Form.Item name="channel" label="渠道"><Input placeholder="如 电汇 / 承兑" /></Form.Item>
-              <Form.Item name="reference_no" label="凭证号"><Input /></Form.Item>
+              <PolicyItem name="channel" label="渠道"><Input placeholder="如 电汇 / 承兑" /></PolicyItem>
+              <PolicyItem name="reference_no" label="凭证号"><Input /></PolicyItem>
             </div>
-            <EntityCustomFields entityType="payment" value={recordCf} onChange={setRecordCf} />
+            <EntityCustomFields ref={recordCfRef} entityType="payment" value={recordCf} onChange={setRecordCf} />
           </>)}
           {createType === 'invoice' && (<>
             <div className="grid grid-cols-2 gap-3">
@@ -434,6 +448,7 @@ export default function PaymentPage() {
           </>)}
           <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
         </Form>
+       </FieldPolicyProvider>
       </Modal>
 
       {/* 批量导入到账记录 */}

@@ -1627,11 +1627,15 @@ const MASK_RESOURCES = [
   { value: 'quote_line', label: '报价明细行', fields: ['cost_est', 'unit_price', 'line_total'] },
   { value: 'cost_snapshot', label: '成本快照', fields: ['cost_total', 'breakdown_json'] },
   { value: 'contract', label: '合同', fields: ['amount_total'] },
+  // 回款计划 / 发票没有扩展字段列，不属于按角色那套的实体，其金额只能走按权限脱敏
+  { value: 'payment_plan', label: '回款计划', fields: ['amount'] },
+  { value: 'invoice', label: '发票', fields: ['amount', 'invoice_no'] },
 ]
 const MASK_FIELD_LABELS: Record<string, string> = {
   margin_rate: '毛利率', discount_total: '折扣合计', price_total: '报价总额', tax_total: '税额',
   cost_est: '预估成本', unit_price: '单价', line_total: '行金额',
   cost_total: '成本合计', breakdown_json: '成本构成', amount_total: '合同金额',
+  amount: '金额', invoice_no: '发票号',
 }
 const MASK_TYPES = [
   { value: 'hidden', label: '替换为 ***' },
