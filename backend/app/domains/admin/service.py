@@ -491,7 +491,8 @@ async def _get_ai_setting_row(db: AsyncSession, tenant_id: str) -> TenantAiSetti
 
 
 def _mask_ai_provider(cfg: dict | None) -> dict:
-    """UI 用:回显 base_url/model/dimensions,api_key 掩码为 *** 或空。"""
+    """UI 用:回显 base_url/model/dimensions/thinking,api_key 掩码为 *** 或空。"""
+    from app.common.ai_providers import normalize_thinking
     cfg = cfg or {}
     out = {
         "base_url": cfg.get("base_url") or "",
@@ -499,6 +500,8 @@ def _mask_ai_provider(cfg: dict | None) -> dict:
     }
     if "dimensions" in cfg:
         out["dimensions"] = cfg.get("dimensions")
+    if "thinking" in cfg:
+        out["thinking"] = normalize_thinking(cfg.get("thinking"))
     out["api_key"] = "***" if cfg.get("api_key") else ""
     return out
 
@@ -523,12 +526,15 @@ def _merge_ai_provider(existing: dict | None, incoming: dict | None) -> dict | N
     from app.common.crypto import encrypt_config_json
     if incoming is None:
         return existing
+    from app.common.ai_providers import normalize_thinking
     merged = dict(existing or {})
     for k, v in incoming.items():
         if v is None:
             continue
         if k == "api_key" and v in ("", "***"):
             continue  # 保留已存密钥
+        if k == "thinking":
+            v = normalize_thinking(v)  # 拒绝非法值,避免脏配置进到请求体
         merged[k] = v
     return encrypt_config_json(merged)
 
@@ -571,14 +577,14 @@ async def resolve_ai_config(db: AsyncSession, tenant_id: str) -> dict:
 
     {
       "enabled": bool,
-      "chat": {"provider","api","base_url","api_key","model"} | None,
+      "chat": {"provider","api","base_url","api_key","model","thinking"} | None,
       "embedding": {"provider","base_url","api_key","model","dimensions"} | None,
     }
     provider=mock/none 或未配置密钥时对应块为 None(调用方回退 mock/关键词)。
     """
     from app.common.crypto import decrypt_config_json
     from app.common.ai_providers import (
-        chat_provider_meta, embedding_provider_meta, EMBEDDING_DIM,
+        chat_provider_meta, embedding_provider_meta, EMBEDDING_DIM, normalize_thinking,
     )
     row = await _get_ai_setting_row(db, tenant_id)
     if not row or not row.enabled:
@@ -596,6 +602,7 @@ async def resolve_ai_config(db: AsyncSession, tenant_id: str) -> dict:
                 "base_url": cfg.get("base_url") or meta.get("base_url") or "",
                 "api_key": api_key,
                 "model": cfg.get("model") or (meta.get("models") or [""])[0],
+                "thinking": normalize_thinking(cfg.get("thinking")),
             }
 
     embedding = None

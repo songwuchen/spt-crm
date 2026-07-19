@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     AI_PROVIDER: str = "mock"
     AI_API_KEY: str = ""
     AI_MODEL: str = ""
-    AI_BASE_URL: str = "https://api.openai.com/v1"
+    AI_BASE_URL: str = ""          # 留空则用 CHAT_PROVIDERS[AI_PROVIDER] 的预设地址
+    AI_THINKING: str = "auto"      # auto/off,仅对支持 enable_thinking 的供应商生效
     REDIS_URL: str = ""
     MAX_EXPORT_ROWS: int = 5000
 

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, Union, Dict, List
+from typing import Optional, Union, Dict, List, Literal
 
 
 # ---- Platform ----
@@ -175,6 +175,9 @@ class AiProviderConfigIn(BaseModel):
     model: Optional[str] = None
     api_key: Optional[str] = None        # 空/"***" 表示不修改已存密钥
     dimensions: Optional[int] = None     # 仅嵌入使用
+    # 仅对话使用。用 Literal 而非 str:非法值要 422 报错,不能静默降级成 auto ——
+    # 那会让"我明明关了思考"变成一个查不出来的账单问题。
+    thinking: Optional[Literal["auto", "off"]] = None
 
 class AiSettingUpdate(BaseModel):
     chat_provider: Optional[str] = None

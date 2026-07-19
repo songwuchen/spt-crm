@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { Select, Input, Switch, Button, Space, Alert, AutoComplete, message } from 'antd'
 import { settingsApi } from '@/api/settings'
 
-interface ProviderCfg { base_url?: string; model?: string; api_key?: string; dimensions?: number }
-interface ChatPreset { label: string; base_url: string; models: string[]; api: string; needs_key: boolean }
+interface ProviderCfg { base_url?: string; model?: string; api_key?: string; dimensions?: number; thinking?: string }
+interface ChatPreset { label: string; base_url: string; models: string[]; api: string; needs_key: boolean; supports_thinking?: boolean }
 interface EmbPreset { label: string; base_url: string; models: string[]; default_dimensions: number; needs_key: boolean }
 
 interface AiSettings {
@@ -17,6 +17,15 @@ interface AiSettings {
 }
 
 const SECRET_PLACEHOLDER = '已配置，如需修改请重新输入'
+
+// 深度思考开关。qwen-plus/turbo 老版本默认关闭，qwen3.7-plus 等新模型默认开启，
+// 思考会显著变慢变贵、并挤占 max_tokens 导致分析结果 JSON 被截断。
+// 没有「强制开启」：分析链路是非流式 + 要求返回 JSON，助手链路只透传正文不显示思考过程，
+// 开启在这两条路上都是坏的，所以不提供这个选项。
+const THINKING_OPTS = [
+  { value: 'auto', label: '跟随模型默认' },
+  { value: 'off', label: '关闭思考（更快更省）' },
+]
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -81,8 +90,17 @@ export default function AiModelTab() {
   const updChat = (patch: Partial<ProviderCfg>) => { setChat({ ...chat, ...patch }); setDirty(true) }
   const updEmb = (patch: Partial<ProviderCfg>) => { setEmb({ ...emb, ...patch }); setDirty(true) }
 
+  // 由后端供应商表决定：enable_thinking 是 DashScope 私有扩展，真 OpenAI 会 400 拒绝，
+  // 而它们的 api 都是 'openai'——所以不能按接口协议判断。
+  const chatSupportsThinking = !!chatPresets[chatProvider]?.supports_thinking
+
   const buildPayload = () => {
-    const chatBlock: ProviderCfg = { base_url: chat.base_url, model: chat.model }
+    // 供应商不支持时强制回 auto：否则在通义下选的 off 会跟着换供应商一起存下去，
+    // 而那时候界面上已经没有这个控件可以改回来了。
+    const chatBlock: ProviderCfg = {
+      base_url: chat.base_url, model: chat.model,
+      thinking: chatSupportsThinking ? (chat.thinking || 'auto') : 'auto',
+    }
     if (chat.api_key) chatBlock.api_key = chat.api_key
     const embBlock: ProviderCfg = { base_url: emb.base_url, model: emb.model }
     if (emb.api_key) embBlock.api_key = emb.api_key
@@ -132,7 +150,6 @@ export default function AiModelTab() {
   const embModelOpts = (embPresets[embProvider]?.models || []).map((m) => ({ value: m }))
   const chatNeedsKey = chatProvider !== 'mock'
   const embNeedsKey = embProvider !== 'none'
-
   return (
     <div className="pb-6 max-w-xl">
       <p className="text-sm text-slate-500 mb-4">
@@ -173,6 +190,13 @@ export default function AiModelTab() {
                   placeholder={chatHasKey ? SECRET_PLACEHOLDER : 'sk-...'}
                   onChange={(e) => updChat({ api_key: e.target.value })} />
               </Field>
+              {chatSupportsThinking && (
+                <Field label="深度思考"
+                  hint="qwen3.7-plus 等新模型默认开启思考，会更慢更贵，并可能挤占输出长度导致分析结果被截断。纯思考模型（qwen3-*-thinking）忽略此设置，关不掉。">
+                  <Select style={{ width: '100%' }} value={chat.thinking || 'auto'} options={THINKING_OPTS}
+                    onChange={(v) => updChat({ thinking: v })} />
+                </Field>
+              )}
             </>
           )}
         </div>

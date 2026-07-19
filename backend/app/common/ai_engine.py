@@ -6,10 +6,12 @@ Provides structured analysis for:
   - Deal win probability
   - Next action recommendations
 
-Configure via environment variables:
-  AI_PROVIDER=mock|openai|anthropic  (default: mock)
+Configure via environment variables (租户后台配置优先级更高,见 resolve_ai_config):
+  AI_PROVIDER=mock|qwen|deepseek|openai|anthropic|custom  (default: mock,取值见 CHAT_PROVIDERS)
   AI_API_KEY=sk-...
   AI_MODEL=gpt-4o|claude-sonnet-4-20250514
+  AI_BASE_URL=  (留空则用该供应商预设地址)
+  AI_THINKING=auto|off  (关闭深度思考,仅对支持的供应商生效)
 """
 
 import json
@@ -29,6 +31,8 @@ MODEL_PRICING = {
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     # 通义千问(DashScope)
     "qwen-plus": {"input": 0.11, "output": 0.28},
+    # ¥2/¥8 每百万 token。价格取自第三方汇总,未能在官方价格页核对到,以官方页为准。
+    "qwen3.7-plus": {"input": 0.28, "output": 1.11},
     "qwen-turbo": {"input": 0.04, "output": 0.09},
     "qwen-max": {"input": 0.33, "output": 1.33},
     "qwen-long": {"input": 0.07, "output": 0.28},
@@ -40,6 +44,21 @@ MODEL_PRICING = {
 
 # 未知模型按 0 计(避免用 gpt-4o 定价高估国产模型成本)
 _ZERO_PRICE = {"input": 0.0, "output": 0.0}
+_warned_unpriced: set[str] = set()
+
+
+def _pricing_for(model: str) -> dict:
+    """取模型单价。未收录的模型按 0 计,但要吼一声 —— 否则用量统计和预算硬限会静默失效。"""
+    price = MODEL_PRICING.get(model)
+    if price is None:
+        if model not in _warned_unpriced:
+            _warned_unpriced.add(model)
+            logger.warning(
+                f"MODEL_PRICING 缺少 {model} 的单价,本模型的调用成本将按 0 计入 "
+                f"tenant_ai_budgets(用量统计偏低、预算硬限不会触发)。请在 MODEL_PRICING 补录。"
+            )
+        return _ZERO_PRICE
+    return price
 
 
 def get_last_usage() -> dict:
@@ -75,7 +94,7 @@ async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 2000
     """Call the LLM backend.
 
     优先级: 显式 chat_cfg(租户后台配置) > 环境变量 AI_PROVIDER > mock。
-    chat_cfg = {"api": "openai"|"anthropic", "base_url", "api_key", "model"}。
+    chat_cfg = {"provider", "api": "openai"|"anthropic", "base_url", "api_key", "model", "thinking"}。
     """
     if chat_cfg and chat_cfg.get("api_key"):
         api = chat_cfg.get("api", "openai")
@@ -85,18 +104,25 @@ async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 2000
         model = chat_cfg.get("model") or ("claude-sonnet-4-20250514" if api == "anthropic" else "gpt-4o")
         if api == "anthropic":
             return await _call_anthropic(system_prompt, user_prompt, max_tokens, base_url, api_key, model)
-        return await _call_openai(system_prompt, user_prompt, max_tokens, base_url, api_key, model)
+        return await _call_openai(system_prompt, user_prompt, max_tokens, base_url, api_key, model,
+                                  thinking=chat_cfg.get("thinking"), provider=chat_cfg.get("provider"))
 
+    # 环境变量兜底。按 CHAT_PROVIDERS 解析协议,这样 AI_PROVIDER=qwen/deepseek 也能用,
+    # 不再只认死 "openai"/"anthropic" 两个字面量。
     from app.config import settings
+    from app.common.ai_providers import CHAT_PROVIDERS
     provider = getattr(settings, "AI_PROVIDER", "mock")
-    if provider == "openai":
+    api = (CHAT_PROVIDERS.get(provider) or {}).get("api", "mock")
+    if api == "openai":
+        meta = CHAT_PROVIDERS[provider]
         return await _call_openai(
             system_prompt, user_prompt, max_tokens,
-            getattr(settings, "AI_BASE_URL", "https://api.openai.com/v1"),
+            getattr(settings, "AI_BASE_URL", "") or meta.get("base_url") or "https://api.openai.com/v1",
             getattr(settings, "AI_API_KEY", ""),
-            getattr(settings, "AI_MODEL", "") or "gpt-4o",
+            getattr(settings, "AI_MODEL", "") or (meta.get("models") or ["gpt-4o"])[0],
+            thinking=getattr(settings, "AI_THINKING", None), provider=provider,
         )
-    elif provider == "anthropic":
+    elif api == "anthropic":
         return await _call_anthropic(
             system_prompt, user_prompt, max_tokens,
             "https://api.anthropic.com",
@@ -113,7 +139,11 @@ async def ping_chat(chat_cfg: dict) -> tuple[bool, str | None]:
     import httpx
     try:
         txt = await _call_llm("You are a health check.", "回复两个字:正常", max_tokens=16, chat_cfg=chat_cfg)
-        return bool(txt is not None), None
+        if not (txt or "").strip():
+            # 连上了但没吐字。常见于模型把 max_tokens 全用在思考上,正文为空 ——
+            # 这种配置在真实分析调用里必然失败,不能报"连接成功"。
+            return False, "模型返回了空内容(可能思考占满了输出长度),请检查模型与深度思考设置"
+        return True, None
     except httpx.HTTPStatusError as e:
         body = ""
         try:
@@ -126,24 +156,29 @@ async def ping_chat(chat_cfg: dict) -> tuple[bool, str | None]:
 
 
 async def _call_openai(system_prompt: str, user_prompt: str, max_tokens: int,
-                       base_url: str, api_key: str, model: str) -> str:
+                       base_url: str, api_key: str, model: str,
+                       thinking: str | None = None, provider: str | None = None) -> str:
     """Call OpenAI-compatible API (OpenAI / 通义 / DeepSeek / 自定义兼容端点)。"""
     import httpx
+    from app.common.ai_providers import thinking_payload
     base_url = (base_url or "https://api.openai.com/v1").rstrip("/")
 
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "max_tokens": max_tokens,
+        "temperature": 0.3,
+        # 关闭思考尤其重要:这里要的是 JSON,思考会吃掉 max_tokens 把结果截断
+        **thinking_payload(thinking, provider),
+    }
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
             f"{base_url}/chat/completions",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                "max_tokens": max_tokens,
-                "temperature": 0.3,
-            },
+            json=payload,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -151,7 +186,7 @@ async def _call_openai(system_prompt: str, user_prompt: str, max_tokens: int,
         usage = data.get("usage", {})
         token_in = usage.get("prompt_tokens", 0)
         token_out = usage.get("completion_tokens", 0)
-        pricing = MODEL_PRICING.get(model, _ZERO_PRICE)
+        pricing = _pricing_for(model)
         cost = (token_in * pricing["input"] + token_out * pricing["output"]) / 1_000_000
         _last_usage.update({"token_in": token_in, "token_out": token_out, "cost_est": round(cost, 6), "model": model})
         logger.info(f"OpenAI call: model={model} tokens_in={token_in} tokens_out={token_out} cost=${cost:.4f}")
@@ -214,7 +249,9 @@ async def stream_llm(system_prompt: str, messages: list[dict], chat_cfg: dict | 
             async for d in _stream_anthropic(system_prompt, messages, max_tokens, base_url, api_key, model):
                 yield d
         else:
-            async for d in _stream_openai(system_prompt, messages, max_tokens, base_url, api_key, model, usage_out):
+            async for d in _stream_openai(system_prompt, messages, max_tokens, base_url, api_key, model, usage_out,
+                                          thinking=chat_cfg.get("thinking"),
+                                          provider=chat_cfg.get("provider")):
                 yield d
         return
     # mock: 分片吐出示例文本
@@ -225,8 +262,10 @@ async def stream_llm(system_prompt: str, messages: list[dict], chat_cfg: dict | 
 
 
 async def _stream_openai(system_prompt: str, messages: list[dict], max_tokens: int,
-                         base_url: str, api_key: str, model: str, usage_out: dict | None = None):
+                         base_url: str, api_key: str, model: str, usage_out: dict | None = None,
+                         thinking: str | None = None, provider: str | None = None):
     import httpx
+    from app.common.ai_providers import thinking_payload
     base_url = (base_url or "https://api.openai.com/v1").rstrip("/")
     payload = {
         "model": model,
@@ -235,6 +274,7 @@ async def _stream_openai(system_prompt: str, messages: list[dict], max_tokens: i
         "temperature": 0.4,
         "stream": True,
         "stream_options": {"include_usage": True},  # 末尾块携带 token 用量(OpenAI/通义兼容)
+        **thinking_payload(thinking, provider),
     }
     _last_usage.update({"token_in": 0, "token_out": 0, "cost_est": 0.0, "model": model})
     async with httpx.AsyncClient(timeout=120) as client:
@@ -257,7 +297,7 @@ async def _stream_openai(system_prompt: str, messages: list[dict], max_tokens: i
                 usage = obj.get("usage")
                 if usage:
                     ti = usage.get("prompt_tokens", 0); to = usage.get("completion_tokens", 0)
-                    pricing = MODEL_PRICING.get(model, {"input": 0, "output": 0})
+                    pricing = _pricing_for(model)
                     cost = (ti * pricing["input"] + to * pricing["output"]) / 1_000_000
                     u = {"token_in": ti, "token_out": to, "cost_est": round(cost, 6), "model": model}
                     _last_usage.update(u)
