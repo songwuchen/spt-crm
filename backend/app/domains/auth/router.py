@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_current_user
 from app.common.schemas import ok
-from app.domains.auth.schemas import LoginRequest, TokenResponse, RefreshRequest, UserInfo, ChangePasswordRequest, UpdateProfileRequest, TotpVerifyRequest, DingTalkCallbackRequest, DingTalkJsapiLoginRequest
+from app.domains.auth.schemas import LoginRequest, TokenResponse, RefreshRequest, UserInfo, ChangePasswordRequest, PasswordConfirmRequest, UpdateProfileRequest, TotpVerifyRequest, DingTalkCallbackRequest, DingTalkJsapiLoginRequest
 from app.domains.auth.service import authenticate, get_user_permissions, get_user_roles
 from app.domains.auth.jwt_handler import create_access_token, create_refresh_token, decode_token, generate_jti
 from app.common.exceptions import BusinessException
@@ -160,6 +160,7 @@ async def me(current_user: dict = Depends(get_current_user), db: AsyncSession = 
         avatar=user.avatar,
         roles=current_user.get("roles", []),
         permissions=current_user.get("permissions", []),
+        must_change_password=bool(user.must_change_password),
     )
     return ok(info.model_dump())
 
@@ -273,14 +274,21 @@ async def revoke_all_sessions(current_user: dict = Depends(get_current_user), db
 async def change_password(body: ChangePasswordRequest, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     import bcrypt
     from app.domains.auth.models import User, LoginSession
+    from app.domains.auth.service import verify_password
     from app.common.exceptions import BusinessException
 
     user = (await db.execute(select(User).where(User.id == current_user["sub"], User.tenant_id == current_user["tenant_id"]))).scalar_one_or_none()
     if not user:
         raise BusinessException(code=404, message="用户不存在")
 
-    if not bcrypt.checkpw(body.old_password.encode(), user.password_hash.encode()):
-        raise BusinessException(code=400, message="原密码错误")
+    # 系统代建账号（钉钉组织同步）本人从未设过密码，密码是全租户共享的默认值，
+    # 强制其填写原密码等于把改密路径彻底堵死——此时免校验，直接设定首个密码。
+    # 身份已由当前登录态（含钉钉免登）证明，安全性强于共享默认密码。
+    if not user.must_change_password:
+        if not body.old_password:
+            raise BusinessException(code=400, message="请输入原密码")
+        if not verify_password(body.old_password, user.password_hash):
+            raise BusinessException(code=400, message="原密码错误")
 
     # Password strength check
     new_pwd = body.new_password
@@ -293,6 +301,9 @@ async def change_password(body: ChangePasswordRequest, current_user: dict = Depe
         raise BusinessException(code=42200, message="密码必须包含大小写字母和数字")
 
     user.password_hash = bcrypt.hashpw(new_pwd.encode(), bcrypt.gensalt()).decode()
+    user.password_changed_at = datetime.now(timezone.utc)
+    # 用户已拥有自己知晓的密码，恢复常规原密码校验
+    user.must_change_password = False
 
     # Revoke all other sessions on password change
     current_jti = current_user.get("jti")
@@ -351,16 +362,21 @@ async def totp_enable(body: TotpVerifyRequest, current_user: dict = Depends(get_
 
 
 @router.post("/totp/disable")
-async def totp_disable(body: ChangePasswordRequest, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def totp_disable(body: PasswordConfirmRequest, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Disable 2FA (requires password confirmation)."""
-    import bcrypt
     from app.domains.auth.models import User
+    from app.domains.auth.service import verify_password
 
     user = (await db.execute(select(User).where(User.id == current_user["sub"], User.tenant_id == current_user["tenant_id"]))).scalar_one_or_none()
     if not user:
         raise BusinessException(code=404, message="用户不存在")
 
-    if not bcrypt.checkpw(body.old_password.encode(), user.password_hash.encode()):
+    # 这里不放开免密校验：关闭二步验证是降低账号安全等级的操作，不该只凭一个会话就能做。
+    # 但也不能让标记用户卡死在「要求输入一个自己不知道的密码」上——给出可执行的出路。
+    if user.must_change_password:
+        raise BusinessException(code=400, message="请先在个人中心设置你的密码，再关闭二步验证")
+
+    if not verify_password(body.old_password, user.password_hash):
         raise BusinessException(code=400, message="密码错误")
 
     user.totp_enabled = False

@@ -34,6 +34,8 @@ export interface UserInfo {
   avatar?: string
   roles: string[]
   permissions: string[]
+  /** 账号由系统代建（钉钉同步）且用户从未设过自己的密码——改密时无需填原密码 */
+  must_change_password?: boolean
 }
 
 export interface Customer {

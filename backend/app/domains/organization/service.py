@@ -422,13 +422,23 @@ async def import_users(db: AsyncSession, tenant_id: str, rows: list) -> dict:
     return {"success": success, "failed": failed, "total": len(rows)}
 
 
-async def reset_password(db: AsyncSession, tenant_id: str, user_id: str, new_password: str):
+async def reset_password(
+    db: AsyncSession,
+    tenant_id: str,
+    user_id: str,
+    new_password: str,
+    require_change: bool = False,
+):
     user = (await db.execute(
         select(User).where(User.id == user_id, User.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not user:
         raise BusinessException(code=NOT_FOUND, message="用户不存在")
     user.password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+    # 显式同步「用户是否知晓自己的密码」，避免标记与现实脱节：
+    # 勾选 = 管理员代设了一个本人不知道的密码，放开免原密码通道；
+    # 不勾选 = 新密码已告知本人，清掉可能残留的标记，恢复常规校验。
+    user.must_change_password = require_change
     await db.commit()
 
 

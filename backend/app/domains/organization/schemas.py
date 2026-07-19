@@ -71,6 +71,10 @@ class UserOut(BaseModel):
 
 class ResetPassword(BaseModel):
     new_password: str
+    # 勾选后该用户下次改密免填原密码——用于「管理员代设了一个用户并不知晓的密码」，
+    # 例如钉钉同步建号时写入的租户默认密码。不勾选则清除该标记（管理员已把新密码
+    # 告知本人，应当恢复常规校验）。
+    require_change: bool = False
 
 
 # --- Role ---

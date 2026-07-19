@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { authApi } from '@/api/auth'
 import NotificationBell from '@/components/NotificationBell'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import MustChangePasswordBanner from '@/components/MustChangePasswordBanner'
 
 const tabs = [
   { key: '/m', icon: 'dashboard', label: '工作台' },
@@ -64,6 +65,7 @@ export default function MobileLayout() {
           离线模式 — 部分数据可能不是最新的
         </div>
       )}
+      <MustChangePasswordBanner profilePath="/m/profile" />
       {/* Mobile Header */}
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 h-12 flex items-center justify-between">
         <div className="flex items-center gap-2">

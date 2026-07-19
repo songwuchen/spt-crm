@@ -475,6 +475,12 @@ async def sync_users(
                 if local_user.is_active != is_active:
                     local_user.is_active = is_active
                     changed = True
+                # 刻意不在这里回补 must_change_password：靠「hash 是否等于默认密码」
+                # 反推「用户没设过密码」既慢又不准——bcrypt 每次校验约 250ms（cost 12），
+                # 全员跑一遍会把事件循环卡死好几分钟；而管理员手动建号时如果用了同一个
+                # 默认密码，会被误判成系统代建、从而放开免原密码通道。
+                # 该标记只在下面「确实由本函数代写密码」时置位。存量账号由管理员在
+                # 用户管理里「重置密码 + 要求用户自行设置」显式处理。
                 if changed:
                     updated += 1
                 else:
@@ -495,6 +501,9 @@ async def sync_users(
                     username=uname, password_hash=pwd_hash,
                     real_name=name, phone=mobile or None,
                     email=email or None, is_active=is_active,
+                    # 上面写入的是全租户共享的默认密码，本人无从知晓；
+                    # 标记后其首次「修改密码」免填原密码，否则改密路径不可达。
+                    must_change_password=True,
                 )
                 db.add(local_user)
                 await db.flush()

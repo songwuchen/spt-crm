@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Table, Button, Modal, Form, Input, Select, TreeSelect, Space, message, Switch, Popconfirm, Upload, Alert, Radio } from 'antd'
+import { Table, Button, Modal, Form, Input, Select, TreeSelect, Space, message, Switch, Popconfirm, Upload, Alert, Radio, Checkbox } from 'antd'
 import { PlusOutlined, SearchOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { userApi, roleApi } from '@/api/user'
 import { departmentApi } from '@/api/department'
@@ -206,7 +206,7 @@ export default function UserList() {
     const values = await resetForm.validateFields()
     setResetting(true)
     try {
-      await userApi.resetPassword(resetTarget.id, values.new_password)
+      await userApi.resetPassword(resetTarget.id, values.new_password, !!values.require_change)
       message.success(`已重置 ${resetTarget.real_name || resetTarget.username} 的密码`)
       setResetModal(false)
       setResetTarget(null)
@@ -479,6 +479,15 @@ export default function UserList() {
             ]}
           >
             <Input.Password placeholder="再次输入新密码" autoComplete="new-password" />
+          </Form.Item>
+          <Form.Item name="require_change" valuePropName="checked" className="!mb-0">
+            <Checkbox>
+              要求用户自行设置密码
+              <div className="text-sm text-slate-400 font-normal">
+                勾选后该用户下次修改密码无需填写原密码。用于你不打算把这个密码告知本人的情况
+                （如钉钉同步建号时写入的默认密码）。
+              </div>
+            </Checkbox>
           </Form.Item>
         </Form>
       </Modal>

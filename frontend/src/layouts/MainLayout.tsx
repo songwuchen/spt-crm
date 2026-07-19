@@ -10,6 +10,7 @@ import OnboardingTour from '@/components/OnboardingTour'
 import CommandPalette from '@/components/CommandPalette'
 import ContextualHelp from '@/components/ContextualHelp'
 import FloatingAssistant from '@/components/ai/FloatingAssistant'
+import MustChangePasswordBanner from '@/components/MustChangePasswordBanner'
 import { useAppStore } from '@/stores/useAppStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
@@ -175,6 +176,7 @@ export default function MainLayout() {
           </div>
         )}
         <Header />
+        <MustChangePasswordBanner profilePath="/profile" />
         <Content className="overflow-auto" style={{ flex: 1, minHeight: 0 }}>
           <div className="p-3 sm:p-4 md:p-6">
             {!isHome && breadcrumbItems.length > 1 && (

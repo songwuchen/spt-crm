@@ -16,7 +16,7 @@ const deviceIcons: Record<string, { icon: string; label: string }> = {
 
 export default function ProfilePage() {
   usePageTitle('个人中心')
-  const { user, setUser } = useAuthStore()
+  const { user, setUser, userLoading } = useAuthStore()
   const [profileForm] = Form.useForm()
   const [pwdForm] = Form.useForm()
   const [profileLoading, setProfileLoading] = useState(false)
@@ -31,6 +31,17 @@ export default function ProfilePage() {
   const [notifTypes, setNotifTypes] = useState<{ key: string; label: string }[]>([])
   const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({})
   const [notifSaving, setNotifSaving] = useState(false)
+
+  // 钉钉同步代建的账号本人从未设过密码，此时不要求（也无法要求）填写当前密码。
+  // /me 未回来前一律按「需要原密码」渲染，避免标题/按钮文案先亮后跳。
+  const needsInitialPassword = !userLoading && !!user?.must_change_password
+
+  const refreshUser = async () => {
+    try {
+      const res = await authApi.me()
+      if (res.data) setUser(res.data)
+    } catch { /* 拉不到就维持现状，用户刷新页面即可恢复 */ }
+  }
 
   const fetchNotifPrefs = async () => {
     try {
@@ -96,10 +107,24 @@ export default function ProfilePage() {
     }
     setPwdLoading(true)
     try {
-      await authApi.changePassword({ old_password: values.old_password, new_password: values.new_password })
-      message.success('密码修改成功，其他设备已自动下线')
+      await authApi.changePassword({
+        ...(needsInitialPassword ? {} : { old_password: values.old_password }),
+        new_password: values.new_password,
+      })
+      message.success(needsInitialPassword ? '密码设置成功，其他设备已自动下线' : '密码修改成功，其他设备已自动下线')
       pwdForm.resetFields()
+      // 服务端已把 must_change_password 置回 false，刷新后表单恢复要求填写当前密码。
+      // 单独兜底：这一步失败不该影响本次已经成功的改密，也不该跳过 fetchSessions。
+      await refreshUser()
       fetchSessions()
+    } catch (e: any) {
+      // 本地以为免填原密码、服务端却要求——说明账号已在别处设过密码，本页 user 是旧的。
+      // 此时表单根本没渲染原密码输入框，用户无从补填，必须刷新让输入框出现。
+      if (needsInitialPassword && String(e?.response?.data?.message || '').includes('原密码')) {
+        await refreshUser()
+        message.warning('你已在其他设备设置过密码，请填写当前密码后重试')
+      }
+      // 其余错误 axios 拦截器已经弹过提示，这里只负责不让 rejection 逃逸
     } finally {
       setPwdLoading(false)
     }
@@ -194,12 +219,23 @@ export default function ProfilePage() {
           {/* Password Change — moved up so it's visible without scrolling */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <LockOutlined /> 修改密码
+              <LockOutlined /> {needsInitialPassword ? '设置密码' : '修改密码'}
             </h3>
+            {/* /me 未回来前先不渲染：否则标记用户会先看到「当前密码」输入框，
+                等 user 到位再整块换掉，容易让人对着一个即将消失的框输入 */}
+            {userLoading ? (
+              <div className="text-sm text-slate-400 py-4">加载中…</div>
+            ) : (
             <Form form={pwdForm} layout="vertical">
-              <Form.Item name="old_password" label="当前密码" rules={[{ required: true, message: '请输入当前密码' }]}>
-                <Input.Password placeholder="请输入当前密码" />
-              </Form.Item>
+              {needsInitialPassword ? (
+                <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+                  你的账号由系统创建，尚未设置过个人密码，本次无需填写当前密码。
+                </p>
+              ) : (
+                <Form.Item name="old_password" label="当前密码" rules={[{ required: true, message: '请输入当前密码' }]}>
+                  <Input.Password placeholder="请输入当前密码" />
+                </Form.Item>
+              )}
               <Form.Item name="new_password" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 8, message: '密码至少8位' }]}>
                 <Input.Password placeholder="请输入新密码" />
               </Form.Item>
@@ -209,10 +245,11 @@ export default function ProfilePage() {
               <p className="text-sm text-slate-400 mb-3">密码需包含大小写字母和数字，修改后其他设备将自动下线</p>
               <div className="flex justify-end">
                 <Button type="primary" danger icon={<LockOutlined />} loading={pwdLoading} onClick={handlePasswordChange}>
-                  修改密码
+                  {needsInitialPassword ? '设置密码' : '修改密码'}
                 </Button>
               </div>
             </Form>
+            )}
           </div>
         </div>
 

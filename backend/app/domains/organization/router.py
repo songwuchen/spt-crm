@@ -253,7 +253,7 @@ async def reset_password(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("user:manage")),
 ):
-    await service.reset_password(db, tenant_id, user_id, body.new_password)
+    await service.reset_password(db, tenant_id, user_id, body.new_password, body.require_change)
     return ok()
 
 

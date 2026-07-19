@@ -37,8 +37,12 @@ export const userApi = {
       params,
       responseType: 'blob',
     }),
-  resetPassword: (id: string, newPassword: string) =>
-    client.post<unknown, ApiResponse<null>>(`/api/admin/v1/tenant/users/${id}/reset_password`, { new_password: newPassword }),
+  // requireChange: 该用户下次改密免填原密码（管理员代设了一个本人不知道的密码时勾选）
+  resetPassword: (id: string, newPassword: string, requireChange = false) =>
+    client.post<unknown, ApiResponse<null>>(`/api/admin/v1/tenant/users/${id}/reset_password`, {
+      new_password: newPassword,
+      require_change: requireChange,
+    }),
   bulkRoles: (data: { user_ids: string[]; role_ids: string[]; mode: 'replace' | 'add' }) =>
     client.post<unknown, ApiResponse<{ updated: number }>>('/api/admin/v1/tenant/users/bulk_roles', data),
 }

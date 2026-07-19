@@ -16,7 +16,8 @@ export const authApi = {
     client.get<unknown, ApiResponse<UserInfo>>('/api/v1/auth/me'),
   updateProfile: (data: { real_name?: string; phone?: string; email?: string }) =>
     client.put<unknown, ApiResponse<{ real_name: string; phone: string; email: string }>>('/api/v1/auth/profile', data),
-  changePassword: (data: { old_password: string; new_password: string }) =>
+  // old_password 仅在 must_change_password 账号首次设密时可省略
+  changePassword: (data: { old_password?: string; new_password: string }) =>
     client.post<unknown, ApiResponse<null>>('/api/v1/auth/change-password', data),
   sessions: () =>
     client.get<unknown, ApiResponse<SessionItem[]>>('/api/v1/auth/sessions'),
@@ -31,7 +32,7 @@ export const authApi = {
   totpEnable: (code: string) =>
     client.post<unknown, ApiResponse<null>>('/api/v1/auth/totp/enable', { code }),
   totpDisable: (old_password: string) =>
-    client.post<unknown, ApiResponse<null>>('/api/v1/auth/totp/disable', { old_password, new_password: 'unused' }),
+    client.post<unknown, ApiResponse<null>>('/api/v1/auth/totp/disable', { old_password }),
 }
 
 export interface SessionItem {

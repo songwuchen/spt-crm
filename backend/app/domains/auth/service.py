@@ -12,6 +12,22 @@ MAX_LOGIN_FAILURES = 5
 LOCKOUT_WINDOW_MINUTES = 15
 
 
+def verify_password(plain: str, hashed: str | None) -> bool:
+    """校验密码，存储的 hash 非法时返回 False 而不是抛异常。
+
+    ``bcrypt.checkpw`` 对空串/非 bcrypt 值会抛 ValueError（``invalid salt``），对 None
+    则是 AttributeError。这两种脏数据都可能出现（历史数据、测试夹具直接写
+    ``password_hash="x"``），而登录是在候选用户列表上逐个校验的——一个坏账号
+    足以让同名/同手机号的其他租户用户一并登录失败并返回 500。
+    """
+    if not plain or not hashed:
+        return False
+    try:
+        return bcrypt.checkpw(plain.encode(), hashed.encode())
+    except (ValueError, TypeError):
+        return False
+
+
 async def _check_lockout(db: AsyncSession, username: str, client_ip: str = "") -> None:
     """Check if too many failed login attempts happened recently.
 
@@ -79,7 +95,7 @@ async def authenticate(
         query = query.where(User.tenant_id == tenant.id)
 
     candidates = (await db.execute(query)).scalars().all()
-    matched = [u for u in candidates if bcrypt.checkpw(password.encode(), u.password_hash.encode())]
+    matched = [u for u in candidates if verify_password(password, u.password_hash)]
     if not matched:
         raise BusinessException(code=UNAUTHORIZED, message="用户名或密码错误")
     if len(matched) > 1:

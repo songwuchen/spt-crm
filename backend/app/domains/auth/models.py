@@ -18,6 +18,12 @@ class User(TenantScopedBase):
     totp_secret: Mapped[str | None] = mapped_column(String(64))
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 账号由系统代建（如钉钉组织同步）、密码是全租户共享的默认值，用户本人从未设过密码。
+    # 为 True 时允许「修改密码」免填原密码——本人根本无从知晓那个默认密码。
+    # 用户任意一次自助改密后置为 False，此后恢复常规的原密码校验。
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
 
     user_roles: Mapped[list["UserRole"]] = relationship(back_populates="user", lazy="selectin")
     user_departments: Mapped[list["UserDepartment"]] = relationship(
