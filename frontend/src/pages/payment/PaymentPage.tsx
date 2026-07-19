@@ -14,6 +14,21 @@ import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
 import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
+import type { FormInstance } from 'antd'
+
+/** 仅在到账记录分支启用字段策略：计划/发票不属于 entity_type="payment"，
+ *  无差别挂载会为它们白拉一次 schema，且 amount/remark 三分支共用字段名。 */
+function PaymentPolicyWrap({ enabled, form, customFieldValues, children }: {
+  enabled: boolean; form: FormInstance
+  customFieldValues?: Record<string, unknown>; children: React.ReactNode
+}) {
+  if (!enabled) return <>{children}</>
+  return (
+    <FieldPolicyProvider entityType="payment" form={form} customFieldValues={customFieldValues}>
+      {children}
+    </FieldPolicyProvider>
+  )
+}
 
 interface PlanRow {
   id: string; project_id: string; plan_no: string; due_date?: string | null
@@ -409,7 +424,8 @@ export default function PaymentPage() {
       {/* 新增回款（计划/到账/发票） */}
       <Modal title={createTitle} open={createOpen} onOk={handleCreate} confirmLoading={creating}
         onCancel={() => setCreateOpen(false)} okText="保存" width={520} destroyOnClose>
-       <FieldPolicyProvider entityType="payment" form={createForm} customFieldValues={recordCf}>
+       {/* 仅到账记录属于 entity_type="payment"；另两类单据无需拉取该实体的字段策略 */}
+       <PaymentPolicyWrap enabled={createType === 'record'} form={createForm} customFieldValues={recordCf}>
         <Form form={createForm} layout="vertical" className="mt-3">
           <Form.Item name="project_id" label="关联商机" rules={[{ required: true, message: '请选择关联商机' }]}>
             <Select showSearch filterOption={false} placeholder="搜索商机名称 / 编号"
@@ -448,7 +464,7 @@ export default function PaymentPage() {
           </>)}
           <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
         </Form>
-       </FieldPolicyProvider>
+       </PaymentPolicyWrap>
       </Modal>
 
       {/* 批量导入到账记录 */}

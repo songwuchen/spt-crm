@@ -380,7 +380,10 @@ def role_field_permissions(field_defs: list[dict], user_roles) -> list[dict]:
 
     与前端 FormRenderer.deriveRolePerms 同口径：空/缺省 = 不限制；隐藏 > 脱敏 > 只读。
     """
+    from app.domains.lowcode.field_permission import SYSTEM_ROLE
     roles = set(user_roles or [])
+    if SYSTEM_ROLE in roles:
+        return []  # 系统主体：无用户角色可评，不施加任何字段级限制
     out: list[dict] = []
     for fd in field_defs or []:
         vr = fd.get("visible_roles")

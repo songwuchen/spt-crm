@@ -14,7 +14,7 @@ vi.mock('@/api/lead', () => ({ leadApi: { create: (...a: unknown[]) => leadCreat
 vi.mock('@/api/customer', () => ({
   customerApi: {
     create: (...a: unknown[]) => customerCreate(...a),
-    list: vi.fn().mockResolvedValue({ data: { items: [], total: 0 } }),
+    list: vi.fn().mockResolvedValue({ data: { items: [{ id: 'c-1', name: '测试客户' }], total: 1 } }),
   },
 }))
 vi.mock('@/api/project', () => ({ projectApi: { create: (...a: unknown[]) => projectCreate(...a) } }))
@@ -112,16 +112,36 @@ describe('MobileOpportunityForm', () => {
     expect(screen.getByText('付款方式')).toBeInTheDocument()
   })
 
-  it('关键需求仍会折叠进 key_requirements_json', async () => {
+  it('未选客户时被拦下', async () => {
+    render(<MobileOpportunityForm />)
+    fireEvent.change(screen.getByPlaceholderText('输入商机名称'), { target: { value: '测试商机' } })
+    fireEvent.click(screen.getByText('保存'))
+    await waitFor(() => expect(screen.getByText('请选择客户')).toBeInTheDocument())
+    expect(projectCreate).not.toHaveBeenCalled()
+  })
+
+  it('关键需求折叠进 key_requirements_json 且不残留 req_* 裸字段', async () => {
     render(<MobileOpportunityForm />)
     fireEvent.change(screen.getByPlaceholderText('输入商机名称'), { target: { value: '测试商机' } })
     fireEvent.change(
       screen.getByPlaceholderText('需求摘要：客户核心需求、技术规格、交付/预算约束等'),
       { target: { value: '核心需求' } },
     )
-    // 客户为必填，未选时应被拦下
+    // 选中客户以通过必填。页面上有多处「请选择客户」文案，锁定 Select 的占位符元素
+    const placeholder = Array.from(
+      document.querySelectorAll('.ant-select-selection-placeholder'),
+    ).find((el) => el.textContent === '请选择客户')!
+    fireEvent.mouseDown(placeholder)
+    await waitFor(() => expect(screen.getByText('测试客户')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('测试客户'))
+
     fireEvent.click(screen.getByText('保存'))
-    await waitFor(() => expect(screen.getByText('请选择客户')).toBeInTheDocument())
-    expect(projectCreate).not.toHaveBeenCalled()
+    await waitFor(() => expect(projectCreate).toHaveBeenCalled())
+    const payload = projectCreate.mock.calls[0][0] as Record<string, unknown>
+    expect(payload.key_requirements_json).toEqual({ summary: '核心需求' })
+    // 折叠后原始的 req_* 字段不应再出现在提交体里
+    expect(payload).not.toHaveProperty('req_summary')
+    expect(payload).not.toHaveProperty('req_acceptance')
+    expect(payload).not.toHaveProperty('req_confirmed')
   })
 })

@@ -9,7 +9,7 @@ import { useUserSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
-import { MField, MoreFields } from './MobilePolicyField'
+import { MField, MoreFields, reportFirstFormError } from './MobilePolicyField'
 
 const defaultSources = [
   { value: 'website', label: '官网' }, { value: 'referral', label: '转介绍' },
@@ -25,12 +25,6 @@ const countryOptions = [
   { label: '国外', value: 'overseas' },
 ]
 
-// 收在「更多字段」里的次要字段。租户把其中任一项配成必填时，该区会自动展开。
-const MORE_FIELD_IDS = [
-  'customer_type', 'industry', 'category', 'budget_range', 'biz_date',
-  'country_type', 'country_name', 'region', 'contact_email', 'demand_summary',
-  'owner_id', 'department_id',
-]
 
 export default function MobileLeadForm() {
   usePageTitle('新建线索')
@@ -49,7 +43,8 @@ export default function MobileLeadForm() {
 
   const handleSubmit = async () => {
     let values: Record<string, unknown>
-    try { values = await form.validateFields() } catch { return }
+    // 折叠区用 display:none 隐藏，错误若落在收起的字段上，用户只会看到「保存没反应」
+    try { values = await form.validateFields() } catch (e) { reportFirstFormError(e, message.error); return }
     // 扩展字段不在 antd Form 状态里，validateFields 覆盖不到；后端也会二次校验
     const cfError = customFieldsRef.current?.validate()
     if (cfError) { message.error(cfError); return }
@@ -105,7 +100,7 @@ export default function MobileLeadForm() {
 
           {/* 桌面端可填而移动端此前缺失的字段。缺了它们，租户一旦把其中任一项配成必填，
               移动端就再也建不了线索 —— 后端 create 是按全部必填字段校验的。 */}
-          <MoreFields fieldIds={MORE_FIELD_IDS}>
+          <MoreFields>
             <MField name="customer_type" label="客户类型">
               <Select placeholder="请选择" allowClear options={customerTypeDict.options}
                 loading={customerTypeDict.loading} className="w-full" />

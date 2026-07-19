@@ -390,7 +390,8 @@ export default function ServiceTicketDetail() {
 
       {/* Edit Modal */}
       <Modal title="编辑工单" open={editModal} onOk={handleEditSave} onCancel={() => setEditModal(false)} width={600}>
-       <FieldPolicyProvider entityType="service_ticket" form={editForm}>
+       <FieldPolicyProvider entityType="service_ticket" form={editForm}
+         customFieldValues={ticket?.custom_fields_json || {}}>
         <Form form={editForm} layout="vertical" className="py-2">
           <PolicyItem name="priority" label="优先级">
             <Select options={Object.entries(priorityLabels).map(([k, v]) => ({ value: k, label: v }))} />

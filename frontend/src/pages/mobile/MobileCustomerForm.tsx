@@ -8,16 +8,11 @@ import RegionCascader from '@/components/RegionCascader'
 import type { RegionValue } from '@/components/RegionCascader'
 import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
-import { MField, MoreFields } from './MobilePolicyField'
+import { MField, MoreFields, reportFirstFormError } from './MobilePolicyField'
 
 const industries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他']
 const sources = ['referral', 'website', 'exhibition', 'cold_call', 'ad', 'other']
 
-// 收在「更多字段」里的次要字段；租户把其中任一项配成必填时该区自动展开
-const MORE_FIELD_IDS = [
-  'address', 'website', 'budget_amount', 'demand',
-  'expected_purchase_date', 'headcount', 'postal_code', 'remark',
-]
 
 export default function MobileCustomerForm() {
   usePageTitle('新建客户')
@@ -30,7 +25,8 @@ export default function MobileCustomerForm() {
 
   const handleSubmit = async () => {
     let values: Record<string, any>
-    try { values = await form.validateFields() } catch { return }
+    // 折叠区用 display:none 隐藏，错误若落在收起的字段上，用户只会看到「保存没反应」
+    try { values = await form.validateFields() } catch (e) { reportFirstFormError(e, message.error); return }
     // 扩展字段不在 antd Form 状态里，validateFields 覆盖不到；后端也会二次校验
     const cfError = customFieldsRef.current?.validate()
     if (cfError) { message.error(cfError); return }
@@ -87,7 +83,7 @@ export default function MobileCustomerForm() {
 
           {/* 桌面端可填而移动端此前缺失的字段。缺了它们，租户一旦把其中任一项配成必填，
               移动端就再也建不了客户 —— 后端 create 是按全部必填字段校验的。 */}
-          <MoreFields fieldIds={MORE_FIELD_IDS}>
+          <MoreFields>
             <MField name="address" label="详细地址">
               <Input placeholder="街道 / 门牌" className={inputCls} />
             </MField>

@@ -26,8 +26,24 @@ import type { FieldDefinition, FieldState, FormRule } from '@/types/lowcode'
 import { computeFieldStates } from './RuleEngine'
 import { deriveRolePerms } from './FormRenderer'
 
+/** 递归收集规则条件里引用到的字段 id（含 and/or 嵌套组）。 */
+function collectRuleFieldIds(rules: FormRule[]): string[] {
+  const out = new Set<string>()
+  const walk = (node: unknown) => {
+    if (!node || typeof node !== 'object') return
+    const n = node as { field?: unknown; cond?: unknown[] }
+    if (typeof n.field === 'string') out.add(n.field)
+    if (Array.isArray(n.cond)) n.cond.forEach(walk)
+  }
+  for (const r of rules || []) walk(r.condition)
+  return [...out]
+}
+
 interface PolicyValue {
   loaded: boolean
+  /** 策略拉取失败（网络/鉴权/5xx）。此时应保留调用方自带的校验规则作兜底，
+   *  否则客户端校验会整个消失，用户只能撞到服务端错误。 */
+  failed: boolean
   nativeFields: FieldDefinition[]
   customFields: FieldDefinition[]
   rules: FormRule[]
@@ -39,7 +55,8 @@ interface PolicyValue {
 }
 
 const EMPTY: PolicyValue = {
-  loaded: false, nativeFields: [], customFields: [], rules: [], states: {},
+  // 没有 Provider 时按「拉取失败」处理：调用方的规则原样生效，行为与改造前一致
+  loaded: false, failed: true, nativeFields: [], customFields: [], rules: [], states: {},
   nativeValues: {}, labelOf: () => undefined,
 }
 
@@ -63,6 +80,7 @@ export function FieldPolicyProvider({
     native: FieldDefinition[]; custom: FieldDefinition[]; rules: FormRule[]
   }>({ native: [], custom: [], rules: [] })
   const [loaded, setLoaded] = useState(false)
+  const [failed, setFailed] = useState(false)
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const watched = Form.useWatch([], form) as Record<string, unknown> | undefined
 
@@ -78,10 +96,20 @@ export function FieldPolicyProvider({
         })
         setLoaded(true)
       })
-      // 策略拉取失败时静默降级为「无策略」，表单仍可正常使用（后端仍会兜底校验）
-      .catch(() => { if (alive) setLoaded(true) })
+      // 拉取失败时降级为「无策略」，并标记 failed 让 PolicyItem 保留调用方自带的规则
+      .catch(() => { if (alive) { setFailed(true); setLoaded(true) } })
     return () => { alive = false }
   }, [entityType])
+
+  // 只有「规则条件真正引用到的字段」的值变化才需要重算状态。Form.useWatch([]) 每次击键
+  // 都会返回新对象，若直接用它做依赖，18 个字段的表单每敲一个字符就重跑一遍显隐不动点
+  // 求解并刷新 context，导致所有 PolicyItem 连带重渲染。
+  const ruleFieldIds = useMemo(() => collectRuleFieldIds(schema.rules), [schema.rules])
+  const relevantKey = useMemo(() => {
+    if (!ruleFieldIds.length) return ''
+    const w = watched || {}
+    return JSON.stringify(ruleFieldIds.map((id) => w[id] ?? null))
+  }, [ruleFieldIds, watched])
 
   const value = useMemo<PolicyValue>(() => {
     const nativeValues = watched || {}
@@ -97,6 +125,7 @@ export function FieldPolicyProvider({
     )
     return {
       loaded,
+      failed,
       nativeFields: schema.native,
       customFields: schema.custom,
       rules: schema.rules,
@@ -104,7 +133,8 @@ export function FieldPolicyProvider({
       nativeValues,
       labelOf: (fieldId: string) => labels.get(fieldId),
     }
-  }, [schema, watched, customFieldValues, userRoles, loaded])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema, relevantKey, customFieldValues, userRoles, loaded, failed])
 
   return <FieldPolicyContext.Provider value={value}>{children}</FieldPolicyContext.Provider>
 }
@@ -130,14 +160,14 @@ export function PolicyItem({ name, rules, label, children, ...rest }: PolicyItem
   if (!state.visible) return null
 
   const finalLabel = policy.labelOf(name) ?? label
-  const merged = [...(rules || [])]
-  // 判重要看「是否已有一条真的在要求必填」，而不是「有没有 required 这个键」——
-  // 否则调用方写 {required:false} 会把租户配的必填悄悄抑制掉。
+  // 策略已知时它说了算：调用方 JSX 里硬编码的 {required:true} 只是「策略拉不到时的兜底」，
+  // 不能压过租户在设计器里「关掉必填」的配置 —— 否则后端放行了、前端还拦着。
+  // 反过来，策略未加载或拉取失败时保留调用方规则，避免客户端校验整个消失。
+  const isRequiredRule = (r: unknown) =>
+    typeof r === 'object' && r !== null && (r as { required?: boolean }).required === true
+  const merged = policy.failed ? [...(rules || [])] : (rules || []).filter((r) => !isRequiredRule(r))
   // 脱敏字段不注入必填：用户看不到明文，无从填写。
-  const alreadyRequired = merged.some(
-    (r) => typeof r === 'object' && r !== null && (r as { required?: boolean }).required === true,
-  )
-  if (state.required && !state.masked && !alreadyRequired) {
+  if (state.required && !state.masked) {
     merged.push({ required: true, message: `请填写${typeof finalLabel === 'string' ? finalLabel : ''}` })
   }
 

@@ -7,10 +7,8 @@ import { customerApi } from '@/api/customer'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
-import { MField, MoreFields } from './MobilePolicyField'
+import { MField, MoreFields, reportFirstFormError } from './MobilePolicyField'
 
-// 收在「更多字段」里的次要字段；租户把其中任一项配成必填时该区自动展开
-const MORE_FIELD_IDS = ['probability', 'close_date_expect', 'payment_method']
 
 export default function MobileOpportunityForm() {
   usePageTitle('新建商机')
@@ -32,7 +30,8 @@ export default function MobileOpportunityForm() {
 
   const handleSubmit = async () => {
     let v: Record<string, any>
-    try { v = await form.validateFields() } catch { return }
+    // 折叠区用 display:none 隐藏，错误若落在收起的字段上，用户只会看到「保存没反应」
+    try { v = await form.validateFields() } catch (e) { reportFirstFormError(e, message.error); return }
     // 扩展字段不在 antd Form 状态里，validateFields 覆盖不到；后端也会二次校验
     const cfError = customFieldsRef.current?.validate()
     if (cfError) { message.error(cfError); return }
@@ -96,7 +95,7 @@ export default function MobileOpportunityForm() {
 
           {/* 桌面端可填而移动端此前缺失的字段。缺了它们，租户一旦把其中任一项配成必填，
               移动端就再也建不了商机 —— 后端 create 是按全部必填字段校验的。 */}
-          <MoreFields fieldIds={MORE_FIELD_IDS}>
+          <MoreFields>
             <MField name="probability" label="赢单概率">
               <InputNumber className="w-full" min={0} max={100} placeholder="0-100" />
             </MField>

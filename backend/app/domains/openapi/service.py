@@ -499,7 +499,18 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
 
 
 def _pseudo_user(ctx) -> dict:
-    return {"sub": ctx.app_id, "username": f"openapi:{ctx.app_key}", "real_name": "开放平台"}
+    """开放平台调用内部 service 时的伪用户。
+
+    必须带 SYSTEM_ROLE：内部 service 会跑按登录用户角色的字段级权限，若这里给空角色集，
+    任何配了 visible_roles/unmask_roles 的字段都会被判为「无交集 → 隐藏/脱敏」，
+    导致外部集成提交的值被静默丢弃（接口却返回成功）；租户配的必填也会把此前能用的
+    集成直接拒掉。调用方已过 app_key 鉴权，字段策略这层对它不适用。
+    """
+    from app.domains.lowcode.field_permission import SYSTEM_ROLE
+    return {
+        "sub": ctx.app_id, "username": f"openapi:{ctx.app_key}", "real_name": "开放平台",
+        "roles": [SYSTEM_ROLE],
+    }
 
 
 async def create_activity_from_openapi(db: AsyncSession, ctx, data) -> dict:

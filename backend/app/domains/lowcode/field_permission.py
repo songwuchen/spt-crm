@@ -20,6 +20,20 @@ from typing import Any, Iterable
 
 from app.common.field_mask import MASK_VALUE
 
+# 「系统主体」哨兵角色：服务端到服务端的调用方（开放平台、后台任务）没有用户角色可评。
+#
+# 字段级权限是按**登录用户角色**的授权概念。若让这类调用方带着空角色集去跑策略，
+# 任何配了 visible_roles / unmask_roles 的字段都会因「无交集」被判为隐藏或脱敏，
+# 结果是外部集成提交的值被静默丢弃、接口却返回成功；租户配的必填也会把此前能用的
+# 集成直接拒掉。二者都不是字段策略该管的事，故整体豁免。
+#
+# 注意这不是权限提升：能走到这里的调用方已经过各自的鉴权（如开放平台的 app_key）。
+SYSTEM_ROLE = "__system__"
+
+
+def is_system_principal(user_roles: Iterable[str] | None) -> bool:
+    return SYSTEM_ROLE in set(user_roles or [])
+
 
 def _roleset(user_roles: Iterable[str] | None) -> set[str]:
     return set(user_roles or [])
@@ -31,6 +45,8 @@ def _is_blank(v: Any) -> bool:
 
 
 def field_visible(fd: dict[str, Any], roles: set[str]) -> bool:
+    if SYSTEM_ROLE in roles:
+        return True
     vr = fd.get("visible_roles")
     if not vr:
         return True
@@ -39,6 +55,8 @@ def field_visible(fd: dict[str, Any], roles: set[str]) -> bool:
 
 def field_masked(fd: dict[str, Any], roles: set[str]) -> bool:
     """该字段对此用户是否应脱敏（可见但只给 "***"）。"""
+    if SYSTEM_ROLE in roles:
+        return False
     ur = fd.get("unmask_roles")
     if not ur:
         return False
@@ -46,6 +64,8 @@ def field_masked(fd: dict[str, Any], roles: set[str]) -> bool:
 
 
 def field_editable(fd: dict[str, Any], roles: set[str]) -> bool:
+    if SYSTEM_ROLE in roles:
+        return True
     if not field_visible(fd, roles):
         return False
     if field_masked(fd, roles):
@@ -136,6 +156,8 @@ async def validate_entity_custom_fields(db, tenant_id: str, entity_type: str, va
     from app.domains.lowcode.rule_engine import validate_required_with_rules
     from app.domains.lowcode.service import get_entity_fields, get_entity_schema, role_field_permissions
 
+    if is_system_principal(user_roles):
+        return  # 服务端到服务端调用：无用户角色可评，字段策略整体豁免
     schema = await get_entity_schema(db, tenant_id, entity_type)
     # 只校验扩展字段：原生字段的覆盖项也存在同一个列表里，但它们的值在业务列上、
     # 不在 custom_fields_json 里，混进来会变成「明明填了该原生字段却报它必填」。
@@ -175,7 +197,8 @@ async def enforce_native_field_policy(
     from app.domains.lowcode.rule_engine import compute_field_states
     from app.domains.lowcode.service import get_entity_form_schema, role_field_permissions
 
-    if not has_native_catalog(entity_type):
+    if not has_native_catalog(entity_type) or is_system_principal(user_roles):
+        # 系统主体豁免：否则外部集成提交的受限字段会被静默丢弃、必填也会拒掉此前可用的调用
         return payload
 
     schema = await get_entity_form_schema(db, tenant_id, entity_type)
@@ -251,7 +274,7 @@ async def entity_field_restrictions(db, tenant_id: str, entity_type: str, user_r
     脱敏的后门。无任何配置时返回空 dict，调用方零开销。
     """
     from app.domains.lowcode.native_field_catalog import has_native_catalog
-    if not has_native_catalog(entity_type):
+    if not has_native_catalog(entity_type) or is_system_principal(user_roles):
         return {}
     from app.domains.lowcode.service import get_entity_form_schema
     native_defs = (await get_entity_form_schema(db, tenant_id, entity_type))["native_fields"]
@@ -301,7 +324,7 @@ async def strip_entity_dicts(db, tenant_id: str, entity_type: str, dicts, user_r
 
     返回入参本身以便链式使用。注意是**就地修改**。
     """
-    if not dicts:
+    if not dicts or is_system_principal(user_roles):
         return dicts
     from app.domains.lowcode.native_field_catalog import has_native_catalog
 
