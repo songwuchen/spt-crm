@@ -82,15 +82,20 @@ async def export_orders_excel(
     from app.config import settings
     items, _ = await service.list_orders(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, customer_id, status, keyword)
     headers = ["订单号", "标题", "金额", "币种", "状态", "下单日期", "交付日期", "负责人", "创建时间"]
+    # 导出与列表/详情同口径脱敏（隐藏→空、脱敏→***）。不做的话，
+    # 「页面看不到但能导出来」就是一条绕过字段权限的后门。
+    from app.domains.lowcode.field_permission import entity_field_restrictions, export_cell
+    rst = await entity_field_restrictions(db, tenant_id, "order", _user.get("roles"))
     rows = []
     for o in items:
         rows.append([
-            o.order_no, o.title or "",
-            float(o.amount) if o.amount is not None else "",
-            o.currency or "", STATUS_LABEL.get(o.status or "", o.status or ""),
-            str(o.order_date) if o.order_date else "",
-            str(o.delivery_date) if o.delivery_date else "",
-            o.owner_name or "",
+            o.order_no, export_cell(rst, "title", o.title or ""),
+            export_cell(rst, "amount", float(o.amount) if o.amount is not None else ""),
+            export_cell(rst, "currency", o.currency or ""),
+            STATUS_LABEL.get(o.status or "", o.status or ""),
+            export_cell(rst, "order_date", str(o.order_date) if o.order_date else ""),
+            export_cell(rst, "delivery_date", str(o.delivery_date) if o.delivery_date else ""),
+            export_cell(rst, "owner_id", o.owner_name or ""),
             o.created_at.strftime("%Y-%m-%d %H:%M") if o.created_at else "",
         ])
     buf = build_excel("订单列表", headers, rows)
@@ -106,7 +111,10 @@ async def create_order(
 ):
     o = await service.create_order(db, tenant_id, body, current_user)
     lines = await service.list_lines(db, tenant_id, o.id)
-    return ok(_order_dict(o, lines))
+    d = _order_dict(o, lines)
+    # 写响应同样要裁剪，否则隐藏/脱敏字段会经创建响应漏回前端
+    await strip_entity_dicts(db, tenant_id, "order", [d], current_user.get("roles"))
+    return ok(d)
 
 
 @router.get("/{order_id}")
@@ -133,7 +141,9 @@ async def update_order(
 ):
     o = await service.update_order(db, tenant_id, order_id, body, current_user)
     lines = await service.list_lines(db, tenant_id, order_id)
-    return ok(_order_dict(o, lines))
+    d = _order_dict(o, lines)
+    await strip_entity_dicts(db, tenant_id, "order", [d], current_user.get("roles"))
+    return ok(d)
 
 
 @router.post("/{order_id}/submit")
@@ -146,7 +156,9 @@ async def submit_order(
     """提交订单审批（内勤发起）。按 order 审批策略自动建立审批流。"""
     o = await service.submit_for_approval(db, tenant_id, order_id, current_user)
     lines = await service.list_lines(db, tenant_id, order_id)
-    return ok(_order_dict(o, lines))
+    d = _order_dict(o, lines)
+    await strip_entity_dicts(db, tenant_id, "order", [d], current_user.get("roles"))
+    return ok(d)
 
 
 @router.post("/{order_id}/ship")
@@ -160,7 +172,9 @@ async def ship_order(
     """发货：部分发货（按行登记数量）或一键全部发货。"""
     o = await service.ship_order(db, tenant_id, order_id, body, current_user)
     lines = await service.list_lines(db, tenant_id, order_id)
-    return ok(_order_dict(o, lines))
+    d = _order_dict(o, lines)
+    await strip_entity_dicts(db, tenant_id, "order", [d], current_user.get("roles"))
+    return ok(d)
 
 
 @router.delete("/{order_id}")

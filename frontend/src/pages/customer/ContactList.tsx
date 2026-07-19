@@ -6,6 +6,8 @@ import { contactApi } from '@/api/contact'
 import { customerApi } from '@/api/customer'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type { Contact } from '@/api/types'
+import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePageSize } from '@/hooks/usePageSize'
@@ -47,6 +49,8 @@ export default function ContactList() {
   const [createModal, setCreateModal] = useState(false)
   const [creating, setCreating] = useState(false)
   const [form] = Form.useForm()
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
+  const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const [customerOptions, setCustomerOptions] = useState<{ label: string; value: string }[]>([])
   const [customerSearching, setCustomerSearching] = useState(false)
 
@@ -97,13 +101,20 @@ export default function ContactList() {
   // Create contact
   const handleCreate = async () => {
     const values = await form.validateFields()
+    // 扩展字段不在 antd Form 状态里，validateFields 覆盖不到，需单独校验；后端也会二次校验
+    const cfError = customFieldsRef.current?.validate()
+    if (cfError) {
+      message.error(cfError)
+      return
+    }
     setCreating(true)
     try {
       const { customer_id, ...contactData } = values
-      await contactApi.create(customer_id, contactData)
+      await contactApi.create(customer_id, { ...contactData, custom_fields_json: customFields })
       message.success('联系人已创建')
       setCreateModal(false)
       form.resetFields()
+      setCustomFields({})
       fetchData()
     } catch {
       message.error('创建失败')
@@ -292,6 +303,7 @@ export default function ContactList() {
         confirmLoading={creating}
         width={520}
       >
+       <FieldPolicyProvider entityType="contact" form={form} customFieldValues={customFields}>
         <Form form={form} layout="vertical">
           <Form.Item name="customer_id" label="所属客户" rules={[{ required: true, message: '请选择客户' }]}>
             <Select
@@ -304,12 +316,12 @@ export default function ContactList() {
               notFoundContent={customerSearching ? '搜索中...' : '请输入客户名称搜索'}
             />
           </Form.Item>
-          <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
+          <PolicyItem name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
             <Input placeholder="请输入姓名" />
-          </Form.Item>
-          <Form.Item name="title" label="职位">
+          </PolicyItem>
+          <PolicyItem name="title" label="职位">
             <Input placeholder="请输入职位" />
-          </Form.Item>
+          </PolicyItem>
           <Form.Item name="role_type" label="角色类型">
             <Select
               placeholder="选择角色类型"
@@ -317,22 +329,25 @@ export default function ContactList() {
               options={Object.entries(roleTypeLabels).map(([k, v]) => ({ label: v, value: k }))}
             />
           </Form.Item>
-          <Form.Item name="phone" label="电话">
+          <PolicyItem name="phone" label="电话">
             <Input placeholder="请输入电话" />
-          </Form.Item>
-          <Form.Item name="mobile" label="手机">
+          </PolicyItem>
+          <PolicyItem name="mobile" label="手机">
             <Input placeholder="请输入手机号" />
-          </Form.Item>
-          <Form.Item name="email" label="邮箱">
+          </PolicyItem>
+          <PolicyItem name="email" label="邮箱">
             <Input placeholder="请输入邮箱" />
-          </Form.Item>
+          </PolicyItem>
           <Form.Item name="is_primary" label="主联系人" valuePropName="checked">
             <Switch />
           </Form.Item>
-          <Form.Item name="remark" label="备注">
+          <PolicyItem name="remark" label="备注">
             <Input.TextArea placeholder="请输入备注" rows={2} />
-          </Form.Item>
+          </PolicyItem>
+          <CustomFieldsPanel ref={customFieldsRef} entityType="contact"
+            value={customFields} onChange={setCustomFields} />
         </Form>
+       </FieldPolicyProvider>
       </Modal>
 
       {/* Import Modal */}

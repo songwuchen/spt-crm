@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Tag, Button, Space, Table, Modal, Form, Input, Select, Switch, Spin, Tabs, Popover, message } from 'antd'
 import { PlusOutlined as PlusIcon } from '@ant-design/icons'
 import { EditOutlined, PlusOutlined, DeleteOutlined, MergeCellsOutlined } from '@ant-design/icons'
@@ -9,7 +9,8 @@ import { projectApi } from '@/api/project'
 import { roleApi } from '@/api/user'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
-import CustomFieldsPanel from '@/components/lowcode/EntityCustomFields'
+import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import ChangeHistory from '@/components/ChangeHistory'
 import type { Customer, Contact, OpportunityProject, CustomerReport } from '@/api/types'
@@ -68,6 +69,7 @@ export default function CustomerDetail() {
   const [contactModal, setContactModal] = useState(false)
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
   const [contactCustomFields, setContactCustomFields] = useState<Record<string, unknown>>({})
+  const contactCustomFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const [contactView, setContactView] = useState<'table' | 'chart'>('table')
   const [form] = Form.useForm()
   const [relations, setRelations] = useState<{ id: string; from_customer_id: string; to_customer_id: string; relation_type: string; to_customer_name?: string; note?: string }[]>([])
@@ -126,6 +128,12 @@ export default function CustomerDetail() {
 
   const handleContactSubmit = async () => {
     const values = { ...(await form.validateFields()), custom_fields_json: contactCustomFields }
+    // 扩展字段不在 antd Form 状态里，validateFields 覆盖不到，需单独校验；后端也会二次校验
+    const cfError = contactCustomFieldsRef.current?.validate()
+    if (cfError) {
+      message.error(cfError)
+      return
+    }
     if (editingContact) {
       await contactApi.update(id!, editingContact.id, values)
       message.success('联系人已更新')
@@ -758,24 +766,26 @@ export default function CustomerDetail() {
         onOk={handleContactSubmit}
         onCancel={() => { setContactModal(false); setEditingContact(null); form.resetFields() }}
       >
+       <FieldPolicyProvider entityType="contact" form={form} customFieldValues={contactCustomFields}>
         <Form form={form} layout="vertical">
-          <Form.Item name="name" label="姓名" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="title" label="职务"><Input /></Form.Item>
+          <PolicyItem name="name" label="姓名" rules={[{ required: true }]}><Input /></PolicyItem>
+          <PolicyItem name="title" label="职务"><Input /></PolicyItem>
           <Form.Item name="role_type" label="角色类型">
             <Select placeholder="请选择角色" allowClear
               options={Object.entries(roleTypeMap).map(([k, v]) => ({ label: v.label, value: k }))} />
           </Form.Item>
-          <Form.Item name="phone" label="电话"><Input /></Form.Item>
-          <Form.Item name="mobile" label="手机"><Input /></Form.Item>
-          <Form.Item name="email" label="邮箱"><Input /></Form.Item>
+          <PolicyItem name="phone" label="电话"><Input /></PolicyItem>
+          <PolicyItem name="mobile" label="手机"><Input /></PolicyItem>
+          <PolicyItem name="email" label="邮箱"><Input /></PolicyItem>
           <Form.Item name="is_primary" label="主要联系人" valuePropName="checked"><Switch /></Form.Item>
           <Form.Item name="reports_to_id" label="上级联系人">
             <Select placeholder="选择上级" allowClear
               options={contacts.filter((c) => c.id !== editingContact?.id).map((c) => ({ label: `${c.name}${c.title ? ' · ' + c.title : ''}`, value: c.id }))} />
           </Form.Item>
-          <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
-          <CustomFieldsPanel entityType="contact" value={contactCustomFields} onChange={setContactCustomFields} />
+          <PolicyItem name="remark" label="备注"><Input.TextArea rows={2} /></PolicyItem>
+          <CustomFieldsPanel ref={contactCustomFieldsRef} entityType="contact" value={contactCustomFields} onChange={setContactCustomFields} />
         </Form>
+       </FieldPolicyProvider>
       </Modal>
 
       {/* Relation Modal */}

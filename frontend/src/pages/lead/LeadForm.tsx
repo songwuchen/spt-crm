@@ -45,13 +45,6 @@ export default function LeadForm() {
   const userSelect = useUserSelect()
   const [countryType, setCountryType] = useState<string | undefined>(undefined)
 
-  // 字段策略的规则要在「原生值 + 扩展值」的合集上求值，条件才能跨两类字段互相引用
-  const watched = Form.useWatch([], form) as Record<string, unknown> | undefined
-  const policyValues = useMemo(
-    () => ({ ...(watched || {}), ...customFields }),
-    [watched, customFields],
-  )
-
   useEffect(() => {
     if (id) {
       leadApi.get(id).then((res) => {
@@ -119,7 +112,7 @@ export default function LeadForm() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-       <FieldPolicyProvider entityType="lead" values={policyValues}>
+       <FieldPolicyProvider entityType="lead" form={form} customFieldValues={customFields}>
         <Form form={form} layout="vertical" onFinish={onFinish} className="max-w-3xl">
           {/* Basic Info */}
           <div className="mb-6">
@@ -276,7 +269,7 @@ export default function LeadForm() {
           </div>
 
           <EntityCustomFields ref={customFieldsRef} entityType="lead" value={customFields}
-            contextValues={watched || {}} onChange={setCustomFields} />
+            onChange={setCustomFields} />
 
           <div className="flex gap-3 pt-4 border-t border-slate-100">
             <Button type="primary" htmlType="submit" loading={loading} className="font-bold">

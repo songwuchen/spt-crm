@@ -12,7 +12,8 @@ import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
 import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
 import AttachmentPanel from '@/components/AttachmentPanel'
-import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
+import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 
 const STATUS_OPTIONS = [
   { label: '草稿', value: 'draft' },
@@ -44,6 +45,7 @@ export default function OrderList() {
   const didMount = useRef(false)
   const [form] = Form.useForm()
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
+  const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const customerSelect = useCustomerSelect()
   const ownerSelect = useUserSelect()
 
@@ -113,6 +115,12 @@ export default function OrderList() {
   const handleSubmit = async () => {
     let values
     try { values = await form.validateFields() } catch { return }
+    // 扩展字段不在 antd Form 状态里，validateFields 覆盖不到，需单独校验；后端也会二次校验
+    const cfError = customFieldsRef.current?.validate()
+    if (cfError) {
+      message.error(cfError)
+      return
+    }
     const lines = (values.lines || []).filter((l: OrderLine) => l && l.product_name)
     const payload: Record<string, unknown> = {
       ...values,
@@ -272,6 +280,7 @@ export default function OrderList() {
         destroyOnClose
         width={860}
       >
+       <FieldPolicyProvider entityType="order" form={form} customFieldValues={customFields}>
         <Form form={form} layout="vertical" className="mt-4">
           <div className="grid grid-cols-2 gap-3">
             <Form.Item name="customer_id" label="客户" rules={[{ required: true, message: '请选择客户' }]}>
@@ -282,7 +291,7 @@ export default function OrderList() {
                 disabled={!!editing}
               />
             </Form.Item>
-            <Form.Item name="title" label="标题"><Input placeholder="订单标题" /></Form.Item>
+            <PolicyItem name="title" label="标题"><Input placeholder="订单标题" /></PolicyItem>
           </div>
 
           {/* 产品明细 */}
@@ -332,22 +341,23 @@ export default function OrderList() {
 
           <div className="grid grid-cols-2 gap-3">
             <Form.Item name="status" label="状态"><Select options={STATUS_OPTIONS} /></Form.Item>
-            <Form.Item name="currency" label="币种"><Input /></Form.Item>
+            <PolicyItem name="currency" label="币种"><Input /></PolicyItem>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Form.Item name="order_date" label="下单日期"><DatePicker style={{ width: '100%' }} /></Form.Item>
-            <Form.Item name="delivery_date" label="交付日期"><DatePicker style={{ width: '100%' }} /></Form.Item>
+            <PolicyItem name="order_date" label="下单日期"><DatePicker style={{ width: '100%' }} /></PolicyItem>
+            <PolicyItem name="delivery_date" label="交付日期"><DatePicker style={{ width: '100%' }} /></PolicyItem>
           </div>
-          <Form.Item name="owner_id" label="负责人">
+          <PolicyItem name="owner_id" label="负责人">
             <Select
               showSearch filterOption={false} allowClear placeholder="搜索用户"
               options={ownerSelect.options} loading={ownerSelect.loading}
               onSearch={ownerSelect.onSearch} onDropdownVisibleChange={ownerSelect.onDropdownVisibleChange}
             />
-          </Form.Item>
-          <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
-          <EntityCustomFields entityType="order" value={customFields} onChange={setCustomFields} />
+          </PolicyItem>
+          <PolicyItem name="remark" label="备注"><Input.TextArea rows={2} /></PolicyItem>
+          <EntityCustomFields ref={customFieldsRef} entityType="order" value={customFields} onChange={setCustomFields} />
         </Form>
+       </FieldPolicyProvider>
         {editing ? (
           <div className="border-t border-slate-100 pt-3 mt-1">
             <div className="text-sm font-semibold text-slate-600 mb-2">附件（合同扫描件、技术图纸、发货单等）</div>

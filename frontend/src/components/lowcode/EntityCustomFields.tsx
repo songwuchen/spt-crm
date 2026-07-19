@@ -7,6 +7,7 @@ import { lowcodeApi } from '@/api/lowcode'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type { FieldDefinition, FormRule } from '@/types/lowcode'
 import { computeFieldStates } from './RuleEngine'
+import { useFieldPolicy } from './FieldPolicy'
 import FormRenderer, { deriveRolePerms, validateRequired } from './FormRenderer'
 
 const { Text } = Typography
@@ -18,8 +19,9 @@ interface Props {
   onChange?: (v: Record<string, unknown>) => void
   readOnly?: boolean
   title?: string
-  /** 同一表单里原生字段的当前值。规则条件可引用原生字段(如「国别=国外时显示该扩展字段」)，
-   *  不传则这类跨字段条件会因取不到值而判定为不成立。 */
+  /** 同一表单里原生字段的当前值，供跨字段规则求值（如「国别=国外时显示该扩展字段」）。
+   *  处在 FieldPolicyProvider 内时会自动从 context 取，无需手传；仅在没有 Provider
+   *  的场景（如详情页只读展示）才需要显式传。 */
   contextValues?: Record<string, unknown>
 }
 
@@ -56,10 +58,13 @@ const EntityCustomFields = forwardRef<EntityCustomFieldsRef, Props>(function Ent
   }, [entityType])
 
   // 与 FormRenderer 内部同口径地推导字段状态，供必填校验跳过「被规则隐藏」的字段。
-  // 规则可能引用同一表单里的原生字段，故并入 contextValues 后再求值。
+  // 规则可能引用同一表单里的原生字段：处在 FieldPolicyProvider 内时自动取它订阅到的
+  // 原生值，页面无需手传；显式传入的 contextValues 优先（无 Provider 的场景用）。
+  const policy = useFieldPolicy()
+  const nativeContext = contextValues ?? policy.nativeValues
   const ruleValues = useMemo(
-    () => ({ ...(contextValues || {}), ...(val || {}) }),
-    [contextValues, val],
+    () => ({ ...(nativeContext || {}), ...(val || {}) }),
+    [nativeContext, val],
   )
   const states = useMemo(
     () => computeFieldStates(fields, ruleValues, rules, deriveRolePerms(fields, userRoles)),
@@ -83,7 +88,7 @@ const EntityCustomFields = forwardRef<EntityCustomFieldsRef, Props>(function Ent
         rules={rules}
         mode={readOnly ? 'readonly' : 'edit'}
         value={val || {}}
-        ruleContext={contextValues}
+        ruleContext={nativeContext}
         onChange={(v) => onChange?.(v)}
       />
     </div>

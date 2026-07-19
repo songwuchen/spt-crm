@@ -86,9 +86,15 @@ async def get_order(db: AsyncSession, tenant_id: str, order_id: str) -> Order:
 async def create_order(db: AsyncSession, tenant_id: str, data: OrderCreate, user: dict) -> Order:
     payload = data.model_dump()
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
-    from app.domains.lowcode.field_permission import sanitize_entity_write
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     payload["custom_fields_json"] = await sanitize_entity_write(
         db, tenant_id, "order", payload.get("custom_fields_json"), None, user.get("roles"))
+    await validate_entity_custom_fields(
+        db, tenant_id, "order", payload["custom_fields_json"], user.get("roles"))
+    # 原生字段策略：读取侧已按角色隐藏/脱敏，写入侧必须对称拦截
+    payload = await enforce_native_field_policy(db, tenant_id, "order", payload, None, user.get("roles"))
     lines = payload.pop("lines", None)
     chosen_owner_id = payload.pop("owner_id", None)
     if chosen_owner_id:
@@ -152,10 +158,16 @@ async def update_order(db: AsyncSession, tenant_id: str, order_id: str, data: Or
     order = await get_order(db, tenant_id, order_id)
     dump = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     if "custom_fields_json" in dump:
-        from app.domains.lowcode.field_permission import sanitize_entity_write
         dump["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "order", dump["custom_fields_json"], order.custom_fields_json, user.get("roles"))
+        await validate_entity_custom_fields(
+            db, tenant_id, "order", dump["custom_fields_json"], user.get("roles"))
+    dump = await enforce_native_field_policy(
+        db, tenant_id, "order", dump, order, user.get("roles"), required_scope="payload")
     lines_given = "lines" in dump
     dump.pop("lines", None)  # 明细单独处理，不能 setattr 到模型
     old_status = order.status

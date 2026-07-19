@@ -217,6 +217,8 @@ async def enforce_native_field_policy(
     final_states = compute_field_states(all_defs, final_values, rules, perms) if stripped else states
     for fd in native_defs:
         fid = fd.get("id")
+        if fd.get("form_editable") is False:
+            continue  # 表单上没有该输入项（系统/专用流程写入），配必填只会造成无法保存
         if required_scope != "all" and fid not in payload:
             continue
         st = final_states.get(fid) or {}
@@ -261,6 +263,18 @@ async def entity_field_restrictions(db, tenant_id: str, entity_type: str, user_r
         elif field_masked(fd, roles):
             out[fd.get("id")] = "masked"
     return out
+
+
+async def ok_entity(db, tenant_id: str, entity_type: str, d: dict, user_roles):
+    """裁剪单条实体 dict 后包成标准响应 —— 给「写」端点用（create/update/submit/...）。
+
+    写响应同样会带出实体全量字段，若不裁剪，被隐藏/脱敏的字段就会经写响应漏回前端：
+    用户改个备注，响应里就把他无权查看的合同金额一并送回去了。
+    与读取路径共用 strip_entity_dicts，重复裁剪是幂等的，可放心叠加。
+    """
+    from app.common.schemas import ok
+    await strip_entity_dicts(db, tenant_id, entity_type, [d], user_roles)
+    return ok(d)
 
 
 def export_cell(restrictions: dict[str, str], field_id: str, value):

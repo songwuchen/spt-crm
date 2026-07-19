@@ -9,7 +9,7 @@ from app.dependencies import get_db, get_tenant_id, get_current_user, require_pe
 from app.common.schemas import ok
 from app.common.export import build_excel, build_excel_multi, build_template, excel_response
 from app.domains.customer.models import Customer
-from app.domains.lowcode.field_permission import strip_entity_dicts
+from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
 from app.domains.customer.schemas import (
     CustomerCreate, CustomerUpdate, CustomerOut,
     ContactCreate, ContactUpdate, ContactOut,
@@ -158,7 +158,7 @@ async def create_customer(
         c.pool_id = await service._route_pool_id(db, tenant_id, c)
         await db.commit()
         await db.refresh(c)
-    return ok(_customer_dict(c))
+    return await ok_entity(db, tenant_id, "customer", _customer_dict(c), current_user.get("roles"))
 
 
 @router.get("/export/excel")
@@ -268,7 +268,7 @@ async def release_to_pool(
     current_user: dict = Depends(require_permissions("customer:edit")),
 ):
     c = await service.release_to_pool(db, tenant_id, customer_id, current_user)
-    return ok(_customer_dict(c))
+    return await ok_entity(db, tenant_id, "customer", _customer_dict(c), current_user.get("roles"))
 
 
 @router.post("/{customer_id}/claim")
@@ -279,7 +279,7 @@ async def claim_from_pool(
     current_user: dict = Depends(require_permissions("customer:edit")),
 ):
     c = await service.claim_from_pool(db, tenant_id, customer_id, current_user)
-    return ok(_customer_dict(c))
+    return await ok_entity(db, tenant_id, "customer", _customer_dict(c), current_user.get("roles"))
 
 
 @router.post("/batch_release")
@@ -1036,7 +1036,7 @@ async def merge_customers(
 ):
     """Merge secondary customer into primary, moving all related data."""
     c = await service.merge_customers(db, tenant_id, body.primary_id, body.secondary_id, current_user)
-    return ok(_customer_dict(c))
+    return await ok_entity(db, tenant_id, "customer", _customer_dict(c), current_user.get("roles"))
 
 
 class BatchTransferBody(PydanticBaseModel):
@@ -1266,7 +1266,7 @@ async def update_customer(
     current_user: dict = Depends(require_permissions("customer:edit")),
 ):
     c = await service.update_customer(db, tenant_id, customer_id, body, current_user)
-    return ok(_customer_dict(c, await _tenant_pool_rules(db, tenant_id), await service.list_active_pools(db, tenant_id)))
+    return await ok_entity(db, tenant_id, "customer", _customer_dict(c, await _tenant_pool_rules(db, tenant_id), await service.list_active_pools(db, tenant_id)), current_user.get("roles"))
 
 
 # ==================== 区域公海配置 (customer_pools) ====================

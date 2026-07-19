@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Form, Input, Select, Button, Card, InputNumber, DatePicker, Switch, Alert, message } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -10,7 +10,8 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useAutoSave } from '@/hooks/useAutoSave'
 import AttachmentPanel from '@/components/AttachmentPanel'
-import CustomFieldsPanel from '@/components/lowcode/EntityCustomFields'
+import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 import dayjs from 'dayjs'
 
 const defaultRiskOptions = [
@@ -65,6 +66,7 @@ export default function OpportunityForm() {
 
   const userSelect = useUserSelect()
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
+  const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
 
   const { restoreDraft, clearDraft, markDirty } = useAutoSave(`opportunity_form_${id || 'new'}`, form)
 
@@ -106,6 +108,12 @@ export default function OpportunityForm() {
   }, [id])
 
   const onFinish = async (values: Record<string, unknown>) => {
+    // 扩展字段不在 antd Form 状态里，其必填(含条件必填)需单独校验；后端也会二次校验
+    const cfError = customFieldsRef.current?.validate()
+    if (cfError) {
+      message.error(cfError)
+      return
+    }
     setLoading(true)
     try {
       // 多条需求明细：丢弃完全空白的行；全空则存 []（闸门继续拦截 S3）
@@ -145,10 +153,11 @@ export default function OpportunityForm() {
     <div>
       <h2 className="text-xl font-semibold mb-4">{isEdit ? '编辑商机' : '新建商机'}</h2>
       <Card>
+       <FieldPolicyProvider entityType="project" form={form} customFieldValues={customFields}>
         <Form form={form} layout="vertical" onFinish={onFinish} onValuesChange={markDirty} className="max-w-2xl">
-          <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
+          <PolicyItem name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
             <Input placeholder="请输入项目名称" />
-          </Form.Item>
+          </PolicyItem>
           <Form.Item name="customer_id" label="关联客户" rules={[{ required: true, message: '请选择关联客户' }]}>
             <Select placeholder="请选择客户" showSearch filterOption={false}
               loading={customerSelect.loading}
@@ -157,17 +166,17 @@ export default function OpportunityForm() {
               onDropdownVisibleChange={customerSelect.onDropdownVisibleChange} />
           </Form.Item>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Form.Item name="amount_expect" label="预期金额" rules={[{ required: true, message: '请输入预期金额' }]}>
+            <PolicyItem name="amount_expect" label="预期金额" rules={[{ required: true, message: '请输入预期金额' }]}>
               <InputNumber className="w-full" placeholder="请输入预期金额" min={0} precision={2} />
-            </Form.Item>
-            <Form.Item name="probability" label="成交概率 (%)" rules={[{ type: 'number', min: 0, max: 100, message: '概率范围 0-100' }]}>
+            </PolicyItem>
+            <PolicyItem name="probability" label="成交概率 (%)" rules={[{ type: 'number', min: 0, max: 100, message: '概率范围 0-100' }]}>
               <InputNumber className="w-full" placeholder="0-100" min={0} max={100} />
-            </Form.Item>
+            </PolicyItem>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Form.Item name="close_date_expect" label="预期成交日期">
+            <PolicyItem name="close_date_expect" label="预期成交日期">
               <DatePicker className="w-full" />
-            </Form.Item>
+            </PolicyItem>
             <Form.Item name="biz_date" label="日期" tooltip="业务日期，可自行编辑，用于标识不同时间的商机">
               <DatePicker className="w-full" placeholder="请选择日期" />
             </Form.Item>
@@ -176,9 +185,9 @@ export default function OpportunityForm() {
             <Form.Item name="risk_level" label="风险等级">
               <Select placeholder="请选择风险等级" allowClear options={riskDict.options} loading={riskDict.loading} />
             </Form.Item>
-            <Form.Item name="payment_method" label="付款方式">
+            <PolicyItem name="payment_method" label="付款方式">
               <Select placeholder="请选择付款方式" allowClear options={paymentMethodDict.options} loading={paymentMethodDict.loading} />
-            </Form.Item>
+            </PolicyItem>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Form.Item name="has_guarantee" label="是否有保函" valuePropName="checked" tooltip="项目是否需要银行保函">
@@ -240,17 +249,18 @@ export default function OpportunityForm() {
               <Select options={statusDict.options} loading={statusDict.loading} />
             </Form.Item>
           )}
-          <Form.Item name="remark" label="备注">
+          <PolicyItem name="remark" label="备注">
             <Input.TextArea rows={3} placeholder="备注信息" />
-          </Form.Item>
+          </PolicyItem>
           <div className="mb-4">
-            <CustomFieldsPanel entityType="project" values={customFields} onChange={setCustomFields} />
+            <CustomFieldsPanel ref={customFieldsRef} entityType="project" values={customFields} onChange={setCustomFields} />
           </div>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading}>保存</Button>
             <Button className="ml-2" onClick={() => navigate('/opportunities')}>取消</Button>
           </Form.Item>
         </Form>
+       </FieldPolicyProvider>
       </Card>
 
       {isEdit ? (

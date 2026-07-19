@@ -8,7 +8,7 @@ from app.dependencies import get_db, get_tenant_id, require_permissions, get_dat
 from app.common.schemas import ok
 from app.common.export import build_excel, build_template, excel_response
 from app.domains.project import service
-from app.domains.lowcode.field_permission import strip_entity_dicts
+from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
 from app.domains.project.schemas import (
     ProjectCreate, ProjectUpdate, ProjectTransfer, StageAdvance, StageRollback,
     ProjectMemberAdd, ProjectMemberUpdate,
@@ -319,7 +319,7 @@ async def create_project(
     current_user: dict = Depends(require_permissions("project:create")),
 ):
     p = await service.create_project(db, tenant_id, body, current_user)
-    return ok(_project_dict(p))
+    return await ok_entity(db, tenant_id, "project", _project_dict(p), current_user.get("roles"))
 
 
 @router.get("/{project_id}")
@@ -345,7 +345,7 @@ async def update_project(
     current_user: dict = Depends(require_permissions("project:edit")),
 ):
     p = await service.update_project(db, tenant_id, project_id, body, current_user)
-    return ok(_project_dict(p))
+    return await ok_entity(db, tenant_id, "project", _project_dict(p), current_user.get("roles"))
 
 
 @router.post("/{project_id}/transfer")
@@ -359,7 +359,7 @@ async def transfer_project_owner(
     """转移商机负责人。需 project:transfer 权限（默认仅主管/管理员持有），
     与普通编辑(project:edit)分离，避免任意成员私自改派以逃避数据范围监控或抢单。"""
     p = await service.transfer_owner(db, tenant_id, project_id, body.owner_id, body.note, current_user)
-    return ok(_project_dict(p))
+    return await ok_entity(db, tenant_id, "project", _project_dict(p), current_user.get("roles"))
 
 
 @router.delete("/{project_id}")
@@ -382,7 +382,7 @@ async def advance_stage(
     current_user: dict = Depends(require_permissions("project:advance")),
 ):
     p = await service.advance_stage(db, tenant_id, project_id, body.to_stage, body.note, current_user, force=body.force or False)
-    return ok(_project_dict(p))
+    return await ok_entity(db, tenant_id, "project", _project_dict(p), current_user.get("roles"))
 
 
 @router.post("/{project_id}/rollback")
@@ -394,7 +394,7 @@ async def rollback_stage(
     current_user: dict = Depends(require_permissions("project:advance")),
 ):
     p = await service.rollback_stage(db, tenant_id, project_id, body.to_stage, body.note, current_user)
-    return ok(_project_dict(p))
+    return await ok_entity(db, tenant_id, "project", _project_dict(p), current_user.get("roles"))
 
 
 @router.get("/{project_id}/gate_check")

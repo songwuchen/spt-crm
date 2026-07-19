@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
+from app.domains.lowcode.field_permission import ok_entity
 from app.common.field_mask import load_mask_policies, apply_field_mask, masked_number
 from app.domains.contract import service
 from app.domains.contract.schemas import ContractCreate, ContractUpdate, ContractVersionUpdate, ContractSign, ContractFromQuote
@@ -93,7 +94,7 @@ async def list_contracts(
         [{**_contract_dict(c), **(name_map.get(c.project_id) or {})} for c in items],
         "contract", perms, policies)
     # 角色键控的字段权限（隐藏/脱敏），与按权限脱敏的 apply_field_mask 并行生效
-    from app.domains.lowcode.field_permission import strip_entity_dicts
+    from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
     await strip_entity_dicts(db, tenant_id, "contract", rows, current_user.get("roles"))
     return ok({"items": rows, "total": total})
 
@@ -169,7 +170,7 @@ async def update_contract(
     current_user: dict = Depends(require_permissions("contract:edit")),
 ):
     c = await service.update_contract(db, tenant_id, contract_id, body, current_user)
-    return ok(_contract_dict(c))
+    return await ok_entity(db, tenant_id, "contract", _contract_dict(c), current_user.get("roles"))
 
 
 @router.delete("/api/v1/contracts/{contract_id}")
@@ -203,7 +204,7 @@ async def sign_contract(
     current_user: dict = Depends(require_permissions("contract:sign")),
 ):
     c = await service.sign_contract(db, tenant_id, contract_id, body.signed_date, current_user)
-    return ok(_contract_dict(c))
+    return await ok_entity(db, tenant_id, "contract", _contract_dict(c), current_user.get("roles"))
 
 
 # --- Version routes ---

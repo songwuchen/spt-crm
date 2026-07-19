@@ -9,7 +9,7 @@ from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.common.export import build_excel, build_template, excel_response
 from app.domains.service_ticket import service
-from app.domains.lowcode.field_permission import strip_entity_dicts
+from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
 from app.domains.service_ticket.schemas import (
     ServiceTicketCreate, ServiceTicketUpdate, RenewalCreate, RenewalUpdate,
 )
@@ -76,12 +76,17 @@ async def export_tickets_excel(
     from app.config import settings
     items, _ = await service.list_tickets(db, tenant_id, page_size=settings.MAX_EXPORT_ROWS)
     headers = ["工单编号", "类型", "优先级", "状态", "描述", "处理结果", "负责人", "创建人", "创建时间"]
+    # 导出与列表/详情同口径脱敏，否则「页面看不到但能导出来」= 绕过字段权限的后门
+    from app.domains.lowcode.field_permission import entity_field_restrictions, export_cell
+    rst = await entity_field_restrictions(db, tenant_id, "service_ticket", _user.get("roles"))
     rows = []
     for t in items:
         rows.append([
             t.ticket_no, t.type or "", t.priority or "", t.status or "",
-            t.description or "", t.resolution or "",
-            t.assigned_to_name or "", t.created_by_name or "",
+            export_cell(rst, "description", t.description or ""),
+            export_cell(rst, "resolution", t.resolution or ""),
+            export_cell(rst, "assigned_to_id", t.assigned_to_name or ""),
+            t.created_by_name or "",
             t.created_at.strftime("%Y-%m-%d %H:%M") if t.created_at else "",
         ])
     buf = build_excel("售后工单", headers, rows)
@@ -256,7 +261,7 @@ async def create_ticket(
     current_user: dict = Depends(require_permissions("service:create")),
 ):
     t = await service.create_ticket(db, tenant_id, body, current_user)
-    return ok(_ticket_dict(t))
+    return await ok_entity(db, tenant_id, "service_ticket", _ticket_dict(t), current_user.get("roles"))
 
 
 @router.get("/api/v1/service_tickets/{ticket_id}")
@@ -277,7 +282,7 @@ async def update_ticket(
     current_user: dict = Depends(require_permissions("service:edit")),
 ):
     t = await service.update_ticket(db, tenant_id, ticket_id, body, current_user)
-    return ok(_ticket_dict(t))
+    return await ok_entity(db, tenant_id, "service_ticket", _ticket_dict(t), current_user.get("roles"))
 
 
 @router.post("/api/v1/service_tickets/{ticket_id}/submit")
@@ -289,7 +294,7 @@ async def submit_ticket(
     """提交售后审批（内勤发起）。按 service_ticket 审批策略自动建流
     （内勤发起→生产主任审批分配售后人员→售后人员完成填写工作内容）。"""
     t = await service.submit_for_approval(db, tenant_id, ticket_id, current_user)
-    return ok(_ticket_dict(t))
+    return await ok_entity(db, tenant_id, "service_ticket", _ticket_dict(t), current_user.get("roles"))
 
 
 @router.delete("/api/v1/service_tickets/{ticket_id}")
@@ -339,7 +344,7 @@ async def rate_ticket(
     t.satisfaction_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(t)
-    return ok(_ticket_dict(t))
+    return await ok_entity(db, tenant_id, "service_ticket", _ticket_dict(t), _user.get("roles"))
 
 
 # --- RenewalOpportunity ---

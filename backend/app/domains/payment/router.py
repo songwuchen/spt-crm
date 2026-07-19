@@ -491,11 +491,18 @@ async def export_payments_excel(
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center")
         cell.border = thin_border
+    # 到账记录导出与列表同口径脱敏（金额/渠道/凭证号是典型的按角色控制对象）。
+    # 回款计划(PaymentPlan)不属于 entity_type="payment"，无扩展字段列，故不在此裁剪范围内。
+    from app.domains.lowcode.field_permission import entity_field_restrictions, export_cell
+    rst = await entity_field_restrictions(db, tenant_id, "payment", _user.get("roles"))
     for ri, row in enumerate(rec_rows, 2):
         r = row[0]
-        vals = [row.project_name or "", str(r.received_date) if r.received_date else "",
-                float(r.amount) if r.amount else 0, r.channel or "",
-                r.reference_no or "", r.remark or ""]
+        vals = [row.project_name or "",
+                export_cell(rst, "received_date", str(r.received_date) if r.received_date else ""),
+                export_cell(rst, "amount", float(r.amount) if r.amount else 0),
+                export_cell(rst, "channel", r.channel or ""),
+                export_cell(rst, "reference_no", r.reference_no or ""),
+                export_cell(rst, "remark", r.remark or "")]
         for ci, v in enumerate(vals, 1):
             cell = ws2.cell(row=ri, column=ci, value=v)
             cell.border = thin_border

@@ -13,6 +13,8 @@ import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
 // 金额格式化自带脱敏识别，见 @/utils/mask
 import { fmtMoney } from '@/utils/mask'
+import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 
 
 export default function ContractList() {
@@ -34,6 +36,8 @@ export default function ContractList() {
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createForm] = Form.useForm()
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
+  const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const [projOpts, setProjOpts] = useState<{ label: string; value: string }[]>([])
   const [projLoading, setProjLoading] = useState(false)
   const searchProjects = async (kw?: string) => {
@@ -47,6 +51,12 @@ export default function ContractList() {
   const handleCreate = async () => {
     let v
     try { v = await createForm.validateFields() } catch { return }
+    // 扩展字段不在 antd Form 状态里，validateFields 覆盖不到，需单独校验；后端也会二次校验
+    const cfError = customFieldsRef.current?.validate()
+    if (cfError) {
+      message.error(cfError)
+      return
+    }
     setCreating(true)
     try {
       const res = await contractApi.create(v.project_id, {
@@ -54,9 +64,11 @@ export default function ContractList() {
         ...(v.amount_total != null ? { amount_total: v.amount_total } : {}),
         ...(v.end_date ? { end_date: v.end_date.format('YYYY-MM-DD') } : {}),
         ...(v.content ? { key_clauses_json: [{ item: '合同内容', content: v.content }] } : {}),
+        custom_fields_json: customFields,
       }) as any
       message.success('合同已创建，请在详情页完善内容与附件')
       setCreateOpen(false)
+      setCustomFields({})
       const cid = res?.data?.contract?.id
       if (cid) navigate(`/opportunities/${v.project_id}/contracts/${cid}`)
       else fetchData()
@@ -140,6 +152,7 @@ export default function ContractList() {
       {/* 新增合同 */}
       <Modal title="新增合同" open={createOpen} onOk={handleCreate} confirmLoading={creating}
         onCancel={() => setCreateOpen(false)} okText="创建并完善" width={520} destroyOnClose>
+       <FieldPolicyProvider entityType="contract" form={createForm} customFieldValues={customFields}>
         <Form form={createForm} layout="vertical" className="mt-3">
           <Form.Item name="project_id" label="关联商机" rules={[{ required: true, message: '请选择关联商机' }]}>
             <Select showSearch filterOption={false} placeholder="搜索商机名称 / 编号"
@@ -148,12 +161,15 @@ export default function ContractList() {
           </Form.Item>
           <Form.Item name="title" label="合同标题"><Input placeholder="如：设备采购合同（默认 V1）" /></Form.Item>
           <div className="grid grid-cols-2 gap-3">
-            <Form.Item name="amount_total" label="合同金额"><InputNumber className="w-full" min={0} precision={2} /></Form.Item>
-            <Form.Item name="end_date" label="到期日期"><DatePicker className="w-full" /></Form.Item>
+            <PolicyItem name="amount_total" label="合同金额"><InputNumber className="w-full" min={0} precision={2} /></PolicyItem>
+            <PolicyItem name="end_date" label="到期日期"><DatePicker className="w-full" /></PolicyItem>
           </div>
           <Form.Item name="content" label="合同内容"><Input.TextArea rows={3} placeholder="合同主要内容 / 关键条款（可在详情页继续完善）" /></Form.Item>
+          <CustomFieldsPanel ref={customFieldsRef} entityType="contract"
+            value={customFields} onChange={setCustomFields} />
           <div className="text-[12px] text-slate-400">合同编号将自动生成；创建后将跳转到合同详情页，可上传附件并发起审批。</div>
         </Form>
+       </FieldPolicyProvider>
       </Modal>
     </div>
   )

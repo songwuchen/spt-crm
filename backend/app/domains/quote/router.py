@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
+from app.domains.lowcode.field_permission import ok_entity
 from app.common.export import build_template, excel_response
 from app.common.field_mask import load_mask_policies, apply_field_mask, masked_number
 from app.domains.quote import service
@@ -141,7 +142,7 @@ async def list_quotes(
     perms = current_user.get("permissions", [])
     policies = await load_mask_policies(db, tenant_id)
     rows = apply_field_mask(rows, "quote", perms, policies)
-    from app.domains.lowcode.field_permission import strip_entity_dicts
+    from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
     await strip_entity_dicts(db, tenant_id, "quote", rows, current_user.get("roles"))  # 字段级权限：剔除隐藏扩展字段
     return ok({"items": rows, "total": total})
 
@@ -219,7 +220,7 @@ async def update_quote(
     current_user: dict = Depends(require_permissions("quote:edit")),
 ):
     q = await service.update_quote(db, tenant_id, quote_id, body, current_user)
-    return ok(_quote_dict(q))
+    return await ok_entity(db, tenant_id, "quote", _quote_dict(q), current_user.get("roles"))
 
 
 @router.delete("/api/v1/quotes/{quote_id}")

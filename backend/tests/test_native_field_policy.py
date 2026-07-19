@@ -48,6 +48,37 @@ def test_label_override_only_set_when_tenant_actually_renamed():
     assert next(f for f in renamed if f["id"] == "biz_date")["label_override"] == "跟进日期"
 
 
+async def test_non_form_editable_field_can_be_masked_but_not_required(
+    client: AsyncClient, auth_headers: dict,
+):
+    """form_editable=False 的字段（如合同签约日期，由签署流程写入）：
+    仍可配隐藏/脱敏，但配了必填不得阻断保存 —— 用户根本没有填它的入口。
+    """
+    h = auth_headers
+    cust_id = (await client.post("/api/v1/customers", json={"name": "签约日期测试客户"},
+                                 headers=h)).json()["data"]["id"]
+    proj_id = (await client.post("/api/v1/projects", json={
+        "name": "签约日期测试商机", "customer_id": cust_id, "stage_code": "S1",
+    }, headers=h)).json()["data"]["id"]
+
+    tpl = (await client.get("/api/v1/lc/entity-templates/contract", headers=h)).json()["data"]
+
+    async def publish(defs):
+        await client.post(f"/api/v1/lc/form-templates/{tpl['id']}/design", headers=h, json={
+            "field_definitions": defs, "layout_definition": {}, "rule_definitions": []})
+        await client.post(f"/api/v1/lc/form-templates/{tpl['id']}/publish", headers=h)
+
+    try:
+        await publish([{"id": "signed_date", "native": True, "label": "签订日期",
+                        "type": "date", "required": True}])
+        r = (await client.post(f"/api/v1/projects/{proj_id}/contracts",
+                               json={"amount_total": 100}, headers=h)).json()
+        assert r["code"] == 0, f"表单上填不了的字段不该拦住保存: {r}"
+        await client.delete(f"/api/v1/contracts/{r['data']['contract']['id']}", headers=h)
+    finally:
+        await publish([])
+
+
 def test_override_cannot_change_id_or_type():
     merged = merge_native_overrides("lead", [
         {"id": "industry", "native": True, "type": "detail_table", "label": "所属行业"},
@@ -95,13 +126,30 @@ def test_catalog_fields_all_have_a_form_control():
     from pathlib import Path
     from app.domains.lowcode.native_field_catalog import FORM_WIRED
 
-    forms = {"lead": "frontend/src/pages/lead/LeadForm.tsx"}
+    # 一个实体可能有多处表单（新建 Modal 与编辑页各一份），每一处都要能填全部目录字段
+    forms = {
+        "lead": ["frontend/src/pages/lead/LeadForm.tsx"],
+        "customer": ["frontend/src/pages/customer/CustomerForm.tsx"],
+        "contact": [
+            "frontend/src/pages/customer/CustomerDetail.tsx",   # 编辑+新建
+            "frontend/src/pages/customer/ContactList.tsx",      # 仅新建
+        ],
+        "project": ["frontend/src/pages/opportunity/OpportunityForm.tsx"],
+        "contract": ["frontend/src/pages/contract/ContractList.tsx"],
+        "order": ["frontend/src/pages/order/OrderList.tsx"],
+    }
+    root = Path(__file__).resolve().parents[2]
     for entity in FORM_WIRED:
         assert entity in forms, f"{entity} 已声明接入表单，但测试不知道它的表单文件在哪"
-        path = Path(__file__).resolve().parents[2] / forms[entity]
-        rendered = set(re.findall(r'<PolicyItem\s+name="([^"]+)"', path.read_text(encoding="utf-8")))
-        missing = [fd["id"] for fd in get_native_fields(entity) if fd["id"] not in rendered]
-        assert not missing, f"{entity}: 这些原生字段在目录里但表单没有对应 PolicyItem: {missing}"
+        for rel in forms[entity]:
+            src = (root / rel).read_text(encoding="utf-8")
+            rendered = set(re.findall(r'<PolicyItem\s+name="([^"]+)"', src))
+            missing = [
+                fd["id"] for fd in get_native_fields(entity)
+                # form_editable=False 的字段由系统/专用流程写入，表单上本就没有输入项
+                if fd.get("form_editable", True) and fd["id"] not in rendered
+            ]
+            assert not missing, f"{entity} @ {rel}: 目录里有但表单没有对应 PolicyItem: {missing}"
 
 
 # 目录里的实体 -> (模型模块, 类名)，用于校验字段 id 都是真实列
@@ -112,6 +160,9 @@ _ENTITY_MODELS = {
     "project": ("app.domains.project.models", "OpportunityProject"),
     "contract": ("app.domains.contract.models", "Contract"),
     "quote": ("app.domains.quote.models", "Quote"),
+    "order": ("app.domains.order.models", "Order"),
+    "service_ticket": ("app.domains.service_ticket.models", "ServiceTicket"),
+    "payment": ("app.domains.payment.models", "PaymentRecord"),
 }
 
 

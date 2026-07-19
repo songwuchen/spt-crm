@@ -28,7 +28,8 @@ OVERRIDABLE_PROP_KEYS = {"hidden", "readonly"}
 
 def _f(fid: str, label: str, ftype: str = "text", *, system_required: bool = False,
        default_required: bool = False, options_source: str | None = None,
-       companions: tuple[str, ...] = (), **props: Any) -> dict[str, Any]:
+       companions: tuple[str, ...] = (), form_editable: bool = True,
+       **props: Any) -> dict[str, Any]:
     """声明一个原生字段。
 
     system_required: 数据库 NOT NULL 或业务强依赖，恒为必填且租户不可改。
@@ -38,12 +39,18 @@ def _f(fid: str, label: str, ftype: str = "text", *, system_required: bool = Fal
         （如 owner_id 的 owner_name、department_id 的 department_name）。
         隐藏/脱敏必须连带处理它们 —— 列表页渲染的往往正是这些派生键，只裁主字段
         等于配了脱敏却毫无效果。
+    form_editable: 该字段在业务表单上是否可填。False 表示由系统/专用流程写入
+        （如合同签约日期走签署流程），此时：
+          · 仍可配隐藏/脱敏 —— 它照样出现在列表与详情里，敏感性不因不可编辑而降低；
+          · 不参与必填校验 —— 用户根本没有填它的入口，配必填只会造成无法保存；
+          · 不参与「目录↔表单对齐」守卫测试。
     """
     fd: dict[str, Any] = {
         "id": fid, "label": label, "type": ftype,
         "native": True,               # 标记：前端据此禁用删除/改类型
         "system_required": system_required,
         "required": system_required or default_required,
+        "form_editable": form_editable,
     }
     if companions:
         fd["companions"] = list(companions)
@@ -57,7 +64,7 @@ def _f(fid: str, label: str, ftype: str = "text", *, system_required: bool = Fal
 # 已把表单接入 PolicyItem 的实体。只有这些实体的 required/条件显隐会在表单上生效；
 # 其余实体目前只享用读取路径的隐藏/脱敏（列表、详情、导出）。
 # 接入某实体表单后，把它加进来，test_catalog_fields_all_have_a_form_control 会开始校验对齐。
-FORM_WIRED: set[str] = {"lead"}
+FORM_WIRED: set[str] = {"lead", "customer", "contact", "project", "contract", "order"}
 
 
 # entity_type -> 该实体表单上可配置的原生字段（顺序即设计器/表单默认顺序）
@@ -125,14 +132,44 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
     "contract": [
         # 注意是 amount_total 而非旧 UI 写的 amount
         _f("amount_total", "合同金额", "amount"),
-        _f("signed_date", "签订日期", "date"),
+        # 签约日期由签署流程写入，表单上没有该输入项 —— 可配脱敏，但不可配必填
+        _f("signed_date", "签订日期", "date", form_editable=False),
         _f("end_date", "到期日期", "date"),
     ],
     # 报价的敏感字段(margin_rate/discount_total/cost_est)在 quote_versions / quote_lines /
     # cost_snapshots 上，不在 quotes 主表，本目录够不着 —— 那部分继续由按权限脱敏的
     # app/common/field_mask.py 负责（它本就是为这类嵌套响应体设计的）。
     "quote": [
-        _f("quote_no", "报价单号"),
+        _f("quote_no", "报价单号", form_editable=False),  # 自动生成，表单上无输入项
+    ],
+    # 工单/回款的表单目前不是 antd Form（裸受控组件），未接 PolicyItem，故这两个实体
+    # 的字段一律标为 form_editable=False：只享用读取路径的隐藏/脱敏与导出裁剪，
+    # 不参与必填校验（配了也没有输入项可填）。表单改造后再逐个放开。
+    "service_ticket": [
+        _f("description", "问题描述", "textarea", form_editable=False),
+        _f("resolution", "解决方案", "textarea", form_editable=False),
+        _f("assigned_to_id", "处理人", "person",
+           companions=("assigned_to_name",), form_editable=False),
+        _f("satisfaction_score", "满意度评分", "number", form_editable=False),
+        _f("satisfaction_comment", "满意度评价", "textarea", form_editable=False),
+    ],
+    # entity_type="payment" 在前后端实际只绑定 PaymentRecord（到账记录）——
+    # payment_plans / invoices 没有 custom_fields_json 列，也不走这套。
+    "payment": [
+        _f("amount", "到账金额", "amount", form_editable=False),
+        _f("channel", "到账渠道", form_editable=False),
+        _f("reference_no", "凭证号", form_editable=False),
+        _f("received_date", "到账日期", "date", form_editable=False),
+        _f("remark", "备注", "textarea", form_editable=False),
+    ],
+    "order": [
+        _f("title", "订单标题"),
+        _f("amount", "订单金额", "amount", form_editable=False),  # 由明细行汇总，表单不直接填
+        _f("currency", "币种"),
+        _f("order_date", "订单日期", "date"),
+        _f("delivery_date", "交付日期", "date"),
+        _f("owner_id", "负责人", "person", companions=("owner_name",)),
+        _f("remark", "备注", "textarea"),
     ],
 }
 

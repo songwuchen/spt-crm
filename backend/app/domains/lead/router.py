@@ -11,7 +11,7 @@ from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.common.export import build_excel, build_template, excel_response
 from app.domains.lead import service
-from app.domains.lowcode.field_permission import strip_entity_dicts
+from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
 
 router = APIRouter(prefix="/api/v1/leads", tags=["线索管理"])
 
@@ -318,7 +318,7 @@ async def create_lead(
 ):
     l = await service.create_lead(db, tenant_id, body, current_user)
     products = await service.list_lead_products(db, tenant_id, l.id)
-    return ok(_lead_dict(l, products, await _lead_department_names(db, tenant_id, [l])))
+    return await ok_entity(db, tenant_id, "lead", _lead_dict(l, products, await _lead_department_names(db, tenant_id, [l])), current_user.get("roles"))
 
 
 @router.get("/{lead_id}")
@@ -345,7 +345,7 @@ async def update_lead(
 ):
     l = await service.update_lead(db, tenant_id, lead_id, body, current_user)
     products = await service.list_lead_products(db, tenant_id, l.id)
-    return ok(_lead_dict(l, products, await _lead_department_names(db, tenant_id, [l])))
+    return await ok_entity(db, tenant_id, "lead", _lead_dict(l, products, await _lead_department_names(db, tenant_id, [l])), current_user.get("roles"))
 
 
 class QualifyBody(BaseModel):
@@ -375,7 +375,7 @@ async def submit_lead_review(
     """被驳回的线索修改后重新提交内勤审核。"""
     l = await service.resubmit_lead_review(db, tenant_id, lead_id, current_user)
     products = await service.list_lead_products(db, tenant_id, l.id)
-    return ok(_lead_dict(l, products))
+    return await ok_entity(db, tenant_id, "lead", _lead_dict(l, products), current_user.get("roles"))
 
 
 @router.post("/{lead_id}/discard")
@@ -386,7 +386,7 @@ async def discard_lead(
     current_user: dict = Depends(require_permissions("lead:discard")),
 ):
     l = await service.discard_lead(db, tenant_id, lead_id, current_user)
-    return ok(_lead_dict(l))
+    return await ok_entity(db, tenant_id, "lead", _lead_dict(l), current_user.get("roles"))
 
 
 @router.delete("/{lead_id}")

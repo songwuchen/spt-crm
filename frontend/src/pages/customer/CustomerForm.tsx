@@ -8,7 +8,8 @@ import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useAutoSave } from '@/hooks/useAutoSave'
 import { useAuthStore } from '@/stores/useAuthStore'
-import CustomFieldsPanel from '@/components/lowcode/EntityCustomFields'
+import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 import RegionCascader from '@/components/RegionCascader'
 
 const defaultIndustries = ['电子制造', '汽车零部件', '机械装备', '航空航天', '医疗器械', '半导体', '新能源', '其他'].map(i => ({ label: i, value: i }))
@@ -53,6 +54,7 @@ export default function CustomerForm() {
   const currentUser = useAuthStore((s) => s.user)
   const userSelect = useUserSelect()
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
+  const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
 
   const [similarCustomers, setSimilarCustomers] = useState<{ id: string; name: string; short_name?: string; industry?: string; owner_name?: string; match_type?: string; match_phone?: string; match_contact?: string }[]>([])
   const dupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -105,6 +107,12 @@ export default function CustomerForm() {
   }, [id])
 
   const onFinish = async (values: Record<string, unknown>) => {
+    // 扩展字段不在 antd Form 状态里，其必填(含条件必填)需单独校验；后端也会二次校验
+    const cfError = customFieldsRef.current?.validate()
+    if (cfError) {
+      message.error(cfError)
+      return
+    }
     setLoading(true)
     try {
       const payload = { ...values, owner_id: toPool ? null : (values.owner_id || null), custom_fields_json: customFields } as any
@@ -130,10 +138,11 @@ export default function CustomerForm() {
     <div>
       <h2 className="text-xl font-semibold mb-4">{isEdit ? '编辑客户' : '新建客户'}</h2>
       <Card>
+       <FieldPolicyProvider entityType="customer" form={form} customFieldValues={customFields}>
         <Form form={form} layout="vertical" onFinish={onFinish} onValuesChange={markDirty} className="max-w-2xl">
-          <Form.Item name="name" label="客户名称" rules={[{ required: true, message: '请输入客户名称' }]}>
+          <PolicyItem name="name" label="客户名称" rules={[{ required: true, message: '请输入客户名称' }]}>
             <Input placeholder="请输入客户全称" onChange={(e) => checkDuplicates(e.target.value, form.getFieldValue('phone'))} />
-          </Form.Item>
+          </PolicyItem>
           {similarCustomers.length > 0 && (
             <Alert type="warning" showIcon className="mb-4"
               message={`发现 ${similarCustomers.length} 个疑似重复客户`}
@@ -198,13 +207,13 @@ export default function CustomerForm() {
           <Form.Item name="city" hidden><Input /></Form.Item>
           <Form.Item name="district" hidden><Input /></Form.Item>
           <Form.Item name="region_code" hidden><Input /></Form.Item>
-          <Form.Item name="address" label="详细地址">
+          <PolicyItem name="address" label="详细地址">
             <Input placeholder="请输入详细地址（门牌/街道等）" />
-          </Form.Item>
-          <Form.Item name="website" label="网站"
+          </PolicyItem>
+          <PolicyItem name="website" label="网站"
             rules={[{ type: 'url', message: '请输入正确的网址' }]}>
             <Input placeholder="请输入公司网站地址" />
-          </Form.Item>
+          </PolicyItem>
           <Form.Item name="source" label="客户来源">
             <Select placeholder="请选择来源" allowClear options={sourceDict.options} loading={sourceDict.loading} />
           </Form.Item>
@@ -215,14 +224,14 @@ export default function CustomerForm() {
           {/* ===== 商机要素 · 采购意向（BANT 快照）===== */}
           <div className="text-sm font-semibold text-slate-500 mt-6 mb-3 pb-1 border-b border-slate-100">商机要素 · 采购意向</div>
           <div className="grid grid-cols-2 gap-x-4">
-            <Form.Item name="expected_purchase_date" label="预计采购时间">
+            <PolicyItem name="expected_purchase_date" label="预计采购时间">
               <DatePicker className="w-full" placeholder="选择预计采购日期" />
-            </Form.Item>
+            </PolicyItem>
             <Form.Item name="intent_level" label="采购意向类别"
               tooltip="留空则由预计采购时间自动推算：3个月内=A、半年内=B、一年内=C、更久/已过期=D">
               <Select placeholder="留空自动推算" allowClear options={intentOptions} />
             </Form.Item>
-            <Form.Item name="budget_amount" label="客户预算(元)">
+            <PolicyItem name="budget_amount" label="客户预算(元)">
               <InputNumber<number> className="w-full" min={0} step={1000} placeholder="预算金额" controls={false}
                 formatter={(v) => (v === undefined || v === null ? '' : `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ','))}
                 parser={(v) => {
@@ -230,14 +239,14 @@ export default function CustomerForm() {
                   // 清空时返回 undefined(而非 0)，允许把预算置空，不被强制写成 0
                   return (s === '' ? undefined : Number(s)) as unknown as number
                 }} />
-            </Form.Item>
+            </PolicyItem>
             <Form.Item name="need_match_level" label="需求匹配程度">
               <Select placeholder="选择匹配程度" allowClear options={matchOptions} />
             </Form.Item>
           </div>
-          <Form.Item name="demand" label="核心需求">
+          <PolicyItem name="demand" label="核心需求">
             <Input.TextArea rows={2} placeholder="客户的核心需求（如：除铁设备）" />
-          </Form.Item>
+          </PolicyItem>
 
           {/* ===== 公司档案 ===== */}
           <div className="text-sm font-semibold text-slate-500 mt-6 mb-3 pb-1 border-b border-slate-100">公司档案</div>
@@ -248,8 +257,8 @@ export default function CustomerForm() {
           </div>
           <div className="grid grid-cols-3 gap-x-4">
             <Form.Item name="country" label="国家"><Input placeholder="如：中国" /></Form.Item>
-            <Form.Item name="postal_code" label="邮政编码"><Input placeholder="邮编" /></Form.Item>
-            <Form.Item name="headcount" label="公司总人数"><InputNumber className="w-full" min={0} placeholder="人数" /></Form.Item>
+            <PolicyItem name="postal_code" label="邮政编码"><Input placeholder="邮编" /></PolicyItem>
+            <PolicyItem name="headcount" label="公司总人数"><InputNumber className="w-full" min={0} placeholder="人数" /></PolicyItem>
           </div>
           <Form.Item name="currency" label="币种">
             <Select placeholder="默认人民币 CNY" allowClear style={{ maxWidth: 220 }} options={currencyOptions} />
@@ -280,17 +289,18 @@ export default function CustomerForm() {
           <Form.Item name="tags_json" label="标签">
             <Select mode="tags" placeholder="输入标签后回车添加" tokenSeparators={[',']} />
           </Form.Item>
-          <Form.Item name="remark" label="备注">
+          <PolicyItem name="remark" label="备注">
             <Input.TextArea rows={3} placeholder="备注信息" />
-          </Form.Item>
+          </PolicyItem>
           <div className="mb-4">
-            <CustomFieldsPanel entityType="customer" values={customFields} onChange={setCustomFields} />
+            <CustomFieldsPanel ref={customFieldsRef} entityType="customer" values={customFields} onChange={setCustomFields} />
           </div>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading}>保存</Button>
             <Button className="ml-2" onClick={() => navigate('/customers')}>取消</Button>
           </Form.Item>
         </Form>
+       </FieldPolicyProvider>
       </Card>
     </div>
   )
