@@ -161,13 +161,22 @@ def test_catalog_fields_all_have_a_form_control():
     # 一个实体可能有多处表单，且新建与编辑能填的字段并不相同：
     # (相对路径, 该表单覆盖的场景)  场景 ∈ {"create", "edit", "both"}
     forms = {
-        "lead": [("frontend/src/pages/lead/LeadForm.tsx", "both")],
-        "customer": [("frontend/src/pages/customer/CustomerForm.tsx", "both")],
+        "lead": [
+            ("frontend/src/pages/lead/LeadForm.tsx", "both"),
+            ("frontend/src/pages/mobile/MobileLeadForm.tsx", "create"),
+        ],
+        "customer": [
+            ("frontend/src/pages/customer/CustomerForm.tsx", "both"),
+            ("frontend/src/pages/mobile/MobileCustomerForm.tsx", "create"),
+        ],
         "contact": [
             ("frontend/src/pages/customer/CustomerDetail.tsx", "both"),
             ("frontend/src/pages/customer/ContactList.tsx", "create"),
         ],
-        "project": [("frontend/src/pages/opportunity/OpportunityForm.tsx", "both")],
+        "project": [
+            ("frontend/src/pages/opportunity/OpportunityForm.tsx", "both"),
+            ("frontend/src/pages/mobile/MobileOpportunityForm.tsx", "create"),
+        ],
         "contract": [("frontend/src/pages/contract/ContractList.tsx", "create")],
         "order": [("frontend/src/pages/order/OrderList.tsx", "both")],
         "service_ticket": [
@@ -181,7 +190,8 @@ def test_catalog_fields_all_have_a_form_control():
         assert entity in forms, f"{entity} 已声明接入表单，但测试不知道它的表单文件在哪"
         for rel, scope in forms[entity]:
             src = (root / rel).read_text(encoding="utf-8")
-            rendered = set(re.findall(r'<PolicyItem\s+name="([^"]+)"', src))
+            # MField 是移动端样式的 PolicyItem 别名，两者都算「该字段可填」
+            rendered = set(re.findall(r'<(?:PolicyItem|MField)\s+name="([^"]+)"', src))
             missing = []
             for fd in get_native_fields(entity):
                 if not fd.get("form_editable", True):

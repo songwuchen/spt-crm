@@ -1,19 +1,25 @@
-import { useState, useEffect } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { message } from 'antd'
+import { Form, Input, InputNumber, Select, DatePicker, Checkbox, message } from 'antd'
+import dayjs from 'dayjs'
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
+import { MField, MoreFields } from './MobilePolicyField'
+
+// 收在「更多字段」里的次要字段；租户把其中任一项配成必填时该区自动展开
+const MORE_FIELD_IDS = ['probability', 'close_date_expect', 'payment_method']
 
 export default function MobileOpportunityForm() {
   usePageTitle('新建商机')
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([])
-  const [form, setForm] = useState({
-    name: '', customer_id: '', amount_expect: '', stage: 'S1', remark: '',
-    req_summary: '', req_acceptance: '', req_confirmed: false,
-  })
+  const [form] = Form.useForm()
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
+  const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
 
   useEffect(() => {
     customerApi.list({ pageNo: 1, pageSize: 100 })
@@ -21,19 +27,30 @@ export default function MobileOpportunityForm() {
       .catch(() => {})
   }, [])
 
+  const inputCls = 'w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm'
+  const labelCls = 'text-sm font-bold text-slate-500 uppercase tracking-wider'
+
   const handleSubmit = async () => {
-    if (!form.name.trim()) { message.warning('请输入商机名称'); return }
-    if (!form.customer_id) { message.warning('请选择客户'); return }
+    let v: Record<string, any>
+    try { v = await form.validateFields() } catch { return }
+    // 扩展字段不在 antd Form 状态里，validateFields 覆盖不到；后端也会二次校验
+    const cfError = customFieldsRef.current?.validate()
+    if (cfError) { message.error(cfError); return }
     setLoading(true)
     try {
-      const data: any = { name: form.name, customer_id: form.customer_id, stage: form.stage, remark: form.remark }
-      if (form.amount_expect) data.amount_expect = parseFloat(form.amount_expect)
+      const data: any = {
+        ...v,
+        close_date_expect: v.close_date_expect
+          ? (v.close_date_expect as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
+        custom_fields_json: customFields,
+      }
       // 关键需求（推进到 S3 前必填），剔除空值
       const kr: Record<string, unknown> = {}
-      if (form.req_summary.trim()) kr.summary = form.req_summary.trim()
-      if (form.req_acceptance.trim()) kr.acceptance = form.req_acceptance.trim()
-      if (form.req_confirmed) kr.confirmed = true
+      if ((v.req_summary || '').trim()) kr.summary = v.req_summary.trim()
+      if ((v.req_acceptance || '').trim()) kr.acceptance = v.req_acceptance.trim()
+      if (v.req_confirmed) kr.confirmed = true
       if (Object.keys(kr).length) data.key_requirements_json = kr
+      delete data.req_summary; delete data.req_acceptance; delete data.req_confirmed
       await projectApi.create(data)
       message.success('商机已创建')
       navigate(-1)
@@ -52,58 +69,69 @@ export default function MobileOpportunityForm() {
         </button>
       </div>
 
-      <div className="p-4 space-y-4">
-        <div>
-          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">商机名称 *</label>
-          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="输入商机名称" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm" />
-        </div>
-        <div>
-          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">客户 *</label>
-          <select value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })}
-            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm">
-            <option value="">请选择客户</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">预期金额</label>
-            <input value={form.amount_expect} onChange={(e) => setForm({ ...form, amount_expect: e.target.value })}
-              placeholder="0.00" type="number" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm" />
+      <FieldPolicyProvider entityType="project" form={form} customFieldValues={customFields}>
+        <Form form={form} layout="vertical" className="p-4 space-y-4"
+          initialValues={{ stage: 'S1' }}>
+          <MField name="name" label="商机名称">
+            <Input placeholder="输入商机名称" className={inputCls} />
+          </MField>
+          {/* 客户与阶段不在原生字段目录里，保持普通 Form.Item */}
+          <Form.Item name="customer_id" label={<span className={labelCls}>客户</span>}
+            rules={[{ required: true, message: '请选择客户' }]}>
+            <Select placeholder="请选择客户" className="w-full" showSearch optionFilterProp="label"
+              options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+          </Form.Item>
+          <div className="grid grid-cols-2 gap-3">
+            <MField name="amount_expect" label="预期金额">
+              <InputNumber className="w-full" min={0} placeholder="0.00" />
+            </MField>
+            <Form.Item name="stage" label={<span className={labelCls}>阶段</span>}>
+              <Select className="w-full" options={[
+                { value: 'S1', label: 'S1 线索确认' },
+                { value: 'S2', label: 'S2 需求分析' },
+                { value: 'S3', label: 'S3 方案报价' },
+              ]} />
+            </Form.Item>
           </div>
-          <div>
-            <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">阶段</label>
-            <select value={form.stage} onChange={(e) => setForm({ ...form, stage: e.target.value })}
-              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm">
-              <option value="S1">S1 线索确认</option>
-              <option value="S2">S2 需求分析</option>
-              <option value="S3">S3 方案报价</option>
-            </select>
+
+          {/* 桌面端可填而移动端此前缺失的字段。缺了它们，租户一旦把其中任一项配成必填，
+              移动端就再也建不了商机 —— 后端 create 是按全部必填字段校验的。 */}
+          <MoreFields fieldIds={MORE_FIELD_IDS}>
+            <MField name="probability" label="赢单概率">
+              <InputNumber className="w-full" min={0} max={100} placeholder="0-100" />
+            </MField>
+            <MField name="close_date_expect" label="预计成交日期">
+              <DatePicker className="w-full" placeholder="请选择日期" />
+            </MField>
+            <MField name="payment_method" label="付款方式">
+              <Input placeholder="如 电汇 / 承兑" className={inputCls} />
+            </MField>
+          </MoreFields>
+
+          <div className="border-t border-slate-100 pt-4">
+            <div className="text-sm font-bold text-slate-700">关键需求</div>
+            <div className="text-[13px] text-slate-400 mb-2">推进到「S3 方案报价」前需填写</div>
+            <Form.Item name="req_summary" noStyle>
+              <Input.TextArea placeholder="需求摘要：客户核心需求、技术规格、交付/预算约束等"
+                rows={3} className={`${inputCls} resize-none`} />
+            </Form.Item>
+            <Form.Item name="req_acceptance" noStyle>
+              <Input.TextArea placeholder="验收标准 / 技术协议要点（可选）"
+                rows={2} className={`mt-2 ${inputCls} resize-none`} />
+            </Form.Item>
+            <Form.Item name="req_confirmed" valuePropName="checked" noStyle>
+              <Checkbox className="mt-2 text-sm text-slate-600">需求已与客户确认</Checkbox>
+            </Form.Item>
           </div>
-        </div>
-        <div className="border-t border-slate-100 pt-4">
-          <div className="text-sm font-bold text-slate-700">关键需求</div>
-          <div className="text-[13px] text-slate-400 mb-2">推进到「S3 方案报价」前需填写</div>
-          <textarea value={form.req_summary} onChange={(e) => setForm({ ...form, req_summary: e.target.value })}
-            placeholder="需求摘要：客户核心需求、技术规格、交付/预算约束等" rows={3}
-            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none" />
-          <textarea value={form.req_acceptance} onChange={(e) => setForm({ ...form, req_acceptance: e.target.value })}
-            placeholder="验收标准 / 技术协议要点（可选）" rows={2}
-            className="mt-2 w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none" />
-          <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={form.req_confirmed}
-              onChange={(e) => setForm({ ...form, req_confirmed: e.target.checked })} />
-            需求已与客户确认
-          </label>
-        </div>
-        <div>
-          <label className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 block">备注</label>
-          <textarea value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })}
-            placeholder="其他信息" rows={3}
-            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none" />
-        </div>
-      </div>
+
+          <MField name="remark" label="备注">
+            <Input.TextArea placeholder="其他信息" rows={3} className={`${inputCls} resize-none`} />
+          </MField>
+
+          <EntityCustomFields ref={customFieldsRef} entityType="project"
+            value={customFields} onChange={setCustomFields} />
+        </Form>
+      </FieldPolicyProvider>
     </div>
   )
 }
