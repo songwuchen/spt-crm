@@ -5,7 +5,8 @@ import { dashboardApi } from '@/api/dashboard'
 import { approvalApi } from '@/api/approval'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import type { ApprovalPendingItem } from '@/api/types'
+import { fetchUnifiedPending, decideUnified } from '@/api/unifiedApprovals'
+import type { UnifiedPendingItem } from '@/api/unifiedApprovals'
 import { TrendChart, CollectionChart, RevenueChart, WinLossChart, FunnelChartPanel, LeaderboardChart, ContractExpiryPanel } from './DashboardCharts'
 
 import Icon from '@/components/Icon'
@@ -205,7 +206,7 @@ function saveCardOrder(order: string[]) {
 export default function Dashboard() {
   usePageTitle('工作台')
   const [stats, setStats] = useState<Stats>({ customer_total: 0, lead_total: 0, monthly_new_customers: 0, pending_leads: 0, project_total: 0, active_projects: 0, quote_total: 0, solution_total: 0, milestone_total: 0, milestone_delayed: 0, invoice_total: 0, payment_received: 0, change_total: 0, ticket_total: 0, ticket_open: 0, pipeline_value: 0, contract_total: 0 })
-  const [pendingApprovals, setPendingApprovals] = useState<ApprovalPendingItem[]>([])
+  const [pendingApprovals, setPendingApprovals] = useState<UnifiedPendingItem[]>([])
   const [alerts, setAlerts] = useState<AlertItem[]>([])
   const [trends, setTrends] = useState<Trends | null>(null)
   const [myOv, setMyOv] = useState<MyOverview | null>(null)
@@ -246,7 +247,8 @@ export default function Dashboard() {
     dashboardApi.trends().then((res: any) => {
       if (res.data) setTrends(res.data)
     }).catch(() => { /* non-critical panel */ })
-    approvalApi.myPending().then((r) => setPendingApprovals(r.data)).catch(() => { /* non-critical panel */ })
+    // 聚合新旧两套审批引擎的待办：已切到新引擎的业务(如线索)否则在首页看不到
+    fetchUnifiedPending().then((r) => setPendingApprovals(r.items)).catch(() => { /* non-critical panel */ })
     dashboardApi.myOverview().then((res: any) => {
       if (res.data) setMyOv(res.data)
     }).catch(() => { /* non-critical panel */ })
@@ -291,21 +293,21 @@ export default function Dashboard() {
     return () => { if (refreshTimerRef.current) clearInterval(refreshTimerRef.current) }
   }, [refreshInterval, fetchData])
 
-  const handleApprove = async (taskId: string) => {
+  const handleApprove = async (item: UnifiedPendingItem) => {
     try {
-      await approvalApi.decide(taskId, { action: 'approved' })
+      await decideUnified(item, 'approve')
       message.success('已审批通过')
       fetchData()
     } catch {
       message.error('审批操作失败')
     }
   }
-  const handleReject = async (taskId: string) => {
+  const handleReject = async (item: UnifiedPendingItem) => {
     Modal.confirm({
       title: '驳回审批', content: '确定要驳回此审批吗？',
       okType: 'danger', okText: '驳回',
       onOk: async () => {
-        await approvalApi.decide(taskId, { action: 'rejected', comment: '驳回' })
+        await decideUnified(item, 'reject', '驳回')
         message.success('已驳回')
         fetchData()
       },
@@ -596,20 +598,18 @@ export default function Dashboard() {
                   </div>
                   <div className="space-y-2">
                     {pendingApprovals.map((item) => (
-                      <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                      <div key={item.key} className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
                         <Icon name="task_alt" className="text-amber-500" />
                         <div className="flex-1">
-                          <div className="text-sm font-bold text-slate-800">{item.flow?.title || item.flow?.biz_type}</div>
-                          <div className="text-sm text-slate-500">
-                            提交人: {item.flow?.submitted_by_name} · 节点 {item.node_order}/{item.flow?.total_nodes}
-                          </div>
+                          <div className="text-sm font-bold text-slate-800">{item.title}</div>
+                          <div className="text-sm text-slate-500">{item.subtitle || '待处理'}</div>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => handleApprove(item.id)}
+                          <button onClick={() => handleApprove(item)}
                             className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-sm font-bold hover:bg-emerald-600 transition-colors">
                             通过
                           </button>
-                          <button onClick={() => handleReject(item.id)}
+                          <button onClick={() => handleReject(item)}
                             className="px-3 py-1.5 bg-white text-red-500 border border-red-200 rounded-lg text-sm font-bold hover:bg-red-50 transition-colors">
                             驳回
                           </button>

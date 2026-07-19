@@ -115,6 +115,8 @@ class WfTaskInstance(TenantScopedBase):
     action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)  # 乐观锁,防并发重复审批
     task_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # 顺序会签用
+    # 钉钉个人待办 id：下发时回写，待办被处理/作废/转交时用它完结钉钉侧的待办
+    dingtalk_todo_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     __table_args__ = (
         Index("ix_wf_task_assignee_status", "assignee_id", "status"),

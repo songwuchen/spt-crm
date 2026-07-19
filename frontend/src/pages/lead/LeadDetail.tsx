@@ -3,8 +3,8 @@ import { Button, Space, Modal, Spin, Tabs, Checkbox, message, Input } from 'antd
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
-import { approvalApi } from '@/api/approval'
-import type { ApprovalPendingItem } from '@/api/types'
+import { workflowApi } from '@/api/lowcodeWorkflow'
+import type { WfTodoItem } from '@/types/lowcode'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import type { Lead } from '@/api/types'
 import { sourceLabels } from '@/api/types'
@@ -77,7 +77,7 @@ export default function LeadDetail() {
   const [activeTab, setActiveTab] = useState('detail')
   const [followUpSignal, setFollowUpSignal] = useState(0)
   // 当前用户对该线索的待审批任务（有则可在本页直接审批）
-  const [myTask, setMyTask] = useState<ApprovalPendingItem | null>(null)
+  const [myTask, setMyTask] = useState<WfTodoItem | null>(null)
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectComment, setRejectComment] = useState('')
   const [deciding, setDeciding] = useState(false)
@@ -93,13 +93,13 @@ export default function LeadDetail() {
     }
   }
 
-  // 查询「我的待办审批」里是否有这条线索的、且轮到我处理的任务
+  // 查询「我的待办审批」里是否有这条线索的、且轮到我处理的任务。
+  // 线索审核已整体切到扩展平台工作流引擎，待办来自 wf_task_instance 而非旧 approval_tasks。
   const fetchMyApproval = async () => {
     try {
-      const res = await approvalApi.myPending()
-      const t = (res.data || []).find(
-        (p) => p.flow?.biz_type === 'lead' && p.flow?.biz_id === id && p.status === 'pending',
-      )
+      // 直接按业务单据查，避免「拉一页待办再前端过滤」在待办多时漏掉本条
+      const res = await workflowApi.todo({ pageNo: 1, pageSize: 20, biz_type: 'lead', biz_id: id })
+      const t = (res.data?.items || []).find((p) => p.status === 'pending')
       setMyTask(t || null)
     } catch { setMyTask(null) }
   }
@@ -108,7 +108,10 @@ export default function LeadDetail() {
     if (!myTask) return
     setDeciding(true)
     try {
-      await approvalApi.decide(myTask.id, { action, comment })
+      await workflowApi.act(myTask.task_id, {
+        action: action === 'approved' ? 'approve' : 'reject',
+        opinion: comment,
+      })
       message.success(action === 'approved' ? '已通过' : '已驳回')
       setMyTask(null)
       fetchLead()
@@ -322,8 +325,7 @@ export default function LeadDetail() {
             <div>
               <div className="text-sm font-bold text-slate-900">该线索待您审批</div>
               <div className="text-sm text-slate-500">
-                {myTask.flow?.title || '线索审核'}
-                {myTask.flow?.submitted_by_name ? ` · 发起人 ${myTask.flow.submitted_by_name}` : ''}
+                {myTask.title || '线索审核'}
               </div>
             </div>
           </div>

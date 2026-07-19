@@ -3,7 +3,7 @@ import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import { dashboardApi } from '@/api/dashboard'
-import { approvalApi } from '@/api/approval'
+import { fetchUnifiedPending } from '@/api/unifiedApprovals'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import PullToRefresh from '@/components/PullToRefresh'
@@ -51,7 +51,8 @@ export default function MobileWorkbench() {
     await Promise.allSettled([
       dashboardApi.stats().then((res: any) => { if (res.data) setStats(res.data) }),
       dashboardApi.myOverview().then((res: any) => { if (res.data) setMyOv(res.data) }),
-      approvalApi.myPending().then((r) => { setPendingCount(r.data?.length || 0) }),
+      // 待审批数需聚合新旧两套引擎，否则已切到新引擎的业务(线索等)不计入
+      fetchUnifiedPending().then((r) => { setPendingCount(r.total) }),
     ])
   }
 

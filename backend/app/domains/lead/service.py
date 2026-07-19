@@ -151,54 +151,40 @@ async def get_lead(db: AsyncSession, tenant_id: str, lead_id: str) -> Lead:
 
 
 
-async def _resolve_lead_reviewers(db: AsyncSession, tenant_id: str, exclude_user_id: str | None = None) -> tuple[list[str], list[str]]:
-    """线索审核人 = 信息情报部内勤角色(lead_intel)的活跃成员。
-
-    刻意按角色而非按 lead:review 权限解析，避免把管理员(拥有全部权限)也拉进审核人池
-    导致管理员被线索审批任务淹没。返回 (ids, names)，排除提交人本人。
-    """
-    from app.domains.auth.models import User, UserRole, Role
-    rows = (await db.execute(
-        select(User)
-        .join(UserRole, UserRole.user_id == User.id)
-        .join(Role, Role.id == UserRole.role_id)
-        .where(User.tenant_id == tenant_id, Role.code == "lead_intel", User.is_active == True)
-    )).scalars().all()
-    ids: list[str] = []
-    names: list[str] = []
-    for u in rows:
-        if exclude_user_id and u.id == exclude_user_id:
-            continue
-        if u.id not in ids:
-            ids.append(u.id)
-            names.append(u.real_name or u.username)
-    return ids, names
+# 线索审核的系统兜底流程（租户未在设计器里画流程时自动创建并发布）
+LEAD_DEFAULT_FLOW_CODE = "SYS_LEAD_REVIEW"
 
 
 async def submit_lead_review(db: AsyncSession, tenant_id: str, lead: Lead, user: dict):
-    """把线索提交给信息情报部内勤审核。
+    """把线索提交审核（走扩展平台可视化工作流引擎）。
 
-    审批人解析优先级：① 管理员在「系统配置→审批策略」为 biz_type=lead 配置的策略；
-    ② 兜底取 lead_intel 角色成员（任一通过）。二者都无人时返回 None（调用方按免审处理）。
-    返回创建的 ApprovalFlow 或 None。
+    审批人解析优先级：
+      ① 租户在「扩展平台→流程设计」为 biz_type=lead 发布的可视化流程；
+      ② 系统兜底默认流程 —— 审批人 = lead_intel(信息情报部内勤)角色的活跃成员，
+         或签(任一通过)，并排除提交人本人。
+
+    兜底流程用引擎自己的规则语言(specified_role)表达原先硬编码的内勤兜底，因此运行时
+    不需要任何线索特判；「解析不出审批人就免审通过」也交给引擎的 empty_strategy=auto_approve
+    承担（并会通知发起人，不再是静默放行），避免线索卡在 pending 无法转化。
+
+    返回创建的 WfProcessInstance；连流程都起不来时返回 None（调用方按免审处理）。
     """
-    from app.domains.approval.service import submit_approval, _resolve_policy_approvers
-    from app.domains.approval.schemas import ApprovalSubmit
+    from app.domains.lowcode.workflow_service import ensure_default_definition, start_for_biz
 
     title = f"线索审核: {(lead.lead_code + ' ') if lead.lead_code else ''}{lead.title}"
-    resolved = await _resolve_policy_approvers(db, tenant_id, "lead", lead.id)
-    if resolved:
-        ids, names, mode = resolved
-    else:
-        ids, names = await _resolve_lead_reviewers(db, tenant_id, exclude_user_id=user.get("sub"))
-        mode = "any_one"
-    if not ids:
-        return None
-    data = ApprovalSubmit(
-        biz_type="lead", biz_id=lead.id, title=title,
-        assignee_ids=ids, assignee_names=names, approval_mode=mode,
+    # 先直接起流程：稳态下租户已有可用流程，这样每条线索只花 start_for_biz 自己的那次查询，
+    # 不必在写路径上再多跑一次「兜底流程是否存在」的探测(Excel 批量导入会放大这个开销)。
+    inst = await start_for_biz(db, tenant_id, "lead", lead.id, user, title=title)
+    if inst is not None:
+        return inst
+    # 起不来 → 说明还没有可用的已发布流程，补建/恢复系统兜底流程后重试一次
+    await ensure_default_definition(
+        db, tenant_id, biz_type="lead", code=LEAD_DEFAULT_FLOW_CODE, name="线索审核",
+        # 刻意按角色而非按 lead:review 权限解析，避免把管理员(拥有全部权限)也拉进审核人池
+        approver_rule={"type": "specified_role", "value": "lead_intel", "exclude_initiator": True},
+        multi_mode="or_sign", empty_strategy="auto_approve",
     )
-    return await submit_approval(db, tenant_id, data, user)
+    return await start_for_biz(db, tenant_id, "lead", lead.id, user, title=title)
 
 
 async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: dict,
@@ -261,18 +247,39 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
         lead.review_status = "pending"
         await db.commit()
         try:
-            flow = await submit_lead_review(db, tenant_id, lead, user)
+            inst = await submit_lead_review(db, tenant_id, lead, user)
         except Exception as e:
             logger.warning("Lead review submit failed for %s: %s", lead.id, e)
-            flow = None
-        if flow is not None:
-            lead.review_flow_id = flow.id
-        else:
-            # 未配置审核策略且无内勤成员 → 免审，置回 approved，避免线索永远卡在待审
-            lead.review_status = "approved"
-        await db.commit()
+            # 失败可能来自 DB 错误，此时 session 已进入 needs-rollback；
+            # 不回滚就继续用它提交会抛 PendingRollbackError，线索已落库却返回 500。
+            await db.rollback()
+            inst = None
+        await _apply_review_flow(db, tenant_id, lead, inst, user)
         await db.refresh(lead)
     return lead
+
+
+async def _apply_review_flow(db: AsyncSession, tenant_id: str, lead: Lead, inst, user: dict) -> None:
+    """把审核流程的发起结果落到线索上。
+
+    流程若在发起过程中就已结束（无审批人自动通过 / 空审批人终止），引擎已用 SQL 回写了
+    review_status，必须先 refresh 同步回 ORM，再写 review_flow_id，否则这里的 commit
+    会把内存里过期的 pending 覆盖回去。
+    """
+    if inst is None:
+        # 连流程都起不来（流程被删且恢复失败、或引擎异常）→ 仍按免审放行，避免线索
+        # 永远卡在待审无法转化；但必须通知提交人，否则审核门禁被跳过了却无人知情。
+        lead.review_status = "approved"
+        await db.commit()
+        from app.domains.lowcode import wf_notify
+        await wf_notify.notify_review_flow_unavailable(
+            tenant_id, "lead", lead.id, user.get("sub"), lead.title or "线索",
+        )
+        return
+    if inst.status != "running":
+        await db.refresh(lead)
+    lead.review_flow_id = inst.id
+    await db.commit()
 
 
 async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: LeadUpdate, user: dict) -> Lead:
@@ -491,16 +498,12 @@ async def resubmit_lead_review(db: AsyncSession, tenant_id: str, lead_id: str, u
     lead.reject_reason = None
     await db.commit()
     try:
-        flow = await submit_lead_review(db, tenant_id, lead, user)
+        inst = await submit_lead_review(db, tenant_id, lead, user)
     except Exception as e:
         logger.warning("Lead review resubmit failed for %s: %s", lead.id, e)
-        flow = None
-    if flow is not None:
-        lead.review_flow_id = flow.id
-    else:
-        # 无审核人 → 视为免审直接通过
-        lead.review_status = "approved"
-    await db.commit()
+        await db.rollback()
+        inst = None
+    await _apply_review_flow(db, tenant_id, lead, inst, user)
     await db.refresh(lead)
 
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),

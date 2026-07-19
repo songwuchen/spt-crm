@@ -2,15 +2,18 @@ import { useState, useEffect } from 'react'
 import MobileIcon from '@/components/MobileIcon'
 import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
-import { approvalApi } from '@/api/approval'
+import { fetchUnifiedPending } from '@/api/unifiedApprovals'
+import type { UnifiedPendingItem } from '@/api/unifiedApprovals'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import type { ApprovalPendingItem } from '@/api/types'
 
 const bizTypeLabels: Record<string, string> = {
   quote_version: '报价',
   contract_version: '合同',
   change_request: '变更',
   solution: '方案',
+  lead: '线索',
+  order: '订单',
+  service_ticket: '工单',
 }
 
 const bizTypeIcons: Record<string, string> = {
@@ -18,25 +21,26 @@ const bizTypeIcons: Record<string, string> = {
   contract_version: 'handshake',
   change_request: 'swap_horiz',
   solution: 'lightbulb',
+  lead: 'person_search',
+  order: 'receipt_long',
+  service_ticket: 'support_agent',
 }
 
-const statusColors: Record<string, string> = {
-  pending: 'bg-amber-50 text-amber-600',
-  approved: 'bg-green-50 text-green-600',
-  rejected: 'bg-red-50 text-red-600',
-}
+// 本页只列「待我审批」，因此只有 pending 一种呈现
+const PENDING_BADGE = 'bg-amber-50 text-amber-600'
 
 export default function MobileApprovals() {
   usePageTitle('审批中心')
   const navigate = useNavigate()
-  const [pending, setPending] = useState<ApprovalPendingItem[]>([])
+  const [pending, setPending] = useState<UnifiedPendingItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    approvalApi.myPending().then((res) => {
-      if (res.data) setPending(res.data)
-    }).catch(() => message.error('加载失败'))
+    // 聚合旧 approval 引擎与新工作流引擎的待办：线索等业务已切到新引擎，
+    // 只查旧接口会让用户在这里看不到自己的待办
+    fetchUnifiedPending().then((r) => setPending(r.items))
+      .catch(() => message.error('加载失败'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -75,41 +79,43 @@ export default function MobileApprovals() {
         <div className="space-y-3">
           {pending.map((item) => (
             <div
-              key={item.id}
-              onClick={() => navigate(`/m/approvals/${item.flow_id}`)}
+              key={item.key}
+              onClick={() => navigate(
+                item.engine === 'wf'
+                  ? `/m/lowcode/approvals/${item.instanceId}`
+                  : `/m/approvals/${item.instanceId}`,
+              )}
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 cursor-pointer active:bg-slate-50 transition-colors"
             >
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                  <MobileIcon name={bizTypeIcons[item.flow?.biz_type] || 'description'} className="text-primary" style={{ fontSize: 20 }} />
+                  <MobileIcon name={bizTypeIcons[item.bizType || ''] || 'description'} className="text-primary" style={{ fontSize: 20 }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="text-sm font-bold text-slate-900 truncate">
-                      {item.flow?.title || `${bizTypeLabels[item.flow?.biz_type] || ''}审批`}
+                      {item.title || `${bizTypeLabels[item.bizType || ''] || ''}审批`}
                     </h4>
-                    <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full shrink-0 ${statusColors[item.status] || statusColors.pending}`}>
-                      {item.status === 'pending' ? '待审批' : item.status === 'approved' ? '已通过' : '已拒绝'}
+                    <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full shrink-0 ${PENDING_BADGE}`}>
+                      待审批
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm text-slate-500">
-                      {bizTypeLabels[item.flow?.biz_type] || item.flow?.biz_type}
+                      {bizTypeLabels[item.bizType || ''] || item.bizType || '审批'}
                     </span>
-                    <span className="text-sm text-slate-300">·</span>
-                    <span className="text-sm text-slate-500">
-                      {item.flow?.submitted_by_name || '未知'} 发起
-                    </span>
+                    {item.subtitle && (
+                      <>
+                        <span className="text-sm text-slate-300">·</span>
+                        <span className="text-sm text-slate-500 truncate">{item.subtitle}</span>
+                      </>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-sm text-slate-400">
-                      节点 {item.node_order}/{item.flow?.total_nodes || '-'}
-                    </span>
-                    <span className="text-sm text-slate-300">·</span>
-                    <span className="text-sm text-slate-400">
-                      {new Date(item.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
+                  {item.createdAt && (
+                    <div className="text-sm text-slate-400 mt-1.5">
+                      {new Date(item.createdAt).toLocaleDateString()}
+                    </div>
+                  )}
                 </div>
                 <MobileIcon name="chevron_right" className="text-slate-300 shrink-0" style={{ fontSize: 16 }} />
               </div>

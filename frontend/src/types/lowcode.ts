@@ -235,7 +235,11 @@ export interface WfTodoItem {
   title?: string | null
   business_no?: string | null
   initiator_id?: string
+  initiator_name?: string | null
   process_status?: string
+  // 承载的业务单据（线索/合同/订单…），用于把待办关联回业务详情页
+  biz_type?: string | null
+  biz_id?: string | null
   created_at?: string
   action_at?: string
   on_behalf_of?: boolean       // 代理审批：该待办由本人代委托人处理

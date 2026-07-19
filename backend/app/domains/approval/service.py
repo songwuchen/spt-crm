@@ -169,8 +169,15 @@ async def _build_policy_context(db: AsyncSession, tenant_id: str, biz_type: str,
     return context
 
 
-async def _resolve_policy_approvers(db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str) -> tuple[list[str], list[str], str] | None:
-    """Try to resolve approvers from approval_policies table. Returns (ids, names, mode) or None."""
+async def _resolve_policy_approvers(
+    db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str,
+    submitter_id: str | None = None,
+) -> tuple[list[str], list[str], str] | None:
+    """Try to resolve approvers from approval_policies table. Returns (ids, names, mode) or None.
+
+    submitter_id: 提交人。解析结果会尽量把提交人排除，避免「自己审自己」；但若排除后
+    一个审批人都不剩，则保留提交人——否则单据会永远卡在待审批（宁可自审也不死锁）。
+    """
     try:
         from app.domains.admin.service import match_approval_policy
         context = await _build_policy_context(db, tenant_id, biz_type, biz_id)
@@ -187,6 +194,7 @@ async def _resolve_policy_approvers(db: AsyncSession, tenant_id: str, biz_type: 
         # Batch: collect all role codes and user ids first to minimize queries
         role_codes = []
         user_ids = []
+        want_dept_leader = False
         for rule in rules:
             rule_type = rule.get("type", "")
             rule_value = rule.get("value", "")
@@ -194,6 +202,25 @@ async def _resolve_policy_approvers(db: AsyncSession, tenant_id: str, biz_type: 
                 role_codes.append(rule_value)
             elif rule_type == "user" and rule_value:
                 user_ids.append(rule_value)
+            elif rule_type == "department_leader":
+                # 前端「部门领导」选项提交的是无 value 的 {type:'department_leader'}，
+                # 历史上后端不认这个类型 → 解析为空 → 管理员以为配置生效了其实没有。
+                want_dept_leader = True
+
+        # 部门领导：取提交人所在各部门的负责人
+        if want_dept_leader and submitter_id:
+            from app.domains.organization.models import Department, UserDepartment
+            leader_rows = (await db.execute(
+                select(Department.leader_id)
+                .join(UserDepartment, UserDepartment.department_id == Department.id)
+                .where(
+                    Department.tenant_id == tenant_id,
+                    UserDepartment.tenant_id == tenant_id,
+                    UserDepartment.user_id == submitter_id,
+                    Department.leader_id.isnot(None),
+                )
+            )).scalars().all()
+            user_ids.extend([lid for lid in leader_rows if lid])
 
         # Single query for all role-based approvers
         if role_codes:
@@ -208,15 +235,26 @@ async def _resolve_policy_approvers(db: AsyncSession, tenant_id: str, biz_type: 
                     approver_ids.append(u.id)
                     approver_names.append(u.real_name or u.username)
 
-        # Single query for all user-based approvers
+        # Single query for all user-based approvers（含部门领导；同样过滤停用账号，
+        # 否则离职/停用的人会被派单，审批永远无人处理）
         if user_ids:
             direct_users = (await db.execute(
-                select(User).where(User.id.in_(user_ids), User.tenant_id == tenant_id)
+                select(User).where(
+                    User.id.in_(user_ids), User.tenant_id == tenant_id,
+                    User.is_active == True,  # noqa: E712
+                )
             )).scalars().all()
             for u in direct_users:
                 if u.id not in approver_ids:
                     approver_ids.append(u.id)
                     approver_names.append(u.real_name or u.username)
+
+        # 排除提交人（避免自己审自己）；排除后为空则保留，避免单据永久卡住
+        if submitter_id and submitter_id in approver_ids:
+            kept = [(i, n) for i, n in zip(approver_ids, approver_names) if i != submitter_id]
+            if kept:
+                approver_ids = [i for i, _ in kept]
+                approver_names = [n for _, n in kept]
 
         if approver_ids:
             return approver_ids, approver_names, policy.approval_mode or "sequential"
@@ -317,7 +355,7 @@ async def submit_approval(db: AsyncSession, tenant_id: str, data: ApprovalSubmit
 
     # If no assignees provided, try to resolve from approval policies
     if not data.assignee_ids:
-        resolved = await _resolve_policy_approvers(db, tenant_id, data.biz_type, data.biz_id)
+        resolved = await _resolve_policy_approvers(db, tenant_id, data.biz_type, data.biz_id, user.get("sub"))
         if resolved:
             data.assignee_ids = resolved[0]
             data.assignee_names = resolved[1]
@@ -875,7 +913,7 @@ async def auto_trigger_approval(db: AsyncSession, tenant_id: str, biz_type: str,
     """Auto-trigger approval if a matching policy exists. Returns the flow or None.
     When no policy matches, notify the submitter so the submission isn't silently
     stuck in 'submitted' with no approver (was a silent no-op before)."""
-    resolved = await _resolve_policy_approvers(db, tenant_id, biz_type, biz_id)
+    resolved = await _resolve_policy_approvers(db, tenant_id, biz_type, biz_id, user.get("sub"))
     if not resolved:
         try:
             from app.domains.notification.service import send_notification

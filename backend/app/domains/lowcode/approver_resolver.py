@@ -115,10 +115,16 @@ class ApproverResolver:
             raise NoApproverError(f"不支持的审批人类型: {t}")
         ids = await fn(rule, ctx)
         active = await self._active_user_ids()
+        # exclude_initiator: 把发起人从审批人里剔除，避免「自己审自己」。
+        # 显式开关而非默认行为——creator 类型就是刻意以发起人为审批人，
+        # 全局默认排除会直接废掉该类型，也会改变线上已发布流程的行为。
+        exclude_initiator = bool(rule.get("exclude_initiator")) and t != "creator"
         # 去重保序 + 过滤停用
         seen: set[str] = set()
         out: list[str] = []
         for u in ids:
+            if exclude_initiator and u == ctx.initiator_id:
+                continue
             if u and u in active and u not in seen:
                 seen.add(u)
                 out.append(u)

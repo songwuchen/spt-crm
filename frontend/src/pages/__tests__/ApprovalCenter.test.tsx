@@ -36,6 +36,11 @@ vi.mock('@/api/user', () => ({
   userApi: { list: vi.fn() },
 }))
 
+// 审批中心会额外查一次新工作流引擎的待办数，用于提示「还有 N 条待办在流程审批中心」
+vi.mock('@/api/lowcodeWorkflow', () => ({
+  workflowApi: { todo: vi.fn() },
+}))
+
 vi.mock('@/api/client', () => ({
   default: { get: vi.fn() },
 }))
@@ -43,6 +48,7 @@ vi.mock('@/api/client', () => ({
 import ApprovalCenter from '../approval/ApprovalCenter'
 import { approvalApi } from '@/api/approval'
 import { userApi } from '@/api/user'
+import { workflowApi } from '@/api/lowcodeWorkflow'
 
 const adminUser: UserInfo = {
   id: 'u-1',
@@ -117,6 +123,7 @@ describe('ApprovalCenter', { timeout: 15000 }, () => {
     ;(approvalApi.myPending as ReturnType<typeof vi.fn>).mockResolvedValue({ data: mockPending })
     ;(approvalApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: mockFlows, total: mockFlows.length } })
     ;(userApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [], total: 0 } })
+    ;(workflowApi.todo as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [], total: 0 } })
   })
 
   it('renders page title', async () => {

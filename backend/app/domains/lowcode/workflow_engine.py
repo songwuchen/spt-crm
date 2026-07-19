@@ -98,6 +98,55 @@ class WorkflowEngine:
     def __init__(self, db: AsyncSession, tenant_id: str):
         self.db = db
         self.tenant_id = tenant_id
+        # 延迟通知队列: 审批事务内只登记意图,待 db.commit() 成功后再真正下发。
+        # 这样通知失败不会回滚审批,也不会给尚未落库的待办发推送。
+        self._notify: list[tuple] = []
+        # SLA 超时场景由 reminder_worker 负责给发起人发「因超时…」的通知(它才有超时上下文),
+        # 此时抑制引擎自己的流程结束通知,避免发起人收到两条讲同一件事的推送。
+        self._suppress_finished_notify = False
+
+    # ---------- 通知(延迟到提交后下发) ----------
+
+    def _queue(self, kind: str, *args) -> None:
+        self._notify.append((kind, *args))
+
+    async def flush_notifications(self, inst: WfProcessInstance | None = None) -> None:
+        """提交成功后统一下发通知。任何失败只记日志,绝不外抛。
+
+        必须在业务事务 commit **之后**调用。引擎内部各动作(submit/act/withdraw)已自行
+        调用;不自行提交的 fire_timeout 由其调用方(reminder_worker)在提交后调用。
+        """
+        if not self._notify:
+            return
+        pending, self._notify = self._notify, []
+        from app.domains.lowcode import wf_notify
+        for item in pending:
+            kind = item[0]
+            try:
+                if kind == "tasks_created":
+                    target = item[2] if len(item) > 2 and item[2] is not None else inst
+                    if target is not None:
+                        await wf_notify.notify_tasks_created(self.tenant_id, target, item[1])
+                elif kind == "todos_done":
+                    await wf_notify.complete_todos(self.tenant_id, item[1])
+                elif kind == "todo_done_explicit":
+                    await wf_notify.complete_todo(self.tenant_id, item[1], item[2])
+                elif kind == "finished":
+                    target = item[3] if len(item) > 3 and item[3] is not None else inst
+                    if target is not None and not self._suppress_finished_notify:
+                        await wf_notify.notify_flow_finished(self.tenant_id, target, item[1], item[2])
+                elif kind == "withdrawn":
+                    target = item[3] if len(item) > 3 and item[3] is not None else inst
+                    if target is not None:
+                        await wf_notify.notify_withdrawn(self.tenant_id, target, item[1], item[2])
+                elif kind == "empty_auto_approved":
+                    target = item[2] if len(item) > 2 and item[2] is not None else inst
+                    if target is not None:
+                        await wf_notify.notify_empty_auto_approved(self.tenant_id, target, item[1])
+            except Exception:  # pragma: no cover - 通知永不影响主流程
+                import logging
+                logging.getLogger("spt_crm.lowcode.workflow_engine").warning(
+                    "flush notification failed for %s", kind, exc_info=True)
 
     # ---------- 版本图辅助 ----------
 
@@ -156,10 +205,24 @@ class WorkflowEngine:
         self._log(inst.id, None, None, initiator, "submit", None)
 
         ctx = ApprovalContext(initiator_id=initiator.get("sub"), form_data=form_data or {}, nominated=nominated or {})
+        # 生命周期事件必须按发生顺序入队: submitted 要早于 _advance 可能产生的
+        # approved/rejected,否则流程在提交过程中直接走完时下游会先收到结束事件。
+        from app.domains.lowcode import wf_notify
+        await wf_notify.enqueue_wf_event(self.db, self.tenant_id, "workflow.submitted", inst)
         await self._advance(inst, version, start["id"], ctx)
         await self.db.commit()
         await self.db.refresh(inst)
+        await self.flush_notifications(inst)
+        await self._audit(inst, initiator, "submit")
         return inst
+
+    async def _audit(self, inst: WfProcessInstance, actor: dict, action: str) -> None:
+        from app.domains.lowcode import wf_notify
+        labels = {"submit": "提交审批", "approve": "审批通过", "reject": "审批驳回", "withdraw": "撤回审批"}
+        await wf_notify.audit(
+            self.db, self.tenant_id, inst, actor, f"wf_{action}",
+            f"{labels.get(action, action)}: {inst.title or inst.biz_type or ''}",
+        )
 
     # ---------- 推进到下一节点 ----------
 
@@ -210,12 +273,15 @@ class WorkflowEngine:
         approvers = await self._resolve_approvers(version, node, ctx)
         if not approvers:
             strategy = node.get("empty_strategy") or (node.get("config") or {}).get("empty_strategy") or "auto_approve"
+            node_name = node.get("name") or "审批"
             if strategy == "terminate":
-                await self._complete_instance(inst, "rejected")
+                await self._complete_instance(inst, "rejected", reason=f"节点「{node_name}」无审批人,流程终止")
                 self._log(inst.id, None, None, {"sub": "system"}, "auto_reject", "无审批人,流程终止")
                 return
-            # auto_approve: 跳过本节点
+            # auto_approve: 跳过本节点。这是「无人审批却放行」的高风险路径 —— 必须留痕并
+            # 通知发起人，否则单据会在无人知情的情况下被自动置为已通过(历史上的静默缺陷)。
             self._log(inst.id, None, None, {"sub": "system"}, "auto_approve", "无审批人,自动通过")
+            self._queue("empty_auto_approved", node_name, inst)
             await self._advance(inst, version, node["id"], ctx)
             return
 
@@ -233,16 +299,22 @@ class WorkflowEngine:
         self.db.add(ni)
         await self.db.flush()
 
+        fresh: list[str] = []
         for idx, uid in enumerate(approvers):
             # 顺序会签: 仅首个待办 pending,其余 waiting;或签/会签: 全部 pending
             status = "pending"
             if mode == "sequential" and idx > 0:
                 status = "waiting"
+            tid = generate_uuid()
             self.db.add(WfTaskInstance(
-                id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
+                id=tid, tenant_id=self.tenant_id, process_instance_id=inst.id,
                 node_instance_id=ni.id, assignee_id=uid, status=status, task_order=idx,
             ))
+            if status == "pending":
+                fresh.append(tid)
         await self.db.flush()
+        # 待办已落库,登记通知(站内 + 钉钉待办),提交后统一下发
+        self._queue("tasks_created", fresh, inst)
 
     async def _create_cc(self, inst, version, node, ctx) -> None:
         users = await self._resolve_approvers(version, node, ctx)
@@ -385,10 +457,16 @@ class WorkflowEngine:
         if action == "transfer":
             if not transfer_to:
                 raise BusinessException(code=VALIDATION_ERROR, message="转交需指定接收人")
+            # 钉钉待办挂在「原」审批人名下，必须先按原审批人完结，再给接收人重新下发，
+            # 否则原审批人的钉钉里会一直留着一条已经不属于他的待办。
+            self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
             task.assignee_id = transfer_to
+            task.dingtalk_todo_id = None
             task.version += 1
             self._log(inst.id, task.node_instance_id, task.id, actor, "transfer", opinion)
+            self._queue("tasks_created", [task.id], inst)
             await self.db.commit()
+            await self.flush_notifications(inst)
             return
 
         if action == "return":
@@ -401,8 +479,10 @@ class WorkflowEngine:
             task.action_at = _now()
             task.version += 1
             self._log(inst.id, task.node_instance_id, task.id, actor, "return", opinion)
+            self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
             await self._return_to_node(inst, version, target, ctx)
             await self.db.commit()
+            await self.flush_notifications(inst)
             return
 
         task.status = "approved" if action == "approve" else "rejected"
@@ -410,15 +490,22 @@ class WorkflowEngine:
         task.action_at = _now()
         task.version += 1
         self._log(inst.id, task.node_instance_id, task.id, actor, action, opinion)
+        # 本人这条待办已处理,完结其钉钉待办
+        self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
 
         if action == "reject":
-            await self._reject_flow(inst)
+            # 驳回意见随流程结束回写到业务表(如 leads.reject_reason)
+            await self._reject_flow(inst, reason=opinion)
             await self.db.commit()
+            await self.flush_notifications(inst)
+            await self._audit(inst, actor, "reject")
             return
 
         # approve → 判断节点是否完成
         await self._on_task_approved(inst, version, task, ctx)
         await self.db.commit()
+        await self.flush_notifications(inst)
+        await self._audit(inst, actor, "approve")
 
     async def _on_task_approved(self, inst, version, task, ctx) -> None:
         ni = await self.db.get(WfNodeInstance, task.node_instance_id)
@@ -429,9 +516,13 @@ class WorkflowEngine:
 
         node_done = False
         if mode == "or_sign":
+            cancelled: list[str] = []
             for s in siblings:
                 if s.id != task.id and s.status in ("pending", "waiting"):
                     s.status = "cancelled"
+                    cancelled.append(s.id)
+            # 或签一人通过即结束,其余审批人的钉钉待办要一并完结
+            self._queue("todos_done", cancelled)
             node_done = True
         elif mode == "countersign":
             node_done = all(s.status == "approved" for s in siblings)
@@ -440,6 +531,8 @@ class WorkflowEngine:
             if nxt:
                 nxt.sort(key=lambda s: s.task_order)
                 nxt[0].status = "pending"
+                # 顺序会签流转到下一位审批人,给他发通知与钉钉待办
+                self._queue("tasks_created", [nxt[0].id], inst)
                 node_done = False
             else:
                 node_done = all(s.status in ("approved", "cancelled") for s in siblings)
@@ -458,6 +551,7 @@ class WorkflowEngine:
         ))).scalars().all()
         for t in tasks:
             t.status = "cancelled"
+        self._queue("todos_done", [t.id for t in tasks])
         nis = (await self.db.execute(select(WfNodeInstance).where(
             WfNodeInstance.process_instance_id == inst.id,
             WfNodeInstance.status == "running",
@@ -468,7 +562,7 @@ class WorkflowEngine:
         # 重新激活目标节点（会重新解析审批人并建待办）
         await self._activate_node(inst, version, target, ctx)
 
-    async def _reject_flow(self, inst) -> None:
+    async def _reject_flow(self, inst, reason: str | None = None) -> None:
         # 作废所有未处理待办,流程置驳回
         tasks = (await self.db.execute(
             select(WfTaskInstance).where(
@@ -478,11 +572,13 @@ class WorkflowEngine:
         )).scalars().all()
         for t in tasks:
             t.status = "cancelled"
-        await self._complete_instance(inst, "rejected")
+        # 被作废的待办要一并完结其钉钉待办,否则会一直挂在审批人的钉钉里
+        self._queue("todos_done", [t.id for t in tasks])
+        await self._complete_instance(inst, "rejected", reason=reason)
 
     # ---------- 收尾 / 回写 ----------
 
-    async def _complete_instance(self, inst, status: str) -> None:
+    async def _complete_instance(self, inst, status: str, reason: str | None = None) -> None:
         inst.status = status
         inst.completed_at = _now()
         await self.db.flush()
@@ -491,10 +587,19 @@ class WorkflowEngine:
             fi = await self.db.get(FormInstance, inst.form_instance_id)
             if fi:
                 fi.status = status  # completed / rejected
-        # 回写既有业务单据(灰度替换旧审批引擎): 按 biz_type 更新业务表状态列
+        # 回写既有业务单据(灰度替换旧审批引擎): 按 biz_type 更新业务表状态列。
+        # reason 用于把驳回意见落到业务表(如 leads.reject_reason),通过时清空。
         if inst.biz_type and inst.biz_id:
             from app.domains.lowcode.wf_biz_writeback import writeback
-            await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, status)
+            await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, status, reason=reason)
+        # outbox 领域事件必须在 commit 之前入队
+        from app.domains.lowcode import wf_notify
+        await wf_notify.enqueue_wf_event(
+            self.db, self.tenant_id,
+            "workflow.approved" if status == "completed" else "workflow.rejected",
+            inst, {"reason": reason} if reason else None,
+        )
+        self._queue("finished", status, reason, inst)
 
     async def _form_data(self, inst) -> dict:
         if inst.form_instance_id:
@@ -532,6 +637,7 @@ class WorkflowEngine:
                 WfTaskInstance.status.in_(["pending", "waiting"]),
             )
         )).scalars().all()
+        current_assignees = [t.assignee_id for t in tasks if t.status == "pending"]
         for t in tasks:
             t.status = "cancelled"
         inst.status = "withdrawn"
@@ -541,7 +647,15 @@ class WorkflowEngine:
             fi = await self.db.get(FormInstance, inst.form_instance_id)
             if fi:
                 fi.status = "withdrawn"
+        # 被撤回而作废的待办，完结其钉钉待办并通知当前审批人（对齐旧引擎 withdraw_flow）。
+        # 注意：撤回**不**回写业务单据状态——旧引擎同样不回写，此处刻意保持一致。
+        self._queue("todos_done", [t.id for t in tasks])
+        self._queue("withdrawn", current_assignees, actor, inst)
+        from app.domains.lowcode import wf_notify
+        await wf_notify.enqueue_wf_event(self.db, self.tenant_id, "workflow.withdrawn", inst)
         await self.db.commit()
+        await self.flush_notifications(inst)
+        await self._audit(inst, actor, "withdraw")
 
     # ---------- 超时(SLA) ----------
 
@@ -556,6 +670,9 @@ class WorkflowEngine:
         cfg = dict(ni.config or {})
         to = cfg.get("timeout") or {}
         action = to.get("action", "notify")
+        # 超时场景下由 reminder_worker 给发起人发带「超时」上下文的通知(见下方 notify 返回值),
+        # 引擎自己的流程结束通知会与之重复,故在这条路径上抑制。
+        self._suppress_finished_notify = True
         inst = await self.db.get(WfProcessInstance, ni.process_instance_id)
         notify: dict | None = None
         sys_actor = {"sub": "system", "real_name": "系统"}
@@ -602,7 +719,7 @@ class WorkflowEngine:
                 t.status = "rejected"; t.opinion = "超时自动驳回"; t.action_at = _now(); t.version += 1
             self._log(inst.id, ni.id, None, sys_actor, "auto_reject", "审批超时,自动驳回")
             ni.status = "rejected"; ni.completed_at = _now()
-            await self._reject_flow(inst)
+            await self._reject_flow(inst, reason="超时自动驳回")
             notify = {"recipients": [inst.initiator_id], "title": f"审批超时自动驳回: {inst.title or '流程'}",
                       "content": "一条审批因超时已自动驳回。", "instance_id": inst.id}
         elif action == "auto_transfer":
@@ -612,7 +729,10 @@ class WorkflowEngine:
             ))).scalars().all()
             if to_user:
                 for t in pend:
-                    t.assignee_id = to_user; t.version += 1
+                    # 转交前先按原处理人完结其钉钉待办，再给接收人重新下发
+                    self._queue("todo_done_explicit", t.assignee_id, getattr(t, "dingtalk_todo_id", None))
+                    t.assignee_id = to_user; t.dingtalk_todo_id = None; t.version += 1
+                self._queue("tasks_created", [t.id for t in pend], inst)
                 self._log(inst.id, ni.id, None, sys_actor, "auto_transfer", "审批超时,自动转交")
                 notify = {"recipients": [to_user], "title": f"审批超时转交给你: {inst.title or '待办'}",
                           "content": "一条审批因原处理人超时已转交给你,请尽快处理。", "instance_id": inst.id}

@@ -19,6 +19,11 @@ export function notificationTarget(bizType?: string, bizId?: string): string | n
     case 'approval':
       // 移动端有按流程的详情页；Web 端用审批中心列表
       return mobile ? (bizId ? `/m/approvals/${bizId}` : '/m/approvals') : '/approvals'
+    case 'wf_instance':
+      // 新工作流引擎的流程实例，走扩展平台审批中心（与旧引擎分属不同路由树）
+      return mobile
+        ? (bizId ? `/m/lowcode/approvals/${bizId}` : '/m/lowcode/approvals')
+        : '/lowcode/approvals'
     case 'lead':
       return bizId ? `${p}/leads/${bizId}` : `${p}/leads`
     case 'service_ticket':

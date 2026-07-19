@@ -89,9 +89,11 @@ async def list_versions(def_id: str, tenant_id: str = Depends(get_tenant_id),
 
 @router.get("/tasks/todo")
 async def my_todo(pageNo: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100),
+                  biz_type: str | None = Query(None), biz_id: str | None = Query(None),
                   tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
                   user: dict = Depends(get_current_user)):
-    items, total = await wsvc.list_todo(db, tenant_id, user.get("sub"), pageNo, pageSize)
+    items, total = await wsvc.list_todo(db, tenant_id, user.get("sub"), pageNo, pageSize,
+                                        biz_type=biz_type, biz_id=biz_id)
     return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 

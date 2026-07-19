@@ -3,6 +3,7 @@ import { Tabs, Table, Tag, Space, Modal, Input, Button, message, Spin, Checkbox,
 import { CheckCircleOutlined, CloseCircleOutlined, SwapOutlined, UndoOutlined, RedoOutlined, BarChartOutlined, FilterOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { approvalApi } from '@/api/approval'
+import { workflowApi } from '@/api/lowcodeWorkflow'
 import client from '@/api/client'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type { ApprovalFlowItem, ApprovalPendingItem } from '@/api/types'
@@ -54,6 +55,8 @@ export default function ApprovalCenter() {
 
   // Statistics
   const [stats, setStats] = useState<Record<string, unknown> | null>(null)
+  // 新工作流引擎里的待办数（本页只展示旧引擎的数据）
+  const [wfPendingCount, setWfPendingCount] = useState(0)
   const [statsLoading, setStatsLoading] = useState(false)
 
   const fetchData = async () => {
@@ -65,6 +68,14 @@ export default function ApprovalCenter() {
       ])
       setPending(pRes.data || [])
       setAllFlows(fRes.data?.items || [])
+      // 已切到新工作流引擎的业务(线索等)待办不在本页数据源里，单独取个数用于给出入口，
+      // 避免用户在本页看不到待办而误以为没有。失败不影响本页主数据。
+      try {
+        const wfRes = await workflowApi.todo({ pageNo: 1, pageSize: 100 })
+        setWfPendingCount(wfRes?.data?.total ?? 0)
+      } catch {
+        setWfPendingCount(0)
+      }
     } finally {
       setLoading(false)
     }
@@ -376,6 +387,16 @@ export default function ApprovalCenter() {
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">审批中心</h1>
         <p className="text-sm text-slate-500 mt-1">管理待审批任务和审批历史</p>
       </div>
+
+      {wfPendingCount > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-3">
+          <div className="text-sm text-slate-700">
+            你还有 <span className="font-bold text-amber-700">{wfPendingCount}</span> 条待办在
+            「流程审批中心」（线索等业务已使用可视化流程引擎），不在本页列表中。
+          </div>
+          <Button type="primary" onClick={() => navigate('/lowcode/approvals')}>前往处理</Button>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
         <Tabs defaultActiveKey="pending" className="px-4 pt-2"

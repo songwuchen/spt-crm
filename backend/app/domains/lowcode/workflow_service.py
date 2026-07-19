@@ -1,9 +1,11 @@
 """扩展平台 — 审批流程引擎服务(定义生命周期 + 运行时查询 + 表单绑定触发)。"""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import BusinessException
@@ -15,6 +17,9 @@ from app.domains.lowcode.workflow_models import (
     WfNodeInstance, WfTaskInstance, WfTaskActionLog, WfProcessComment, WfProcessCc,
 )
 from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+
+logger = logging.getLogger("spt_crm.lowcode.workflow")
 
 
 def _now() -> datetime:
@@ -173,17 +178,125 @@ async def maybe_start_for_form(db, tenant_id, template_id, form_instance, user, 
     )
 
 
+SYSTEM_DEFAULT_CATEGORY = "system_default"
+# 系统兜底流程排在最后，租户自建流程(sort_order 默认 0)优先命中
+_SYSTEM_DEFAULT_SORT = 9999
+
+
+async def ensure_default_definition(
+    db, tenant_id, biz_type: str, code: str, name: str,
+    approver_rule: dict, multi_mode: str = "or_sign",
+    empty_strategy: str = "auto_approve",
+) -> WfProcessDefinition | None:
+    """为某 biz_type 兜底创建并发布一条「默认流程」(start → 审批 → end)。
+
+    用途：业务已经完全切到新引擎，但租户还没在设计器里画流程时，不能让审批凭空消失。
+    默认流程用引擎自己的规则语言表达原有的兜底审批人（如线索的 lead_intel 内勤角色），
+    这样运行时无需任何特判，管理员也能在流程列表里看到并改它。
+
+    已存在任何已发布的同 biz_type 流程时不做任何事（租户自建的优先）。
+
+    若系统兜底流程曾被软删或取消发布，这里会把它**恢复并重新发布**：业务侧
+    (如 create_lead)是无条件提交审核的，没有任何可用流程就只能免审放行 ——
+    删掉一条流程不应该等于永久关闭审核门禁。恢复会记 warning。
+    真要免审的租户应当去配一条自动通过的流程，而不是把流程删掉。
+    """
+    existing = (await db.execute(select(WfProcessDefinition).where(
+        WfProcessDefinition.tenant_id == tenant_id,
+        WfProcessDefinition.biz_type == biz_type,
+        WfProcessDefinition.status == "published",
+        WfProcessDefinition.is_deleted == False,  # noqa: E712
+    ).limit(1))).scalar_one_or_none()
+    if existing:
+        return existing
+
+    nodes = [
+        {"id": "start", "type": "start", "name": "发起"},
+        {"id": "approval_1", "type": "approval", "name": name,
+         "approver_rule": approver_rule, "multi_mode": multi_mode,
+         "empty_strategy": empty_strategy},
+        {"id": "end", "type": "end", "name": "结束"},
+    ]
+    routes = [
+        {"id": "r_start", "source": "start", "target": "approval_1"},
+        {"id": "r_end", "source": "approval_1", "target": "end"},
+    ]
+
+    # 同 code 的兜底流程可能已存在但被软删/取消发布 —— 唯一索引 (tenant_id, code)
+    # 不区分软删，直接插入会撞唯一键，所以先查后复活。
+    mine = (await db.execute(select(WfProcessDefinition).where(
+        WfProcessDefinition.tenant_id == tenant_id,
+        WfProcessDefinition.code == code,
+    ).limit(1))).scalar_one_or_none()
+    if mine is not None:
+        return await _revive_default_definition(db, tenant_id, mine, nodes, routes)
+
+    d = WfProcessDefinition(
+        id=generate_uuid(), tenant_id=tenant_id, name=name, code=code,
+        description="系统默认流程（未配置可视化流程时兜底使用，可直接编辑）",
+        category=SYSTEM_DEFAULT_CATEGORY, biz_type=biz_type,
+        status="published", current_version=1, sort_order=_SYSTEM_DEFAULT_SORT,
+    )
+    db.add(d)
+    v = WfProcessDefinitionVersion(
+        id=generate_uuid(), tenant_id=tenant_id, process_definition_id=d.id,
+        version_number=1, node_definitions=nodes, route_definitions=routes,
+        approver_rules=[], status="published", published_at=_now(),
+    )
+    db.add(v)
+    try:
+        await db.commit()
+    except IntegrityError:
+        # 并发下另一个请求已建好同 code 的定义，回滚后取它（此时它一定是可用的）
+        await db.rollback()
+        return (await db.execute(select(WfProcessDefinition).where(
+            WfProcessDefinition.tenant_id == tenant_id,
+            WfProcessDefinition.code == code,
+        ).limit(1))).scalar_one_or_none()
+    return d
+
+
+async def _revive_default_definition(
+    db, tenant_id: str, d: WfProcessDefinition, nodes: list, routes: list,
+) -> WfProcessDefinition:
+    """把被软删/取消发布的系统兜底流程恢复为可用状态，必要时补一个已发布版本。"""
+    logger.warning(
+        "系统兜底流程 %s(biz_type=%s, tenant=%s) 处于不可用状态(is_deleted=%s, status=%s)，"
+        "已自动恢复并重新发布，以免该业务的审核被静默跳过。",
+        d.code, d.biz_type, tenant_id, d.is_deleted, d.status,
+    )
+    d.is_deleted = False
+    d.status = "published"
+    version = await _published_version(db, tenant_id, d.id)
+    if version is None:
+        latest = await _latest_version(db, tenant_id, d.id)
+        version = WfProcessDefinitionVersion(
+            id=generate_uuid(), tenant_id=tenant_id, process_definition_id=d.id,
+            version_number=(latest.version_number + 1) if latest else 1,
+            node_definitions=nodes, route_definitions=routes,
+            approver_rules=[], status="published", published_at=_now(),
+        )
+        db.add(version)
+    d.current_version = version.version_number
+    await db.commit()
+    return d
+
+
 async def start_for_biz(
     db, tenant_id, biz_type, biz_id, user, title=None, form_data=None,
 ) -> WfProcessInstance | None:
     """既有业务单据(报价/合同/订单/线索...)提交审批: 若该 biz_type 绑定了已发布流程,
     起新引擎流程并承载 (biz_type, biz_id);完成/驳回后由引擎回写业务表状态(wf_biz_writeback)。
     与旧 approval 引擎并存,按 biz_type 灰度切换。未绑定流程则返回 None(走原有逻辑)。"""
+    # 同一 biz_type 可能同时存在租户自建流程与系统兜底流程；按 sort_order/created_at
+    # 排序保证命中是确定的，且租户自建(sort_order=0)优先于系统兜底(sort_order=9999)。
     d = (await db.execute(select(WfProcessDefinition).where(
         WfProcessDefinition.tenant_id == tenant_id,
         WfProcessDefinition.biz_type == biz_type,
         WfProcessDefinition.status == "published",
         WfProcessDefinition.is_deleted == False,  # noqa: E712
+    ).order_by(
+        WfProcessDefinition.sort_order.asc(), WfProcessDefinition.created_at.asc()
     ).limit(1))).scalar_one_or_none()
     if not d:
         return None
@@ -216,12 +329,21 @@ async def start_for_biz(
 
 # ==================== 运行时查询 ====================
 
-async def list_todo(db, tenant_id, user_id, page_no, page_size):
+async def list_todo(db, tenant_id, user_id, page_no, page_size, biz_type=None, biz_id=None):
+    """我的待办。biz_type/biz_id 可选，用于业务详情页精确查「这单是否轮到我审」——
+    否则调用方只能拉一页待办再在前端过滤，待办多时会漏掉。"""
     # 待办 = 本人被指派 + 本人作为「有效代理人」代办的委托人任务
     principals = await active_principals(db, tenant_id, user_id)
     assignees = [user_id, *principals]
     conds = [WfTaskInstance.tenant_id == tenant_id, WfTaskInstance.assignee_id.in_(assignees),
              WfTaskInstance.status == "pending"]
+    if biz_type or biz_id:
+        inst_q = select(WfProcessInstance.id).where(WfProcessInstance.tenant_id == tenant_id)
+        if biz_type:
+            inst_q = inst_q.where(WfProcessInstance.biz_type == biz_type)
+        if biz_id:
+            inst_q = inst_q.where(WfProcessInstance.biz_id == biz_id)
+        conds.append(WfTaskInstance.process_instance_id.in_(inst_q))
     total = (await db.execute(select(func.count()).select_from(WfTaskInstance).where(*conds))).scalar_one()
     tasks = (await db.execute(select(WfTaskInstance).where(*conds)
              .order_by(WfTaskInstance.created_at.desc())
@@ -251,15 +373,21 @@ async def list_initiated(db, tenant_id, user_id, page_no, page_size):
 async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None = None) -> list[dict]:
     # 若含代办任务，批量解析委托人姓名用于「代 XX 审批」标注
     principal_ids = {t.assignee_id for t in tasks if viewer_id and t.assignee_id != viewer_id}
+    insts = {}
+    for t in tasks:
+        if t.process_instance_id not in insts:
+            insts[t.process_instance_id] = await db.get(WfProcessInstance, t.process_instance_id)
+    # 发起人姓名: 列表要显示「XX 发起」，与待办的代理人姓名一起批量解析，避免逐条查询
+    wanted = set(principal_ids) | {i.initiator_id for i in insts.values() if i and i.initiator_id}
     name_map: dict[str, str] = {}
-    if principal_ids:
+    if wanted:
         from app.domains.auth.models import User
         rows = (await db.execute(select(User.id, User.real_name, User.username)
-                .where(User.id.in_(principal_ids)))).all()
+                .where(User.id.in_(wanted)))).all()
         name_map = {r[0]: (r[1] or r[2]) for r in rows}
     out = []
     for t in tasks:
-        inst = await db.get(WfProcessInstance, t.process_instance_id)
+        inst = insts.get(t.process_instance_id)
         on_behalf = viewer_id is not None and t.assignee_id != viewer_id
         out.append({
             "task_id": t.id, "status": t.status, "opinion": t.opinion,
@@ -267,7 +395,11 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
             "title": inst.title if inst else None,
             "business_no": inst.business_no if inst else None,
             "initiator_id": inst.initiator_id if inst else None,
+            "initiator_name": name_map.get(inst.initiator_id) if inst else None,
             "process_status": inst.status if inst else None,
+            # 承载的业务单据：调用方据此把待办关联回业务详情页(如线索详情页的内联审批卡)
+            "biz_type": inst.biz_type if inst else None,
+            "biz_id": inst.biz_id if inst else None,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "action_at": t.action_at.isoformat() if t.action_at else None,
             # 代理审批：非本人被指派的待办 = 代办，标注委托人
