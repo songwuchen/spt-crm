@@ -6,6 +6,7 @@ import { quoteApi } from '@/api/quote'
 import { contractApi } from '@/api/contract'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { quoteStatusLabels } from '@/constants/labels'
+import { fmtMoney, fmtPct } from '@/utils/mask'
 
 interface VersionInfo {
   id: string; version_no: number; title?: string; status: string
@@ -23,10 +24,7 @@ const itemTypeLabels: Record<string, string> = {
   standard: '标准', custom: '定制', service: '服务', spare: '备件',
 }
 
-// 成本/毛利/折扣无权限时被后端脱敏为 "***"，渲染前识别以避免显示 "NaN"。
-const isMasked = (v: unknown): boolean => typeof v === 'string' && !Number.isFinite(Number(v))
-const fmtMoney = (v: unknown): string => (v == null ? '-' : isMasked(v) ? '***' : `¥${Number(v).toLocaleString()}`)
-const fmtPct = (v: unknown): string => (v == null ? '-' : isMasked(v) ? '***' : `${(Number(v) * 100).toFixed(1)}%`)
+// 脱敏值的识别与格式化统一走 @/utils/mask
 
 export default function MobileQuoteDetail() {
   usePageTitle('报价详情')

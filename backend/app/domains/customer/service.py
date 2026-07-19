@@ -188,9 +188,16 @@ async def get_customer(db: AsyncSession, tenant_id: str, customer_id: str) -> Cu
 async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate, user: dict) -> Customer:
     dump = data.model_dump()
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
-    from app.domains.lowcode.field_permission import sanitize_entity_write
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     dump["custom_fields_json"] = await sanitize_entity_write(
         db, tenant_id, "customer", dump.get("custom_fields_json"), None, user.get("roles"))
+    await validate_entity_custom_fields(
+        db, tenant_id, "customer", dump["custom_fields_json"], user.get("roles"))
+    # 原生字段策略：读取侧已按角色隐藏/脱敏，写入侧必须对称拦截，
+    # 否则拿到 "***" 的用户一提交就会把真实值覆盖掉
+    dump = await enforce_native_field_policy(db, tenant_id, "customer", dump, None, user.get("roles"))
     if not dump.get("customer_code"):
         dump["customer_code"] = await generate_code(db, tenant_id, "customer")
     # Resolve owner_name from owner_id if provided; default to creator
@@ -236,10 +243,16 @@ async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, da
     customer = await get_customer(db, tenant_id, customer_id)
     update_data = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     if "custom_fields_json" in update_data:
-        from app.domains.lowcode.field_permission import sanitize_entity_write
         update_data["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "customer", update_data["custom_fields_json"], customer.custom_fields_json, user.get("roles"))
+        await validate_entity_custom_fields(
+            db, tenant_id, "customer", update_data["custom_fields_json"], user.get("roles"))
+    update_data = await enforce_native_field_policy(
+        db, tenant_id, "customer", update_data, customer, user.get("roles"), required_scope="payload")
     # 最新修改人
     update_data["updated_by_id"] = user.get("sub")
     update_data["updated_by_name"] = user.get("real_name") or user.get("username")
@@ -518,9 +531,14 @@ async def create_contact(db: AsyncSession, tenant_id: str, customer_id: str, dat
 
     dump = data.model_dump()
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
-    from app.domains.lowcode.field_permission import sanitize_entity_write
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     dump["custom_fields_json"] = await sanitize_entity_write(
         db, tenant_id, "contact", dump.get("custom_fields_json"), None, user.get("roles"))
+    await validate_entity_custom_fields(
+        db, tenant_id, "contact", dump["custom_fields_json"], user.get("roles"))
+    dump = await enforce_native_field_policy(db, tenant_id, "contact", dump, None, user.get("roles"))
     contact = Contact(
         id=generate_uuid(), tenant_id=tenant_id,
         customer_id=customer_id, **dump,
@@ -544,10 +562,16 @@ async def update_contact(db: AsyncSession, tenant_id: str, contact_id: str, data
 
     _dump = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     if "custom_fields_json" in _dump:
-        from app.domains.lowcode.field_permission import sanitize_entity_write
         _dump["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "contact", _dump["custom_fields_json"], contact.custom_fields_json, user.get("roles"))
+        await validate_entity_custom_fields(
+            db, tenant_id, "contact", _dump["custom_fields_json"], user.get("roles"))
+    _dump = await enforce_native_field_policy(
+        db, tenant_id, "contact", _dump, contact, user.get("roles"), required_scope="payload")
     for field, val in _dump.items():
         setattr(contact, field, val)
     await db.commit()

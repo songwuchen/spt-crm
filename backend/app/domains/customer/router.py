@@ -174,11 +174,14 @@ async def export_customers_excel(
     from app.config import settings
     items, _ = await service.list_customers(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, industry, region, owner_id, current_user=_user)
     headers = ["客户编码", "客户名称", "简称", "行业", "规模", "地区", "地址", "负责人", "来源", "级别", "状态", "创建时间"]
+    # 导出与列表/详情同口径脱敏（隐藏→空、脱敏→***）
+    from app.domains.lowcode.field_permission import entity_field_restrictions, export_cell
+    rst = await entity_field_restrictions(db, tenant_id, "customer", _user.get("roles"))
     rows = []
     for c in items:
         rows.append([
-            c.customer_code, c.name, c.short_name or "", c.industry or "",
-            c.scale_level or "", _format_region(c), c.address or "",
+            c.customer_code, export_cell(rst, "name", c.name), c.short_name or "", c.industry or "",
+            c.scale_level or "", _format_region(c), export_cell(rst, "address", c.address or ""),
             c.owner_name or "", c.source or "", c.level or "", c.status or "",
             c.created_at.strftime("%Y-%m-%d %H:%M") if c.created_at else "",
         ])

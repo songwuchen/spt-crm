@@ -16,8 +16,10 @@ export interface ColumnState {
 export interface ColMeta {
   key: string
   title: React.ReactNode
-  /** 是否为可选调出的自定义字段列（默认隐藏，用 shown 而非 hidden 控制显隐）。 */
+  /** 是否为可选调出的列（默认隐藏，用 shown 而非 hidden 控制显隐）。 */
   optIn?: boolean
+  /** 是否来自扩展(自定义)字段，仅用于在列配置面板打「自定义」标签。 */
+  custom?: boolean
 }
 
 export interface ListSort {
@@ -99,7 +101,9 @@ export function useListView<T = any>(
       .map((c) => ({
         key: colKey(c),
         title: (c as any).settingTitle ?? (c as any).title,
-        optIn: !!(c as any).__customField,
+        // 扩展字段列天然可调出；原生列可用 __optIn 单独声明为「默认隐藏、可调出」
+        optIn: !!((c as any).__optIn || (c as any).__customField),
+        custom: !!(c as any).__customField,
       }))
       .filter((c) => c.key && c.title),
     [allColumns],
@@ -122,8 +126,8 @@ export function useListView<T = any>(
     return ordered.filter((c) => {
       const k = colKey(c)
       if (!k) return true
-      // 自定义字段列：默认隐藏，需在 shown 白名单里才显示
-      if ((c as any).__customField) return shown.includes(k)
+      // 可调出的列（扩展字段列 + 声明了 __optIn 的原生列）：默认隐藏，需在 shown 白名单里才显示
+      if ((c as any).__optIn || (c as any).__customField) return shown.includes(k)
       return !colState.hidden.includes(k)
     })
   }, [allColumns, colState])

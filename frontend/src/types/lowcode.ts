@@ -29,10 +29,29 @@ export interface FieldDefinition {
   detail_table_columns?: FieldDefinition[]
   is_indexed?: boolean
   span?: number // 栅格: 6/8/12/24, 默认 24
-  // 字段级权限(角色 code)。空/缺省 = 不限制。visible_roles: 谁可见; edit_roles: 谁可编辑。
+  // 字段级权限(角色 code)。空/缺省 = 不限制。递进：隐藏 > 脱敏 > 只读。
+  // visible_roles: 谁可见; unmask_roles: 谁可见明文(其余人得 "***"); edit_roles: 谁可编辑。
   visible_roles?: string[] | null
+  unmask_roles?: string[] | null
   edit_roles?: string[] | null
+  masked?: boolean // 后端读取时对已脱敏字段的标记
   readonly?: boolean // 后端 get_instance 对不可编辑字段的标记(只读渲染)
+  // 原生字段(业务表内置列，如线索的 industry)标记。其值存业务列而非 custom_fields_json，
+  // 设计器里不可删除/改类型；system_required 为真时连「必填」也不可改（列本身 NOT NULL）。
+  native?: boolean
+  system_required?: boolean
+  options_source?: string | null
+  /** 仅当租户确实改过标签时才有值；业务表单据此覆盖自己的默认 label。 */
+  label_override?: string
+  /** 派生显示键(owner_id → owner_name)，隐藏/脱敏时须连带处理。 */
+  companions?: string[]
+}
+
+/** 业务实体表单的完整字段策略：原生字段 + 扩展字段 + 规则。 */
+export interface EntityFormSchema {
+  native_fields: FieldDefinition[]
+  field_definitions: FieldDefinition[]
+  rule_definitions: FormRule[]
 }
 
 export interface FormRule {
@@ -70,7 +89,7 @@ export function isConditionGroup(node: RuleConditionNode): node is RuleCondition
   return !!node && Array.isArray((node as RuleConditionGroup).cond)
 }
 
-export type FieldPermissionAccess = 'editable' | 'readonly' | 'hidden' | 'required'
+export type FieldPermissionAccess = 'editable' | 'readonly' | 'hidden' | 'required' | 'masked'
 
 export interface FieldPermission {
   fieldId: string
@@ -81,6 +100,8 @@ export interface FieldState {
   visible: boolean
   readonly: boolean
   required: boolean
+  /** 脱敏：字段仍显示但只给 "***"，且一律不可编辑（看不到明文就不该覆盖真实值）。 */
+  masked: boolean
 }
 
 export interface FieldComponentProps {

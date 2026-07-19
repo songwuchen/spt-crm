@@ -33,7 +33,7 @@ export const settingsApi = {
 
   // Feature toggles
   listFeatures: () => client.get('/api/admin/v1/tenant/features'),
-  updateFeature: (code: string, data: { enabled: boolean }) =>
+  updateFeature: (code: string, data: { enabled?: boolean; config_json?: Record<string, unknown> }) =>
     client.put(`/api/admin/v1/tenant/features/${code}`, data),
 
   // Approval policies
@@ -96,11 +96,6 @@ export const settingsApi = {
   getPoolRules: () => client.get('/api/admin/v1/tenant/pool_rules'),
   updatePoolRules: (data: Record<string, unknown>) =>
     client.put('/api/admin/v1/tenant/pool_rules', data),
-
-  // Field rules
-  getFieldRules: () => client.get('/api/admin/v1/tenant/field_rules'),
-  updateFieldRules: (data: Array<Record<string, unknown>>) =>
-    client.put('/api/admin/v1/tenant/field_rules', data),
 
   // Report schedules
   getReportSchedules: () => client.get('/api/admin/v1/tenant/report_schedules'),

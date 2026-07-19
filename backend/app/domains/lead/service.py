@@ -55,7 +55,7 @@ async def list_leads(
     country_type: str | None = None, province: str | None = None,
     department_id: str | None = None, industry: str | None = None,
     company_name: str | None = None,
-    start_date=None, end_date=None,
+    start_date=None, end_date=None, date_field: str | None = None,
     current_user: dict | None = None,
     adv_filter: str | None = None, sort_by: str | None = None, sort_order: str | None = None,
 ):
@@ -64,10 +64,17 @@ async def list_leads(
         base = base.where(Lead.title.ilike(f"%{keyword}%") | Lead.company_name.ilike(f"%{keyword}%") | Lead.lead_code.ilike(f"%{keyword}%"))
     if company_name:
         base = base.where(Lead.company_name.ilike(f"%{company_name}%"))
-    if start_date:
-        base = base.where(Lead.created_at >= datetime.combine(start_date, datetime.min.time()))
-    if end_date:
-        base = base.where(Lead.created_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time()))
+    # 日期区间可按「创建时间」(默认，DateTime) 或「业务日期」(biz_date，Date) 筛选。
+    if date_field == "biz_date":
+        if start_date:
+            base = base.where(Lead.biz_date >= start_date)
+        if end_date:
+            base = base.where(Lead.biz_date <= end_date)
+    else:
+        if start_date:
+            base = base.where(Lead.created_at >= datetime.combine(start_date, datetime.min.time()))
+        if end_date:
+            base = base.where(Lead.created_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time()))
     if status:
         base = base.where(Lead.status == status)
     if isinstance(owner_id, (list, tuple, set)):
@@ -200,9 +207,15 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     products = data.products  # 产品明细单独处理，不能 setattr 到模型
     payload.pop("products", None)
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
-    from app.domains.lowcode.field_permission import sanitize_entity_write
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     payload["custom_fields_json"] = await sanitize_entity_write(
         db, tenant_id, "lead", payload.get("custom_fields_json"), None, user.get("roles"))
+    await validate_entity_custom_fields(
+        db, tenant_id, "lead", payload["custom_fields_json"], user.get("roles"))
+    # 原生字段的租户策略（必填/条件显隐/只读/字段级权限）同样在后端强制
+    payload = await enforce_native_field_policy(db, tenant_id, "lead", payload, None, user.get("roles"))
     # If user picked an owner in the form, look up that user's name; otherwise fall back to creator.
     chosen_owner_id = payload.pop("owner_id", None)
     if chosen_owner_id:
@@ -268,10 +281,17 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     products_given = "products" in payload
     payload.pop("products", None)  # 产品明细单独处理
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     if "custom_fields_json" in payload:
-        from app.domains.lowcode.field_permission import sanitize_entity_write
         payload["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "lead", payload["custom_fields_json"], lead.custom_fields_json, user.get("roles"))
+        await validate_entity_custom_fields(
+            db, tenant_id, "lead", payload["custom_fields_json"], user.get("roles"))
+    # 原生字段策略：必填只校验本次提交携带的字段，避免批量改派/废弃被历史数据卡住
+    payload = await enforce_native_field_policy(
+        db, tenant_id, "lead", payload, lead, user.get("roles"), required_scope="payload")
     # 审核门禁：未通过审核的线索不可经编辑直接置为「已转化」(移动端转化走 update)
     if payload.get("status") == "qualified" and getattr(lead, "review_status", "approved") != "approved":
         from app.common.error_codes import VALIDATION_ERROR

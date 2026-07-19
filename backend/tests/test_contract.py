@@ -84,3 +84,48 @@ async def test_contract_from_quote(client: AsyncClient, auth_headers: dict):
     await client.delete(f"/api/v1/quotes/{quote_id}", headers=h)
     await client.delete(f"/api/v1/projects/{proj_id}", headers=h)
     await client.delete(f"/api/v1/customers/{cust_id}", headers=h)
+
+
+async def _publish_contract_native_override(client: AsyncClient, h: dict, overrides: list[dict]):
+    tpl = (await client.get("/api/v1/lc/entity-templates/contract", headers=h)).json()["data"]
+    body = {"field_definitions": overrides, "layout_definition": {}, "rule_definitions": []}
+    assert (await client.post(f"/api/v1/lc/form-templates/{tpl['id']}/design",
+                              headers=h, json=body)).json()["code"] == 0
+    assert (await client.post(f"/api/v1/lc/form-templates/{tpl['id']}/publish",
+                              headers=h)).json()["code"] == 0
+
+
+async def test_masked_contract_amount_cannot_be_overwritten(client: AsyncClient, auth_headers: dict):
+    """被脱敏的合同金额不得被写回。
+
+    回归：读取侧把 amount_total 换成 "***"，编辑弹窗把它绑进 InputNumber，用户随手一存
+    就会用 null 覆盖真实金额。读取侧脱敏必须与写入侧拦截成对出现。
+    """
+    h = auth_headers
+    cust_id = (await client.post("/api/v1/customers", json={"name": "脱敏合同客户"},
+                                 headers=h)).json()["data"]["id"]
+    proj_id = (await client.post("/api/v1/projects", json={
+        "name": "脱敏合同商机", "customer_id": cust_id, "stage_code": "S1",
+    }, headers=h)).json()["data"]["id"]
+    contract_id = (await client.post(f"/api/v1/projects/{proj_id}/contracts",
+                                     json={"amount_total": 88888}, headers=h)
+                   ).json()["data"]["contract"]["id"]
+
+    try:
+        await _publish_contract_native_override(client, h, [
+            {"id": "amount_total", "native": True, "label": "合同金额", "type": "amount",
+             "unmask_roles": ["__finance_only__"]},
+        ])
+
+        detail = (await client.get(f"/api/v1/contracts/{contract_id}", headers=h)).json()["data"]
+        assert detail["amount_total"] == "***", "读取侧应脱敏"
+
+        # 模拟编辑弹窗把脱敏值原样提交回来
+        await client.put(f"/api/v1/contracts/{contract_id}", headers=h, json={"amount_total": None})
+
+        await _publish_contract_native_override(client, h, [])
+        after = (await client.get(f"/api/v1/contracts/{contract_id}", headers=h)).json()["data"]
+        assert after["amount_total"] == 88888, "脱敏字段的写入必须被丢弃，不得覆盖真实金额"
+    finally:
+        await _publish_contract_native_override(client, h, [])
+        await client.delete(f"/api/v1/contracts/{contract_id}", headers=h)

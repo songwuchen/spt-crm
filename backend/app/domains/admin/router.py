@@ -318,29 +318,22 @@ async def update_report_schedules(body: list, tenant_id: str = Depends(get_tenan
     return ok(body)
 
 
-# ==================== Tenant: Field Rules ====================
+@router.get("/api/admin/v1/tenant/field-mask-defaults")
+async def get_field_mask_defaults(_user=Depends(require_permissions("role:manage"))):
+    """按权限脱敏的出厂默认策略。
 
-@router.get("/api/admin/v1/tenant/field_rules")
-async def get_field_rules(tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
-    """Get field-level visibility/masking rules per role."""
-    p = await service.get_profile(db, tenant_id)
-    rules = (p.security_policy_json or {}).get("field_rules", []) if p else []
-    return ok(rules)
+    配置页在租户尚无自有配置时用它预填编辑器 —— 这样「保存空列表」就明确表示
+    「一条规则都不要」，而不是让人以为默认策略还在背后生效。
+    """
+    from app.common.field_mask import DEFAULT_MASK_POLICIES
+    return ok(DEFAULT_MASK_POLICIES)
 
 
-@router.put("/api/admin/v1/tenant/field_rules")
-async def update_field_rules(body: list, tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
-    """Update field-level visibility rules. Body: list of { resource, field, roles, action }."""
-    p = await service.get_profile(db, tenant_id)
-    if not p:
-        p = await service.upsert_profile(db, tenant_id, {})
-    policy = p.security_policy_json or {}
-    policy["field_rules"] = body
-    p.security_policy_json = policy
-    from sqlalchemy.orm.attributes import flag_modified
-    flag_modified(p, "security_policy_json")
-    await db.commit()
-    return ok(body)
+# ==================== Tenant: Field Rules（已移除） ====================
+# 旧的 field_rules（security_policy_json 里的 {resource, field, roles, action} 数组）已删除：
+# 它没有任何后端执行点，前端 useFieldPermission 也无人调用，配置了等于没配。
+# 字段级可见/脱敏/可编辑统一由扩展平台的字段权限承担（lowcode/field_permission.py），
+# 那套在列表、详情与导出上都由后端强制。配置入口：扩展平台 → 自定义字段 → 选实体 → 字段权限。
 
 
 # ==================== Tenant: Feature Toggles ====================

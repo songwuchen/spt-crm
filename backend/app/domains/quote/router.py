@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
 from app.common.export import build_template, excel_response
-from app.common.field_mask import load_mask_policies, apply_field_mask
+from app.common.field_mask import load_mask_policies, apply_field_mask, masked_number
 from app.domains.quote import service
 from app.domains.quote.schemas import QuoteCreate, QuoteUpdate, QuoteVersionUpdate, QuoteLineCreate, QuoteLineUpdate, CostSnapshotCreate, QuoteSendLogCreate
 
@@ -197,8 +197,13 @@ async def get_quote(
     cur_ver_dict = apply_field_mask(_version_dict(current_ver), "quote_version", perms, policies) if current_ver else None
     line_dicts = apply_field_mask([_line_dict(l) for l in lines], "quote_line", perms, policies)
 
+    # 字段级权限：详情此前漏了这一步（列表有），隐藏/脱敏的扩展字段可从详情页直接读到
+    from app.domains.lowcode.field_permission import strip_entity_dicts
+    quote_dict = _quote_dict(quote)
+    await strip_entity_dicts(db, tenant_id, "quote", [quote_dict], current_user.get("roles"))
+
     return ok({
-        **_quote_dict(quote),
+        **quote_dict,
         "versions": version_dicts,
         "current_version": cur_ver_dict,
         "lines": line_dicts,
@@ -497,6 +502,15 @@ async def export_quote_pdf(
 
     lines = await service.list_lines(db, tenant_id, ver.id)
 
+    # 导出同样受字段脱敏约束：此前页面上显示 *** 的折扣，导出 PDF 却打印真实金额，
+    # 等于给了一条绕过脱敏的后门。
+    # 注意必须**透传脱敏后的值**，不能只判断是否等于 "***" 再回头读 ver.discount_total ——
+    # mask_type 还有 null / zero 两种，那样写这两种类型仍会打印真值。
+    masked_ver = apply_field_mask(
+        _version_dict(ver), "quote_version",
+        _user.get("permissions", []), await load_mask_policies(db, tenant_id),
+    )
+
     pdf_bytes = build_quote_pdf(
         quote_no=quote.quote_no,
         version_title=ver.title or "",
@@ -504,7 +518,8 @@ async def export_quote_pdf(
         price_total=float(ver.price_total or 0),
         tax_rate=float(ver.tax_rate or 0),
         tax_total=float(ver.tax_total or 0),
-        discount_total=float(ver.discount_total or 0),
+        # 脱敏后取不到数值 → 传 0，builder 便不渲染折扣行
+        discount_total=masked_number(masked_ver.get("discount_total"), 0.0) or 0.0,
         delivery_promise_date=str(ver.delivery_promise_date) if ver.delivery_promise_date else None,
         validity_days=ver.validity_days,
         lines=[_line_dict(l) for l in lines],

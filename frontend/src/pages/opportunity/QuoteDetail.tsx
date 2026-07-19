@@ -20,6 +20,7 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
 import ImportExcelModal from '@/components/ImportExcelModal'
 import { useUserSelect } from '@/hooks/useSelectOptions'
+import { isMasked, fmtMoney, fmtPct } from '@/utils/mask'
 
 import Icon from '@/components/Icon'
 const BREAKDOWN_LABELS: Record<string, string> = {
@@ -31,12 +32,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   email: '邮件', wechat: '微信', print: '打印', other: '其他',
 }
 
-// 成本/毛利/折扣等敏感字段在无权限时被后端脱敏为字符串 "***"。
-// 直接 Number("***") 会得到 NaN，故渲染前先识别脱敏值，避免显示 "NaN"。
-const MASK = '***'
-const isMasked = (v: unknown): boolean => typeof v === 'string' && !Number.isFinite(Number(v))
-const fmtMoney = (v: unknown): string => (v == null ? '-' : isMasked(v) ? MASK : `¥${Number(v).toLocaleString()}`)
-const fmtPct = (v: unknown): string => (v == null ? '-' : isMasked(v) ? MASK : `${(Number(v) * 100).toFixed(1)}%`)
+// 脱敏值的识别与格式化统一走 @/utils/mask（后端把无权查看的字段替换成 "***"）
 
 export default function QuoteDetail() {
   usePageTitle('报价详情')

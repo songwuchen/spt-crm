@@ -224,8 +224,12 @@ function SortableFieldCard({ field, selected, onSelect, onDelete }: {
       <div style={{ flex: 1, minWidth: 0 }}>
         <span style={{ fontWeight: 500 }}>{field.required && <span style={{ color: '#ff4d4f', marginRight: 4 }}>*</span>}{field.label}</span>
         <Tag style={{ marginLeft: 8 }} icon={<FieldTypeIcon type={field.type} />}>{TYPE_LABEL[field.type] || field.type}</Tag>
+        {field.native && <Tag style={{ marginLeft: 4 }} color="gold">内置</Tag>}
       </div>
-      <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={(e) => { e.stopPropagation(); onDelete() }} />
+      {/* 原生字段对应业务表上的真实列，删除会写坏映射，只允许改配置 */}
+      {!field.native && (
+        <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={(e) => { e.stopPropagation(); onDelete() }} />
+      )}
     </div>
   )
 }
@@ -241,12 +245,22 @@ function FieldProps({ field, roleOptions, onPatch }: {
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="small">
       <Tag color="blue" icon={<FieldTypeIcon type={field.type} />}>{TYPE_LABEL[field.type] || field.type}</Tag>
+      {field.native && (
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          内置字段：可改标签/必填/显隐/只读与字段权限，不能删除或改类型。
+        </Text>
+      )}
       <div><Text type="secondary" style={{ fontSize: 12 }}>标签</Text>
         <Input size="small" value={field.label} onChange={(e) => onPatch({ label: e.target.value })} /></div>
       <div><Text type="secondary" style={{ fontSize: 12 }}>字段 id</Text>
         <Input size="small" value={field.id} disabled /></div>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <span><Text style={{ fontSize: 12 }}>必填 </Text><Switch size="small" checked={!!field.required} onChange={(v) => onPatch({ required: v })} /></span>
+        <span><Text style={{ fontSize: 12 }}>必填 </Text>
+          {/* system_required = 数据库 NOT NULL 或业务强依赖，锁死不给改 */}
+          <Switch size="small" checked={!!field.required} disabled={!!field.system_required}
+            onChange={(v) => onPatch({ required: v })} />
+          {field.system_required && <Text type="secondary" style={{ fontSize: 12 }}> (系统必填)</Text>}
+        </span>
         <span style={{ flex: 1 }}><Text type="secondary" style={{ fontSize: 12 }}>宽度 </Text>
           <Select size="small" style={{ width: 90 }} value={field.span || 24} options={SPANS} onChange={(v) => onPatch({ span: v })} /></span>
       </div>
@@ -287,7 +301,7 @@ function FieldProps({ field, roleOptions, onPatch }: {
 
       <Divider style={{ margin: '6px 0' }} />
       <Button size="small" block onClick={() => setPermOpen(true)}>
-        字段权限{(field.visible_roles?.length || field.edit_roles?.length) ? ' ●' : ''}
+        字段权限{(field.visible_roles?.length || field.unmask_roles?.length || field.edit_roles?.length) ? ' ●' : ''}
       </Button>
 
       <Modal title="字段权限" open={permOpen} footer={<Button type="primary" onClick={() => setPermOpen(false)}>完成</Button>} onCancel={() => setPermOpen(false)} destroyOnClose>
@@ -302,7 +316,15 @@ function FieldProps({ field, roleOptions, onPatch }: {
             <Select mode="multiple" allowClear style={{ width: '100%' }} placeholder="仅这些角色可编辑"
               value={field.edit_roles || []} options={roleOptions} onChange={(v) => onPatch({ edit_roles: v.length ? v : null })} />
           </div>
-          <Text type="secondary" style={{ fontSize: 12 }}>说明: 后端按登录者角色强制裁剪读写;设计器预览不受限。</Text>
+          <div>
+            <div style={{ marginBottom: 4, fontSize: 13 }}>可见明文角色<Text type="secondary" style={{ marginLeft: 6, fontSize: 12 }}>留空=所有人见明文;非空时其余人只看到 ***</Text></div>
+            <Select mode="multiple" allowClear style={{ width: '100%' }} placeholder="仅这些角色能看到真实值"
+              value={field.unmask_roles || []} options={roleOptions} onChange={(v) => onPatch({ unmask_roles: v.length ? v : null })} />
+          </div>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            说明: 优先级 隐藏 &gt; 脱敏 &gt; 只读；被脱敏的字段一律不可编辑。
+            后端按登录者角色在列表/详情/导出上强制裁剪，设计器预览不受限。
+          </Text>
         </div>
       </Modal>
     </Space>

@@ -124,18 +124,21 @@ async def export_contacts(
         cust_map = {r[0]: r[1] for r in rows}
 
     headers = ["customer_name", "name", "title", "role_type", "phone", "mobile", "email", "is_primary", "remark"]
+    # 导出与列表同口径脱敏（联系方式是最典型的按角色脱敏对象）
+    from app.domains.lowcode.field_permission import entity_field_restrictions, export_cell
+    rst = await entity_field_restrictions(db, tenant_id, "contact", _user.get("roles"))
     data_rows = []
     for c in items:
         data_rows.append([
             cust_map.get(c.customer_id, ""),
-            c.name or "",
-            c.title or "",
+            export_cell(rst, "name", c.name or ""),
+            export_cell(rst, "title", c.title or ""),
             c.role_type or "",
-            c.phone or "",
-            c.mobile or "",
-            c.email or "",
+            export_cell(rst, "phone", c.phone or ""),
+            export_cell(rst, "mobile", c.mobile or ""),
+            export_cell(rst, "email", c.email or ""),
             "true" if c.is_primary else "false",
-            c.remark or "",
+            export_cell(rst, "remark", c.remark or ""),
         ])
 
     buf = build_excel("联系人列表", headers, data_rows)

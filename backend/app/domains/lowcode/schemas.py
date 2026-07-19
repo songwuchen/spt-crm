@@ -26,10 +26,19 @@ class FieldDefinition(BaseModel):
     detail_table_columns: list["FieldDefinition"] | None = None
     is_indexed: bool = False
     span: int | None = None
-    # 字段级权限(按角色 code)。空/缺省 = 不限制(所有人)。
-    # visible_roles: 谁能看到该字段; edit_roles: 谁能编辑(可见但不可编辑 → 只读)。
+    # 字段级权限(按角色 code)。空/缺省 = 不限制(所有人)。递进关系：隐藏 > 脱敏 > 只读。
+    # visible_roles: 谁能看到该字段; unmask_roles: 谁能看到明文(其余人得 "***");
+    # edit_roles: 谁能编辑(可见但不可编辑 → 只读)。
     visible_roles: list[str] | None = None
+    unmask_roles: list[str] | None = None
     edit_roles: list[str] | None = None
+    # 原生字段标记：该条目不是扩展字段，而是业务表内置列(如线索的 industry)的租户覆盖项。
+    # 必须在此声明，否则 save_design 的 model_dump() 会把标记丢掉，覆盖项就会被后续流程
+    # 误当成扩展字段 —— 表现为「明明填了该原生字段，却报它必填」。
+    native: bool = False
+    system_required: bool = False
+    options_source: str | None = None
+    companions: list[str] | None = None
 
 
 class FormRuleDefinition(BaseModel):

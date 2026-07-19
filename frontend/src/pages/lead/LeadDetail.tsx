@@ -364,6 +364,8 @@ export default function LeadDetail() {
           {/* Lead Info */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-0">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">线索信息</h3>
+            <InfoField label="线索编号" value={lead.lead_code} />
+            <InfoField label="业务日期" value={lead.biz_date} />
             <InfoField label="联系人" value={lead.contact_name} />
             <InfoField label="联系电话" value={lead.contact_phone} />
             <InfoField label="联系邮箱" value={lead.contact_email} />
@@ -371,8 +373,12 @@ export default function LeadDetail() {
             <InfoField label="客户类型" value={lead.customer_type ? (customerTypeDict.options.find(o => o.value === lead.customer_type)?.label || lead.customer_type) : undefined} />
             <InfoField label="类别" value={lead.category ? categoryLabels[lead.category] : undefined} />
             <InfoField label="国别" value={lead.country_type ? (lead.country_type === 'overseas' && lead.country_name ? `${countryLabels.overseas} · ${lead.country_name}` : countryLabels[lead.country_type]) : undefined} />
+            {/* region 是用户填的详细地址/备注地点，与 formatLocation 的省市区互补，此前详情页完全看不到 */}
+            <InfoField label="详细地址" value={lead.region} />
             <InfoField label="预算范围" value={lead.budget_range} />
+            <InfoField label="部门" value={lead.department_name} />
             <InfoField label="负责人" value={lead.owner_name} />
+            <InfoField label="录入人" value={lead.created_by_name} />
             {lead.converted_customer_id && (
               <InfoField label="转化客户" value={
                 <a onClick={() => navigate(`/customers/${lead.converted_customer_id}`)} className="text-primary font-bold text-sm hover:underline">
@@ -381,7 +387,7 @@ export default function LeadDetail() {
               } />
             )}
           </div>
-          <EntityCustomFields entityType="lead" value={(lead as unknown as { custom_fields_json?: Record<string, unknown> }).custom_fields_json || {}} readOnly />
+          <EntityCustomFields entityType="lead" value={lead.custom_fields_json || {}} readOnly />
         </div>
 
         {/* Center: Tabs Content */}
@@ -397,6 +403,35 @@ export default function LeadDetail() {
                   label: <span className="font-semibold">详细信息</span>,
                   children: (
                     <div className="pb-6 space-y-6">
+                      {/* Products —— 表单可填、导出有列、转商机会带过去，此前详情页却完全不渲染 */}
+                      {!!lead.products?.length && (
+                        <div>
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-2">产品信息</div>
+                          <div className="overflow-x-auto rounded-xl border border-slate-100">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="bg-slate-50 text-left text-[12px] font-bold uppercase tracking-wider text-slate-400">
+                                  <th className="px-4 py-2.5">产品名称</th>
+                                  <th className="px-4 py-2.5">规格</th>
+                                  <th className="px-4 py-2.5 text-right">数量</th>
+                                  <th className="px-4 py-2.5">备注</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {lead.products.map((p, i) => (
+                                  <tr key={p.id || i} className="border-t border-slate-100">
+                                    <td className="px-4 py-2.5 font-semibold text-slate-700">{p.product_name || '-'}</td>
+                                    <td className="px-4 py-2.5 text-slate-600">{p.product_spec || '-'}</td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{p.quantity ?? '-'}</td>
+                                    <td className="px-4 py-2.5 text-slate-500">{p.remark || '-'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Demand Summary */}
                       {lead.demand_summary && (
                         <div>

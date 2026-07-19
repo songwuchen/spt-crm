@@ -17,6 +17,7 @@ class ContractCreate(BaseModel):
     assignee_name: Optional[str] = None
     department_id: Optional[str] = None
     department_name: Optional[str] = None
+    custom_fields_json: Optional[dict] = None
 
 
 class ContractUpdate(BaseModel):
@@ -29,6 +30,7 @@ class ContractUpdate(BaseModel):
     assignee_name: Optional[str] = None
     department_id: Optional[str] = None
     department_name: Optional[str] = None
+    custom_fields_json: Optional[dict] = None
 
 
 class ContractVersionUpdate(BaseModel):

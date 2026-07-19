@@ -26,12 +26,14 @@ export function computeFieldStates(
 
   for (const field of fields) {
     states[field.id] = {
+      masked: false,
       visible: (field.props?.hidden as boolean) !== true,
       readonly: (field.props?.readonly as boolean) === true,
       required: !!field.required,
     }
     for (const col of field.detail_table_columns || []) {
       states[col.id] = {
+        masked: false,
         visible: (col.props?.hidden as boolean) !== true,
         readonly: (col.props?.readonly as boolean) === true,
         required: !!col.required,
@@ -44,6 +46,8 @@ export function computeFieldStates(
       if (!states[perm.fieldId]) continue
       switch (perm.access) {
         case 'hidden': states[perm.fieldId].visible = false; break
+        // 脱敏：仍显示但只给 "***"，且一律不可编辑
+        case 'masked': states[perm.fieldId].masked = true; states[perm.fieldId].readonly = true; break
         case 'readonly': states[perm.fieldId].readonly = true; break
         case 'required': states[perm.fieldId].required = true; break
         case 'editable': states[perm.fieldId].readonly = false; break

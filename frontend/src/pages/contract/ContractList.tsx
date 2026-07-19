@@ -11,12 +11,9 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
+// 金额格式化自带脱敏识别，见 @/utils/mask
+import { fmtMoney } from '@/utils/mask'
 
-const fmtMoney = (v?: number | string | null) => {
-  if (v == null || v === '***') return v === '***' ? '***' : '-'
-  const n = Number(v)
-  return Number.isFinite(n) ? `¥${n.toLocaleString()}` : '-'
-}
 
 export default function ContractList() {
   usePageTitle('合同管理')

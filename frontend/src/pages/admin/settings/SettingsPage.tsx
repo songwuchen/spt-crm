@@ -906,8 +906,8 @@ export default function SettingsPage() {
             ),
           },
           {
-            key: 'field_rules', label: '字段权限',
-            children: <FieldRulesTab />,
+            key: 'field_masking', label: '字段脱敏',
+            children: <FieldMaskingTab />,
           },
           {
             key: 'report_schedules', label: '报表推送',
@@ -1612,89 +1612,123 @@ function DataDictTab() {
 }
 
 
-// ==================== Field Rules Tab ====================
 
-const FIELD_RESOURCES = [
-  { value: 'customer', label: '客户', fields: ['phone', 'email', 'address', 'credit_code', 'bank_account'] },
-  { value: 'contact', label: '联系人', fields: ['phone', 'email', 'wechat', 'id_number'] },
-  { value: 'project', label: '商机', fields: ['amount_expect', 'amount_actual', 'margin_rate'] },
-  { value: 'contract', label: '合同', fields: ['amount', 'payment_terms', 'bank_account'] },
-  { value: 'quote', label: '报价', fields: ['price_total', 'discount_rate', 'margin_rate'] },
+
+// ==================== Field Masking Tab（按权限脱敏） ====================
+// 这套按「权限点」脱敏，作用于报价版本/行/成本快照这类嵌套响应体，是真正在跑的引擎
+// （app/common/field_mask.py），此前只能改库、没有任何界面。
+//
+// 与它并列的另一套按「角色」控制字段可见/脱敏/可编辑，配置在
+// 扩展平台 → 自定义字段 → 选实体 → 字段权限，作用于实体自身的原生与扩展字段。
+// 两者分工：这里管跨表的嵌套敏感数据，那里管实体字段。
+
+const MASK_RESOURCES = [
+  { value: 'quote_version', label: '报价版本', fields: ['margin_rate', 'discount_total', 'price_total', 'tax_total'] },
+  { value: 'quote_line', label: '报价明细行', fields: ['cost_est', 'unit_price', 'line_total'] },
+  { value: 'cost_snapshot', label: '成本快照', fields: ['cost_total', 'breakdown_json'] },
+  { value: 'contract', label: '合同', fields: ['amount_total'] },
+]
+const MASK_FIELD_LABELS: Record<string, string> = {
+  margin_rate: '毛利率', discount_total: '折扣合计', price_total: '报价总额', tax_total: '税额',
+  cost_est: '预估成本', unit_price: '单价', line_total: '行金额',
+  cost_total: '成本合计', breakdown_json: '成本构成', amount_total: '合同金额',
+}
+const MASK_TYPES = [
+  { value: 'hidden', label: '替换为 ***' },
+  { value: 'null', label: '置空' },
+  { value: 'zero', label: '置 0' },
 ]
 
-const FIELD_LABELS: Record<string, string> = {
-  phone: '电话', email: '邮箱', address: '地址', credit_code: '信用代码', bank_account: '银行账户',
-  wechat: '微信', id_number: '身份证号',
-  amount_expect: '预期金额', amount_actual: '实际金额', margin_rate: '毛利率',
-  amount: '合同金额', payment_terms: '付款条件',
-  price_total: '报价总额', discount_rate: '折扣率',
-}
+interface MaskPolicy { resource: string; field: string; required_permission: string; mask_type: string }
 
-interface FieldRule { resource: string; field: string; roles: string[]; action: 'hide' | 'mask' }
-
-function FieldRulesTab() {
-  const [rules, setRules] = useState<FieldRule[]>([])
+function FieldMaskingTab() {
+  const [enabled, setEnabled] = useState(false)
+  const [policies, setPolicies] = useState<MaskPolicy[]>([])
+  const [perms, setPerms] = useState<{ value: string; label: string }[]>([])
   const [saving, setSaving] = useState(false)
-  const [roles, setRoles] = useState<{ id: string; code: string; name: string }[]>([])
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    settingsApi.getFieldRules().then((r: any) => { if (Array.isArray(r.data)) setRules(r.data) }).catch(() => {})
-    client.get('/api/admin/v1/tenant/roles').then((r: any) => { if (r.data) setRoles(r.data) }).catch(() => {})
+    Promise.all([
+      settingsApi.listFeatures().catch(() => ({ data: [] })),
+      client.get('/api/admin/v1/tenant/field-mask-defaults').catch(() => ({ data: [] })),
+    ]).then(([fr, dr]: any[]) => {
+      const f = (fr.data || []).find((x: any) => x.feature_code === 'field_masking')
+      setEnabled(!!f?.enabled)
+      const cfg = f?.config_json
+      const stored = Array.isArray(cfg) ? cfg : cfg?.policies
+      // 尚无自有配置时预填出厂默认，让「空列表」明确等于「不脱敏任何字段」，
+      // 而不是让人以为保存后默认策略仍在背后生效
+      setPolicies(Array.isArray(stored) ? stored : (dr.data || []))
+      setLoaded(true)
+    })
+    client.get('/api/admin/v1/tenant/permissions').then((r: any) => {
+      const items = Array.isArray(r.data) ? r.data : (r.data?.items || [])
+      setPerms(items.map((p: any) => ({ value: p.code, label: `${p.name || p.code} (${p.code})` })))
+    }).catch(() => setPerms([]))
   }, [])
 
-  const addRule = () => {
-    setRules([...rules, { resource: 'customer', field: 'phone', roles: [], action: 'mask' }])
-  }
+  const patch = (idx: number, p: Partial<MaskPolicy>) =>
+    setPolicies(policies.map((x, i) => (i === idx ? { ...x, ...p } : x)))
+  const fieldsOf = (resource: string) =>
+    (MASK_RESOURCES.find((r) => r.value === resource)?.fields || [])
+      .map((f) => ({ value: f, label: MASK_FIELD_LABELS[f] || f }))
 
-  const updateRule = (idx: number, patch: Partial<FieldRule>) => {
-    const next = [...rules]
-    next[idx] = { ...next[idx], ...patch }
-    setRules(next)
-  }
-
-  const removeRule = (idx: number) => {
-    setRules(rules.filter((_, i) => i !== idx))
-  }
-
-  const handleSave = async () => {
+  const save = async () => {
     setSaving(true)
     try {
-      await settingsApi.updateFieldRules(rules as any)
-      message.success('字段权限规则已保存')
+      await settingsApi.updateFeature('field_masking', { enabled, config_json: { policies } })
+      message.success('字段脱敏规则已保存')
     } catch { message.error('保存失败') }
     finally { setSaving(false) }
   }
 
-  const currentFields = (resource: string) => {
-    const r = FIELD_RESOURCES.find((f) => f.value === resource)
-    return (r?.fields || []).map((f) => ({ value: f, label: FIELD_LABELS[f] || f }))
-  }
+  if (!loaded) return <div className="py-6 text-slate-400">加载中…</div>
 
   return (
     <div className="pb-6">
-      <p className="text-sm text-slate-500 mb-4">
-        配置字段级别的可见性规则。当用户拥有指定角色时，对应字段将被隐藏或脱敏显示。
+      <p className="text-sm text-slate-500 mb-2">
+        按<strong>权限点</strong>脱敏成本、毛利、折扣等敏感数据：用户缺少所配权限时，接口返回的该字段会被替换。
+        列表、详情与导出（含 PDF）统一生效。
       </p>
+      <p className="text-sm text-slate-400 mb-4">
+        若想按<strong>角色</strong>控制某个实体字段的可见/脱敏/可编辑，请到「扩展平台 → 自定义字段 → 选择实体 → 字段权限」配置。
+      </p>
+
+      <div className="flex items-center gap-2 mb-4">
+        <Switch checked={enabled} onChange={setEnabled} />
+        <span className="text-sm text-slate-600">启用字段脱敏{!enabled && '（关闭时所有规则不生效）'}</span>
+      </div>
+
       <div className="space-y-3 mb-4">
-        {rules.map((rule, idx) => (
+        {policies.map((p, idx) => (
           <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <Select size="small" value={rule.resource} onChange={(v) => updateRule(idx, { resource: v, field: currentFields(v)[0]?.value || '' })}
-              options={FIELD_RESOURCES.map((r) => ({ value: r.value, label: r.label }))} style={{ width: 100 }} />
-            <Select size="small" value={rule.field} onChange={(v) => updateRule(idx, { field: v })}
-              options={currentFields(rule.resource)} style={{ width: 120 }} />
-            <Select size="small" mode="multiple" value={rule.roles} onChange={(v) => updateRule(idx, { roles: v })}
-              options={roles.map((r) => ({ value: r.code, label: r.name }))}
-              placeholder="适用角色" style={{ minWidth: 200, flex: 1 }} />
-            <Select size="small" value={rule.action} onChange={(v) => updateRule(idx, { action: v })}
-              options={[{ value: 'mask', label: '脱敏 (****)' }, { value: 'hide', label: '隐藏' }]} style={{ width: 130 }} />
-            <Button size="small" danger icon={<DeleteOutlined />} onClick={() => removeRule(idx)} />
+            <Select size="small" value={p.resource} style={{ width: 130 }}
+              options={MASK_RESOURCES.map((r) => ({ value: r.value, label: r.label }))}
+              onChange={(v) => patch(idx, { resource: v, field: fieldsOf(v)[0]?.value || '' })} />
+            <Select size="small" value={p.field} style={{ width: 130 }}
+              options={fieldsOf(p.resource)} onChange={(v) => patch(idx, { field: v })} />
+            <Select size="small" showSearch optionFilterProp="label" style={{ minWidth: 220, flex: 1 }}
+              placeholder="拥有该权限者可见" value={p.required_permission || undefined}
+              options={perms} onChange={(v) => patch(idx, { required_permission: v })} />
+            <Select size="small" value={p.mask_type} style={{ width: 130 }}
+              options={MASK_TYPES} onChange={(v) => patch(idx, { mask_type: v })} />
+            <Button size="small" danger icon={<DeleteOutlined />}
+              onClick={() => setPolicies(policies.filter((_, i) => i !== idx))} />
           </div>
         ))}
-        {rules.length === 0 && <div className="text-center text-slate-400 py-6">暂未配置字段权限规则</div>}
+        {policies.length === 0 && (
+          <div className="text-center text-slate-400 py-6">
+            规则为空 —— 保存后将不对任何字段脱敏
+          </div>
+        )}
       </div>
       <Space>
-        <Button icon={<PlusOutlined />} onClick={addRule}>添加规则</Button>
-        <Button type="primary" loading={saving} onClick={handleSave}>保存规则</Button>
+        <Button icon={<PlusOutlined />} onClick={() => setPolicies([...policies, {
+          resource: 'quote_version', field: 'margin_rate',
+          required_permission: 'quote:view_cost', mask_type: 'hidden',
+        }])}>添加规则</Button>
+        <Button type="primary" loading={saving} onClick={save}>保存</Button>
       </Space>
     </div>
   )

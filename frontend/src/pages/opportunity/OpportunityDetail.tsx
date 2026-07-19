@@ -31,6 +31,7 @@ import { useUserSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import InternalNotes from '@/components/InternalNotes'
 import { PaymentTermsEditor, LineItemsEditor } from '@/components/ContractTerms'
+import { fmtMoney } from '@/utils/mask'
 
 import Icon from '@/components/Icon'
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
@@ -869,7 +870,8 @@ export default function OpportunityDetail() {
                           <a onClick={() => navigate(`/opportunities/${id}/contracts/${r.id}`)} className="font-bold text-primary">{v}</a>
                         )},
                         { title: '版本', dataIndex: 'current_version_no', render: (v) => `V${v}` },
-                        { title: '合同金额', dataIndex: 'amount_total', render: (v) => v != null ? `¥${Number(v).toLocaleString()}` : '-' },
+                        // 合同金额可被脱敏成 "***"，fmtMoney 自带该判定
+                        { title: '合同金额', dataIndex: 'amount_total', render: (v) => fmtMoney(v) },
                         { title: '状态', dataIndex: 'status', render: (v) => (
                           <Tag color={contractStatusColors[v] || 'default'}>{contractStatusLabels[v] || v}</Tag>
                         )},

@@ -15,6 +15,7 @@ import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useListView } from '@/hooks/useListView'
 import { usePageSize } from '@/hooks/usePageSize'
 import ListToolbar from '@/components/list/ListToolbar'
+import { isMasked, MASK_VALUE } from '@/utils/mask'
 
 import Icon from '@/components/Icon'
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
@@ -143,9 +144,12 @@ export default function OpportunityList() {
       ),
     },
     { title: t('opportunity.amount'), key: 'amount', width: 120, align: 'right',
-      render: (_, r) => r.amount_expect != null ? (
-        <span className="text-sm font-bold text-slate-800">{Number(r.amount_expect).toLocaleString('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 0 })}</span>
-      ) : <span className="text-slate-300">-</span>,
+      // 预期金额可被字段权限脱敏成 "***"，裸 Number() 会渲染出 ¥NaN
+      render: (_, r) => isMasked(r.amount_expect)
+        ? <span className="text-sm font-bold text-slate-800">{MASK_VALUE}</span>
+        : r.amount_expect != null ? (
+          <span className="text-sm font-bold text-slate-800">{Number(r.amount_expect).toLocaleString('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 0 })}</span>
+        ) : <span className="text-slate-300">-</span>,
     },
     { title: t('opportunity.probability'), key: 'probability', width: 110, responsive: ['lg'],
       render: (_, r) => r.probability != null ? (

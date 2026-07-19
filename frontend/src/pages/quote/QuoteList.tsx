@@ -9,12 +9,8 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
 import type { ColumnsType } from 'antd/es/table'
-
-const fmtMoney = (v?: number | null) => {
-  if (v == null) return '-'
-  const n = Number(v)
-  return Number.isFinite(n) ? `¥${n.toLocaleString()}` : '-'
-}
+// 金额/百分比格式化自带脱敏识别，见 @/utils/mask
+import { fmtMoney, fmtPct } from '@/utils/mask'
 
 export default function QuoteList() {
   usePageTitle('报价管理')
@@ -57,9 +53,9 @@ export default function QuoteList() {
       render: (v: string) => <Tag color={quoteStatusColors[v] || 'default'}>{quoteStatusLabels[v] || v}</Tag>,
     },
     { title: '当前版本总价', dataIndex: 'price_total', width: 150, align: 'right',
-      render: (v: number | string | null) => <span className="font-bold">{v === '***' ? '***' : fmtMoney(v as number | null)}</span> },
+      render: (v: number | string | null) => <span className="font-bold">{fmtMoney(v)}</span> },
     { title: '毛利率', dataIndex: 'margin_rate', width: 100, align: 'right',
-      render: (v: number | string | null) => v === '***' ? '***' : (v != null ? `${(Number(v) * 100).toFixed(1)}%` : '-') },
+      render: (v: number | string | null) => fmtPct(v) },
     { title: '负责人', dataIndex: 'assignee_name', width: 100, render: (v: string) => v || '-' },
     { title: '创建时间', dataIndex: 'created_at', width: 120,
       render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },

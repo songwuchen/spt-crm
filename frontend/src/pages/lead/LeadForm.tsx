@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Form, Input, Select, Button, DatePicker, InputNumber, message } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { leadApi } from '@/api/lead'
-import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
+import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
@@ -32,6 +33,7 @@ export default function LeadForm() {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
+  const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const isEdit = !!id
   usePageTitle(isEdit ? '编辑线索' : '新建线索')
 
@@ -42,6 +44,13 @@ export default function LeadForm() {
 
   const userSelect = useUserSelect()
   const [countryType, setCountryType] = useState<string | undefined>(undefined)
+
+  // 字段策略的规则要在「原生值 + 扩展值」的合集上求值，条件才能跨两类字段互相引用
+  const watched = Form.useWatch([], form) as Record<string, unknown> | undefined
+  const policyValues = useMemo(
+    () => ({ ...(watched || {}), ...customFields }),
+    [watched, customFields],
+  )
 
   useEffect(() => {
     if (id) {
@@ -63,6 +72,12 @@ export default function LeadForm() {
   }, [id])
 
   const onFinish = async (values: Record<string, unknown>) => {
+    // 扩展字段不在 antd Form 状态里，其必填(含条件必填)需单独校验；后端也会二次校验
+    const cfError = customFieldsRef.current?.validate()
+    if (cfError) {
+      message.error(cfError)
+      return
+    }
     setLoading(true)
     try {
       // 丢弃完全空白的产品明细行；业务日期 dayjs → 字符串
@@ -104,47 +119,49 @@ export default function LeadForm() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+       <FieldPolicyProvider entityType="lead" values={policyValues}>
         <Form form={form} layout="vertical" onFinish={onFinish} className="max-w-3xl">
           {/* Basic Info */}
           <div className="mb-6">
             <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400 mb-4">基本信息</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-              <Form.Item name="title" label="线索标题" rules={[{ required: true, message: '请输入线索标题' }]} className="col-span-2">
+              {/* 必填与否由租户在「扩展平台→自定义字段→线索」里配置，出厂默认这两项必填 */}
+              <PolicyItem name="title" label="线索标题" className="col-span-2">
                 <Input placeholder="请输入线索标题" />
-              </Form.Item>
-              <Form.Item name="company_name" label="公司名称" rules={[{ required: true, message: '请输入公司名称' }]}>
+              </PolicyItem>
+              <PolicyItem name="company_name" label="公司名称">
                 <Input placeholder="请输入公司名称" />
-              </Form.Item>
-              <Form.Item name="customer_type" label="客户类型">
+              </PolicyItem>
+              <PolicyItem name="customer_type" label="客户类型">
                 <Select placeholder="请选择客户类型" allowClear showSearch optionFilterProp="label"
                   options={customerTypeDict.options} loading={customerTypeDict.loading} />
-              </Form.Item>
-              <Form.Item name="industry" label="行业">
+              </PolicyItem>
+              <PolicyItem name="industry" label="行业">
                 <Select placeholder="请选择行业" allowClear showSearch optionFilterProp="label"
                   options={industryDict.options} loading={industryDict.loading} />
-              </Form.Item>
-              <Form.Item name="source" label="线索来源">
+              </PolicyItem>
+              <PolicyItem name="source" label="线索来源">
                 <Select placeholder="请选择来源" allowClear options={sourceDict.options} loading={sourceDict.loading} />
-              </Form.Item>
-              <Form.Item name="category" label="类别" tooltip="自报=自行开发；分发=领导指派">
+              </PolicyItem>
+              <PolicyItem name="category" label="类别" tooltip="自报=自行开发；分发=领导指派">
                 <Select placeholder="请选择类别" allowClear options={categoryOptions} />
-              </Form.Item>
-              <Form.Item name="department_id" label="部门">
+              </PolicyItem>
+              <PolicyItem name="department_id" label="部门">
                 <DepartmentSelect />
-              </Form.Item>
-              <Form.Item name="budget_range" label="预算范围">
+              </PolicyItem>
+              <PolicyItem name="budget_range" label="预算范围">
                 <Select placeholder="请选择预算范围" allowClear options={budgetDict.options} loading={budgetDict.loading} />
-              </Form.Item>
-              <Form.Item name="owner_id" label="负责人">
+              </PolicyItem>
+              <PolicyItem name="owner_id" label="负责人">
                 <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
                   loading={userSelect.loading}
                   options={userSelect.options}
                   onSearch={userSelect.onSearch}
                   onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
-              </Form.Item>
-              <Form.Item name="biz_date" label="日期" tooltip="业务日期，可自行编辑，用于标识不同时间的线索">
+              </PolicyItem>
+              <PolicyItem name="biz_date" label="日期" tooltip="业务日期，可自行编辑，用于标识不同时间的线索">
                 <DatePicker className="w-full" placeholder="请选择日期" />
-              </Form.Item>
+              </PolicyItem>
             </div>
           </div>
 
@@ -152,13 +169,13 @@ export default function LeadForm() {
           <div className="mb-6">
             <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400 mb-4">项目地址</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-              <Form.Item name="country_type" label="国别">
+              <PolicyItem name="country_type" label="国别">
                 <Select placeholder="请选择国别" allowClear options={countryOptions} onChange={(v) => setCountryType(v)} />
-              </Form.Item>
+              </PolicyItem>
               {countryType === 'overseas' ? (
-                <Form.Item name="country_name" label="国家">
+                <PolicyItem name="country_name" label="国家">
                   <Input placeholder="请输入国家名称" />
-                </Form.Item>
+                </PolicyItem>
               ) : (
                 <Form.Item
                   label="省/市/区县"
@@ -183,9 +200,9 @@ export default function LeadForm() {
               <Form.Item name="city" hidden><Input /></Form.Item>
               <Form.Item name="district" hidden><Input /></Form.Item>
               <Form.Item name="region_code" hidden><Input /></Form.Item>
-              <Form.Item name="region" label="详细地址/备注地点" className="col-span-2">
+              <PolicyItem name="region" label="详细地址/备注地点" className="col-span-2">
                 <Input placeholder="可补充详细地址，如厂区、街道等" />
-              </Form.Item>
+              </PolicyItem>
             </div>
           </div>
 
@@ -193,17 +210,17 @@ export default function LeadForm() {
           <div className="mb-6">
             <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400 mb-4">联系人信息</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-              <Form.Item name="contact_name" label="联系人姓名">
+              <PolicyItem name="contact_name" label="联系人姓名">
                 <Input placeholder="请输入联系人姓名" />
-              </Form.Item>
-              <Form.Item name="contact_phone" label="联系电话"
+              </PolicyItem>
+              <PolicyItem name="contact_phone" label="联系电话"
                 rules={[{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号' }]}>
                 <Input placeholder="请输入联系电话" />
-              </Form.Item>
-              <Form.Item name="contact_email" label="联系邮箱" className="col-span-2"
+              </PolicyItem>
+              <PolicyItem name="contact_email" label="联系邮箱" className="col-span-2"
                 rules={[{ type: 'email', message: '请输入正确的邮箱地址' }]}>
                 <Input placeholder="请输入联系邮箱" />
-              </Form.Item>
+              </PolicyItem>
             </div>
           </div>
 
@@ -250,15 +267,16 @@ export default function LeadForm() {
           {/* Extra Info */}
           <div className="mb-6">
             <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400 mb-4">补充信息</h3>
-            <Form.Item name="demand_summary" label="需求摘要">
+            <PolicyItem name="demand_summary" label="需求摘要">
               <Input.TextArea rows={3} placeholder="请描述客户需求" />
-            </Form.Item>
-            <Form.Item name="remark" label="备注">
+            </PolicyItem>
+            <PolicyItem name="remark" label="备注">
               <Input.TextArea rows={3} placeholder="备注信息" />
-            </Form.Item>
+            </PolicyItem>
           </div>
 
-          <EntityCustomFields entityType="lead" value={customFields} onChange={setCustomFields} />
+          <EntityCustomFields ref={customFieldsRef} entityType="lead" value={customFields}
+            contextValues={watched || {}} onChange={setCustomFields} />
 
           <div className="flex gap-3 pt-4 border-t border-slate-100">
             <Button type="primary" htmlType="submit" loading={loading} className="font-bold">
@@ -267,6 +285,7 @@ export default function LeadForm() {
             <Button onClick={() => navigate('/leads')}>取消</Button>
           </div>
         </Form>
+       </FieldPolicyProvider>
       </div>
     </div>
   )

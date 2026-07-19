@@ -155,9 +155,12 @@ export interface Lead {
   district?: string
   region_code?: string
   department_id?: string
+  department_name?: string
   budget_range?: string
   owner_id?: string
   owner_name?: string
+  created_by_id?: string
+  created_by_name?: string
   biz_date?: string
   status: string
   review_status?: string
@@ -166,6 +169,7 @@ export interface Lead {
   score: number
   converted_customer_id?: string
   remark?: string
+  custom_fields_json?: Record<string, unknown>
   products?: LeadProduct[]
   created_at: string
   updated_at: string

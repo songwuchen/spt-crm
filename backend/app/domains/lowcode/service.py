@@ -20,6 +20,7 @@ from app.domains.lowcode import schemas
 from app.domains.lowcode.formula_engine import compute_formula_fields
 from app.domains.lowcode.serial_number import generate_serials_for_submit
 from app.domains.lowcode.field_permission import filter_read, sanitize_write
+from app.domains.lowcode.rule_engine import validate_required_with_rules
 
 
 def _now() -> datetime:
@@ -231,6 +232,7 @@ async def publish(
     if tpl.is_system and tpl.entity_type:
         from app.common.search import invalidate_custom_fields
         invalidate_custom_fields(tenant_id, tpl.entity_type)
+        invalidate_entity_schema_cache(db, tpl.entity_type)  # 同请求内后续读取取到新版本
     return latest
 
 
@@ -291,8 +293,24 @@ async def get_or_create_entity_template(
     return tpl
 
 
-async def get_entity_fields(db: AsyncSession, tenant_id: str, entity_type: str) -> list[dict]:
-    """返回该实体已发布的扩展字段定义(供业务表单/详情页渲染);未设计则空。"""
+async def get_entity_schema(db: AsyncSession, tenant_id: str, entity_type: str) -> dict:
+    """该实体已发布版本里「原样存下」的字段定义 + 规则；未设计则均为空。
+
+    field_definitions 里混有两类条目：扩展字段，以及原生字段的租户覆盖项(native=True)。
+    多数调用方要的是前者，请走 get_entity_fields()；要完整表单 schema 走 get_entity_form_schema()。
+
+    规则(rule_definitions)必须与字段一起返回：条件显隐/条件必填/条件只读都靠它，
+    早前只返回 field_definitions，导致设计器里配好的规则在业务页面上一条都不生效。
+
+    结果按 session 缓存：一次写入会经 sanitize / validate / enforce 多条路径反复取同一份
+    schema，不缓存的话每个请求要多打好几轮 template+version 查询。session 生命周期 = 请求
+    生命周期，且本函数只读已发布版本，因此请求内复用是安全的；设计器发布走的是另一个
+    session，不会读到过期缓存。
+    """
+    cache = db.info.setdefault("_lc_entity_schema", {})
+    if entity_type in cache:
+        return cache[entity_type]
+
     tpl = (await db.execute(
         select(FormTemplate).where(
             FormTemplate.tenant_id == tenant_id,
@@ -301,10 +319,54 @@ async def get_entity_fields(db: AsyncSession, tenant_id: str, entity_type: str) 
             FormTemplate.is_deleted == False,  # noqa: E712
         )
     )).scalar_one_or_none()
-    if not tpl:
-        return []
-    ver = await _get_published_version(db, tenant_id, tpl.id)
-    return (ver.field_definitions if ver else []) or []
+    ver = await _get_published_version(db, tenant_id, tpl.id) if tpl else None
+    result = {
+        "field_definitions": (ver.field_definitions or []) if ver else [],
+        "rule_definitions": (ver.rule_definitions or []) if ver else [],
+    }
+    cache[entity_type] = result
+    return result
+
+
+def invalidate_entity_schema_cache(db: AsyncSession, entity_type: str | None = None) -> None:
+    """发布/保存设计后清掉本 session 的 schema 缓存，避免同一请求内读到旧版本。"""
+    cache = db.info.get("_lc_entity_schema")
+    if not cache:
+        return
+    if entity_type is None:
+        cache.clear()
+    else:
+        cache.pop(entity_type, None)
+
+
+async def get_entity_fields(db: AsyncSession, tenant_id: str, entity_type: str) -> list[dict]:
+    """只要「扩展」字段定义的便捷入口(字段级权限裁剪、高级搜索列构建等场景用)。
+
+    刻意剔除原生字段(及其覆盖项)：这两处都按字段 id 去 custom_fields_json 里取值，混入
+    原生字段会造出指向不存在 JSON 键的 cf_* 搜索列。
+    """
+    stored = (await get_entity_schema(db, tenant_id, entity_type))["field_definitions"]
+    return [fd for fd in stored if not (isinstance(fd, dict) and fd.get("native"))]
+
+
+async def get_entity_form_schema(db: AsyncSession, tenant_id: str, entity_type: str) -> dict:
+    """业务表单渲染/校验用的完整 schema：原生字段 + 扩展字段 + 规则。
+
+    原生字段由 native_field_catalog 重建后叠加租户覆盖项，因此 id/type 永远可信；
+    扩展字段原样取用。规则可同时引用两类字段（跨原生/扩展的条件显隐正是靠这一点）。
+    """
+    from app.domains.lowcode.native_field_catalog import get_system_rules, merge_native_overrides
+
+    schema = await get_entity_schema(db, tenant_id, entity_type)
+    stored = schema["field_definitions"]
+    native = merge_native_overrides(entity_type, stored)
+    custom = [fd for fd in stored if not (isinstance(fd, dict) and fd.get("native"))]
+    return {
+        "native_fields": native,
+        "field_definitions": custom,
+        # 内置规则排在前面：表达「该字段仅在特定条件下适用」的业务事实，租户规则可在其后叠加
+        "rule_definitions": get_system_rules(entity_type) + schema["rule_definitions"],
+    }
 
 
 # ==================== 校验 ====================
@@ -313,27 +375,39 @@ def _is_empty(v) -> bool:
     return v is None or v == "" or v == [] or v == {}
 
 
-def validate_required(field_defs: list[dict], form_data: dict) -> str | None:
-    """服务端必填校验(顶层字段 + 明细子表必填列)。返回首个错误提示或 None。"""
+def role_field_permissions(field_defs: list[dict], user_roles) -> list[dict]:
+    """由 visible_roles/unmask_roles/edit_roles + 当前用户角色推导规则引擎可用的字段权限。
+
+    与前端 FormRenderer.deriveRolePerms 同口径：空/缺省 = 不限制；隐藏 > 脱敏 > 只读。
+    """
+    roles = set(user_roles or [])
+    out: list[dict] = []
     for fd in field_defs or []:
-        ftype = fd.get("type")
-        if ftype in ("formula", "auto_number"):  # 系统生成,免必填
+        vr = fd.get("visible_roles")
+        if vr and not (roles & set(vr)):
+            out.append({"fieldId": fd.get("id"), "access": "hidden"})
             continue
-        label = fd.get("label") or "字段"
-        if fd.get("required") and _is_empty(form_data.get(fd.get("id"))):
-            return f"「{label}」为必填项"
-        if ftype == "detail_table":
-            rows = form_data.get(fd.get("id"))
-            cols = fd.get("detail_table_columns") or []
-            req_cols = [c for c in cols if c.get("required")]
-            if isinstance(rows, list) and req_cols:
-                for idx, row in enumerate(rows):
-                    if not isinstance(row, dict):
-                        continue
-                    for c in req_cols:
-                        if _is_empty(row.get(c.get("id"))):
-                            return f"「{label}」第 {idx + 1} 行「{c.get('label') or '列'}」为必填项"
-    return None
+        ur = fd.get("unmask_roles")
+        if ur and not (roles & set(ur)):
+            # 脱敏即隐含只读：看不到明文的人不该覆盖真实值
+            out.append({"fieldId": fd.get("id"), "access": "masked"})
+            continue
+        er = fd.get("edit_roles")
+        if er and not (roles & set(er)):
+            out.append({"fieldId": fd.get("id"), "access": "readonly"})
+    return out
+
+
+def validate_required(
+    field_defs: list[dict], form_data: dict,
+    rules: list[dict] | None = None, permissions: list[dict] | None = None,
+) -> str | None:
+    """服务端必填校验(顶层字段 + 明细子表必填列)。返回首个错误提示或 None。
+
+    传入 rules 后会先算显隐/条件必填再校验：既让条件必填无法被绕过，也避免「字段被规则
+    隐藏、前端不校验、后端仍拦」的死锁。语义与前端 RuleEngine 一致（见 rule_engine.py）。
+    """
+    return validate_required_with_rules(field_defs, form_data, rules, permissions)
 
 
 def _extract_amount(form_data: dict, field_defs: list[dict]) -> Decimal | None:
@@ -368,7 +442,8 @@ async def create_instance(
     form_data = compute_formula_fields(dict(raw or {}), field_defs, user_name)
 
     if not data.as_draft:
-        err = validate_required(field_defs, form_data)
+        err = validate_required(field_defs, form_data, published.rule_definitions or [],
+                                role_field_permissions(field_defs, user.get("roles")))
         if err:
             raise BusinessException(code=VALIDATION_ERROR, message=err)
         form_data = await generate_serials_for_submit(db, tenant_id, data.template_id, field_defs, form_data)
@@ -519,7 +594,9 @@ async def update_instance(
         raw = sanitize_write(data.form_data, inst.form_data, field_defs, user.get("roles"))
         form_data = compute_formula_fields(dict(raw), field_defs, user_name)
         if inst.status != "draft":
-            err = validate_required(field_defs, form_data)
+            err = validate_required(field_defs, form_data,
+                                    (version.rule_definitions if version else []) or [],
+                                    role_field_permissions(field_defs, user.get("roles")))
             if err:
                 raise BusinessException(code=VALIDATION_ERROR, message=err)
         inst.form_data = form_data

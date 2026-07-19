@@ -42,7 +42,12 @@ def _product_dict(p) -> dict:
     }
 
 
-def _lead_dict(l, products=None) -> dict:
+def _lead_dict(l, products=None, dept_names=None) -> dict:
+    """线索出参的唯一序列化入口（没有 Out schema，改字段请只改这里）。
+
+    dept_names: department_id -> name 的批量映射，由调用方预取以避免逐条查询；
+    未传时 department_name 为 None，前端退化为不显示部门名。
+    """
     return {
         "id": l.id, "lead_code": l.lead_code, "title": l.title, "company_name": l.company_name,
         "contact_name": l.contact_name, "contact_phone": l.contact_phone,
@@ -60,8 +65,10 @@ def _lead_dict(l, products=None) -> dict:
         "district": l.district,
         "region_code": l.region_code,
         "department_id": l.department_id,
+        "department_name": (dept_names or {}).get(l.department_id),
         "budget_range": l.budget_range,
         "owner_id": l.owner_id, "owner_name": l.owner_name,
+        "created_by_id": l.created_by_id, "created_by_name": l.created_by_name,
         "biz_date": str(l.biz_date) if l.biz_date else None,
         "status": l.status, "score": l.score,
         "review_status": getattr(l, "review_status", "approved"),
@@ -69,6 +76,9 @@ def _lead_dict(l, products=None) -> dict:
         "reject_reason": getattr(l, "reject_reason", None),
         "converted_customer_id": l.converted_customer_id,
         "remark": l.remark,
+        # 扩展字段值必须回传：strip_entity_dicts 依赖它做字段级权限裁剪，前端编辑表单也据此
+        # 回填，缺失会导致保存时以空对象覆盖掉已存值。
+        "custom_fields_json": l.custom_fields_json or {},
         "products": [_product_dict(p) for p in products] if products is not None else [],
         "created_at": l.created_at.isoformat() if l.created_at else "",
         "updated_at": l.updated_at.isoformat() if l.updated_at else "",
@@ -91,6 +101,7 @@ async def list_leads(
     company_name: str = Query(None),
     start_date: date = Query(None),
     end_date: date = Query(None),
+    date_field: str = Query(None, description="日期区间筛选字段：created_at(默认) / biz_date"),
     filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
     sort_by: str = Query(None),
     sort_order: str = Query(None),
@@ -104,10 +115,11 @@ async def list_leads(
         customer_type=customer_type, category=category, country_type=country_type,
         province=province, department_id=department_id, industry=industry,
         company_name=company_name, start_date=start_date, end_date=end_date,
-        current_user=_user,
+        date_field=date_field, current_user=_user,
         adv_filter=filter, sort_by=sort_by, sort_order=sort_order,
     )
-    dicts = [_lead_dict(l) for l in items]
+    dept_names = await _lead_department_names(db, tenant_id, items)  # 一次查询，避免逐条取部门名
+    dicts = [_lead_dict(l, dept_names=dept_names) for l in items]
     await strip_entity_dicts(db, tenant_id, "lead", dicts, _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok({"items": dicts, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
@@ -155,6 +167,7 @@ async def export_leads_excel(
     company_name: str = Query(None),
     start_date: date = Query(None),
     end_date: date = Query(None),
+    date_field: str = Query(None, description="日期区间筛选字段：created_at(默认) / biz_date"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("lead:view")),
@@ -163,7 +176,7 @@ async def export_leads_excel(
     items, _ = await service.list_leads(
         db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, status, owner_id,
         company_name=company_name, start_date=start_date, end_date=end_date,
-        current_user=_user,
+        date_field=date_field, current_user=_user,
     )
     # 导出除列表字段外，补齐详情中「部门/联系人/产品/补充信息」各模块字段 (issue #95)
     dept_names = await _lead_department_names(db, tenant_id, items)
@@ -182,25 +195,31 @@ async def export_leads_excel(
     ]
     category_label = {"self_reported": "自报", "distributed": "分发"}
     country_label = {"domestic": "国内", "overseas": "国外"}
+    # 导出与列表/详情同口径：隐藏字段导空、脱敏字段导 "***"。
+    # 否则「页面看不到但能导出来」就是一条绕过字段权限的后门。
+    from app.domains.lowcode.field_permission import entity_field_restrictions, export_cell
+    rst = await entity_field_restrictions(db, tenant_id, "lead", _user.get("roles"))
+    c = lambda fid, v: export_cell(rst, fid, v)  # noqa: E731
     rows = []
     for l in items:
         rows.append([
-            l.lead_code or "", l.title or "", l.company_name or "",
-            dept_names.get(l.department_id, "") if l.department_id else "",
-            l.source or "",
-            category_label.get(l.category or "", l.category or ""),
-            l.customer_type or "",
-            l.industry or "",
-            str(l.biz_date) if l.biz_date else "",
-            l.owner_name or "", l.status or "", l.score or "",
-            l.contact_name or "", l.contact_phone or "", l.contact_email or "",
-            country_label.get(l.country_type or "", l.country_type or ""),
-            l.country_name or "",
-            l.province or "", l.city or "", l.district or "", l.region or "",
+            l.lead_code or "", c("title", l.title or ""), c("company_name", l.company_name or ""),
+            c("department_id", dept_names.get(l.department_id, "") if l.department_id else ""),
+            c("source", l.source or ""),
+            c("category", category_label.get(l.category or "", l.category or "")),
+            c("customer_type", l.customer_type or ""),
+            c("industry", l.industry or ""),
+            c("biz_date", str(l.biz_date) if l.biz_date else ""),
+            c("owner_id", l.owner_name or ""), l.status or "", l.score or "",
+            c("contact_name", l.contact_name or ""), c("contact_phone", l.contact_phone or ""),
+            c("contact_email", l.contact_email or ""),
+            c("country_type", country_label.get(l.country_type or "", l.country_type or "")),
+            c("country_name", l.country_name or ""),
+            l.province or "", l.city or "", l.district or "", c("region", l.region or ""),
             product_texts.get(l.id, ""),
-            l.budget_range or "",
-            l.demand_summary or "",
-            l.remark or "",
+            c("budget_range", l.budget_range or ""),
+            c("demand_summary", l.demand_summary or ""),
+            c("remark", l.remark or ""),
             l.created_at.strftime("%Y-%m-%d %H:%M") if l.created_at else "",
         ])
     buf = build_excel("线索列表", headers, rows)
@@ -299,7 +318,7 @@ async def create_lead(
 ):
     l = await service.create_lead(db, tenant_id, body, current_user)
     products = await service.list_lead_products(db, tenant_id, l.id)
-    return ok(_lead_dict(l, products))
+    return ok(_lead_dict(l, products, await _lead_department_names(db, tenant_id, [l])))
 
 
 @router.get("/{lead_id}")
@@ -311,7 +330,7 @@ async def get_lead(
 ):
     l = await service.get_lead(db, tenant_id, lead_id)
     products = await service.list_lead_products(db, tenant_id, l.id)
-    d = _lead_dict(l, products)
+    d = _lead_dict(l, products, await _lead_department_names(db, tenant_id, [l]))
     await strip_entity_dicts(db, tenant_id, "lead", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok(d)
 
@@ -326,7 +345,7 @@ async def update_lead(
 ):
     l = await service.update_lead(db, tenant_id, lead_id, body, current_user)
     products = await service.list_lead_products(db, tenant_id, l.id)
-    return ok(_lead_dict(l, products))
+    return ok(_lead_dict(l, products, await _lead_department_names(db, tenant_id, [l])))
 
 
 class QualifyBody(BaseModel):

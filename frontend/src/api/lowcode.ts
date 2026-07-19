@@ -3,7 +3,7 @@ import client from './client'
 import type { ApiResponse, PageData } from './types'
 import type {
   FieldDefinition, FormRule, FormTemplate, FormVersion, FormInstance, FormInstanceDetail,
-  BuiltinTemplate,
+  BuiltinTemplate, EntityFormSchema,
 } from '@/types/lowcode'
 
 export interface SaveDesignPayload {
@@ -45,9 +45,12 @@ export const lowcodeApi = {
 
   // ---- 实体扩展字段(统一自定义字段) ----
   entityFields: (entityType: string) =>
-    client.get<unknown, ApiResponse<{ field_definitions: FieldDefinition[] }>>(`/api/v1/lc/entity-fields/${entityType}`),
+    client.get<unknown, ApiResponse<{ field_definitions: FieldDefinition[]; rule_definitions: FormRule[] }>>(`/api/v1/lc/entity-fields/${entityType}`),
   entityTemplate: (entityType: string) =>
     client.get<unknown, ApiResponse<FormTemplate>>(`/api/v1/lc/entity-templates/${entityType}`),
+  /** 业务表单用的完整字段策略：原生字段(含租户覆盖) + 扩展字段 + 规则。 */
+  entityFormSchema: (entityType: string) =>
+    client.get<unknown, ApiResponse<EntityFormSchema>>(`/api/v1/lc/entity-form-schema/${entityType}`),
 
   // ---- 数据(实例) ----
   listInstances: (params: Record<string, unknown>) =>

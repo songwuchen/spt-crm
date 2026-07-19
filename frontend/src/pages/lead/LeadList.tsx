@@ -67,6 +67,7 @@ export default function LeadList() {
   const companyName = searchParams.get('company_name') || ''
   const startDate = searchParams.get('start_date') || undefined
   const endDate = searchParams.get('end_date') || undefined
+  const dateField = searchParams.get('date_field') || 'created_at'
   const [pageSize, setPageSize] = usePageSize('leads')
   const customerTypeDict = useDataDict('customer_type')
   const industryDict = useDataDict('industry')
@@ -96,6 +97,8 @@ export default function LeadList() {
     end_date: dr?.[1] ? dr[1].format('YYYY-MM-DD') : undefined,
     page: undefined,
   })
+  // created_at 是默认维度，不写进 URL 以保持链接干净
+  const setDateField = (v: string) => updateParams({ date_field: v === 'created_at' ? undefined : v, page: undefined })
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [assignModal, setAssignModal] = useState(false)
   const [assignForm] = Form.useForm()
@@ -166,6 +169,7 @@ export default function LeadList() {
         company_name: companyName || undefined,
         start_date: startDate,
         end_date: endDate,
+        date_field: dateField === 'created_at' ? undefined : dateField,
         ...view.buildParams(),
       })
       setData(res.data.items)
@@ -274,6 +278,26 @@ export default function LeadList() {
     { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, responsive: ['xl'],
       render: (v) => v ? <span className="text-sm text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-',
     },
+    // 以下原生列默认隐藏、可在「列配置」中调出（__optIn），避免默认列数过多撑爆表格。
+    // 它们此前完全不可见，但导出模板/详情页都有，属于用户会找的字段。
+    ...([
+      { title: '业务日期', dataIndex: 'biz_date', width: 110 },
+      { title: '联系电话', dataIndex: 'contact_phone', width: 130 },
+      { title: '联系邮箱', dataIndex: 'contact_email', width: 180 },
+      { title: '部门', dataIndex: 'department_name', width: 120 },
+      { title: '预算范围', dataIndex: 'budget_range', width: 120 },
+      { title: '详细地址', dataIndex: 'region', width: 180 },
+      { title: '录入人', dataIndex: 'created_by_name', width: 90 },
+      { title: '更新时间', dataIndex: 'updated_at', width: 110,
+        render: (v: string) => v
+          ? <span className="text-sm text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span>
+          : <span className="text-slate-300">-</span> },
+    ] as ColumnsType<Lead>).map((c) => ({
+      ...c,
+      __optIn: true,
+      render: (c as any).render ?? ((v: unknown) =>
+        v ? <span className="text-sm text-slate-600">{String(v)}</span> : <span className="text-slate-300">-</span>),
+    })),
     { title: '', key: 'actions', width: 160, fixed: 'right',
       render: (_, record) => (
         <Space size={0}>
@@ -336,6 +360,7 @@ export default function LeadList() {
             if (companyName) qs.set('company_name', companyName)
             if (startDate) qs.set('start_date', startDate)
             if (endDate) qs.set('end_date', endDate)
+            if (dateField !== 'created_at') qs.set('date_field', dateField)
             const q = qs.toString()
             downloadFile(`/api/v1/leads/export/excel${q ? `?${q}` : ''}`, 'leads.xlsx')
           }}>{t('common.export')}</Button>
@@ -383,12 +408,23 @@ export default function LeadList() {
             allowClear
             style={{ width: 180 }}
           />
-          <RangePicker
-            value={startDate && endDate ? [dayjs(startDate), dayjs(endDate)] : undefined}
-            onChange={(dr) => setDateRange(dr as [dayjs.Dayjs | null, dayjs.Dayjs | null] | null)}
-            placeholder={['创建起始', '创建结束']}
-            style={{ width: 240 }}
-          />
+          <Space.Compact>
+            <Select
+              value={dateField}
+              onChange={setDateField}
+              style={{ width: 110 }}
+              options={[
+                { value: 'created_at', label: '创建时间' },
+                { value: 'biz_date', label: '业务日期' },
+              ]}
+            />
+            <RangePicker
+              value={startDate && endDate ? [dayjs(startDate), dayjs(endDate)] : undefined}
+              onChange={(dr) => setDateRange(dr as [dayjs.Dayjs | null, dayjs.Dayjs | null] | null)}
+              placeholder={['起始', '结束']}
+              style={{ width: 230 }}
+            />
+          </Space.Compact>
           <Select
             placeholder={t('lead.status')}
             allowClear

@@ -2,6 +2,7 @@
 // 值存于 record.custom_fields_json[fieldId];按字段类型简单格式化。
 // 跳过明细子表/文件/图片/签名/富文本等非标量类型——窄列里只会渲染成 [object Object]。
 import type { ColumnsType } from 'antd/es/table'
+import { isMaskValue, MASK_VALUE } from '@/utils/mask'
 
 export interface CustomFieldDef {
   id: string
@@ -27,6 +28,8 @@ export function buildCustomFieldColumns<T = any>(defs: CustomFieldDef[]): Column
         if (raw == null || raw === '' || (Array.isArray(raw) && raw.length === 0)) {
           return <span className="text-slate-300">-</span>
         }
+        // 脱敏值先于类型格式化判断：否则被脱敏的 switch 字段会显示成「是」
+        if (isMaskValue(raw)) return <span className="text-sm text-slate-400">{MASK_VALUE}</span>
         if (f.type === 'switch') return raw ? '是' : '否'
         if (Array.isArray(raw)) return raw.join('、')
         return <span className="text-sm text-slate-700">{String(raw)}</span>

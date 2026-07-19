@@ -61,7 +61,7 @@ export default function ColumnConfigPanel({ allMeta, colState, onChange, onReset
                 onChange={(e) => toggle(m, e.target.checked)}
               />
               <span className="flex-1 text-sm text-slate-700 truncate">{m.title}</span>
-              {m.optIn && <Tag color="blue" style={{ marginInlineEnd: 0, transform: 'scale(0.85)' }}>自定义</Tag>}
+              {m.custom && <Tag color="blue" style={{ marginInlineEnd: 0, transform: 'scale(0.85)' }}>自定义</Tag>}
               <Button type="text" size="small" icon={<ArrowUpOutlined />} disabled={idx === 0} onClick={() => move(idx, -1)} />
               <Button type="text" size="small" icon={<ArrowDownOutlined />} disabled={idx === ordered.length - 1} onClick={() => move(idx, 1)} />
             </div>

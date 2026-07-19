@@ -165,12 +165,19 @@ async def export_projects_excel(
     items, _ = await service.list_projects(db, tenant_id, 1, settings.MAX_EXPORT_ROWS, keyword, stage_code, customer_id, status, owner_id)
     name_map = await _customer_names(db, tenant_id, items)
     headers = ["项目编码", "项目名称", "客户", "阶段", "预计金额", "概率(%)", "预计关闭日", "风险等级", "负责人", "状态", "创建时间"]
+    # 导出与列表/详情同口径脱敏（隐藏→空、脱敏→***）
+    from app.domains.lowcode.field_permission import entity_field_restrictions, export_cell
+    rst = await entity_field_restrictions(db, tenant_id, "project", _user.get("roles"))
     rows = []
     for p in items:
         rows.append([
-            p.project_code, p.name or "", name_map.get(p.customer_id) or "", p.stage_code or "",
-            float(p.amount_expect) if p.amount_expect is not None else "",
-            p.probability or "", str(p.close_date_expect) if p.close_date_expect else "",
+            p.project_code, export_cell(rst, "name", p.name or ""),
+            name_map.get(p.customer_id) or "", p.stage_code or "",
+            export_cell(rst, "amount_expect",
+                        float(p.amount_expect) if p.amount_expect is not None else ""),
+            export_cell(rst, "probability", p.probability or ""),
+            export_cell(rst, "close_date_expect",
+                        str(p.close_date_expect) if p.close_date_expect else ""),
             p.risk_level or "", p.owner_name or "", p.status or "",
             p.created_at.strftime("%Y-%m-%d %H:%M") if p.created_at else "",
         ])

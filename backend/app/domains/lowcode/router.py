@@ -162,12 +162,26 @@ async def load_form_design(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("form:view")),
 ):
-    """设计器加载: 返回最新(草稿优先)版本;无版本返回空设计。"""
-    await service.get_template(db, tenant_id, template_id)
+    """设计器加载: 返回最新(草稿优先)版本;无版本返回空设计。
+
+    实体扩展字段的系统模板会把该实体的原生字段(按目录重建、叠加已存覆盖项)排在前面一并
+    返回，管理员因此能在同一个设计器里配置内置字段的必填/显隐/只读/字段级权限。
+    """
+    tpl = await service.get_template(db, tenant_id, template_id)
     version = await service.get_design(db, tenant_id, template_id)
-    if not version:
-        return ok({"field_definitions": [], "layout_definition": {}, "rule_definitions": []})
-    return ok(_ver_dict(version))
+    design = (_ver_dict(version) if version
+              else {"field_definitions": [], "layout_definition": {}, "rule_definitions": []})
+
+    from app.domains.lowcode.native_field_catalog import has_native_catalog, merge_native_overrides
+    # is_system 这一半不能省：原生字段只属于实体扩展字段的系统模板，
+    # 若某个普通表单模板也带上了 entity_type，不该凭空多出一整套内置字段
+    if tpl.is_system and tpl.entity_type and has_native_catalog(tpl.entity_type):
+        stored = design["field_definitions"] or []
+        design["field_definitions"] = (
+            merge_native_overrides(tpl.entity_type, stored)
+            + [fd for fd in stored if not (isinstance(fd, dict) and fd.get("native"))]
+        )
+    return ok(design)
 
 
 @router.post("/form-templates/{template_id}/design")
@@ -243,10 +257,30 @@ async def get_entity_fields(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
-    """取该业务实体已发布的扩展字段定义,供业务表单/详情页用 FormRenderer 渲染。"""
+    """取该业务实体已发布的扩展字段定义与规则,供业务表单/详情页用 FormRenderer 渲染。"""
     _check_entity(entity_type)
-    fields = await service.get_entity_fields(db, tenant_id, entity_type)
-    return ok({"field_definitions": fields})
+    schema = await service.get_entity_schema(db, tenant_id, entity_type)
+    # 只返回扩展字段：本接口的消费方(扩展字段面板/列表可调出列)都只认扩展字段
+    return ok({
+        "field_definitions": [fd for fd in schema["field_definitions"]
+                              if not (isinstance(fd, dict) and fd.get("native"))],
+        "rule_definitions": schema["rule_definitions"],
+    })
+
+
+@router.get("/entity-form-schema/{entity_type}")
+async def get_entity_form_schema(
+    entity_type: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """取业务表单的完整字段策略：原生字段(含租户覆盖) + 扩展字段 + 规则。
+
+    业务表单页用它决定原生字段的必填/显隐/只读，规则条件可跨原生与扩展字段。
+    """
+    _check_entity(entity_type)
+    return ok(await service.get_entity_form_schema(db, tenant_id, entity_type))
 
 
 # ==================== 表单实例(数据) ====================

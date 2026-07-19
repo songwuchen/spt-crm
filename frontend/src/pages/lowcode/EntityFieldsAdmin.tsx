@@ -15,6 +15,10 @@ const ENTITIES: { type: string; label: string; desc: string }[] = [
   { type: 'order', label: '订单', desc: '订单扩展字段' },
   { type: 'contract', label: '合同', desc: '合同扩展字段' },
   { type: 'service_ticket', label: '售后工单', desc: '工单扩展字段' },
+  // 报价/回款的扩展字段已在 QuoteDetail、PaymentPage 渲染，后端白名单也一直支持，
+  // 这里此前漏了入口，导致这两个实体的字段无处可设计。
+  { type: 'quote', label: '报价', desc: '报价单扩展字段' },
+  { type: 'payment', label: '回款', desc: '回款记录扩展字段' },
 ]
 
 export default function EntityFieldsAdmin() {

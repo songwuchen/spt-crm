@@ -36,16 +36,30 @@ async def get_contract(db: AsyncSession, tenant_id: str, contract_id: str) -> Co
 
 
 async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, data: ContractCreate, user: dict) -> dict:
+    # 字段级权限：丢弃用户对不可编辑/隐藏/脱敏扩展字段的写入，并校验必填
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
+    cfj = await sanitize_entity_write(
+        db, tenant_id, "contract", data.custom_fields_json, None, user.get("roles"))
+    await validate_entity_custom_fields(db, tenant_id, "contract", cfj, user.get("roles"))
+    native = await enforce_native_field_policy(
+        db, tenant_id, "contract",
+        {"amount_total": data.amount_total, "end_date": data.end_date},
+        None, user.get("roles"),
+    )
+
     contract = Contract(
         id=generate_uuid(), tenant_id=tenant_id,
         project_id=project_id, contract_no=await generate_code(db, tenant_id, "contract"),
         current_version_no=1,
-        amount_total=data.amount_total,
+        amount_total=native.get("amount_total"),
         payment_terms_json=data.payment_terms_json,
         delivery_terms_json=data.delivery_terms_json,
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
         assignee_id=data.assignee_id, assignee_name=data.assignee_name,
         department_id=data.department_id, department_name=data.department_name,
+        custom_fields_json=cfj,
     )
     db.add(contract)
 
@@ -68,7 +82,21 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, dat
 
 async def update_contract(db: AsyncSession, tenant_id: str, contract_id: str, data: ContractUpdate, user: dict) -> Contract:
     contract = await get_contract(db, tenant_id, contract_id)
-    for field, val in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
+    if "custom_fields_json" in payload:
+        payload["custom_fields_json"] = await sanitize_entity_write(
+            db, tenant_id, "contract", payload["custom_fields_json"],
+            contract.custom_fields_json, user.get("roles"))
+        await validate_entity_custom_fields(
+            db, tenant_id, "contract", payload["custom_fields_json"], user.get("roles"))
+    # 原生字段策略：合同金额被脱敏成 "***" 后，编辑弹窗会把它绑进 InputNumber，
+    # 用户随手一存就会用 null 覆盖真实金额 —— 写入侧必须与读取侧对称拦截。
+    payload = await enforce_native_field_policy(
+        db, tenant_id, "contract", payload, contract, user.get("roles"), required_scope="payload")
+    for field, val in payload.items():
         setattr(contract, field, val)
     await db.commit()
     await db.refresh(contract)

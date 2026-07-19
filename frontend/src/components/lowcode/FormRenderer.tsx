@@ -10,6 +10,7 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { FieldDefinition, FormRule, FieldState, FieldPermission } from '@/types/lowcode'
 import { computeFieldStates } from './RuleEngine'
+import { MASK_VALUE } from '@/utils/mask'
 import { useAuthStore } from '@/stores/useAuthStore'
 import PersonField from './fields/PersonField'
 import DeptField from './fields/DeptField'
@@ -47,6 +48,9 @@ interface Props {
   onChange?: (value: Record<string, unknown>) => void
   // 设计器预览传 false，让管理员始终看到全部字段(设计态不受字段级权限约束)。
   applyFieldPerms?: boolean
+  // 仅参与规则求值、不参与渲染与 onChange 的外部字段值（业务表单里的原生字段值）。
+  // 使得「当国别=国外时显示某扩展字段」这类跨原生/扩展的条件能正确判定。
+  ruleContext?: Record<string, unknown>
 }
 
 // 由字段的 visible_roles/edit_roles + 当前用户角色，推导出规则引擎可用的 FieldPermission[]。
@@ -60,6 +64,12 @@ export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]):
       out.push({ fieldId: f.id, access: 'hidden' })
       continue
     }
+    const ur = f.unmask_roles
+    if (ur && ur.length && !ur.some((r) => roles.has(r))) {
+      // 脱敏即隐含只读：看不到明文的人不该覆盖真实值
+      out.push({ fieldId: f.id, access: 'masked' })
+      continue
+    }
     const er = f.edit_roles
     if (er && er.length && !er.some((r) => roles.has(r))) {
       out.push({ fieldId: f.id, access: 'readonly' })
@@ -68,15 +78,20 @@ export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]):
   return out
 }
 
-export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true }: Props) {
+export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext }: Props) {
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const rolePerms = useMemo(
     () => (applyFieldPerms ? deriveRolePerms(fields, userRoles) : []),
     [applyFieldPerms, fields, userRoles],
   )
+  // 本表单字段值优先于外部上下文（同名时以用户在本表单里填的为准）
+  const ruleValues = useMemo(
+    () => (ruleContext ? { ...ruleContext, ...value } : value),
+    [ruleContext, value],
+  )
   const states = useMemo(
-    () => computeFieldStates(fields, value, rules, rolePerms),
-    [fields, value, rules, rolePerms],
+    () => computeFieldStates(fields, ruleValues, rules, rolePerms),
+    [fields, ruleValues, rules, rolePerms],
   )
 
   const setField = (id: string, v: unknown) => {
@@ -122,6 +137,9 @@ function FieldItem({
 }) {
   const readonly = mode === 'readonly' || state?.readonly
   const required = state?.required
+  // 脱敏字段一律不渲染真实控件：后端已把值换成 "***"，但若值恰好没被裁到（如设计器预览），
+  // 这里也不能把明文渲染出去。
+  const masked = state?.masked || field.masked
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ marginBottom: 4, fontSize: 13, color: 'rgba(0,0,0,0.75)' }}>
@@ -133,7 +151,9 @@ function FieldItem({
           </Text>
         )}
       </div>
-      <FieldWidget field={field} readonly={!!readonly} value={value} allValues={allValues} onChange={onChange} />
+      {masked
+        ? <Text type="secondary" title="您所在角色无权查看该字段的明文">{MASK_VALUE}</Text>
+        : <FieldWidget field={field} readonly={!!readonly} value={value} allValues={allValues} onChange={onChange} />}
     </div>
   )
 }
@@ -350,6 +370,8 @@ export function validateRequired(
     if (f.type === 'formula' || f.type === 'auto_number') continue
     const st = states[f.id]
     if (st && !st.visible) continue
+    // 脱敏字段跳过必填：看不到明文就无法填写，脱敏+必填会让记录永远存不下去
+    if (st?.masked) continue
     const req = st ? st.required : f.required
     if (req && empty(values[f.id])) return `「${f.label}」为必填项`
     if (f.type === 'detail_table') {

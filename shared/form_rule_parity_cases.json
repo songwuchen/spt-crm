@@ -1,0 +1,213 @@
+{
+  "_comment": "表单规则引擎前后端一致性用例。两端各有一份实现（frontend/src/components/lowcode/RuleEngine.ts 与 backend/app/domains/lowcode/rule_engine.py），语义必须逐位一致——不一致会导致「前端不显示该字段、后端却报它必填」这类无法自救的死锁。两侧测试都读本文件：frontend/src/components/lowcode/__tests__/ruleEngineParity.test.ts 与 backend/tests/test_rule_engine_parity.py。新增规则能力时请在此补用例。",
+
+  "states": [
+    {
+      "name": "条件显隐：国外才显示国家名",
+      "fields": [{ "id": "country_type", "type": "text", "label": "国内外" },
+                 { "id": "country_name", "type": "text", "label": "国家" }],
+      "rules": [{ "id": "r1", "type": "visibility", "target_field_id": "country_name",
+                  "condition": { "field": "country_type", "operator": "eq", "value": "overseas" },
+                  "action": { "visible": true } }],
+      "values": { "country_type": "domestic" },
+      "expect": { "country_name": { "visible": false } }
+    },
+    {
+      "name": "条件显隐：命中则显示",
+      "fields": [{ "id": "country_type", "type": "text", "label": "国内外" },
+                 { "id": "country_name", "type": "text", "label": "国家" }],
+      "rules": [{ "id": "r1", "type": "visibility", "target_field_id": "country_name",
+                  "condition": { "field": "country_type", "operator": "eq", "value": "overseas" },
+                  "action": { "visible": true } }],
+      "values": { "country_type": "overseas" },
+      "expect": { "country_name": { "visible": true } }
+    },
+    {
+      "name": "级联隐藏：b 被藏后其残留值不驱动 c",
+      "fields": [{ "id": "a", "type": "text", "label": "A" },
+                 { "id": "b", "type": "text", "label": "B" },
+                 { "id": "c", "type": "text", "label": "C" }],
+      "rules": [{ "id": "r1", "type": "visibility", "target_field_id": "b",
+                  "condition": { "field": "a", "operator": "eq", "value": "show" },
+                  "action": { "visible": true } },
+                { "id": "r2", "type": "visibility", "target_field_id": "c",
+                  "condition": { "field": "b", "operator": "eq", "value": "yes" },
+                  "action": { "visible": true } }],
+      "values": { "a": "hide", "b": "yes" },
+      "expect": { "b": { "visible": false }, "c": { "visible": false } }
+    },
+    {
+      "name": "嵌套条件组 or(and)",
+      "fields": [{ "id": "a", "type": "text", "label": "A" },
+                 { "id": "b", "type": "text", "label": "B" },
+                 { "id": "c", "type": "text", "label": "C" },
+                 { "id": "t", "type": "text", "label": "T" }],
+      "rules": [{ "id": "r1", "type": "visibility", "target_field_id": "t",
+                  "condition": { "rel": "or", "cond": [
+                    { "field": "a", "operator": "eq", "value": "1" },
+                    { "rel": "and", "cond": [
+                      { "field": "b", "operator": "eq", "value": "2" },
+                      { "field": "c", "operator": "eq", "value": "3" }] }] },
+                  "action": { "visible": true } }],
+      "values": { "b": "2", "c": "3" },
+      "expect": { "t": { "visible": true } }
+    },
+    {
+      "name": "条件必填",
+      "fields": [{ "id": "country_type", "type": "text", "label": "国内外" },
+                 { "id": "country_name", "type": "text", "label": "国家" }],
+      "rules": [{ "id": "r1", "type": "required", "target_field_id": "country_name",
+                  "condition": { "field": "country_type", "operator": "eq", "value": "overseas" },
+                  "action": { "required": true } }],
+      "values": { "country_type": "overseas" },
+      "expect": { "country_name": { "required": true } }
+    },
+    {
+      "name": "条件只读",
+      "fields": [{ "id": "status", "type": "text", "label": "状态" },
+                 { "id": "amount", "type": "number", "label": "金额" }],
+      "rules": [{ "id": "r1", "type": "readonly", "target_field_id": "amount",
+                  "condition": { "field": "status", "operator": "eq", "value": "locked" },
+                  "action": { "readonly": true } }],
+      "values": { "status": "locked" },
+      "expect": { "amount": { "readonly": true } }
+    },
+    {
+      "name": "子表任一行匹配",
+      "fields": [{ "id": "items", "type": "detail_table", "label": "产品",
+                   "detail_table_columns": [{ "id": "qty", "type": "number", "label": "数量" }] },
+                 { "id": "note", "type": "text", "label": "说明" }],
+      "rules": [{ "id": "r1", "type": "visibility", "target_field_id": "note",
+                  "condition": { "field": "qty", "operator": "gt", "value": 100 },
+                  "action": { "visible": true } }],
+      "values": { "items": [{ "qty": 5 }, { "qty": 500 }] },
+      "expect": { "note": { "visible": true } }
+    },
+    {
+      "name": "角色权限强制隐藏",
+      "fields": [{ "id": "secret", "type": "text", "label": "密级" }],
+      "rules": [],
+      "permissions": [{ "fieldId": "secret", "access": "hidden" }],
+      "values": {},
+      "expect": { "secret": { "visible": false } }
+    },
+    {
+      "name": "角色权限脱敏：仍可见但只读",
+      "fields": [{ "id": "amount", "type": "amount", "label": "金额" }],
+      "rules": [],
+      "permissions": [{ "fieldId": "amount", "access": "masked" }],
+      "values": { "amount": 12345 },
+      "expect": { "amount": { "masked": true, "visible": true, "readonly": true } }
+    },
+    {
+      "name": "无脱敏配置时 masked 默认为 false",
+      "fields": [{ "id": "amount", "type": "amount", "label": "金额" }],
+      "rules": [],
+      "values": { "amount": 1 },
+      "expect": { "amount": { "masked": false, "readonly": false } }
+    },
+    {
+      "name": "props.hidden 静态隐藏",
+      "fields": [{ "id": "x", "type": "text", "label": "X", "props": { "hidden": true } }],
+      "rules": [],
+      "values": {},
+      "expect": { "x": { "visible": false } }
+    },
+    {
+      "name": "多目标字段 target_field_ids",
+      "fields": [{ "id": "k", "type": "text", "label": "K" },
+                 { "id": "m", "type": "text", "label": "M" },
+                 { "id": "n", "type": "text", "label": "N" }],
+      "rules": [{ "id": "r1", "type": "visibility", "target_field_ids": ["m", "n"],
+                  "condition": { "field": "k", "operator": "eq", "value": "on" },
+                  "action": { "visible": true } }],
+      "values": { "k": "off" },
+      "expect": { "m": { "visible": false }, "n": { "visible": false } }
+    }
+  ],
+
+  "required": [
+    {
+      "name": "被隐藏的静态必填字段不报错（防死锁）",
+      "fields": [{ "id": "country_type", "type": "text", "label": "国内外" },
+                 { "id": "country_name", "type": "text", "label": "国家", "required": true }],
+      "rules": [{ "id": "r1", "type": "visibility", "target_field_id": "country_name",
+                  "condition": { "field": "country_type", "operator": "eq", "value": "overseas" },
+                  "action": { "visible": true } }],
+      "values": { "country_type": "domestic" },
+      "expectError": false
+    },
+    {
+      "name": "可见的静态必填字段照常拦",
+      "fields": [{ "id": "country_type", "type": "text", "label": "国内外" },
+                 { "id": "country_name", "type": "text", "label": "国家", "required": true }],
+      "rules": [{ "id": "r1", "type": "visibility", "target_field_id": "country_name",
+                  "condition": { "field": "country_type", "operator": "eq", "value": "overseas" },
+                  "action": { "visible": true } }],
+      "values": { "country_type": "overseas" },
+      "expectError": true
+    },
+    {
+      "name": "公式/自动编号免必填",
+      "fields": [{ "id": "total", "type": "formula", "label": "合计", "required": true },
+                 { "id": "no", "type": "auto_number", "label": "编号", "required": true }],
+      "rules": [],
+      "values": {},
+      "expectError": false
+    },
+    {
+      "name": "明细子表必填列",
+      "fields": [{ "id": "items", "type": "detail_table", "label": "产品",
+                   "detail_table_columns": [{ "id": "name", "type": "text", "label": "名称", "required": true }] }],
+      "rules": [],
+      "values": { "items": [{ "name": "泵" }, { "name": "" }] },
+      "expectError": true
+    },
+    {
+      "name": "0 与 false 不算空",
+      "fields": [{ "id": "n", "type": "number", "label": "数量", "required": true },
+                 { "id": "b", "type": "switch", "label": "开关", "required": true }],
+      "rules": [],
+      "values": { "n": 0, "b": false },
+      "expectError": false
+    },
+    {
+      "name": "空数组算空",
+      "fields": [{ "id": "tags", "type": "multi_select", "label": "标签", "required": true }],
+      "rules": [],
+      "values": { "tags": [] },
+      "expectError": true
+    }
+  ],
+
+  "operators": [
+    { "actual": "overseas", "operator": "eq", "value": "overseas", "expect": true },
+    { "actual": 5, "operator": "eq", "value": "5", "expect": true },
+    { "actual": true, "operator": "eq", "value": "true", "expect": true },
+    { "actual": "a", "operator": "ne", "value": "b", "expect": true },
+    { "actual": null, "operator": "is_empty", "value": null, "expect": true },
+    { "actual": "", "operator": "is_empty", "value": null, "expect": true },
+    { "actual": [], "operator": "is_empty", "value": null, "expect": true },
+    { "actual": 0, "operator": "is_empty", "value": null, "expect": false },
+    { "actual": false, "operator": "is_empty", "value": null, "expect": false },
+    { "actual": "x", "operator": "is_not_empty", "value": null, "expect": true },
+    { "actual": 10, "operator": "gt", "value": 5, "expect": true },
+    { "actual": "10", "operator": "gt", "value": "5", "expect": true },
+    { "actual": "10", "operator": "gte", "value": "10", "expect": true },
+    { "actual": 3, "operator": "lt", "value": 5, "expect": true },
+    { "actual": 5, "operator": "lte", "value": 5, "expect": true },
+    { "actual": null, "operator": "gt", "value": 5, "expect": false },
+    { "actual": "", "operator": "gt", "value": -1, "expect": false },
+    { "actual": "abc", "operator": "gt", "value": "abd", "expect": false },
+    { "actual": "b", "operator": "in", "value": "a,b,c", "expect": true },
+    { "actual": "d", "operator": "in", "value": "a,b,c", "expect": false },
+    { "actual": ["a", "x"], "operator": "in", "value": ["x", "y"], "expect": true },
+    { "actual": "d", "operator": "not_in", "value": ["a", "b"], "expect": true },
+    { "actual": "hello world", "operator": "contains", "value": "lo w", "expect": true },
+    { "actual": ["a", "b"], "operator": "contains", "value": "b", "expect": true },
+    { "actual": "hello", "operator": "not_contains", "value": "z", "expect": true },
+    { "actual": "hello", "operator": "starts_with", "value": "he", "expect": true },
+    { "actual": "hello", "operator": "ends_with", "value": "lo", "expect": true },
+    { "actual": "hello", "operator": "unknown_op", "value": "x", "expect": false }
+  ]
+}

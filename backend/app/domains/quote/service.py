@@ -62,8 +62,11 @@ async def get_quote(db: AsyncSession, tenant_id: str, quote_id: str) -> Quote:
 
 async def create_quote(db: AsyncSession, tenant_id: str, project_id: str, data: QuoteCreate, user: dict) -> dict:
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
-    from app.domains.lowcode.field_permission import sanitize_entity_write
+    from app.domains.lowcode.field_permission import (
+        sanitize_entity_write, validate_entity_custom_fields,
+    )
     cf = await sanitize_entity_write(db, tenant_id, "quote", data.custom_fields_json, None, user.get("roles"))
+    await validate_entity_custom_fields(db, tenant_id, "quote", cf, user.get("roles"))
     quote = Quote(
         id=generate_uuid(), tenant_id=tenant_id,
         project_id=project_id, quote_no=await generate_code(db, tenant_id, "quote"),
@@ -107,10 +110,16 @@ async def update_quote(db: AsyncSession, tenant_id: str, quote_id: str, data: Qu
     quote = await get_quote(db, tenant_id, quote_id)
     dump = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     if "custom_fields_json" in dump:
-        from app.domains.lowcode.field_permission import sanitize_entity_write
         dump["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "quote", dump["custom_fields_json"], quote.custom_fields_json, user.get("roles"))
+        await validate_entity_custom_fields(
+            db, tenant_id, "quote", dump["custom_fields_json"], user.get("roles"))
+    dump = await enforce_native_field_policy(
+        db, tenant_id, "quote", dump, quote, user.get("roles"), required_scope="payload")
     for field, val in dump.items():
         setattr(quote, field, val)
     await db.commit()

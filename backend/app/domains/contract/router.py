@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
-from app.common.field_mask import load_mask_policies, apply_field_mask
+from app.common.field_mask import load_mask_policies, apply_field_mask, masked_number
 from app.domains.contract import service
 from app.domains.contract.schemas import ContractCreate, ContractUpdate, ContractVersionUpdate, ContractSign, ContractFromQuote
 
@@ -25,6 +25,9 @@ def _contract_dict(c) -> dict:
         "created_by_id": c.created_by_id, "created_by_name": c.created_by_name,
         "assignee_id": c.assignee_id, "assignee_name": c.assignee_name,
         "department_id": c.department_id, "department_name": c.department_name,
+        # 扩展字段：contracts 表一直有这一列、管理页也能为「合同」设计字段，但出参此前
+        # 从不返回、写入也不落库，功能整条链路是断的。
+        "custom_fields_json": c.custom_fields_json or {},
         "created_at": c.created_at.isoformat() if c.created_at else "",
         "updated_at": c.updated_at.isoformat() if c.updated_at else "",
     }
@@ -89,6 +92,9 @@ async def list_contracts(
     rows = apply_field_mask(
         [{**_contract_dict(c), **(name_map.get(c.project_id) or {})} for c in items],
         "contract", perms, policies)
+    # 角色键控的字段权限（隐藏/脱敏），与按权限脱敏的 apply_field_mask 并行生效
+    from app.domains.lowcode.field_permission import strip_entity_dicts
+    await strip_entity_dicts(db, tenant_id, "contract", rows, current_user.get("roles"))
     return ok({"items": rows, "total": total})
 
 
@@ -146,6 +152,8 @@ async def get_contract(
     perms = current_user.get("permissions", [])
     policies = await load_mask_policies(db, tenant_id)
     contract_dict = apply_field_mask(_contract_dict(contract), "contract", perms, policies)
+    from app.domains.lowcode.field_permission import strip_entity_dicts
+    await strip_entity_dicts(db, tenant_id, "contract", [contract_dict], current_user.get("roles"))
     return ok({
         **contract_dict,
         "versions": [_version_dict(v) for v in versions],
@@ -285,11 +293,22 @@ async def export_contract_pdf(
     versions = await service.get_versions_by_contract(db, tenant_id, contract_id)
     cur_ver = next((v for v in versions if v.version_no == contract.current_version_no), None)
 
+    # 导出与页面同口径脱敏：否则页面显示 *** 的金额可经 PDF 拿到真值。
+    # 两套并行 —— apply_field_mask 按权限、strip_entity_dicts 按角色。
+    # 必须**透传脱敏后的值**，不能只判断哨兵再回头读 contract.amount_total ——
+    # mask_type 还有 null / zero 两种，那样写 zero 类型仍会打印真值。
+    from app.domains.lowcode.field_permission import strip_entity_dicts
+    masked = apply_field_mask(
+        _contract_dict(contract), "contract",
+        _user.get("permissions", []), await load_mask_policies(db, tenant_id),
+    )
+    await strip_entity_dicts(db, tenant_id, "contract", [masked], _user.get("roles"))
+
     from app.common.pdf_builder import build_contract_pdf
     pdf_bytes = build_contract_pdf(
         contract_no=contract.contract_no,
         status=contract.status,
-        amount_total=float(contract.amount_total) if contract.amount_total is not None else None,
+        amount_total=masked_number(masked.get("amount_total")),
         signed_date=str(contract.signed_date) if contract.signed_date else None,
         end_date=str(contract.end_date) if contract.end_date else None,
         payment_terms=contract.payment_terms_json,

@@ -241,9 +241,15 @@ async def create_project(db: AsyncSession, tenant_id: str, data: ProjectCreate, 
     actor_name = user.get("real_name") or user.get("username")
     payload = data.model_dump()
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
-    from app.domains.lowcode.field_permission import sanitize_entity_write
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     payload["custom_fields_json"] = await sanitize_entity_write(
         db, tenant_id, "project", payload.get("custom_fields_json"), None, user.get("roles"))
+    await validate_entity_custom_fields(
+        db, tenant_id, "project", payload["custom_fields_json"], user.get("roles"))
+    # 原生字段策略：读取侧已按角色隐藏/脱敏，写入侧必须对称拦截
+    payload = await enforce_native_field_policy(db, tenant_id, "project", payload, None, user.get("roles"))
     # 创建时负责人默认 = 录入人（之后可由主管经 transfer_owner 转移）；
     # 若显式指定 owner_id（如批量导入按姓名指派），则查该用户名回填 owner_name
     chosen_owner_id = payload.pop("owner_id", None)
@@ -277,10 +283,16 @@ async def update_project(db: AsyncSession, tenant_id: str, project_id: str, data
     project = await get_project(db, tenant_id, project_id)
     update_data = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
     if "custom_fields_json" in update_data:
-        from app.domains.lowcode.field_permission import sanitize_entity_write
         update_data["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "project", update_data["custom_fields_json"], project.custom_fields_json, user.get("roles"))
+        await validate_entity_custom_fields(
+            db, tenant_id, "project", update_data["custom_fields_json"], user.get("roles"))
+    update_data = await enforce_native_field_policy(
+        db, tenant_id, "project", update_data, project, user.get("roles"), required_scope="payload")
 
     # Validate won/lost transition
     new_status = update_data.get("status")
