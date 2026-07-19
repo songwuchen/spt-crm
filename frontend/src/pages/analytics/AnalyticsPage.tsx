@@ -212,12 +212,13 @@ export default function AnalyticsPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-6">
-        <div>
+      {/* 窄屏(<1000px)下导出工具条必须换行，否则标题被挤成一列竖排文字 */}
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div className="flex-1 min-w-[240px]">
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">报表中心</h1>
           <p className="text-sm text-slate-500 mt-1">销售漏斗、赢单分析、回款跟踪、交付里程碑、业绩排行</p>
         </div>
-        <Space>
+        <Space wrap>
           <Button icon={<DownloadOutlined />} size="small" onClick={handleExportExcel}>导出Excel</Button>
           <Button icon={<FilePdfOutlined />} size="small" onClick={handleExportPdf}>导出PDF</Button>
           <Button icon={<CameraOutlined />} size="small" onClick={handleExportImage}>导出图片</Button>

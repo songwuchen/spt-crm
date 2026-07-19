@@ -90,6 +90,13 @@ export default function OpportunityDetail() {
   const [transferForm] = Form.useForm()
   const transferUserSelect = useUserSelect()
   const canTransfer = hasPermission('project:transfer')
+  const canEdit = hasPermission('project:edit')
+  const canDelete = hasPermission('project:delete')
+  const canDeleteSolution = hasPermission('solution:delete')
+  const canDeleteQuote = hasPermission('quote:delete')
+  const canDeleteContract = hasPermission('contract:delete')
+  const canDeleteDelivery = hasPermission('delivery:delete')
+  const canDeleteChange = hasPermission('change:delete')
 
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [advanceModal, setAdvanceModal] = useState(false)
@@ -541,13 +548,17 @@ export default function OpportunityDetail() {
             {canTransfer && (
               <Button icon={<UserSwitchOutlined />} onClick={openTransfer}>转移负责人</Button>
             )}
-            <Button icon={<EditOutlined />} onClick={() => navigate(`/opportunities/${id}/edit`)}>编辑</Button>
-            <Button danger icon={<DeleteOutlined />} onClick={() => {
-              Modal.confirm({
-                title: '确认删除', content: `确定要删除商机「${project.name}」？`, okType: 'danger',
-                onOk: async () => { await projectApi.delete(id!); message.success('已删除'); navigate('/opportunities') },
-              })
-            }}>删除</Button>
+            {canEdit && (
+              <Button icon={<EditOutlined />} onClick={() => navigate(`/opportunities/${id}/edit`)}>编辑</Button>
+            )}
+            {canDelete && (
+              <Button danger icon={<DeleteOutlined />} onClick={() => {
+                Modal.confirm({
+                  title: '确认删除', content: `确定要删除商机「${project.name}」？`, okType: 'danger',
+                  onOk: async () => { await projectApi.delete(id!); message.success('已删除'); navigate('/opportunities') },
+                })
+              }}>删除</Button>
+            )}
           </Space>
         </div>
 
@@ -784,12 +795,12 @@ export default function OpportunityDetail() {
                         { title: '', key: 'actions', render: (_: unknown, r: SolutionItem) => (
                           <Space size={4}>
                             <a onClick={() => navigate(`/opportunities/${id}/solutions/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
-                            <a className="text-rose-500 text-sm font-bold" onClick={() => {
+                            {canDeleteSolution && <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
                                 title: '确认删除', content: `确定要删除方案「${r.solution_no}」？`, okType: 'danger',
                                 onOk: async () => { await solutionApi.delete(r.id); message.success('已删除'); solutionApi.listByProject(id!).then((res) => setSolutions(res.data)) },
                               })
-                            }}>删除</a>
+                            }}>删除</a>}
                           </Space>
                         )},
                       ]}
@@ -831,12 +842,12 @@ export default function OpportunityDetail() {
                         { title: '', key: 'actions', render: (_, r) => (
                           <Space size={4}>
                             <a onClick={() => navigate(`/opportunities/${id}/quotes/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
-                            <a className="text-rose-500 text-sm font-bold" onClick={() => {
+                            {canDeleteQuote && <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
                                 title: '确认删除', content: `确定要删除报价「${r.quote_no}」？`, okType: 'danger',
                                 onOk: async () => { await quoteApi.delete(r.id); message.success('已删除'); quoteApi.listByProject(id!).then((res) => setQuotes(res.data)) },
                               })
-                            }}>删除</a>
+                            }}>删除</a>}
                           </Space>
                         )},
                       ]}
@@ -879,12 +890,12 @@ export default function OpportunityDetail() {
                         { title: '', key: 'actions', render: (_, r) => (
                           <Space size={4}>
                             <a onClick={() => navigate(`/opportunities/${id}/contracts/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
-                            <a className="text-rose-500 text-sm font-bold" onClick={() => {
+                            {canDeleteContract && <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
                                 title: '确认删除', content: `确定要删除合同「${r.contract_no}」？`, okType: 'danger',
                                 onOk: async () => { await contractApi.delete(r.id); message.success('已删除'); contractApi.listByProject(id!).then((res) => setContracts(res.data)) },
                               })
-                            }}>删除</a>
+                            }}>删除</a>}
                           </Space>
                         )},
                       ]}
@@ -981,12 +992,12 @@ export default function OpportunityDetail() {
                           { title: '', key: 'actions', width: 100, render: (_: unknown, r: DeliveryMilestone) => (
                             <Space size={4}>
                               <a className="text-primary text-sm font-bold" onClick={() => openMilestoneModal(r)}>编辑</a>
-                              <a className="text-rose-500 text-sm font-bold" onClick={() => {
+                              {canDeleteDelivery && <a className="text-rose-500 text-sm font-bold" onClick={() => {
                                 Modal.confirm({
                                   title: '确认删除', okType: 'danger',
                                   onOk: async () => { await deliveryApi.deleteMilestone(r.id); message.success('已删除'); deliveryApi.listMilestones(id!).then((res) => setMilestones(res.data)) },
                                 })
-                              }}>删除</a>
+                              }}>删除</a>}
                             </Space>
                           )},
                         ]}
@@ -1011,12 +1022,12 @@ export default function OpportunityDetail() {
                           { title: '备注', dataIndex: 'remark', ellipsis: true },
                           { title: '创建时间', dataIndex: 'created_at', render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
                           { title: '', key: 'actions', width: 60, render: (_: unknown, r: ErpOrderLink) => (
-                            <a className="text-rose-500 text-sm font-bold" onClick={() => {
+                            canDeleteDelivery ? <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
                                 title: '确认删除', okType: 'danger',
                                 onOk: async () => { await deliveryApi.deleteOrderLink(r.id); message.success('已删除'); deliveryApi.listOrderLinks(id!).then((res) => setOrderLinks(res.data)) },
                               })
-                            }}>删除</a>
+                            }}>删除</a> : null
                           )},
                         ]}
                       />
@@ -1150,12 +1161,12 @@ export default function OpportunityDetail() {
                         { title: '', key: 'actions', width: 100, render: (_: unknown, r: ChangeRequestItem) => (
                           <Space size={4}>
                             <a className="text-primary text-sm font-bold" onClick={() => openChangeDetail(r)}>查看</a>
-                            <a className="text-rose-500 text-sm font-bold" onClick={() => {
+                            {canDeleteChange && <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
                                 title: '确认删除', content: `确定要删除变更单「${r.change_no}」？`, okType: 'danger',
                                 onOk: async () => { await changeApi.delete(r.id); message.success('已删除'); changeApi.listByProject(id!).then((res) => setChangeRequests(res.data)) },
                               })
-                            }}>删除</a>
+                            }}>删除</a>}
                           </Space>
                         )},
                       ]}
@@ -1224,29 +1235,32 @@ export default function OpportunityDetail() {
                 label: <span className="font-semibold">共享 <span className="ml-1 text-sm text-slate-400">{shares.length}</span></span>,
                 children: (
                   <div className="py-4">
-                    <div className="flex justify-end mb-3">
-                      <Button size="small" icon={<PlusOutlined />} onClick={() => {
-                        shareForm.resetFields()
-                        shareForm.setFieldsValue({ shared_to_type: 'user', permission: 'view' })
-                        setShareModal(true)
-                        if (!shareRoleList.length) {
-                          roleApi.list().then((r) =>
-                            setShareRoleList((r.data || []).map((role) => ({ id: role.id, name: role.name })))
-                          ).catch(() => {})
-                        }
-                      }}>共享给</Button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex justify-end mb-3">
+                        <Button size="small" icon={<PlusOutlined />} onClick={() => {
+                          shareForm.resetFields()
+                          shareForm.setFieldsValue({ shared_to_type: 'user', permission: 'view' })
+                          setShareModal(true)
+                          if (!shareRoleList.length) {
+                            roleApi.list().then((r) =>
+                              setShareRoleList((r.data || []).map((role) => ({ id: role.id, name: role.name })))
+                            ).catch(() => {})
+                          }
+                        }}>共享给</Button>
+                      </div>
+                    )}
                     <Table size="small" rowKey="id" dataSource={shares} pagination={false} columns={[
                       { title: '共享对象', dataIndex: 'shared_to_name', width: 150, render: (v: string) => <span className="font-bold text-sm">{v}</span> },
                       { title: '类型', dataIndex: 'shared_to_type', width: 80, render: (v: string) => v === 'user' ? '用户' : v === 'role' ? '角色' : v },
                       { title: '权限', dataIndex: 'permission', width: 80, render: (v: string) => <Tag color={v === 'edit' ? 'blue' : undefined}>{v === 'edit' ? '编辑' : '查看'}</Tag> },
                       { title: '共享人', dataIndex: 'shared_by_name', width: 100 },
+                      // 共享的增删后端要求 project:edit
                       { title: '', key: 'actions', width: 60, render: (_: unknown, record: AclShareItem) => (
-                        <a className="text-sm text-rose-500" onClick={async () => {
+                        canEdit ? <a className="text-sm text-rose-500" onClick={async () => {
                           await projectApi.deleteShare(id!, record.id)
                           message.success('已取消共享')
                           projectApi.listShares(id!).then((r) => setShares(r.data))
-                        }}>删除</a>
+                        }}>删除</a> : null
                       ) },
                     ]} />
                   </div>

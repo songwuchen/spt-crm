@@ -24,6 +24,7 @@ export default function CustomerPool() {
   const navigate = useNavigate()
   const { hasPermission } = usePermission()
   const canManage = hasPermission('role:manage')
+  const canDelete = hasPermission('customer:delete')
 
   const [items, setItems] = useState<Customer[]>([])
   const [total, setTotal] = useState(0)
@@ -194,7 +195,7 @@ export default function CustomerPool() {
       render: (_, r) => (
         <Space size={4}>
           <Button type="primary" size="small" onClick={() => handleClaim(r.id, r.name)}>领取</Button>
-          <Button size="small" danger onClick={() => handleDelete(r.id, r.name)}>删除</Button>
+          {canDelete && <Button size="small" danger onClick={() => handleDelete(r.id, r.name)}>删除</Button>}
         </Space>
       ),
     },

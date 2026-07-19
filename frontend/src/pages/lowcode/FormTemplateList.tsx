@@ -6,6 +6,7 @@ import {
 } from 'antd'
 import { PlusOutlined, AppstoreAddOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
+import { usePermission } from '@/hooks/usePermission'
 import type { FormTemplate, BuiltinTemplate } from '@/types/lowcode'
 
 const { Title } = Typography
@@ -18,11 +19,16 @@ const STATUS_TAG: Record<string, { color: string; text: string }> = {
 
 export default function FormTemplateList() {
   const nav = useNavigate()
+  const { hasPermission } = usePermission()
+  const canManage = hasPermission('form:manage')
+  const canFill = hasPermission('form_data:create')
+  const canViewData = hasPermission('form_data:view')
   const [items, setItems] = useState<FormTemplate[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [pageNo, setPageNo] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
   const [form] = Form.useForm()
   const [marketOpen, setMarketOpen] = useState(false)
   const [builtins, setBuiltins] = useState<BuiltinTemplate[]>([])
@@ -60,6 +66,8 @@ export default function FormTemplateList() {
       const res = await lowcodeApi.listTemplates({ pageNo, pageSize: 20 })
       setItems(res.data.items)
       setTotal(res.data.total)
+    } catch {
+      message.error('加载表单列表失败')
     } finally {
       setLoading(false)
     }
@@ -68,17 +76,28 @@ export default function FormTemplateList() {
 
   const handleCreate = async () => {
     const v = await form.validateFields()
-    const res = await lowcodeApi.createTemplate(v)
-    message.success('已创建，去设计表单')
-    setCreateOpen(false)
-    form.resetFields()
-    nav(`/lowcode/forms/${res.data.id}/design`)
+    setCreating(true)
+    try {
+      const res = await lowcodeApi.createTemplate(v)
+      message.success('已创建，去设计表单')
+      setCreateOpen(false)
+      form.resetFields()
+      nav(`/lowcode/forms/${res.data.id}/design`)
+    } catch {
+      message.error('创建表单失败')
+    } finally {
+      setCreating(false)
+    }
   }
 
   const handleDelete = async (id: string) => {
-    await lowcodeApi.deleteTemplate(id)
-    message.success('已删除')
-    load()
+    try {
+      await lowcodeApi.deleteTemplate(id)
+      message.success('已删除')
+      load()
+    } catch {
+      message.error('删除失败')
+    }
   }
 
   const columns = [
@@ -97,12 +116,14 @@ export default function FormTemplateList() {
       title: '操作', key: 'op', width: 320,
       render: (_: unknown, r: FormTemplate) => (
         <Space size="small" wrap>
-          <Button size="small" onClick={() => nav(`/lowcode/forms/${r.id}/design`)}>设计</Button>
-          <Button size="small" type="link" disabled={r.status !== 'published'} onClick={() => nav(`/lowcode/forms/${r.id}/fill`)}>填报</Button>
-          <Button size="small" type="link" onClick={() => nav(`/lowcode/forms/${r.id}/data`)}>数据</Button>
-          <Popconfirm title="确认删除该表单模板?" onConfirm={() => handleDelete(r.id)} disabled={r.is_system}>
-            <Button size="small" type="link" danger disabled={r.is_system}>删除</Button>
-          </Popconfirm>
+          {canManage && <Button size="small" onClick={() => nav(`/lowcode/forms/${r.id}/design`)}>设计</Button>}
+          {canFill && <Button size="small" type="link" disabled={r.status !== 'published'} onClick={() => nav(`/lowcode/forms/${r.id}/fill`)}>填报</Button>}
+          {canViewData && <Button size="small" type="link" onClick={() => nav(`/lowcode/forms/${r.id}/data`)}>数据</Button>}
+          {canManage && (
+            <Popconfirm title="确认删除该表单模板?" onConfirm={() => handleDelete(r.id)} disabled={r.is_system}>
+              <Button size="small" type="link" danger disabled={r.is_system}>删除</Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -112,17 +133,19 @@ export default function FormTemplateList() {
     <Card>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>表单中心</Title>
-        <Space>
-          <Button icon={<AppstoreAddOutlined />} onClick={openMarket}>从模板库新建</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建表单</Button>
-        </Space>
+        {canManage && (
+          <Space>
+            <Button icon={<AppstoreAddOutlined />} onClick={openMarket}>从模板库新建</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建表单</Button>
+          </Space>
+        )}
       </div>
       <Table
         rowKey="id" loading={loading} columns={columns} dataSource={items}
         pagination={{ current: pageNo, total, pageSize: 20, onChange: setPageNo, showSizeChanger: false }}
       />
 
-      <Modal title="新建表单" open={createOpen} onOk={handleCreate} onCancel={() => setCreateOpen(false)} destroyOnClose>
+      <Modal title="新建表单" open={createOpen} onOk={handleCreate} confirmLoading={creating} onCancel={() => setCreateOpen(false)} destroyOnClose>
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="表单名称" rules={[{ required: true, message: '请输入表单名称' }]}>
             <Input placeholder="如: 请假申请 / 采购申请" />

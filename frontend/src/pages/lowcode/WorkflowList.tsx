@@ -5,6 +5,7 @@ import { Card, Table, Button, Space, Tag, Modal, Form, Input, Select, message, P
 import { PlusOutlined } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
+import { usePermission } from '@/hooks/usePermission'
 import type { WfDefinition, FormTemplate } from '@/types/lowcode'
 
 const { Title } = Typography
@@ -17,11 +18,14 @@ const STATUS_TAG: Record<string, { color: string; text: string }> = {
 
 export default function WorkflowList() {
   const nav = useNavigate()
+  const { hasPermission } = usePermission()
+  const canManage = hasPermission('workflow:manage')
   const [items, setItems] = useState<WfDefinition[]>([])
   const [total, setTotal] = useState(0)
   const [pageNo, setPageNo] = useState(1)
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
   const [forms, setForms] = useState<FormTemplate[]>([])
   const [form] = Form.useForm()
 
@@ -30,25 +34,38 @@ export default function WorkflowList() {
     try {
       const res = await workflowApi.listDefs({ pageNo, pageSize: 20 })
       setItems(res.data.items); setTotal(res.data.total)
+    } catch {
+      message.error('加载流程列表失败')
     } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [pageNo])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const openCreate = async () => {
-    const res = await lowcodeApi.listTemplates({ pageNo: 1, pageSize: 100, published_only: true })
-    setForms(res.data.items)
-    setOpen(true)
+    try {
+      const res = await lowcodeApi.listTemplates({ pageNo: 1, pageSize: 100, published_only: true })
+      setForms(res.data.items)
+      setOpen(true)
+    } catch { message.error('加载可绑定表单失败') }
   }
 
   const handleCreate = async () => {
     const v = await form.validateFields()
-    const res = await workflowApi.createDef(v)
-    message.success('已创建，去设计流程')
-    setOpen(false); form.resetFields()
-    nav(`/lowcode/workflows/${res.data.id}/design`)
+    setCreating(true)
+    try {
+      const res = await workflowApi.createDef(v)
+      message.success('已创建，去设计流程')
+      setOpen(false); form.resetFields()
+      nav(`/lowcode/workflows/${res.data.id}/design`)
+    } catch {
+      message.error('创建流程失败')
+    } finally { setCreating(false) }
   }
 
-  const del = async (id: string) => { await workflowApi.deleteDef(id); message.success('已删除'); load() }
+  const del = async (id: string) => {
+    try {
+      await workflowApi.deleteDef(id); message.success('已删除'); load()
+    } catch { message.error('删除失败') }
+  }
 
   const columns = [
     { title: '流程名称', dataIndex: 'name', key: 'name' },
@@ -56,7 +73,8 @@ export default function WorkflowList() {
     { title: '绑定表单', dataIndex: 'form_template_id', key: 'form', render: (v: string) => (v ? <Tag color="blue">已绑定</Tag> : '—') },
     { title: '状态', dataIndex: 'status', key: 'status', render: (s: string) => { const t = STATUS_TAG[s] || { color: 'default', text: s }; return <Tag color={t.color}>{t.text}</Tag> } },
     { title: '版本', dataIndex: 'current_version', key: 'v', render: (v: number) => `v${v}` },
-    {
+    // 设计/删除均需 workflow:manage，无权限时整列隐藏
+    ...(canManage ? [{
       title: '操作', key: 'op', width: 220,
       render: (_: unknown, r: WfDefinition) => (
         <Space size="small">
@@ -66,19 +84,19 @@ export default function WorkflowList() {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ]
 
   return (
     <Card>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>流程管理</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建流程</Button>
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建流程</Button>}
       </div>
       <Table rowKey="id" loading={loading} columns={columns} dataSource={items}
         pagination={{ current: pageNo, total, pageSize: 20, onChange: setPageNo, showSizeChanger: false }} />
 
-      <Modal title="新建审批流程" open={open} onOk={handleCreate} onCancel={() => setOpen(false)} destroyOnClose>
+      <Modal title="新建审批流程" open={open} onOk={handleCreate} confirmLoading={creating} onCancel={() => setOpen(false)} destroyOnClose>
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="流程名称" rules={[{ required: true, message: '请输入流程名称' }]}>
             <Input placeholder="如: 请假审批 / 报销审批" />
