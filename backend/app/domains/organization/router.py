@@ -206,20 +206,10 @@ async def import_users(
     return ok(result)
 
 
-@router.get("/users/{user_id}")
-async def get_user(
-    user_id: str,
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("user:view")),
-):
-    u = await service.get_user(db, tenant_id, user_id)
-    return ok({
-        "id": u.id, "username": u.username, "real_name": u.real_name,
-        "phone": u.phone, "email": u.email, "is_active": u.is_active,
-        "roles": [ur.role.code for ur in u.user_roles],
-        "departments": [ud.department.name for ud in u.user_departments],
-    })
+# GET /users/{user_id} 曾在这里重复注册过一份（多返回 roles/departments）。
+# 上面 get_user_detail 注册在前，first-match-wins，这份从来没生效过——
+# 也就是说「按 id 取用户会带出角色和部门」这个预期一直是假的。两处守卫同为 user:view，
+# 唯一实际调用方(OpportunityForm 回显负责人姓名)只用 real_name/username，故直接删除。
 
 
 @router.put("/users/{user_id}")

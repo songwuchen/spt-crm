@@ -22,9 +22,16 @@ async def create_tenant(db: AsyncSession, data: TenantCreate) -> PlatformTenant:
     return tenant
 
 
-async def list_tenants(db: AsyncSession, page_no: int = 1, page_size: int = 20):
-    total = (await db.execute(select(func.count(PlatformTenant.id)))).scalar()
-    query = select(PlatformTenant).order_by(PlatformTenant.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
+async def list_tenants(db: AsyncSession, page_no: int = 1, page_size: int = 20,
+                       only_tenant_id: str | None = None):
+    """列平台租户。only_tenant_id 非空时只返回该租户（非平台管理员的调用方）。"""
+    count_q = select(func.count(PlatformTenant.id))
+    query = select(PlatformTenant)
+    if only_tenant_id:
+        count_q = count_q.where(PlatformTenant.id == only_tenant_id)
+        query = query.where(PlatformTenant.id == only_tenant_id)
+    total = (await db.execute(count_q)).scalar()
+    query = query.order_by(PlatformTenant.created_at.desc()).offset((page_no - 1) * page_size).limit(page_size)
     items = (await db.execute(query)).scalars().all()
     return items, total
 

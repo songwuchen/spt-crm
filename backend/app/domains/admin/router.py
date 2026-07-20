@@ -74,13 +74,9 @@ def _plan_dict(p) -> dict:
 
 # ==================== Platform: Tenants ====================
 
-@router.get("/api/admin/v1/platform/tenants")
-async def list_tenants(db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("role:manage"))):
-    items = await service.list_tenants(db)
-    return ok([{"id": t.id, "code": t.code, "name": t.name,
-                "is_active": t.is_active, "plan": t.plan,
-                "contact_name": t.contact_name, "contact_email": t.contact_email,
-                "created_at": t.created_at.isoformat() if t.created_at else ""} for t in items])
+# GET /api/admin/v1/platform/tenants 曾在这里重复注册过一份（守卫 role:manage）。
+# tenant/router.py 的同路径路由注册在前，first-match-wins，这份从来没被匹配到过，
+# 留着只会让人误以为该接口要 role:manage（实际生效的是 tenant:view）。已删除。
 
 
 @router.put("/api/admin/v1/platform/tenants/{tenant_id}")
