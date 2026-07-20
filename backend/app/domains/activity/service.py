@@ -45,6 +45,11 @@ async def _load_biz_object(db: AsyncSession, tenant_id: str, biz_type: str, biz_
     if biz_type == "tender":
         from app.domains.tender.models import Tender
         return await _first(Tender, biz_id), "owner"
+    if biz_type == "service_ticket":
+        # 工单有自己的一套可见性（指派人/报单人/未分配池/父客户/父商机），
+        # 单独判定后直接返回结论，不走下面 owner/project_child 两种口径
+        from app.domains.service_ticket.models import ServiceTicket
+        return await _first(ServiceTicket, biz_id), "service_ticket"
 
     # 商机子实体：按所属商机判定
     if biz_type == "quote":
@@ -103,7 +108,10 @@ async def assert_biz_object_visible(
     obj, kind = await _load_biz_object(db, tenant_id, biz_type, biz_id)
     if obj is None:
         return  # 未收录的 biz_type，或父对象已不存在（没有可泄露的内容）
-    if kind == "owner":
+    if kind == "service_ticket":
+        from app.domains.service_ticket.service import get_ticket
+        await get_ticket(db, tenant_id, obj.id, user)  # 越权即 403
+    elif kind == "owner":
         await assert_in_scope(db, tenant_id, user, obj, biz_type, label=label)
     else:
         await assert_project_child_in_scope(db, tenant_id, user, obj, label=label)

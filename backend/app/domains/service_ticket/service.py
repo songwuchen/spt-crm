@@ -36,6 +36,16 @@ async def list_tickets(
 ):
     q = select(ServiceTicket).where(ServiceTicket.tenant_id == tenant_id)
     count_q = select(func.count(ServiceTicket.id)).where(ServiceTicket.tenant_id == tenant_id)
+
+    # 数据范围：工单此前只按 tenant 过滤，current_user 只喂给高级筛选没参与鉴权，
+    # 于是每个销售都能翻到全公司工单的故障描述/客户名/满意度评价
+    if current_user is not None:
+        from app.common.data_scope import service_ticket_scope_clause
+        clause_scope = await service_ticket_scope_clause(db, tenant_id, current_user)
+        if clause_scope is not None:
+            q = q.where(clause_scope)
+            count_q = count_q.where(clause_scope)
+
     if customer_id:
         q = q.where(ServiceTicket.customer_id == customer_id)
         count_q = count_q.where(ServiceTicket.customer_id == customer_id)
@@ -77,12 +87,31 @@ async def list_tickets(
     return result.scalars().all(), total
 
 
-async def get_ticket(db: AsyncSession, tenant_id: str, ticket_id: str) -> ServiceTicket:
+async def get_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, user: dict | None = None) -> ServiceTicket:
+    """按 id 取工单。传入 user 时按与列表一致的口径校验可见性
+    （指派给我 / 我报的 / 未分配 / 父客户或父商机可见）。
+
+    user=None 表示系统内部调用（审批引擎、SLA 提醒 worker 等），不做范围校验。
+    """
     t = (await db.execute(
         select(ServiceTicket).where(ServiceTicket.id == ticket_id, ServiceTicket.tenant_id == tenant_id)
     )).scalar_one_or_none()
     if not t:
         raise BusinessException(code=NOT_FOUND, message="工单不存在")
+    if user is not None:
+        from app.common.data_scope import service_ticket_scope_clause
+        clause = await service_ticket_scope_clause(db, tenant_id, user)
+        if clause is not None:
+            visible = (await db.execute(
+                select(ServiceTicket.id).where(
+                    ServiceTicket.id == ticket_id,
+                    ServiceTicket.tenant_id == tenant_id,
+                    clause,
+                ).limit(1)
+            )).scalar_one_or_none()
+            if visible is None:
+                from app.common.error_codes import FORBIDDEN
+                raise BusinessException(code=FORBIDDEN, message="无权访问该工单（不在您的数据范围内）")
     return t
 
 
@@ -128,7 +157,7 @@ async def create_ticket(db: AsyncSession, tenant_id: str, data: ServiceTicketCre
 async def submit_for_approval(db: AsyncSession, tenant_id: str, ticket_id: str, user: dict) -> ServiceTicket:
     """提交售后工单审批（内勤发起）。优先走新表单引擎工作流（若 service_ticket 已绑定并发布流程），
     否则回退到旧 approval 引擎策略。灰度按 biz_type 逐个切换。"""
-    ticket = await get_ticket(db, tenant_id, ticket_id)
+    ticket = await get_ticket(db, tenant_id, ticket_id, user)
     title = f"售后工单审批: {ticket.ticket_no}"
     from app.domains.lowcode.workflow_service import start_for_biz
     pinst = await start_for_biz(db, tenant_id, "service_ticket", ticket.id, user, title=title)
@@ -142,7 +171,7 @@ async def submit_for_approval(db: AsyncSession, tenant_id: str, ticket_id: str, 
 
 
 async def update_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, data: ServiceTicketUpdate, user: dict) -> ServiceTicket:
-    ticket = await get_ticket(db, tenant_id, ticket_id)
+    ticket = await get_ticket(db, tenant_id, ticket_id, user)
     old_assignee = ticket.assigned_to_id
     old_status = ticket.status
     _dump = data.model_dump(exclude_unset=True)
@@ -196,7 +225,7 @@ async def update_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, data: 
 
 
 async def delete_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, user: dict):
-    ticket = await get_ticket(db, tenant_id, ticket_id)
+    ticket = await get_ticket(db, tenant_id, ticket_id, user)
     await db.delete(ticket)
     await db.commit()
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),

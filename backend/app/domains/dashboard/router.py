@@ -123,6 +123,17 @@ def _lead_scope_where(tenant_id: str, user: dict, scope: list[str] | None) -> li
     return [or_(*conds)]
 
 
+async def _ticket_scope_where(db: AsyncSession, tenant_id: str, user: dict) -> list:
+    """售后工单可见条件，复用工单域与列表共用的判定（含未分配工单池 / 指派给我）。
+
+    注意工作台不需要 service:view 就能打开，所以这里不收窄的话，
+    连没有工单权限的销售也能从卡片和预警里读到全公司的故障描述与客户名。
+    """
+    from app.common.data_scope import service_ticket_scope_clause
+    clause = await service_ticket_scope_clause(db, tenant_id, user)
+    return [] if clause is None else [clause]
+
+
 async def _customer_scope_where(db: AsyncSession, tenant_id: str, user: dict) -> list:
     """客户可见条件。直接复用共享的 visible_customer_ids_select（含公海/共享口径），
     避免工作台自己再造一套判定后与客户列表对不上。"""
@@ -249,14 +260,19 @@ async def stats(
             *_child_scope_where(ChangeRequest, tenant_id, _user, scope))
     )).scalar() or 0
 
+    # 工单有 customer_id/project_id/assigned_to_id/created_by_id 四个归属维度，
+    # 口径与工单列表统一（指派给我 / 我报的 / 未分配 / 父客户或父商机可见）
+    ticket_where = await _ticket_scope_where(db, tenant_id, _user)
     ticket_total = (await db.execute(
-        select(func.count(ServiceTicket.id)).where(ServiceTicket.tenant_id == tenant_id)
+        select(func.count(ServiceTicket.id)).where(
+            ServiceTicket.tenant_id == tenant_id, *ticket_where)
     )).scalar() or 0
 
     ticket_open = (await db.execute(
         select(func.count(ServiceTicket.id)).where(
             ServiceTicket.tenant_id == tenant_id,
             ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
+            *ticket_where,
         )
     )).scalar() or 0
 
@@ -349,9 +365,9 @@ async def trends(
     cur_projects = (await db.execute(_month_filter(OpportunityProject, "created_at", cur_year, cur_month, proj_where))).scalar() or 0
     prev_projects = (await db.execute(_month_filter(OpportunityProject, "created_at", prev_year, prev_month, proj_where))).scalar() or 0
 
-    # 工单没有归属维度（service_tickets 全租户共享，服务台按 service:view 授权），保持原口径
-    cur_tickets = (await db.execute(_month_filter(ServiceTicket, "created_at", cur_year, cur_month))).scalar() or 0
-    prev_tickets = (await db.execute(_month_filter(ServiceTicket, "created_at", prev_year, prev_month))).scalar() or 0
+    ticket_where = await _ticket_scope_where(db, tenant_id, _user)
+    cur_tickets = (await db.execute(_month_filter(ServiceTicket, "created_at", cur_year, cur_month, ticket_where))).scalar() or 0
+    prev_tickets = (await db.execute(_month_filter(ServiceTicket, "created_at", prev_year, prev_month, ticket_where))).scalar() or 0
 
     def _trend(cur: int, prev: int) -> dict:
         diff = cur - prev
@@ -436,13 +452,15 @@ async def alerts(
             "biz_type": "project", "biz_id": p.id,
         })
 
-    # Open tickets —— 工单本身没有归属维度（服务台按 service:view 授权、列表就是全租户可见），
-    # 这里不额外收窄，否则工作台会比工单列表还严，服务台同事看不到自己该处理的告警。
+    # Open tickets —— 与工单列表同口径限范围。预警卡片会带出工单号和故障描述，
+    # 且工作台不需要 service:view 就能看，是这块最容易被忽略的泄露面。
+    ticket_where = await _ticket_scope_where(db, tenant_id, _user)
     open_tickets = (await db.execute(
         select(ServiceTicket).where(
             ServiceTicket.tenant_id == tenant_id,
             ServiceTicket.status.in_(["open"]),
             ServiceTicket.priority.in_(["high", "critical"]),
+            *ticket_where,
         ).limit(10)
     )).scalars().all()
     for t in open_tickets:
@@ -1157,11 +1175,13 @@ async def global_search(
     for r in rows:
         results.append({"type": "contact", "id": r.id, "title": r.name, "subtitle": r.phone or "", "url": f"/customers/{r.customer_id}"})
 
-    # Service Tickets —— 工单无归属维度（服务台全租户可见），保持原口径
+    # Service Tickets —— 与工单列表同口径限范围
+    ticket_where = await _ticket_scope_where(db, tenant_id, _user)
     rows = (await db.execute(
         select(ServiceTicket.id, ServiceTicket.ticket_no, ServiceTicket.description).where(
             ServiceTicket.tenant_id == tenant_id,
             or_(ServiceTicket.ticket_no.ilike(keyword), ServiceTicket.description.ilike(keyword)),
+            *ticket_where,
         ).limit(LIMIT)
     )).all()
     for r in rows:

@@ -179,6 +179,81 @@ async def visible_customer_ids_select(
     )
 
 
+async def visible_project_ids_select(
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict,
+):
+    """可见商机 id 的子查询；None 表示不限。口径同 apply_data_scope(OpportunityProject)。"""
+    scope = await resolve_owner_scope(db, user, tenant_id)
+    if scope is None:
+        return None
+
+    from app.domains.project.models import OpportunityProject
+    uid = user.get("sub", "")
+    conds = [
+        OpportunityProject.owner_id.in_(scope),
+        OpportunityProject.created_by_id == uid,
+    ]
+    try:
+        from app.domains.customer.models import AclShare
+        conds.append(OpportunityProject.id.in_(select(AclShare.biz_id).where(
+            AclShare.tenant_id == tenant_id,
+            AclShare.biz_type == "project",
+            or_(AclShare.shared_to_id == uid, AclShare.shared_to_type == "all"),
+        )))
+    except Exception:
+        pass
+    try:
+        from app.domains.project.models import ProjectMember
+        conds.append(OpportunityProject.id.in_(select(ProjectMember.project_id).where(
+            ProjectMember.tenant_id == tenant_id,
+            ProjectMember.user_id == uid,
+        )))
+    except Exception:
+        pass
+
+    return select(OpportunityProject.id).where(
+        OpportunityProject.tenant_id == tenant_id,
+        or_(*conds),
+    )
+
+
+async def service_ticket_scope_clause(db: AsyncSession, tenant_id: str, user: dict):
+    """售后工单的可见条件；None 表示不限。
+
+    工单不像客户/商机那样有 owner_id，但它有 customer_id / project_id / assigned_to_id /
+    created_by_id 四个归属维度，并不是「无归属」——按 tenant 全表放开会把全公司的故障描述、
+    客户名和满意度评价摊给每个销售。
+
+    这里必须把「指派给我」和「未分配」并进来：售后工程师(service_engineer)的 data_scope 是
+    self，而客户归销售所有，只按父对象判定会让工程师看不见自己手上的工单；未分配工单相当于
+    工单池（同公海客户的处理），否则新工单没人认领得到。
+    """
+    scope = await resolve_owner_scope(db, user, tenant_id)
+    if scope is None:
+        return None
+
+    from app.domains.service_ticket.models import ServiceTicket
+    conds = [
+        ServiceTicket.assigned_to_id.in_(scope),      # 指派给我 / 本部门成员
+        ServiceTicket.created_by_id.in_(scope),       # 我报的单
+    ]
+    # 未分配工单池：只开给「能处理工单的人」(service:edit)，不是所有能看工单的人。
+    # 实际数据里绝大多数工单 assigned_to_id 为空，若只按 service:view 放开，
+    # 这一条会把几乎全部工单重新泄露出去，等于没修。
+    perms = user.get("permissions", []) or []
+    if "*" in perms or "service:edit" in perms:
+        conds.append(ServiceTicket.assigned_to_id.is_(None))
+    cust_ids = await visible_customer_ids_select(db, tenant_id, user)
+    if cust_ids is not None:
+        conds.append(ServiceTicket.customer_id.in_(cust_ids))
+    proj_ids = await visible_project_ids_select(db, tenant_id, user)
+    if proj_ids is not None:
+        conds.append(ServiceTicket.project_id.in_(proj_ids))
+    return or_(*conds)
+
+
 async def is_in_scope(
     db: AsyncSession,
     tenant_id: str,

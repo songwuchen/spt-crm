@@ -74,7 +74,9 @@ async def export_tickets_excel(
     _user=Depends(require_permissions("service:view")),
 ):
     from app.config import settings
-    items, _ = await service.list_tickets(db, tenant_id, page_size=settings.MAX_EXPORT_ROWS)
+    # 导出必须与列表同口径限范围，否则页面看不到的工单照样能整表导出来
+    items, _ = await service.list_tickets(db, tenant_id, page_size=settings.MAX_EXPORT_ROWS,
+                                          current_user=_user)
     headers = ["工单编号", "类型", "优先级", "状态", "描述", "处理结果", "负责人", "创建人", "创建时间"]
     # 导出与列表/详情同口径脱敏，否则「页面看不到但能导出来」= 绕过字段权限的后门
     from app.domains.lowcode.field_permission import entity_field_restrictions, export_cell
@@ -271,7 +273,7 @@ async def get_ticket(
     ticket_id: str, tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db), _user=Depends(require_permissions("service:view")),
 ):
-    t = await service.get_ticket(db, tenant_id, ticket_id)
+    t = await service.get_ticket(db, tenant_id, ticket_id, _user)
     d = _ticket_dict(t)
     await strip_entity_dicts(db, tenant_id, "service_ticket", [d], _user.get("roles"))  # 字段级权限：读取剔除隐藏扩展字段
     return ok(d)
@@ -328,15 +330,9 @@ async def rate_ticket(
         from app.common.exceptions import BusinessException
         raise BusinessException(message="评分必须为1-5")
 
-    t = (await db.execute(
-        select(ServiceTicket).where(
-            ServiceTicket.tenant_id == tenant_id,
-            ServiceTicket.id == ticket_id,
-        )
-    )).scalar_one_or_none()
-    if not t:
-        from app.common.exceptions import BusinessException
-        raise BusinessException(message="工单不存在")
+    # 走 service.get_ticket 而不是裸查：评价会写入满意度评分/评语，
+    # 同样不能对范围外的工单下手
+    t = await service.get_ticket(db, tenant_id, ticket_id, _user)
     if t.status not in ("resolved", "closed"):
         from app.common.exceptions import BusinessException
         raise BusinessException(message="仅已解决或已关闭的工单可评价")
@@ -426,17 +422,22 @@ async def sla_stats(
     from datetime import datetime, timezone, timedelta
     from app.domains.service_ticket.models import ServiceTicket
 
+    # SLA 面板与工单列表同口径限范围，否则列表看不到的工单仍会计进达标率/超时数
+    from app.common.data_scope import service_ticket_scope_clause
+    _sc = await service_ticket_scope_clause(db, tenant_id, _user)
+    scope_where = [] if _sc is None else [_sc]
+
     # Open/active tickets with SLA status
     open_tickets = (await db.execute(
         select(func.count(ServiceTicket.id)).where(
-            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.tenant_id == tenant_id, *scope_where,
             ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
         )
     )).scalar() or 0
 
     resolved_tickets = (await db.execute(
         select(func.count(ServiceTicket.id)).where(
-            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.tenant_id == tenant_id, *scope_where,
             ServiceTicket.status.in_(["resolved", "closed"]),
         )
     )).scalar() or 0
@@ -448,7 +449,7 @@ async def sla_stats(
 
     open_items = (await db.execute(
         select(ServiceTicket).where(
-            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.tenant_id == tenant_id, *scope_where,
             ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
         )
     )).scalars().all()
@@ -466,7 +467,7 @@ async def sla_stats(
     # By priority distribution
     priority_rows = (await db.execute(
         select(ServiceTicket.priority, func.count(ServiceTicket.id).label("count")).where(
-            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.tenant_id == tenant_id, *scope_where,
             ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
         ).group_by(ServiceTicket.priority)
     )).all()
