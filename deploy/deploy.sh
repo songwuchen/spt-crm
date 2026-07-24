@@ -248,8 +248,8 @@ cmd_init() {
 
 $(ok "Install complete.")
 
-  Frontend:  http://<server-ip>:8010
-  HTTPS:     https://<server-ip>:8410   (mounts /etc/letsencrypt; install certs first)
+  Frontend:  http://<server-ip>:39280
+  HTTPS:     https://<server-ip>:39281   (mounts /etc/letsencrypt; install certs first)
   Backend:   container 'backend' on port 8002 (proxied by nginx)
 
   Default admin login:

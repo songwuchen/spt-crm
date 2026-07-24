@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     # 运营驾驶舱(BI)数据采集需要：对宿主/内网暴露 PG 端口（只读账号采集）
     ports:
-      - "5438:5432"
+      - "5439:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -85,8 +85,8 @@ services:
     image: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-frontend:latest
     restart: unless-stopped
     ports:
-      - "8010:80"
-      - "8410:443"
+      - "39280:80"
+      - "39281:443"
     depends_on:
       - backend
     volumes:
