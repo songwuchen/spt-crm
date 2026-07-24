@@ -3,7 +3,7 @@ services:
     # pgvector/pgvector:pg16(同 PG16,glibc)——支持向量语义检索(知识库 embedding 列)。
     # prod 拉不通 Docker Hub,该镜像由 CI 从 docker.io 转推到私有 Harbor。
     # 从 postgres:16-alpine 切换为本镜像时数据卷可复用,但需 REINDEX(musl→glibc collation)。
-    image: wmharbor.fourier.net.cn:39011/hengchao-dev/pgvector:pg16
+    image: wmharbor.fourier.net.cn:39011/songwuchen/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_DB: spt_crm
@@ -23,7 +23,7 @@ services:
   # prod 拉不通 Docker Hub，redis 镜像走私有 Harbor（由 CI 从 docker.io 镜像转推），
   # 与 backend/frontend 同源，随 `docker compose pull ... redis` 一并拉取。
   redis:
-    image: wmharbor.fourier.net.cn:39011/hengchao-dev/redis:7-alpine
+    image: wmharbor.fourier.net.cn:39011/songwuchen/redis:7-alpine
     restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
     healthcheck:
@@ -33,7 +33,7 @@ services:
       retries: 5
 
   backend:
-    image: wmharbor.fourier.net.cn:39011/hengchao-dev/spt-crm-backend:latest
+    image: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-backend:latest
     restart: unless-stopped
     env_file: .env
     environment:
@@ -50,7 +50,7 @@ services:
       - uploads:/app/uploads
 
   worker:
-    image: wmharbor.fourier.net.cn:39011/hengchao-dev/spt-crm-backend:latest
+    image: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-backend:latest
     restart: unless-stopped
     command: ["python", "-m", "app.workers.outbox_worker"]
     env_file: .env
@@ -66,7 +66,7 @@ services:
         condition: service_healthy
 
   reminder:
-    image: wmharbor.fourier.net.cn:39011/hengchao-dev/spt-crm-backend:latest
+    image: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-backend:latest
     restart: unless-stopped
     command: ["python", "-m", "app.workers.reminder_worker"]
     env_file: .env
@@ -82,7 +82,7 @@ services:
         condition: service_healthy
 
   frontend:
-    image: wmharbor.fourier.net.cn:39011/hengchao-dev/spt-crm-frontend:latest
+    image: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-frontend:latest
     restart: unless-stopped
     ports:
       - "8010:80"

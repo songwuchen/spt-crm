@@ -14,9 +14,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# When the script is shipped alone (CI scp's just deploy artifacts) the working
-# layout is the script dir itself. When running from a full git checkout, the
-# compose file lives at repo root.
+# When the script lives next to a compose file (server deploy dir), use that
+# directory. When running from a full git checkout, compose lives at repo root.
 if [ -f "$SCRIPT_DIR/docker-compose.yml" ]; then
     WORK_DIR="$SCRIPT_DIR"
 elif [ -f "$REPO_ROOT/docker-compose.prod.yml" ]; then
@@ -132,8 +131,8 @@ fetch_images() {
     if [ "$BUILD_LOCAL" -eq 1 ]; then
         [ -d "$REPO_ROOT/backend" ] && [ -d "$REPO_ROOT/frontend" ] \
             || die "--build requires the full source tree (backend/ and frontend/) at $REPO_ROOT."
-        local be_tag="$HARBOR_REGISTRY/hengchao-dev/spt-crm-backend:latest"
-        local fe_tag="$HARBOR_REGISTRY/hengchao-dev/spt-crm-frontend:latest"
+        local be_tag="$HARBOR_REGISTRY/songwuchen/spt-crm-backend:latest"
+        local fe_tag="$HARBOR_REGISTRY/songwuchen/spt-crm-frontend:latest"
         log "Building images locally and tagging as $be_tag / $fe_tag..."
         docker build -t "$be_tag" "$REPO_ROOT/backend"
         docker build -t "$fe_tag" "$REPO_ROOT/frontend"
@@ -142,7 +141,7 @@ fetch_images() {
     fi
 
     log "Pulling images from $HARBOR_REGISTRY..."
-    if ! docker pull "$HARBOR_REGISTRY/hengchao-dev/spt-crm-backend:latest" >/dev/null 2>&1; then
+    if ! docker pull "$HARBOR_REGISTRY/songwuchen/spt-crm-backend:latest" >/dev/null 2>&1; then
         warn "Cannot pull from $HARBOR_REGISTRY. You may need: docker login $HARBOR_REGISTRY"
         if [ "$NON_INTERACTIVE" -eq 0 ]; then
             read -rp "Login to Harbor now? [y/N] " ans

@@ -1,4 +1,7 @@
-name: CI/CD
+name: CI
+
+# 流程：代码测试 → 构建镜像 → 推送至私有 Harbor。
+# 推送完成即结束；生产拉镜像 / 迁移 / compose 升级由运维手动执行（见 deploy/deploy.sh）。
 
 on:
   push:
@@ -8,12 +11,9 @@ on:
 
 env:
   HARBOR_REGISTRY: wmharbor.fourier.net.cn:39011
-  HARBOR_PROJECT: hengchao-dev
-  BACKEND_IMAGE: wmharbor.fourier.net.cn:39011/hengchao-dev/spt-crm-backend
-  FRONTEND_IMAGE: wmharbor.fourier.net.cn:39011/hengchao-dev/spt-crm-frontend
-  DEPLOY_HOST: 192.168.0.42
-  DEPLOY_USER: hengchao
-  DEPLOY_DIR: /home/hengchao/ai-crm
+  HARBOR_PROJECT: songwuchen
+  BACKEND_IMAGE: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-backend
+  FRONTEND_IMAGE: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-frontend
 
 jobs:
   test-frontend:
@@ -111,65 +111,3 @@ jobs:
           docker pull pgvector/pgvector:pg16
           docker tag pgvector/pgvector:pg16 ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/pgvector:pg16
           docker push ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/pgvector:pg16
-
-  deploy:
-    name: Deploy to Production
-    runs-on: self-hosted
-    needs: build-and-push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Create deploy directory
-        run: ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}"
-
-      - name: Copy deployment files
-        run: |
-          scp docker-compose.prod.yml ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_DIR }}/docker-compose.yml
-          scp nginx.prod.conf ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_DIR }}/nginx.prod.conf
-          scp .env.example ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_DIR }}/.env.example
-
-      - name: Initialize .env if missing
-        run: |
-          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "
-            cd ${{ env.DEPLOY_DIR }}
-            [ -f .env ] || cp .env.example .env
-          "
-
-      - name: Pull, migrate, then deploy
-        run: |
-          ssh ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "
-            set -e
-            cd ${{ env.DEPLOY_DIR }}
-            echo '${{ secrets.HARBOR_PASSWORD }}' | docker login ${{ env.HARBOR_REGISTRY }} -u ${{ secrets.HARBOR_USERNAME }} --password-stdin
-            # Only pull the images from Harbor (backend/worker/reminder/frontend/redis).
-            # Do NOT pull 'db': postgres:16-alpine lives on Docker Hub, which is
-            # unreachable from the prod host, so 'docker compose pull' (all services)
-            # would hang for minutes on it. The db image is already present locally.
-            # redis is served from Harbor (mirrored in build-and-push) so it pulls fast.
-            docker compose pull backend worker reminder frontend redis
-
-            # 1) Make sure the DB is up and accepting connections.
-            docker compose up -d db
-            echo 'Waiting for database...'
-            for i in \$(seq 1 30); do
-              docker compose exec -T db pg_isready -U postgres && break
-              sleep 2
-            done
-
-            # 2) Run migrations with the NEW image BEFORE swapping the running app.
-            #    'set -e' aborts here on failure, so the old code keeps serving on the
-            #    old schema (no 'new code + old schema' drift like the 2026-06-17 outage).
-            docker compose run --rm -T backend alembic upgrade head
-
-            # 3) Migrations succeeded -> swap to the new code.
-            docker compose up -d
-
-            # 4) Guard: fail the deploy loudly if the schema is not at head.
-            #    Format-agnostic: 'alembic current' 在处于最新版本时会标注 '(head)',
-            #    不再用 [0-9a-f]{12} 正则(会误判非纯 hex 的 revision id,如 lc00... 前缀)。
-            docker compose exec -T backend alembic current 2>/dev/null | grep -q '(head)' || { echo 'DB migration drift: DB not at head'; docker compose exec -T backend alembic current; exit 1; }
-
-            # 5) Seed idempotent reference data (permissions, demo tenant, etc.).
-            docker compose exec -T backend python -m scripts.seed
-          "
