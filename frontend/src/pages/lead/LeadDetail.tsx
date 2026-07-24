@@ -378,8 +378,10 @@ export default function LeadDetail() {
             {/* region 是用户填的详细地址/备注地点，与 formatLocation 的省市区互补，此前详情页完全看不到 */}
             <InfoField label="详细地址" value={lead.region} />
             <InfoField label="预算范围" value={lead.budget_range} />
-            <InfoField label="部门" value={lead.department_name} />
+            <InfoField label="报备人" value={lead.reporter_name} />
+            <InfoField label="报备时间" value={lead.reported_at ? new Date(lead.reported_at).toLocaleString('zh-CN') : undefined} />
             <InfoField label="负责人" value={lead.owner_name} />
+            <InfoField label="部门" value={lead.department_name} />
             <InfoField label="录入人" value={lead.created_by_name} />
             {lead.converted_customer_id && (
               <InfoField label="转化客户" value={

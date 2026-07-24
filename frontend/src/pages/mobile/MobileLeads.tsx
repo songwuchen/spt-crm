@@ -6,7 +6,9 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface LeadItem {
   id: string; title: string; company_name?: string; contact_name?: string
-  source?: string; status: string; owner_name?: string; created_at: string
+  source?: string; status: string
+  reporter_name?: string; reported_at?: string
+  owner_name?: string; department_name?: string; created_at: string
 }
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
@@ -87,11 +89,17 @@ export default function MobileLeads() {
                 <span className={`px-2 py-0.5 rounded-full text-[12px] font-bold ${st.color} ${st.bg}`}>{st.label}</span>
               </div>
               {l.company_name && <p className="text-sm text-slate-600 mb-1">{l.company_name}</p>}
-              <div className="flex items-center gap-3 text-[12px] text-slate-400">
+              <div className="flex items-center gap-3 text-[12px] text-slate-400 flex-wrap">
                 {l.contact_name && <span>{l.contact_name}</span>}
                 {l.source && <span>{sourceLabels[l.source] || l.source}</span>}
-                {l.owner_name && <span>{l.owner_name}</span>}
-                <span className="ml-auto">{l.created_at ? new Date(l.created_at).toLocaleDateString('zh-CN') : ''}</span>
+                {l.reporter_name && <span>报备 {l.reporter_name}</span>}
+                {l.owner_name && <span>负责 {l.owner_name}</span>}
+                {l.department_name && <span>{l.department_name}</span>}
+                <span className="ml-auto">
+                  {l.reported_at
+                    ? new Date(l.reported_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : (l.created_at ? new Date(l.created_at).toLocaleDateString('zh-CN') : '')}
+                </span>
               </div>
             </div>
           )

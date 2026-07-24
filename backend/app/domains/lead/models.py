@@ -1,5 +1,6 @@
-from sqlalchemy import String, Text, Integer, JSON, Boolean, Date, Numeric
+from sqlalchemy import String, Text, Integer, JSON, Boolean, Date, DateTime, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
+from datetime import datetime
 
 from app.database import TenantScopedBase
 
@@ -10,6 +11,8 @@ class Lead(TenantScopedBase):
     lead_code: Mapped[str | None] = mapped_column(String(64), index=True)
     # 业务日期：用户可自行编辑，用于标识不同时间的线索（区别于系统自动的 created_at）(issue #84)
     biz_date: Mapped[str | None] = mapped_column(Date)
+    # 报备时间：业务报备时刻，新建默认当前时间，用户可改（区别于系统 created_at）
+    reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     company_name: Mapped[str | None] = mapped_column(String(300))
     contact_name: Mapped[str | None] = mapped_column(String(100))
@@ -32,6 +35,9 @@ class Lead(TenantScopedBase):
     region_code: Mapped[str | None] = mapped_column(String(12), index=True)
     department_id: Mapped[str | None] = mapped_column(String(36))
     budget_range: Mapped[str | None] = mapped_column(String(100))
+    # 报备人：业务上申报该线索的人，可与录入人/负责人不同；新建默认当前用户
+    reporter_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    reporter_name: Mapped[str | None] = mapped_column(String(100))
     owner_id: Mapped[str | None] = mapped_column(String(36))
     owner_name: Mapped[str | None] = mapped_column(String(100))
     # 录入人(创建人)：负责人改派后仍据此判定「本人创建」数据可见性

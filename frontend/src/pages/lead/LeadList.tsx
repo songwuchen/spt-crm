@@ -270,10 +270,21 @@ export default function LeadList() {
         )
       },
     },
+    { title: '报备人', dataIndex: 'reporter_name', width: 90,
+      render: (v) => v ? <span className="text-sm text-slate-600">{v}</span> : <span className="text-slate-300">-</span>,
+    },
+    { title: '报备时间', dataIndex: 'reported_at', width: 150,
+      render: (v: string) => v
+        ? <span className="text-sm text-slate-600">{new Date(v).toLocaleString('zh-CN')}</span>
+        : <span className="text-slate-300">-</span>,
+    },
     { title: t('common.owner'), dataIndex: 'owner_name', width: 90,
       render: (v) => v ? (
         <span className="text-sm text-slate-600">{v}</span>
       ) : <span className="text-slate-300">-</span>,
+    },
+    { title: '部门', dataIndex: 'department_name', width: 120,
+      render: (v) => v ? <span className="text-sm text-slate-600">{v}</span> : <span className="text-slate-300">-</span>,
     },
     { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, responsive: ['xl'],
       render: (v) => v ? <span className="text-sm text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-',
@@ -284,7 +295,6 @@ export default function LeadList() {
       { title: '业务日期', dataIndex: 'biz_date', width: 110 },
       { title: '联系电话', dataIndex: 'contact_phone', width: 130 },
       { title: '联系邮箱', dataIndex: 'contact_email', width: 180 },
-      { title: '部门', dataIndex: 'department_name', width: 120 },
       { title: '预算范围', dataIndex: 'budget_range', width: 120 },
       { title: '详细地址', dataIndex: 'region', width: 180 },
       { title: '录入人', dataIndex: 'created_by_name', width: 90 },

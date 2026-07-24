@@ -159,6 +159,9 @@ export interface Lead {
   department_id?: string
   department_name?: string
   budget_range?: string
+  reporter_id?: string
+  reporter_name?: string
+  reported_at?: string
   owner_id?: string
   owner_name?: string
   created_by_id?: string

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Form, Input, Select, Button, DatePicker, InputNumber, message } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -11,6 +11,7 @@ import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
 import RegionCascader from '@/components/RegionCascader'
 import DepartmentSelect from '@/components/DepartmentSelect'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 const defaultSources = [
   { label: '展会', value: 'expo' }, { label: '转介绍', value: 'referral' },
@@ -42,7 +43,9 @@ export default function LeadForm() {
   const customerTypeDict = useDataDict('customer_type')
   const budgetDict = useDataDict('budget_range', defaultBudgets)
 
-  const userSelect = useUserSelect()
+  const reporterSelect = useUserSelect()
+  const ownerSelect = useUserSelect()
+  const currentUser = useAuthStore((s) => s.user)
   const [countryType, setCountryType] = useState<string | undefined>(undefined)
 
   useEffect(() => {
@@ -52,17 +55,28 @@ export default function LeadForm() {
         form.setFieldsValue({
           ...d,
           biz_date: d.biz_date ? dayjs(d.biz_date) : undefined,
+          reported_at: d.reported_at ? dayjs(d.reported_at) : undefined,
           products: d.products || [],
         })
         setCountryType(res.data.country_type)
         setCustomFields(d.custom_fields_json || {})
-        // Seed owner option so the Select shows the name, not the raw owner_id code
+        if (res.data.reporter_id && res.data.reporter_name) {
+          reporterSelect.setInitialOption({ label: res.data.reporter_name, value: res.data.reporter_id })
+        }
         if (res.data.owner_id && res.data.owner_name) {
-          userSelect.setInitialOption({ label: res.data.owner_name, value: res.data.owner_id })
+          ownerSelect.setInitialOption({ label: res.data.owner_name, value: res.data.owner_id })
         }
       }).catch(() => message.error('加载线索数据失败'))
+    } else {
+      // 新建：报备时间默认当前；报备人默认当前用户（均可改）
+      form.setFieldsValue({ reported_at: dayjs() })
+      if (currentUser) {
+        const label = currentUser.real_name || currentUser.username
+        form.setFieldsValue({ reporter_id: currentUser.id })
+        reporterSelect.setInitialOption({ label, value: currentUser.id })
+      }
     }
-  }, [id])
+  }, [id, currentUser])
 
   const onFinish = async (values: Record<string, unknown>) => {
     // 扩展字段不在 antd Form 状态里，其必填(含条件必填)需单独校验；后端也会二次校验
@@ -80,6 +94,7 @@ export default function LeadForm() {
       const payload = {
         ...values,
         biz_date: values.biz_date ? (values.biz_date as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
+        reported_at: values.reported_at ? (values.reported_at as dayjs.Dayjs).toISOString() : undefined,
         products,
         custom_fields_json: customFields,
       }
@@ -139,18 +154,29 @@ export default function LeadForm() {
               <PolicyItem name="category" label="类别" tooltip="自报=自行开发；分发=领导指派">
                 <Select placeholder="请选择类别" allowClear options={categoryOptions} />
               </PolicyItem>
+              <PolicyItem name="reporter_id" label="报备人">
+                <Select placeholder="请选择报备人" allowClear showSearch filterOption={false}
+                  loading={reporterSelect.loading}
+                  options={reporterSelect.options}
+                  onSearch={reporterSelect.onSearch}
+                  onDropdownVisibleChange={reporterSelect.onDropdownVisibleChange} />
+              </PolicyItem>
+              <PolicyItem name="reported_at" label="报备时间">
+                <DatePicker showTime className="w-full" placeholder="请选择报备时间"
+                  format="YYYY-MM-DD HH:mm" />
+              </PolicyItem>
+              <PolicyItem name="owner_id" label="负责人">
+                <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
+                  loading={ownerSelect.loading}
+                  options={ownerSelect.options}
+                  onSearch={ownerSelect.onSearch}
+                  onDropdownVisibleChange={ownerSelect.onDropdownVisibleChange} />
+              </PolicyItem>
               <PolicyItem name="department_id" label="部门">
                 <DepartmentSelect />
               </PolicyItem>
               <PolicyItem name="budget_range" label="预算范围">
                 <Select placeholder="请选择预算范围" allowClear options={budgetDict.options} loading={budgetDict.loading} />
-              </PolicyItem>
-              <PolicyItem name="owner_id" label="负责人">
-                <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
-                  loading={userSelect.loading}
-                  options={userSelect.options}
-                  onSearch={userSelect.onSearch}
-                  onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
               </PolicyItem>
               <PolicyItem name="biz_date" label="日期" tooltip="业务日期，可自行编辑，用于标识不同时间的线索">
                 <DatePicker className="w-full" placeholder="请选择日期" />

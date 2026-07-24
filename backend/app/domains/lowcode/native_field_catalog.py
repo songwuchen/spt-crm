@@ -87,6 +87,8 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         _f("category", "类别", "select", options_source="enum:lead_category"),
         _f("department_id", "部门", "department", companions=("department_name",)),
         _f("budget_range", "预算范围", "select", options_source="dict:budget_range"),
+        _f("reporter_id", "报备人", "person", companions=("reporter_name",)),
+        _f("reported_at", "报备时间", "datetime"),
         _f("owner_id", "负责人", "person", companions=("owner_name",)),
         _f("biz_date", "业务日期", "date"),
         # ---- 项目地址 ----

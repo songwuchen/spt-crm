@@ -67,6 +67,9 @@ def _lead_dict(l, products=None, dept_names=None) -> dict:
         "department_id": l.department_id,
         "department_name": (dept_names or {}).get(l.department_id),
         "budget_range": l.budget_range,
+        "reporter_id": getattr(l, "reporter_id", None),
+        "reporter_name": getattr(l, "reporter_name", None),
+        "reported_at": l.reported_at.isoformat() if getattr(l, "reported_at", None) else None,
         "owner_id": l.owner_id, "owner_name": l.owner_name,
         "created_by_id": l.created_by_id, "created_by_name": l.created_by_name,
         "biz_date": str(l.biz_date) if l.biz_date else None,
@@ -184,7 +187,7 @@ async def export_leads_excel(
     headers = [
         # 列表 & 基本信息
         "线索编码", "标题", "公司名称", "部门", "来源", "类别", "客户类型", "行业",
-        "业务日期", "负责人", "状态", "评分",
+        "业务日期", "报备人", "报备时间", "负责人", "状态", "评分",
         # 联系人信息
         "联系人", "联系电话", "邮箱",
         # 地区
@@ -210,6 +213,8 @@ async def export_leads_excel(
             c("customer_type", l.customer_type or ""),
             c("industry", l.industry or ""),
             c("biz_date", str(l.biz_date) if l.biz_date else ""),
+            c("reporter_id", getattr(l, "reporter_name", None) or ""),
+            c("reported_at", l.reported_at.strftime("%Y-%m-%d %H:%M") if getattr(l, "reported_at", None) else ""),
             c("owner_id", l.owner_name or ""), l.status or "", l.score or "",
             c("contact_name", l.contact_name or ""), c("contact_phone", l.contact_phone or ""),
             c("contact_email", l.contact_email or ""),

@@ -1,16 +1,20 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Tag, Select, Input } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import { Table, Tag, Select, Input, Button, Modal, Form, InputNumber, message } from 'antd'
+import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { quoteApi } from '@/api/quote'
+import { projectApi } from '@/api/project'
 import type { QuoteItem } from '@/api/types'
 import { quoteStatusLabels, quoteStatusColors } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePermission } from '@/hooks/usePermission'
 import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
 import type { ColumnsType } from 'antd/es/table'
 // 金额/百分比格式化自带脱敏识别，见 @/utils/mask
 import { fmtMoney, fmtPct } from '@/utils/mask'
+import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
 
 export default function QuoteList() {
   usePageTitle('报价管理')
@@ -23,6 +27,56 @@ export default function QuoteList() {
   const [filterStatus, setFilterStatus] = useState<string | undefined>()
   const [reload, setReload] = useState(0)
   const didMount = useRef(false)
+
+  const { hasPermission } = usePermission()
+  const canCreate = hasPermission('quote:create')
+
+  // 新增报价（需指定关联商机）
+  const [createOpen, setCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createForm] = Form.useForm()
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
+  const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
+  const [projOpts, setProjOpts] = useState<{ label: string; value: string }[]>([])
+  const [projLoading, setProjLoading] = useState(false)
+  const searchProjects = async (kw?: string) => {
+    setProjLoading(true)
+    try {
+      const r = await projectApi.list({ pageNo: 1, pageSize: 20, keyword: kw || undefined })
+      setProjOpts((r.data.items || []).map((p) => ({ label: `${p.name}（${p.project_code}）`, value: p.id })))
+    } catch { /* ignore */ } finally { setProjLoading(false) }
+  }
+  const openCreate = () => {
+    createForm.resetFields()
+    createForm.setFieldsValue({ validity_days: 30 })
+    setCustomFields({})
+    setProjOpts([])
+    searchProjects()
+    setCreateOpen(true)
+  }
+  const handleCreate = async () => {
+    let v
+    try { v = await createForm.validateFields() } catch { return }
+    const cfError = customFieldsRef.current?.validate()
+    if (cfError) {
+      message.error(cfError)
+      return
+    }
+    setCreating(true)
+    try {
+      const res = await quoteApi.create(v.project_id, {
+        title: v.title || 'V1',
+        ...(v.validity_days != null ? { validity_days: v.validity_days } : {}),
+        custom_fields_json: customFields,
+      }) as any
+      message.success('报价已创建，请在详情页完善行项目与附件')
+      setCreateOpen(false)
+      setCustomFields({})
+      const qid = res?.data?.quote?.id
+      if (qid) navigate(`/opportunities/${v.project_id}/quotes/${qid}`)
+      else fetchData()
+    } catch { message.error('创建失败') } finally { setCreating(false) }
+  }
 
   const fetchData = async (page = pageNo, kw = keyword, st = filterStatus) => {
     setLoading(true)
@@ -70,6 +124,7 @@ export default function QuoteList() {
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">报价管理</h1>
           <p className="text-sm text-slate-500 mt-0.5">查看所有商机项目的报价</p>
         </div>
+        {canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增报价</Button>}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
@@ -94,6 +149,27 @@ export default function QuoteList() {
           columns={view.columns}
         />
       </div>
+
+      {/* 新增报价 */}
+      <Modal title="新增报价" open={createOpen} onOk={handleCreate} confirmLoading={creating}
+        onCancel={() => setCreateOpen(false)} okText="创建并完善" width={520} destroyOnClose>
+        <FieldPolicyProvider entityType="quote" form={createForm} customFieldValues={customFields}>
+          <Form form={createForm} layout="vertical" className="mt-3" initialValues={{ validity_days: 30 }}>
+            <Form.Item name="project_id" label="关联商机" rules={[{ required: true, message: '请选择关联商机' }]}>
+              <Select showSearch filterOption={false} placeholder="搜索商机名称 / 编号"
+                options={projOpts} loading={projLoading} onSearch={searchProjects}
+                onDropdownVisibleChange={(o) => { if (o && projOpts.length === 0) searchProjects() }} />
+            </Form.Item>
+            <Form.Item name="title" label="报价标题"><Input placeholder="如：设备报价 V1（默认 V1）" /></Form.Item>
+            <Form.Item name="validity_days" label="有效期（天）">
+              <InputNumber className="w-full" min={1} max={365} placeholder="默认 30 天" />
+            </Form.Item>
+            <CustomFieldsPanel ref={customFieldsRef} entityType="quote"
+              value={customFields} onChange={setCustomFields} />
+            <div className="text-[12px] text-slate-400">报价编号将自动生成；创建后将跳转到报价详情页，可添加行项目并发起审批。</div>
+          </Form>
+        </FieldPolicyProvider>
+      </Modal>
     </div>
   )
 }

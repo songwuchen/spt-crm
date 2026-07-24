@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Form, Input, Select, DatePicker, message } from 'antd'
 import dayjs from 'dayjs'
@@ -10,6 +10,7 @@ import DepartmentSelect from '@/components/DepartmentSelect'
 import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
 import { MField, MoreFields, reportFirstFormError } from './MobilePolicyField'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 const defaultSources = [
   { value: 'website', label: '官网' }, { value: 'referral', label: '转介绍' },
@@ -39,7 +40,16 @@ export default function MobileLeadForm() {
   const customerTypeDict = useDataDict('customer_type')
   const budgetDict = useDataDict('budget_range')
   const countryType = Form.useWatch('country_type', form)
-  const userSelect = useUserSelect()
+  const reporterSelect = useUserSelect()
+  const ownerSelect = useUserSelect()
+  const currentUser = useAuthStore((s) => s.user)
+
+  useEffect(() => {
+    if (!currentUser) return
+    const label = currentUser.real_name || currentUser.username
+    form.setFieldsValue({ reporter_id: currentUser.id, reported_at: dayjs() })
+    reporterSelect.setInitialOption({ label, value: currentUser.id })
+  }, [currentUser])
 
   const handleSubmit = async () => {
     let values: Record<string, unknown>
@@ -53,6 +63,7 @@ export default function MobileLeadForm() {
       await leadApi.create({
         ...values,
         biz_date: values.biz_date ? (values.biz_date as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
+        reported_at: values.reported_at ? (values.reported_at as dayjs.Dayjs).toISOString() : undefined,
         custom_fields_json: customFields,
       } as any)
       message.success('线索已创建')
@@ -93,6 +104,25 @@ export default function MobileLeadForm() {
           </div>
           <MField name="source" label="来源">
             <Select options={sourceDict.options} loading={sourceDict.loading} className="w-full" />
+          </MField>
+          <MField name="reporter_id" label="报备人">
+            <Select placeholder="请选择报备人" allowClear showSearch filterOption={false}
+              className="w-full" loading={reporterSelect.loading} options={reporterSelect.options}
+              onSearch={reporterSelect.onSearch}
+              onDropdownVisibleChange={reporterSelect.onDropdownVisibleChange} />
+          </MField>
+          <MField name="reported_at" label="报备时间">
+            <DatePicker showTime className="w-full" placeholder="请选择报备时间"
+              format="YYYY-MM-DD HH:mm" />
+          </MField>
+          <MField name="owner_id" label="负责人">
+            <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
+              className="w-full" loading={ownerSelect.loading} options={ownerSelect.options}
+              onSearch={ownerSelect.onSearch}
+              onDropdownVisibleChange={ownerSelect.onDropdownVisibleChange} />
+          </MField>
+          <MField name="department_id" label="部门">
+            <DepartmentSelect />
           </MField>
           <MField name="remark" label="备注">
             <Input.TextArea placeholder="其他信息" rows={3} className={inputCls} />
@@ -135,15 +165,6 @@ export default function MobileLeadForm() {
             </MField>
             <MField name="demand_summary" label="需求摘要">
               <Input.TextArea placeholder="客户需求" rows={2} className={inputCls} />
-            </MField>
-            <MField name="owner_id" label="负责人">
-              <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
-                className="w-full" loading={userSelect.loading} options={userSelect.options}
-                onSearch={userSelect.onSearch}
-                onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
-            </MField>
-            <MField name="department_id" label="部门">
-              <DepartmentSelect />
             </MField>
           </MoreFields>
 

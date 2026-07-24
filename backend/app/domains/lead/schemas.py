@@ -1,5 +1,5 @@
 from typing import Literal, Optional, List
-from datetime import date
+from datetime import date, datetime
 from pydantic import BaseModel, Field, field_validator, model_validator
 import re
 
@@ -54,7 +54,9 @@ class LeadCreate(BaseModel):
     region_code: Optional[str] = Field(None, max_length=12)
     department_id: Optional[str] = Field(None, max_length=36)
     budget_range: Optional[str] = None
+    reporter_id: Optional[str] = Field(None, max_length=36)
     owner_id: Optional[str] = Field(None, max_length=36)
+    reported_at: Optional[datetime] = None
     biz_date: Optional[date] = None
     remark: Optional[str] = Field(None, max_length=2000)
     products: Optional[List[LeadProductIn]] = None
@@ -95,7 +97,9 @@ class LeadUpdate(BaseModel):
     region_code: Optional[str] = Field(None, max_length=12)
     department_id: Optional[str] = Field(None, max_length=36)
     budget_range: Optional[str] = None
+    reporter_id: Optional[str] = Field(None, max_length=36)
     owner_id: Optional[str] = Field(None, max_length=36)
+    reported_at: Optional[datetime] = None
     biz_date: Optional[date] = None
     status: Optional[str] = None
     remark: Optional[str] = Field(None, max_length=2000)

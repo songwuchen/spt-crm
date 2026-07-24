@@ -193,6 +193,23 @@ async def submit_lead_review(db: AsyncSession, tenant_id: str, lead: Lead, user:
     return await start_for_biz(db, tenant_id, "lead", lead.id, user, title=title)
 
 
+async def _resolve_user_display(
+    db: AsyncSession, tenant_id: str, user_id: str | None, fallback: dict | None = None,
+) -> tuple[str | None, str | None]:
+    """按 user_id 解析 (id, 展示名)；找不到则用 fallback（通常为当前登录用户）。"""
+    if user_id:
+        from app.domains.auth.models import User as AuthUser
+        u = (await db.execute(
+            select(AuthUser).where(AuthUser.id == user_id, AuthUser.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if u:
+            return user_id, (u.real_name or u.username)
+        return user_id, None
+    if fallback:
+        return fallback.get("sub"), fallback.get("real_name") or fallback.get("username")
+    return None, None
+
+
 async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: dict,
                       auto_review: bool | None = None) -> Lead:
     payload = data.model_dump()
@@ -208,21 +225,22 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
         db, tenant_id, "lead", payload["custom_fields_json"], user.get("roles"))
     # 原生字段的租户策略（必填/条件显隐/只读/字段级权限）同样在后端强制
     payload = await enforce_native_field_policy(db, tenant_id, "lead", payload, None, user.get("roles"))
-    # If user picked an owner in the form, look up that user's name; otherwise fall back to creator.
-    chosen_owner_id = payload.pop("owner_id", None)
-    if chosen_owner_id:
-        from app.domains.auth.models import User as AuthUser
-        owner = (await db.execute(select(AuthUser).where(AuthUser.id == chosen_owner_id, AuthUser.tenant_id == tenant_id))).scalar_one_or_none()
-        owner_id = chosen_owner_id
-        owner_name = (owner.real_name or owner.username) if owner else None
-    else:
-        owner_id = user["sub"]
-        owner_name = user.get("real_name") or user.get("username")
+    # 报备人：表单可选；未选则默认当前用户（添加人）
+    reporter_id, reporter_name = await _resolve_user_display(
+        db, tenant_id, payload.pop("reporter_id", None), fallback=user)
+    # 负责人：表单可选；未选则默认当前用户
+    owner_id, owner_name = await _resolve_user_display(
+        db, tenant_id, payload.pop("owner_id", None), fallback=user)
+    # 报备时间：未传则默认当前时间
+    from app.database import utcnow
+    reported_at = payload.pop("reported_at", None) or utcnow()
 
     lead = Lead(
         id=generate_uuid(), tenant_id=tenant_id,
         lead_code=await generate_code(db, tenant_id, "lead"),
+        reporter_id=reporter_id, reporter_name=reporter_name,
         owner_id=owner_id, owner_name=owner_name,
+        reported_at=reported_at,
         created_by_id=user["sub"],
         created_by_name=user.get("real_name") or user.get("username"),
         **payload,
@@ -309,14 +327,17 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     if payload.get("status") == "qualified" and getattr(lead, "review_status", "approved") != "approved":
         from app.common.error_codes import VALIDATION_ERROR
         raise BusinessException(code=VALIDATION_ERROR, message="线索尚未通过审核，无法转化")
-    # When owner changes, refresh owner_name to match
+    # When owner / reporter changes, refresh display names to match
     reassigned_to = None
     if "owner_id" in payload and payload["owner_id"] and payload["owner_id"] != lead.owner_id:
-        from app.domains.auth.models import User as AuthUser
-        new_owner = (await db.execute(select(AuthUser).where(AuthUser.id == payload["owner_id"], AuthUser.tenant_id == tenant_id))).scalar_one_or_none()
-        if new_owner:
-            lead.owner_name = new_owner.real_name or new_owner.username
+        _, owner_name = await _resolve_user_display(db, tenant_id, payload["owner_id"])
+        if owner_name:
+            lead.owner_name = owner_name
         reassigned_to = payload["owner_id"]
+    if "reporter_id" in payload and payload["reporter_id"] and payload["reporter_id"] != lead.reporter_id:
+        _, reporter_name = await _resolve_user_display(db, tenant_id, payload["reporter_id"])
+        if reporter_name:
+            lead.reporter_name = reporter_name
     for field, val in payload.items():
         setattr(lead, field, val)
     lead.score = _compute_score(lead)

@@ -11,7 +11,9 @@ interface LeadItem {
   contact_name: string | null; contact_phone: string | null; contact_email: string | null
   source: string | null; status: string; score: number | null
   demand_summary: string | null; industry: string | null; region: string | null
-  owner_name: string | null; created_at: string
+  reporter_name?: string | null; reported_at?: string | null
+  owner_name: string | null
+  department_name?: string | null; created_at: string
   review_status?: string; reject_reason?: string | null
 }
 
@@ -186,9 +188,25 @@ export default function MobileLeadDetail() {
           </div>
         )}
         <div className="flex justify-between">
+          <span className="text-sm text-slate-400">报备人</span>
+          <span className="text-sm text-slate-600">{lead.reporter_name || '-'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-sm text-slate-400">报备时间</span>
+          <span className="text-sm text-slate-600">
+            {lead.reported_at ? new Date(lead.reported_at).toLocaleString('zh-CN') : '-'}
+          </span>
+        </div>
+        <div className="flex justify-between">
           <span className="text-sm text-slate-400">负责人</span>
           <span className="text-sm text-slate-600">{lead.owner_name || '-'}</span>
         </div>
+        {lead.department_name && (
+          <div className="flex justify-between">
+            <span className="text-sm text-slate-400">部门</span>
+            <span className="text-sm text-slate-600">{lead.department_name}</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span className="text-sm text-slate-400">创建时间</span>
           <span className="text-sm text-slate-500">{lead.created_at ? new Date(lead.created_at).toLocaleDateString('zh-CN') : '-'}</span>
