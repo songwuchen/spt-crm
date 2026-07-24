@@ -37,11 +37,20 @@ vi.mock('@/hooks/useDataDict', () => ({
   }),
 }))
 vi.mock('@/hooks/useSelectOptions', () => ({
-  useUserSelect: () => ({ options: [], loading: false, onSearch: vi.fn(), onDropdownVisibleChange: vi.fn() }),
+  useUserSelect: () => ({
+    options: [],
+    loading: false,
+    onSearch: vi.fn(),
+    onDropdownVisibleChange: vi.fn(),
+    setInitialOption: vi.fn(),
+  }),
 }))
 vi.mock('@/stores/useAuthStore', () => ({
   useAuthStore: vi.fn((selector: any) => {
-    const state = { user: { username: 'admin', roles: [] }, token: 't' }
+    const state = {
+      user: { id: 'u-1', username: 'admin', real_name: '管理员', roles: [] },
+      token: 't',
+    }
     return selector ? selector(state) : state
   }),
 }))
