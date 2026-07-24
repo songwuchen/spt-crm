@@ -68,7 +68,7 @@ ls -lh backup_pre_pgvector_$TS.dump    # 确认文件非 0 字节
     image: pgvector/pgvector:pg16          # 或私有 Harbor 地址
     # 其余(volumes: pgdata、environment、ports)保持不变
 ```
-> 本仓库的 `docker-compose.prod.yml` 已经改好（指向 Harbor 地址），走 CI 自动部署的服务器会自动带上；手工部署的服务器需手工改这一行。**注意：`volumes` 仍用原来的 `pgdata`，不要改卷名，否则会变成空库。**
+> 本仓库的 `docker-compose.prod.yml` 已经改好（指向 Harbor 地址）；生产机请确认该文件已同步。手工部署的服务器需手工改这一行。**注意：`volumes` 仍用原来的 `pgdata`，不要改卷名，否则会变成空库。**
 
 ### 步骤 3：停应用写入方 → 重建 db（复用原数据卷）
 ```bash
@@ -106,7 +106,7 @@ docker compose up -d
 ```bash
 docker compose restart frontend
 ```
-> 走 CI 自动部署时 frontend 每次都会一起重建，不会有这个问题；**仅手工只重建 backend/db 时**才需要这一步。
+> 生产升级拉 frontend 镜像后会一并重建；**仅手工只重建 backend/db 时**才需要这一步。
 
 ---
 
