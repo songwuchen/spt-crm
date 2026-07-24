@@ -32,7 +32,7 @@ docker compose exec -T db psql -U postgres -d spt_crm -tAc \
    → **对策：换镜像后、放开流量前，必须 `REINDEX DATABASE` 重建全部索引。** 本流程已包含该步。
 3. **务必先备份**：`pg_dump` 全库备份留底，出问题可回滚。
 4. **镜像获取**：生产内网通常拉不到 Docker Hub。需先把 `pgvector/pgvector:pg16` 弄到目标服务器，二选一：
-   - **私有 Harbor（推荐，CI 已支持）**：本项目 CI 会把镜像转推到 `wmharbor.fourier.net.cn:39011/hengchao-dev/pgvector:pg16`，服务器 `docker pull` 该地址即可。
+   - **私有 Harbor（推荐，CI 已支持）**：本项目 CI 会把镜像转推到 `wmharbor.fourier.net.cn:39011/songwuchen/pgvector:pg16`，服务器 `docker pull` 该地址即可。
    - **离线导入**：在有外网的机器上
      ```bash
      docker pull pgvector/pgvector:pg16
@@ -50,7 +50,7 @@ docker compose exec -T db psql -U postgres -d spt_crm -tAc \
 
 ### 步骤 0：确保 pgvector 镜像已在本机
 ```bash
-docker pull wmharbor.fourier.net.cn:39011/hengchao-dev/pgvector:pg16   # 或用离线 load
+docker pull wmharbor.fourier.net.cn:39011/songwuchen/pgvector:pg16   # 或用离线 load
 docker images | grep pgvector    # 确认存在
 ```
 
