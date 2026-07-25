@@ -1,3 +1,2 @@
-# Shell / deploy scripts must use LF on Linux servers
+# Shell scripts must use LF on Linux servers
 *.sh text eol=lf
-deploy/deploy.sh text eol=lf

@@ -32,7 +32,7 @@ async def seed(include_demo: bool = True):
     #
     # include_demo=False (production installs): seed permissions / roles / admin /
     # stage defs / toggles / default approval policies, but SKIP the fake demo
-    # customers & projects. Real customer deployments call this via deploy.sh.
+    # customers & projects. Production installs call: python -m scripts.seed --production
     from sqlalchemy import select
 
     async with engine.begin() as conn:
