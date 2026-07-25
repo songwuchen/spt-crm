@@ -442,13 +442,19 @@ async def dingtalk_sso_config(db: AsyncSession = Depends(get_db)):
     Only exposes app_key and login_enabled; never the secret.
     """
     from sqlalchemy import select as sa_select
+    from sqlalchemy.exc import ProgrammingError, OperationalError
     from app.domains.admin.models import IntegrationEndpoint
 
-    ep = (await db.execute(
-        sa_select(IntegrationEndpoint).where(
-            IntegrationEndpoint.system_code == "dingtalk_oa",
-        ).order_by(IntegrationEndpoint.created_at).limit(1)
-    )).scalar_one_or_none()
+    try:
+        ep = (await db.execute(
+            sa_select(IntegrationEndpoint).where(
+                IntegrationEndpoint.system_code == "dingtalk_oa",
+            ).order_by(IntegrationEndpoint.created_at).limit(1)
+        )).scalar_one_or_none()
+    except (ProgrammingError, OperationalError):
+        # Empty DB / migrations not applied yet — login page should still render.
+        await db.rollback()
+        return ok({"login_enabled": False, "app_key": ""})
 
     if not ep:
         return ok({"login_enabled": False, "app_key": ""})

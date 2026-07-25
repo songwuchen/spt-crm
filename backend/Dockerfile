@@ -29,4 +29,8 @@ EXPOSE 8002
 ENV LOG_FORMAT=json
 ENV LOG_LEVEL=INFO
 
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]

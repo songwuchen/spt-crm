@@ -18,6 +18,8 @@ services:
       timeout: 3s
       retries: 5
     shm_size: 256mb
+    networks:
+      - spt-crm-net
 
   redis:
     image: redis:7-alpine
@@ -28,6 +30,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - spt-crm-net
 
   backend:
     image: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-backend:latest
@@ -45,6 +49,8 @@ services:
         condition: service_healthy
     volumes:
       - uploads:/app/uploads
+    networks:
+      - spt-crm-net
 
   worker:
     image: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-backend:latest
@@ -61,6 +67,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - spt-crm-net
 
   reminder:
     image: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-backend:latest
@@ -77,6 +85,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - spt-crm-net
 
   frontend:
     image: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-frontend:latest
@@ -93,7 +103,19 @@ services:
       # 与 ruolin-rsp 相同：挂 live 下 pem（Docker 会解析符号链接为目标文件）
       - /etc/letsencrypt/live/fourier.net.cn/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
       - /etc/letsencrypt/live/fourier.net.cn/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
+    networks:
+      - spt-crm-net
 
 volumes:
   pgdata:
   uploads:
+
+# 固定网段，避免 Docker 自动分配 172.x 与办公网/VPN 冲突
+# （冲突时会出现：客户公司能 SSH，办公网/VPN 不能；compose down 后恢复）
+# 同机已用：spt-srm=10.88.0.0/16，ruolin-rsp=10.89.0.0/16
+networks:
+  spt-crm-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.92.0.0/16
