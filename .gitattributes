@@ -1,2 +1,6 @@
-# Shell scripts must use LF on Linux servers
+# Deploy-related text must stay LF for Linux hosts
 *.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+nginx.prod.conf text eol=lf
+.env.example text eol=lf

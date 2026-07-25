@@ -1,17 +1,15 @@
 services:
   db:
-    # pgvector/pgvector:pg16(同 PG16,glibc)——支持向量语义检索(知识库 embedding 列)。
-    # prod 拉不通 Docker Hub,该镜像由 CI 从 docker.io 转推到私有 Harbor。
-    # 从 postgres:16-alpine 切换为本镜像时数据卷可复用,但需 REINDEX(musl→glibc collation)。
-    image: wmharbor.fourier.net.cn:39011/songwuchen/pgvector:pg16
+    # 与 ruolin-rsp / spt-srm 一致：官方 alpine 镜像。Harbor 转推的 pgvector/redis 在本机易导致 SSH 假死。
+    image: postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: spt_crm
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-    # 运营驾驶舱(BI)数据采集需要：对宿主/内网暴露 PG 端口（只读账号采集）
-    ports:
-      - "5439:5432"
+    # 如需对宿主暴露 PG，再打开下一行
+    # ports:
+    #   - "5439:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -19,11 +17,10 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    shm_size: 256mb
 
-  # prod 拉不通 Docker Hub，redis 镜像走私有 Harbor（由 CI 从 docker.io 镜像转推），
-  # 与 backend/frontend 同源，随 `docker compose pull ... redis` 一并拉取。
   redis:
-    image: wmharbor.fourier.net.cn:39011/songwuchen/redis:7-alpine
+    image: redis:7-alpine
     restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
     healthcheck:
@@ -85,14 +82,17 @@ services:
     image: wmharbor.fourier.net.cn:39011/songwuchen/spt-crm-frontend:latest
     restart: unless-stopped
     ports:
+      # IP+端口直访 HTTP（对齐 ruolin-rsp）
       - "39280:80"
+      # 域名 HTTPS
       - "39281:443"
     depends_on:
       - backend
     volumes:
       - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
-      # 挂整个 /etc/letsencrypt，避免只挂 live/*.pem 符号链接时容器内断链
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # 与 ruolin-rsp 相同：挂 live 下 pem（Docker 会解析符号链接为目标文件）
+      - /etc/letsencrypt/live/fourier.net.cn/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
+      - /etc/letsencrypt/live/fourier.net.cn/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
 
 volumes:
   pgdata:

@@ -45,6 +45,7 @@ test-results/
 # h5_ui_design_reference/ and frontend assets stay tracked)
 /*.png
 /tmp_*
+/.tmp*
 
 # Local-only project notes (contains internal infra info)
 /CLAUDE.md
