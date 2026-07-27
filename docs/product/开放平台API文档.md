@@ -128,7 +128,7 @@ print(call("GET", "/openapi/v1/customers", "status=active&page=1").json())
 | 404 | `CRM_NOT_FOUND` | 资源不存在 |
 | 400 | `CRM_VALIDATION_ERROR` | 查询/路径参数不合法，或写接口缺少 `Idempotency-Key` |
 | 409 | `CRM_IDEMPOTENCY_CONFLICT` | `Idempotency-Key` 被复用于不同请求 / 同一请求处理中 |
-| 409 | `CRM_DUPLICATE_ENTRY` | 业务唯一键冲突（如合同编号 `contract_no` 已存在） |
+| 409 | `CRM_DUPLICATE_ENTRY` | 业务唯一键冲突（如合同编号并发创建竞态；常规重复编号会走 upsert 更新） |
 | 500 | `CRM_INTERNAL_ERROR` | 服务端异常，可凭 traceId 反馈 |
 
 ---
@@ -250,13 +250,16 @@ curl -H "X-API-Key: $KEY" \
 ### 5.4 合同
 `GET /contracts` — Scope `crm.contract.read`，过滤：`project_id` / `status` + 分页。
 `GET /contracts/{id}` — 详情。
+`POST /contracts` — Scope `crm.contract.write`（须带 `Idempotency-Key`）。
+
+写入语义：**按 `contract_no` upsert**。若租户内已存在相同合同编号，则更新客户/金额/日期/状态/`custom_fields` 等字段并返回原合同；否则新建。`amount_total` 允许负数（对接简道云「变动」冲减）。并发极端情况下仍可能返回 `409 CRM_DUPLICATE_ENTRY`。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `id` / `contract_no` | string | 合同 ID / 编号 |
 | `project_id` | string | 所属商机 |
 | `status` | string | `draft`/`signed`/`terminated` |
-| `amount_total` | number | 合同总额 |
+| `amount_total` | number | 合同总额（可为负） |
 | `current_version_no` | int | 当前版本号 |
 | `signed_date` / `end_date` | string(date) | 签署日 / 结束日 |
 | `created_at` / `updated_at` | string(ISO) | 时间 |

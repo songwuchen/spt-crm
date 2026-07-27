@@ -736,16 +736,72 @@ def _to_date(value: str | None):
             return None
 
 
+async def _apply_openapi_contract_fields(contract: Contract, data) -> None:
+    """Copy OpenAPI intake fields onto an existing Contract (in-memory only)."""
+    contract.customer_id = data.customer_id
+    if data.project_id is not None:
+        contract.project_id = data.project_id
+    if data.status is not None:
+        contract.status = data.status
+    if data.signed_date is not None:
+        contract.signed_date = _to_date(data.signed_date)
+    if data.end_date is not None:
+        contract.end_date = _to_date(data.end_date)
+    if data.amount_total is not None:
+        contract.amount_total = data.amount_total
+    if data.payment_terms_json is not None:
+        contract.payment_terms_json = data.payment_terms_json
+    if data.delivery_terms_json is not None:
+        contract.delivery_terms_json = data.delivery_terms_json
+    if data.custom_fields is not None:
+        contract.custom_fields_json = data.custom_fields
+
+
+async def _update_contract_version_title(
+    db: AsyncSession, tenant_id: str, contract: Contract, title: str | None,
+) -> None:
+    if not title:
+        return
+    version = (await db.execute(
+        select(ContractVersion).where(
+            ContractVersion.tenant_id == tenant_id,
+            ContractVersion.contract_id == contract.id,
+            ContractVersion.version_no == contract.current_version_no,
+        ).limit(1)
+    )).scalar_one_or_none()
+    if version:
+        version.title = title
+
+
+async def update_contract_from_openapi(db: AsyncSession, ctx, contract: Contract, data) -> dict:
+    """Update an existing contract from OpenAPI intake fields (简道云 修改数据)."""
+    from app.domains.audit.service import log_action
+    from app.domains.openapi.dto import contract_to_dto
+
+    await _apply_openapi_contract_fields(contract, data)
+    await _update_contract_version_title(db, ctx.tenant_id, contract, data.title)
+    await db.commit()
+    await db.refresh(contract)
+    await log_action(
+        db, tenant_id=ctx.tenant_id, user_id=ctx.app_id, user_name="开放平台",
+        action="update", resource_type="contract", resource_id=contract.id,
+        summary=f"开放平台更新合同: {contract.contract_no}",
+    )
+    return contract_to_dto(contract)
+
+
 async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
-    """Create a contract from an external app (e.g. 简道云 合同登记表).
+    """Create or update a contract from an external app (e.g. 简道云 合同登记表).
 
     Customer-centric and project-optional: builds the Contract row directly (the
     internal create_contract forces a project and auto-generates its own number),
     plus an initial V1 version so version-dependent reads/approvals stay consistent.
 
-    ``uq_contract_tenant_no`` enforces (tenant_id, contract_no) uniqueness. A reused
-    number must surface as ``409 CRM_DUPLICATE_ENTRY`` — not an unhandled 500 — so
-    integrators (e.g. crm-integration) can permanently skip / stop retrying.
+    When ``contract_no`` is provided and already exists under the tenant
+    (``uq_contract_tenant_no``), this becomes an **upsert**: scalar / custom fields
+    are updated and the existing row is returned. That matches 简道云「创建/修改」
+    both flowing through POST /contracts. Concurrent create races still surface as
+    ``409 CRM_DUPLICATE_ENTRY`` only if the row cannot be located after rollback.
     """
     from app.common.code_generator import generate_code
     from app.domains.audit.service import log_action
@@ -754,18 +810,13 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
     contract_no = data.contract_no or await generate_code(db, ctx.tenant_id, "contract")
     if data.contract_no:
         existing = (await db.execute(
-            select(Contract.id).where(
+            select(Contract).where(
                 Contract.tenant_id == ctx.tenant_id,
                 Contract.contract_no == data.contract_no,
             ).limit(1)
         )).scalar_one_or_none()
         if existing:
-            raise OpenApiException(
-                CRM_DUPLICATE_ENTRY,
-                f"合同编号 {data.contract_no} 已存在",
-                http_status=409,
-                details={"contract_no": data.contract_no, "existing_id": existing},
-            )
+            return await update_contract_from_openapi(db, ctx, existing, data)
 
     contract = Contract(
         id=generate_uuid(), tenant_id=ctx.tenant_id,
@@ -793,8 +844,16 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
     try:
         await db.commit()
     except IntegrityError:
-        # Race with concurrent create of the same contract_no — same UX as precheck.
+        # Race: another writer inserted the same contract_no — upsert into that row.
         await db.rollback()
+        existing = (await db.execute(
+            select(Contract).where(
+                Contract.tenant_id == ctx.tenant_id,
+                Contract.contract_no == contract_no,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if existing:
+            return await update_contract_from_openapi(db, ctx, existing, data)
         raise OpenApiException(
             CRM_DUPLICATE_ENTRY,
             f"合同编号 {contract_no} 已存在",

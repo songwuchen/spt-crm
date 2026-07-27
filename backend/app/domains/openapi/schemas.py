@@ -137,7 +137,8 @@ class OpenContractCreate(BaseModel):
     project_id: Optional[str] = Field(None, max_length=36)
     contract_no: Optional[str] = Field(None, max_length=64)
     title: Optional[str] = Field(None, max_length=300)
-    amount_total: Optional[float] = Field(None, ge=0)
+    # Allow negatives: 简道云「变动」合同登记常带负金额冲减。
+    amount_total: Optional[float] = None
     status: Optional[str] = Field("draft", max_length=16)
     signed_date: Optional[str] = None
     end_date: Optional[str] = None
