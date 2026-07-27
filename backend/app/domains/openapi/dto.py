@@ -117,8 +117,13 @@ def lead_to_dto(l) -> dict:
         "source": l.source,
         "industry": l.industry,
         "region": l.region,
+        "department_id": getattr(l, "department_id", None),
         "status": l.status,
+        "owner_id": getattr(l, "owner_id", None),
         "owner_name": l.owner_name,
+        "reporter_id": getattr(l, "reporter_id", None),
+        "reporter_name": getattr(l, "reporter_name", None),
+        "reported_at": _iso(getattr(l, "reported_at", None)),
         "created_at": _iso(l.created_at),
         "updated_at": _iso(l.updated_at),
     }

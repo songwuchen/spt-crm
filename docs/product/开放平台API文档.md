@@ -294,9 +294,16 @@ Idempotency-Key: <你生成的唯一字符串，如 UUID>
 | `source` | string | 否 | 来源（如 `partner`/`ad`/`inbound`） |
 | `demand_summary` | string | 否 | 需求描述 |
 | `industry` / `region` / `budget_range` / `remark` | string | 否 | 行业 / 区域 / 预算 / 备注 |
+| `department_id` | string | 否 | CRM 部门 UUID（组织架构由钉钉同步） |
+| `department_name` | string | 否 | 部门名称；未传 `department_id` 时按名称**精确匹配**反查（trim 后全等）。查不到或重名取 path 最短一条，线索仍会创建，部门为空或取第一条 |
+| `owner_id` | string | 否 | CRM 用户 UUID（负责人） |
+| `owner_name` | string | 否 | 负责人姓名；未传 `owner_id` 时按 `real_name` / `username` **精确匹配**（简道云「申报人」→ CRM 负责人）。查不到则进入公海待分配 |
+| `reporter_id` | string | 否 | CRM 用户 UUID（报备人） |
+| `reporter_name` | string | 否 | 报备人姓名；未传时默认与 `owner_*` 同源（简道云「申报人」） |
+| `reported_at` | string(ISO) | 否 | 报备时间；对接简道云时传线索 `createTime`（提交/创建时间）。未传则用服务器当前时间 |
 
-> 通过开放平台创建的线索默认**进入公海（未分配）**，归属标记为「开放平台」，由销售认领；同时产生 `crm.lead.created` 事件。
-
+> 通过开放平台创建的线索：若解析到负责人则直接归属该用户；否则默认**进入公海（未分配）**，归属标记为「开放平台」，由销售认领；同时产生 `crm.lead.created` 事件。
+> 部门 / 负责人 / 报备人 / 报备时间字段用于对接外部系统（如简道云）按名称对齐钉钉同步过来的组织与人员，并保留源系统创建时间。
 示例：
 ```bash
 curl -X POST "https://192.168.0.42:8410/openapi/v1/leads" \

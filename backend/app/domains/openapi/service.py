@@ -475,24 +475,158 @@ async def query_milestones(db, tenant_id, *, project_id, page, page_size):
 
 
 # ============================================================ writes (leads)
+async def resolve_department_id(
+    db: AsyncSession, tenant_id: str, *, department_id: str | None, department_name: str | None,
+) -> str | None:
+    """Map open-API department fields onto a CRM department UUID.
+
+    Prefer explicit ``department_id`` (validated against the tenant). Otherwise
+    resolve ``department_name`` by exact match against DingTalk-synced departments
+    (name trimmed). Ambiguous / missing names yield None — the lead is still created
+    without a department rather than failing the whole write.
+    """
+    import logging
+    from app.domains.organization.models import Department
+
+    log = logging.getLogger(__name__)
+    if department_id:
+        dept = (await db.execute(
+            select(Department).where(
+                Department.id == department_id, Department.tenant_id == tenant_id,
+            )
+        )).scalar_one_or_none()
+        if dept:
+            return dept.id
+        log.warning("openapi lead: department_id %s not found in tenant %s", department_id, tenant_id)
+        return None
+
+    name = (department_name or "").strip()
+    if not name:
+        return None
+    rows = (await db.execute(
+        select(Department).where(
+            Department.tenant_id == tenant_id, Department.name == name,
+        ).order_by(Department.path)
+    )).scalars().all()
+    if not rows:
+        log.warning("openapi lead: department_name %r not found in tenant %s", name, tenant_id)
+        return None
+    if len(rows) > 1:
+        log.warning(
+            "openapi lead: department_name %r matched %d departments; using %s (%s)",
+            name, len(rows), rows[0].id, rows[0].path,
+        )
+    return rows[0].id
+
+
+async def resolve_user_id(
+    db: AsyncSession, tenant_id: str, *, user_id: str | None, user_name: str | None,
+    field_label: str = "user",
+) -> str | None:
+    """Map open-API user fields onto a CRM user UUID.
+
+    Prefer explicit ``user_id``. Otherwise resolve ``user_name`` by exact match on
+    ``real_name`` or ``username`` (DingTalk-synced users). Missing → None.
+    """
+    import logging
+    from app.domains.auth.models import User as AuthUser
+
+    log = logging.getLogger(__name__)
+    if user_id:
+        u = (await db.execute(
+            select(AuthUser).where(
+                AuthUser.id == user_id, AuthUser.tenant_id == tenant_id,
+            )
+        )).scalar_one_or_none()
+        if u:
+            return u.id
+        log.warning("openapi lead: %s_id %s not found in tenant %s", field_label, user_id, tenant_id)
+        return None
+
+    name = (user_name or "").strip()
+    if not name:
+        return None
+    u = (await db.execute(
+        select(AuthUser).where(
+            AuthUser.tenant_id == tenant_id,
+            (AuthUser.real_name == name) | (AuthUser.username == name),
+        )
+    )).scalars().first()
+    if not u:
+        log.warning("openapi lead: %s_name %r not found in tenant %s", field_label, name, tenant_id)
+        return None
+    return u.id
+
+
+async def resolve_owner_id(
+    db: AsyncSession, tenant_id: str, *, owner_id: str | None, owner_name: str | None,
+) -> str | None:
+    return await resolve_user_id(
+        db, tenant_id, user_id=owner_id, user_name=owner_name, field_label="owner",
+    )
+
+
+async def resolve_reporter_id(
+    db: AsyncSession, tenant_id: str, *, reporter_id: str | None, reporter_name: str | None,
+) -> str | None:
+    return await resolve_user_id(
+        db, tenant_id, user_id=reporter_id, user_name=reporter_name, field_label="reporter",
+    )
+
+
 async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
     """Create a lead from an external app. Reuses the internal lead service so all
-    business rules (code generation, scoring, audit) apply. The lead is attributed
-    to the app and left unassigned (pool) for sales to claim."""
+    business rules (code generation, scoring, audit) apply.
+
+    If ``owner_id`` / ``owner_name`` resolve to a CRM user, the lead is assigned to
+    that user (简道云「申报人」→ CRM 负责人). Otherwise it is left in the open pool.
+    ``reporter_*`` maps the same JianDaoYun申报人 onto CRM 报备人 when provided.
+    """
     from app.domains.lead.service import create_lead
     from app.domains.lead.schemas import LeadCreate
     from app.domains.openapi.dto import lead_to_dto
 
-    pseudo_user = {
-        "sub": ctx.app_id,  # AuditLog.user_id is non-null; attribute to the app
-        "username": f"openapi:{ctx.app_key}",
-        "real_name": "开放平台",
-    }
-    lead = await create_lead(db, ctx.tenant_id, LeadCreate(**data.model_dump(exclude_unset=True)), pseudo_user)
-    # create_lead defaults owner to the creator (here the app id); de-own into the pool.
+    payload = data.model_dump(exclude_unset=True)
+    dept_name = payload.pop("department_name", None)
+    raw_dept_id = payload.pop("department_id", None)
+    resolved_dept = await resolve_department_id(
+        db, ctx.tenant_id, department_id=raw_dept_id, department_name=dept_name,
+    )
+    if resolved_dept:
+        payload["department_id"] = resolved_dept
+
+    owner_name = payload.pop("owner_name", None)
+    raw_owner_id = payload.pop("owner_id", None)
+    resolved_owner = await resolve_owner_id(
+        db, ctx.tenant_id, owner_id=raw_owner_id, owner_name=owner_name,
+    )
+    if resolved_owner:
+        payload["owner_id"] = resolved_owner
+
+    reporter_name = payload.pop("reporter_name", None)
+    raw_reporter_id = payload.pop("reporter_id", None)
+    # 未单独传报备人时，与负责人同源（简道云申报人）
+    if not raw_reporter_id and not (reporter_name or "").strip():
+        raw_reporter_id = resolved_owner or raw_owner_id
+        reporter_name = owner_name
+    resolved_reporter = await resolve_reporter_id(
+        db, ctx.tenant_id, reporter_id=raw_reporter_id, reporter_name=reporter_name,
+    )
+    if resolved_reporter:
+        payload["reporter_id"] = resolved_reporter
+
+    lead = await create_lead(db, ctx.tenant_id, LeadCreate(**payload), _pseudo_user(ctx))
+    # create_lead defaults owner to the creator (here the app id) when none resolved;
+    # de-own into the pool only in that case.
     if lead.owner_id == ctx.app_id:
         lead.owner_id = None
         lead.owner_name = "开放平台（待分配）"
+        await db.commit()
+        await db.refresh(lead)
+    # 报备人若落成开放平台伪用户，同样清空（无真实申报人时不伪装成「开放平台」人名）
+    if lead.reporter_id == ctx.app_id:
+        lead.reporter_id = None
+        lead.reporter_name = None
         await db.commit()
         await db.refresh(lead)
     return lead_to_dto(lead)

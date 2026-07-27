@@ -1,4 +1,5 @@
 from typing import Optional, List
+from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -42,6 +43,18 @@ class OpenLeadCreate(BaseModel):
     region: Optional[str] = Field(None, max_length=200)
     budget_range: Optional[str] = Field(None, max_length=100)
     remark: Optional[str] = Field(None, max_length=2000)
+    # 部门：可直接传 CRM 部门 UUID，或传名称由服务端按钉钉同步的组织架构反查。
+    # department_id 优先；仅有 department_name 时做精确名匹配（trim 后全等）。
+    department_id: Optional[str] = Field(None, max_length=36)
+    department_name: Optional[str] = Field(None, max_length=200)
+    # 负责人（简道云「申报人」）：传 CRM 用户 UUID，或按 real_name/username 精确匹配反查。
+    owner_id: Optional[str] = Field(None, max_length=36)
+    owner_name: Optional[str] = Field(None, max_length=100)
+    # 报备人：通常与简道云「申报人」同源；传 UUID 或按姓名反查。
+    reporter_id: Optional[str] = Field(None, max_length=36)
+    reporter_name: Optional[str] = Field(None, max_length=100)
+    # 报备时间：简道云线索创建/提交时间（createTime）；ISO 8601。
+    reported_at: Optional[datetime] = None
 
 
 class OpenActivityCreate(BaseModel):
@@ -211,3 +224,4 @@ class OpenApiAppUpdate(BaseModel):
             if bad:
                 raise ValueError(f"unknown scopes: {bad}")
         return v
+
