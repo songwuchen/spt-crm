@@ -1,6 +1,35 @@
 import { useEffect, useRef, useCallback } from 'react'
+import dayjs from 'dayjs'
 
 const STORAGE_PREFIX = 'spt_draft_'
+
+/** ISO / YYYY-MM-DD 字符串 → dayjs，供 DatePicker 使用；其它值原样返回。 */
+function reviveDraftValue(v: unknown): unknown {
+  if (typeof v !== 'string') return v
+  // 仅还原保存时由 dayjs.toISOString() / format('YYYY-MM-DD') 写出的日期串，
+  // 避免把普通文本误当成日期。
+  if (!/^\d{4}-\d{2}-\d{2}(T[\d:.+-Z]*)?$/.test(v)) return v
+  const d = dayjs(v)
+  return d.isValid() ? d : v
+}
+
+function reviveDraftData(data: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(data)) {
+    if (Array.isArray(v)) {
+      out[k] = v.map((row) =>
+        row && typeof row === 'object' && !Array.isArray(row)
+          ? reviveDraftData(row as Record<string, unknown>)
+          : reviveDraftValue(row),
+      )
+    } else if (v && typeof v === 'object') {
+      out[k] = reviveDraftData(v as Record<string, unknown>)
+    } else {
+      out[k] = reviveDraftValue(v)
+    }
+  }
+  return out
+}
 
 /**
  * Auto-save form values to localStorage with dirty-flag + debounce.
@@ -59,7 +88,8 @@ export function useAutoSave(
         localStorage.removeItem(storageKey)
         return false
       }
-      form.setFieldsValue(data)
+      // 存盘时 dayjs 被序列化成 ISO 字符串；若不还原，Ant Design DatePicker 会报 t.isValid is not a function
+      form.setFieldsValue(reviveDraftData(data || {}))
       return true
     } catch {
       return false
