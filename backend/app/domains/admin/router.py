@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
-from app.database import generate_uuid as gen_id, async_session_factory
+from app.database import generate_uuid as gen_id
+import app.database as database
 from app.domains.admin import service
 from app.domains.admin.models import DocTemplate, EmailTemplate
 from app.common.exceptions import BusinessException
@@ -1255,7 +1256,7 @@ async def _execute_purge(tenant_id: str, task_id: str, user_id: str, user_name: 
     task_info["status"] = "executing"
 
     try:
-        async with async_session_factory() as db:
+        async with database.async_session_factory() as db:
             # Import all related models
             from app.domains.customer.models import Customer, Contact, CustomerRelation, AclShare
             from app.domains.project.models import OpportunityProject
@@ -1407,7 +1408,7 @@ async def _execute_purge(tenant_id: str, task_id: str, user_id: str, user_name: 
 
             # Write audit log for completion
             from app.domains.audit.service import log_action
-            async with async_session_factory() as audit_db:
+            async with database.async_session_factory() as audit_db:
                 await log_action(
                     audit_db, tenant_id=tenant_id,
                     user_id=user_id, user_name=user_name,

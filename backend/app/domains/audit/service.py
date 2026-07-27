@@ -7,7 +7,8 @@ from decimal import Decimal
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import generate_uuid, async_session_factory
+from app.database import generate_uuid
+import app.database as database
 from app.domains.audit.models import AuditLog
 from app.common.context import request_ip, request_trace_id, request_user_agent
 
@@ -55,7 +56,7 @@ async def log_action(
     try:
         safe_detail = _sanitize_for_json(detail) if detail else detail
         content_hash = _compute_content_hash(tenant_id, user_id, action, resource_type, resource_id, summary, safe_detail)
-        async with async_session_factory() as audit_db:
+        async with database.async_session_factory() as audit_db:
             audit_db.add(AuditLog(
                 id=generate_uuid(), tenant_id=tenant_id,
                 user_id=user_id, user_name=user_name,

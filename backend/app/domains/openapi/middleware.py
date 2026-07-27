@@ -14,7 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.database import async_session_factory
+import app.database as database
 from app.domains.openapi import service
 
 logger = logging.getLogger("spt_crm.openapi")
@@ -35,7 +35,7 @@ class OpenApiCallLogMiddleware(BaseHTTPMiddleware):
         tenant_id = getattr(request.state, "openapi_tenant_id", None)
         if app_key and tenant_id:
             try:
-                async with async_session_factory() as db:
+                async with database.async_session_factory() as db:
                     await service.write_call_log(
                         db,
                         tenant_id=tenant_id,

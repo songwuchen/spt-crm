@@ -3,13 +3,16 @@ from fastapi import Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import async_session_factory
+import app.database as database
 from app.common.exceptions import BusinessException
 from app.common.error_codes import UNAUTHORIZED, FORBIDDEN
 
 
 async def get_db() -> AsyncSession:
-    async with async_session_factory() as session:
+    # Look up the factory via the module attribute so tests can swap
+    # ``app.database.async_session_factory`` (NullPool per event loop) without
+    # leaving this dependency bound to a disposed engine.
+    async with database.async_session_factory() as session:
         yield session
 
 
