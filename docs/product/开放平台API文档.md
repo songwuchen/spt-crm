@@ -128,6 +128,7 @@ print(call("GET", "/openapi/v1/customers", "status=active&page=1").json())
 | 404 | `CRM_NOT_FOUND` | 资源不存在 |
 | 400 | `CRM_VALIDATION_ERROR` | 查询/路径参数不合法，或写接口缺少 `Idempotency-Key` |
 | 409 | `CRM_IDEMPOTENCY_CONFLICT` | `Idempotency-Key` 被复用于不同请求 / 同一请求处理中 |
+| 409 | `CRM_DUPLICATE_ENTRY` | 业务唯一键冲突（如合同编号 `contract_no` 已存在） |
 | 500 | `CRM_INTERNAL_ERROR` | 服务端异常，可凭 traceId 反馈 |
 
 ---

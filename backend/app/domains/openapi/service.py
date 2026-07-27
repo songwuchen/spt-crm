@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import select, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
@@ -18,6 +19,7 @@ from app.common.error_codes import NOT_FOUND
 from app.domains.openapi.models import OpenApiApp, OpenApiCallLog
 from app.domains.openapi.schemas import OpenApiAppCreate, OpenApiAppUpdate
 from app.domains.openapi.auth import hash_secret, generate_app_key, generate_secret
+from app.domains.openapi.errors import OpenApiException, CRM_DUPLICATE_ENTRY
 
 from app.domains.customer.models import Customer, Contact
 from app.domains.project.models import OpportunityProject, ProjectStageHistory
@@ -740,17 +742,36 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
     Customer-centric and project-optional: builds the Contract row directly (the
     internal create_contract forces a project and auto-generates its own number),
     plus an initial V1 version so version-dependent reads/approvals stay consistent.
+
+    ``uq_contract_tenant_no`` enforces (tenant_id, contract_no) uniqueness. A reused
+    number must surface as ``409 CRM_DUPLICATE_ENTRY`` — not an unhandled 500 — so
+    integrators (e.g. crm-integration) can permanently skip / stop retrying.
     """
     from app.common.code_generator import generate_code
     from app.domains.audit.service import log_action
     from app.domains.openapi.dto import contract_to_dto
 
-    pseudo = _pseudo_user(ctx)
+    contract_no = data.contract_no or await generate_code(db, ctx.tenant_id, "contract")
+    if data.contract_no:
+        existing = (await db.execute(
+            select(Contract.id).where(
+                Contract.tenant_id == ctx.tenant_id,
+                Contract.contract_no == data.contract_no,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if existing:
+            raise OpenApiException(
+                CRM_DUPLICATE_ENTRY,
+                f"合同编号 {data.contract_no} 已存在",
+                http_status=409,
+                details={"contract_no": data.contract_no, "existing_id": existing},
+            )
+
     contract = Contract(
         id=generate_uuid(), tenant_id=ctx.tenant_id,
         project_id=data.project_id,
         customer_id=data.customer_id,
-        contract_no=data.contract_no or await generate_code(db, ctx.tenant_id, "contract"),
+        contract_no=contract_no,
         current_version_no=1,
         status=data.status or "draft",
         signed_date=_to_date(data.signed_date),
@@ -769,7 +790,17 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         title=data.title or "V1",
     )
     db.add(version)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Race with concurrent create of the same contract_no — same UX as precheck.
+        await db.rollback()
+        raise OpenApiException(
+            CRM_DUPLICATE_ENTRY,
+            f"合同编号 {contract_no} 已存在",
+            http_status=409,
+            details={"contract_no": contract_no},
+        )
     await db.refresh(contract)
 
     await log_action(

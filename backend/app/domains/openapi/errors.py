@@ -17,6 +17,7 @@ CRM_RATE_LIMITED = "CRM_RATE_LIMITED"            # per-app rate limit exceeded
 CRM_NOT_FOUND = "CRM_NOT_FOUND"                  # resource does not exist
 CRM_VALIDATION_ERROR = "CRM_VALIDATION_ERROR"    # bad query / path parameter / missing header
 CRM_IDEMPOTENCY_CONFLICT = "CRM_IDEMPOTENCY_CONFLICT"  # Idempotency-Key reused with a different request / in progress
+CRM_DUPLICATE_ENTRY = "CRM_DUPLICATE_ENTRY"      # unique business key already exists (e.g. contract_no)
 CRM_INTERNAL_ERROR = "CRM_INTERNAL_ERROR"        # unexpected server error
 
 
