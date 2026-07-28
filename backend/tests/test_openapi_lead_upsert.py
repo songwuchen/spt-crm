@@ -45,7 +45,8 @@ async def test_update_lead_from_openapi_fills_reported_at(db):
             OpenLeadCreate(title=title, company_name="UT Co", source="test"),
         )
         lead_id = first["id"]
-        assert first.get("reported_at") in (None, "")
+        # create_lead defaults reported_at to now when omitted
+        assert first.get("reported_at")
 
         reported = datetime(2026, 6, 16, 2, 28, 25, tzinfo=timezone.utc)
         second = await update_lead_from_openapi(
@@ -58,13 +59,13 @@ async def test_update_lead_from_openapi_fills_reported_at(db):
             ),
         )
         assert second["id"] == lead_id
-        assert second.get("reported_at") is not None
+        assert second.get("reported_at") == "2026-06-16T02:28:25+00:00"
 
         rows = (await db.execute(
             select(Lead).where(Lead.tenant_id == TENANT, Lead.title == title, Lead.is_deleted == False)
         )).scalars().all()
         assert len(rows) == 1
-        assert rows[0].reported_at is not None
+        assert rows[0].reported_at == reported
     finally:
         if lead_id:
             await db.execute(delete(Lead).where(Lead.id == lead_id, Lead.tenant_id == TENANT))
