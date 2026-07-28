@@ -576,18 +576,8 @@ async def resolve_reporter_id(
     )
 
 
-async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
-    """Create a lead from an external app. Reuses the internal lead service so all
-    business rules (code generation, scoring, audit) apply.
-
-    If ``owner_id`` / ``owner_name`` resolve to a CRM user, the lead is assigned to
-    that user (简道云「申报人」→ CRM 负责人). Otherwise it is left in the open pool.
-    ``reporter_*`` maps the same JianDaoYun申报人 onto CRM 报备人 when provided.
-    """
-    from app.domains.lead.service import create_lead
-    from app.domains.lead.schemas import LeadCreate
-    from app.domains.openapi.dto import lead_to_dto
-
+async def _resolve_lead_write_payload(db: AsyncSession, ctx, data) -> dict:
+    """Shared open-API lead field resolution (dept / owner / reporter names → ids)."""
     payload = data.model_dump(exclude_unset=True)
     dept_name = payload.pop("department_name", None)
     raw_dept_id = payload.pop("department_id", None)
@@ -607,7 +597,6 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
 
     reporter_name = payload.pop("reporter_name", None)
     raw_reporter_id = payload.pop("reporter_id", None)
-    # 未单独传报备人时，与负责人同源（简道云申报人）
     if not raw_reporter_id and not (reporter_name or "").strip():
         raw_reporter_id = resolved_owner or raw_owner_id
         reporter_name = owner_name
@@ -616,7 +605,22 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
     )
     if resolved_reporter:
         payload["reporter_id"] = resolved_reporter
+    return payload
 
+
+async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
+    """Create a lead from an external app. Reuses the internal lead service so all
+    business rules (code generation, scoring, audit) apply.
+
+    If ``owner_id`` / ``owner_name`` resolve to a CRM user, the lead is assigned to
+    that user (简道云「申报人」→ CRM 负责人). Otherwise it is left in the open pool.
+    ``reporter_*`` maps the same JianDaoYun申报人 onto CRM 报备人 when provided.
+    """
+    from app.domains.lead.service import create_lead
+    from app.domains.lead.schemas import LeadCreate
+    from app.domains.openapi.dto import lead_to_dto
+
+    payload = await _resolve_lead_write_payload(db, ctx, data)
     lead = await create_lead(db, ctx.tenant_id, LeadCreate(**payload), _pseudo_user(ctx))
     # create_lead defaults owner to the creator (here the app id) when none resolved;
     # de-own into the pool only in that case.
@@ -634,6 +638,26 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
     return lead_to_dto(lead)
 
 
+async def update_lead_from_openapi(db: AsyncSession, ctx, lead_id: str, data) -> dict:
+    """Update an existing open-API lead (e.g. idempotent replay with a richer body).
+
+    Only resolved department / owner / reporter ids and reported_at (plus other
+    provided scalar fields) are written; unresolved names do not clear existing
+    assignments.
+    """
+    from app.domains.lead.service import update_lead
+    from app.domains.lead.schemas import LeadUpdate
+    from app.domains.openapi.dto import lead_to_dto
+
+    payload = await _resolve_lead_write_payload(db, ctx, data)
+    # Don't blank owner/dept when name resolution fails on a backfill replay.
+    for k in ("department_id", "owner_id", "reporter_id"):
+        if k in payload and not payload[k]:
+            payload.pop(k)
+    lead = await update_lead(db, ctx.tenant_id, lead_id, LeadUpdate(**payload), _pseudo_user(ctx))
+    return lead_to_dto(lead)
+
+
 def _pseudo_user(ctx) -> dict:
     """开放平台调用内部 service 时的伪用户。
 
@@ -646,6 +670,9 @@ def _pseudo_user(ctx) -> dict:
     return {
         "sub": ctx.app_id, "username": f"openapi:{ctx.app_key}", "real_name": "开放平台",
         "roles": [SYSTEM_ROLE],
+        # data scope: SYSTEM_ROLE alone is not admin; without this, update_lead →
+        # get_lead → assert_in_scope would 403 on leads not owned by the app id.
+        "permissions": ["data:view_all"],
     }
 
 

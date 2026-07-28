@@ -395,8 +395,35 @@ async def create_lead(
     ctx: OpenApiContext = Depends(require_scope("crm.lead.write")),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a lead. **Requires** an ``Idempotency-Key`` header; replays with the
-    same key + body return the original result without creating a duplicate."""
+    """Create a lead. **Requires** an ``Idempotency-Key`` header.
+
+    Same key + same body → replay stored response.
+    Same key + different body (e.g. 简道云回刷补部门/负责人) → update the original
+    lead instead of ``409 CRM_IDEMPOTENCY_CONFLICT``.
+    """
+    import hashlib
+    from app.domains.openapi.idempotency import _lookup, run_idempotent
+
+    key = request.headers.get("Idempotency-Key")
+    if key:
+        raw = await request.body()
+        req_hash = hashlib.sha256(
+            (request.method + "\n" + request.url.path + "\n").encode() + (raw or b"")
+        ).hexdigest()
+        existing = await _lookup(db, ctx.tenant_id, ctx.app_key, key)
+        if (
+            existing
+            and existing.status == "completed"
+            and existing.request_hash != req_hash
+        ):
+            lead_id = (existing.response_json or {}).get("id")
+            if lead_id:
+                data = await service.update_lead_from_openapi(db, ctx, lead_id, body)
+                existing.request_hash = req_hash
+                existing.response_json = data
+                await db.commit()
+                return _ok(request, {**data, "idempotent_update": True})
+
     async def producer():
         return await service.create_lead_from_openapi(db, ctx, body)
 
