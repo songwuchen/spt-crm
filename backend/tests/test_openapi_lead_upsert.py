@@ -70,3 +70,77 @@ async def test_update_lead_from_openapi_fills_reported_at(db):
         if lead_id:
             await db.execute(delete(Lead).where(Lead.id == lead_id, Lead.tenant_id == TENANT))
             await db.commit()
+
+
+async def test_create_lead_from_openapi_normalizes_customer_type(db):
+    """Chinese JDY label → dict_code; response exposes customer_type."""
+    from app.domains.admin.models import DataDictionary
+    from app.domains.openapi.service import resolve_customer_type
+
+    ctx = _Ctx()
+    # Ensure dict rows exist for this tenant (idempotent soft upsert for UT).
+    for code, label, order in (
+        ("terminal_soe", "终端客户-央企/国企", 1),
+        ("design_institute", "设计院", 4),
+    ):
+        existing = (
+            await db.execute(
+                select(DataDictionary).where(
+                    DataDictionary.tenant_id == TENANT,
+                    DataDictionary.dict_type == "customer_type",
+                    DataDictionary.dict_code == code,
+                    DataDictionary.is_deleted == False,
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is None:
+            db.add(DataDictionary(
+                id=str(uuid.uuid4()),
+                tenant_id=TENANT,
+                dict_type="customer_type",
+                dict_code=code,
+                dict_label=label,
+                sort_order=order,
+                enabled=True,
+            ))
+    await db.commit()
+
+    assert await resolve_customer_type(db, TENANT, "terminal_soe") == "terminal_soe"
+    assert await resolve_customer_type(db, TENANT, "终端客户-央企/国企") == "terminal_soe"
+    assert await resolve_customer_type(db, TENANT, "总包") == "general_contractor"
+    assert await resolve_customer_type(db, TENANT, "未知类型XYZ") == "未知类型XYZ"
+
+    title = f"LOCAL-LEAD-CT-{uuid.uuid4().hex[:8]}"
+    lead_id = None
+    try:
+        created = await create_lead_from_openapi(
+            db, ctx,
+            OpenLeadCreate(
+                title=title,
+                company_name="UT Co",
+                source="test",
+                customer_type="终端客户-央企/国企",
+            ),
+        )
+        lead_id = created["id"]
+        assert created.get("customer_type") == "terminal_soe"
+
+        row = (
+            await db.execute(select(Lead).where(Lead.id == lead_id, Lead.tenant_id == TENANT))
+        ).scalar_one()
+        assert row.customer_type == "terminal_soe"
+
+        updated = await update_lead_from_openapi(
+            db, ctx, lead_id,
+            OpenLeadCreate(
+                title=title,
+                company_name="UT Co",
+                source="test",
+                customer_type="设计院",
+            ),
+        )
+        assert updated.get("customer_type") == "design_institute"
+    finally:
+        if lead_id:
+            await db.execute(delete(Lead).where(Lead.id == lead_id, Lead.tenant_id == TENANT))
+            await db.commit()

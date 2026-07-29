@@ -576,6 +576,68 @@ async def resolve_reporter_id(
     )
 
 
+# 简道云申报信息「客户类型」常见简称 / 历史写法 → 字典码（与 seed_lead_dicts 对齐）。
+_CUSTOMER_TYPE_ALIASES = {
+    "终端-央企国企": "terminal_soe",
+    "终端客户-央企国企": "terminal_soe",
+    "央企/国企": "terminal_soe",
+    "大型民企": "terminal_large_private",
+    "终端客户-大型民企": "terminal_large_private",
+    "一般民企": "terminal_private",
+    "终端客户—一般民企": "terminal_private",  # em-dash variant seen in JDY history
+    "总包": "general_contractor",
+    "配套贸易": "supporting_trader",
+    "配套商": "supporting_trader",
+    "贸易商": "supporting_trader",
+    "supporting_vendor": "supporting_trader",
+    "trader": "supporting_trader",
+}
+
+
+def _normalize_customer_type_text(raw: str) -> str:
+    """Trim and unify dash variants so label/alias lookup is stable."""
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    return s.replace("—", "-").replace("–", "-")
+
+
+async def resolve_customer_type(db: AsyncSession, tenant_id: str, raw: str | None) -> str | None:
+    """Map OpenAPI customer_type (code or Chinese label) to dict_code.
+
+    Resolution order: empty → None; exact dict_code; exact dict_label; static
+    aliases; otherwise keep the original string (do not block sync).
+    """
+    if raw is None:
+        return None
+    text = _normalize_customer_type_text(raw)
+    if not text:
+        return None
+
+    from app.domains.admin.models import DataDictionary
+
+    rows = (
+        await db.execute(
+            select(DataDictionary.dict_code, DataDictionary.dict_label).where(
+                DataDictionary.tenant_id == tenant_id,
+                DataDictionary.dict_type == "customer_type",
+                DataDictionary.is_deleted == False,  # noqa: E712
+                DataDictionary.enabled == True,  # noqa: E712
+            )
+        )
+    ).all()
+    by_code = {r.dict_code: r.dict_code for r in rows if r.dict_code}
+    by_label = {_normalize_customer_type_text(r.dict_label): r.dict_code for r in rows if r.dict_label}
+    if text in by_code:
+        return by_code[text]
+    if text in by_label:
+        return by_label[text]
+    alias = _CUSTOMER_TYPE_ALIASES.get(text) or _CUSTOMER_TYPE_ALIASES.get(raw.strip())
+    if alias:
+        return alias
+    return text
+
+
 async def _resolve_lead_write_payload(db: AsyncSession, ctx, data) -> dict:
     """Shared open-API lead field resolution (dept / owner / reporter names → ids)."""
     payload = data.model_dump(exclude_unset=True)
@@ -605,6 +667,11 @@ async def _resolve_lead_write_payload(db: AsyncSession, ctx, data) -> dict:
     )
     if resolved_reporter:
         payload["reporter_id"] = resolved_reporter
+
+    if "customer_type" in payload:
+        payload["customer_type"] = await resolve_customer_type(
+            db, ctx.tenant_id, payload.get("customer_type"),
+        )
     return payload
 
 

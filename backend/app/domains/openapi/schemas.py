@@ -43,6 +43,8 @@ class OpenLeadCreate(BaseModel):
     region: Optional[str] = Field(None, max_length=200)
     budget_range: Optional[str] = Field(None, max_length=100)
     remark: Optional[str] = Field(None, max_length=2000)
+    # 客户类型：字典码或中文标签（简道云申报信息）；服务端归一为 dict_code。
+    customer_type: Optional[str] = Field(None, max_length=50)
     # 部门：可直接传 CRM 部门 UUID，或传名称由服务端按钉钉同步的组织架构反查。
     # department_id 优先；仅有 department_name 时做精确名匹配（trim 后全等）。
     department_id: Optional[str] = Field(None, max_length=36)

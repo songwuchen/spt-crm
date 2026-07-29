@@ -298,6 +298,7 @@ Idempotency-Key: <你生成的唯一字符串，如 UUID>
 | `source` | string | 否 | 来源（如 `partner`/`ad`/`inbound`） |
 | `demand_summary` | string | 否 | 需求描述 |
 | `industry` / `region` / `budget_range` / `remark` | string | 否 | 行业 / 区域 / 预算 / 备注 |
+| `customer_type` | string | 否 | 客户类型；可传字典码（如 `terminal_soe`）或中文标签（如「终端客户-央企/国企」）。服务端按租户 `customer_type` 字典归一为码；无法识别时保留原文 |
 | `department_id` | string | 否 | CRM 部门 UUID（组织架构由钉钉同步） |
 | `department_name` | string | 否 | 部门名称；未传 `department_id` 时按名称**精确匹配**反查（trim 后全等）。查不到或重名取 path 最短一条，线索仍会创建，部门为空或取第一条 |
 | `owner_id` | string | 否 | CRM 用户 UUID（负责人） |

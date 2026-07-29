@@ -115,6 +115,7 @@ def lead_to_dto(l) -> dict:
         "contact_phone": l.contact_phone,
         "contact_email": l.contact_email,
         "source": l.source,
+        "customer_type": getattr(l, "customer_type", None),
         "industry": l.industry,
         "region": l.region,
         "department_id": getattr(l, "department_id", None),
