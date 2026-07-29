@@ -38,7 +38,6 @@ export default function MobileLeadForm() {
   const sourceDict = useDataDict('lead_source', defaultSources)
   const industryDict = useDataDict('industry')
   const customerTypeDict = useDataDict('customer_type')
-  const budgetDict = useDataDict('budget_range')
   const countryType = Form.useWatch('country_type', form)
   const reporterSelect = useUserSelect()
   const ownerSelect = useUserSelect()
@@ -141,10 +140,6 @@ export default function MobileLeadForm() {
             </MField>
             <MField name="category" label="类别">
               <Select placeholder="请选择" allowClear options={categoryOptions} className="w-full" />
-            </MField>
-            <MField name="budget_range" label="预算范围">
-              <Select placeholder="请选择" allowClear options={budgetDict.options}
-                loading={budgetDict.loading} className="w-full" />
             </MField>
             <MField name="biz_date" label="业务日期">
               <DatePicker className="w-full" placeholder="请选择日期" />

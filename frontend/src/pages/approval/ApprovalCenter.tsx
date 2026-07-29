@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Tabs, Table, Tag, Space, Modal, Input, Button, message, Spin, Checkbox, Select, Card, Statistic, Row, Col, DatePicker } from 'antd'
+import { Tabs, Tag, Space, Modal, Input, Button, message, Spin, Checkbox, Select, Card, Statistic, Row, Col, DatePicker } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { CheckCircleOutlined, CloseCircleOutlined, SwapOutlined, UndoOutlined, RedoOutlined, BarChartOutlined, FilterOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { approvalApi } from '@/api/approval'
@@ -381,15 +382,16 @@ export default function ApprovalCenter() {
 
   if (loading) return <DetailSkeleton />
 
+
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 shrink-0">
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">审批中心</h1>
         <p className="text-sm text-slate-500 mt-1">管理待审批任务和审批历史</p>
       </div>
 
       {wfPendingCount > 0 && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-3">
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-3 shrink-0">
           <div className="text-sm text-slate-700">
             你还有 <span className="font-bold text-amber-700">{wfPendingCount}</span> 条待办在
             「流程审批中心」（线索等业务已使用可视化流程引擎），不在本页列表中。
@@ -398,8 +400,8 @@ export default function ApprovalCenter() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <Tabs defaultActiveKey="pending" className="px-4 pt-2"
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <Tabs defaultActiveKey="pending" className="px-4 pt-2 pb-4"
           onChange={(key) => { if (key === 'stats' && !stats) loadStats() }}
           items={[
             {
@@ -408,7 +410,7 @@ export default function ApprovalCenter() {
               children: (
                 <div>
                   {pending.length > 0 && (
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <div className="mb-3 flex flex-wrap items-center gap-2 shrink-0">
                       <FilterOutlined className="text-slate-400" />
                       <Select size="small" allowClear placeholder="业务类型" value={filterBizType || undefined}
                         onChange={(v) => { setFilterBizType(v || ''); setSelectedRowKeys([]) }}
@@ -428,9 +430,9 @@ export default function ApprovalCenter() {
                       {selectedRowKeys.length > 0 && <span className="text-sm text-slate-400 self-center">已选 {selectedRowKeys.length}/{filteredPending.length} 项</span>}
                     </div>
                   )}
-                  <Table rowKey="id" columns={pendingColumns} dataSource={filteredPending}
+                  <FillHeightTable rowKey="id" columns={pendingColumns} dataSource={filteredPending}
                     rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys as string[]) }}
-                    pagination={false} size="small"
+                    pagination={false} size="small" scroll={{ x: 'max-content' }}
                     locale={{ emptyText: <div className="py-8 text-slate-400">暂无待审批任务</div> }} />
                 </div>
               ),
@@ -439,27 +441,31 @@ export default function ApprovalCenter() {
               key: 'mine',
               label: '我发起的',
               children: (
-                <Table rowKey="id" columns={mineColumns}
-                  dataSource={myFlows}
-                  pagination={{ pageSize: 15, showSizeChanger: false }} size="small"
-                  locale={{ emptyText: <div className="py-8 text-slate-400">暂无发起的审批</div> }} />
+                <div>
+                  <FillHeightTable rowKey="id" columns={mineColumns}
+                    dataSource={myFlows}
+                    pagination={{ pageSize: 15, showSizeChanger: false }} size="small" scroll={{ x: 'max-content' }}
+                    locale={{ emptyText: <div className="py-8 text-slate-400">暂无发起的审批</div> }} />
+                </div>
               ),
             },
             {
               key: 'all',
               label: '所有审批',
               children: (
-                <Table rowKey="id" columns={historyColumns} dataSource={allFlows}
-                  pagination={{ pageSize: 15, showSizeChanger: false }} size="small" />
+                <div>
+                  <FillHeightTable rowKey="id" columns={historyColumns} dataSource={allFlows}
+                    pagination={{ pageSize: 15, showSizeChanger: false }} size="small" scroll={{ x: 'max-content' }} />
+                </div>
               ),
             },
             {
               key: 'stats',
               label: <span><BarChartOutlined className="mr-1" />统计</span>,
               children: statsLoading ? (
-                <div className="flex justify-center py-12"><Spin /></div>
+                <div className="flex justify-center py-12 overflow-y-auto"><Spin /></div>
               ) : stats ? (
-                <div className="py-4">
+                <div className="py-4 overflow-y-auto">
                   <Row gutter={16} className="mb-6">
                     <Col span={6}><Card><Statistic title="总审批数" value={stats.total_flows as number} /></Card></Col>
                     <Col span={6}><Card><Statistic title="通过率" value={((stats.approval_rate as number) * 100)} suffix="%" precision={1} /></Card></Col>

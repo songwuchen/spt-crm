@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Table, Select, Input, Tag, Modal, DatePicker, message } from 'antd'
+import { Select, Input, Tag, Modal, DatePicker, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { activityApi } from '@/api/activity'
@@ -110,7 +111,7 @@ export default function FollowUpPage() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 shrink-0">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">跟进记录</h1>
           <p className="text-sm text-slate-500 mt-1">管理所有客户跟进、拜访、电话及会议记录</p>
@@ -123,7 +124,7 @@ export default function FollowUpPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input prefix={<SearchOutlined />} placeholder="搜索主题/联系人..."
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
@@ -141,7 +142,7 @@ export default function FollowUpPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" dataSource={data} loading={loading} size="small" scroll={{ x: 900 }}
+        <FillHeightTable rowKey="id" dataSource={data} loading={loading} size="small" scroll={{ x: 900 }}
           pagination={{
             current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
             onChange: (p) => { setPageNo(p); fetchData(p) },

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button, Table, Input, Tag, Modal, Select, Space, Form, Switch, InputNumber, Tooltip, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, UploadOutlined, DownloadOutlined, UserSwitchOutlined, SettingOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { customerApi, customerPoolApi } from '@/api/customer'
@@ -203,7 +204,7 @@ export default function CustomerPool() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">客户公海</h1>
           <p className="text-sm text-slate-500 mt-1">无人负责的客户，可自由领取跟进，管理员可分配给指定销售员</p>
@@ -219,7 +220,7 @@ export default function CustomerPool() {
       </div>
 
       {selectedIds.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between shrink-0">
           <span className="text-sm text-blue-700">已选择 {selectedIds.length} 个客户</span>
           <Space>
             <Button size="small" type="primary" onClick={handleBatchClaim}>批量领取</Button>
@@ -230,14 +231,14 @@ export default function CustomerPool() {
       )}
 
       {/* Stats bar */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
+      <div className="flex items-center gap-3 mb-4 flex-wrap shrink-0">
         <div className="bg-white border border-slate-200 rounded-lg px-4 py-2">
           <span className="text-sm text-slate-500">当前列表</span>
           <span className="ml-2 text-lg font-black text-slate-900">{total}</span>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
+      <div className="flex items-center gap-3 mb-4 flex-wrap shrink-0">
         <Input.Search placeholder="搜索客户名称" value={keyword} onChange={(e) => setKeyword(e.target.value)}
           onSearch={handleSearch} enterButton style={{ width: 280 }} allowClear />
         <Select placeholder="按区域公海筛选" style={{ width: 200 }} value={poolId ?? ''}
@@ -245,7 +246,7 @@ export default function CustomerPool() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={items} loading={loading} size="small"
+        <FillHeightTable rowKey="id" columns={columns} dataSource={items} loading={loading} size="small"
           scroll={{ x: 1100 }}
           rowSelection={{
             selectedRowKeys: selectedIds,

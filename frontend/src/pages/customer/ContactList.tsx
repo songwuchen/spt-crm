@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Input, Select, Tag, Button, Modal, Form, Switch, Space, Popconfirm, Alert, message } from 'antd'
+import { Input, Select, Tag, Button, Modal, Form, Switch, Space, Popconfirm, Alert, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { SearchOutlined, PhoneOutlined, MailOutlined, PlusOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { contactApi } from '@/api/contact'
@@ -233,7 +234,7 @@ export default function ContactList() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">联系人管理</h1>
           <p className="text-sm text-slate-500 mt-0.5">跨客户搜索和管理所有联系人</p>
@@ -255,7 +256,7 @@ export default function ContactList() {
         </Space>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input
             placeholder="搜索姓名/电话/邮箱..."
@@ -279,7 +280,7 @@ export default function ContactList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table
+        <FillHeightTable
           rowKey="id"
           columns={view.columns}
           dataSource={data}

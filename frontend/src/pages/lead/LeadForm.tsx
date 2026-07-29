@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Form, Input, Select, Button, DatePicker, InputNumber, message } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Form, Input, Select, Button, DatePicker, message } from 'antd'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { leadApi } from '@/api/lead'
@@ -18,7 +17,6 @@ const defaultSources = [
   { label: '广告', value: 'ad' }, { label: '官网/入站', value: 'inbound' },
   { label: '合作伙伴', value: 'partner' }, { label: '电话', value: 'call' },
 ]
-const defaultBudgets = ['10万以下', '10-50万', '50-100万', '100-500万', '500万以上'].map(b => ({ label: b, value: b }))
 const categoryOptions = [
   { label: '自报', value: 'self_reported' },
   { label: '分发', value: 'distributed' },
@@ -41,7 +39,6 @@ export default function LeadForm() {
   const sourceDict = useDataDict('lead_source', defaultSources)
   const industryDict = useDataDict('industry')
   const customerTypeDict = useDataDict('customer_type')
-  const budgetDict = useDataDict('budget_range', defaultBudgets)
 
   const reporterSelect = useUserSelect()
   const ownerSelect = useUserSelect()
@@ -56,7 +53,6 @@ export default function LeadForm() {
           ...d,
           biz_date: d.biz_date ? dayjs(d.biz_date) : undefined,
           reported_at: d.reported_at ? dayjs(d.reported_at) : undefined,
-          products: d.products || [],
         })
         setCountryType(res.data.country_type)
         setCustomFields(d.custom_fields_json || {})
@@ -87,15 +83,10 @@ export default function LeadForm() {
     }
     setLoading(true)
     try {
-      // 丢弃完全空白的产品明细行；业务日期 dayjs → 字符串
-      const rawProducts = (Array.isArray(values.products) ? values.products : []) as Record<string, unknown>[]
-      const products = rawProducts.filter((p) =>
-        p && (p.product_name || p.product_spec || p.quantity != null || p.remark))
       const payload = {
         ...values,
         biz_date: values.biz_date ? (values.biz_date as dayjs.Dayjs).format('YYYY-MM-DD') : undefined,
         reported_at: values.reported_at ? (values.reported_at as dayjs.Dayjs).toISOString() : undefined,
-        products,
         custom_fields_json: customFields,
       }
       if (isEdit) {
@@ -175,9 +166,6 @@ export default function LeadForm() {
               <PolicyItem name="department_id" label="部门">
                 <DepartmentSelect />
               </PolicyItem>
-              <PolicyItem name="budget_range" label="预算范围">
-                <Select placeholder="请选择预算范围" allowClear options={budgetDict.options} loading={budgetDict.loading} />
-              </PolicyItem>
               <PolicyItem name="biz_date" label="日期" tooltip="业务日期，可自行编辑，用于标识不同时间的线索">
                 <DatePicker className="w-full" placeholder="请选择日期" />
               </PolicyItem>
@@ -241,46 +229,6 @@ export default function LeadForm() {
                 <Input placeholder="请输入联系邮箱" />
               </PolicyItem>
             </div>
-          </div>
-
-          {/* Product Info sub-table (issue #84) */}
-          <div className="mb-6">
-            <h3 className="text-[12px] font-bold uppercase tracking-widest text-slate-400 mb-4">产品信息</h3>
-            <Form.List name="products">
-              {(fields, { add, remove }) => (
-                <>
-                  {fields.length > 0 && (
-                    <div className="hidden sm:flex items-center gap-2 px-1 mb-1 text-[13px] font-semibold text-slate-400">
-                      <span className="flex-1">产品名称</span>
-                      <span className="flex-1">产品规格</span>
-                      <span className="w-28">数量</span>
-                      <span className="flex-1">备注</span>
-                      <span className="w-8" />
-                    </div>
-                  )}
-                  {fields.map(({ key, name }) => (
-                    <div key={key} className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2 mb-2">
-                      <Form.Item name={[name, 'product_name']} className="!mb-0 flex-1">
-                        <Input placeholder="产品名称" />
-                      </Form.Item>
-                      <Form.Item name={[name, 'product_spec']} className="!mb-0 flex-1">
-                        <Input placeholder="产品规格" />
-                      </Form.Item>
-                      <Form.Item name={[name, 'quantity']} className="!mb-0 w-full sm:w-28">
-                        <InputNumber className="w-full" min={0} placeholder="数量" />
-                      </Form.Item>
-                      <Form.Item name={[name, 'remark']} className="!mb-0 flex-1">
-                        <Input placeholder="备注" />
-                      </Form.Item>
-                      <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} className="shrink-0" />
-                    </div>
-                  ))}
-                  <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({})} block>
-                    添加产品
-                  </Button>
-                </>
-              )}
-            </Form.List>
           </div>
 
           {/* Extra Info */}

@@ -345,3 +345,147 @@ async def test_resolver_creator_ignores_exclude_initiator(db, lead_intel_user):
         ApprovalContext(initiator_id=uid, form_data={}, nominated={}),
     )
     assert ids == [uid]
+
+
+# ---------- 情报审批：收录 / 袭击 / 回退 / 暂存 ----------
+
+async def _create_pending_lead(db, title: str, initiator: dict) -> str:
+    from app.domains.lead.schemas import LeadCreate
+    from app.domains.lead import service as lead_svc
+    lead = await lead_svc.create_lead(
+        db, DEMO_TENANT,
+        LeadCreate(title=title, company_name=f"{title}-公司"),
+        initiator,
+    )
+    assert lead.review_status == "pending", f"expected pending, got {lead.review_status}"
+    return lead.id
+
+
+async def _pending_task_for_lead(db, lead_id: str, assignee_id: str | None = None):
+    from app.domains.lowcode.workflow_models import WfProcessInstance, WfTaskInstance
+    inst = (await db.execute(select(WfProcessInstance).where(
+        WfProcessInstance.biz_type == "lead", WfProcessInstance.biz_id == lead_id,
+    ))).scalar_one()
+    q = select(WfTaskInstance).where(
+        WfTaskInstance.process_instance_id == inst.id, WfTaskInstance.status == "pending",
+    )
+    if assignee_id:
+        q = q.where(WfTaskInstance.assignee_id == assignee_id)
+    task = (await db.execute(q)).scalars().first()
+    assert task is not None, f"no pending task for lead={lead_id} assignee={assignee_id}"
+    return task
+
+
+async def _admin_user(db) -> dict:
+    from app.domains.auth.models import User
+    u = (await db.execute(select(User).where(
+        User.tenant_id == DEMO_TENANT, User.username == "admin", User.is_active == True,  # noqa: E712
+    ))).scalar_one_or_none()
+    assert u is not None, "测试库缺少 admin 用户"
+    return {"sub": u.id, "real_name": u.real_name or "admin", "username": u.username}
+
+
+@pytest.mark.asyncio
+async def test_intel_include_allows_qualify(client, db, lead_intel_user):
+    """收录 → review_status=approved，可转化。"""
+    from app.domains.lead import service as lead_svc
+
+    _ = client  # 加载 app.main，确保 ORM relationship 全部注册
+    initiator = await _admin_user(db)
+    reviewer_id = lead_intel_user
+    lead_id = await _create_pending_lead(db, "情报-收录", initiator)
+    task = await _pending_task_for_lead(db, lead_id, reviewer_id)
+
+    lead = await lead_svc.intel_review_lead(
+        db, DEMO_TENANT, lead_id,
+        {"sub": reviewer_id, "real_name": "测试内勤", "username": "intel"},
+        decision="include", task_id=task.id, customer_newness="new", opinion="可跟进",
+    )
+    assert lead.review_status == "approved"
+    assert lead.customer_newness == "new"
+    assert lead.review_opinion == "可跟进"
+
+    result = await lead_svc.qualify_lead(
+        db, DEMO_TENANT, lead_id,
+        {"sub": reviewer_id, "real_name": "测试内勤", "username": "intel"},
+    )
+    assert result["customer_id"]
+
+
+@pytest.mark.asyncio
+async def test_intel_attack_blocks_qualify(client, db, lead_intel_user):
+    """袭击 → review_status=attacked，不可转化。"""
+    from app.domains.lead import service as lead_svc
+    from app.common.exceptions import BusinessException
+
+    _ = client
+    initiator = await _admin_user(db)
+    reviewer_id = lead_intel_user
+    lead_id = await _create_pending_lead(db, "情报-袭击", initiator)
+    task = await _pending_task_for_lead(db, lead_id, reviewer_id)
+
+    lead = await lead_svc.intel_review_lead(
+        db, DEMO_TENANT, lead_id,
+        {"sub": reviewer_id, "real_name": "测试内勤", "username": "intel"},
+        decision="attack", task_id=task.id, customer_newness="old",
+    )
+    assert lead.review_status == "attacked"
+    assert lead.customer_newness == "old"
+
+    with pytest.raises(BusinessException) as ei:
+        await lead_svc.qualify_lead(
+            db, DEMO_TENANT, lead_id,
+            {"sub": reviewer_id, "real_name": "测试内勤", "username": "intel"},
+        )
+    assert "袭击" in ei.value.message
+
+
+@pytest.mark.asyncio
+async def test_intel_return_writes_reason(client, db, lead_intel_user):
+    """回退 → rejected + reject_reason。"""
+    from app.domains.lead import service as lead_svc
+
+    _ = client
+    initiator = await _admin_user(db)
+    reviewer_id = lead_intel_user
+    lead_id = await _create_pending_lead(db, "情报-回退", initiator)
+    task = await _pending_task_for_lead(db, lead_id, reviewer_id)
+
+    lead = await lead_svc.intel_review_lead(
+        db, DEMO_TENANT, lead_id,
+        {"sub": reviewer_id, "real_name": "测试内勤", "username": "intel"},
+        decision="return", task_id=task.id, customer_newness="new",
+        return_reason="资料不全", opinion="请补充",
+    )
+    assert lead.review_status == "rejected"
+    assert lead.reject_reason == "资料不全"
+
+
+@pytest.mark.asyncio
+async def test_intel_draft_keeps_pending(client, db, lead_intel_user):
+    """暂存不结束任务，字段落库，review_status 仍 pending。"""
+    from app.domains.lead import service as lead_svc
+
+    _ = client
+    initiator = await _admin_user(db)
+    reviewer_id = lead_intel_user
+    lead_id = await _create_pending_lead(db, "情报-暂存", initiator)
+    task = await _pending_task_for_lead(db, lead_id, reviewer_id)
+
+    lead = await lead_svc.intel_review_lead(
+        db, DEMO_TENANT, lead_id,
+        {"sub": reviewer_id, "real_name": "测试内勤", "username": "intel"},
+        decision="draft", task_id=task.id, customer_newness="old", opinion="先记一下",
+    )
+    assert lead.review_status == "pending"
+    assert lead.customer_newness == "old"
+    assert lead.review_opinion == "先记一下"
+
+    await db.refresh(task)
+    assert task.status == "pending"
+    lead2 = await lead_svc.intel_review_lead(
+        db, DEMO_TENANT, lead_id,
+        {"sub": reviewer_id, "real_name": "测试内勤", "username": "intel"},
+        decision="include", task_id=task.id, customer_newness="old",
+    )
+    assert lead2.review_status == "approved"

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import {
-  Tabs, Table, Button, Modal, Form, Input, InputNumber, Select, Tag, Space,
-  Popconfirm, Alert, Typography, message, Collapse,
+  Tabs, Button, Modal, Form, Input, InputNumber, Select, Tag, Space,
+  Popconfirm, Alert, Typography, message, Collapse, Table,
 } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { openApiApi } from '@/api/openapi'
 
@@ -143,10 +144,10 @@ function AppsTab() {
 
   return (
     <div>
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex justify-end shrink-0">
         <Button type="primary" onClick={openCreate}>新建应用</Button>
       </div>
-      <Table rowKey="id" loading={loading} dataSource={rows} columns={columns} size="small" pagination={false} />
+      <FillHeightTable rowKey="id" loading={loading} dataSource={rows} columns={columns} size="small" pagination={false} scroll={{ x: 'max-content' }} />
 
       <Modal
         title={editing ? '编辑应用' : '新建应用'}
@@ -243,10 +244,13 @@ function CallLogsTab() {
   ]
 
   return (
-    <Table
-      rowKey="id" loading={loading} dataSource={rows} columns={columns} size="small"
-      pagination={{ current: page, total, pageSize: 20, onChange: (p) => { setPage(p); load(p) }, showSizeChanger: false }}
-    />
+    <div>
+      <FillHeightTable
+          rowKey="id" loading={loading} dataSource={rows} columns={columns} size="small"
+          scroll={{ x: 'max-content' }}
+          pagination={{ current: page, total, pageSize: 20, onChange: (p) => { setPage(p); load(p) }, showSizeChanger: false }}
+        />
+    </div>
   )
 }
 
@@ -389,13 +393,13 @@ function WebhooksTab() {
   return (
     <div>
       <Alert
-        type="info" showIcon className="mb-3"
+        type="info" showIcon className="mb-3 shrink-0"
         message="当订阅的事件产生时，系统会向回调地址 POST 事件内容，并在 X-Webhook-Signature 头中带上 HMAC-SHA256 签名（密钥为下方 Secret）。Webhook 非 100% 可靠，请配合 GET /openapi/v1/events 拉取对账。"
       />
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex justify-end shrink-0">
         <Button type="primary" onClick={() => setModalOpen(true)}>新建订阅</Button>
       </div>
-      <Table rowKey="id" loading={loading} dataSource={rows} columns={columns} size="small" pagination={false} />
+      <FillHeightTable rowKey="id" loading={loading} dataSource={rows} columns={columns} size="small" pagination={false} scroll={{ x: 'max-content' }} />
 
       <FailedEventsSection />
 
@@ -550,12 +554,13 @@ export default function OpenApiPage() {
   usePageTitle('开放平台')
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-4 shrink-0">
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">开放平台</h1>
         <p className="text-sm text-slate-500 mt-0.5">对外开放接口的应用、密钥、调用日志与 Webhook 订阅管理</p>
       </div>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 overflow-hidden">
         <Tabs
+          className="px-4 pt-2 pb-4"
           items={[
             { key: 'apps', label: '应用与密钥', children: <AppsTab /> },
             { key: 'logs', label: '调用日志', children: <CallLogsTab /> },

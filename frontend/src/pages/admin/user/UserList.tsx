@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Table, Button, Modal, Form, Input, Select, TreeSelect, Space, message, Switch, Popconfirm, Upload, Alert, Radio, Checkbox } from 'antd'
+import { Button, Modal, Form, Input, Select, TreeSelect, Space, message, Switch, Popconfirm, Upload, Alert, Radio, Checkbox } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { userApi, roleApi } from '@/api/user'
 import { departmentApi } from '@/api/department'
@@ -300,7 +301,7 @@ export default function UserList() {
   return (
     <div>
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">用户管理</h1>
           <p className="text-sm text-slate-500 mt-0.5">管理系统用户账号和权限</p>
@@ -322,7 +323,7 @@ export default function UserList() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 items-center flex-wrap">
           <Input
             placeholder="搜索用户名/姓名/手机/邮箱..."
@@ -378,7 +379,7 @@ export default function UserList() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
+        <FillHeightTable rowKey="id" columns={columns} dataSource={data} loading={loading}
           scroll={{ x: 1000 }}
           rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys, preserveSelectedRowKeys: true }}
           pagination={{

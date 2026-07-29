@@ -2,8 +2,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  Card, Table, Button, Space, Tag, Modal, message, Popconfirm, Typography,
+  Button, Space, Tag, Modal, message, Popconfirm, Typography,
 } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { ArrowLeftOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
 import { downloadFile } from '@/utils/download'
@@ -120,8 +121,8 @@ export default function FormDataListPage() {
   ]
 
   return (
-    <Card>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }} className="shrink-0">
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => nav('/lowcode/forms')}>返回</Button>
           <Title level={4} style={{ margin: 0 }}>{name} · 数据</Title>
@@ -134,10 +135,10 @@ export default function FormDataListPage() {
           <Button type="primary" icon={<PlusOutlined />} onClick={() => nav(`/lowcode/forms/${id}/fill`)}>新增填报</Button>
         </Space>
       </div>
-      <Table
-        rowKey="id" loading={loading} columns={columns} dataSource={items}
-        pagination={{ current: pageNo, total, pageSize: 20, onChange: setPageNo, showSizeChanger: false }}
-      />
+      <FillHeightTable
+          rowKey="id" loading={loading} columns={columns} dataSource={items} scroll={{ x: 'max-content' }}
+          pagination={{ current: pageNo, total, pageSize: 20, onChange: setPageNo, showSizeChanger: false }}
+        />
 
       <Modal
         title={viewRec?.readonly ? '查看记录' : '编辑记录'} open={!!viewRec} width={780}
@@ -157,6 +158,6 @@ export default function FormDataListPage() {
           />
         )}
       </Modal>
-    </Card>
+    </div>
   )
 }

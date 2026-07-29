@@ -44,13 +44,17 @@ class Lead(TenantScopedBase):
     created_by_id: Mapped[str | None] = mapped_column(String(36))
     created_by_name: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(50), default="new")  # new / following / qualified / discarded
-    # 审核态（提交审核流程）：approved=免审/已通过（默认可用）, pending=待内勤审核, rejected=已驳回。
+    # 审核态（提交审核流程）：
+    # approved=免审/收录（可转化）, pending=待审, rejected=回退, attacked=袭击（流程结束但不可转化）。
     # 与 status 正交：status 表达销售进程，review_status 是创建时的审核门禁。
     review_status: Mapped[str] = mapped_column(String(20), default="approved", index=True)
     # 关联的审批流 id。2026-07-19 线索审核切到扩展平台工作流引擎后，新数据存的是
     # wf_process_instance.id；此前的历史数据存的是 approval_flows.id（两者不可混查）。
     review_flow_id: Mapped[str | None] = mapped_column(String(36))
-    reject_reason: Mapped[str | None] = mapped_column(Text)  # 最近一次驳回原因
+    reject_reason: Mapped[str | None] = mapped_column(Text)  # 最近一次回退/驳回原因
+    # 情报审批：新/老客户（与 customer_type 字典正交）；操作意见（暂存与终态都会写）
+    customer_newness: Mapped[str | None] = mapped_column(String(10))  # new / old
+    review_opinion: Mapped[str | None] = mapped_column(Text)
     score: Mapped[int] = mapped_column(Integer, default=0)
     converted_customer_id: Mapped[str | None] = mapped_column(String(36))
     remark: Mapped[str | None] = mapped_column(Text)

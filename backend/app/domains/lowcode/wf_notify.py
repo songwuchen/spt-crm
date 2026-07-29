@@ -144,10 +144,81 @@ async def complete_todos(tenant_id: str, task_ids: list[str]) -> None:
         logger.warning("wf complete_todos failed: %s", e)
 
 
+async def notify_cc_users(
+    tenant_id: str, inst: WfProcessInstance, user_ids: list[str], node_name: str | None = None,
+) -> None:
+    """抄送节点激活后通知被抄送人（站内 + 钉钉待办）。
+
+    业务单据（如线索）深链到业务详情，便于业务员直接处理；自定义表单流仍进审批中心。
+    线索抄送给负责人时，文案引导其自行确认是否转化客户/商机。
+    """
+    if not user_ids:
+        return
+    try:
+        from app.domains.notification.service import send_notification
+        from app.common.msg_integration import dispatch_todo
+
+        async with _own_session() as db:
+            title = inst.title or inst.biz_type or "流程"
+            node_label = node_name or "抄送"
+            ntype = "approval_cc"
+            biz_type = NOTIFY_BIZ_TYPE
+            biz_id = inst.id
+            link = "/lowcode/approvals"
+            mobile_link = f"/m/lowcode/approvals/{inst.id}"
+            content = f"流程「{title}」已抄送您（节点：{node_label}），请知悉。"
+
+            if inst.biz_type == "lead" and inst.biz_id:
+                from app.domains.lead.models import Lead
+                ld = (await db.execute(select(Lead).where(
+                    Lead.id == inst.biz_id, Lead.tenant_id == tenant_id,
+                ))).scalar_one_or_none()
+                lead_title = (ld.title if ld else None) or title
+                lead_code = (ld.lead_code if ld else None) or ""
+                code = f"「{lead_code}」" if lead_code else ""
+                ntype = "lead_review_approved"
+                biz_type = "lead"
+                biz_id = inst.biz_id
+                link = f"/leads/{inst.biz_id}"
+                mobile_link = f"/m/leads/{inst.biz_id}"
+                title = f"{node_label}: {lead_title}"
+                content = (
+                    f"线索{code}「{lead_title}」相关流程已抄送您（节点：{node_label}）。"
+                    f"请打开线索详情，自行选择是否转化为客户/商机。"
+                )
+            elif inst.biz_type and inst.biz_id:
+                # 其它业务单据：深链尽量落到业务侧（通知路由已覆盖常见类型）
+                biz_type = inst.biz_type
+                biz_id = inst.biz_id
+
+            for uid in user_ids:
+                try:
+                    await send_notification(
+                        db=db, tenant_id=tenant_id, recipient_id=uid,
+                        type=ntype, title=title, content=content,
+                        biz_type=biz_type, biz_id=biz_id,
+                    )
+                except Exception as e:
+                    logger.warning("wf cc send_notification failed: %s", e)
+                try:
+                    await dispatch_todo(
+                        db, tenant_id, uid, title, content,
+                        link=link, mobile_link=mobile_link,
+                    )
+                except Exception as e:
+                    logger.warning("wf cc dispatch_todo failed: %s", e)
+            await db.commit()
+    except Exception as e:
+        logger.warning("wf notify_cc_users failed: %s", e)
+
+
 async def notify_flow_finished(
     tenant_id: str, inst: WfProcessInstance, status: str, reason: str | None = None,
 ) -> None:
-    """流程结束后通知发起人（对齐旧引擎 decide 的 approval_decided 通知）。"""
+    """流程结束后通知发起人（对齐旧引擎 decide 的 approval_decided 通知）。
+
+    业务员（线索负责人）的推送改由可视化流程「抄送」节点配置，不再在此硬编码。
+    """
     if not inst.initiator_id:
         return
     label = {"completed": "已通过", "rejected": "已驳回", "withdrawn": "已撤回"}.get(status)

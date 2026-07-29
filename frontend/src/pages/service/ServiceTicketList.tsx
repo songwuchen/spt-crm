@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Button, Table, Tag, Space, Modal, Form, Input, Select, Tabs, InputNumber, DatePicker, message } from 'antd'
+import { Button, Tag, Space, Modal, Form, Input, Select, Tabs, InputNumber, DatePicker, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useNavigate } from 'react-router-dom'
@@ -213,7 +214,7 @@ export default function ServiceTicketList() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 shrink-0">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">{t('service.pageTitle')}</h1>
           <p className="text-sm text-slate-500 mt-1">{t('service.pageSubtitle')}</p>
@@ -222,7 +223,7 @@ export default function ServiceTicketList() {
 
       {/* SLA Dashboard */}
       {slaStats && (
-        <div className="mb-4 space-y-3">
+        <div className="mb-4 space-y-3 shrink-0">
           {/* SLA Stats Row */}
           <div className="flex gap-3 flex-wrap">
             <div className="flex-1 min-w-[140px] bg-white rounded-xl border border-slate-200 shadow-sm p-4">
@@ -296,14 +297,17 @@ export default function ServiceTicketList() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <Tabs defaultActiveKey="tickets" className="px-4 pt-2" items={[
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <Tabs
+          defaultActiveKey="tickets"
+          className="px-4 pt-2"
+          items={[
           {
             key: 'tickets',
             label: t('service.ticketsTab'),
             children: (
               <div>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4 shrink-0">
                   <div className="flex items-center gap-3 flex-wrap">
                     <Input prefix={<SearchOutlined />} placeholder={t('service.searchNoDesc')} allowClear
                       value={searchText} onChange={(e) => setSearchText(e.target.value)}
@@ -331,14 +335,14 @@ export default function ServiceTicketList() {
                     <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{t('service.createTicket')}</Button>
                   </Space>
                 </div>
-                <Table rowKey="id" dataSource={tickets} loading={loading} size="small" scroll={{ x: 1200 }}
-                  rowSelection={{ selectedRowKeys: selectedTicketKeys, onChange: setSelectedTicketKeys }}
-                  pagination={{
-                    current: pageNo, total, pageSize: 20, showTotal: (total) => t('common.totalCount', { count: total }),
-                    onChange: (p) => { setPageNo(p); fetchTickets(p) },
-                  }}
-                  columns={view.columns}
-                />
+                <FillHeightTable rowKey="id" dataSource={tickets} loading={loading} size="small" scroll={{ x: 1200 }}
+                    rowSelection={{ selectedRowKeys: selectedTicketKeys, onChange: setSelectedTicketKeys }}
+                    pagination={{
+                      current: pageNo, total, pageSize: 20, showTotal: (total) => t('common.totalCount', { count: total }),
+                      onChange: (p) => { setPageNo(p); fetchTickets(p) },
+                    }}
+                    columns={view.columns}
+                  />
               </div>
             ),
           },
@@ -347,7 +351,7 @@ export default function ServiceTicketList() {
             label: t('service.renewalsTab', { count: renewals.length }),
             children: (
               <div>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4 shrink-0">
                   <div className="flex items-center gap-2">
                     {['open', 'won', 'lost'].map((s) => {
                       const cnt = renewals.filter((r) => r.status === s).length
@@ -363,21 +367,21 @@ export default function ServiceTicketList() {
                   </div>
                   <Button type="primary" icon={<PlusOutlined />} onClick={openRenewalCreate}>{t('service.createRenewal')}</Button>
                 </div>
-                <Table rowKey="id" dataSource={renewals} pagination={{ pageSize: 20 }} size="small"
-                  columns={[
-                    { title: t('service.renewalName'), dataIndex: 'name', render: (v: string) => <span className="font-semibold">{v}</span> },
-                    { title: t('common.status'), dataIndex: 'status', width: 100, render: (v: string) => <Tag color={renewalStatusColors[v]}>{renewalStatusLabels[v] || v}</Tag> },
-                    { title: t('service.expectedAmount'), dataIndex: 'amount_expect', width: 130, render: (v: number | null) => v != null ? `¥${v.toLocaleString()}` : '-' },
-                    { title: t('service.expectedCloseDate'), dataIndex: 'close_date_expect', width: 120, render: (v: string) => v || '-' },
-                    { title: t('service.probability'), dataIndex: 'probability', width: 80, render: (v: number | null) => v != null ? `${v}%` : '-' },
-                    { title: t('common.owner'), dataIndex: 'owner_name', width: 100, render: (v: string) => v || '-' },
-                    { title: t('common.remark'), dataIndex: 'remark', ellipsis: true, width: 180 },
-                    { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
-                    { title: '', key: 'actions', width: 60, render: (_: unknown, r: RenewalItem) => (
-                      <a className="text-primary text-sm font-bold" onClick={() => openRenewalEdit(r)}>{t('common.edit')}</a>
-                    )},
-                  ]}
-                />
+                <FillHeightTable rowKey="id" dataSource={renewals} pagination={{ pageSize: 20 }} size="small"
+                    columns={[
+                      { title: t('service.renewalName'), dataIndex: 'name', render: (v: string) => <span className="font-semibold">{v}</span> },
+                      { title: t('common.status'), dataIndex: 'status', width: 100, render: (v: string) => <Tag color={renewalStatusColors[v]}>{renewalStatusLabels[v] || v}</Tag> },
+                      { title: t('service.expectedAmount'), dataIndex: 'amount_expect', width: 130, render: (v: number | null) => v != null ? `¥${v.toLocaleString()}` : '-' },
+                      { title: t('service.expectedCloseDate'), dataIndex: 'close_date_expect', width: 120, render: (v: string) => v || '-' },
+                      { title: t('service.probability'), dataIndex: 'probability', width: 80, render: (v: number | null) => v != null ? `${v}%` : '-' },
+                      { title: t('common.owner'), dataIndex: 'owner_name', width: 100, render: (v: string) => v || '-' },
+                      { title: t('common.remark'), dataIndex: 'remark', ellipsis: true, width: 180 },
+                      { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
+                      { title: '', key: 'actions', width: 60, render: (_: unknown, r: RenewalItem) => (
+                        <a className="text-primary text-sm font-bold" onClick={() => openRenewalEdit(r)}>{t('common.edit')}</a>
+                      )},
+                    ]}
+                  />
               </div>
             ),
           },

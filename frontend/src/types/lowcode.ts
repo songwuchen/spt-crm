@@ -263,6 +263,9 @@ export interface WfInstanceDetail {
   initiator_id: string
   form_instance_id?: string | null
   biz_type?: string | null
+  biz_id?: string | null
+  /** 业务单据审批（无自定义表单）时的关键字段，label→value */
+  biz_detail?: Record<string, string | number>
   started_at?: string | null
   completed_at?: string | null
   timeline: WfTimelineItem[]

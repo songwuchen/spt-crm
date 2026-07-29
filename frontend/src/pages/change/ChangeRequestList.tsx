@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Button, Tag, Select, Input, Space } from 'antd'
+import { Button, Tag, Select, Input, Space } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
@@ -74,14 +75,14 @@ export default function ChangeRequestList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">变更管理</h1>
           <p className="text-sm text-slate-500 mt-0.5">查看所有商机项目的变更请求</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input prefix={<SearchOutlined className="text-slate-400" />} placeholder="搜索变更编号/原因..."
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
@@ -98,7 +99,7 @@ export default function ChangeRequestList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" dataSource={data} loading={loading} size="small"
+        <FillHeightTable rowKey="id" dataSource={data} loading={loading} size="small"
           columns={view.columns}
           pagination={{
             current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,

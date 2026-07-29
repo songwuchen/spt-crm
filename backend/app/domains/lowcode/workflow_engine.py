@@ -131,6 +131,12 @@ class WorkflowEngine:
                     await wf_notify.complete_todos(self.tenant_id, item[1])
                 elif kind == "todo_done_explicit":
                     await wf_notify.complete_todo(self.tenant_id, item[1], item[2])
+                elif kind == "cc_notified":
+                    target = item[3] if len(item) > 3 and item[3] is not None else inst
+                    if target is not None:
+                        await wf_notify.notify_cc_users(
+                            self.tenant_id, target, item[1], node_name=item[2],
+                        )
                 elif kind == "finished":
                     target = item[3] if len(item) > 3 and item[3] is not None else inst
                     if target is not None and not self._suppress_finished_notify:
@@ -330,6 +336,9 @@ class WorkflowEngine:
                 id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
                 node_instance_id=ni.id, user_id=uid, is_read=False,
             ))
+        # 抄送原先只落库不推送；登记通知，提交后统一下发（站内 + 钉钉）
+        if users:
+            self._queue("cc_notified", list(users), node.get("name") or "抄送", inst)
 
     # ---------- 并行网关(fork / AND-join) ----------
 
@@ -606,6 +615,16 @@ class WorkflowEngine:
             fi = await self.db.get(FormInstance, inst.form_instance_id)
             if fi:
                 return dict(fi.form_data or {})
+        # 业务单据流（线索/报价等）没有 FormInstance：按 biz 重建字段上下文，
+        # 供审批通过后的抄送节点「表单人员字段」等规则解析（如 owner_id）。
+        if inst.biz_type and inst.biz_id:
+            try:
+                from app.domains.approval.service import _build_policy_context
+                return await _build_policy_context(
+                    self.db, self.tenant_id, inst.biz_type, inst.biz_id,
+                ) or {}
+            except Exception:
+                return {}
         return {}
 
     def _log(self, pid, nid, tid, actor, action, opinion) -> None:

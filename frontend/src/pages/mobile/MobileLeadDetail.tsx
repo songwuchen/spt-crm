@@ -3,8 +3,11 @@ import MobileIcon from '@/components/MobileIcon'
 import { useParams, useNavigate } from 'react-router-dom'
 import { message, Modal, Input, Select } from 'antd'
 import { leadApi } from '@/api/lead'
+import { workflowApi } from '@/api/lowcodeWorkflow'
+import type { WfTodoItem } from '@/types/lowcode'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { leadReviewStatusConfig } from '@/constants/labels'
+import { leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
+import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 
 interface LeadItem {
   id: string; lead_code: string; title: string; company_name: string | null
@@ -15,6 +18,7 @@ interface LeadItem {
   owner_name: string | null
   department_name?: string | null; created_at: string
   review_status?: string; reject_reason?: string | null
+  customer_newness?: string | null; review_opinion?: string | null
 }
 
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -36,6 +40,7 @@ export default function MobileLeadDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [lead, setLead] = useState<LeadItem | null>(null)
+  const [myTask, setMyTask] = useState<WfTodoItem | null>(null)
   const [editModal, setEditModal] = useState(false)
   const [editForm, setEditForm] = useState<Record<string, string | null>>({})
 
@@ -44,7 +49,16 @@ export default function MobileLeadDetail() {
     leadApi.get(id).then((r: any) => setLead(r.data)).catch(() => message.error('加载失败'))
   }
 
-  useEffect(() => { loadLead() }, [id])
+  const loadMyTask = async () => {
+    if (!id) return
+    try {
+      const res = await workflowApi.todo({ pageNo: 1, pageSize: 20, biz_type: 'lead', biz_id: id })
+      const t = (res.data?.items || []).find((p) => p.status === 'pending')
+      setMyTask(t || null)
+    } catch { setMyTask(null) }
+  }
+
+  useEffect(() => { loadLead(); loadMyTask() }, [id])
 
   const openEdit = () => {
     if (!lead) return
@@ -83,6 +97,34 @@ export default function MobileLeadDetail() {
     }
   }
 
+  const handleQualify = () => {
+    if (!id) return
+    let createOpp = true
+    Modal.confirm({
+      title: '确认转化',
+      content: (
+        <div>
+          <p className="mb-2">将此线索转化为客户？转化后线索状态将变为「已转化」。</p>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" defaultChecked onChange={(e) => { createOpp = e.target.checked }} />
+            同时创建商机
+          </label>
+        </div>
+      ),
+      onOk: async () => {
+        try {
+          const res = await leadApi.qualify(id, createOpp)
+          message.success(res.data.project_code
+            ? `已转化客户并创建商机 ${res.data.project_code}`
+            : `已转化为客户: ${res.data.customer_name}`)
+          loadLead()
+        } catch {
+          message.error('转化失败')
+        }
+      },
+    })
+  }
+
   const handleStatusChange = (newStatus: string) => {
     if (!id || !lead) return
     Modal.confirm({
@@ -102,6 +144,7 @@ export default function MobileLeadDetail() {
   const reviewStatus = lead.review_status || 'approved'
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
+  const canOperate = lead.status !== 'qualified' && lead.status !== 'discarded'
 
   return (
     <div>
@@ -113,17 +156,45 @@ export default function MobileLeadDetail() {
         <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${st.color}`}>{st.label}</span>
       </div>
 
+      {/* 待我情报审批 */}
+      {myTask && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 mb-3">
+          <div className="text-sm font-bold text-slate-900 mb-2">该线索待您审批</div>
+          <LeadIntelReviewForm
+            compact
+            leadId={id!}
+            taskId={myTask.task_id}
+            initialNewness={lead.customer_newness}
+            initialOpinion={lead.review_opinion}
+            initialReturnReason={lead.reject_reason}
+            onDone={(decision) => {
+              if (decision === 'draft') {
+                loadLead()
+              } else {
+                setMyTask(null)
+                loadLead()
+              }
+            }}
+          />
+        </div>
+      )}
+
       {/* Review status banner */}
       {reviewCfg && (
         <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-3 mb-3`}>
           <div className={`flex items-center gap-1.5 text-sm font-bold ${reviewCfg.text}`}>
             <MobileIcon name={reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'} style={{ fontSize: 18 }} />
-            {reviewStatus === 'pending' ? '待内勤审核' : '审核被驳回'}
+            {reviewStatus === 'pending' && '待内勤审核'}
+            {reviewStatus === 'rejected' && '已回退'}
+            {reviewStatus === 'attacked' && '已标记袭击'}
           </div>
           {reviewStatus === 'rejected' && (
             <div className="text-sm text-slate-600 mt-1">
-              {lead.reject_reason ? `驳回原因：${lead.reject_reason}` : '请修改后重新提交审核。'}
+              {lead.reject_reason ? `回退原因：${lead.reject_reason}` : '请修改后重新提交审核。'}
             </div>
+          )}
+          {reviewStatus === 'attacked' && (
+            <div className="text-sm text-slate-600 mt-1">袭击状态不可转化为客户。</div>
           )}
           {reviewStatus === 'rejected' && (
             <button onClick={handleResubmit}
@@ -134,11 +205,28 @@ export default function MobileLeadDetail() {
         </div>
       )}
 
+      {reviewApproved && canOperate && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 mb-3">
+          <div className="text-sm font-bold text-emerald-700">线索已收录</div>
+          <div className="text-sm text-slate-600 mt-1">请确认是否转化为客户/商机，也可先跟进再转化。</div>
+          <button onClick={handleQualify}
+            className="mt-2 w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold">
+            转化为客户
+          </button>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
         <div className="flex justify-between">
           <span className="text-sm text-slate-400">编码</span>
           <span className="text-sm font-mono text-slate-600">{lead.lead_code}</span>
         </div>
+        {lead.customer_newness && (
+          <div className="flex justify-between">
+            <span className="text-sm text-slate-400">新/老客户</span>
+            <span className="text-sm text-slate-700">{customerNewnessLabels[lead.customer_newness] || lead.customer_newness}</span>
+          </div>
+        )}
         {lead.company_name && (
           <div className="flex justify-between">
             <span className="text-sm text-slate-400">公司</span>
@@ -234,9 +322,9 @@ export default function MobileLeadDetail() {
           </button>
         )}
         {lead.status === 'following' && reviewApproved && (
-          <button onClick={() => handleStatusChange('qualified')}
+          <button onClick={handleQualify}
             className="flex-1 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold">
-            转化线索
+            转化为客户
           </button>
         )}
         {lead.status !== 'discarded' && lead.status !== 'qualified' && (

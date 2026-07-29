@@ -34,9 +34,14 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         {"id": "score", "label": "评分", "type": "number"},
         {"id": "source", "label": "来源", "type": "text"},
         {"id": "customer_type", "label": "客户类型", "type": "text"},
+        {"id": "customer_newness", "label": "新/老客户", "type": "text"},
         {"id": "category", "label": "类别", "type": "text"},
         {"id": "country_type", "label": "国内外", "type": "text"},
         {"id": "industry", "label": "行业", "type": "text"},
+        # 供抄送/审批人「表单人员字段」解析：审批通过后抄送给线索负责人
+        {"id": "owner_id", "label": "负责人", "type": "person"},
+        {"id": "reporter_id", "label": "报备人", "type": "person"},
+        {"id": "department_id", "label": "部门", "type": "department"},
     ],
     "solution": [],
 }

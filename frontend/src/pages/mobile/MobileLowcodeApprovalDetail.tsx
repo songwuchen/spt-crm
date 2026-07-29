@@ -1,4 +1,4 @@
-// 移动端 → 扩展平台审批详情: 表单内容(只读) + 流程轨迹 + 处理(通过/驳回/评论)。
+// 移动端 → 扩展平台审批详情: 表单/业务明细(只读) + 流程轨迹 + 处理(通过/驳回/评论)。
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Input, message } from 'antd'
@@ -9,6 +9,16 @@ import { lowcodeApi } from '@/api/lowcode'
 import type { WfInstanceDetail, FieldDefinition } from '@/types/lowcode'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import { WF_ACTION_TEXT as ACTION_TXT, WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
+
+function bizEntityPath(bizType?: string | null, bizId?: string | null): string | null {
+  if (!bizType || !bizId) return null
+  const map: Record<string, string> = {
+    lead: `/m/leads/${bizId}`,
+    order: `/m/orders/${bizId}`,
+    service_ticket: `/m/service-tickets/${bizId}`,
+  }
+  return map[bizType] || null
+}
 
 export default function MobileLowcodeApprovalDetail() {
   usePageTitle('审批详情')
@@ -49,6 +59,8 @@ export default function MobileLowcodeApprovalDetail() {
   if (!detail) return null
   const st = PSTATUS[detail.status] || { cls: 'bg-slate-100 text-slate-500', text: detail.status }
   const canAct = !!taskId && detail.status === 'running'
+  const bizPath = bizEntityPath(detail.biz_type, detail.biz_id)
+  const bizEntries = detail.biz_detail ? Object.entries(detail.biz_detail) : []
 
   return (
     <div className={canAct ? 'pb-24' : ''}>
@@ -63,12 +75,35 @@ export default function MobileLowcodeApprovalDetail() {
           <h4 className="text-base font-bold text-slate-900 truncate">{detail.title || '(无标题)'}</h4>
           <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full shrink-0 ${st.cls}`}>{st.text}</span>
         </div>
+        {bizPath && (
+          <button
+            type="button"
+            onClick={() => nav(bizPath)}
+            className="mt-3 w-full h-10 rounded-lg bg-slate-50 text-primary text-sm font-bold border border-slate-100"
+          >
+            查看完整单据
+          </button>
+        )}
       </div>
 
       {fields.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
           <div className="text-sm font-bold text-slate-500 mb-2">表单内容</div>
           <FormRenderer fields={fields} mode="readonly" value={formData} applyFieldPerms={false} />
+        </div>
+      )}
+
+      {!fields.length && bizEntries.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
+          <div className="text-sm font-bold text-slate-500 mb-2">业务信息</div>
+          <div className="space-y-2">
+            {bizEntries.map(([k, v]) => (
+              <div key={k} className="flex gap-3 text-sm">
+                <span className="shrink-0 w-20 text-slate-500">{k}</span>
+                <span className="text-slate-800 font-medium whitespace-pre-wrap break-all">{String(v)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

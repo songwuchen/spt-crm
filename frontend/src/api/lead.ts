@@ -17,6 +17,14 @@ export const leadApi = {
     client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/discard`),
   submitReview: (id: string) =>
     client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/submit_review`),
+  intelReview: (id: string, data: {
+    decision: 'include' | 'attack' | 'return' | 'draft'
+    task_id: string
+    customer_newness?: 'new' | 'old'
+    return_reason?: string
+    opinion?: string
+  }) =>
+    client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/intel_review`, data),
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/leads/${id}`),
   batchAssign: (ids: string[], owner_id: string, owner_name: string) =>

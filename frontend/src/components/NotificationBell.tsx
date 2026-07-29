@@ -15,6 +15,8 @@ const typeIcons: Record<string, { icon: string; color: string }> = {
   ticket_assigned: { icon: 'support_agent', color: '#0ea5e9' },
   task_assigned: { icon: 'assignment', color: '#0ea5e9' },
   lead_assigned: { icon: 'person_add', color: '#0ea5e9' },
+  approval_cc: { icon: 'forward_to_inbox', color: '#6366f1' },
+  lead_review_approved: { icon: 'verified', color: '#10b981' },
   customer_assigned: { icon: 'person_add', color: '#0ea5e9' },
   payment_overdue: { icon: 'warning', color: '#ef4444' },
   receivable_overdue: { icon: 'warning', color: '#ef4444' },

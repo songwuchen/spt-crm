@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Card, Table, Button, Space, Tag, Modal, Form, Input, message, Popconfirm, Typography, List, Empty, Spin,
+  Button, Space, Tag, Modal, Form, Input, message, Popconfirm, Typography, List, Empty, Spin,
 } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, AppstoreAddOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
 import { usePermission } from '@/hooks/usePermission'
@@ -130,8 +131,8 @@ export default function FormTemplateList() {
   ]
 
   return (
-    <Card>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }} className="shrink-0">
         <Title level={4} style={{ margin: 0 }}>表单中心</Title>
         {canManage && (
           <Space>
@@ -140,10 +141,10 @@ export default function FormTemplateList() {
           </Space>
         )}
       </div>
-      <Table
-        rowKey="id" loading={loading} columns={columns} dataSource={items}
-        pagination={{ current: pageNo, total, pageSize: 20, onChange: setPageNo, showSizeChanger: false }}
-      />
+      <FillHeightTable
+          rowKey="id" loading={loading} columns={columns} dataSource={items} scroll={{ x: 'max-content' }}
+          pagination={{ current: pageNo, total, pageSize: 20, onChange: setPageNo, showSizeChanger: false }}
+        />
 
       <Modal title="新建表单" open={createOpen} onOk={handleCreate} confirmLoading={creating} onCancel={() => setCreateOpen(false)} destroyOnClose>
         <Form form={form} layout="vertical">
@@ -182,6 +183,6 @@ export default function FormTemplateList() {
           />
         )}
       </Modal>
-    </Card>
+    </div>
   )
 }

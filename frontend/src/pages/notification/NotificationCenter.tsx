@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Table, Tag, Button, Space, Switch, Tabs, message, Select } from 'antd'
+import { Tag, Button, Space, Switch, Tabs, message, Select } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { CheckOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { notificationApi, type NotificationItem } from '@/api/notification'
@@ -16,6 +17,8 @@ const typeLabels: Record<string, { label: string; color: string }> = {
   ticket_assigned: { label: '工单分配', color: 'cyan' },
   task_assigned: { label: '任务分配', color: 'cyan' },
   lead_assigned: { label: '线索分配', color: 'cyan' },
+  lead_review_approved: { label: '线索审核通过', color: 'green' },
+  approval_cc: { label: '流程抄送', color: 'blue' },
   customer_assigned: { label: '客户分配', color: 'cyan' },
   payment_overdue: { label: '回款逾期', color: 'red' },
   receivable_overdue: { label: '应收逾期', color: 'red' },
@@ -171,9 +174,10 @@ export default function NotificationCenter() {
     return stats
   }, [items])
 
+
   return (
     <div>
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">通知中心</h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -184,7 +188,7 @@ export default function NotificationCenter() {
 
       {/* Category Summary */}
       {unreadCount > 0 && (
-        <div className="flex gap-2 flex-wrap mb-4">
+        <div className="flex gap-2 flex-wrap mb-4 shrink-0">
           {Object.entries(categoryStats).filter(([, s]) => s.unread > 0).map(([type, s]) => {
             const tl = typeLabels[type] || typeLabels.system
             return (
@@ -198,13 +202,13 @@ export default function NotificationCenter() {
         </div>
       )}
 
-      <Tabs defaultActiveKey="list" onChange={(key) => { if (key === 'settings') fetchPrefs() }} items={[
+      <Tabs defaultActiveKey="list" className="px-4 pt-2 pb-4" onChange={(key) => { if (key === 'settings') fetchPrefs() }} items={[
         {
           key: 'list',
           label: '全部通知',
           children: (
-            <>
-              <div className="flex items-center gap-3 mb-4">
+            <div>
+              <div className="flex items-center gap-3 mb-4 shrink-0">
                 <Select allowClear placeholder="筛选类型" style={{ width: 140 }} value={filter} onChange={setFilter}
                   options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v.label }))} />
                 <Button type={unreadOnly ? 'primary' : 'default'} size="small"
@@ -217,13 +221,14 @@ export default function NotificationCenter() {
                 </Button>
                 <Button onClick={handleMarkAllRead} disabled={unreadCount === 0}>全部已读</Button>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-                <Table rowKey="id" columns={columns} dataSource={filteredItems} loading={loading}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <FillHeightTable rowKey="id" columns={columns} dataSource={filteredItems} loading={loading}
+                  scroll={{ x: 'max-content' }}
                   pagination={{ pageSize: 20, showSizeChanger: false }} size="small"
                   rowSelection={{ selectedRowKeys: selectedIds, onChange: (keys) => setSelectedIds(keys as string[]) }}
                   onRow={(record) => ({ onClick: () => handleRowClick(record), style: { cursor: 'pointer' } })} />
               </div>
-            </>
+            </div>
           ),
         },
         {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Tag, Modal, Input, Select, Space, Switch, message, Spin } from 'antd'
+import { Button, Tag, Modal, Input, Select, Space, Switch, message, Spin, Table } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, TeamOutlined, CloudOutlined, ThunderboltOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { platformApi } from '@/api/platform'
 import type { PlatformTenant, TenantPlan, PlatformOverview } from '@/api/platform'
@@ -88,16 +89,16 @@ export default function PlatformTenants() {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 shrink-0">
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">平台租户管理</h1>
         <p className="text-sm text-slate-500 mt-1">管理租户开通、停用与套餐绑定</p>
       </div>
 
       {/* Overview Cards */}
       {loading && !overview ? (
-        <div className="flex justify-center py-8"><Spin /></div>
+        <div className="flex justify-center py-8 shrink-0"><Spin /></div>
       ) : overview && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 shrink-0">
           <StatCard
             title="租户总数"
             value={overview.total_tenants}
@@ -163,11 +164,12 @@ export default function PlatformTenants() {
 
       {/* Tenant List */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
-        <div className="flex items-center justify-between p-4 border-b border-slate-100">
+        <div className="flex items-center justify-between p-4 border-b border-slate-100 shrink-0">
           <h3 className="text-sm font-bold text-slate-900">租户列表</h3>
           <span className="text-sm text-slate-400">{tenants.length} 个租户</span>
         </div>
-        <Table rowKey="id" dataSource={tenants} loading={loading} size="small" pagination={{ pageSize: 20 }}
+        <FillHeightTable rowKey="id" dataSource={tenants} loading={loading} size="small" scroll={{ x: 1100 }}
+          pagination={{ pageSize: 20 }}
           columns={[
             { title: '编码', dataIndex: 'code', width: 120, render: (v: string) => <span className="font-mono font-bold text-primary">{v}</span> },
             { title: '名称', dataIndex: 'name', width: 200 },
@@ -200,7 +202,7 @@ export default function PlatformTenants() {
       </div>
 
       {/* Plans Section */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden shrink-0 max-h-60 overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-slate-100">
           <h3 className="text-sm font-bold text-slate-900">套餐计划</h3>
           <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setPlanModal(true)}>新增套餐</Button>

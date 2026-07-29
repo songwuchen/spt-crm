@@ -1,9 +1,11 @@
 // 扩展平台 → 审批中心: 我的待办 / 我发起的 / 已办 + 处理(通过/驳回/转交/评论) + 流程轨迹。
 import { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  Card, Tabs, Table, Button, Space, Tag, Drawer, Input, message, Timeline, Typography, Popconfirm, Divider,
+  Tabs, Button, Space, Tag, Drawer, Input, message, Timeline, Typography, Popconfirm, Divider,
   Modal, DatePicker, Select,
 } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import dayjs from 'dayjs'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import type { WfAgent } from '@/api/lowcodeWorkflow'
@@ -15,18 +17,30 @@ import { WF_ACTION_TEXT as ACTION_TXT, WF_STATUS as PSTATUS } from '@/utils/lowc
 
 const { Title, Text } = Typography
 
+/** 业务单据审批 → 完整详情页路径（无自定义表单时供审批人跳转查看）。 */
+function bizEntityPath(bizType?: string | null, bizId?: string | null, mobile = false): string | null {
+  if (!bizType || !bizId) return null
+  const p = mobile ? '/m' : ''
+  const map: Record<string, string> = {
+    lead: `${p}/leads/${bizId}`,
+    order: `${p}/orders/${bizId}`,
+    service_ticket: `${p}/service-tickets/${bizId}`,
+  }
+  return map[bizType] || null
+}
+
 export default function ApprovalCenter() {
   const [tab, setTab] = useState('todo')
   return (
-    <Card>
-      <Title level={4} style={{ marginTop: 0 }}>审批中心</Title>
-      <Tabs activeKey={tab} onChange={setTab} items={[
+    <div>
+      <Title level={4} style={{ marginTop: 0, marginBottom: 16 }} className="shrink-0">审批中心</Title>
+      <Tabs activeKey={tab} onChange={setTab} className="px-4 pt-2 pb-4" items={[
         { key: 'todo', label: '我的待办', children: <TodoTab active={tab === 'todo'} /> },
         { key: 'mine', label: '我发起的', children: <MineTab active={tab === 'mine'} /> },
         { key: 'done', label: '已办', children: <DoneTab active={tab === 'done'} /> },
         { key: 'agents', label: '我的代理', children: <AgentTab active={tab === 'agents'} /> },
       ]} />
-    </Card>
+    </div>
   )
 }
 
@@ -34,6 +48,7 @@ export default function ApprovalCenter() {
 function ProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   open: boolean; taskId?: string | null; instanceId?: string | null; onClose: () => void; onDone: () => void
 }) {
+  const navigate = useNavigate()
   const [detail, setDetail] = useState<WfInstanceDetail | null>(null)
   const [fields, setFields] = useState<FieldDefinition[]>([])
   const [formData, setFormData] = useState<Record<string, unknown>>({})
@@ -70,13 +85,37 @@ function ProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     } finally { setBusy(false) }
   }
 
+  const bizPath = detail ? bizEntityPath(detail.biz_type, detail.biz_id) : null
+  const bizEntries = detail?.biz_detail ? Object.entries(detail.biz_detail) : []
+
   return (
     <Drawer title="流程详情" width={640} open={open} onClose={onClose}>
       {detail && (
         <>
-          <Space><b>{detail.title || '(无标题)'}</b>{PSTATUS[detail.status] && <Tag color={PSTATUS[detail.status].color}>{PSTATUS[detail.status].text}</Tag>}</Space>
-          <Divider style={{ margin: '12px 0' }}>表单内容</Divider>
-          {fields.length ? <FormRenderer fields={fields} mode="readonly" value={formData} applyFieldPerms={false} /> : <Text type="secondary">无关联表单</Text>}
+          <Space wrap>
+            <b>{detail.title || '(无标题)'}</b>
+            {PSTATUS[detail.status] && <Tag color={PSTATUS[detail.status].color}>{PSTATUS[detail.status].text}</Tag>}
+            {bizPath && (
+              <Button size="small" type="link" onClick={() => { onClose(); navigate(bizPath) }}>
+                查看完整单据
+              </Button>
+            )}
+          </Space>
+          <Divider style={{ margin: '12px 0' }}>{fields.length ? '表单内容' : '业务信息'}</Divider>
+          {fields.length ? (
+            <FormRenderer fields={fields} mode="readonly" value={formData} applyFieldPerms={false} />
+          ) : bizEntries.length ? (
+            <div className="grid grid-cols-1 gap-2 p-3 rounded-lg bg-slate-50 border border-slate-100">
+              {bizEntries.map(([k, v]) => (
+                <div key={k} className="flex gap-3 text-sm">
+                  <span className="shrink-0 w-24 text-slate-500">{k}</span>
+                  <span className="text-slate-800 font-medium whitespace-pre-wrap break-all">{String(v)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
+          )}
           <Divider style={{ margin: '12px 0' }}>流程轨迹</Divider>
           <Timeline items={(detail.timeline || []).map((t) => ({
             children: <div><b>{ACTION_TXT[t.action] || t.action}</b> · {t.actor_name || t.actor_id}
@@ -125,6 +164,7 @@ function useDrawer(reload: () => void) {
 }
 
 function TodoTab({ active }: { active: boolean }) {
+  const navigate = useNavigate()
   const [items, setItems] = useState<WfTodoItem[]>([])
   const [loading, setLoading] = useState(false)
   const load = useCallback(async () => {
@@ -138,9 +178,20 @@ function TodoTab({ active }: { active: boolean }) {
     { title: '单号', dataIndex: 'business_no', render: (v: string) => v || '—' },
     { title: '来源', key: 'src', width: 130, render: (_: unknown, r: WfTodoItem) => (r.on_behalf_of ? <Tag color="purple">代 {r.delegator_name || '委托人'} 审批</Tag> : <Tag>本人</Tag>) },
     { title: '发起时间', dataIndex: 'created_at', render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—') },
-    { title: '操作', key: 'op', width: 100, render: (_: unknown, r: WfTodoItem) => <Button size="small" type="primary" onClick={() => openWith(r.process_instance_id, r.task_id)}>处理</Button> },
+    { title: '操作', key: 'op', width: 160, render: (_: unknown, r: WfTodoItem) => {
+      const path = bizEntityPath(r.biz_type, r.biz_id)
+      return (
+        <Space size={4}>
+          <Button size="small" type="primary" onClick={() => openWith(r.process_instance_id, r.task_id)}>处理</Button>
+          {path && <Button size="small" type="link" onClick={() => navigate(path)}>单据</Button>}
+        </Space>
+      )
+    } },
   ]
-  return <><Table rowKey="task_id" size="small" loading={loading} columns={cols} dataSource={items} pagination={false} />{node}</>
+  return (<>
+    <FillHeightTable rowKey="task_id" size="small" loading={loading} columns={cols} dataSource={items} pagination={false} scroll={{ x: 'max-content' }} />
+    {node}
+  </>)
 }
 
 function DoneTab({ active }: { active: boolean }) {
@@ -158,7 +209,10 @@ function DoneTab({ active }: { active: boolean }) {
     { title: '处理时间', dataIndex: 'action_at', render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—') },
     { title: '操作', key: 'op', width: 90, render: (_: unknown, r: WfTodoItem) => <Button size="small" onClick={() => openWith(r.process_instance_id)}>查看</Button> },
   ]
-  return <><Table rowKey="task_id" size="small" loading={loading} columns={cols} dataSource={items} pagination={false} />{node}</>
+  return (<>
+    <FillHeightTable rowKey="task_id" size="small" loading={loading} columns={cols} dataSource={items} pagination={false} scroll={{ x: 'max-content' }} />
+    {node}
+  </>)
 }
 
 function AgentTab({ active }: { active: boolean }) {
@@ -204,11 +258,11 @@ function AgentTab({ active }: { active: boolean }) {
   ]
   return (
     <>
-      <div style={{ marginBottom: 12 }}>
+      <div style={{ marginBottom: 12 }} className="shrink-0">
         <Text type="secondary">设置在某时间段由他人代你审批；代理人会在其「我的待办」看到你的待办并可代为处理。</Text>
         <Button type="primary" size="small" style={{ marginLeft: 12 }} onClick={() => setOpen(true)}>新增代理</Button>
       </div>
-      <Table rowKey="id" size="small" loading={loading} columns={cols} dataSource={items} pagination={false} />
+      <FillHeightTable rowKey="id" size="small" loading={loading} columns={cols} dataSource={items} pagination={false} scroll={{ x: 'max-content' }} />
       <Modal title="新增代理" open={open} onOk={save} confirmLoading={saving} onCancel={() => setOpen(false)} destroyOnClose>
         <div className="space-y-3">
           <div>
@@ -263,5 +317,8 @@ function MineTab({ active }: { active: boolean }) {
       ),
     },
   ]
-  return <><Table rowKey="id" size="small" loading={loading} columns={cols} dataSource={items} pagination={false} />{node}</>
+  return (<>
+    <FillHeightTable rowKey="id" size="small" loading={loading} columns={cols} dataSource={items} pagination={false} scroll={{ x: 'max-content' }} />
+    {node}
+  </>)
 }

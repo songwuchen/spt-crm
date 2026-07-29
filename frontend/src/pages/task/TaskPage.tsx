@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Button, Table, Tag, Modal, Form, Input, Select, DatePicker, Space, Checkbox, message } from 'antd'
+import { Button, Tag, Modal, Form, Input, Select, DatePicker, Space, Checkbox, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, DeleteOutlined, CheckOutlined, UserSwitchOutlined } from '@ant-design/icons'
 import { taskApi } from '@/api/task'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -115,7 +116,7 @@ export default function TaskPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">待办任务</h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -137,7 +138,7 @@ export default function TaskPage() {
         </Space>
       </div>
 
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4 shrink-0">
         <Select placeholder="状态" allowClear style={{ width: 120 }} value={filterStatus} onChange={(v) => { setFilterStatus(v); setPage(1) }}
           options={Object.entries(statusConfig).map(([k, v]) => ({ label: v.label, value: k }))} />
         <Select placeholder="优先级" allowClear style={{ width: 120 }} value={filterPriority} onChange={(v) => { setFilterPriority(v); setPage(1) }}
@@ -145,7 +146,7 @@ export default function TaskPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" dataSource={items} loading={loading} size="small"
+        <FillHeightTable rowKey="id" dataSource={items} loading={loading} size="small"
           pagination={{ current: page, total, pageSize: 20, onChange: setPage }}
           rowSelection={{
             selectedRowKeys: selectedIds,

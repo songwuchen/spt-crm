@@ -171,6 +171,8 @@ export interface Lead {
   review_status?: string
   review_flow_id?: string
   reject_reason?: string
+  customer_newness?: string | null
+  review_opinion?: string | null
   score: number
   converted_customer_id?: string
   remark?: string

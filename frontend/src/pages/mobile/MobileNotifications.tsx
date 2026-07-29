@@ -8,6 +8,8 @@ import { notificationTarget } from '@/utils/notificationRoute'
 const typeConfig: Record<string, { label: string; icon: string; color: string }> = {
   approval_pending: { label: '审批待处理', icon: 'pending_actions', color: 'text-orange-500' },
   approval_decided: { label: '审批已决定', icon: 'task_alt', color: 'text-green-500' },
+  lead_review_approved: { label: '线索审核通过', icon: 'verified', color: 'text-green-500' },
+  approval_cc: { label: '流程抄送', icon: 'forward_to_inbox', color: 'text-indigo-500' },
   approval_sla_overdue: { label: '审批超时', icon: 'warning', color: 'text-red-500' },
   stage_advance: { label: '阶段推进', icon: 'trending_up', color: 'text-blue-500' },
   stage_change: { label: '阶段变化', icon: 'swap_horiz', color: 'text-blue-500' },

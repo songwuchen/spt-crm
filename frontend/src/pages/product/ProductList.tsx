@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Button, Table, Input, Select, Tag, Modal, Form, InputNumber, Space, Switch, message, Tabs } from 'antd'
+import { Button, Input, Select, Tag, Modal, Form, InputNumber, Space, Switch, message, Tabs } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons'
 import { productApi } from '@/api/product'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -171,17 +172,20 @@ export default function ProductList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <h1 className="text-2xl font-bold text-slate-900">产品目录</h1>
       </div>
 
-      <Tabs defaultActiveKey="products" items={[
+      <Tabs
+        defaultActiveKey="products"
+        
+        items={[
         {
           key: 'products',
           label: '产品列表',
           children: (
-            <>
-              <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <div>
+              <div className="flex items-center gap-3 mb-4 flex-wrap shrink-0">
                 <Input.Search placeholder="搜索编码/名称/规格" value={keyword} onChange={(e) => setKeyword(e.target.value)}
                   onSearch={handleSearch} enterButton style={{ width: 280 }} allowClear />
                 <Select placeholder="类型" allowClear style={{ width: 120 }} value={filterType} onChange={setFilterType}
@@ -196,19 +200,19 @@ export default function ProductList() {
                 }}>新建产品</Button>}
               </div>
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <Table rowKey="id" columns={view.columns} dataSource={items} loading={loading} size="small"
+                <FillHeightTable rowKey="id" columns={view.columns} dataSource={items} loading={loading} size="small"
                   scroll={{ x: 1200 }}
                   pagination={{ current: page, total, pageSize: 20, onChange: setPage, showTotal: (t) => `共 ${t} 条` }} />
               </div>
-            </>
+            </div>
           ),
         },
         {
           key: 'categories',
           label: '产品分类',
           children: (
-            <>
-              <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="flex items-center justify-between mb-4 shrink-0">
                 <span className="text-sm text-slate-500">管理产品分类，便于产品组织和筛选</span>
                 {canEditCat && <Space>
                   <Button icon={<UploadOutlined />} onClick={() => setCatImportModal(true)}>导入</Button>
@@ -218,7 +222,7 @@ export default function ProductList() {
                 </Space>}
               </div>
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <Table rowKey="id" dataSource={categories} size="small" pagination={false}
+                <FillHeightTable rowKey="id" dataSource={categories} size="small" pagination={false}
                   columns={[
                     { title: '分类名称', dataIndex: 'name', width: 200,
                       render: (v: string) => <span className="font-semibold text-slate-800">{v}</span> },
@@ -239,7 +243,7 @@ export default function ProductList() {
                   ]}
                 />
               </div>
-            </>
+            </div>
           ),
         },
       ]} />

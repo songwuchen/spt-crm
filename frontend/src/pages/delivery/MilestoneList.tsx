@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Tag, Select, Input, Button, Modal, Form, DatePicker, Popconfirm, message } from 'antd'
+import { Tag, Select, Input, Button, Modal, Form, DatePicker, Popconfirm, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { deliveryApi } from '@/api/delivery'
@@ -148,14 +149,14 @@ export default function MilestoneList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">交付里程碑</h1>
           <p className="text-sm text-slate-500 mt-0.5">查看所有项目的交付里程碑</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input prefix={<SearchOutlined className="text-slate-400" />} placeholder="搜索里程碑名称/编号..."
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
@@ -169,7 +170,7 @@ export default function MilestoneList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" dataSource={data} loading={loading} size="small"
+        <FillHeightTable rowKey="id" dataSource={data} loading={loading} size="small"
           columns={view.columns}
           pagination={{
             current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import {
-  Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Drawer, Upload, Alert,
+  Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Drawer, Upload, Alert, Table,
 } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, BarChartOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -131,7 +132,7 @@ export default function MeasurementPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">售后实测数据</h1>
           <p className="text-sm text-slate-500 mt-0.5">现场设备运行实测台账，沉淀为设备运行数据库，支撑设备健康分析</p>
@@ -144,7 +145,7 @@ export default function MeasurementPage() {
         </Space>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input placeholder="客户 / 设备型号 / 物料" prefix={<SearchOutlined className="text-slate-400" />} value={keyword}
             onChange={(e) => setKeyword(e.target.value)} onPressEnter={() => { setPage(1); fetchData(1) }} allowClear style={{ width: 240 }} />
@@ -154,7 +155,7 @@ export default function MeasurementPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={data} loading={loading} scroll={{ x: 1500 }}
+        <FillHeightTable rowKey="id" columns={columns} dataSource={data} loading={loading} scroll={{ x: 1500 }}
           pagination={{ current: page, total, pageSize, showTotal: (t) => `共 ${t} 条`, onChange: (p) => { setPage(p); fetchData(p) } }} />
       </div>
 

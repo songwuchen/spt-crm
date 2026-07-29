@@ -373,6 +373,7 @@ const zhCN = {
     types: {
       approval_pending: '审批待处理',
       approval_decided: '审批已决定',
+      lead_review_approved: '线索审核通过',
       approval_sla_overdue: '审批超时',
       stage_advance: '阶段推进',
       stage_change: '阶段变化',

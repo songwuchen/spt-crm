@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Modal, Form, Input, InputNumber, Select, Tag, Space, DatePicker, message } from 'antd'
+import { Button, Modal, Form, Input, InputNumber, Select, Tag, Space, DatePicker, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, FilterOutlined } from '@ant-design/icons'
 import { renewalApi } from '@/api/renewal'
 import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
@@ -114,7 +115,7 @@ export default function RenewalList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">续约管理</h1>
           <p className="text-sm text-slate-500 mt-1">管理复购和续约商机</p>
@@ -125,7 +126,7 @@ export default function RenewalList() {
       </div>
 
       {/* Stats + Filter */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div className="flex gap-4">
           <div className="px-3 py-2 bg-white rounded-lg border border-slate-200 shadow-sm">
             <span className="text-sm text-slate-400">总数</span>
@@ -149,7 +150,7 @@ export default function RenewalList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={items} loading={loading}
+        <FillHeightTable rowKey="id" columns={columns} dataSource={items} loading={loading}
           pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
           size="small" />
       </div>

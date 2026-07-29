@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Tag, Select, Input, Button, Modal, Form, message } from 'antd'
+import { Tag, Select, Input, Button, Modal, Form, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
@@ -97,7 +98,7 @@ export default function SolutionList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">方案管理</h1>
           <p className="text-sm text-slate-500 mt-0.5">查看所有商机项目的技术方案</p>
@@ -105,7 +106,7 @@ export default function SolutionList() {
         {canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增方案</Button>}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input prefix={<SearchOutlined className="text-slate-400" />} placeholder="搜索方案编号..."
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
@@ -119,7 +120,7 @@ export default function SolutionList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" dataSource={data} loading={loading} size="small"
+        <FillHeightTable rowKey="id" dataSource={data} loading={loading} size="small"
           columns={view.columns}
           pagination={{
             current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,

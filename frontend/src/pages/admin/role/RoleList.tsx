@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Table, Button, Modal, Form, Input, Select, Space, message, Checkbox, Tag, Alert, Spin } from 'antd'
+import { Button, Modal, Form, Input, Select, Space, message, Checkbox, Tag, Alert, Spin } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, DeleteOutlined, SearchOutlined, SyncOutlined } from '@ant-design/icons'
 import { roleApi, permissionApi, rbacApi } from '@/api/user'
 import type { RbacSyncPreview } from '@/api/user'
@@ -263,7 +264,7 @@ export default function RoleList() {
   return (
     <div>
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">角色权限</h1>
           <p className="text-sm text-slate-500 mt-0.5">管理角色和权限分配</p>
@@ -281,7 +282,7 @@ export default function RoleList() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 items-center flex-wrap">
           <Input
             placeholder="搜索角色名称/编码/描述..."
@@ -316,7 +317,7 @@ export default function RoleList() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={filteredRoles} pagination={false}
+        <FillHeightTable rowKey="id" columns={columns} dataSource={filteredRoles} pagination={false}
           className="[&_.ant-table-row]:hover:bg-slate-50/80 [&_.ant-table-row]:transition-colors" />
       </div>
 

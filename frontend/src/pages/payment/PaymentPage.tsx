@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Tabs, Tag, Select, Input, Button, Popconfirm, Modal, Form, InputNumber, DatePicker, Upload, Alert, message } from 'antd'
+import { Tabs, Tag, Select, Input, Button, Popconfirm, Modal, Form, InputNumber, DatePicker, Upload, Alert, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { SearchOutlined, DownloadOutlined, DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useNavigate } from 'react-router-dom'
@@ -256,9 +257,10 @@ export default function PaymentPage() {
 
   const view = useListView<RecordRow>('payment', recordColumns, { pageKey: 'payments', entityType: 'payment' })
 
+
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 shrink-0">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">回款管理</h1>
           <p className="text-sm text-slate-500 mt-1">跨项目的回款计划、到账记录和发票管理</p>
@@ -268,7 +270,7 @@ export default function PaymentPage() {
 
       {/* Overview Cards */}
       {overview && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6 shrink-0">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
             <div className="text-sm font-bold text-slate-400 uppercase">计划总额</div>
             <div className="text-xl font-black text-slate-900 mt-1">¥{(overview.total_planned / 10000).toFixed(1)}万</div>
@@ -299,14 +301,14 @@ export default function PaymentPage() {
       )}
 
       {/* Tabs */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <Tabs defaultActiveKey="plans" className="px-4 pt-2" items={[
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <Tabs defaultActiveKey="plans" className="px-4 pt-2 pb-4" items={[
           {
             key: 'plans',
             label: `回款计划 (${planTotal})`,
             children: (
               <div>
-                <div className="flex items-center gap-3 mb-4 flex-wrap">
+                <div className="flex items-center gap-3 mb-4 flex-wrap shrink-0">
                   <Input prefix={<SearchOutlined />} placeholder="搜索计划编号..." allowClear
                     value={planKeyword} onChange={(e) => setPlanKeyword(e.target.value)}
                     onPressEnter={() => { setPlanPage(1); fetchPlans(1, planStatus, planKeyword) }}
@@ -317,7 +319,7 @@ export default function PaymentPage() {
                     options={Object.entries(planStatusConfig).map(([k, v]) => ({ value: k, label: v.label }))} />
                   {canEdit && <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate('plan')} className="ml-auto">新增计划</Button>}
                 </div>
-                <Table rowKey="id" dataSource={plans} loading={planLoading} size="small" scroll={{ x: 800 }}
+                <FillHeightTable rowKey="id" dataSource={plans} loading={planLoading} size="small" scroll={{ x: 800 }}
                   pagination={{ current: planPage, total: planTotal, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
                     onChange: (p) => { setPlanPage(p); fetchPlans(p) } }}
                   columns={[
@@ -358,7 +360,7 @@ export default function PaymentPage() {
             label: `到账记录 (${recordTotal})`,
             children: (
               <div>
-                <div className="flex items-center gap-3 mb-4 flex-wrap">
+                <div className="flex items-center gap-3 mb-4 flex-wrap shrink-0">
                   <Input prefix={<SearchOutlined />} placeholder="搜索凭证号..." allowClear
                     value={recordKeyword} onChange={(e) => setRecordKeyword(e.target.value)}
                     onPressEnter={() => { setRecordPage(1); fetchRecords(1, recordKeyword) }}
@@ -369,7 +371,7 @@ export default function PaymentPage() {
                     <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate('record')}>新增到账</Button>
                   </div>}
                 </div>
-                <Table rowKey="id" dataSource={records} loading={recordLoading} size="small" scroll={{ x: 800 }}
+                <FillHeightTable rowKey="id" dataSource={records} loading={recordLoading} size="small" scroll={{ x: 800 }}
                   pagination={{ current: recordPage, total: recordTotal, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
                     onChange: (p) => { setRecordPage(p); fetchRecords(p) } }}
                   columns={view.columns}
@@ -382,14 +384,14 @@ export default function PaymentPage() {
             label: `发票 (${invoiceTotal})`,
             children: (
               <div>
-                <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-3 mb-4 shrink-0">
                   <Input prefix={<SearchOutlined />} placeholder="搜索发票号..." allowClear
                     value={invoiceKeyword} onChange={(e) => setInvoiceKeyword(e.target.value)}
                     onPressEnter={() => { setInvoicePage(1); fetchInvoices(1, invoiceKeyword) }}
                     style={{ width: 200 }} />
                   {canEdit && <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate('invoice')} className="ml-auto">新增发票</Button>}
                 </div>
-                <Table rowKey="id" dataSource={invoices} loading={invoiceLoading} size="small" scroll={{ x: 800 }}
+                <FillHeightTable rowKey="id" dataSource={invoices} loading={invoiceLoading} size="small" scroll={{ x: 800 }}
                   pagination={{ current: invoicePage, total: invoiceTotal, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
                     onChange: (p) => { setInvoicePage(p); fetchInvoices(p) } }}
                   columns={[

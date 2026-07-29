@@ -178,12 +178,7 @@ async def submit_lead_review(db: AsyncSession, tenant_id: str, lead: Lead, user:
     from app.domains.lowcode.workflow_service import ensure_default_definition, start_for_biz
 
     title = f"线索审核: {(lead.lead_code + ' ') if lead.lead_code else ''}{lead.title}"
-    # 先直接起流程：稳态下租户已有可用流程，这样每条线索只花 start_for_biz 自己的那次查询，
-    # 不必在写路径上再多跑一次「兜底流程是否存在」的探测(Excel 批量导入会放大这个开销)。
-    inst = await start_for_biz(db, tenant_id, "lead", lead.id, user, title=title)
-    if inst is not None:
-        return inst
-    # 起不来 → 说明还没有可用的已发布流程，补建/恢复系统兜底流程后重试一次
+    # 先确保系统兜底流程存在且已含「抄送负责人」节点（可在设计器改），再发起
     await ensure_default_definition(
         db, tenant_id, biz_type="lead", code=LEAD_DEFAULT_FLOW_CODE, name="线索审核",
         # 刻意按角色而非按 lead:review 权限解析，避免把管理员(拥有全部权限)也拉进审核人池
@@ -299,11 +294,50 @@ async def _apply_review_flow(db: AsyncSession, tenant_id: str, lead: Lead, inst,
         await wf_notify.notify_review_flow_unavailable(
             tenant_id, "lead", lead.id, user.get("sub"), lead.title or "线索",
         )
+        # 免审放行也等同「审核通过」：推送给负责人自行决定是否转化
+        await _notify_owner_review_passed(tenant_id, lead)
         return
     if inst.status != "running":
         await db.refresh(lead)
     lead.review_flow_id = inst.id
     await db.commit()
+
+
+async def _notify_owner_review_passed(tenant_id: str, lead: Lead) -> None:
+    """审核通过后推送给线索负责人（独立 session，失败不影响主流程）。
+
+    仅用于「流程起不来、免审放行」等引擎 finished 通知不会触发的路径；
+    正常审批通过由 wf_notify.notify_flow_finished 统一推送，避免重复。
+    """
+    owner_id = getattr(lead, "owner_id", None)
+    if not owner_id or getattr(lead, "status", None) in ("qualified", "discarded"):
+        return
+    try:
+        from app.database import async_session_factory
+        from app.common.auto_notify import notify_lead_review_approved
+        from app.common.msg_integration import dispatch_todo
+
+        async with async_session_factory() as db:
+            await notify_lead_review_approved(
+                db, tenant_id,
+                lead_id=lead.id,
+                lead_title=lead.title or "线索",
+                owner_id=owner_id,
+                lead_code=lead.lead_code,
+            )
+            try:
+                await dispatch_todo(
+                    db, tenant_id, owner_id,
+                    f"线索审核已通过，请确认是否转化: {lead.title or ''}",
+                    "内勤审核已通过，请打开线索详情自行选择是否转化为客户/商机。",
+                    link=f"/leads/{lead.id}",
+                    mobile_link=f"/m/leads/{lead.id}",
+                )
+            except Exception:
+                pass
+            await db.commit()
+    except Exception as e:
+        logger.warning("notify lead owner review passed failed for %s: %s", lead.id, e)
 
 
 async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: LeadUpdate, user: dict) -> Lead:
@@ -375,6 +409,9 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         raise BusinessException(code=LEAD_ALREADY_DISCARDED, message="线索已废弃，无法转化")
     if getattr(lead, "review_status", "approved") != "approved":
         from app.common.error_codes import VALIDATION_ERROR
+        status = getattr(lead, "review_status", None)
+        if status == "attacked":
+            raise BusinessException(code=VALIDATION_ERROR, message="线索已标记为袭击，无法转化为客户")
         raise BusinessException(code=VALIDATION_ERROR, message="线索尚未通过审核，无法转化")
 
     # Create customer from lead — carry over geographic fields so sales keeps context on conversion
@@ -541,4 +578,121 @@ async def resubmit_lead_review(db: AsyncSession, tenant_id: str, lead_id: str, u
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="submit_review", resource_type="lead", resource_id=lead.id,
                      summary=f"重新提交线索审核: {lead.title}")
+    return lead
+
+
+async def intel_review_lead(
+    db: AsyncSession, tenant_id: str, lead_id: str, user: dict,
+    decision: str, task_id: str,
+    customer_newness: str | None = None,
+    return_reason: str | None = None,
+    opinion: str | None = None,
+) -> Lead:
+    """情报审批：收录 / 袭击 / 回退 / 暂存。
+
+    - include → 工作流 approve，review_status=approved（可转化）
+    - attack → 工作流 approve 后覆盖为 attacked（不可转化）
+    - return → 工作流 reject，回写 reject_reason
+    - draft → 只落业务字段，不结束待办
+    """
+    from app.common.error_codes import VALIDATION_ERROR, FORBIDDEN, BUSINESS_ERROR, NOT_FOUND
+    from app.domains.lowcode.workflow_models import WfProcessInstance, WfTaskInstance
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+    from app.domains.lead.schemas import LeadIntelReviewIn
+
+    # 复用 schema 校验（路由层也会校验；此处防内部直调）
+    LeadIntelReviewIn(
+        decision=decision, task_id=task_id, customer_newness=customer_newness,
+        return_reason=return_reason, opinion=opinion,
+    )
+
+    task = (await db.execute(select(WfTaskInstance).where(
+        WfTaskInstance.id == task_id, WfTaskInstance.tenant_id == tenant_id,
+    ))).scalar_one_or_none()
+    if not task:
+        raise BusinessException(code=NOT_FOUND, message="待办不存在")
+    if task.status != "pending":
+        raise BusinessException(code=BUSINESS_ERROR, message="该待办已处理")
+
+    inst = await db.get(WfProcessInstance, task.process_instance_id)
+    if not inst or inst.tenant_id != tenant_id:
+        raise BusinessException(code=NOT_FOUND, message="流程实例不存在")
+    if inst.biz_type != "lead" or inst.biz_id != lead_id:
+        raise BusinessException(code=VALIDATION_ERROR, message="待办与线索不匹配")
+
+    # 处理人校验（与引擎一致，含有效代理）
+    if task.assignee_id != user.get("sub"):
+        from datetime import timezone
+        from app.domains.organization.models import UserAgent
+        now = datetime.now(timezone.utc)
+        agent_ok = (await db.execute(select(UserAgent.id).where(
+            UserAgent.tenant_id == tenant_id, UserAgent.user_id == task.assignee_id,
+            UserAgent.agent_id == user.get("sub"), UserAgent.status == "active",
+            UserAgent.start_time <= now, UserAgent.end_time >= now,
+        ).limit(1))).scalar_one_or_none()
+        if not agent_ok:
+            raise BusinessException(code=FORBIDDEN, message="非当前待办的处理人")
+
+    # 已校验待办归属，跳过数据范围（审批人未必在线索 owner 范围内）
+    lead = await get_lead(db, tenant_id, lead_id)
+    if lead.review_status != "pending":
+        raise BusinessException(code=VALIDATION_ERROR, message="仅待审线索可进行情报裁定")
+
+    if customer_newness is not None:
+        lead.customer_newness = customer_newness
+    if opinion is not None:
+        lead.review_opinion = opinion or None
+
+    if decision == "draft":
+        if return_reason is not None:
+            lead.reject_reason = return_reason.strip() or None
+        if opinion is not None:
+            task.opinion = opinion or None
+        await db.commit()
+        await db.refresh(lead)
+        await log_action(
+            db, tenant_id=tenant_id, user_id=user["sub"],
+            user_name=user.get("real_name") or user.get("username"),
+            action="intel_draft", resource_type="lead", resource_id=lead.id,
+            summary=f"暂存线索情报审批: {lead.title}",
+        )
+        return lead
+
+    if decision == "return":
+        reason = (return_reason or "").strip()
+        lead.reject_reason = reason
+        await db.commit()
+        await WorkflowEngine(db, tenant_id).act(
+            task_id, user, "reject", opinion=reason or opinion,
+        )
+        await db.refresh(lead)
+        await log_action(
+            db, tenant_id=tenant_id, user_id=user["sub"],
+            user_name=user.get("real_name") or user.get("username"),
+            action="intel_return", resource_type="lead", resource_id=lead.id,
+            summary=f"回退线索: {lead.title}",
+        )
+        return lead
+
+    # include / attack：先落字段再 approve
+    lead.reject_reason = None
+    await db.commit()
+    await WorkflowEngine(db, tenant_id).act(
+        task_id, user, "approve", opinion=opinion,
+    )
+    await db.refresh(lead)
+
+    if decision == "attack":
+        # writeback 会把 review_status 写成 approved，此处覆盖为袭击
+        lead.review_status = "attacked"
+        await db.commit()
+        await db.refresh(lead)
+
+    await log_action(
+        db, tenant_id=tenant_id, user_id=user["sub"],
+        user_name=user.get("real_name") or user.get("username"),
+        action="intel_include" if decision == "include" else "intel_attack",
+        resource_type="lead", resource_id=lead.id,
+        summary=(f"收录线索: {lead.title}" if decision == "include" else f"标记袭击: {lead.title}"),
+    )
     return lead

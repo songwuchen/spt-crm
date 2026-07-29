@@ -44,12 +44,18 @@ export const ticketStatusColors: Record<string, string> = {
   open: 'default', assigned: 'blue', in_progress: 'processing', resolved: 'success', closed: 'success',
 }
 
-// --- Lead review (提交审核流程) ---
-// review_status: approved=已通过/免审(默认可用) · pending=待审核 · rejected=已驳回
+// --- Lead review (情报审批 / 提交审核流程) ---
+// review_status: pending=待审 · approved=收录(可转化) · rejected=回退 · attacked=袭击(不可转化)
 export const leadReviewStatusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
-  pending: { label: '待审核', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' },
-  rejected: { label: '审核驳回', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100' },
-  approved: { label: '审核通过', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
+  pending: { label: '待审', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' },
+  approved: { label: '收录', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
+  rejected: { label: '回退', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100' },
+  attacked: { label: '袭击', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100' },
+}
+
+export const customerNewnessLabels: Record<string, string> = {
+  new: '新',
+  old: '老',
 }
 
 // --- Lead ---

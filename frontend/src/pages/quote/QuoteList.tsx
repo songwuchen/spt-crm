@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Tag, Select, Input, Button, Modal, Form, InputNumber, message } from 'antd'
+import { Tag, Select, Input, Button, Modal, Form, InputNumber, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { quoteApi } from '@/api/quote'
@@ -119,7 +120,7 @@ export default function QuoteList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">报价管理</h1>
           <p className="text-sm text-slate-500 mt-0.5">查看所有商机项目的报价</p>
@@ -127,7 +128,7 @@ export default function QuoteList() {
         {canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增报价</Button>}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input prefix={<SearchOutlined className="text-slate-400" />} placeholder="搜索报价编号..."
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
@@ -141,7 +142,7 @@ export default function QuoteList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" dataSource={data} loading={loading} size="small"
+        <FillHeightTable rowKey="id" dataSource={data} loading={loading} size="small"
           pagination={{
             current: pageNo, total, pageSize: 20, showTotal: (t) => `共 ${t} 条`,
             onChange: (p) => { setPageNo(p); fetchData(p) },

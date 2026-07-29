@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, Tag, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, DeleteOutlined, AuditOutlined, SendOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -229,7 +230,7 @@ export default function OrderList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">订单管理</h1>
           <p className="text-sm text-slate-500 mt-0.5">管理客户成交订单（含产品明细、审批与发货），可关联商机与合同</p>
@@ -240,7 +241,7 @@ export default function OrderList() {
         </Space>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input
             placeholder="订单号 / 标题"
@@ -258,7 +259,7 @@ export default function OrderList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table
+        <FillHeightTable
           rowKey="id"
           columns={view.columns}
           dataSource={data}

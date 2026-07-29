@@ -199,6 +199,10 @@ async def _build_policy_context(db: AsyncSession, tenant_id: str, biz_type: str,
                 context["category"] = ld.category
                 context["country_type"] = ld.country_type
                 context["industry"] = ld.industry
+                # 可视化流程「表单人员/部门字段」抄送、条件分支用
+                context["owner_id"] = ld.owner_id
+                context["reporter_id"] = ld.reporter_id
+                context["department_id"] = ld.department_id
         # solution: no condition fields — always matches (approver-only policy)
     except Exception as e:
         logger.warning("Build policy context failed for %s/%s: %s", biz_type, biz_id, e)
@@ -718,6 +722,17 @@ async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: Approva
                 ld.review_status = "approved"
                 ld.reject_reason = None
                 updated = True
+                # 旧引擎路径：同样推送给负责人
+                if ld.owner_id and ld.status not in ("qualified", "discarded"):
+                    try:
+                        from app.common.auto_notify import notify_lead_review_approved
+                        await notify_lead_review_approved(
+                            db, tenant_id,
+                            lead_id=ld.id, lead_title=ld.title or "线索",
+                            owner_id=ld.owner_id, lead_code=ld.lead_code,
+                        )
+                    except Exception as ne:
+                        logger.warning("lead owner notify on legacy approve failed: %s", ne)
         if updated:
             await db.commit()
     except Exception as e:
@@ -1148,24 +1163,92 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
                 detail["change_type"] = cr.change_type
                 detail["scope_description"] = cr.scope_description
         elif biz_type == "lead":
+            # 线索审核已切到扩展平台工作流：审批抽屉无自定义表单，必须靠 biz_detail
+            # 把单据关键信息铺全，否则内勤只能看到标题、无法审完整内容。
             from app.domains.lead.models import Lead
             ld = (await db.execute(
                 select(Lead).where(Lead.id == biz_id, Lead.tenant_id == tenant_id)
             )).scalar_one_or_none()
             if ld:
-                if ld.lead_code:
-                    detail["lead_code"] = ld.lead_code
-                if ld.company_name:
-                    detail["company_name"] = ld.company_name
-                if ld.owner_name:
-                    detail["owner_name"] = ld.owner_name
-                if ld.source:
-                    detail["source"] = ld.source
-                if ld.budget_range:
-                    detail["budget_range"] = ld.budget_range
-                contact = " ".join([p for p in (ld.contact_name, ld.contact_phone) if p])
-                if contact:
-                    detail["contact"] = contact
+                def _put(label: str, val) -> None:
+                    if val is None:
+                        return
+                    s = str(val).strip() if not isinstance(val, (int, float)) else str(val)
+                    if s == "" or s == "None":
+                        return
+                    detail[label] = s if not isinstance(val, (int, float)) else val
+
+                _put("线索编号", ld.lead_code)
+                _put("线索标题", ld.title)
+                _put("客户名称", ld.company_name)
+                _put("联系人", ld.contact_name)
+                _put("联系电话", ld.contact_phone)
+                _put("联系邮箱", ld.contact_email)
+                _put("来源", ld.source)
+                _put("客户类型", ld.customer_type)
+                if getattr(ld, "customer_newness", None) == "new":
+                    _put("新/老客户", "新")
+                elif getattr(ld, "customer_newness", None) == "old":
+                    _put("新/老客户", "老")
+                _put("类别", ld.category)
+                if ld.country_type == "overseas" and ld.country_name:
+                    _put("国别", f"海外 · {ld.country_name}")
+                elif ld.country_type:
+                    _put("国别", "国内" if ld.country_type == "domestic" else ld.country_type)
+                loc = " / ".join([p for p in (ld.province, ld.city, ld.district) if p])
+                _put("省市区", loc or None)
+                _put("详细地址", ld.region)
+                _put("行业", ld.industry)
+                _put("报备人", ld.reporter_name)
+                if ld.reported_at:
+                    _put("报备时间", ld.reported_at.isoformat(sep=" ", timespec="minutes"))
+                _put("负责人", ld.owner_name)
+                _put("录入人", ld.created_by_name)
+                if ld.department_id:
+                    from app.domains.organization.models import Department
+                    dept = (await db.execute(
+                        select(Department.name).where(
+                            Department.id == ld.department_id, Department.tenant_id == tenant_id,
+                        )
+                    )).scalar_one_or_none()
+                    _put("部门", dept)
+                _put("评分", ld.score)
+                if ld.demand_summary:
+                    _put("需求摘要", ld.demand_summary)
+                if ld.remark:
+                    _put("备注", ld.remark)
+                cf = ld.custom_fields_json if isinstance(ld.custom_fields_json, dict) else None
+                if cf:
+                    # 扩展字段：优先用字段定义的中文名，否则回退 field key
+                    label_map: dict[str, str] = {}
+                    try:
+                        from app.domains.admin.models import CustomFieldDef
+                        rows = (await db.execute(
+                            select(CustomFieldDef.field_key, CustomFieldDef.field_label).where(
+                                CustomFieldDef.tenant_id == tenant_id,
+                                CustomFieldDef.entity_type == "lead",
+                            )
+                        )).all()
+                        label_map = {k: (lab or k) for k, lab in rows}
+                    except Exception:
+                        try:
+                            from app.domains.lowcode.service import get_entity_fields
+                            for fd in await get_entity_fields(db, tenant_id, "lead"):
+                                fid = fd.get("id") or fd.get("field_key")
+                                if fid:
+                                    label_map[fid] = fd.get("label") or fd.get("title") or fid
+                        except Exception:
+                            label_map = {}
+                    for k, v in cf.items():
+                        if v is None or v == "" or v == []:
+                            continue
+                        if isinstance(v, (list, dict)):
+                            import json as _json
+                            try:
+                                v = _json.dumps(v, ensure_ascii=False)
+                            except Exception:
+                                v = str(v)
+                        _put(label_map.get(k, k), v)
     except Exception as e:
         logger.warning("Failed to resolve biz detail for %s/%s: %s", biz_type, biz_id, e)
     return detail

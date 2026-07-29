@@ -77,6 +77,8 @@ def _lead_dict(l, products=None, dept_names=None) -> dict:
         "review_status": getattr(l, "review_status", "approved"),
         "review_flow_id": getattr(l, "review_flow_id", None),
         "reject_reason": getattr(l, "reject_reason", None),
+        "customer_newness": getattr(l, "customer_newness", None),
+        "review_opinion": getattr(l, "review_opinion", None),
         "converted_customer_id": l.converted_customer_id,
         "remark": l.remark,
         # 扩展字段值必须回传：strip_entity_dicts 依赖它做字段级权限裁剪，前端编辑表单也据此
@@ -181,9 +183,8 @@ async def export_leads_excel(
         company_name=company_name, start_date=start_date, end_date=end_date,
         date_field=date_field, current_user=_user,
     )
-    # 导出除列表字段外，补齐详情中「部门/联系人/产品/补充信息」各模块字段 (issue #95)
+    # 导出除列表字段外，补齐详情中「部门/联系人/补充信息」各模块字段
     dept_names = await _lead_department_names(db, tenant_id, items)
-    product_texts = await _lead_products_text(db, tenant_id, items)
     headers = [
         # 列表 & 基本信息
         "线索编码", "标题", "公司名称", "部门", "来源", "类别", "客户类型", "行业",
@@ -192,8 +193,8 @@ async def export_leads_excel(
         "联系人", "联系电话", "邮箱",
         # 地区
         "国别", "国家", "省", "市", "区县", "地区",
-        # 产品信息 & 补充信息
-        "产品信息", "预算范围", "需求摘要", "备注",
+        # 补充信息
+        "需求摘要", "备注",
         "创建时间",
     ]
     category_label = {"self_reported": "自报", "distributed": "分发"}
@@ -221,8 +222,6 @@ async def export_leads_excel(
             c("country_type", country_label.get(l.country_type or "", l.country_type or "")),
             c("country_name", l.country_name or ""),
             l.province or "", l.city or "", l.district or "", c("region", l.region or ""),
-            product_texts.get(l.id, ""),
-            c("budget_range", l.budget_range or ""),
             c("demand_summary", l.demand_summary or ""),
             c("remark", l.remark or ""),
             l.created_at.strftime("%Y-%m-%d %H:%M") if l.created_at else "",
@@ -382,6 +381,41 @@ async def submit_lead_review(
     l = await service.resubmit_lead_review(db, tenant_id, lead_id, current_user)
     products = await service.list_lead_products(db, tenant_id, l.id)
     return await ok_entity(db, tenant_id, "lead", _lead_dict(l, products), current_user.get("roles"))
+
+
+class IntelReviewBody(BaseModel):
+    decision: str  # include | attack | return | draft
+    task_id: str
+    customer_newness: Optional[str] = None  # new | old
+    return_reason: Optional[str] = None
+    opinion: Optional[str] = None
+
+
+@router.post("/{lead_id}/intel_review")
+async def intel_review_lead(
+    lead_id: str,
+    body: IntelReviewBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("lead:view")),
+):
+    """情报审批：收录 / 袭击 / 回退 / 暂存。有对应待办即可裁定。"""
+    from app.domains.lead.schemas import LeadIntelReviewIn
+    payload = LeadIntelReviewIn(**body.model_dump())
+    l = await service.intel_review_lead(
+        db, tenant_id, lead_id, current_user,
+        decision=payload.decision,
+        task_id=payload.task_id,
+        customer_newness=payload.customer_newness,
+        return_reason=payload.return_reason,
+        opinion=payload.opinion,
+    )
+    products = await service.list_lead_products(db, tenant_id, l.id)
+    return await ok_entity(
+        db, tenant_id, "lead",
+        _lead_dict(l, products, await _lead_department_names(db, tenant_id, [l])),
+        current_user.get("roles"),
+    )
 
 
 @router.post("/{lead_id}/discard")

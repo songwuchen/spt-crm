@@ -1,7 +1,8 @@
 // 扩展平台 → 流程管理: 审批流程定义列表(建/设计/发布/删,建时绑定表单)。
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Table, Button, Space, Tag, Modal, Form, Input, Select, message, Popconfirm, Typography } from 'antd'
+import { Button, Space, Tag, Modal, Form, Input, Select, message, Popconfirm, Typography } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
@@ -88,13 +89,13 @@ export default function WorkflowList() {
   ]
 
   return (
-    <Card>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }} className="shrink-0">
         <Title level={4} style={{ margin: 0 }}>流程管理</Title>
         {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建流程</Button>}
       </div>
-      <Table rowKey="id" loading={loading} columns={columns} dataSource={items}
-        pagination={{ current: pageNo, total, pageSize: 20, onChange: setPageNo, showSizeChanger: false }} />
+      <FillHeightTable rowKey="id" loading={loading} columns={columns} dataSource={items} scroll={{ x: 'max-content' }}
+          pagination={{ current: pageNo, total, pageSize: 20, onChange: setPageNo, showSizeChanger: false }} />
 
       <Modal title="新建审批流程" open={open} onOk={handleCreate} confirmLoading={creating} onCancel={() => setOpen(false)} destroyOnClose>
         <Form form={form} layout="vertical">
@@ -119,6 +120,6 @@ export default function WorkflowList() {
           </Form.Item>
         </Form>
       </Modal>
-    </Card>
+    </div>
   )
 }

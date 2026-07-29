@@ -105,10 +105,24 @@ function DesignerInner() {
         const def = await workflowApi.getDef(id)
         setName(def.data.name)
         if (def.data.form_template_id) {
-          try { const v = await lowcodeApi.publishedVersion(def.data.form_template_id); setFormFields((v.data.field_definitions as FieldDefinition[]) || []) } catch { /* 未发布 */ }
+          try {
+            const v = await lowcodeApi.publishedVersion(def.data.form_template_id)
+            setFormFields((v.data.field_definitions as FieldDefinition[]) || [])
+          } catch { /* 未发布 */ }
         } else if (def.data.biz_type) {
-          // 绑定业务类型的审批流没有表单：用业务字段目录填充条件分支/字段选择
-          try { const r = await workflowApi.bizFields(def.data.biz_type); setFormFields((r.data as unknown as FieldDefinition[]) || []) } catch { /* 无目录 */ }
+          // 绑定业务类型的审批流没有表单：用业务字段目录填充条件分支/「表单人员字段」
+          try {
+            const r = await workflowApi.bizFields(def.data.biz_type)
+            const list = Array.isArray(r.data) ? r.data : []
+            setFormFields(list.map((f) => ({
+              id: f.id,
+              label: f.label,
+              type: f.type as FieldDefinition['type'],
+            })))
+          } catch {
+            message.warning('业务字段目录加载失败，抄送「表单人员字段」可能无选项')
+            setFormFields([])
+          }
         }
         const design = await workflowApi.loadDesign(id)
         let nodes = (design.data.node_definitions || []) as WfNode[]
@@ -241,6 +255,21 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
   const personFields = formFields.filter((f) => f.type === 'person' || f.type === 'person_multi')
   const deptFields = formFields.filter((f) => f.type === 'department' || f.type === 'department_multi')
   const to = node.timeout
+  const fieldValue = (node.approver_rule?.value as string) || undefined
+  const fieldOptions = (meta?.needValue === 'field_person' ? personFields : deptFields).map((f) => ({
+    value: f.id,
+    label: f.label || f.id,
+  }))
+  // 已保存的字段若不在目录里（旧数据/目录滞后），仍展示出来避免「看起来像没配」
+  if (fieldValue && !fieldOptions.some((o) => o.value === fieldValue)) {
+    fieldOptions.unshift({ value: fieldValue, label: fieldValue })
+  }
+  const fieldEmptyHint = formFields.length === 0
+    ? '未加载到业务/表单字段，请刷新页面或检查流程是否绑定了业务类型'
+    : (meta?.needValue === 'field_person'
+      ? '目录中暂无人员类字段（线索应有「负责人」）。请确认已发布最新后端并刷新。'
+      : '目录中暂无部门类字段')
+
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="small">
       <Tag color={NODE_META[node.type]?.color}>{NODE_META[node.type]?.label}</Tag>
@@ -261,10 +290,17 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
               onChange={(v) => onRule({ type: v, value: undefined })} /></div>
           {meta?.needValue === 'user' && <PersonField value={node.approver_rule?.value} onChange={(v) => onRule({ value: v })} multi />}
           {(meta?.needValue === 'field_person' || meta?.needValue === 'field_dept') && (
-            <Select size="small" style={{ width: '100%' }} placeholder="选择表单字段"
-              value={(node.approver_rule?.value as string) || undefined}
-              options={(meta.needValue === 'field_person' ? personFields : deptFields).map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))}
-              onChange={(v) => onRule({ value: v })} />
+            <Select
+              size="small"
+              style={{ width: '100%' }}
+              placeholder="选择业务字段（运行时按单据动态解析）"
+              value={fieldValue}
+              options={fieldOptions}
+              optionFilterProp="label"
+              showSearch
+              notFoundContent={<span style={{ fontSize: 12 }}>{fieldEmptyHint}</span>}
+              onChange={(v) => onRule({ value: v })}
+            />
           )}
           {meta?.needValue === 'text' && (
             <Input size="small" placeholder="角色码,逗号分隔"

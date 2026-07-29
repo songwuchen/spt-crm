@@ -183,24 +183,60 @@ SYSTEM_DEFAULT_CATEGORY = "system_default"
 _SYSTEM_DEFAULT_SORT = 9999
 
 
+def _default_flow_graph(
+    name: str, approver_rule: dict, multi_mode: str, empty_strategy: str,
+    *, with_owner_cc: bool = False,
+) -> tuple[list[dict], list[dict]]:
+    """系统兜底流程节点图。with_owner_cc=True 时在审批后抄送「表单人员字段=owner_id」。"""
+    nodes: list[dict] = [
+        {"id": "start", "type": "start", "name": "发起"},
+        {"id": "approval_1", "type": "approval", "name": name,
+         "approver_rule": approver_rule, "multi_mode": multi_mode,
+         "empty_strategy": empty_strategy},
+    ]
+    routes: list[dict] = [
+        {"id": "r_start", "source": "start", "target": "approval_1"},
+    ]
+    if with_owner_cc:
+        nodes.append({
+            "id": "cc_owner", "type": "cc", "name": "通知业务员确认转化",
+            "approver_rule": {"type": "form_field_person", "value": "owner_id"},
+        })
+        nodes.append({"id": "end", "type": "end", "name": "结束"})
+        routes.append({"id": "r_cc", "source": "approval_1", "target": "cc_owner"})
+        routes.append({"id": "r_end", "source": "cc_owner", "target": "end"})
+    else:
+        nodes.append({"id": "end", "type": "end", "name": "结束"})
+        routes.append({"id": "r_end", "source": "approval_1", "target": "end"})
+    return nodes, routes
+
+
 async def ensure_default_definition(
     db, tenant_id, biz_type: str, code: str, name: str,
     approver_rule: dict, multi_mode: str = "or_sign",
     empty_strategy: str = "auto_approve",
 ) -> WfProcessDefinition | None:
-    """为某 biz_type 兜底创建并发布一条「默认流程」(start → 审批 → end)。
+    """为某 biz_type 兜底创建并发布一条「默认流程」。
 
-    用途：业务已经完全切到新引擎，但租户还没在设计器里画流程时，不能让审批凭空消失。
-    默认流程用引擎自己的规则语言表达原有的兜底审批人（如线索的 lead_intel 内勤角色），
-    这样运行时无需任何特判，管理员也能在流程列表里看到并改它。
+    线索：start → 内勤审批 → 抄送负责人 → end（抄送可在设计器改/删）。
+    其它业务：start → 审批 → end。
 
-    已存在任何已发布的同 biz_type 流程时不做任何事（租户自建的优先）。
-
-    若系统兜底流程曾被软删或取消发布，这里会把它**恢复并重新发布**：业务侧
-    (如 create_lead)是无条件提交审核的，没有任何可用流程就只能免审放行 ——
-    删掉一条流程不应该等于永久关闭审核门禁。恢复会记 warning。
-    真要免审的租户应当去配一条自动通过的流程，而不是把流程删掉。
+    已存在任何已发布的同 biz_type 流程时：若是系统兜底线索流且缺抄送节点，则升级一版；
+    否则原样返回（租户自建优先）。
     """
+    with_owner_cc = biz_type == "lead"
+    # 线索系统兜底流：无论当前命中的是哪条 lead 流程，都尝试给 SYS_LEAD_REVIEW 补抄送节点
+    if with_owner_cc:
+        sys_def = (await db.execute(select(WfProcessDefinition).where(
+            WfProcessDefinition.tenant_id == tenant_id,
+            WfProcessDefinition.code == code,
+            WfProcessDefinition.is_deleted == False,  # noqa: E712
+        ).limit(1))).scalar_one_or_none()
+        if sys_def and sys_def.status == "published":
+            await _upgrade_default_owner_cc_if_needed(
+                db, tenant_id, sys_def, name, approver_rule, multi_mode, empty_strategy,
+            )
+
     existing = (await db.execute(select(WfProcessDefinition).where(
         WfProcessDefinition.tenant_id == tenant_id,
         WfProcessDefinition.biz_type == biz_type,
@@ -210,17 +246,9 @@ async def ensure_default_definition(
     if existing:
         return existing
 
-    nodes = [
-        {"id": "start", "type": "start", "name": "发起"},
-        {"id": "approval_1", "type": "approval", "name": name,
-         "approver_rule": approver_rule, "multi_mode": multi_mode,
-         "empty_strategy": empty_strategy},
-        {"id": "end", "type": "end", "name": "结束"},
-    ]
-    routes = [
-        {"id": "r_start", "source": "start", "target": "approval_1"},
-        {"id": "r_end", "source": "approval_1", "target": "end"},
-    ]
+    nodes, routes = _default_flow_graph(
+        name, approver_rule, multi_mode, empty_strategy, with_owner_cc=with_owner_cc,
+    )
 
     # 同 code 的兜底流程可能已存在但被软删/取消发布 —— 唯一索引 (tenant_id, code)
     # 不区分软删，直接插入会撞唯一键，所以先查后复活。
@@ -254,6 +282,95 @@ async def ensure_default_definition(
             WfProcessDefinition.code == code,
         ).limit(1))).scalar_one_or_none()
     return d
+
+
+def _flow_has_owner_cc(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if n.get("type") != "cc":
+            continue
+        rule = n.get("approver_rule") or (n.get("config") or {}).get("approver_rule") or {}
+        if rule.get("type") == "form_field_person" and rule.get("value") == "owner_id":
+            return True
+        if n.get("id") == "cc_owner":
+            return True
+    return False
+
+
+async def _upgrade_default_owner_cc_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition, name: str,
+    approver_rule: dict, multi_mode: str, empty_strategy: str,
+) -> None:
+    """系统兜底线索流补齐「审批通过 → 抄送负责人」。
+
+    - 仍是 start→审批→结束：发布含抄送节点的新版本
+    - 已有唯一抄送但指向发起人(creator)等占位规则：改为表单人员字段 owner_id
+    - 租户已自配其它抄送/复杂拓扑：不改动
+    """
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+    if _flow_has_owner_cc(version.node_definitions):
+        return
+
+    nodes = list(version.node_definitions or [])
+    routes = list(version.route_definitions or [])
+    types = {n.get("type") for n in nodes}
+    approvals = [n for n in nodes if n.get("type") == "approval"]
+    ccs = [n for n in nodes if n.get("type") == "cc"]
+
+    new_nodes: list[dict] | None = None
+    new_routes: list[dict] | None = None
+
+    if types <= {"start", "approval", "end"} and len(approvals) == 1:
+        new_nodes, new_routes = _default_flow_graph(
+            name, approver_rule, multi_mode, empty_strategy, with_owner_cc=True,
+        )
+        old_ap = approvals[0]
+        for n in new_nodes:
+            if n.get("id") == "approval_1":
+                for k in ("approver_rule", "multi_mode", "empty_strategy", "name", "timeout"):
+                    if old_ap.get(k) is not None:
+                        n[k] = old_ap[k]
+                break
+    elif types <= {"start", "approval", "end", "cc"} and len(approvals) == 1 and len(ccs) == 1:
+        cc = ccs[0]
+        rule = dict(cc.get("approver_rule") or (cc.get("config") or {}).get("approver_rule") or {})
+        # 仅纠正明显是占位/误配的抄送（发起人、空指定人），不动指定角色/指定人员等明确配置
+        if rule.get("type") not in (None, "", "creator"):
+            if not (rule.get("type") == "specified_user" and not rule.get("value")):
+                return
+        new_nodes = []
+        for n in nodes:
+            if n.get("id") == cc.get("id"):
+                nn = dict(n)
+                if not nn.get("name") or nn.get("name") in ("抄送", "CC"):
+                    nn["name"] = "通知业务员确认转化"
+                nn["approver_rule"] = {"type": "form_field_person", "value": "owner_id"}
+                new_nodes.append(nn)
+            else:
+                new_nodes.append(n)
+        new_routes = routes
+    else:
+        return
+
+    next_ver = (version.version_number or 0) + 1
+    nv = WfProcessDefinitionVersion(
+        id=generate_uuid(), tenant_id=tenant_id, process_definition_id=d.id,
+        version_number=next_ver, node_definitions=new_nodes, route_definitions=new_routes,
+        approver_rules=[], status="published", published_at=_now(),
+    )
+    db.add(nv)
+    version.status = "deprecated"
+    d.current_version = next_ver
+    d.status = "published"
+    d.is_deleted = False
+    await db.commit()
+    logger.info(
+        "已升级系统兜底流程 %s(tenant=%s) → v%s：审批通过后抄送负责人",
+        d.code, tenant_id, next_ver,
+    )
 
 
 async def _revive_default_definition(
@@ -513,9 +630,19 @@ async def get_instance_detail(db, tenant_id, instance_id) -> dict:
         {"id": n.get("id"), "name": n.get("name") or "审批"}
         for n in (version.node_definitions if version else []) if n.get("type") == "approval"
     ]
+    # 业务单据审批（线索/报价等）没有 form_instance：把业务关键字段塞进 biz_detail，
+    # 供审批中心抽屉展示；否则审批人只能看到「无关联表单」。
+    biz_detail: dict = {}
+    if inst.biz_type and inst.biz_id:
+        try:
+            from app.domains.approval.service import _resolve_biz_detail
+            biz_detail = await _resolve_biz_detail(db, tenant_id, inst.biz_type, inst.biz_id) or {}
+        except Exception:
+            biz_detail = {}
     return {
         **_inst_dict(inst),
         "approval_nodes": approval_nodes,
+        "biz_detail": biz_detail,
         "timeline": [{
             "action": l.action, "actor_id": l.actor_id, "actor_name": l.actor_name,
             "opinion": l.opinion, "at": l.created_at.isoformat() if l.created_at else None,

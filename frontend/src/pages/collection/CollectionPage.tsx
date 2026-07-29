@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  Tabs, Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Statistic,
+  Tabs, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Statistic,
 } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, BellOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -78,7 +79,7 @@ function AgingTab() {
 
   return (
     <div>
-      <div className="grid grid-cols-6 gap-3 mb-4">
+      <div className="grid grid-cols-6 gap-3 mb-4 shrink-0">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 col-span-1">
           <Statistic title="应收余额" value={summary.outstanding || 0} precision={0} prefix="¥" valueStyle={{ color: '#0f172a', fontSize: 18 }} />
         </div>
@@ -89,14 +90,14 @@ function AgingTab() {
           </div>
         ))}
       </div>
-      <div className="flex justify-end mb-3">
+      <div className="flex justify-end mb-3 shrink-0">
         <Space>
           <Button icon={<BellOutlined />} onClick={notify}>提醒逾期负责人</Button>
           <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/collection/aging/export/excel', 'ar_aging.xlsx')}>导出账龄</Button>
         </Space>
       </div>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey={(r) => r.customer_id || r.customer_name} columns={columns} dataSource={rows} loading={loading}
+        <FillHeightTable rowKey={(r) => r.customer_id || r.customer_name} columns={columns} dataSource={rows} loading={loading}
           scroll={{ x: 1200 }} pagination={{
             current: page, total, pageSize: AGING_PAGE_SIZE, showSizeChanger: false,
             showTotal: (t) => `共 ${t} 个客户`,
@@ -199,7 +200,7 @@ function TransferTab() {
 
   return (
     <div>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center justify-between">
           <div className="flex gap-3 flex-wrap items-center">
             <Input placeholder="编号 / 客户" prefix={<SearchOutlined className="text-slate-400" />} value={keyword}
@@ -212,7 +213,7 @@ function TransferTab() {
         </div>
       </div>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={view.columns} dataSource={data} loading={loading} scroll={{ x: 1300 }}
+        <FillHeightTable rowKey="id" columns={view.columns} dataSource={data} loading={loading} scroll={{ x: 1300 }}
           pagination={{ current: page, total, pageSize, showTotal: (t) => `共 ${t} 条`, onChange: (p) => { setPage(p); fetchData(p) } }} />
       </div>
 
@@ -253,11 +254,13 @@ export default function CollectionPage() {
   usePageTitle('应收清欠')
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 shrink-0">
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">应收清欠</h1>
         <p className="text-sm text-slate-500 mt-0.5">应收账龄分析 + 清欠责任移交与抢单接收</p>
       </div>
-      <Tabs items={[
+      <Tabs
+        
+        items={[
         { key: 'aging', label: '应收账龄', children: <AgingTab /> },
         { key: 'transfer', label: '清欠移交 / 抢单', children: <TransferTab /> },
       ]} />

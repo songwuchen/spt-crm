@@ -155,7 +155,6 @@ export default function MobileApprovalDetail() {
     if (detail.company_name) items.push({ label: '公司', value: detail.company_name })
     if (detail.contact) items.push({ label: '联系人', value: detail.contact })
     if (detail.source) items.push({ label: '来源', value: detail.source })
-    if (detail.budget_range) items.push({ label: '预算', value: detail.budget_range })
     if (detail.owner_name) items.push({ label: '负责人', value: detail.owner_name })
     if (items.length === 0) items.push({ label: '类型', value: bizTypeLabels[flow.biz_type] || flow.biz_type })
     return items

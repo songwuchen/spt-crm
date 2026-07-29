@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message } from 'antd'
+import { Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -143,7 +144,7 @@ export default function TenderList() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">标书管理</h1>
           <p className="text-sm text-slate-500 mt-0.5">管理客户投标/招标项目，可关联商机</p>
@@ -154,7 +155,7 @@ export default function TenderList() {
         </Space>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input
             placeholder="标书号 / 标题"
@@ -172,7 +173,7 @@ export default function TenderList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table
+        <FillHeightTable
           rowKey="id"
           columns={view.columns}
           dataSource={data}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Button, Input, Space, Select, Modal, Upload, Form, DatePicker, message } from 'antd'
+import { Button, Input, Space, Select, Modal, Upload, Form, DatePicker, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -295,7 +296,6 @@ export default function LeadList() {
       { title: '业务日期', dataIndex: 'biz_date', width: 110 },
       { title: '联系电话', dataIndex: 'contact_phone', width: 130 },
       { title: '联系邮箱', dataIndex: 'contact_email', width: 180 },
-      { title: '预算范围', dataIndex: 'budget_range', width: 120 },
       { title: '详细地址', dataIndex: 'region', width: 180 },
       { title: '录入人', dataIndex: 'created_by_name', width: 90 },
       { title: '更新时间', dataIndex: 'updated_at', width: 110,
@@ -336,7 +336,7 @@ export default function LeadList() {
   return (
     <div>
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{t('lead.title')}</h1>
           <p className="text-sm text-slate-500 mt-0.5">{t('lead.subtitle')}</p>
@@ -386,7 +386,7 @@ export default function LeadList() {
       </div>
 
       {selectedRowKeys.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between shrink-0">
           <span className="text-sm text-blue-700">{t('common.selected', { count: selectedRowKeys.length })}</span>
           <Space>
             <Button size="small" onClick={() => { assignForm.resetFields(); setAssignModal(true) }}>{t('lead.batchAssign')}</Button>
@@ -398,7 +398,7 @@ export default function LeadList() {
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-stretch sm:items-center flex-col sm:flex-row">
           <Input
             placeholder={t('lead.searchPlaceholder')}
@@ -499,7 +499,7 @@ export default function LeadList() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table
+        <FillHeightTable
           rowKey="id"
           columns={view.columns}
           dataSource={data}

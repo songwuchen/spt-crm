@@ -75,6 +75,26 @@ async def notify_lead_assigned(db: AsyncSession, tenant_id: str, lead_name: str,
     )
 
 
+async def notify_lead_review_approved(
+    db: AsyncSession, tenant_id: str, *, lead_id: str, lead_title: str,
+    owner_id: str, lead_code: str | None = None,
+):
+    """线索内勤审核通过后，推送给负责人（业务员），由其自行决定是否转化客户/商机。"""
+    if not owner_id:
+        return
+    code = f"「{lead_code}」" if lead_code else ""
+    await send_notification(
+        db, tenant_id, recipient_id=owner_id,
+        type="lead_review_approved",
+        title=f"线索审核已通过，请确认是否转化: {lead_title}",
+        content=(
+            f"线索{code}「{lead_title}」已通过信息情报部内勤审核。"
+            f"请打开线索详情，自行选择是否转化为客户/商机。"
+        ),
+        biz_type="lead", biz_id=lead_id,
+    )
+
+
 async def notify_customer_assigned(db: AsyncSession, tenant_id: str, customer_name: str,
                                     assignee_id: str, user_name: str, customer_id: str):
     """Notify new owner when a customer is assigned/transferred to them by someone else."""

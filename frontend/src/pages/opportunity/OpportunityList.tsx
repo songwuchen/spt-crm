@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Table, Button, Input, Select, Space, Modal, Form, Progress, message } from 'antd'
+import { Button, Input, Select, Space, Modal, Form, Progress, message } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { t } from '@/locales'
 import ImportModal from '@/components/ImportModal'
@@ -216,7 +217,7 @@ export default function OpportunityList() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 shrink-0">
         <div>
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">{t('opportunity.title')}</h1>
           <p className="text-sm text-slate-500 mt-0.5">{t('opportunity.subtitle')}</p>
@@ -245,7 +246,7 @@ export default function OpportunityList() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-stretch sm:items-center flex-col sm:flex-row">
           <Input placeholder={t('opportunity.searchPlaceholder')} prefix={<SearchOutlined className="text-slate-400" />}
             value={keyword} onChange={(e) => setKeyword(e.target.value)} onPressEnter={doSearch}
@@ -265,7 +266,7 @@ export default function OpportunityList() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={view.columns} dataSource={data} loading={loading} scroll={{ x: 'max-content' }}
+        <FillHeightTable rowKey="id" columns={view.columns} dataSource={data} loading={loading} scroll={{ x: 'max-content' }}
           rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys) }}
           pagination={{
             current: pageNo, total, pageSize, showTotal: (n) => t('common.totalCount', { count: n }),

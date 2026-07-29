@@ -6,6 +6,8 @@ import re
 
 LeadCategory = Literal["self_reported", "distributed"]
 LeadCountryType = Literal["domestic", "overseas"]
+LeadCustomerNewness = Literal["new", "old"]
+LeadIntelDecision = Literal["include", "attack", "return", "draft"]
 
 
 class LeadProductIn(BaseModel):
@@ -110,6 +112,23 @@ class LeadUpdate(BaseModel):
     @classmethod
     def validate_email(cls, v: Optional[str]) -> Optional[str]:
         return _validate_email(v)
+
+
+class LeadIntelReviewIn(BaseModel):
+    """情报审批裁定：收录 / 袭击 / 回退 / 暂存。"""
+    decision: LeadIntelDecision
+    task_id: str = Field(..., min_length=1, max_length=36)
+    customer_newness: Optional[LeadCustomerNewness] = None
+    return_reason: Optional[str] = Field(None, max_length=2000)
+    opinion: Optional[str] = Field(None, max_length=2000)
+
+    @model_validator(mode="after")
+    def _require_fields_by_decision(self):
+        if self.decision in ("include", "attack", "return") and not self.customer_newness:
+            raise ValueError("请选择客户类型（新/老）")
+        if self.decision == "return" and not (self.return_reason or "").strip():
+            raise ValueError("回退须填写回退原因")
+        return self
 
 
 # 线索出参没有 Out schema：序列化统一走 router._lead_dict()。

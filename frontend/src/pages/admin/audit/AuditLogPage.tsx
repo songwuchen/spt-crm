@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Table, Select, DatePicker, Input, Button, message, Segmented, Tabs, Spin, Alert } from 'antd'
+import { Select, DatePicker, Input, Button, message, Segmented, Tabs, Spin, Alert } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { SearchOutlined, DownloadOutlined, UnorderedListOutlined, FieldTimeOutlined, ReloadOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import client from '@/api/client'
@@ -477,7 +478,7 @@ export default function AuditLogPage() {
   return (
     <div>
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">操作日志</h1>
           <p className="text-sm text-slate-500 mt-0.5">查看系统操作记录和变更历史</p>
@@ -493,6 +494,7 @@ export default function AuditLogPage() {
       <Tabs
         activeKey={tab}
         onChange={onTabChange}
+        className="shrink-0"
         items={[
           { key: 'list', label: '日志列表' },
           { key: 'stats', label: '统计分析' },
@@ -501,7 +503,7 @@ export default function AuditLogPage() {
 
       {/* ---------- 统计分析 ---------- */}
       {tab === 'stats' && (statsLoading && !stats ? (
-        <div className="flex justify-center py-24"><Spin /></div>
+        <div className="flex justify-center py-24 overflow-y-auto"><Spin /></div>
       ) : statsError ? (
         <Alert
           type="error"
@@ -658,9 +660,9 @@ export default function AuditLogPage() {
       ))}
 
       {/* ---------- 日志列表 ---------- */}
-      {tab === 'list' && (<>
+      {tab === 'list' && (<div>
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input
             placeholder="搜索操作人/摘要..."
@@ -712,7 +714,7 @@ export default function AuditLogPage() {
       {/* Table / Timeline */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         {viewMode === 'table' ? (
-          <Table
+          <FillHeightTable
             rowKey="id"
             columns={columns}
             dataSource={data}
@@ -733,8 +735,10 @@ export default function AuditLogPage() {
           />
         ) : (
           <div>
-            <TimelineView data={data} actionCfg={actionConfig} />
-            <div className="px-4 pb-3 flex justify-end">
+            <div className="overflow-y-auto">
+              <TimelineView data={data} actionCfg={actionConfig} />
+            </div>
+            <div className="px-4 pb-3 flex justify-end shrink-0">
               <Button size="small" disabled={pageNo <= 1} onClick={() => { setPageNo(pageNo - 1); fetchData(pageNo - 1) }}>上一页</Button>
               <span className="text-sm text-slate-500 mx-3 self-center">{pageNo} / {Math.ceil(total / 20) || 1}</span>
               <Button size="small" disabled={pageNo * 20 >= total} onClick={() => { setPageNo(pageNo + 1); fetchData(pageNo + 1) }}>下一页</Button>
@@ -742,7 +746,7 @@ export default function AuditLogPage() {
           </div>
         )}
       </div>
-      </>)}
+      </div>)}
     </div>
   )
 }

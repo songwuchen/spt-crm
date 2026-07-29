@@ -1,37 +1,42 @@
 """Seed DataDictionary values for lead classification (issue #17).
 
-Idempotent: inserts customer_type + industry entries for every existing tenant,
-skipping codes that already exist. Industry entries replace legacy generic values
-by disabling any prior industry dict_codes that are not in the new list.
+Idempotent sync for customer_type + industry across tenants:
+  - ensure desired codes exist with correct labels / sort_order / enabled
+  - soft-disable codes no longer in the desired list
+  - remap obsolete lead.customer_type values (配套商/贸易商 → 配套商、贸易商)
 
 Run:
   python -m scripts.seed_lead_dicts                 # auto-discover tenants
   python -m scripts.seed_lead_dicts <tenant_id>     # explicit tenant
-
-Discovery: prefers platform_tenants, falls back to distinct tenant_ids in users
-(platform_tenants may be empty in setups that never ran the full seed).
 """
 import asyncio
 import sys
 import uuid
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 
 from app.database import async_session_factory
 from app.domains.admin.models import DataDictionary
+from app.domains.lead.models import Lead
 from app.domains.tenant.models import PlatformTenant
 
 
+# 与业务侧 CRM 线索「客户类型」选项对齐（配套商、贸易商合并为一项）
 CUSTOMER_TYPES = [
     ("terminal_soe", "终端客户-央企/国企"),
     ("terminal_large_private", "终端客户-大型民企（注册资本10亿以上）"),
     ("terminal_private", "终端客户-一般民企"),
     ("design_institute", "设计院"),
     ("general_contractor", "总包商"),
-    ("supporting_vendor", "配套商"),
-    ("trader", "贸易商"),
+    ("supporting_trader", "配套商、贸易商"),
     ("other", "其他"),
 ]
+
+# 历史拆分码 → 合并码
+CUSTOMER_TYPE_REMAP = {
+    "supporting_vendor": "supporting_trader",
+    "trader": "supporting_trader",
+}
 
 INDUSTRIES = [
     ("screening_metallurgy", "筛分分选-冶金"),
@@ -50,28 +55,66 @@ INDUSTRIES = [
 
 
 async def seed_for_tenant(session, tenant_id: str) -> dict:
-    stats = {"customer_type_added": 0, "industry_added": 0, "industry_disabled": 0}
-
-    # customer_type: insert any missing codes; don't touch existing (idempotent)
-    existing_ct = {
-        r.dict_code for r in (
-            await session.execute(
-                select(DataDictionary).where(
-                    DataDictionary.tenant_id == tenant_id,
-                    DataDictionary.dict_type == "customer_type",
-                )
-            )
-        ).scalars().all()
+    stats = {
+        "customer_type_added": 0,
+        "customer_type_updated": 0,
+        "customer_type_disabled": 0,
+        "customer_type_remapped": 0,
+        "industry_added": 0,
+        "industry_disabled": 0,
     }
-    for i, (code, label) in enumerate(CUSTOMER_TYPES):
-        if code in existing_ct:
+
+    desired_ct = {code: (label, i) for i, (code, label) in enumerate(CUSTOMER_TYPES)}
+    existing_ct = (
+        await session.execute(
+            select(DataDictionary).where(
+                DataDictionary.tenant_id == tenant_id,
+                DataDictionary.dict_type == "customer_type",
+            )
+        )
+    ).scalars().all()
+    by_code = {d.dict_code: d for d in existing_ct}
+
+    for code, (label, order) in desired_ct.items():
+        row = by_code.get(code)
+        if row is None:
+            session.add(DataDictionary(
+                id=str(uuid.uuid4()), tenant_id=tenant_id,
+                dict_type="customer_type", dict_code=code, dict_label=label,
+                sort_order=order, enabled=True,
+            ))
+            stats["customer_type_added"] += 1
             continue
-        session.add(DataDictionary(
-            id=str(uuid.uuid4()), tenant_id=tenant_id,
-            dict_type="customer_type", dict_code=code, dict_label=label,
-            sort_order=i, enabled=True,
-        ))
-        stats["customer_type_added"] += 1
+        changed = False
+        if row.dict_label != label:
+            row.dict_label = label
+            changed = True
+        if row.sort_order != order:
+            row.sort_order = order
+            changed = True
+        if not row.enabled:
+            row.enabled = True
+            changed = True
+        if changed:
+            stats["customer_type_updated"] += 1
+
+    for d in existing_ct:
+        if d.dict_code not in desired_ct and d.enabled:
+            d.enabled = False
+            stats["customer_type_disabled"] += 1
+
+    # 历史线索值重映射（配套商 / 贸易商 → 配套商、贸易商）
+    for old, new in CUSTOMER_TYPE_REMAP.items():
+        result = await session.execute(
+            update(Lead)
+            .where(
+                Lead.tenant_id == tenant_id,
+                Lead.customer_type == old,
+                Lead.is_deleted == False,  # noqa: E712
+            )
+            .values(customer_type=new)
+        )
+        stats["customer_type_remapped"] += result.rowcount or 0
 
     # industry: insert new business-specific codes; disable any legacy codes not in the new list
     new_codes = {code for code, _ in INDUSTRIES}
@@ -95,7 +138,6 @@ async def seed_for_tenant(session, tenant_id: str) -> dict:
         ))
         stats["industry_added"] += 1
 
-    # Soft-disable any legacy industry codes that the business no longer wants shown
     for d in existing_industry:
         if d.dict_code not in new_codes and d.enabled:
             d.enabled = False
@@ -105,11 +147,7 @@ async def seed_for_tenant(session, tenant_id: str) -> dict:
 
 
 async def _discover_tenant_ids(session) -> list[tuple[str, str]]:
-    """Return [(tenant_id, display_name), ...]. Prefer platform_tenants; else fall back to users.
-
-    Raw SQL for the fallback avoids importing User (which pulls in a web of
-    mapper relationships that need all sibling models loaded before use).
-    """
+    """Return [(tenant_id, display_name), ...]. Prefer platform_tenants; else fall back to users."""
     tenants = (await session.execute(select(PlatformTenant))).scalars().all()
     if tenants:
         return [(t.id, getattr(t, "name", "?") or "?") for t in tenants]

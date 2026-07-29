@@ -10,7 +10,6 @@ import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
 import type { WfNode, WfDesign, ApproverType, FieldDefinition } from '@/types/lowcode'
 import PersonField from '@/components/lowcode/fields/PersonField'
-import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 
 const { Title, Text } = Typography
 
@@ -53,6 +52,18 @@ export default function WorkflowDesignerPage() {
             const ver = await lowcodeApi.publishedVersion(def.data.form_template_id)
             setFormFields((ver.data.field_definitions as FieldDefinition[]) || [])
           } catch { /* 表单未发布 */ }
+        } else if (def.data.biz_type) {
+          try {
+            const r = await workflowApi.bizFields(def.data.biz_type)
+            const list = Array.isArray(r.data) ? r.data : []
+            setFormFields(list.map((f) => ({
+              id: f.id,
+              label: f.label,
+              type: f.type as FieldDefinition['type'],
+            })))
+          } catch {
+            setFormFields([])
+          }
         }
         const design = await workflowApi.loadDesign(id)
         const nodes = design.data.node_definitions || []
@@ -199,11 +210,19 @@ function ApproverValue({ node, personFields, deptFields, onChange }: {
   }
   if (meta.needValue === 'field_person' || meta.needValue === 'field_dept') {
     const fields = meta.needValue === 'field_person' ? personFields : deptFields
+    const value = (node.approver_rule?.value as string) || undefined
+    const options = fields.map((f) => ({ value: f.id, label: f.label || f.id }))
+    if (value && !options.some((o) => o.value === value)) {
+      options.unshift({ value, label: value })
+    }
     return (
-      <Select size="small" style={{ width: '100%' }} placeholder="选择表单字段"
-        value={(node.approver_rule?.value as string) || undefined}
-        options={fields.map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))}
-        notFoundContent="绑定表单无此类字段" onChange={onChange} />
+      <Select size="small" style={{ width: '100%' }} placeholder="选择业务字段（运行时动态解析）"
+        value={value}
+        options={options}
+        optionFilterProp="label"
+        showSearch
+        notFoundContent={fields.length ? '无匹配字段' : '未加载到人员/部门类业务字段，请刷新'}
+        onChange={onChange} />
     )
   }
   // text: 角色码等

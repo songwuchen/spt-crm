@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import {
-  Tabs, Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Switch,
+  Tabs, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Switch,
 } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -95,7 +96,7 @@ function EquipmentTab() {
 
   return (
     <div>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center justify-between">
           <div className="flex gap-3 flex-wrap items-center">
             <Input placeholder="设备 / 客户 / 厂家" prefix={<SearchOutlined className="text-slate-400" />} value={keyword}
@@ -107,7 +108,7 @@ function EquipmentTab() {
         </div>
       </div>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={data} loading={loading} scroll={{ x: 1100 }}
+        <FillHeightTable rowKey="id" columns={columns} dataSource={data} loading={loading} scroll={{ x: 1100 }}
           pagination={{ current: page, total, pageSize, showTotal: (t) => `共 ${t} 条`, onChange: (p) => { setPage(p); fetchData(p) } }} />
       </div>
 
@@ -217,7 +218,7 @@ function SurveyTab() {
 
   return (
     <div>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center justify-between">
           <div className="flex gap-3 flex-wrap items-center">
             <Input placeholder="客户 / 产品" prefix={<SearchOutlined className="text-slate-400" />} value={keyword}
@@ -229,7 +230,7 @@ function SurveyTab() {
         </div>
       </div>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={columns} dataSource={data} loading={loading} scroll={{ x: 1100 }}
+        <FillHeightTable rowKey="id" columns={columns} dataSource={data} loading={loading} scroll={{ x: 1100 }}
           pagination={{ current: page, total, pageSize, showTotal: (t) => `共 ${t} 条`, onChange: (p) => { setPage(p); fetchData(p) } }} />
       </div>
 
@@ -258,11 +259,11 @@ export default function EquipmentProfilePage() {
   usePageTitle('工艺设备档案')
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 shrink-0">
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">工艺设备档案</h1>
         <p className="text-sm text-slate-500 mt-0.5">客户设备台账与工艺调研（精细化营销）；竞品设备可一键转替换商机</p>
       </div>
-      <Tabs items={[
+      <Tabs className="px-4 pt-2 pb-4" items={[
         { key: 'equipment', label: '设备台账', children: <EquipmentTab /> },
         { key: 'survey', label: '工艺调研', children: <SurveyTab /> },
       ]} />

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Statistic,
+  Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message, Tag, Statistic,
 } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, BellOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -172,7 +173,7 @@ export default function GuaranteePage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">保函管理</h1>
           <p className="text-sm text-slate-500 mt-0.5">保函 / 保证金台账，到期前自动预警，避免应退未退</p>
@@ -184,7 +185,7 @@ export default function GuaranteePage() {
         </Space>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-3 gap-4 mb-4 shrink-0">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
           <Statistic title="在保金额" value={summary?.active_amount || 0} precision={2} prefix="¥" valueStyle={{ color: '#137fec' }} />
         </div>
@@ -196,7 +197,7 @@ export default function GuaranteePage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input placeholder="编号 / 客户 / 机构" prefix={<SearchOutlined className="text-slate-400" />} value={keyword}
             onChange={(e) => setKeyword(e.target.value)} onPressEnter={() => { setPage(1); fetchData(1) }} allowClear style={{ width: 220 }} />
@@ -208,7 +209,7 @@ export default function GuaranteePage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table rowKey="id" columns={view.columns} dataSource={data} loading={loading} scroll={{ x: 1200 }}
+        <FillHeightTable rowKey="id" columns={view.columns} dataSource={data} loading={loading} scroll={{ x: 1200 }}
           pagination={{ current: page, total, pageSize, showTotal: (t) => `共 ${t} 条`, onChange: (p) => { setPage(p); fetchData(p) } }} />
       </div>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Space, Modal, Spin, Tabs, Checkbox, message, Input } from 'antd'
+import { Button, Space, Modal, Spin, Tabs, Checkbox, message } from 'antd'
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
@@ -11,10 +11,11 @@ import { sourceLabels } from '@/api/types'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import DetailSkeleton from '@/components/DetailSkeleton'
-import { leadStatusConfig as statusConfig, leadReviewStatusConfig } from '@/constants/labels'
+import { leadStatusConfig as statusConfig, leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
 import { useDataDict } from '@/hooks/useDataDict'
 import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import { formatRegion } from '@/utils/address'
+import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 
 import Icon from '@/components/Icon'
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
@@ -76,11 +77,8 @@ export default function LeadDetail() {
   const [lead, setLead] = useState<Lead | null>(null)
   const [activeTab, setActiveTab] = useState('detail')
   const [followUpSignal, setFollowUpSignal] = useState(0)
-  // 当前用户对该线索的待审批任务（有则可在本页直接审批）
+  // 当前用户对该线索的待审批任务（有则可在本页直接情报裁定）
   const [myTask, setMyTask] = useState<WfTodoItem | null>(null)
-  const [rejectOpen, setRejectOpen] = useState(false)
-  const [rejectComment, setRejectComment] = useState('')
-  const [deciding, setDeciding] = useState(false)
   const customerTypeDict = useDataDict('customer_type')
   const industryDict = useDataDict('industry')
 
@@ -102,24 +100,6 @@ export default function LeadDetail() {
       const t = (res.data?.items || []).find((p) => p.status === 'pending')
       setMyTask(t || null)
     } catch { setMyTask(null) }
-  }
-
-  const handleDecide = async (action: 'approved' | 'rejected', comment?: string) => {
-    if (!myTask) return
-    setDeciding(true)
-    try {
-      await workflowApi.act(myTask.task_id, {
-        action: action === 'approved' ? 'approve' : 'reject',
-        opinion: comment,
-      })
-      message.success(action === 'approved' ? '已通过' : '已驳回')
-      setMyTask(null)
-      fetchLead()
-    } catch {
-      message.error('操作失败')
-    } finally {
-      setDeciding(false)
-    }
   }
 
   useEffect(() => { if (id) { fetchLead(); fetchMyApproval() } }, [id])
@@ -317,42 +297,73 @@ export default function LeadDetail() {
         )}
       </div>
 
-      {/* 待我审批：当前用户是该线索审批人时，可直接在此通过/驳回 */}
+      {/* 待我情报审批 */}
       {myTask && (
-        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 mb-6 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 mb-6">
+          <div className="flex items-center gap-3 mb-4">
             <Icon name="approval" className="text-primary" />
             <div>
               <div className="text-sm font-bold text-slate-900">该线索待您审批</div>
-              <div className="text-sm text-slate-500">
-                {myTask.title || '线索审核'}
-              </div>
+              <div className="text-sm text-slate-500">{myTask.title || '线索审核'}</div>
             </div>
           </div>
-          <Space>
-            <Button danger disabled={deciding} onClick={() => { setRejectComment(''); setRejectOpen(true) }}>驳回</Button>
-            <Button type="primary" loading={deciding} onClick={() => handleDecide('approved')}>通过</Button>
-          </Space>
+          <LeadIntelReviewForm
+            leadId={id!}
+            taskId={myTask.task_id}
+            initialNewness={lead.customer_newness}
+            initialOpinion={lead.review_opinion}
+            initialReturnReason={lead.reject_reason}
+            onDone={(decision) => {
+              if (decision === 'draft') {
+                fetchLead()
+              } else {
+                setMyTask(null)
+                fetchLead()
+              }
+            }}
+          />
         </div>
       )}
 
       {/* Review status banner */}
       {reviewCfg && (
         <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-4 mb-6 flex items-start gap-3`}>
-          <Icon name={reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'} className={`${reviewCfg.text}`} />
+          <Icon name={
+            reviewStatus === 'pending' ? 'hourglass_top'
+              : reviewStatus === 'attacked' ? 'priority_high'
+                : 'gpp_bad'
+          } className={`${reviewCfg.text}`} />
           <div className="flex-1">
             <div className={`text-sm font-bold ${reviewCfg.text}`}>
-              {reviewStatus === 'pending' ? '线索待信息情报部内勤审核' : '线索审核被驳回'}
+              {reviewStatus === 'pending' && '线索待信息情报部内勤审核'}
+              {reviewStatus === 'rejected' && '线索已回退'}
+              {reviewStatus === 'attacked' && '线索已标记为袭击'}
             </div>
             <div className="text-sm text-slate-600 mt-1">
-              {reviewStatus === 'pending'
-                ? '审核通过后方可转化为客户。'
-                : (lead.reject_reason ? `驳回原因：${lead.reject_reason}` : '请根据反馈修改线索信息后重新提交审核。')}
+              {reviewStatus === 'pending' && '审核收录后方可转化为客户。'}
+              {reviewStatus === 'rejected' && (lead.reject_reason ? `回退原因：${lead.reject_reason}` : '请根据反馈修改线索信息后重新提交审核。')}
+              {reviewStatus === 'attacked' && '袭击状态不可转化为客户。'}
             </div>
           </div>
           {reviewStatus === 'rejected' && canOperate && (
             <Button size="small" type="primary" onClick={handleResubmit}>重新提交审核</Button>
           )}
+        </div>
+      )}
+
+      {/* 收录后引导负责人自行决定是否转化 */}
+      {reviewApproved && canOperate && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 mb-6 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Icon name="verified" className="text-emerald-600" />
+            <div>
+              <div className="text-sm font-bold text-emerald-700">线索已收录</div>
+              <div className="text-sm text-slate-600 mt-1">
+                请业务员（负责人）确认后，自行选择是否转化为客户/商机；也可先跟进再转化。
+              </div>
+            </div>
+          </div>
+          <Button type="primary" onClick={handleQualify}>转化为客户</Button>
         </div>
       )}
 
@@ -373,11 +384,11 @@ export default function LeadDetail() {
             <InfoField label="联系邮箱" value={lead.contact_email} />
             <InfoField label="来源" value={lead.source ? (sourceLabels[lead.source] || lead.source) : undefined} />
             <InfoField label="客户类型" value={lead.customer_type ? (customerTypeDict.options.find(o => o.value === lead.customer_type)?.label || lead.customer_type) : undefined} />
+            <InfoField label="新/老客户" value={lead.customer_newness ? (customerNewnessLabels[lead.customer_newness] || lead.customer_newness) : undefined} />
             <InfoField label="类别" value={lead.category ? categoryLabels[lead.category] : undefined} />
             <InfoField label="国别" value={lead.country_type ? (lead.country_type === 'overseas' && lead.country_name ? `${countryLabels.overseas} · ${lead.country_name}` : countryLabels[lead.country_type]) : undefined} />
             {/* region 是用户填的详细地址/备注地点，与 formatLocation 的省市区互补，此前详情页完全看不到 */}
             <InfoField label="详细地址" value={lead.region} />
-            <InfoField label="预算范围" value={lead.budget_range} />
             <InfoField label="报备人" value={lead.reporter_name} />
             <InfoField label="报备时间" value={lead.reported_at ? new Date(lead.reported_at).toLocaleString('zh-CN') : undefined} />
             <InfoField label="负责人" value={lead.owner_name} />
@@ -407,35 +418,6 @@ export default function LeadDetail() {
                   label: <span className="font-semibold">详细信息</span>,
                   children: (
                     <div className="pb-6 space-y-6">
-                      {/* Products —— 表单可填、导出有列、转商机会带过去，此前详情页却完全不渲染 */}
-                      {!!lead.products?.length && (
-                        <div>
-                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-2">产品信息</div>
-                          <div className="overflow-x-auto rounded-xl border border-slate-100">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="bg-slate-50 text-left text-[12px] font-bold uppercase tracking-wider text-slate-400">
-                                  <th className="px-4 py-2.5">产品名称</th>
-                                  <th className="px-4 py-2.5">规格</th>
-                                  <th className="px-4 py-2.5 text-right">数量</th>
-                                  <th className="px-4 py-2.5">备注</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {lead.products.map((p, i) => (
-                                  <tr key={p.id || i} className="border-t border-slate-100">
-                                    <td className="px-4 py-2.5 font-semibold text-slate-700">{p.product_name || '-'}</td>
-                                    <td className="px-4 py-2.5 text-slate-600">{p.product_spec || '-'}</td>
-                                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{p.quantity ?? '-'}</td>
-                                    <td className="px-4 py-2.5 text-slate-500">{p.remark || '-'}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
                       {/* Demand Summary */}
                       {lead.demand_summary && (
                         <div>
@@ -564,38 +546,10 @@ export default function LeadDetail() {
                 </div>
               )}
 
-              {/* Budget Insight */}
-              {lead.budget_range && (
-                <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Icon name="payments" className="text-slate-500 text-sm" />
-                    <span className="text-sm font-bold text-slate-800">预算洞察</span>
-                  </div>
-                  <p className="text-sm text-slate-500 leading-relaxed">
-                    客户预算范围 <span className="font-bold text-slate-700">{lead.budget_range}</span>，
-                    建议匹配相应价位的产品方案。
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         </div>
       </div>
-
-      {/* 驳回原因弹窗 */}
-      <Modal
-        title="驳回审批"
-        open={rejectOpen}
-        onOk={() => { setRejectOpen(false); handleDecide('rejected', rejectComment) }}
-        onCancel={() => setRejectOpen(false)}
-        okText="确认驳回"
-        okType="danger"
-        cancelText="取消"
-        confirmLoading={deciding}
-      >
-        <Input.TextArea rows={3} value={rejectComment} onChange={(e) => setRejectComment(e.target.value)}
-          placeholder="请输入驳回原因（选填）" />
-      </Modal>
     </div>
   )
 }

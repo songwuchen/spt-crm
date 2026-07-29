@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  Table, Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message,
+  Button, Input, Space, Select, Modal, Form, InputNumber, DatePicker, message,
   Tag, Drawer, Statistic, Tooltip, Empty, Upload, Alert, Radio,
 } from 'antd'
+import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, DollarOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -214,7 +215,7 @@ export default function CommissionPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">业务提成</h1>
           <p className="text-sm text-slate-500 mt-0.5">回款驱动的业务奖金核算：按比例 应计奖金 = (合同额 − 扣减) × 提成比例 × 回款结算比例；按金额 应计奖金 = 提成金额 × 回款结算比例</p>
@@ -227,7 +228,7 @@ export default function CommissionPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-3 gap-4 mb-4 shrink-0">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
           <Statistic title="应计奖金合计" value={totals.accrued} precision={2} prefix="¥" valueStyle={{ color: '#0f172a' }} />
         </div>
@@ -239,7 +240,7 @@ export default function CommissionPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
           <Input
             placeholder="提成单号 / 客户 / 业务员"
@@ -254,7 +255,7 @@ export default function CommissionPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table
+        <FillHeightTable
           rowKey="id" columns={view.columns} dataSource={data} loading={loading}
           scroll={{ x: 1500 }}
           pagination={{

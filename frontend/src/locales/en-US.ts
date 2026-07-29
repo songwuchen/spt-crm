@@ -337,6 +337,7 @@ const enUS = {
     types: {
       approval_pending: 'Approval Pending',
       approval_decided: 'Approval Decided',
+      lead_review_approved: 'Lead Review Approved',
       approval_sla_overdue: 'Approval SLA Overdue',
       stage_advance: 'Stage Advanced',
       stage_change: 'Stage Changed',
