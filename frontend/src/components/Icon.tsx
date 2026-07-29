@@ -97,6 +97,8 @@ const MAP: Record<string, IconComp> = {
   campaign: NotificationOutlined, notifications: BellOutlined,
   // 订阅按钮用 active/none 两态表达是否已订阅,必须实心/空心区分,否则按钮点了看不出变化
   notifications_active: BellFilled, notifications_none: BellOutlined,
+  // 流程抄送：语义接近「转发到收件箱」
+  forward_to_inbox: SendOutlined,
   mic: AudioOutlined,
 
   // ---- 业务实体 ----

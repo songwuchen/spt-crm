@@ -370,27 +370,27 @@ async def test_native_field_masking_on_read_paths(
     """
     h = auth_headers
     lid = (await client.post("/api/v1/leads", headers=h, json={
-        "title": "脱敏线索", "company_name": "某公司", "budget_range": "100-500万",
+        "title": "脱敏线索", "company_name": "某公司", "industry": "screening_mining",
     })).json()["data"]["id"]
 
     # 明文可见角色设为一个当前用户不具备的角色 → 该用户应只看到 ***
     await _publish_lead_native_override(client, h, [
-        {"id": "budget_range", "native": True, "label": "预算范围", "type": "select",
+        {"id": "industry", "native": True, "label": "行业", "type": "select",
          "unmask_roles": ["__finance_only__"]},
     ])
 
     detail = (await client.get(f"/api/v1/leads/{lid}", headers=h)).json()["data"]
-    assert detail["budget_range"] == "***", f"详情未脱敏: {detail['budget_range']!r}"
+    assert detail["industry"] == "***", f"详情未脱敏: {detail['industry']!r}"
 
     listed = (await client.get("/api/v1/leads", headers=h,
                                params={"keyword": "脱敏线索"})).json()["data"]["items"]
     row = next(i for i in listed if i["id"] == lid)
-    assert row["budget_range"] == "***", f"列表未脱敏: {row['budget_range']!r}"
+    assert row["industry"] == "***", f"列表未脱敏: {row['industry']!r}"
 
     # 撤掉限制 → 恢复明文，确认脱敏未把真实值写坏
     await _publish_lead_native_override(client, h, [])
     after = (await client.get(f"/api/v1/leads/{lid}", headers=h)).json()["data"]
-    assert after["budget_range"] == "100-500万", "脱敏只应影响出参，不得改动库里的真实值"
+    assert after["industry"] == "screening_mining", "脱敏只应影响出参，不得改动库里的真实值"
 
     await client.delete(f"/api/v1/leads/{lid}", headers=h)
 
@@ -401,7 +401,7 @@ async def test_masked_and_required_is_not_a_deadlock(
     """脱敏 + 必填不得让记录永远存不下去 —— 看不到明文的人无法填写该字段。"""
     h = auth_headers
     await _publish_lead_native_override(client, h, [
-        {"id": "budget_range", "native": True, "label": "预算范围", "type": "select",
+        {"id": "industry", "native": True, "label": "行业", "type": "select",
          "required": True, "unmask_roles": ["__finance_only__"]},
     ])
     r = (await client.post("/api/v1/leads", headers=h, json={
@@ -468,30 +468,30 @@ async def test_export_respects_field_policy(
 
     h = auth_headers
     lid = (await client.post("/api/v1/leads", headers=h, json={
-        "title": "导出脱敏线索", "company_name": "某公司", "budget_range": "100-500万",
+        "title": "导出脱敏线索", "company_name": "某公司", "industry": "screening_mining",
     })).json()["data"]["id"]
 
-    def budget_cells(content: bytes):
+    def industry_cells(content: bytes):
         wb = load_workbook(_io.BytesIO(content))
         ws = wb.active
         header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
-        idx = header.index("预算范围")
+        idx = header.index("行业")
         return [row[idx].value for row in ws.iter_rows(min_row=2)]
 
     # 未配置时导出明文
     plain = (await client.get("/api/v1/leads/export/excel", headers=h,
                               params={"keyword": "导出脱敏线索"})).content
-    assert "100-500万" in budget_cells(plain)
+    assert "screening_mining" in industry_cells(plain)
 
     # 配置为仅特定角色可见明文 → 导出应变成 ***
     await _publish_lead_native_override(client, h, [
-        {"id": "budget_range", "native": True, "label": "预算范围", "type": "select",
+        {"id": "industry", "native": True, "label": "行业", "type": "select",
          "unmask_roles": ["__finance_only__"]},
     ])
     masked = (await client.get("/api/v1/leads/export/excel", headers=h,
                                params={"keyword": "导出脱敏线索"})).content
-    cells = budget_cells(masked)
-    assert "100-500万" not in cells, "导出泄露了页面上已脱敏的字段"
+    cells = industry_cells(masked)
+    assert "screening_mining" not in cells, "导出泄露了页面上已脱敏的字段"
     assert "***" in cells
 
     await client.delete(f"/api/v1/leads/{lid}", headers=h)
@@ -503,18 +503,18 @@ async def test_masked_native_field_write_is_discarded(
     """被脱敏的字段一律不可编辑 —— 否则用户会把 "***" 当成真值提交回去。"""
     h = auth_headers
     lid = (await client.post("/api/v1/leads", headers=h, json={
-        "title": "脱敏只读线索", "company_name": "某公司", "budget_range": "100-500万",
+        "title": "脱敏只读线索", "company_name": "某公司", "industry": "screening_mining",
     })).json()["data"]["id"]
 
     await _publish_lead_native_override(client, h, [
-        {"id": "budget_range", "native": True, "label": "预算范围", "type": "select",
+        {"id": "industry", "native": True, "label": "行业", "type": "select",
          "unmask_roles": ["__finance_only__"]},
     ])
-    await client.put(f"/api/v1/leads/{lid}", headers=h, json={"budget_range": "***"})
+    await client.put(f"/api/v1/leads/{lid}", headers=h, json={"industry": "***"})
 
     await _publish_lead_native_override(client, h, [])
     after = (await client.get(f"/api/v1/leads/{lid}", headers=h)).json()["data"]
-    assert after["budget_range"] == "100-500万", "脱敏字段的写入必须被丢弃，不能用 *** 覆盖真值"
+    assert after["industry"] == "screening_mining", "脱敏字段的写入必须被丢弃，不能用 *** 覆盖真值"
 
     await client.delete(f"/api/v1/leads/{lid}", headers=h)
 

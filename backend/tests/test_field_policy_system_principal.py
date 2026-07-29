@@ -65,21 +65,21 @@ async def test_openapi_create_keeps_restricted_field(client, auth_headers):
         await client.post(f"/api/v1/lc/form-templates/{tpl['id']}/publish", headers=h)
 
     try:
-        await publish([{"id": "budget_range", "native": True, "label": "预算范围",
+        await publish([{"id": "industry", "native": True, "label": "行业",
                         "type": "select", "visible_roles": ["finance"]}])
         tenant_id = "00000000-0000-0000-0000-000000000001"
         async with async_session_factory() as db:
             # 系统主体：值保留
             # required_scope="payload" 隔离出「裁剪」行为，避免被 title 等必填字段干扰
             kept = await enforce_native_field_policy(
-                db, tenant_id, "lead", {"budget_range": "100-500万"}, None, [SYSTEM_ROLE],
+                db, tenant_id, "lead", {"industry": "screening_mining"}, None, [SYSTEM_ROLE],
                 required_scope="payload")
-            assert kept.get("budget_range") == "100-500万", "系统主体的提交值被误丢弃"
+            assert kept.get("industry") == "screening_mining", "系统主体的提交值被误丢弃"
 
             # 对照：无该角色的真人，值被剔除
             dropped = await enforce_native_field_policy(
-                db, tenant_id, "lead", {"budget_range": "100-500万"}, None, ["sales"],
+                db, tenant_id, "lead", {"industry": "screening_mining"}, None, ["sales"],
                 required_scope="payload")
-            assert "budget_range" not in dropped
+            assert "industry" not in dropped
     finally:
         await publish([])
