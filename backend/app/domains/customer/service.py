@@ -329,17 +329,21 @@ async def delete_customer(db: AsyncSession, tenant_id: str, customer_id: str, us
     if active_projects > 0:
         raise BusinessException(code=VALIDATION_ERROR, message=f"该客户有 {active_projects} 个进行中/赢单商机，无法删除")
 
-    # Check for signed contracts
+    # Check for signed contracts (via project chain OR direct customer_id)
+    from sqlalchemy import or_
     signed_contracts = (await db.execute(
         select(func.count(Contract.id)).where(
             Contract.tenant_id == tenant_id,
-            Contract.project_id.in_(
-                select(OpportunityProject.id).where(
-                    OpportunityProject.customer_id == customer_id,
-                    OpportunityProject.tenant_id == tenant_id,
-                )
-            ),
             Contract.status == "signed",
+            or_(
+                Contract.customer_id == customer_id,
+                Contract.project_id.in_(
+                    select(OpportunityProject.id).where(
+                        OpportunityProject.customer_id == customer_id,
+                        OpportunityProject.tenant_id == tenant_id,
+                    )
+                ),
+            ),
         )
     )).scalar() or 0
     if signed_contracts > 0:

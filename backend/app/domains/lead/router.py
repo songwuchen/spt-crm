@@ -571,6 +571,8 @@ async def batch_status(
         Lead.tenant_id == tenant_id,
         Lead.id.in_(ids),
         Lead.is_deleted == False,
+        # 已转化线索锁定，任何人不可再改状态
+        Lead.status != "qualified",
     )
     # 批量转化时跳过尚未通过审核的线索，避免绕过审核门禁
     if body.status == "qualified":

@@ -97,6 +97,7 @@ const zhCN = {
     solutions: '方案管理',
     quotes: '报价管理',
     contracts: '合同管理',
+    contractReviews: '合同评审',
     kanban: '看板视图',
     products: '产品目录',
     orders: '订单管理',

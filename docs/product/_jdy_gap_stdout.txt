@@ -1,0 +1,124 @@
+﻿=== exact CRM <-> JDY ===
+contract_no <- 鍚堝悓鍙?| _widget_1561431499698 | text
+drawing_no <- 鍥剧焊缂栧彿 | _widget_1563607519120 | text
+peer_contract_no <- 瀵规柟鍚堝悓鍙?| _widget_1561431499731 | text
+acquire_method <- 鍚堝悓鑾峰彇淇℃伅鏂瑰紡 | _widget_1703462723292 | radiogroup
+delivery_date <- 鍚堝悓浜よ揣鏈?| _widget_1561431500970 | datetime
+change_type <- 鍚堝悓鐘舵€?| _widget_1593849161675 | radiogroup
+amount <- 鍚堝悓鎬婚噾棰?| _widget_1561511175392 | number
+payment <- 鏀舵璁″垝 | _widget_1561431500797 | subform
+lines <- 鍚堝悓鏄庣粏 | _widget_1561431500151 | subform
+
+=== 鏄庢樉缂哄彛(涓昏〃涓氬姟瀛楁, CRM宸茬煡/宸叉槧灏勬湭瑕嗙洊) ===
+GAP	_widget_1565937861689	鎻愪氦浜?user
+GAP	_widget_1693447186027	瀹㈡埛缂栧彿	text
+GAP	_widget_1613546005247	鍙樺姩鍘熷洜	text
+GAP	_widget_1561431500134	鏄惁鍚◣	radiogroup
+GAP	_widget_1575182444885	璁惧鏄惁鍑哄彛	radiogroup
+GAP	_widget_1647391665368	鏄惁闇€瑕佸畨瑁?radiogroup
+GAP	_widget_1664948274718	淇℃伅鏄惁榻愬叏	radiogroup
+GAP	_widget_1666255890740	淇℃伅涓嶉綈鍏ㄥ娉?textarea
+GAP	_widget_1621411268101	鍑哄彛绫诲瀷	text
+GAP	_widget_1676104999490	鍚堝悓褰㈠紡	radiogroup
+GAP	_widget_1721205724881	鏄惁鏍囧噯浜や粯	radiogroup
+GAP	_widget_1749715722571	鏄惁涓烘棆鎸瓫	radiogroup
+GAP	_widget_1721205725083	閲囪喘鍛樺閫?usergroup
+GAP	_widget_1721205725117	璐ㄦ鍛樺閫?usergroup
+GAP	_widget_1561431501051	鍖呰鎯呭喌	text
+GAP	_widget_1561431500982	浜よ揣鏈熸潯娆?text
+GAP	_widget_1696822285599	璐ㄤ繚鏈熼檺	text
+GAP	_widget_1696822285597	璐ㄤ繚閲戦	number
+GAP	_widget_1561431499820	琛屼笟鍒嗙被	combo
+GAP	_widget_1561431499996	搴旂敤棰嗗煙	combo
+GAP	_widget_1576116537439	搴旂敤鐗╂枡	combo
+GAP	_widget_1579240052161	鏄惁鍚櫤鑳藉寲	radiogroup
+GAP	_widget_1563280700625	澶囨敞	textarea
+GAP	_widget_1561511175252	闄勪欢锛堝悎鍚屻€佸崗璁級	upload
+GAP	_widget_1561511175264	鍥剧墖锛堝悎鍚屻€佸崗璁級	image
+GAP	_widget_1573192575054	楠屾敹鍗?upload
+GAP	_widget_1759559814671	闄勪欢鍚屾鐭ヨ瘑搴撴椂闂?datetime
+GAP	_widget_1667291302111	杩愯垂鎵挎媴鏂?radiogroup
+GAP	_widget_1667286001079	鍚堝悓绾﹀畾鍦板潃	address
+GAP	_widget_1667286001084	鍙戣揣鍦板潃	address
+GAP	_widget_1667286001085	姣斿鍦板潃杈呭姪	text
+GAP	_widget_1667291302128	鍙戣揣鍦板潃锛堝埌鍖猴級锛堣緟鍔╋級	text
+GAP	_widget_1667291302129	鍚堝悓鍦板潃锛堝埌鍖猴級锛堣緟鍔╋級	text
+GAP	_widget_1667291302115	鍦板潃涓嶇鏃朵笂浼犻檮浠?subform
+GAP	_widget_1662088494543	鍙戣揣鐘舵€?text
+GAP	_widget_1594173385664	鏈€鍚庡彂璐ф棩鏈燂紙241012鍋滅敤锛?datetime
+GAP	_widget_1594173385703	鍙戣揣鎬婚锛?41012鍋滅敤锛?number
+GAP	_widget_1668417748847	楠屾敹鏂瑰紡	radiogroup
+GAP	_widget_1668417749220	楠屾敹鎵€闇€璧勬枡	text
+GAP	_widget_1668417748935	楠屾敹璧勬枡涓婁紶	subform
+GAP	_widget_1698823518549	琛屼笟鍒嗙被-灏忚悓	radiogroup
+GAP	_widget_1698908493693	杩愯垂-灏忚悓231101	number
+GAP	_widget_1609113829970	鍒ゆ柇鏄惁鍚柊澧烇紙杈呭姪锛?text
+GAP	_widget_1670549305841	鍒ゆ柇瀵规柟鍚堝悓鍙锋槸鍚﹀惈鏂板锛堣緟鍔╋級	text
+GAP	_widget_1670549305842	闄愬埗鍚屼竴瀵规柟鍚堝悓鍙峰彧鑳芥柊澧炰竴娆?text
+GAP	_widget_1729124887299	杈呭姪鏄惁鍚渶瑕佹彁閱掞紙241017澧烇紝鐢ㄤ簬杈呭姪绛涢€夊嚭闇€瑕佹彁閱掔殑鏁版嵁锛屽ぇ浜?鍒欐槸鍚湁闇€瑕佹彁閱掔殑鏁版嵁锛?text
+GAP	_widget_1631177786890	鍚堝悓鎻愪氦鐘舵€侊紙杈呭姪锛?radiogroup
+GAP	creator	鎻愪氦浜?user
+GAP	createTime	鎻愪氦鏃堕棿	datetime
+
+=== 瀛愯〃 ===
+鍚堝悓鏄庣粏 | _widget_1561431500151 | n=14
+  _widget_1621411268784	鏄惁澶栧竵鍚堝悓	radiogroup
+  _widget_1561431500162	浜у搧绫诲瀷	combo
+  _widget_1561431500376	浜у搧鍚嶇О	text
+  _widget_1561431500392	瑙勬牸鍨嬪彿	text
+  _widget_1561431500419	鍗曚綅	text
+  _widget_1561431500458	鏁伴噺	number
+  _widget_1621411268153	澶栧竵鍗曚环	number
+  _widget_1621411269220	姹囩巼	number
+  _widget_1561431500490	鍗曚环	number
+  _widget_1561431500514	鎬讳环	number
+  _widget_1621411268210	澶栧竵鎬讳环	number
+  _widget_1561431500595	鐢垫帶瑁呯疆	combo
+  _widget_1565223122750	鎶€鏈弬鏁板強瑕佹眰	text
+  _widget_1697420581927	澶囨敞(鈶犵敓浜у崱涓婃寜搴忓彿鎺掑垪鐨勯」鐩紝鏌愯澶囧凡缁忓寘鍚湪鍏朵粬璁惧鍐呮椂锛屽湪澶囨敞鏍忓姞濉?銆傗憽鐢熶骇鍗′笂鎸夊簭鍙锋帓鍒楃殑椤圭洰锛屾煇璁惧涓嶉渶瑕佷緵璐ф椂锛屽湪澶囨敞鏍忓姞濉?锛?text
+鏀舵璁″垝 | _widget_1561431500797 | n=7
+  _widget_1661242797064	鏃ユ湡鏃堕棿	datetime
+  _widget_1561431500818	浠樻鏂瑰紡	combo
+  _widget_1561431500832	浠樻姣斾緥锛?锛?number
+  _widget_1561431500855	浠樻閲戦	number
+  _widget_1665380027624	ID杈呭姪	text
+  _widget_1665380028160	鏄惁鎻愰啋	text
+  _widget_1665380027757	娑堟伅杈呭姪	text
+鍦板潃涓嶇鏃朵笂浼犻檮浠?| _widget_1667291302115 | n=2
+  _widget_1667291302117	鍥剧墖	image
+  _widget_1667291302118	闄勪欢	upload
+楠屾敹璧勬枡涓婁紶 | _widget_1668417748935 | n=3
+  _widget_1668417748995	楠屾敹鏃ユ湡	datetime
+  _widget_1668417748937	鍥剧墖	image
+  _widget_1668417748966	闄勪欢	upload
+
+=== 鎶芥牱 ===
+id=6a6999ca20b75987e7c85437 nonempty=53
+  娴佹按鍙? 1.2.3-2026072901330
+  鍚堝悓鍙? KS26213
+  鍥剧焊缂栧彿: WMGF202607081
+  瀵规柟鍚堝悓鍙? 鏃?
+  鍚堝悓鐘舵€? 鍙樺姩
+  鍚堝悓鑾峰彇淇℃伅鏂瑰紡: 鍗忓晢涓€鑷?
+  鍚堝悓浜よ揣鏈? 2026-07-17T16:00:00.000Z
+  鍚堝悓鎬婚噾棰? 1200
+  鍗曚綅鍚嶇О: 瑗垮畨澧ㄦ簮鏈虹數璁惧鏈夐檺鍏徃
+  椤圭洰鍚嶇О: 鏃?
+  鏀舵璁″垝: [subform x1]
+  鍚堝悓鏄庣粏: [subform x1]
+  鍙樺姩鍘熷洜: 鏂板 寮у舰绛涙鍧?WFHS-242060-2-YS 鍚堝悓閲戦鍙樻洿涓?560
+id=6a6974c464474b4cde2dfeb7 nonempty=52
+  娴佹按鍙? 1.2.3-2026072901329
+  鍚堝悓鍙? XJ26119
+  鍥剧焊缂栧彿: WMGF202607184
+  瀵规柟鍚堝悓鍙? /
+  鍚堝悓鐘舵€? 鏂板
+  鍚堝悓鑾峰彇淇℃伅鏂瑰紡: 鍗忓晢涓€鑷?
+  鍚堝悓浜よ揣鏈? 2026-09-09T16:00:00.000Z
+  鍚堝悓鎬婚噾棰? 8748
+  鍗曚綅鍚嶇О: 鏂扮枂濞佺寷宸ヤ笟鏅鸿兘瑁呭鏈夐檺鍏徃
+  椤圭洰鍚嶇О: 鏃?
+  鏀舵璁″垝: [subform x1]
+  鍚堝悓鏄庣粏: [subform x1]
+
+flat tsv written 139

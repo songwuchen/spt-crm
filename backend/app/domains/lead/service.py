@@ -342,6 +342,10 @@ async def _notify_owner_review_passed(tenant_id: str, lead: Lead) -> None:
 
 async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: LeadUpdate, user: dict) -> Lead:
     lead = await get_lead(db, tenant_id, lead_id, user)
+    if lead.status == "qualified":
+        raise BusinessException(code=LEAD_ALREADY_QUALIFIED, message="已转化的线索不可编辑")
+    if lead.status == "discarded":
+        raise BusinessException(code=LEAD_ALREADY_DISCARDED, message="已废弃的线索不可编辑")
     payload = data.model_dump(exclude_unset=True)
     products_given = "products" in payload
     payload.pop("products", None)  # 产品明细单独处理

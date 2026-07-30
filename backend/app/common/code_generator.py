@@ -51,6 +51,7 @@ PREFIXES = {
     "debt_transfer":  "DT",
     "guarantee":      "GT",
     "measurement":    "MS",
+    "contract_review": "CR",
 }
 
 

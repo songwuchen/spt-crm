@@ -17,6 +17,12 @@ interface AttachmentItem {
 interface Props {
   bizType: string
   bizId: string
+  /** 面板标题，默认「附件」 */
+  title?: string
+  /** 限制可选文件类型，如 image/* */
+  accept?: string
+  /** 紧凑模式（嵌入登记分区） */
+  compact?: boolean
 }
 
 function isPreviewable(contentType?: string, name?: string): 'image' | 'pdf' | false {
@@ -28,7 +34,7 @@ function isPreviewable(contentType?: string, name?: string): 'image' | 'pdf' | f
   return false
 }
 
-export default function AttachmentPanel({ bizType, bizId }: Props) {
+export default function AttachmentPanel({ bizType, bizId, title = '附件', accept, compact }: Props) {
   const [list, setList] = useState<AttachmentItem[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -145,14 +151,24 @@ export default function AttachmentPanel({ bizType, bizId }: Props) {
   ]
 
   return (
-    <div>
-      <div className="flex justify-between mb-2">
-        <span className="font-medium">附件</span>
-        <Upload beforeUpload={handleUpload} showUploadList={false}>
-          <Button size="small" icon={<UploadOutlined />} loading={uploading}>上传附件</Button>
+    <div className={compact ? 'rounded-lg border border-slate-100 bg-slate-50/50 p-3' : ''}>
+      <div className="flex justify-between mb-2 items-center">
+        <span className={compact ? 'text-sm font-medium text-slate-700' : 'font-medium'}>{title}</span>
+        <Upload beforeUpload={handleUpload} showUploadList={false} accept={accept}>
+          <Button size="small" icon={<UploadOutlined />} loading={uploading}>
+            {accept?.startsWith('image') ? '上传图片' : '上传附件'}
+          </Button>
         </Upload>
       </div>
-      <Table rowKey="id" columns={columns} dataSource={list} loading={loading} pagination={false} size="small" />
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={list}
+        loading={loading}
+        pagination={false}
+        size="small"
+        locale={{ emptyText: '暂无文件，点击右上角上传' }}
+      />
 
       <Modal
         title={previewItem?.original_name || '预览'}

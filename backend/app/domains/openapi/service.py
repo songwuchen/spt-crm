@@ -830,7 +830,7 @@ def _to_date(value: str | None):
             return None
 
 
-async def _apply_openapi_contract_fields(contract: Contract, data) -> None:
+async def _apply_openapi_contract_fields(db: AsyncSession, tenant_id: str, contract: Contract, data) -> None:
     """Copy OpenAPI intake fields onto an existing Contract (in-memory only)."""
     contract.customer_id = data.customer_id
     if data.project_id is not None:
@@ -843,12 +843,88 @@ async def _apply_openapi_contract_fields(contract: Contract, data) -> None:
         contract.end_date = _to_date(data.end_date)
     if data.amount_total is not None:
         contract.amount_total = data.amount_total
+    if getattr(data, "drawing_no", None) is not None:
+        contract.drawing_no = data.drawing_no
+    if getattr(data, "peer_contract_no", None) is not None:
+        contract.peer_contract_no = data.peer_contract_no
+    if getattr(data, "acquire_method", None) is not None:
+        contract.acquire_method = data.acquire_method
+    if getattr(data, "delivery_date", None) is not None:
+        contract.delivery_date = _to_date(data.delivery_date)
+    if getattr(data, "change_type", None) is not None:
+        contract.change_type = data.change_type
+    if getattr(data, "order_date", None) is not None:
+        contract.order_date = _to_date(data.order_date)
+    if getattr(data, "card_date", None) is not None:
+        contract.card_date = _to_date(data.card_date)
+    if getattr(data, "registration_json", None) is not None:
+        contract.registration_json = data.registration_json
     if data.payment_terms_json is not None:
         contract.payment_terms_json = data.payment_terms_json
     if data.delivery_terms_json is not None:
         contract.delivery_terms_json = data.delivery_terms_json
     if data.custom_fields is not None:
         contract.custom_fields_json = data.custom_fields
+
+    # 业务员 / 部门（名称可反查 ID；查不到仍保留名称字符串）
+    raw_assignee_id = getattr(data, "assignee_id", None)
+    raw_assignee_name = getattr(data, "assignee_name", None)
+    if raw_assignee_id is not None or raw_assignee_name is not None:
+        uid = await resolve_owner_id(
+            db, tenant_id, owner_id=raw_assignee_id, owner_name=raw_assignee_name,
+        )
+        if uid:
+            contract.assignee_id = uid
+        elif raw_assignee_id is not None:
+            contract.assignee_id = None
+        if raw_assignee_name is not None:
+            contract.assignee_name = (raw_assignee_name or "").strip() or None
+        elif uid:
+            from app.domains.auth.models import User as AuthUser
+            u = (await db.execute(
+                select(AuthUser).where(AuthUser.id == uid, AuthUser.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if u:
+                contract.assignee_name = u.real_name or u.username
+
+    raw_dept_id = getattr(data, "department_id", None)
+    raw_dept_name = getattr(data, "department_name", None)
+    if raw_dept_id is not None or raw_dept_name is not None:
+        did = await resolve_department_id(
+            db, tenant_id, department_id=raw_dept_id, department_name=raw_dept_name,
+        )
+        if did:
+            contract.department_id = did
+        elif raw_dept_id is not None:
+            contract.department_id = None
+        if raw_dept_name is not None:
+            contract.department_name = (raw_dept_name or "").strip() or None
+        elif did:
+            from app.domains.organization.models import Department
+            d = (await db.execute(
+                select(Department).where(Department.id == did, Department.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if d:
+                contract.department_name = d.name
+
+
+async def _update_contract_version_from_openapi(
+    db: AsyncSession, tenant_id: str, contract: Contract, data,
+) -> None:
+    """Update current version title and optional key_clauses from OpenAPI intake."""
+    version = (await db.execute(
+        select(ContractVersion).where(
+            ContractVersion.tenant_id == tenant_id,
+            ContractVersion.contract_id == contract.id,
+            ContractVersion.version_no == contract.current_version_no,
+        ).limit(1)
+    )).scalar_one_or_none()
+    if not version:
+        return
+    if data.title:
+        version.title = data.title
+    if getattr(data, "key_clauses_json", None) is not None:
+        version.key_clauses_json = data.key_clauses_json
 
 
 async def _update_contract_version_title(
@@ -868,12 +944,12 @@ async def _update_contract_version_title(
 
 
 async def update_contract_from_openapi(db: AsyncSession, ctx, contract: Contract, data) -> dict:
-    """Update an existing contract from OpenAPI intake fields (简道云 修改数据)."""
+    """Update an existing contract from OpenAPI intake fields (中间服务推送修改)."""
     from app.domains.audit.service import log_action
     from app.domains.openapi.dto import contract_to_dto
 
-    await _apply_openapi_contract_fields(contract, data)
-    await _update_contract_version_title(db, ctx.tenant_id, contract, data.title)
+    await _apply_openapi_contract_fields(db, ctx.tenant_id, contract, data)
+    await _update_contract_version_from_openapi(db, ctx.tenant_id, contract, data)
     await db.commit()
     await db.refresh(contract)
     await log_action(
@@ -885,17 +961,10 @@ async def update_contract_from_openapi(db: AsyncSession, ctx, contract: Contract
 
 
 async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
-    """Create or update a contract from an external app (e.g. 简道云 合同登记表).
+    """Create or update a contract pushed by an external integrator (e.g. crm-integration).
 
-    Customer-centric and project-optional: builds the Contract row directly (the
-    internal create_contract forces a project and auto-generates its own number),
-    plus an initial V1 version so version-dependent reads/approvals stay consistent.
-
-    When ``contract_no`` is provided and already exists under the tenant
-    (``uq_contract_tenant_no``), this becomes an **upsert**: scalar / custom fields
-    are updated and the existing row is returned. That matches 简道云「创建/修改」
-    both flowing through POST /contracts. Concurrent create races still surface as
-    ``409 CRM_DUPLICATE_ENTRY`` only if the row cannot be located after rollback.
+    Customer-centric and project-optional. When ``contract_no`` already exists under
+    the tenant this becomes an **upsert**. Requires Idempotency-Key at the router layer.
     """
     from app.common.code_generator import generate_code
     from app.domains.audit.service import log_action
@@ -921,18 +990,30 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         status=data.status or "draft",
         signed_date=_to_date(data.signed_date),
         end_date=_to_date(data.end_date),
+        drawing_no=getattr(data, "drawing_no", None),
+        peer_contract_no=getattr(data, "peer_contract_no", None),
+        acquire_method=getattr(data, "acquire_method", None),
+        delivery_date=_to_date(getattr(data, "delivery_date", None)),
+        change_type=getattr(data, "change_type", None),
+        order_date=_to_date(getattr(data, "order_date", None)),
+        card_date=_to_date(getattr(data, "card_date", None)),
         amount_total=data.amount_total,
         payment_terms_json=data.payment_terms_json,
         delivery_terms_json=data.delivery_terms_json,
+        registration_json=getattr(data, "registration_json", None),
         custom_fields_json=data.custom_fields or None,
         created_by_id=ctx.app_id, created_by_name="开放平台",
     )
+    # Resolve assignee / department onto the new row before commit
+    await _apply_openapi_contract_fields(db, ctx.tenant_id, contract, data)
+    # customer_id / project_id already set; re-apply may overwrite from data — OK
     db.add(contract)
 
     version = ContractVersion(
         id=generate_uuid(), tenant_id=ctx.tenant_id,
         contract_id=contract.id, version_no=1,
         title=data.title or "V1",
+        key_clauses_json=getattr(data, "key_clauses_json", None),
     )
     db.add(version)
     try:

@@ -135,6 +135,17 @@ async def apply_project_child_scope(
         conds.append(model.created_by_id == uid)
     if hasattr(model, "assignee_id"):
         conds.append(model.assignee_id == uid)
+    # 无商机的外部合同：按 customer_id 数据范围可见
+    if hasattr(model, "customer_id"):
+        try:
+            cust_ids = await visible_customer_ids_select(db, tenant_id, user)
+            if cust_ids is None:
+                # 管理员已在上方返回；此处 scope 非 None，用可见客户集
+                pass
+            else:
+                conds.append(model.customer_id.in_(cust_ids))
+        except Exception:
+            pass
     clause = or_(*conds)
     return query.where(clause), count_query.where(clause)
 
@@ -379,6 +390,16 @@ async def assert_project_child_in_scope(
         )).scalar_one_or_none()
         # 父商机自身的可见性（含 ACL 共享 / 项目成员）决定子实体可见性
         if parent is not None and await is_in_scope(db, tenant_id, user, parent, "project"):
+            return
+
+    # 无商机的外部合同：客户在可见范围内即可
+    customer_id = getattr(obj, "customer_id", None)
+    if customer_id:
+        from app.domains.customer.models import Customer
+        cust = (await db.execute(
+            select(Customer).where(Customer.id == customer_id, Customer.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if cust is not None and await is_in_scope(db, tenant_id, user, cust, "customer"):
             return
 
     raise BusinessException(code=FORBIDDEN, message=f"无权访问{label}（不在您的数据范围内）")

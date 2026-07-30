@@ -19,9 +19,20 @@ class Contract(TenantScopedBase):
     status: Mapped[str] = mapped_column(String(16), default="draft")  # draft/signed/terminated
     signed_date: Mapped[str | None] = mapped_column(Date)
     end_date: Mapped[str | None] = mapped_column(Date)
+    # 简道云合同登记对齐：图纸编号 / 对方合同号 / 获取方式 / 交货期 / 新增|变动
+    drawing_no: Mapped[str | None] = mapped_column(String(100), index=True)
+    peer_contract_no: Mapped[str | None] = mapped_column(String(100))
+    acquire_method: Mapped[str | None] = mapped_column(String(64))
+    delivery_date: Mapped[str | None] = mapped_column(Date)
+    change_type: Mapped[str | None] = mapped_column(String(16))  # new / change（对应新增/变动）
+    # 订货日期 / 下卡日期（简道云登记表）
+    order_date: Mapped[str | None] = mapped_column(Date)
+    card_date: Mapped[str | None] = mapped_column(Date)
     amount_total: Mapped[float | None] = mapped_column(Numeric(18, 2))
     payment_terms_json: Mapped[dict | None] = mapped_column(JSON)
     delivery_terms_json: Mapped[dict | None] = mapped_column(JSON)
+    # 简道云合同登记表业务扩展（质保/行业/地址/验收等），详情页按分区展示
+    registration_json: Mapped[dict | None] = mapped_column(JSON)
     created_by_id: Mapped[str | None] = mapped_column(String(36))
     created_by_name: Mapped[str | None] = mapped_column(String(100))
     # 子模块负责人（多部门/多人协作）

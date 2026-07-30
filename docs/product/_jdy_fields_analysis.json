@@ -1,0 +1,1894 @@
+{
+  "reg_main_count": 109,
+  "reg_subforms": [
+    {
+      "name": "_widget_1561431500151",
+      "title": "合同明细",
+      "children": [
+        {
+          "name": "_widget_1621411268784",
+          "title": "是否外币合同",
+          "type": "radiogroup",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1561431500162",
+          "title": "产品类型",
+          "type": "combo",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1561431500376",
+          "title": "产品名称",
+          "type": "text",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1561431500392",
+          "title": "规格型号",
+          "type": "text",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1561431500419",
+          "title": "单位",
+          "type": "text",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1561431500458",
+          "title": "数量",
+          "type": "number",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1621411268153",
+          "title": "外币单价",
+          "type": "number",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1621411269220",
+          "title": "汇率",
+          "type": "number",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1561431500490",
+          "title": "单价",
+          "type": "number",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1561431500514",
+          "title": "总价",
+          "type": "number",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1621411268210",
+          "title": "外币总价",
+          "type": "number",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1561431500595",
+          "title": "电控装置",
+          "type": "combo",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1565223122750",
+          "title": "技术参数及要求",
+          "type": "text",
+          "parent": "合同明细"
+        },
+        {
+          "name": "_widget_1697420581927",
+          "title": "备注(①生产卡上按序号排列的项目，某设备已经包含在其他设备内时，在备注栏加填*。②生产卡上按序号排列的项目，某设备不需要供货时，在备注栏加填#）",
+          "type": "text",
+          "parent": "合同明细"
+        }
+      ]
+    },
+    {
+      "name": "_widget_1561431500797",
+      "title": "收款计划",
+      "children": [
+        {
+          "name": "_widget_1661242797064",
+          "title": "日期时间",
+          "type": "datetime",
+          "parent": "收款计划"
+        },
+        {
+          "name": "_widget_1561431500818",
+          "title": "付款方式",
+          "type": "combo",
+          "parent": "收款计划"
+        },
+        {
+          "name": "_widget_1561431500832",
+          "title": "付款比例（%）",
+          "type": "number",
+          "parent": "收款计划"
+        },
+        {
+          "name": "_widget_1561431500855",
+          "title": "付款金额",
+          "type": "number",
+          "parent": "收款计划"
+        },
+        {
+          "name": "_widget_1665380027624",
+          "title": "ID辅助",
+          "type": "text",
+          "parent": "收款计划"
+        },
+        {
+          "name": "_widget_1665380028160",
+          "title": "是否提醒",
+          "type": "text",
+          "parent": "收款计划"
+        },
+        {
+          "name": "_widget_1665380027757",
+          "title": "消息辅助",
+          "type": "text",
+          "parent": "收款计划"
+        }
+      ]
+    },
+    {
+      "name": "_widget_1667291302115",
+      "title": "地址不符时上传附件",
+      "children": [
+        {
+          "name": "_widget_1667291302117",
+          "title": "图片",
+          "type": "image",
+          "parent": "地址不符时上传附件"
+        },
+        {
+          "name": "_widget_1667291302118",
+          "title": "附件",
+          "type": "upload",
+          "parent": "地址不符时上传附件"
+        }
+      ]
+    },
+    {
+      "name": "_widget_1668417748935",
+      "title": "验收资料上传",
+      "children": [
+        {
+          "name": "_widget_1668417748995",
+          "title": "验收日期",
+          "type": "datetime",
+          "parent": "验收资料上传"
+        },
+        {
+          "name": "_widget_1668417748937",
+          "title": "图片",
+          "type": "image",
+          "parent": "验收资料上传"
+        },
+        {
+          "name": "_widget_1668417748966",
+          "title": "附件",
+          "type": "upload",
+          "parent": "验收资料上传"
+        }
+      ]
+    }
+  ],
+  "reg_all": [
+    {
+      "name": "_widget_1681712851050",
+      "title": "流水号",
+      "type": "sn",
+      "parent": null
+    },
+    {
+      "name": "_widget_1565937861689",
+      "title": "*提交人",
+      "type": "user",
+      "parent": null
+    },
+    {
+      "name": "_widget_1563772783339",
+      "title": "下卡日期",
+      "type": "datetime",
+      "parent": null
+    },
+    {
+      "name": "_widget_1693447186027",
+      "title": "客户编号",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1593849162158",
+      "title": "编号查询",
+      "type": "linkfield",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431499614",
+      "title": "单位名称",
+      "type": "combo",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431499461",
+      "title": "部门",
+      "type": "dept",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431499444",
+      "title": "业务人员",
+      "type": "user",
+      "parent": null
+    },
+    {
+      "name": "_widget_1593849161675",
+      "title": "合同状态",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1613546005247",
+      "title": "变动原因",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1703462723292",
+      "title": "合同获取信息方式",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1404460362158",
+      "title": "编号查询-（合同号）",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1677801576468",
+      "title": "合同/项目评审信息",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1677806810340",
+      "title": "选择合同/项目评审信息",
+      "type": "linkfield",
+      "parent": null
+    },
+    {
+      "name": "_widget_1677801667664",
+      "title": "合同/项目评审流水号",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1677801576469",
+      "title": "24.2.3合同/项目评审信息查看0303",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1701052288708",
+      "title": "以下为小萌合同评审内容1127",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1701052288707",
+      "title": "选择小萌合同评审1127",
+      "type": "linkfield",
+      "parent": null
+    },
+    {
+      "name": "_widget_1701052373745",
+      "title": "小萌合同评审流水号1127",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1701052373744",
+      "title": "选择小萌合同评审信息查看1127",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1634520599437",
+      "title": "出厂编号",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1623374466649",
+      "title": "合同产品信息",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1610591432200",
+      "title": "注释",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431499432",
+      "title": "订货日期",
+      "type": "datetime",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431501010",
+      "title": "合同类型",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431499698",
+      "title": "合同号",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1563607519120",
+      "title": "图纸编号",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431499782",
+      "title": "项目名称",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431499731",
+      "title": "对方合同号",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431500134",
+      "title": "是否含税",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1575182444885",
+      "title": "设备是否出口",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1647391665368",
+      "title": "是否需要安装",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1664948274718",
+      "title": "信息是否齐全",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1664948274739",
+      "title": "缺少项",
+      "type": "checkboxgroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1666255890740",
+      "title": "信息不齐全备注",
+      "type": "textarea",
+      "parent": null
+    },
+    {
+      "name": "_widget_1621411268101",
+      "title": "出口类型",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1676104999490",
+      "title": "合同形式",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1721205724881",
+      "title": "是否标准交付",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1721205724883",
+      "title": "方式",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1749715722571",
+      "title": "是否为旋振筛",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1721293963816",
+      "title": "填写代码",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1721205725083",
+      "title": "采购员多选",
+      "type": "usergroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1721205725117",
+      "title": "质检员多选",
+      "type": "usergroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431500151",
+      "title": "合同明细",
+      "type": "subform",
+      "parent": null
+    },
+    {
+      "name": "_widget_1621411268784",
+      "title": "是否外币合同",
+      "type": "radiogroup",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1561431500162",
+      "title": "产品类型",
+      "type": "combo",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1561431500376",
+      "title": "产品名称",
+      "type": "text",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1561431500392",
+      "title": "规格型号",
+      "type": "text",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1561431500419",
+      "title": "单位",
+      "type": "text",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1561431500458",
+      "title": "数量",
+      "type": "number",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1621411268153",
+      "title": "外币单价",
+      "type": "number",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1621411269220",
+      "title": "汇率",
+      "type": "number",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1561431500490",
+      "title": "单价",
+      "type": "number",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1561431500514",
+      "title": "总价",
+      "type": "number",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1621411268210",
+      "title": "外币总价",
+      "type": "number",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1561431500595",
+      "title": "电控装置",
+      "type": "combo",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1565223122750",
+      "title": "技术参数及要求",
+      "type": "text",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1697420581927",
+      "title": "备注(①生产卡上按序号排列的项目，某设备已经包含在其他设备内时，在备注栏加填*。②生产卡上按序号排列的项目，某设备不需要供货时，在备注栏加填#）",
+      "type": "text",
+      "parent": "合同明细"
+    },
+    {
+      "name": "_widget_1561511175392",
+      "title": "合同总金额",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1565157771516",
+      "title": "技术参数及要求",
+      "type": "textarea",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431501051",
+      "title": "包装情况",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1566366881094",
+      "title": "油漆要求",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1563281842830",
+      "title": "工作量",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1623374466732",
+      "title": "合同收款信息",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431500766",
+      "title": "付款形式",
+      "type": "checkboxgroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431500955",
+      "title": "付款方式文字描述",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431500970",
+      "title": "合同交货期",
+      "type": "datetime",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431500982",
+      "title": "交货期条款",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431500797",
+      "title": "收款计划",
+      "type": "subform",
+      "parent": null
+    },
+    {
+      "name": "_widget_1661242797064",
+      "title": "日期时间",
+      "type": "datetime",
+      "parent": "收款计划"
+    },
+    {
+      "name": "_widget_1561431500818",
+      "title": "付款方式",
+      "type": "combo",
+      "parent": "收款计划"
+    },
+    {
+      "name": "_widget_1561431500832",
+      "title": "付款比例（%）",
+      "type": "number",
+      "parent": "收款计划"
+    },
+    {
+      "name": "_widget_1561431500855",
+      "title": "付款金额",
+      "type": "number",
+      "parent": "收款计划"
+    },
+    {
+      "name": "_widget_1665380027624",
+      "title": "ID辅助",
+      "type": "text",
+      "parent": "收款计划"
+    },
+    {
+      "name": "_widget_1665380028160",
+      "title": "是否提醒",
+      "type": "text",
+      "parent": "收款计划"
+    },
+    {
+      "name": "_widget_1665380027757",
+      "title": "消息辅助",
+      "type": "text",
+      "parent": "收款计划"
+    },
+    {
+      "name": "_widget_1696822285599",
+      "title": "质保期限",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1696822285597",
+      "title": "质保金额",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1623374466832",
+      "title": "合同其他信息",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431499820",
+      "title": "行业分类",
+      "type": "combo",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431499871",
+      "title": "地区",
+      "type": "combo",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431499996",
+      "title": "应用领域",
+      "type": "combo",
+      "parent": null
+    },
+    {
+      "name": "_widget_1576116537439",
+      "title": "应用物料",
+      "type": "combo",
+      "parent": null
+    },
+    {
+      "name": "_widget_1579240052161",
+      "title": "是否含智能化",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1582439670467",
+      "title": "智能点",
+      "type": "combocheck",
+      "parent": null
+    },
+    {
+      "name": "_widget_1563280700625",
+      "title": "备注",
+      "type": "textarea",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561431501066",
+      "title": "特别提醒",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561511175252",
+      "title": "附件（合同、协议）",
+      "type": "upload",
+      "parent": null
+    },
+    {
+      "name": "_widget_1561511175264",
+      "title": "图片（合同、协议）",
+      "type": "image",
+      "parent": null
+    },
+    {
+      "name": "_widget_1573192575054",
+      "title": "验收单",
+      "type": "upload",
+      "parent": null
+    },
+    {
+      "name": "_widget_1627697874959",
+      "title": "生产卡信息",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1661242797021",
+      "title": "日期时间",
+      "type": "datetime",
+      "parent": null
+    },
+    {
+      "name": "_widget_1698917219543",
+      "title": "选择服务费数据",
+      "type": "linkfield",
+      "parent": null
+    },
+    {
+      "name": "_widget_1720749080105",
+      "title": "变动查看",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1752304126294",
+      "title": "关联数据",
+      "type": "lookup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1759559814671",
+      "title": "附件同步知识库时间",
+      "type": "datetime",
+      "parent": null
+    },
+    {
+      "name": "_widget_1666331897364",
+      "title": "合同回款信息",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1596086134880",
+      "title": "单位回款信息",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1594173385303",
+      "title": "开票信息查询",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1667291302111",
+      "title": "运费承担方",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1667286001079",
+      "title": "合同约定地址",
+      "type": "address",
+      "parent": null
+    },
+    {
+      "name": "_widget_1730100756545",
+      "title": "发货地址",
+      "type": "linkfield",
+      "parent": null
+    },
+    {
+      "name": "_widget_1667286001084",
+      "title": "发货地址",
+      "type": "address",
+      "parent": null
+    },
+    {
+      "name": "_widget_1667286001085",
+      "title": "比对地址辅助",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1667291302128",
+      "title": "发货地址（到区）（辅助）",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1667291302129",
+      "title": "合同地址（到区）（辅助）",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1667291302115",
+      "title": "地址不符时上传附件",
+      "type": "subform",
+      "parent": null
+    },
+    {
+      "name": "_widget_1667291302117",
+      "title": "图片",
+      "type": "image",
+      "parent": "地址不符时上传附件"
+    },
+    {
+      "name": "_widget_1667291302118",
+      "title": "附件",
+      "type": "upload",
+      "parent": "地址不符时上传附件"
+    },
+    {
+      "name": "_widget_1594173385329",
+      "title": "发货信息查询",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1623889620353",
+      "title": "运费登记表",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1662088494543",
+      "title": "发货状态",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1594173385664",
+      "title": "最后发货日期（241012停用）",
+      "type": "datetime",
+      "parent": null
+    },
+    {
+      "name": "_widget_1594173385703",
+      "title": "发货总额（241012停用）",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1668417748847",
+      "title": "验收方式",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1668417749220",
+      "title": "验收所需资料",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1668417748935",
+      "title": "验收资料上传",
+      "type": "subform",
+      "parent": null
+    },
+    {
+      "name": "_widget_1668417748995",
+      "title": "验收日期",
+      "type": "datetime",
+      "parent": "验收资料上传"
+    },
+    {
+      "name": "_widget_1668417748937",
+      "title": "图片",
+      "type": "image",
+      "parent": "验收资料上传"
+    },
+    {
+      "name": "_widget_1668417748966",
+      "title": "附件",
+      "type": "upload",
+      "parent": "验收资料上传"
+    },
+    {
+      "name": "_widget_1698823518549",
+      "title": "行业分类-小萌",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1698908493692",
+      "title": "成本-小萌231101",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1698908493693",
+      "title": "运费-小萌231101",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1705729384963",
+      "title": "地区-小萌240120",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1705729384962",
+      "title": "省份-小萌240120",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1698908493694",
+      "title": "服务费-小萌231101",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1616210898698",
+      "title": "以下是辅助信息字段",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1614213005939",
+      "title": "单行文本（辅助）",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1609113829970",
+      "title": "判断是否含新增（辅助）",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1670549305841",
+      "title": "判断对方合同号是否含新增（辅助）",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1594185418743",
+      "title": "合同总额（辅助）",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1670549305842",
+      "title": "*限制同一对方合同号只能新增一次",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1610611018415",
+      "title": "限制同一合同号只能新增一次",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1616999695532",
+      "title": "下卡日期辅助（辅助）",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1729124887299",
+      "title": "辅助是否含需要提醒（241017增，用于辅助筛选出需要提醒的数据，大于0则是含有需要提醒的数据）",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1631177786890",
+      "title": "合同提交状态（辅助）",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "creator",
+      "title": "提交人",
+      "type": "user",
+      "parent": null
+    },
+    {
+      "name": "createTime",
+      "title": "提交时间",
+      "type": "datetime",
+      "parent": null
+    },
+    {
+      "name": "updateTime",
+      "title": "更新时间",
+      "type": "datetime",
+      "parent": null
+    }
+  ],
+  "review_all": [
+    {
+      "name": "_widget_1601273674993",
+      "title": "流水号",
+      "type": "sn",
+      "parent": null
+    },
+    {
+      "name": "_widget_1571965661665",
+      "title": "合同评审/项目评审（260518取消）",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1700817134166",
+      "title": "是否出口合同",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1669597630356",
+      "title": "是否核价",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1636957088887",
+      "title": "是否需要安装",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574756606514",
+      "title": "业务员",
+      "type": "user",
+      "parent": null
+    },
+    {
+      "name": "_widget_1770087198715",
+      "title": "业务员ID（辅助）",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1770087198714",
+      "title": "区域经理/组长",
+      "type": "user",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574756606496",
+      "title": "业务部门",
+      "type": "dept",
+      "parent": null
+    },
+    {
+      "name": "_widget_1712364068119",
+      "title": "选择公司名称",
+      "type": "linkfield",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552369403179",
+      "title": "公司名称",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1700446723223",
+      "title": "是否外贸客户",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1721093361440",
+      "title": "是否小萌240716(250314禁用）",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1644561606451",
+      "title": "是否销售小萌（23.11.25取消）",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1723685156828",
+      "title": "电控装置",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1683856445974",
+      "title": "室主任（230522取消，但流程版本V26用到）",
+      "type": "usergroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1677803834024",
+      "title": "核价信息",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1677810182290",
+      "title": "选择27.7核价管理信息",
+      "type": "linkfield",
+      "parent": null
+    },
+    {
+      "name": "_widget_1669789398113",
+      "title": "核价单号",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1669597630371",
+      "title": "核价时间（22/11/30取消）",
+      "type": "datetime",
+      "parent": null
+    },
+    {
+      "name": "_widget_1677803834040",
+      "title": "27.7核价管理流程查询",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1737505642219",
+      "title": "成本附件250122",
+      "type": "upload",
+      "parent": null
+    },
+    {
+      "name": "_widget_1737505642376",
+      "title": "成本价250122",
+      "type": "textarea",
+      "parent": null
+    },
+    {
+      "name": "_widget_1737505642264",
+      "title": "27.7核价管理流程（成本价）",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1669789398145",
+      "title": "核价配置要求的电机",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1669789398148",
+      "title": "核价配置要求的轴承",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1669789398149",
+      "title": "核价配置要求的主材材质",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1669789398151",
+      "title": "核价配置要求的衬板/筛板",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1669789398152",
+      "title": "特殊要求",
+      "type": "textarea",
+      "parent": null
+    },
+    {
+      "name": "_widget_1571965661782",
+      "title": "客户信息",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552369403178",
+      "title": "客户类型",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1575620563294",
+      "title": "正式合同份数",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552369403180",
+      "title": "公司性质*",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552369403182",
+      "title": "所属行业*",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1571980668231",
+      "title": "规模及资金（万元）*",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552369403185",
+      "title": "客户关系*",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574923502794",
+      "title": "失信信息",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1573546023205",
+      "title": "诉讼纠纷",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1573546023251",
+      "title": "环保处罚",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1573546023339",
+      "title": "税务处罚",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1573546023421",
+      "title": "其它行政处罚",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1666143568899",
+      "title": "联系信息",
+      "type": "subform",
+      "parent": null
+    },
+    {
+      "name": "_widget_1666143568901",
+      "title": "联系人",
+      "type": "text",
+      "parent": "联系信息"
+    },
+    {
+      "name": "_widget_1666143568902",
+      "title": "上级领导",
+      "type": "text",
+      "parent": "联系信息"
+    },
+    {
+      "name": "_widget_1666143568903",
+      "title": "手机号码",
+      "type": "text",
+      "parent": "联系信息"
+    },
+    {
+      "name": "_widget_1666143568904",
+      "title": "职务",
+      "type": "text",
+      "parent": "联系信息"
+    },
+    {
+      "name": "_widget_1678428794483",
+      "title": "邮箱or请示",
+      "type": "radiogroup",
+      "parent": "联系信息"
+    },
+    {
+      "name": "_widget_1666143568905",
+      "title": "邮箱",
+      "type": "text",
+      "parent": "联系信息"
+    },
+    {
+      "name": "_widget_1678428794562",
+      "title": "请示",
+      "type": "text",
+      "parent": "联系信息"
+    },
+    {
+      "name": "_widget_1666143568906",
+      "title": "地址",
+      "type": "address",
+      "parent": "联系信息"
+    },
+    {
+      "name": "_widget_1571965661943",
+      "title": "项目信息",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574409968702",
+      "title": "母公司或控股公司的情况及性质说明*",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552447447285",
+      "title": "项目名称及应用",
+      "type": "textarea",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552369403189",
+      "title": "报备时间",
+      "type": "datetime",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552369403186",
+      "title": "工资及保险情况*",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1571965661951",
+      "title": "合同价格（元）",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552369403191",
+      "title": "交货期",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552445539881",
+      "title": "是否有保函",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552445539906",
+      "title": "保函类型",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1616203849373",
+      "title": "是否有重量要求",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1601356599650",
+      "title": "是否趁用呆滞设备",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1577784147558",
+      "title": "合同是否含智能化部分",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552445540017",
+      "title": "合同签订依据及情况",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574409652548",
+      "title": "参考合同号",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552435959889",
+      "title": "付款方式",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574150406585",
+      "title": "公司现状调查",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574150406569",
+      "title": "项目报备与投标情况",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574150406601",
+      "title": "针对销售情况的补充",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1552453980743",
+      "title": "现场测绘及要求",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574756606691",
+      "title": "附件",
+      "type": "upload",
+      "parent": null
+    },
+    {
+      "name": "_widget_1619053749212",
+      "title": "图片",
+      "type": "image",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736576180989",
+      "title": "风险信息",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574150406495",
+      "title": "合同条款审核意见",
+      "type": "textarea",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736576180940",
+      "title": "法务风险等级判断",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736576180942",
+      "title": "法务风险等级文字描述",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736736740214",
+      "title": "技术风险等级判断",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736736740216",
+      "title": "技术风险等级文字描述",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736576180965",
+      "title": "业务风险等级判断",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736576180968",
+      "title": "业务风险等级文字描述",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736576180963",
+      "title": "财务风险等级判断",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736576180967",
+      "title": "财务风险等级文字描述",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1737505642531",
+      "title": "采购风险等级判断",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1737505641998",
+      "title": "采购风险等级文字描述",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736576181070",
+      "title": "出口风险等级判断",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736576181072",
+      "title": "出口风险等级文字描述",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1736576181094",
+      "title": "风险查看",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574150406737",
+      "title": "重点数据及信用等级",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574150406753",
+      "title": "前期业务来往描述",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1574150406769",
+      "title": "核价报价补充",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1571965661995",
+      "title": "结论",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1733555512882",
+      "title": "账期",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "name": "_widget_1733555512985",
+      "title": "账期查看（用于必填字段往后节点可见）",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1571965662023",
+      "title": "结论描述",
+      "type": "textarea",
+      "parent": null
+    },
+    {
+      "name": "_widget_1571965662256",
+      "title": "是否反馈",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1577171437278",
+      "title": "成员多选",
+      "type": "usergroup",
+      "parent": null
+    },
+    {
+      "name": "_widget_1577171437265",
+      "title": "反馈附件",
+      "type": "upload",
+      "parent": null
+    },
+    {
+      "name": "_widget_1619053749445",
+      "title": "反馈图片",
+      "type": "image",
+      "parent": null
+    },
+    {
+      "name": "_widget_1675494030973",
+      "title": "合同签订",
+      "type": "separator",
+      "parent": null
+    },
+    {
+      "name": "_widget_1673836407417",
+      "title": "图纸编号",
+      "type": "combo",
+      "parent": null
+    },
+    {
+      "name": "_widget_1673848111184",
+      "title": "关联查询",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1675494030989",
+      "title": "合同明细",
+      "type": "linkquery",
+      "parent": null
+    },
+    {
+      "name": "_widget_1675495250350",
+      "title": "合同评审意见执行情况",
+      "type": "textarea",
+      "parent": null
+    },
+    {
+      "name": "creator",
+      "title": "提交人",
+      "type": "user",
+      "parent": null
+    },
+    {
+      "name": "createTime",
+      "title": "提交时间",
+      "type": "datetime",
+      "parent": null
+    },
+    {
+      "name": "updateTime",
+      "title": "更新时间",
+      "type": "datetime",
+      "parent": null
+    }
+  ],
+  "crm_hits": [
+    {
+      "crm": "contract_no",
+      "jdy_title": "编号查询-（合同号）",
+      "name": "_widget_1404460362158",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "crm": "drawing_no",
+      "jdy_title": "图纸编号",
+      "name": "_widget_1563607519120",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "crm": "peer_contract_no",
+      "jdy_title": "合同号",
+      "name": "_widget_1561431499698",
+      "type": "text",
+      "parent": null
+    },
+    {
+      "crm": "acquire_method",
+      "jdy_title": "方式",
+      "name": "_widget_1721205724883",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "crm": "delivery_date",
+      "jdy_title": "合同交货期",
+      "name": "_widget_1561431500970",
+      "type": "datetime",
+      "parent": null
+    },
+    {
+      "crm": "change_type",
+      "jdy_title": "合同状态",
+      "name": "_widget_1593849161675",
+      "type": "radiogroup",
+      "parent": null
+    },
+    {
+      "crm": "amount",
+      "jdy_title": "合同总金额",
+      "name": "_widget_1561511175392",
+      "type": "number",
+      "parent": null
+    },
+    {
+      "crm": "payment",
+      "jdy_title": "收款计划",
+      "name": "_widget_1561431500797",
+      "type": "subform",
+      "parent": null
+    },
+    {
+      "crm": "lines",
+      "jdy_title": "合同明细",
+      "name": "_widget_1561431500151",
+      "type": "subform",
+      "parent": null
+    }
+  ],
+  "crm_miss": [],
+  "sample": [
+    {
+      "id": "6a6999ca20b75987e7c85437",
+      "highlight_count": 53,
+      "highlight": {
+        "流水号": "1.2.3-2026072901330",
+        "*提交人": "{'_id': '64ffc0bf0a38030009276880', 'name': '杨利杰', 'username': '060266566126118095', 'status': 1, 't",
+        "下卡日期": "2026-07-28T16:00:00.000Z",
+        "编号查询": "{'id': '6a50b2c9b43d8579bd5b0b13', '_id': '6a50b2c9b43d8579bd5b0b13', 'label': '否', 'appId': '5b2af2",
+        "单位名称": "西安墨源机电设备有限公司",
+        "部门": "{'_id': '56ca5b8af97e80434fc06126', 'name': '冶金矿山装备销售事业部', 'dept_no': 4430303, 'type': 0, 'status': ",
+        "业务人员": "{'_id': '6034568a7a7575000758a85b', 'name': '刘磊', 'username': '2842674037682418', 'status': 1, 'type",
+        "合同状态": "变动",
+        "变动原因": "新增 弧形筛楔块 WFHS-242060-2-YS 合同金额变更为4560",
+        "合同获取信息方式": "协商一致",
+        "编号查询-（合同号）": "KS26213",
+        "订货日期": "2026-07-05T16:00:00.000Z",
+        "合同类型": "正式",
+        "合同号": "KS26213",
+        "图纸编号": "WMGF202607081",
+        "项目名称": "无",
+        "对方合同号": "无",
+        "是否含税": "是",
+        "设备是否出口": "否",
+        "是否需要安装": "不需要安装",
+        "信息是否齐全": "是",
+        "合同形式": "正式合同",
+        "是否标准交付": "否",
+        "是否为旋振筛": "否",
+        "合同明细": "[subform x1]",
+        "合同总金额": "1200",
+        "技术参数及要求": "参考合同号WMGF202302070\n楔块WZFHS-222060配     \n卡子WZFHS-222060配  \n连轴器软连接参考合同号 W181558",
+        "油漆要求": "参考某合同，请在备注填写所参考的合同号",
+        "工作量": "备件",
+        "付款形式": "['银承', '电汇']",
+        "付款方式文字描述": "全款发货",
+        "合同交货期": "2026-07-17T16:00:00.000Z",
+        "收款计划": "[subform x1]",
+        "质保期限": "/",
+        "质保金额": "0",
+        "行业分类": "工业升级",
+        "地区": "西北",
+        "应用领域": "电力",
+        "应用物料": "其他",
+        "是否含智能化": "否",
+        "附件（合同、协议）": "[subform x3]",
+        "运费承担方": "我方",
+        "合同约定地址": "{'province': '陕西省', 'city': '西安市', 'district': '未央区', 'detail': '北关正街35号1栋1单元11507室'}",
+        "比对地址辅助": "不符",
+        "合同地址（到区）（辅助）": "陕西省西安市未央区",
+        "验收方式": "指导安装不含验收",
+        "验收所需资料": "发货验收单",
+        "合同总额（辅助）": "3360",
+        "下卡日期辅助（辅助）": "1785254400000",
+        "辅助是否含需要提醒（241017增，用于辅助筛选出需要提醒的数据，大于0则是含有需要提醒的数据）": "0",
+        "提交人": "{'_id': '688d6c8bb4dd57d00fa4c014', 'name': '李焱焱', 'username': '442558535226341870', 'status': 1, 't",
+        "提交时间": "2026-07-29T06:12:26.877Z",
+        "更新时间": "2026-07-29T06:13:31.096Z"
+      }
+    },
+    {
+      "id": "6a6974c464474b4cde2dfeb7",
+      "highlight_count": 52,
+      "highlight": {
+        "流水号": "1.2.3-2026072901329",
+        "*提交人": "{'_id': '6205c55578f6f40008ee155f', 'name': '孙路瑶', 'username': '263517372323629184', 'status': 1, 't",
+        "下卡日期": "2026-07-28T16:00:00.000Z",
+        "客户编号": "C-20251220003",
+        "编号查询": "{'id': '6a6946291a0fd7f12e0e0532', '_id': '6a6946291a0fd7f12e0e0532', 'label': '否', 'appId': '5b2af2",
+        "单位名称": "新疆威猛工业智能装备有限公司",
+        "部门": "{'_id': '59dc5c5f0b18743912395106', 'name': '新疆威猛工业智能装备有限公司', 'dept_no': 52371059, 'type': 0, 'statu",
+        "业务人员": "{'_id': '5a4b58fbfbfb478479c94e16', 'name': '张宇', 'username': '0251122057778343', 'status': 1, 'type",
+        "合同状态": "新增",
+        "合同获取信息方式": "协商一致",
+        "编号查询-（合同号）": "XJ26119",
+        "订货日期": "2026-07-27T16:00:00.000Z",
+        "合同号": "XJ26119",
+        "图纸编号": "WMGF202607184",
+        "项目名称": "无",
+        "对方合同号": "/",
+        "是否含税": "是",
+        "设备是否出口": "是",
+        "是否需要安装": "指导安装",
+        "信息是否齐全": "是",
+        "合同形式": "正式合同",
+        "是否标准交付": "否",
+        "是否为旋振筛": "否",
+        "合同明细": "[subform x1]",
+        "合同总金额": "8748",
+        "技术参数及要求": "1. 出口合同，胶合板木箱包装（需要注意木箱厚度，避免散架）；包装外面需张贴唛头，木箱内有固定的产品措施（可以使用气泡膜填充缝隙，但坚决不能使用颗粒式泡沫填充）；\n2.产品需要粘贴标识，标识厂牌：“河",
+        "油漆要求": "企标",
+        "工作量": "出口",
+        "付款形式": "['银承', '电汇']",
+        "付款方式文字描述": "全款提货",
+        "合同交货期": "2026-09-09T16:00:00.000Z",
+        "交货期条款": "此公司有罚款，具体金额以实际为准",
+        "收款计划": "[subform x1]",
+        "质保期限": "/",
+        "行业分类": "工业升级",
+        "地区": "西北",
+        "应用领域": "冶金",
+        "应用物料": "其他",
+        "是否含智能化": "否",
+        "附件（合同、协议）": "[subform x2]",
+        "运费承担方": "需方",
+        "合同约定地址": "{'province': '新疆维吾尔自治区', 'city': '新星市', 'district': '新星市', 'detail': '新疆新星市十三师新星经济技术开发区二道湖工业园标准化厂房3栋",
+        "比对地址辅助": "不符",
+        "合同地址（到区）（辅助）": "新疆维吾尔自治区新星市新星市",
+        "判断是否含新增（辅助）": "新增WMGF202607184",
+        "判断对方合同号是否含新增（辅助）": "新增WMGF202607184新疆威猛工业智能装备有限公司/",
+        "*限制同一对方合同号只能新增一次": "0",
+        "限制同一合同号只能新增一次": "0",
+        "下卡日期辅助（辅助）": "1785254400000",
+        "提交人": "{'_id': '6205c55578f6f40008ee155f', 'name': '孙路瑶', 'username': '263517372323629184', 'status': 1, 't",
+        "提交时间": "2026-07-29T03:34:28.786Z",
+        "更新时间": "2026-07-29T03:34:28.789Z"
+      }
+    }
+  ],
+  "crm_hits_exact": [
+    {
+      "crm": "contract_no",
+      "jdy_title": "合同号",
+      "name": "_widget_1561431499698",
+      "type": "text"
+    },
+    {
+      "crm": "drawing_no",
+      "jdy_title": "图纸编号",
+      "name": "_widget_1563607519120",
+      "type": "text"
+    },
+    {
+      "crm": "peer_contract_no",
+      "jdy_title": "对方合同号",
+      "name": "_widget_1561431499731",
+      "type": "text"
+    },
+    {
+      "crm": "acquire_method",
+      "jdy_title": "合同获取信息方式",
+      "name": "_widget_1703462723292",
+      "type": "radiogroup"
+    },
+    {
+      "crm": "delivery_date",
+      "jdy_title": "合同交货期",
+      "name": "_widget_1561431500970",
+      "type": "datetime"
+    },
+    {
+      "crm": "change_type",
+      "jdy_title": "合同状态",
+      "name": "_widget_1593849161675",
+      "type": "radiogroup"
+    },
+    {
+      "crm": "amount",
+      "jdy_title": "合同总金额",
+      "name": "_widget_1561511175392",
+      "type": "number"
+    },
+    {
+      "crm": "payment",
+      "jdy_title": "收款计划",
+      "name": "_widget_1561431500797",
+      "type": "subform"
+    },
+    {
+      "crm": "lines",
+      "jdy_title": "合同明细",
+      "name": "_widget_1561431500151",
+      "type": "subform"
+    }
+  ]
+}

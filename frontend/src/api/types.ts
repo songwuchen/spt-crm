@@ -323,24 +323,36 @@ export interface QuoteLine {
 
 export interface ContractItem {
   id: string
-  project_id: string
+  project_id?: string | null
+  customer_id?: string | null
   contract_no: string
   current_version_no: number
   status: string
   signed_date?: string
   end_date?: string
+  drawing_no?: string | null
+  peer_contract_no?: string | null
+  acquire_method?: string | null
+  delivery_date?: string | null
+  change_type?: string | null
+  order_date?: string | null
+  card_date?: string | null
   amount_total?: number | string
   payment_terms_json?: Record<string, unknown> | unknown[]
   delivery_terms_json?: Record<string, unknown> | unknown[]
+  registration_json?: Record<string, unknown>
   created_by_id?: string
   created_by_name?: string
   assignee_id?: string
   assignee_name?: string
   department_id?: string
   department_name?: string
+  custom_fields_json?: Record<string, unknown>
   created_at: string
   updated_at: string
   versions?: ContractVersion[]
+  project_name?: string
+  customer_name?: string
 }
 
 export interface ContractVersion {

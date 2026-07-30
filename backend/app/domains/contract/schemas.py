@@ -10,8 +10,16 @@ class ContractCreate(BaseModel):
     title: Optional[str] = None
     amount_total: Optional[float] = Field(None, ge=0)
     end_date: Optional[date] = None
+    drawing_no: Optional[str] = Field(None, max_length=100)
+    peer_contract_no: Optional[str] = Field(None, max_length=100)
+    acquire_method: Optional[str] = Field(None, max_length=64)
+    delivery_date: Optional[date] = None
+    change_type: Optional[str] = Field(None, max_length=16)  # new / change
+    order_date: Optional[date] = None
+    card_date: Optional[date] = None
     payment_terms_json: Optional[JsonTerms] = None
     delivery_terms_json: Optional[JsonTerms] = None
+    registration_json: Optional[dict] = None
     key_clauses_json: Optional[JsonTerms] = None
     assignee_id: Optional[str] = None
     assignee_name: Optional[str] = None
@@ -24,8 +32,16 @@ class ContractUpdate(BaseModel):
     status: Optional[str] = None
     amount_total: Optional[float] = Field(None, ge=0)
     end_date: Optional[date] = None
+    drawing_no: Optional[str] = Field(None, max_length=100)
+    peer_contract_no: Optional[str] = Field(None, max_length=100)
+    acquire_method: Optional[str] = Field(None, max_length=64)
+    delivery_date: Optional[date] = None
+    change_type: Optional[str] = Field(None, max_length=16)
+    order_date: Optional[date] = None
+    card_date: Optional[date] = None
     payment_terms_json: Optional[JsonTerms] = None
     delivery_terms_json: Optional[JsonTerms] = None
+    registration_json: Optional[dict] = None
     assignee_id: Optional[str] = None
     assignee_name: Optional[str] = None
     department_id: Optional[str] = None

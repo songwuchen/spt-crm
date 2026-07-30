@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Tag, Select, Input, Button, Modal, Form, InputNumber, DatePicker, message } from 'antd'
+import { Tag, Select, Input, Button, Modal, Form, message } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
@@ -8,18 +8,23 @@ import { contractApi } from '@/api/contract'
 import { projectApi } from '@/api/project'
 import type { ContractItem } from '@/api/types'
 import { contractStatusLabels, contractStatusColors } from '@/constants/labels'
+import { formatChangeType } from '@/constants/contractRegistration'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
-// 金额格式化自带脱敏识别，见 @/utils/mask
 import { fmtMoney } from '@/utils/mask'
 import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
-import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
+import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
+import ContractRegistrationFields from '@/components/ContractRegistrationFields'
+import ContractSectionTitle from '@/components/ContractSectionTitle'
+import ContractAttachmentSlots, { flushPendingAttachments, type PendingAttachments } from '@/components/ContractAttachmentSlots'
+import { PaymentTermsEditor, LineItemsEditor } from '@/components/ContractTerms'
+import dayjs from 'dayjs'
 
 
 export default function ContractList() {
-  usePageTitle('合同管理')
+  usePageTitle('合同登记')
   const navigate = useNavigate()
   const [data, setData] = useState<ContractItem[]>([])
   const [total, setTotal] = useState(0)
@@ -33,12 +38,14 @@ export default function ContractList() {
   const { hasPermission } = usePermission()
   const canCreate = hasPermission('contract:create')
 
-  // 新增合同（需指定关联商机）
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createForm] = Form.useForm()
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
   const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
+  const [createLines, setCreateLines] = useState<Record<string, unknown>[]>([{}])
+  const [createPay, setCreatePay] = useState<Record<string, unknown>[]>([{}])
+  const [pendingAtts, setPendingAtts] = useState<PendingAttachments>({})
   const [projOpts, setProjOpts] = useState<{ label: string; value: string }[]>([])
   const [projLoading, setProjLoading] = useState(false)
   const searchProjects = async (kw?: string) => {
@@ -48,11 +55,20 @@ export default function ContractList() {
       setProjOpts((r.data.items || []).map((p) => ({ label: `${p.name}（${p.project_code}）`, value: p.id })))
     } catch { /* ignore */ } finally { setProjLoading(false) }
   }
-  const openCreate = () => { createForm.resetFields(); setProjOpts([]); searchProjects(); setCreateOpen(true) }
+  const openCreate = () => {
+    createForm.resetFields()
+    createForm.setFieldsValue({ change_type: 'new', registration_json: {} })
+    setCustomFields({})
+    setCreateLines([{}])
+    setCreatePay([{}])
+    setPendingAtts({})
+    setProjOpts([])
+    searchProjects()
+    setCreateOpen(true)
+  }
   const handleCreate = async () => {
     let v
     try { v = await createForm.validateFields() } catch { return }
-    // 扩展字段不在 antd Form 状态里，validateFields 覆盖不到，需单独校验；后端也会二次校验
     const cfError = customFieldsRef.current?.validate()
     if (cfError) {
       message.error(cfError)
@@ -60,17 +76,47 @@ export default function ContractList() {
     }
     setCreating(true)
     try {
+      const regRaw = { ...(v.registration_json || {}) } as Record<string, unknown>
+      for (const [k, val] of Object.entries(regRaw)) {
+        if (val && typeof val === 'object' && dayjs.isDayjs(val)) {
+          regRaw[k] = val.format('YYYY-MM-DD')
+        }
+      }
+      const fmt = (d: unknown) => (d && dayjs.isDayjs(d) ? d.format('YYYY-MM-DD') : undefined)
+      const lines = createLines.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
+      const pays = createPay.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
       const res = await contractApi.create(v.project_id, {
         title: v.title || 'V1',
         ...(v.amount_total != null ? { amount_total: v.amount_total } : {}),
-        ...(v.end_date ? { end_date: v.end_date.format('YYYY-MM-DD') } : {}),
-        ...(v.content ? { key_clauses_json: [{ item: '合同内容', content: v.content }] } : {}),
+        ...(fmt(v.end_date) ? { end_date: fmt(v.end_date) } : {}),
+        ...(fmt(v.delivery_date) ? { delivery_date: fmt(v.delivery_date) } : {}),
+        ...(fmt(v.order_date) ? { order_date: fmt(v.order_date) } : {}),
+        ...(fmt(v.card_date) ? { card_date: fmt(v.card_date) } : {}),
+        ...(v.drawing_no ? { drawing_no: v.drawing_no } : {}),
+        ...(v.peer_contract_no ? { peer_contract_no: v.peer_contract_no } : {}),
+        ...(v.acquire_method ? { acquire_method: v.acquire_method } : {}),
+        ...(v.change_type ? { change_type: v.change_type } : {}),
+        ...(v.assignee_name ? { assignee_name: v.assignee_name } : {}),
+        ...(v.department_name ? { department_name: v.department_name } : {}),
+        registration_json: Object.keys(regRaw).length ? regRaw : undefined,
+        ...(lines.length ? { key_clauses_json: lines } : {}),
+        ...(pays.length ? { payment_terms_json: pays } : {}),
+        ...(v.content && !lines.length ? { key_clauses_json: [{ item: '合同内容', content: v.content }] } : {}),
         custom_fields_json: customFields,
       }) as any
-      message.success('合同已创建，请在详情页完善内容与附件')
+      message.success('合同登记已创建')
+      const cid = res?.data?.contract?.id
+      if (cid) {
+        const pendingCount = Object.values(pendingAtts).reduce((n, arr) => n + (arr?.length || 0), 0)
+        if (pendingCount > 0) {
+          const { ok, fail } = await flushPendingAttachments(cid, pendingAtts)
+          if (fail) message.warning(`附件上传完成：成功 ${ok}，失败 ${fail}`)
+          else if (ok) message.success(`已上传 ${ok} 个附件`)
+        }
+      }
       setCreateOpen(false)
       setCustomFields({})
-      const cid = res?.data?.contract?.id
+      setPendingAtts({})
       if (cid) navigate(`/opportunities/${v.project_id}/contracts/${cid}`)
       else fetchData()
     } catch { message.error('创建失败') } finally { setCreating(false) }
@@ -87,31 +133,47 @@ export default function ContractList() {
 
   useEffect(() => { fetchData() }, [])
 
-  // 高级筛选/排序/视图变化后回到第 1 页重新拉取（reload 在 state 更新后再触发，避免读到旧值）
   useEffect(() => {
     if (!didMount.current) { didMount.current = true; return }
     fetchData(1)
   }, [reload])
 
   const columns: ColumnsType<ContractItem> = [
-    { title: '合同编号', dataIndex: 'contract_no', width: 180,
-      render: (v: string, r: ContractItem) => r.project_id ? (
-        <a className="font-mono font-bold text-primary" onClick={() => navigate(`/opportunities/${r.project_id}/contracts/${r.id}`)}>{v}</a>
-      ) : <span className="font-mono font-bold text-slate-700">{v}</span>,
+    { title: '合同编号', dataIndex: 'contract_no', width: 160,
+      render: (v: string, r: ContractItem) => (
+        <a className="font-mono font-bold text-primary" onClick={() => navigate(
+          r.project_id ? `/opportunities/${r.project_id}/contracts/${r.id}` : `/contracts/${r.id}`
+        )}>{v}</a>
+      ),
     },
-    { title: '商机名称', dataIndex: 'project_name', width: 200, ellipsis: true, render: (v: string) => v || '-' },
-    { title: '客户名称', dataIndex: 'customer_name', width: 180, ellipsis: true, render: (v: string) => v || '-' },
-    { title: '状态', dataIndex: 'status', width: 100,
+    { title: '图纸编号', dataIndex: 'drawing_no', width: 140, ellipsis: true, render: (v: string) => v || '-' },
+    { title: '对方合同号', dataIndex: 'peer_contract_no', width: 120, ellipsis: true, render: (v: string) => v || '-' },
+    { title: '客户名称', dataIndex: 'customer_name', width: 160, ellipsis: true, render: (v: string) => v || '-' },
+    { title: '商机名称', dataIndex: 'project_name', width: 160, ellipsis: true, render: (v: string) => v || '-' },
+    {
+      title: '项目名称', width: 140, ellipsis: true,
+      render: (_: unknown, r: ContractItem) => (r.registration_json as any)?.project_name || '-',
+    },
+    { title: '登记类型', dataIndex: 'change_type', width: 90,
+      render: (v: string) => formatChangeType(v) },
+    {
+      title: '合同类型', width: 100, ellipsis: true,
+      render: (_: unknown, r: ContractItem) => (r.registration_json as any)?.contract_type || '-',
+    },
+    {
+      title: '行业', width: 90, ellipsis: true,
+      render: (_: unknown, r: ContractItem) => (r.registration_json as any)?.industry || '-',
+    },
+    { title: '状态', dataIndex: 'status', width: 90,
       render: (v: string) => <Tag color={contractStatusColors[v] || 'default'}>{contractStatusLabels[v] || v}</Tag>,
     },
-    { title: '金额', dataIndex: 'amount_total', width: 140, align: 'right',
+    { title: '金额', dataIndex: 'amount_total', width: 120, align: 'right',
       render: (v: number | string) => <span className="font-bold">{fmtMoney(v)}</span> },
-    { title: '签约日期', dataIndex: 'signed_date', width: 120,
-      render: (v: string) => v || '-' },
-    { title: '到期日期', dataIndex: 'end_date', width: 120,
-      render: (v: string) => v || '-' },
-    { title: '负责人', dataIndex: 'assignee_name', width: 100, render: (v: string) => v || '-' },
-    { title: '创建时间', dataIndex: 'created_at', width: 120,
+    { title: '订货日期', dataIndex: 'order_date', width: 110, render: (v: string) => v || '-' },
+    { title: '交货期', dataIndex: 'delivery_date', width: 110, render: (v: string) => v || '-' },
+    { title: '获取方式', dataIndex: 'acquire_method', width: 110, ellipsis: true, render: (v: string) => v || '-' },
+    { title: '负责人', dataIndex: 'assignee_name', width: 90, render: (v: string) => v || '-' },
+    { title: '创建时间', dataIndex: 'created_at', width: 110,
       render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
   ]
 
@@ -121,19 +183,19 @@ export default function ContractList() {
     <div>
       <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">合同管理</h1>
-          <p className="text-sm text-slate-500 mt-0.5">查看所有商机项目的合同</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">合同登记</h1>
+          <p className="text-sm text-slate-500 mt-0.5">对齐简道云数据中心「合同登记表」：明细、收款计划、质保、行业与验收等</p>
         </div>
-        {canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增合同</Button>}
+        {canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增登记</Button>}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4 shrink-0">
         <div className="flex gap-3 flex-wrap items-center">
-          <Input prefix={<SearchOutlined className="text-slate-400" />} placeholder="搜索合同编号..."
+          <Input prefix={<SearchOutlined className="text-slate-400" />} placeholder="搜索合同号 / 图纸号 / 对方合同号"
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
             onPressEnter={() => { setPageNo(1); fetchData(1, keyword, filterStatus) }}
-            allowClear style={{ width: 220 }} />
-          <Select placeholder="状态" allowClear style={{ width: 130 }} value={filterStatus}
+            allowClear style={{ width: 280 }} />
+          <Select placeholder="签署状态" allowClear style={{ width: 130 }} value={filterStatus}
             onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchData(1, keyword, v) }}
             options={Object.entries(contractStatusLabels).map(([k, v]) => ({ value: k, label: v }))} />
           <ListToolbar resource="contract" view={view} onChange={() => setReload((r) => r + 1)} />
@@ -150,9 +212,9 @@ export default function ContractList() {
         />
       </div>
 
-      {/* 新增合同 */}
-      <Modal title="新增合同" open={createOpen} onOk={handleCreate} confirmLoading={creating}
-        onCancel={() => setCreateOpen(false)} okText="创建并完善" width={520} destroyOnClose>
+      <Modal title="新增合同登记" open={createOpen} onOk={handleCreate} confirmLoading={creating}
+        onCancel={() => setCreateOpen(false)} okText="创建并完善" width={920} destroyOnClose
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
        <FieldPolicyProvider entityType="contract" form={createForm} customFieldValues={customFields}>
         <Form form={createForm} layout="vertical" className="mt-3">
           <Form.Item name="project_id" label="关联商机" rules={[{ required: true, message: '请选择关联商机' }]}>
@@ -161,14 +223,48 @@ export default function ContractList() {
               onDropdownVisibleChange={(o) => { if (o && projOpts.length === 0) searchProjects() }} />
           </Form.Item>
           <Form.Item name="title" label="合同标题"><Input placeholder="如：设备采购合同（默认 V1）" /></Form.Item>
-          <div className="grid grid-cols-2 gap-3">
-            <PolicyItem name="amount_total" label="合同金额"><InputNumber className="w-full" min={0} precision={2} /></PolicyItem>
-            <PolicyItem name="end_date" label="到期日期"><DatePicker className="w-full" /></PolicyItem>
-          </div>
-          <Form.Item name="content" label="合同内容"><Input.TextArea rows={3} placeholder="合同主要内容 / 关键条款（可在详情页继续完善）" /></Form.Item>
+          <ContractRegistrationFields
+            form={createForm}
+            mode="create"
+            slots={{
+              line_items: (
+                <div>
+                  <ContractSectionTitle title="合同明细" />
+                  <LineItemsEditor value={createLines} onChange={setCreateLines} />
+                </div>
+              ),
+              payment_terms: (
+                <div>
+                  <ContractSectionTitle title="收款计划" />
+                  <PaymentTermsEditor value={createPay} onChange={setCreatePay} />
+                </div>
+              ),
+              contract_files: (
+                <ContractAttachmentSlots
+                  slot="contract_files"
+                  pending={pendingAtts}
+                  onPendingChange={setPendingAtts}
+                />
+              ),
+              addr_mismatch_files: (
+                <ContractAttachmentSlots
+                  slot="addr_mismatch_files"
+                  pending={pendingAtts}
+                  onPendingChange={setPendingAtts}
+                />
+              ),
+              accept_files: (
+                <ContractAttachmentSlots
+                  slot="accept_files"
+                  pending={pendingAtts}
+                  onPendingChange={setPendingAtts}
+                />
+              ),
+            }}
+          />
           <CustomFieldsPanel ref={customFieldsRef} entityType="contract"
             value={customFields} onChange={setCustomFields} />
-          <div className="text-[12px] text-slate-400">合同编号将自动生成；创建后将跳转到合同详情页，可上传附件并发起审批。</div>
+          <div className="text-[12px] text-slate-400">合同编号将自动生成；表单内选择的附件会在创建成功后自动上传。</div>
         </Form>
        </FieldPolicyProvider>
       </Modal>

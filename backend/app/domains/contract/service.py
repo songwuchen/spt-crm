@@ -60,7 +60,17 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, dat
     await validate_entity_custom_fields(db, tenant_id, "contract", cfj, user.get("roles"))
     native = await enforce_native_field_policy(
         db, tenant_id, "contract",
-        {"amount_total": data.amount_total, "end_date": data.end_date},
+        {
+            "amount_total": data.amount_total,
+            "end_date": data.end_date,
+            "drawing_no": data.drawing_no,
+            "peer_contract_no": data.peer_contract_no,
+            "acquire_method": data.acquire_method,
+            "delivery_date": data.delivery_date,
+            "change_type": data.change_type,
+            "order_date": data.order_date,
+            "card_date": data.card_date,
+        },
         None, user.get("roles"),
     )
 
@@ -69,8 +79,17 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, dat
         project_id=project_id, contract_no=await generate_code(db, tenant_id, "contract"),
         current_version_no=1,
         amount_total=native.get("amount_total"),
+        end_date=native.get("end_date"),
+        drawing_no=native.get("drawing_no"),
+        peer_contract_no=native.get("peer_contract_no"),
+        acquire_method=native.get("acquire_method"),
+        delivery_date=native.get("delivery_date"),
+        change_type=native.get("change_type"),
+        order_date=native.get("order_date"),
+        card_date=native.get("card_date"),
         payment_terms_json=data.payment_terms_json,
         delivery_terms_json=data.delivery_terms_json,
+        registration_json=data.registration_json,
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
         assignee_id=data.assignee_id, assignee_name=data.assignee_name,
         department_id=data.department_id, department_name=data.department_name,

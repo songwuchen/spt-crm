@@ -140,10 +140,16 @@ def _build_registry() -> dict:
 
     reg["contract"] = ResourceSchema("contract", "合同", [
         TextField("contract_no", "合同编号", Contract.contract_no),
+        TextField("drawing_no", "图纸编号", Contract.drawing_no),
+        TextField("peer_contract_no", "对方合同号", Contract.peer_contract_no),
         EnumField("status", "状态", Contract.status,
                   options=[("draft", "草稿"), ("signed", "已签署"), ("terminated", "已终止")]),
+        EnumField("change_type", "登记类型", Contract.change_type,
+                  options=[("new", "新增"), ("change", "变动")]),
+        TextField("acquire_method", "获取方式", Contract.acquire_method),
         NumberField("amount_total", "合同金额", Contract.amount_total),
         DateField("signed_date", "签署日期", Contract.signed_date),
+        DateField("delivery_date", "合同交货期", Contract.delivery_date),
         DateField("end_date", "到期日期", Contract.end_date),
         PeopleField("assignee_id", "负责人", Contract.assignee_id, option_source="users"),
         TextField("assignee_name", "负责人姓名", Contract.assignee_name),

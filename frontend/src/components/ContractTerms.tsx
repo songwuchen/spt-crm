@@ -1,17 +1,23 @@
-import { Table, Input, InputNumber, DatePicker, Button } from 'antd'
+import { Table, Input, InputNumber, DatePicker, Button, Select, Radio } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import DataView, { formatMoney, formatScalar } from './DataView'
+import {
+  LINE_PRODUCT_TYPE_OPTS,
+  LINE_ELEC_CTRL_OPTS,
+  LINE_YES_NO_OPTS,
+  PAY_KIND_OPTS,
+} from '@/constants/contractRegistration'
 
 /**
  * 合同条款（收款计划 / 合同明细）的查看 + 录入编辑。
  *
- * 新录入的数据用干净的语义字段名（name/spec/qty...），同时兼容迁移自简道云的
- * `_widget_*` 旧字段（通过 aliases 解析），新旧数据都能正常展示。
+ * 控件类型对齐简道云：产品类型/电控/付款方式=下拉，是否外币/是否提醒=单选；
+ * 外币相关列随「是否外币合同=是」动态显示。
  */
 
 type Row = Record<string, unknown>
-type Kind = 'text' | 'number' | 'money' | 'pct' | 'date'
+type Kind = 'text' | 'number' | 'money' | 'pct' | 'date' | 'select' | 'radio'
 
 interface FieldSpec {
   key: string
@@ -20,28 +26,64 @@ interface FieldSpec {
   aliases?: string[]
   width?: number
   align?: 'left' | 'right' | 'center'
-  computed?: boolean // 金额 = 数量 × 单价，自动计算
+  computed?: boolean
+  options?: { value: string; label: string }[]
+  /** 行内动态显隐：依赖本行字段 */
+  showWhen?: { field: string; equals: string[] }
 }
 
 // 合同明细（结构化条款）
 export const LINE_FIELDS: FieldSpec[] = [
-  { key: 'name', label: '名称', kind: 'text', aliases: ['_widget_1561431500376'] },
-  { key: 'spec', label: '规格型号', kind: 'text', aliases: ['_widget_1561431500392'] },
+  {
+    key: 'is_fx', label: '是否外币合同', kind: 'radio', aliases: ['_widget_1621411268784'],
+    width: 120, align: 'center', options: LINE_YES_NO_OPTS,
+  },
+  {
+    key: 'product_type', label: '产品类型', kind: 'select', aliases: ['_widget_1561431500162'],
+    width: 130, options: LINE_PRODUCT_TYPE_OPTS,
+  },
+  { key: 'name', label: '产品名称', kind: 'text', aliases: ['_widget_1561431500376'], width: 140 },
+  { key: 'spec', label: '规格型号', kind: 'text', aliases: ['_widget_1561431500392'], width: 120 },
   { key: 'unit', label: '单位', kind: 'text', aliases: ['_widget_1561431500419'], width: 70, align: 'center' },
   { key: 'qty', label: '数量', kind: 'number', aliases: ['_widget_1561431500458'], width: 90, align: 'right' },
+  {
+    key: 'fx_price', label: '外币单价', kind: 'number', aliases: ['_widget_1621411268153'],
+    width: 110, align: 'right', showWhen: { field: 'is_fx', equals: ['是'] },
+  },
+  {
+    key: 'fx_rate', label: '汇率', kind: 'number', aliases: ['_widget_1621411269220'],
+    width: 90, align: 'right', showWhen: { field: 'is_fx', equals: ['是'] },
+  },
   { key: 'price', label: '单价', kind: 'money', aliases: ['_widget_1561431500490'], width: 120, align: 'right' },
-  { key: 'amount', label: '金额', kind: 'money', aliases: ['_widget_1561431500514'], width: 130, align: 'right', computed: true },
-  { key: 'remark', label: '备注', kind: 'text', aliases: ['_widget_1561431500595'] },
-  { key: 'standard', label: '技术标准/参照', kind: 'text', aliases: ['_widget_1565223122750'] },
+  { key: 'amount', label: '总价', kind: 'money', aliases: ['_widget_1561431500514'], width: 130, align: 'right', computed: true },
+  {
+    key: 'fx_amount', label: '外币总价', kind: 'number', aliases: ['_widget_1621411268210'],
+    width: 120, align: 'right', showWhen: { field: 'is_fx', equals: ['是'] },
+  },
+  {
+    key: 'elec_ctrl', label: '电控装置', kind: 'select', aliases: ['_widget_1561431500595'],
+    width: 150, options: LINE_ELEC_CTRL_OPTS,
+  },
+  { key: 'standard', label: '技术参数及要求', kind: 'text', aliases: ['_widget_1565223122750'], width: 160 },
+  { key: 'line_remark', label: '备注', kind: 'text', aliases: ['_widget_1697420581927'], width: 140 },
 ]
 
 // 收款计划（付款条款）
 export const PAY_FIELDS: FieldSpec[] = [
-  { key: 'kind', label: '款项性质', kind: 'text', aliases: ['_widget_1561431500818'], width: 110 },
-  { key: 'ratio', label: '付款比例', kind: 'pct', aliases: ['_widget_1561431500832'], width: 110, align: 'right' },
-  { key: 'amount', label: '金额', kind: 'money', aliases: ['_widget_1561431500855'], width: 130, align: 'right' },
-  { key: 'due_date', label: '到期日期', kind: 'date', aliases: ['_widget_1661242797064'], width: 150 },
-  { key: 'note', label: '说明', kind: 'text', aliases: ['_widget_1665380027757'] },
+  { key: 'due_date', label: '日期时间', kind: 'date', aliases: ['_widget_1661242797064'], width: 150 },
+  {
+    key: 'kind', label: '付款方式', kind: 'select',
+    aliases: ['_widget_1561431500818', '付款方式', '款项性质'],
+    width: 110, options: PAY_KIND_OPTS,
+  },
+  { key: 'ratio', label: '付款比例', kind: 'pct', aliases: ['_widget_1561431500832', '付款比例（%）'], width: 110, align: 'right' },
+  { key: 'amount', label: '付款金额', kind: 'money', aliases: ['_widget_1561431500855', '付款金额'], width: 130, align: 'right' },
+  {
+    key: 'remind', label: '是否提醒', kind: 'radio',
+    aliases: ['_widget_1665380028160', '是否提醒'],
+    width: 110, align: 'center', options: LINE_YES_NO_OPTS,
+  },
+  { key: 'note', label: '消息辅助', kind: 'text', aliases: ['_widget_1665380027757'], width: 140 },
 ]
 
 const SUM_KEY = 'amount'
@@ -57,8 +99,18 @@ const numOf = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0
 }
 
-function fmt(kind: Kind, v: unknown): string {
+function rowShows(f: FieldSpec, row: Row): boolean {
+  if (!f.showWhen) return true
+  const v = row[f.showWhen.field]
+  return f.showWhen.equals.includes(v == null ? '' : String(v))
+}
+
+function fmt(kind: Kind, v: unknown, opts?: { value: string; label: string }[]): string {
   if (v == null || v === '') return '-'
+  if (opts?.length) {
+    const hit = opts.find((o) => o.value === String(v))
+    if (hit) return hit.label
+  }
   if (kind === 'money') return formatMoney(v)
   if (kind === 'pct') {
     const n = Number(v)
@@ -72,13 +124,20 @@ function fmt(kind: Kind, v: unknown): string {
 
 function TermsTable({ rows, fields }: { rows: Row[]; fields: FieldSpec[] }) {
   const cols = fields
-    .filter((f) => rows.some((r) => { const v = resolve(r, f); return v != null && v !== '' }))
+    .filter((f) => rows.some((r) => {
+      if (!rowShows(f, r) && f.showWhen) return false
+      const v = resolve(r, f)
+      return v != null && v !== ''
+    }))
     .map((f) => ({
       title: f.label,
       key: f.key,
       align: f.align,
       width: f.width,
-      render: (_: unknown, r: Row) => fmt(f.kind, resolve(r, f)),
+      render: (_: unknown, r: Row) => {
+        if (f.showWhen && !rowShows(f, r)) return '-'
+        return fmt(f.kind, resolve(r, f), f.options)
+      },
     }))
   const total = rows.reduce((s, r) => s + numOf(resolve(r, { key: SUM_KEY, label: '', kind: 'money', aliases: fields.find((x) => x.key === SUM_KEY)?.aliases })), 0)
   const keyMap = new WeakMap<object, string>()
@@ -137,6 +196,79 @@ export function toCanonicalRows(value: unknown, fields: FieldSpec[]): Row[] {
     })
 }
 
+function CellEditor({
+  f, value, row, onChange,
+}: {
+  f: FieldSpec
+  value: unknown
+  row: Row
+  onChange: (v: unknown) => void
+}) {
+  if (f.computed) {
+    return <span className="text-slate-600">{formatMoney(numOf(row.qty) * numOf(row.price))}</span>
+  }
+  if (f.kind === 'radio' && f.options) {
+    return (
+      <Radio.Group
+        size="small"
+        value={value as string}
+        onChange={(e) => onChange(e.target.value)}
+        optionType="button"
+        buttonStyle="solid"
+      >
+        {f.options.map((o) => (
+          <Radio.Button key={o.value} value={o.value}>{o.label}</Radio.Button>
+        ))}
+      </Radio.Group>
+    )
+  }
+  if (f.kind === 'select') {
+    return (
+      <Select
+        size="small"
+        allowClear
+        showSearch
+        optionFilterProp="label"
+        value={(value as string) || undefined}
+        options={f.options || []}
+        onChange={(v) => onChange(v ?? null)}
+        style={{ width: '100%' }}
+        placeholder="请选择"
+      />
+    )
+  }
+  if (f.kind === 'number') {
+    return <InputNumber size="small" value={value as number} onChange={(x) => onChange(x)} style={{ width: '100%' }} />
+  }
+  if (f.kind === 'money') {
+    return <InputNumber size="small" value={value as number} min={0} onChange={(x) => onChange(x)} style={{ width: '100%' }} />
+  }
+  if (f.kind === 'pct') {
+    return (
+      <InputNumber
+        size="small"
+        value={value == null ? null : Number(value) * 100}
+        min={0}
+        max={100}
+        addonAfter="%"
+        onChange={(x) => onChange(x == null ? null : Number(x) / 100)}
+        style={{ width: '100%' }}
+      />
+    )
+  }
+  if (f.kind === 'date') {
+    return (
+      <DatePicker
+        size="small"
+        value={value ? dayjs(value as string) : null}
+        onChange={(d) => onChange(d ? d.toISOString() : null)}
+        style={{ width: '100%' }}
+      />
+    )
+  }
+  return <Input size="small" value={value as string} onChange={(e) => onChange(e.target.value)} />
+}
+
 function EditableTermsTable({
   fields,
   rows,
@@ -148,31 +280,47 @@ function EditableTermsTable({
 }) {
   const update = (i: number, key: string, val: unknown) => {
     const next = rows.map((r, j) => (j === i ? { ...r, [key]: val } : r))
-    // 金额 = 数量 × 单价 自动计算
     if (key === 'qty' || key === 'price') {
       const r = next[i]
       const amt = numOf(r.qty) * numOf(r.price)
       next[i] = { ...r, amount: amt || null }
+    }
+    // 切回非外币时清空外币列，避免脏数据
+    if (key === 'is_fx' && val !== '是') {
+      next[i] = { ...next[i], fx_price: null, fx_rate: null, fx_amount: null }
     }
     onChange(next)
   }
   const addRow = () => onChange([...rows, {}])
   const delRow = (i: number) => onChange(rows.filter((_, j) => j !== i))
 
+  // 列：无 showWhen 的固定列 + 任意行需要外币时显示外币列（表头级）
+  const anyFx = rows.some((r) => String(r.is_fx || '') === '是')
+  const visibleFields = fields.filter((f) => {
+    if (!f.showWhen) return true
+    if (f.showWhen.field === 'is_fx') return anyFx
+    return true
+  })
+
   const cols = [
-    ...fields.map((f) => ({
+    ...visibleFields.map((f) => ({
       title: f.label,
       key: f.key,
       width: f.width,
       align: f.align,
       render: (_: unknown, _r: Row, i: number) => {
-        const v = rows[i][f.key]
-        if (f.computed) return <span className="text-slate-600">{formatMoney(numOf(rows[i].qty) * numOf(rows[i].price)) }</span>
-        if (f.kind === 'number') return <InputNumber size="small" value={v as number} onChange={(x) => update(i, f.key, x)} style={{ width: '100%' }} />
-        if (f.kind === 'money') return <InputNumber size="small" value={v as number} min={0} onChange={(x) => update(i, f.key, x)} style={{ width: '100%' }} />
-        if (f.kind === 'pct') return <InputNumber size="small" value={v == null ? null : Number(v) * 100} min={0} max={100} addonAfter="%" onChange={(x) => update(i, f.key, x == null ? null : Number(x) / 100)} style={{ width: '100%' }} />
-        if (f.kind === 'date') return <DatePicker size="small" value={v ? dayjs(v as string) : null} onChange={(d) => update(i, f.key, d ? d.toISOString() : null)} style={{ width: '100%' }} />
-        return <Input size="small" value={v as string} onChange={(e) => update(i, f.key, e.target.value)} />
+        const row = rows[i]
+        if (f.showWhen && !rowShows(f, row)) {
+          return <span className="text-slate-300">—</span>
+        }
+        return (
+          <CellEditor
+            f={f}
+            value={row[f.key]}
+            row={row}
+            onChange={(v) => update(i, f.key, v)}
+          />
+        )
       },
     })),
     {

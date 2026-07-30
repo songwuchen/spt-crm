@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, InputNumber, Input, Table, Alert, Checkbox, Tabs, Steps, message } from 'antd'
+import { Button, Select, Tag, Space, Spin, Descriptions, Modal, DatePicker, InputNumber, Input, Table, Alert, Checkbox, Tabs, Steps, Form, message } from 'antd'
 import { CopyOutlined, CheckCircleOutlined, AuditOutlined, RobotOutlined, PrinterOutlined, FilePdfOutlined, EditOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -9,13 +9,17 @@ import { deliveryApi } from '@/api/delivery'
 import { approvalApi } from '@/api/approval'
 import { aiApi } from '@/api/ai'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import ContractAttachmentSlots from '@/components/ContractAttachmentSlots'
 import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
 import SignaturePad from '@/components/SignaturePad'
 import DataView, { formatMoney } from '@/components/DataView'
 import { PaymentTermsView, ClauseTermsView, PaymentTermsEditor, LineItemsEditor, toCanonicalRows, PAY_FIELDS, LINE_FIELDS } from '@/components/ContractTerms'
+import ContractRegistrationFields, { DATE_KEYS } from '@/components/ContractRegistrationFields'
 import type { ContractItem, ContractVersion } from '@/api/types'
 import { riskLabels, riskColors } from '@/api/types'
 import { contractStatusColors, contractStatusLabels } from '@/constants/labels'
+import { CONTRACT_REGISTRATION_SECTIONS, formatChangeType, formatRegFieldValue } from '@/constants/contractRegistration'
+import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { useUserSelect } from '@/hooks/useSelectOptions'
@@ -24,7 +28,7 @@ import dayjs from 'dayjs'
 import Icon from '@/components/Icon'
 export default function ContractDetail() {
   usePageTitle('合同详情')
-  const { id: projectId, cid } = useParams<{ id: string; cid: string }>()
+  const { id: projectIdParam, cid } = useParams<{ id?: string; cid: string }>()
   const navigate = useNavigate()
   const [contract, setContract] = useState<ContractItem | null>(null)
   const [versions, setVersions] = useState<ContractVersion[]>([])
@@ -36,37 +40,102 @@ export default function ContractDetail() {
   const [showSignPad, setShowSignPad] = useState(false)
 
   const [renewLoading, setRenewLoading] = useState(false)
+  const projectId = projectIdParam || contract?.project_id || undefined
 
-  // 条款编辑
+  // 条款 / 登记编辑
   const [editModal, setEditModal] = useState(false)
-  const [editAmount, setEditAmount] = useState<number | null>(null)
-  const [editEndDate, setEditEndDate] = useState<dayjs.Dayjs | null>(null)
+  const [editForm] = Form.useForm()
   const [editPay, setEditPay] = useState<Record<string, unknown>[]>([])
   const [editLines, setEditLines] = useState<Record<string, unknown>[]>([])
   const [editSaving, setEditSaving] = useState(false)
 
+  // 详情页内联编辑明细 / 收款计划
+  const [detailLines, setDetailLines] = useState<Record<string, unknown>[]>([{}])
+  const [detailPay, setDetailPay] = useState<Record<string, unknown>[]>([{}])
+  const [linesSaving, setLinesSaving] = useState(false)
+  const [paySaving, setPaySaving] = useState(false)
+
+  // 联动数据
+  const [related, setRelated] = useState<{
+    payment_plans: Array<Record<string, unknown>>
+    payment_records: Array<Record<string, unknown>>
+    invoices: Array<Record<string, unknown>>
+    milestones: Array<Record<string, unknown>>
+  } | null>(null)
+
   const openEditModal = () => {
-    setEditAmount(typeof contract?.amount_total === 'number' ? contract.amount_total : null)
-    setEditEndDate(contract?.end_date ? dayjs(contract.end_date) : null)
-    setEditPay(toCanonicalRows(contract?.payment_terms_json, PAY_FIELDS))
-    setEditLines(toCanonicalRows(currentVersion?.key_clauses_json, LINE_FIELDS))
+    const reg = { ...(contract?.registration_json || {}) } as Record<string, unknown>
+    // 多选字段历史可能是字符串，规整为数组供 Checkbox.Group
+    for (const k of ['missing_items', 'payment_forms', 'smart_points']) {
+      const v = reg[k]
+      if (typeof v === 'string' && v) reg[k] = v.split(/[,，、]/).map((s) => s.trim()).filter(Boolean)
+    }
+    // DatePicker 需要 dayjs
+    const nativeDates: Record<string, unknown> = {}
+    for (const k of ['end_date', 'delivery_date', 'order_date', 'card_date'] as const) {
+      const v = contract?.[k]
+      nativeDates[k] = v ? dayjs(v) : null
+    }
+    for (const k of Object.keys(reg)) {
+      if (DATE_KEYS.has(k) && typeof reg[k] === 'string' && reg[k]) {
+        reg[k] = dayjs(reg[k] as string)
+      }
+    }
+    // 合同状态兼容简道云「新增/变动」文案
+    let changeType = contract?.change_type || undefined
+    if (changeType === '新增') changeType = 'new'
+    if (changeType === '变动') changeType = 'change'
+    editForm.setFieldsValue({
+      amount_total: typeof contract?.amount_total === 'number' ? contract.amount_total : undefined,
+      drawing_no: contract?.drawing_no || undefined,
+      peer_contract_no: contract?.peer_contract_no || undefined,
+      acquire_method: contract?.acquire_method || undefined,
+      change_type: changeType,
+      assignee_name: contract?.assignee_name || undefined,
+      department_name: contract?.department_name || undefined,
+      ...nativeDates,
+      registration_json: reg,
+    })
+    const pays = toCanonicalRows(contract?.payment_terms_json, PAY_FIELDS)
+    setEditPay(pays.length ? pays : [{}])
+    const lines = toCanonicalRows(currentVersion?.key_clauses_json, LINE_FIELDS)
+    setEditLines(lines.length ? lines : [{}])
     setEditModal(true)
   }
 
   const handleEditSave = async () => {
     setEditSaving(true)
     try {
+      const v = await editForm.validateFields()
+      const regRaw = { ...(v.registration_json || {}) } as Record<string, unknown>
+      for (const [k, val] of Object.entries(regRaw)) {
+        if (val && typeof val === 'object' && dayjs.isDayjs(val)) {
+          regRaw[k] = val.format('YYYY-MM-DD')
+        }
+      }
+      const fmt = (d: unknown) => (d && dayjs.isDayjs(d) ? d.format('YYYY-MM-DD') : d ?? null)
       const payload: Record<string, unknown> = {
         payment_terms_json: editPay,
-        end_date: editEndDate ? editEndDate.format('YYYY-MM-DD') : null,
+        registration_json: regRaw,
+        drawing_no: v.drawing_no || null,
+        peer_contract_no: v.peer_contract_no || null,
+        acquire_method: v.acquire_method || null,
+        change_type: v.change_type || null,
+        assignee_name: v.assignee_name || null,
+        department_name: v.department_name || null,
+        end_date: fmt(v.end_date),
+        delivery_date: fmt(v.delivery_date),
+        order_date: fmt(v.order_date),
+        card_date: fmt(v.card_date),
       }
-      if (editAmount != null) payload.amount_total = editAmount
+      if (v.amount_total != null) payload.amount_total = v.amount_total
       await contractApi.update(cid!, payload)
       if (currentVersion) await contractApi.updateVersion(currentVersion.id, { key_clauses_json: editLines })
-      message.success('合同条款已保存')
+      message.success('合同登记信息已保存')
       setEditModal(false)
       fetchContract()
-    } catch {
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'errorFields' in e) return
       message.error('保存失败')
     } finally {
       setEditSaving(false)
@@ -106,13 +175,17 @@ export default function ContractDetail() {
   }
 
   const openGenModal = async () => {
+    if (!projectId) {
+      message.warning('该合同未关联商机，无法生成回款计划（请先挂接商机）')
+      return
+    }
     setGenRows(deriveDraftPlans())
     setReplaceExisting(true)
     setGenModal(true)
     try {
       const [plansRes, msRes] = await Promise.all([
-        paymentApi.listPlans(projectId!),
-        deliveryApi.listMilestones(projectId!),
+        paymentApi.listPlans(projectId),
+        deliveryApi.listMilestones(projectId),
       ])
       const plans = plansRes.data || []
       setSameContractCount(plans.filter((p) => p.source_contract_id === cid).length)
@@ -147,6 +220,7 @@ export default function ContractDetail() {
       })
       message.success(`已生成 ${plans.length} 条回款计划`)
       setGenModal(false)
+      fetchRelated()
       Modal.confirm({
         title: '回款计划已生成',
         content: `已为该商机生成 ${plans.length} 条回款计划，是否前往「回款」查看？`,
@@ -198,9 +272,46 @@ export default function ContractDetail() {
     setVersions(d.versions || [])
     const curVer = d.versions?.find((v) => v.version_no === d.current_version_no)
     setCurrentVersion(curVer || null)
+    const lines = toCanonicalRows(curVer?.key_clauses_json, LINE_FIELDS)
+    setDetailLines(lines.length ? lines : [{}])
+    const pays = toCanonicalRows(d.payment_terms_json, PAY_FIELDS)
+    setDetailPay(pays.length ? pays : [{}])
     if (curVer) {
       setSelectedVersionId(curVer.id)
       fetchApprovalFlow(curVer.id)
+    }
+    fetchRelated()
+  }
+
+  const saveDetailLines = async () => {
+    if (!currentVersion) { message.warning('无合同版本，无法保存明细'); return }
+    setLinesSaving(true)
+    try {
+      const rows = detailLines.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
+      await contractApi.updateVersion(currentVersion.id, { key_clauses_json: rows })
+      message.success('合同明细已保存')
+      fetchContract()
+    } catch { message.error('保存明细失败') }
+    finally { setLinesSaving(false) }
+  }
+
+  const saveDetailPay = async () => {
+    setPaySaving(true)
+    try {
+      const rows = detailPay.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
+      await contractApi.update(cid!, { payment_terms_json: rows })
+      message.success('收款计划已保存')
+      fetchContract()
+    } catch { message.error('保存收款计划失败') }
+    finally { setPaySaving(false) }
+  }
+
+  const fetchRelated = async () => {
+    try {
+      const res = await contractApi.related(cid!)
+      setRelated(res.data || null)
+    } catch {
+      setRelated(null)
     }
   }
 
@@ -297,7 +408,7 @@ export default function ContractDetail() {
         <Space>
           <AiAnalysisButton bizType="contract" bizId={cid!} />
           {contract.status !== 'terminated' && (
-            <Button icon={<EditOutlined />} onClick={openEditModal}>编辑条款</Button>
+            <Button icon={<EditOutlined />} onClick={openEditModal}>编辑登记信息</Button>
           )}
           {contract.status === 'draft' && (
             <>
@@ -317,34 +428,41 @@ export default function ContractDetail() {
           )}
           <Button icon={<FilePdfOutlined />} onClick={() => downloadFile(`/api/v1/contracts/${cid}/export/pdf`, `contract_${contract.contract_no}.pdf`)}>导出PDF</Button>
           <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
-          <Button onClick={() => navigate(`/opportunities/${projectId}`)}>返回商机</Button>
+          {projectId ? (
+            <Button onClick={() => navigate(`/opportunities/${projectId}`)}>返回商机</Button>
+          ) : (
+            <Button onClick={() => navigate('/contracts')}>返回合同列表</Button>
+          )}
         </Space>
       </div>
 
-      {/* 编辑条款 Modal */}
-      <Modal title="编辑合同条款" open={editModal} onOk={handleEditSave} confirmLoading={editSaving}
-        onCancel={() => setEditModal(false)} width={960} okText="保存" cancelText="取消">
-        <div className="space-y-5 py-2">
-          <div className="flex flex-wrap gap-6">
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">合同金额</label>
-              <InputNumber value={editAmount} min={0} onChange={(v) => setEditAmount(v)} style={{ width: 220 }} addonBefore="¥"
-                placeholder={typeof contract.amount_total === 'string' ? '当前已脱敏，留空则不修改' : '输入金额'} />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700 mb-1 block">到期日期</label>
-              <DatePicker value={editEndDate} onChange={(d) => setEditEndDate(d)} style={{ width: 220 }} />
-            </div>
-          </div>
-          <div>
-            <div className="text-sm font-bold text-slate-700 mb-2">付款条款（收款计划）</div>
-            <PaymentTermsEditor value={editPay} onChange={setEditPay} />
-          </div>
-          <div>
-            <div className="text-sm font-bold text-slate-700 mb-2">合同明细（结构化条款）</div>
-            <LineItemsEditor value={editLines} onChange={setEditLines} />
-          </div>
-        </div>
+      {/* 编辑合同登记 */}
+      <Modal title="编辑合同登记" open={editModal} onOk={handleEditSave} confirmLoading={editSaving}
+        onCancel={() => setEditModal(false)} width={980} okText="保存" cancelText="取消"
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
+        <Form form={editForm} layout="vertical" className="py-2">
+          <ContractRegistrationFields
+            form={editForm}
+            mode="edit"
+            slots={{
+              line_items: (
+                <div>
+                  <ContractSectionTitle title="合同明细" />
+                  <LineItemsEditor value={editLines} onChange={setEditLines} />
+                </div>
+              ),
+              payment_terms: (
+                <div>
+                  <ContractSectionTitle title="收款计划" />
+                  <PaymentTermsEditor value={editPay} onChange={setEditPay} />
+                </div>
+              ),
+              contract_files: <ContractAttachmentSlots slot="contract_files" contractId={cid} />,
+              addr_mismatch_files: <ContractAttachmentSlots slot="addr_mismatch_files" contractId={cid} />,
+              accept_files: <ContractAttachmentSlots slot="accept_files" contractId={cid} />,
+            }}
+          />
+        </Form>
       </Modal>
 
       {/* 生成回款计划 Modal */}
@@ -496,32 +614,131 @@ export default function ContractDetail() {
         )}
       </div>
 
-      {/* Contract Info */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
-        <Descriptions size="small" column={3} bordered>
-          <Descriptions.Item label="合同金额">
-            <span className="font-bold text-lg">{formatMoney(contract.amount_total)}</span>
-          </Descriptions.Item>
-          <Descriptions.Item label="状态"><Tag color={statusColors[contract.status]}>{statusLabels[contract.status] || contract.status}</Tag></Descriptions.Item>
-          <Descriptions.Item label="签署日期">{contract.signed_date || '-'}</Descriptions.Item>
-          <Descriptions.Item label="到期日期">{contract.end_date || '-'}</Descriptions.Item>
-        </Descriptions>
-
-        {contract.payment_terms_json && (
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400">付款条款</h4>
-              {canGenerate && (
-                <Button size="small" icon={<Icon name="savings" style={{ fontSize: 16 }} />}
-                  onClick={openGenModal}>生成回款计划</Button>
+      {/* Contract Info — 简道云合同登记全部分区（空值也展示，便于对照） */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4 space-y-6">
+        {CONTRACT_REGISTRATION_SECTIONS.map((sec) => {
+          const reg = (contract.registration_json || {}) as Record<string, unknown>
+          const depOk = (f: (typeof sec.fields)[0]) => {
+            if (!f.showWhen) return true
+            const sw = f.showWhen
+            const raw = (sw.source || 'reg') === 'native'
+              ? (contract as unknown as Record<string, unknown>)[sw.field]
+              : reg[sw.field]
+            if (!sw.equals?.length) return raw != null && raw !== ''
+            return sw.equals.includes(raw == null ? '' : String(raw))
+          }
+          const resolve = (f: (typeof sec.fields)[0]) => {
+            const raw = f.source === 'native'
+              ? (contract as unknown as Record<string, unknown>)[f.key]
+              : reg[f.key]
+            if (f.key === 'amount_total') return raw != null && raw !== '' ? formatMoney(raw as number | string) : '-'
+            if (f.key === 'change_type') return formatChangeType(raw as string)
+            if (typeof raw === 'number' && (f.widget === 'money' || f.key.includes('amount'))) {
+              return formatMoney(raw)
+            }
+            return formatRegFieldValue(f, raw)
+          }
+          const renderDesc = (fields: typeof sec.fields) => {
+            const visibleFields = fields.filter((f) => depOk(f))
+            if (!visibleFields.length) return null
+            return (
+              <Descriptions size="small" column={3} bordered className="mb-3">
+                {visibleFields.map((f) => {
+                  const value = resolve(f)
+                  return (
+                    <Descriptions.Item key={f.key} label={f.label}>
+                      {f.key === 'amount_total' && value !== '-' ? (
+                        <span className="font-bold text-lg">{value}</span>
+                      ) : f.key === 'change_type' && value !== '-' ? (
+                        <Tag>{value}</Tag>
+                      ) : (
+                        value
+                      )}
+                    </Descriptions.Item>
+                  )
+                })}
+              </Descriptions>
+            )
+          }
+          return (
+            <div key={sec.key}>
+              <ContractSectionTitle title={sec.title} />
+              {renderDesc(sec.fields)}
+              {sec.afterSlot === 'line_items' && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <ContractSectionTitle title="合同明细" className="flex-1 mb-0" />
+                    {contract.status !== 'terminated' && (
+                      <Button type="primary" size="small" loading={linesSaving} onClick={saveDetailLines}>保存明细</Button>
+                    )}
+                  </div>
+                  {contract.status === 'terminated' ? (
+                    <ClauseTermsView value={currentVersion?.key_clauses_json} />
+                  ) : (
+                    <LineItemsEditor value={detailLines} onChange={setDetailLines} />
+                  )}
+                </div>
+              )}
+              {sec.afterSlot === 'payment_terms' && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <ContractSectionTitle title="收款计划" className="flex-1 mb-0" />
+                    <Space>
+                      {canGenerate && (
+                        <Button size="small" icon={<Icon name="savings" style={{ fontSize: 16 }} />}
+                          onClick={openGenModal}>生成回款计划</Button>
+                      )}
+                      {contract.status !== 'terminated' && (
+                        <Button type="primary" size="small" loading={paySaving} onClick={saveDetailPay}>保存收款计划</Button>
+                      )}
+                    </Space>
+                  </div>
+                  {contract.status === 'terminated' ? (
+                    contract.payment_terms_json
+                      ? <PaymentTermsView value={contract.payment_terms_json} />
+                      : <div className="text-sm text-slate-400">暂无收款计划</div>
+                  ) : (
+                    <PaymentTermsEditor value={detailPay} onChange={setDetailPay} />
+                  )}
+                </div>
+              )}
+              {sec.afterSlot === 'contract_files' && (
+                <div className="mb-4">
+                  <ContractAttachmentSlots slot="contract_files" contractId={cid} />
+                </div>
+              )}
+              {sec.afterSlot === 'addr_mismatch_files' && (
+                <div className="mb-4">
+                  <ContractAttachmentSlots slot="addr_mismatch_files" contractId={cid} />
+                </div>
+              )}
+              {sec.afterSlot === 'accept_files' && (
+                <div className="mb-4">
+                  <ContractAttachmentSlots slot="accept_files" contractId={cid} />
+                </div>
+              )}
+              {sec.fieldsAfterSlot?.length ? renderDesc(sec.fieldsAfterSlot) : null}
+              {sec.key === 'accept' && Array.isArray((contract.registration_json as any)?.accept_uploads) &&
+                (contract.registration_json as any).accept_uploads.length > 0 && (
+                <div className="mt-2">
+                  <div className="text-[12px] font-medium text-slate-500 mb-2 text-center">验收资料（历史同步）</div>
+                  <Table size="small" pagination={false} rowKey={(_, i) => String(i)}
+                    dataSource={(contract.registration_json as any).accept_uploads}
+                    columns={[
+                      { title: '验收日期', dataIndex: 'accept_date', width: 140, render: (v: string) => v || '-' },
+                      { title: '含图片', dataIndex: 'has_image', width: 90, render: (v: boolean) => v ? '是' : '否' },
+                      { title: '含附件', dataIndex: 'has_file', width: 90, render: (v: boolean) => v ? '是' : '否' },
+                    ]}
+                  />
+                </div>
               )}
             </div>
-            <PaymentTermsView value={contract.payment_terms_json} />
-          </div>
-        )}
+          )
+        })}
+
         {contract.delivery_terms_json && (
-          <div className="mt-4">
-            <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">交付条款</h4>
+          <div>
+            <ContractSectionTitle title="交付条款" />
             <DataView value={contract.delivery_terms_json} />
           </div>
         )}
@@ -555,13 +772,6 @@ export default function ContractDetail() {
             </Descriptions.Item>
           </Descriptions>
         )}
-
-        {currentVersion?.key_clauses_json && (
-          <div className="mt-4">
-            <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-2">结构化条款</h4>
-            <ClauseTermsView value={currentVersion.key_clauses_json} />
-          </div>
-        )}
       </div>
 
       {/* Attachments + AI Analysis */}
@@ -571,8 +781,88 @@ export default function ContractDetail() {
             key: 'attachments',
             label: <span className="font-semibold">合同附件</span>,
             children: (
+              <div className="pb-6 space-y-4">
+                <ContractAttachmentSlots slot="contract_files" contractId={cid!} />
+                <ContractAttachmentSlots slot="addr_mismatch_files" contractId={cid!} />
+                <ContractAttachmentSlots slot="accept_files" contractId={cid!} />
+                <AttachmentPanel bizType="contract" bizId={cid!} title="其它附件（历史）" compact />
+              </div>
+            ),
+          },
+          {
+            key: 'payment_plans',
+            label: <span className="font-semibold">回款计划 ({related?.payment_plans?.length ?? 0})</span>,
+            children: (
               <div className="pb-6">
-                <AttachmentPanel bizType="contract" bizId={cid!} />
+                <Table size="small" rowKey="id" pagination={false}
+                  dataSource={related?.payment_plans || []}
+                  locale={{ emptyText: '暂无本合同生成的回款计划' }}
+                  columns={[
+                    { title: '计划编号', dataIndex: 'plan_no', width: 140 },
+                    { title: '到期日', dataIndex: 'due_date', width: 120, render: (v: string) => v || '-' },
+                    { title: '金额', dataIndex: 'amount', width: 120, align: 'right' as const, render: (v: number) => formatMoney(v) },
+                    { title: '状态', dataIndex: 'status', width: 90 },
+                    { title: '里程碑', dataIndex: 'trigger_milestone_code', width: 120, render: (v: string) => v || '-' },
+                    { title: '说明', dataIndex: 'remark', ellipsis: true, render: (v: string) => v || '-' },
+                  ]}
+                />
+              </div>
+            ),
+          },
+          {
+            key: 'payments',
+            label: <span className="font-semibold">回款记录 ({related?.payment_records?.length ?? 0})</span>,
+            children: (
+              <div className="pb-6">
+                <Table size="small" rowKey="id" pagination={false}
+                  dataSource={related?.payment_records || []}
+                  locale={{ emptyText: projectId ? '暂无回款记录' : '无关联商机，无法展示回款' }}
+                  columns={[
+                    { title: '来款日期', dataIndex: 'received_date', width: 120, render: (v: string) => v || '-' },
+                    { title: '金额', dataIndex: 'amount', width: 120, align: 'right' as const, render: (v: number) => formatMoney(v) },
+                    { title: '渠道', dataIndex: 'channel', width: 100, render: (v: string) => v || '-' },
+                    { title: '参考号', dataIndex: 'reference_no', width: 140, render: (v: string) => v || '-' },
+                    { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v: string) => v || '-' },
+                  ]}
+                />
+              </div>
+            ),
+          },
+          {
+            key: 'invoices',
+            label: <span className="font-semibold">开票 ({related?.invoices?.length ?? 0})</span>,
+            children: (
+              <div className="pb-6">
+                <Table size="small" rowKey="id" pagination={false}
+                  dataSource={related?.invoices || []}
+                  locale={{ emptyText: projectId ? '暂无发票' : '无关联商机，无法展示发票' }}
+                  columns={[
+                    { title: '发票号', dataIndex: 'invoice_no', width: 160 },
+                    { title: '开票日', dataIndex: 'invoice_date', width: 120, render: (v: string) => v || '-' },
+                    { title: '金额', dataIndex: 'amount', width: 120, align: 'right' as const, render: (v: number) => formatMoney(v) },
+                    { title: '状态', dataIndex: 'status', width: 90 },
+                    { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v: string) => v || '-' },
+                  ]}
+                />
+              </div>
+            ),
+          },
+          {
+            key: 'milestones',
+            label: <span className="font-semibold">交付里程碑 ({related?.milestones?.length ?? 0})</span>,
+            children: (
+              <div className="pb-6">
+                <Table size="small" rowKey="id" pagination={false}
+                  dataSource={related?.milestones || []}
+                  locale={{ emptyText: projectId ? '暂无里程碑' : '无关联商机，无法展示里程碑' }}
+                  columns={[
+                    { title: '编码', dataIndex: 'milestone_code', width: 100 },
+                    { title: '名称', dataIndex: 'name', width: 160, render: (v: string) => v || '-' },
+                    { title: '计划日', dataIndex: 'plan_date', width: 120, render: (v: string) => v || '-' },
+                    { title: '实际日', dataIndex: 'actual_date', width: 120, render: (v: string) => v || '-' },
+                    { title: '状态', dataIndex: 'status', width: 90 },
+                  ]}
+                />
               </div>
             ),
           },

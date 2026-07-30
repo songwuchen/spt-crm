@@ -515,9 +515,9 @@ async def create_contract(
 ):
     """Create or upsert a contract (customer-centric; project optional).
 
-    If ``contract_no`` already exists for the tenant, scalar / custom fields are
-    updated instead of failing. Tenant extension fields go in ``custom_fields``.
-    Requires ``Idempotency-Key``.
+    Intended for middleware push (e.g. crm-integration ← 简道云). CRM does not
+    poll 简道云 itself. If ``contract_no`` already exists for the tenant, fields are
+    updated. Requires ``Idempotency-Key``.
     """
     async def producer():
         return await service.create_contract_from_openapi(db, ctx, body)

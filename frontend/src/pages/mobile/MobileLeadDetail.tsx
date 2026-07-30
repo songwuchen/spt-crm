@@ -308,7 +308,8 @@ export default function MobileLeadDetail() {
         </div>
       )}
 
-      {/* Action Buttons */}
+      {/* Action Buttons — 已转化/已废弃不可再编辑 */}
+      {lead.status !== 'qualified' && lead.status !== 'discarded' && (
       <div className="mt-4 flex gap-2">
         <button onClick={openEdit}
           className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1">
@@ -327,13 +328,17 @@ export default function MobileLeadDetail() {
             转化为客户
           </button>
         )}
-        {lead.status !== 'discarded' && lead.status !== 'qualified' && (
-          <button onClick={() => handleStatusChange('discarded')}
-            className="py-2.5 px-4 bg-slate-100 text-slate-500 rounded-xl text-sm font-bold">
-            废弃
-          </button>
-        )}
+        <button onClick={() => handleStatusChange('discarded')}
+          className="py-2.5 px-4 bg-slate-100 text-slate-500 rounded-xl text-sm font-bold">
+          废弃
+        </button>
       </div>
+      )}
+      {lead.status === 'qualified' && (
+        <div className="mt-4 py-3 px-4 bg-emerald-50 text-emerald-700 rounded-xl text-sm text-center">
+          已转化为客户，不可再编辑
+        </div>
+      )}
 
       {/* Edit Modal */}
       <Modal title="编辑线索" open={editModal} onOk={handleSave} onCancel={() => setEditModal(false)} width="90%">

@@ -46,6 +46,8 @@ GATE_RULES: dict[str, list[dict]] = {
     "S6": [
         {"code": "HAS_CONTRACT", "name": "已有合同", "check": "has_related", "entity": "contract",
          "message": "请先创建合同，再进入交付验收阶段。", "fix_action": "create_contract"},
+        {"code": "HAS_APPROVED_CONTRACT_VERSION", "name": "合同版本已审批", "check": "has_approved_contract_version",
+         "message": "请先完成合同版本审批（对应简道云合同评审门闸），再进入交付验收。", "fix_action": "approve_contract"},
         {"code": "MIN_AMOUNT", "name": "金额已确认", "check": "min_amount", "min_value": 0,
          "message": "请确认预期金额大于零。", "fix_action": "edit_project"},
     ],
@@ -147,6 +149,24 @@ async def check_gate_rules(db: AsyncSession, tenant_id: str, project: Opportunit
                     Solution.tenant_id == tenant_id,
                     Solution.project_id == project.id,
                     Solution.status == "approved",
+                )
+            )).scalar() or 0
+            if approved_count == 0:
+                passed = False
+
+        elif check_type == "has_approved_contract_version":
+            # 简道云「合同评审」门闸：至少一份合同版本已审批通过（或已签署）
+            from app.domains.contract.models import Contract, ContractVersion
+            approved_count = (await db.execute(
+                select(func.count(ContractVersion.id)).where(
+                    ContractVersion.tenant_id == tenant_id,
+                    ContractVersion.contract_id.in_(
+                        select(Contract.id).where(
+                            Contract.tenant_id == tenant_id,
+                            Contract.project_id == project.id,
+                        )
+                    ),
+                    ContractVersion.status.in_(["approved", "signed"]),
                 )
             )).scalar() or 0
             if approved_count == 0:

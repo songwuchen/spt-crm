@@ -129,11 +129,9 @@ class OpenOrderCreate(BaseModel):
 class OpenContractCreate(BaseModel):
     """External contract intake for POST /openapi/v1/contracts.
 
-    Customer-centric: ``customer_id`` is required (resolve the customer first via
-    POST /customers or GET /customers). ``project_id`` is optional — externally
-    sourced contracts (e.g. 简道云 合同登记表) need not belong to a CRM project.
-    ``custom_fields`` carries tenant-defined extension fields (see custom_field_defs,
-    entity_type="contract") so new tenants can map extra columns without code changes.
+    供中间服务（如 crm-integration）从简道云等源系统拉取后推送。Customer-centric:
+    ``customer_id`` is required (resolve via POST/GET /customers first). ``project_id``
+    is optional. Upsert key: tenant + ``contract_no``.
     """
     customer_id: str = Field(..., min_length=1, max_length=36)
     project_id: Optional[str] = Field(None, max_length=36)
@@ -144,8 +142,22 @@ class OpenContractCreate(BaseModel):
     status: Optional[str] = Field("draft", max_length=16)
     signed_date: Optional[str] = None
     end_date: Optional[str] = None
-    payment_terms_json: Optional[dict] = None
-    delivery_terms_json: Optional[dict] = None
+    drawing_no: Optional[str] = Field(None, max_length=100)
+    peer_contract_no: Optional[str] = Field(None, max_length=100)
+    acquire_method: Optional[str] = Field(None, max_length=64)
+    delivery_date: Optional[str] = None
+    change_type: Optional[str] = Field(None, max_length=16)  # new / change
+    order_date: Optional[str] = None
+    card_date: Optional[str] = None
+    # 业务员 / 部门：可传 UUID 或名称（名称按钉钉同步组织精确匹配）
+    assignee_id: Optional[str] = Field(None, max_length=36)
+    assignee_name: Optional[str] = Field(None, max_length=100)
+    department_id: Optional[str] = Field(None, max_length=36)
+    department_name: Optional[str] = Field(None, max_length=200)
+    payment_terms_json: Optional[dict | list] = None
+    delivery_terms_json: Optional[dict | list] = None
+    key_clauses_json: Optional[dict | list] = None
+    registration_json: Optional[dict] = None
     custom_fields: Optional[dict] = None
 
     @field_validator("status")

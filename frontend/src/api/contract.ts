@@ -32,4 +32,11 @@ export const contractApi = {
     client.post(`/api/v1/contracts/${contractId}/renew`),
   batchExportPdf: (ids: string[]) =>
     client.post('/api/v1/contracts/batch_export/pdf', { ids }, { responseType: 'blob' }),
+  related: (id: string) =>
+    client.get<unknown, ApiResponse<{
+      payment_plans: Array<Record<string, unknown>>
+      payment_records: Array<Record<string, unknown>>
+      invoices: Array<Record<string, unknown>>
+      milestones: Array<Record<string, unknown>>
+    }>>(`/api/v1/contracts/${id}/related`),
 }

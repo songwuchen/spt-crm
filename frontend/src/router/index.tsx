@@ -87,6 +87,9 @@ const OrderList = lazy(() => import('@/pages/order/OrderList'))
 const CommissionPage = lazy(() => import('@/pages/commission/CommissionPage'))
 const CollectionPage = lazy(() => import('@/pages/collection/CollectionPage'))
 const GuaranteePage = lazy(() => import('@/pages/guarantee/GuaranteePage'))
+const ContractReviewList = lazy(() => import('@/pages/contractReview/ContractReviewList'))
+const ContractReviewForm = lazy(() => import('@/pages/contractReview/ContractReviewForm'))
+const ContractReviewDetail = lazy(() => import('@/pages/contractReview/ContractReviewDetail'))
 const EquipmentProfilePage = lazy(() => import('@/pages/equipment/EquipmentProfilePage'))
 const MeasurementPage = lazy(() => import('@/pages/measurement/MeasurementPage'))
 const TenderList = lazy(() => import('@/pages/tender/TenderList'))
@@ -168,6 +171,7 @@ export const router = createBrowserRouter([
       { path: 'opportunities/:id/edit', element: <Guard permission="project:edit"><OpportunityForm /></Guard> },
       { path: 'opportunities/:id/quotes/:qid', element: <Guard permission="quote:view"><QuoteDetail /></Guard> },
       { path: 'opportunities/:id/contracts/:cid', element: <Guard permission="contract:view"><ContractDetail /></Guard> },
+      { path: 'contracts/:cid', element: <Guard permission="contract:view"><ContractDetail /></Guard> },
       { path: 'opportunities/:id/solutions/:sid', element: <Guard permission="solution:view"><SolutionDetail /></Guard> },
       { path: 'service-tickets', element: <Guard permission="service:view"><ServiceTicketList /></Guard> },
       { path: 'service-tickets/:id', element: <Guard permission="service:view"><ServiceTicketDetail /></Guard> },
@@ -192,6 +196,10 @@ export const router = createBrowserRouter([
       { path: 'solutions', element: <Guard permission="solution:view"><SolutionList /></Guard> },
       { path: 'quotes', element: <Guard permission="quote:view"><QuoteList /></Guard> },
       { path: 'contracts', element: <Guard permission="contract:view"><ContractList /></Guard> },
+      { path: 'contract-reviews', element: <Guard permission="contract_review:view"><ContractReviewList /></Guard> },
+      { path: 'contract-reviews/new', element: <Guard permission="contract_review:create"><ContractReviewForm /></Guard> },
+      { path: 'contract-reviews/:id/edit', element: <Guard permission="contract_review:edit"><ContractReviewForm /></Guard> },
+      { path: 'contract-reviews/:id', element: <Guard permission="contract_review:view"><ContractReviewDetail /></Guard> },
       { path: 'change-requests', element: <Guard permission="change:view"><ChangeRequestList /></Guard> },
       { path: 'milestones', element: <Guard permission="delivery:view"><MilestoneList /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },

@@ -81,6 +81,7 @@ const enUS = {
     solutions: 'Solutions',
     quotes: 'Quotes',
     contracts: 'Contracts',
+    contractReviews: 'Contract Reviews',
     kanban: 'Kanban',
     products: 'Products',
     orders: 'Orders',

@@ -251,23 +251,23 @@ export default function LeadDetail() {
                   <Icon name="block" className="text-sm mr-1" />
                   废弃
                 </Button>
+                <Button danger icon={<DeleteOutlined />} onClick={() => {
+                  Modal.confirm({
+                    title: '确认删除', content: `确定要删除线索「${lead.title}」？`,
+                    okType: 'danger',
+                    onOk: async () => {
+                      try {
+                        await leadApi.delete(id!)
+                        message.success('线索已删除')
+                        navigate('/leads')
+                      } catch {
+                        message.error('删除失败')
+                      }
+                    },
+                  })
+                }}>删除</Button>
               </>
             )}
-            <Button danger icon={<DeleteOutlined />} onClick={() => {
-              Modal.confirm({
-                title: '确认删除', content: `确定要删除线索「${lead.title}」？`,
-                okType: 'danger',
-                onOk: async () => {
-                  try {
-                    await leadApi.delete(id!)
-                    message.success('线索已删除')
-                    navigate('/leads')
-                  } catch {
-                    message.error('删除失败')
-                  }
-                },
-              })
-            }}>删除</Button>
           </Space>
         </div>
 

@@ -37,6 +37,8 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
+    // Vite 只认 true | string[]；写 'all' 无效，ngrok 域名仍会被 Host check 拦住
+    allowedHosts: true,
     port: 5175,
     proxy: {
       // 后端地址可用 VITE_API_PROXY 覆盖（如指向远端环境联调）

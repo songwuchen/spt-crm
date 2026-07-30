@@ -49,6 +49,11 @@ export default function LeadForm() {
     if (id) {
       leadApi.get(id).then((res) => {
         const d = res.data as any
+        if (d.status === 'qualified' || d.status === 'discarded') {
+          message.warning(d.status === 'qualified' ? '已转化的线索不可编辑' : '已废弃的线索不可编辑')
+          navigate(`/leads/${id}`, { replace: true })
+          return
+        }
         form.setFieldsValue({
           ...d,
           biz_date: d.biz_date ? dayjs(d.biz_date) : undefined,

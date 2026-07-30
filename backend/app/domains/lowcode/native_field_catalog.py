@@ -143,6 +143,11 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         # 签约日期由签署流程写入，表单上没有该输入项 —— 可配脱敏，但不可配必填
         _f("signed_date", "签订日期", "date", form_editable=False),
         _f("end_date", "到期日期", "date"),
+        _f("drawing_no", "图纸编号"),
+        _f("peer_contract_no", "对方合同号"),
+        _f("acquire_method", "获取方式"),
+        _f("delivery_date", "合同交货期", "date"),
+        _f("change_type", "登记类型", "select", options_source="enum:contract_change_type"),
     ],
     # 报价的敏感字段(margin_rate/discount_total/cost_est)在 quote_versions / quote_lines /
     # cost_snapshots 上，不在 quotes 主表，本目录够不着 —— 那部分继续由按权限脱敏的

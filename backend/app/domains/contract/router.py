@@ -15,14 +15,23 @@ router = APIRouter(tags=["合同管理"])
 
 def _contract_dict(c) -> dict:
     return {
-        "id": c.id, "project_id": c.project_id, "contract_no": c.contract_no,
+        "id": c.id, "project_id": c.project_id, "customer_id": c.customer_id,
+        "contract_no": c.contract_no,
         "from_quote_id": c.from_quote_id,
         "current_version_no": c.current_version_no, "status": c.status,
         "signed_date": str(c.signed_date) if c.signed_date else None,
         "end_date": str(c.end_date) if c.end_date else None,
+        "drawing_no": c.drawing_no,
+        "peer_contract_no": c.peer_contract_no,
+        "acquire_method": c.acquire_method,
+        "delivery_date": str(c.delivery_date) if c.delivery_date else None,
+        "change_type": c.change_type,
+        "order_date": str(c.order_date) if getattr(c, "order_date", None) else None,
+        "card_date": str(c.card_date) if getattr(c, "card_date", None) else None,
         "amount_total": float(c.amount_total) if c.amount_total is not None else None,
         "payment_terms_json": c.payment_terms_json,
         "delivery_terms_json": c.delivery_terms_json,
+        "registration_json": getattr(c, "registration_json", None) or {},
         "created_by_id": c.created_by_id, "created_by_name": c.created_by_name,
         "assignee_id": c.assignee_id, "assignee_name": c.assignee_name,
         "department_id": c.department_id, "department_name": c.department_name,
@@ -66,8 +75,14 @@ async def list_contracts(
         cq = cq.where(Contract.status == status)
     if keyword:
         like = f"%{keyword}%"
-        q = q.where(Contract.contract_no.ilike(like))
-        cq = cq.where(Contract.contract_no.ilike(like))
+        from sqlalchemy import or_
+        kw_clause = or_(
+            Contract.contract_no.ilike(like),
+            Contract.drawing_no.ilike(like),
+            Contract.peer_contract_no.ilike(like),
+        )
+        q = q.where(kw_clause)
+        cq = cq.where(kw_clause)
     # 高级筛选（多字段/多条件，含自定义扩展字段）
     from app.common.search import (
         entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,
@@ -88,11 +103,20 @@ async def list_contracts(
     # 与详情保持一致的字段脱敏（避免列表泄露详情已脱敏的字段）
     perms = current_user.get("permissions", [])
     policies = await load_mask_policies(db, tenant_id)
-    from app.common.list_enrich import project_names_map
+    from app.common.list_enrich import project_names_map, customer_names_map
     name_map = await project_names_map(db, tenant_id, [c.project_id for c in items])
-    rows = apply_field_mask(
-        [{**_contract_dict(c), **(name_map.get(c.project_id) or {})} for c in items],
-        "contract", perms, policies)
+    # 外部合同直接挂 customer_id，需补客户名
+    direct_cust = await customer_names_map(
+        db, tenant_id,
+        [c.customer_id for c in items if c.customer_id and not (name_map.get(c.project_id) or {}).get("customer_name")],
+    )
+    rows = []
+    for c in items:
+        base = {**_contract_dict(c), **(name_map.get(c.project_id) or {})}
+        if not base.get("customer_name") and c.customer_id:
+            base["customer_name"] = direct_cust.get(c.customer_id)
+        rows.append(base)
+    rows = apply_field_mask(rows, "contract", perms, policies)
     # 角色键控的字段权限（隐藏/脱敏），与按权限脱敏的 apply_field_mask 并行生效
     from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
     await strip_entity_dicts(db, tenant_id, "contract", rows, current_user.get("roles"))
@@ -158,6 +182,95 @@ async def get_contract(
     return ok({
         **contract_dict,
         "versions": [_version_dict(v) for v in versions],
+    })
+
+
+@router.get("/api/v1/contracts/{contract_id}/related")
+async def get_contract_related(
+    contract_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("contract:view")),
+):
+    """合同详情联动：回款计划、回款记录、发票、交付里程碑。"""
+    contract = await service.get_contract(db, tenant_id, contract_id, current_user)
+    from app.domains.payment.models import PaymentPlan, PaymentRecord, Invoice
+    from app.domains.delivery.models import DeliveryMilestone
+
+    plans = (await db.execute(
+        select(PaymentPlan).where(
+            PaymentPlan.tenant_id == tenant_id,
+            PaymentPlan.source_contract_id == contract_id,
+        ).order_by(PaymentPlan.due_date.asc().nullslast())
+    )).scalars().all()
+
+    records, invoices, milestones = [], [], []
+    if contract.project_id:
+        plan_ids = [p.id for p in plans]
+        # 商机下回款：优先匹配本合同计划，否则展示商机全部回款供对照
+        rq = select(PaymentRecord).where(
+            PaymentRecord.tenant_id == tenant_id,
+            PaymentRecord.project_id == contract.project_id,
+        )
+        if plan_ids:
+            from sqlalchemy import or_
+            rq = rq.where(or_(
+                PaymentRecord.matched_plan_id.in_(plan_ids),
+                PaymentRecord.matched_plan_id.is_(None),
+            ))
+        records = (await db.execute(rq.order_by(PaymentRecord.received_date.desc().nullslast()).limit(100))).scalars().all()
+        invoices = (await db.execute(
+            select(Invoice).where(
+                Invoice.tenant_id == tenant_id,
+                Invoice.project_id == contract.project_id,
+            ).order_by(Invoice.invoice_date.desc().nullslast()).limit(50)
+        )).scalars().all()
+        milestones = (await db.execute(
+            select(DeliveryMilestone).where(
+                DeliveryMilestone.tenant_id == tenant_id,
+                DeliveryMilestone.project_id == contract.project_id,
+            ).order_by(DeliveryMilestone.sort_order)
+        )).scalars().all()
+
+    def _plan(p):
+        return {
+            "id": p.id, "plan_no": p.plan_no,
+            "due_date": str(p.due_date) if p.due_date else None,
+            "amount": float(p.amount) if p.amount is not None else None,
+            "status": p.status, "remark": p.remark,
+            "trigger_milestone_code": p.trigger_milestone_code,
+        }
+
+    def _rec(r):
+        return {
+            "id": r.id,
+            "received_date": str(r.received_date) if r.received_date else None,
+            "amount": float(r.amount) if r.amount is not None else None,
+            "channel": r.channel, "reference_no": r.reference_no,
+            "matched_plan_id": r.matched_plan_id, "remark": r.remark,
+        }
+
+    def _inv(i):
+        return {
+            "id": i.id, "invoice_no": i.invoice_no,
+            "amount": float(i.amount) if i.amount is not None else None,
+            "invoice_date": str(i.invoice_date) if i.invoice_date else None,
+            "status": i.status, "remark": i.remark,
+        }
+
+    def _ms(m):
+        return {
+            "id": m.id, "milestone_code": m.milestone_code, "name": m.name,
+            "plan_date": str(m.plan_date) if m.plan_date else None,
+            "actual_date": str(m.actual_date) if m.actual_date else None,
+            "status": m.status,
+        }
+
+    return ok({
+        "payment_plans": [_plan(p) for p in plans],
+        "payment_records": [_rec(r) for r in records],
+        "invoices": [_inv(i) for i in invoices],
+        "milestones": [_ms(m) for m in milestones],
     })
 
 

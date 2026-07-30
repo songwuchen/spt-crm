@@ -584,10 +584,6 @@ async def _gather_customer_report(db: AsyncSession, tenant_id: str, customer_id:
             select(Quote).where(Quote.tenant_id == tenant_id, Quote.project_id.in_(proj_ids))
             .order_by(Quote.created_at.desc())
         )).scalars().all()
-        contracts = (await db.execute(
-            select(Contract).where(Contract.tenant_id == tenant_id, Contract.project_id.in_(proj_ids))
-            .order_by(Contract.created_at.desc())
-        )).scalars().all()
         plans = (await db.execute(
             select(PaymentPlan).where(PaymentPlan.tenant_id == tenant_id, PaymentPlan.project_id.in_(proj_ids))
         )).scalars().all()
@@ -598,6 +594,25 @@ async def _gather_customer_report(db: AsyncSession, tenant_id: str, customer_id:
             select(DeliveryMilestone).where(DeliveryMilestone.tenant_id == tenant_id, DeliveryMilestone.project_id.in_(proj_ids))
             .order_by(DeliveryMilestone.sort_order)
         )).scalars().all()
+
+    # 合同：商机链 + 仅挂 customer_id 的外部合同（简道云 OpenAPI 直连）一并纳入
+    from sqlalchemy import or_
+    contract_filters = [Contract.customer_id == customer_id]
+    if proj_ids:
+        contract_filters.append(Contract.project_id.in_(proj_ids))
+    contracts = (await db.execute(
+        select(Contract).where(Contract.tenant_id == tenant_id, or_(*contract_filters))
+        .order_by(Contract.created_at.desc())
+    )).scalars().all()
+    # 去重（同一合同可能同时命中 project 与 customer）
+    _seen_cids: set[str] = set()
+    _uniq_contracts = []
+    for c in contracts:
+        if c.id in _seen_cids:
+            continue
+        _seen_cids.add(c.id)
+        _uniq_contracts.append(c)
+    contracts = _uniq_contracts
 
     # current-version amount lookup for quotes
     quote_amount: dict[str, float] = {}

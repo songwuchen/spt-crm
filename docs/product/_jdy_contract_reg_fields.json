@@ -1,0 +1,1815 @@
+{
+  "success": true,
+  "data": {
+    "fields": [
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "流水号",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1681712851050",
+        "type": "sn"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "*提交人",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1565937861689",
+        "type": "user"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "下卡日期",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1563772783339",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "客户编号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1693447186027",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "编号查询",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1593849162158",
+        "type": "linkfield"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "单位名称",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1561431499614",
+        "type": "combo",
+        "colorEnable": false
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "部门",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1561431499461",
+        "type": "dept"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "业务人员",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1561431499444",
+        "type": "user"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同状态",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1593849161675",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "新增",
+            "text": "新增"
+          },
+          {
+            "value": "变动",
+            "text": "变动"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "变动原因",
+        "labelHidden": false,
+        "lineWidth": 9,
+        "name": "_widget_1613546005247",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同获取信息方式",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1703462723292",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "公开招标",
+            "text": "公开招标"
+          },
+          {
+            "value": "邀请招标",
+            "text": "邀请招标"
+          },
+          {
+            "value": "协商一致",
+            "text": "协商一致"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "编号查询-（合同号）",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1404460362158",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同/项目评审信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1677801576468",
+        "type": "separator"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "选择合同/项目评审信息",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1677806810340",
+        "type": "linkfield"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同/项目评审流水号",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1677801667664",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "24.2.3合同/项目评审信息查看0303",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1677801576469",
+        "type": "linkquery"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "以下为小萌合同评审内容1127",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1701052288708",
+        "type": "separator"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "选择小萌合同评审1127",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1701052288707",
+        "type": "linkfield"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "小萌合同评审流水号1127",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1701052373745",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "选择小萌合同评审信息查看1127",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1701052373744",
+        "type": "linkquery"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "出厂编号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1634520599437",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同产品信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1623374466649",
+        "type": "separator"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "注释",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1610591432200",
+        "type": "separator"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "订货日期",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1561431499432",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同类型",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1561431501010",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "正式",
+            "text": "正式"
+          },
+          {
+            "value": "非正式",
+            "text": "非正式"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1561431499698",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "图纸编号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1563607519120",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "项目名称",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1561431499782",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "对方合同号",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1561431499731",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "是否含税",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1561431500134",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "设备是否出口",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1575182444885",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "是否需要安装",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1647391665368",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "不需要安装",
+            "text": "不需要安装"
+          },
+          {
+            "value": "指导安装",
+            "text": "指导安装"
+          },
+          {
+            "value": "现场安装",
+            "text": "现场安装"
+          },
+          {
+            "value": "拆旧装新",
+            "text": "拆旧装新"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "信息是否齐全",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1664948274718",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "缺少项",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1664948274739",
+        "type": "checkboxgroup",
+        "items": [
+          {
+            "value": "联系人",
+            "text": "联系人"
+          },
+          {
+            "value": "联系方式",
+            "text": "联系方式"
+          },
+          {
+            "value": "邮箱",
+            "text": "邮箱"
+          },
+          {
+            "value": "地址",
+            "text": "地址"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "信息不齐全备注",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1666255890740",
+        "type": "textarea"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "出口类型",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1621411268101",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同形式",
+        "labelHidden": false,
+        "lineWidth": 9,
+        "name": "_widget_1676104999490",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "正式合同",
+            "text": "正式合同"
+          },
+          {
+            "value": "非正式合同",
+            "text": "非正式合同"
+          },
+          {
+            "value": "年标合同，订单无章",
+            "text": "年标合同，订单无章"
+          },
+          {
+            "value": "年标合同，订单有章",
+            "text": "年标合同，订单有章"
+          },
+          {
+            "value": "抖店",
+            "text": "抖店"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "是否标准交付",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1721205724881",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "方式",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1721205724883",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "YZO",
+            "text": "YZO"
+          },
+          {
+            "value": "YZS",
+            "text": "YZS"
+          },
+          {
+            "value": "YZO和YZS",
+            "text": "YZO和YZS"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "是否为旋振筛",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1749715722571",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "填写代码",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1721293963816",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "采购员多选",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1721205725083",
+        "type": "usergroup"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "质检员多选",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1721205725117",
+        "type": "usergroup"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同明细",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1561431500151",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "是否外币合同",
+            "labelHidden": false,
+            "name": "_widget_1621411268784",
+            "type": "radiogroup",
+            "subform": "_widget_1561431500151",
+            "items": [
+              {
+                "value": "是",
+                "text": "是"
+              },
+              {
+                "value": "否",
+                "text": "否"
+              }
+            ],
+            "colorEnable": false,
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "产品类型",
+            "labelHidden": false,
+            "name": "_widget_1561431500162",
+            "type": "combo",
+            "subform": "_widget_1561431500151",
+            "items": [
+              {
+                "value": "复频筛",
+                "text": "复频筛"
+              },
+              {
+                "value": "高幅筛",
+                "text": "高幅筛"
+              },
+              {
+                "value": "其他筛分设备",
+                "text": "其他筛分设备"
+              },
+              {
+                "value": "输送设备",
+                "text": "输送设备"
+              },
+              {
+                "value": "破碎设备",
+                "text": "破碎设备"
+              },
+              {
+                "value": "除尘设备",
+                "text": "除尘设备"
+              },
+              {
+                "value": "污水净化设备",
+                "text": "污水净化设备"
+              },
+              {
+                "value": "智能装备",
+                "text": "智能装备"
+              },
+              {
+                "value": "其他",
+                "text": "其他"
+              }
+            ],
+            "colorEnable": false
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "产品名称",
+            "labelHidden": false,
+            "name": "_widget_1561431500376",
+            "type": "text",
+            "subform": "_widget_1561431500151"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "规格型号",
+            "labelHidden": false,
+            "name": "_widget_1561431500392",
+            "type": "text",
+            "subform": "_widget_1561431500151"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "单位",
+            "labelHidden": false,
+            "name": "_widget_1561431500419",
+            "type": "text",
+            "subform": "_widget_1561431500151"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "数量",
+            "labelHidden": false,
+            "name": "_widget_1561431500458",
+            "type": "number",
+            "subform": "_widget_1561431500151"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "外币单价",
+            "labelHidden": false,
+            "name": "_widget_1621411268153",
+            "type": "number",
+            "subform": "_widget_1561431500151"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "汇率",
+            "labelHidden": false,
+            "name": "_widget_1621411269220",
+            "type": "number",
+            "subform": "_widget_1561431500151",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "单价",
+            "labelHidden": false,
+            "name": "_widget_1561431500490",
+            "type": "number",
+            "subform": "_widget_1561431500151"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "总价",
+            "labelHidden": false,
+            "name": "_widget_1561431500514",
+            "type": "number",
+            "subform": "_widget_1561431500151"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "外币总价",
+            "labelHidden": false,
+            "name": "_widget_1621411268210",
+            "type": "number",
+            "subform": "_widget_1561431500151"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "电控装置",
+            "labelHidden": false,
+            "name": "_widget_1561431500595",
+            "type": "combo",
+            "subform": "_widget_1561431500151",
+            "items": [
+              {
+                "value": "含电控电缆",
+                "text": "含电控电缆"
+              },
+              {
+                "value": "含电控不含电缆",
+                "text": "含电控不含电缆"
+              },
+              {
+                "value": "不含电控不含电缆",
+                "text": "不含电控不含电缆"
+              },
+              {
+                "value": "不含电控含电缆",
+                "text": "不含电控含电缆"
+              }
+            ],
+            "colorEnable": false
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "技术参数及要求",
+            "labelHidden": false,
+            "name": "_widget_1565223122750",
+            "type": "text",
+            "subform": "_widget_1561431500151"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "备注(①生产卡上按序号排列的项目，某设备已经包含在其他设备内时，在备注栏加填*。②生产卡上按序号排列的项目，某设备不需要供货时，在备注栏加填#）",
+            "labelHidden": false,
+            "name": "_widget_1697420581927",
+            "type": "text",
+            "subform": "_widget_1561431500151",
+            "fieldWidth": "normal"
+          }
+        ]
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同总金额",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1561511175392",
+        "type": "number"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "技术参数及要求",
+        "labelHidden": false,
+        "lineWidth": 8,
+        "name": "_widget_1565157771516",
+        "type": "textarea"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "包装情况",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1561431501051",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "油漆要求",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1566366881094",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "有协议指定要求",
+            "text": "有协议指定要求"
+          },
+          {
+            "value": "待定",
+            "text": "待定"
+          },
+          {
+            "value": "企标",
+            "text": "企标"
+          },
+          {
+            "value": "参考某合同，请在备注填写所参考的合同号",
+            "text": "参考某合同，请在备注填写所参考的合同号"
+          },
+          {
+            "value": "其他",
+            "text": "其他"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "工作量",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1563281842830",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "设备",
+            "text": "设备"
+          },
+          {
+            "value": "备件",
+            "text": "备件"
+          },
+          {
+            "value": "电机",
+            "text": "电机"
+          },
+          {
+            "value": "出口",
+            "text": "出口"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同收款信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1623374466732",
+        "type": "separator"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "付款形式",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1561431500766",
+        "type": "checkboxgroup",
+        "items": [
+          {
+            "value": "银承",
+            "text": "银承"
+          },
+          {
+            "value": "商承",
+            "text": "商承"
+          },
+          {
+            "value": "电汇",
+            "text": "电汇"
+          },
+          {
+            "value": "现金",
+            "text": "现金"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "付款方式文字描述",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1561431500955",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同交货期",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1561431500970",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "交货期条款",
+        "labelHidden": false,
+        "lineWidth": 8,
+        "name": "_widget_1561431500982",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "收款计划",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1561431500797",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "日期时间",
+            "labelHidden": false,
+            "name": "_widget_1661242797064",
+            "type": "datetime",
+            "subform": "_widget_1561431500797",
+            "format": "yyyy-MM-dd"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "付款方式",
+            "labelHidden": false,
+            "name": "_widget_1561431500818",
+            "type": "combo",
+            "subform": "_widget_1561431500797",
+            "items": [
+              {
+                "value": "预付",
+                "text": "预付"
+              },
+              {
+                "value": "发货",
+                "text": "发货"
+              },
+              {
+                "value": "到货",
+                "text": "到货"
+              },
+              {
+                "value": "验收",
+                "text": "验收"
+              },
+              {
+                "value": "调试",
+                "text": "调试"
+              },
+              {
+                "value": "质保",
+                "text": "质保"
+              },
+              {
+                "value": "其他",
+                "text": "其他"
+              }
+            ],
+            "colorEnable": false,
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "付款比例（%）",
+            "labelHidden": false,
+            "name": "_widget_1561431500832",
+            "type": "number",
+            "subform": "_widget_1561431500797",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "付款金额",
+            "labelHidden": false,
+            "name": "_widget_1561431500855",
+            "type": "number",
+            "subform": "_widget_1561431500797",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "ID辅助",
+            "labelHidden": false,
+            "name": "_widget_1665380027624",
+            "type": "text",
+            "subform": "_widget_1561431500797",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "是否提醒",
+            "labelHidden": false,
+            "name": "_widget_1665380028160",
+            "type": "text",
+            "subform": "_widget_1561431500797",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "消息辅助",
+            "labelHidden": false,
+            "name": "_widget_1665380027757",
+            "type": "text",
+            "subform": "_widget_1561431500797",
+            "fieldWidth": "custom"
+          }
+        ]
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "质保期限",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1696822285599",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "质保金额",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1696822285597",
+        "type": "number"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同其他信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1623374466832",
+        "type": "separator"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "行业分类",
+        "labelHidden": false,
+        "lineWidth": 8,
+        "name": "_widget_1561431499820",
+        "type": "combo",
+        "items": [
+          {
+            "value": "工业升级",
+            "text": "工业升级"
+          },
+          {
+            "value": "循环经济",
+            "text": "循环经济"
+          },
+          {
+            "value": "基建民生",
+            "text": "基建民生"
+          },
+          {
+            "value": "技术运营",
+            "text": "技术运营"
+          },
+          {
+            "value": "其他",
+            "text": "其他"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "地区",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1561431499871",
+        "type": "combo",
+        "items": [
+          {
+            "value": "东北",
+            "text": "东北"
+          },
+          {
+            "value": "华北",
+            "text": "华北"
+          },
+          {
+            "value": "华东",
+            "text": "华东"
+          },
+          {
+            "value": "华南",
+            "text": "华南"
+          },
+          {
+            "value": "华中",
+            "text": "华中"
+          },
+          {
+            "value": "西南",
+            "text": "西南"
+          },
+          {
+            "value": "西北",
+            "text": "西北"
+          },
+          {
+            "value": "出口",
+            "text": "出口"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "应用领域",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1561431499996",
+        "type": "combo",
+        "colorEnable": false
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "应用物料",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1576116537439",
+        "type": "combo",
+        "colorEnable": false
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "是否含智能化",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1579240052161",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "智能点",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1582439670467",
+        "type": "combocheck",
+        "items": [
+          {
+            "value": "远程监控",
+            "text": "远程监控"
+          },
+          {
+            "value": "智能润滑",
+            "text": "智能润滑"
+          },
+          {
+            "value": "移动称量",
+            "text": "移动称量"
+          },
+          {
+            "value": "视频监控",
+            "text": "视频监控"
+          },
+          {
+            "value": "抑尘系统",
+            "text": "抑尘系统"
+          },
+          {
+            "value": "产线自动化",
+            "text": "产线自动化"
+          },
+          {
+            "value": "其他",
+            "text": "其他"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "备注",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1563280700625",
+        "type": "textarea"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "特别提醒",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1561431501066",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "附件（合同、协议）",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1561511175252",
+        "type": "upload"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "图片（合同、协议）",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1561511175264",
+        "type": "image"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "验收单",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1573192575054",
+        "type": "upload"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "生产卡信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1627697874959",
+        "type": "linkquery"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "日期时间",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1661242797021",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "选择服务费数据",
+        "labelHidden": false,
+        "lineWidth": 9,
+        "name": "_widget_1698917219543",
+        "type": "linkfield"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "变动查看",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1720749080105",
+        "type": "linkquery"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "关联数据",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1752304126294",
+        "type": "lookup"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "附件同步知识库时间",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1759559814671",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同回款信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1666331897364",
+        "type": "linkquery"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "单位回款信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1596086134880",
+        "type": "linkquery"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "开票信息查询",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1594173385303",
+        "type": "linkquery"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "运费承担方",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1667291302111",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "我方",
+            "text": "我方"
+          },
+          {
+            "value": "需方",
+            "text": "需方"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同约定地址",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1667286001079",
+        "type": "address"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "发货地址",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1730100756545",
+        "type": "linkfield"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "发货地址",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1667286001084",
+        "type": "address"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "比对地址辅助",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1667286001085",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "发货地址（到区）（辅助）",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1667291302128",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同地址（到区）（辅助）",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1667291302129",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "地址不符时上传附件",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1667291302115",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "图片",
+            "labelHidden": false,
+            "name": "_widget_1667291302117",
+            "type": "image",
+            "subform": "_widget_1667291302115"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "附件",
+            "labelHidden": false,
+            "name": "_widget_1667291302118",
+            "type": "upload",
+            "subform": "_widget_1667291302115"
+          }
+        ]
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "发货信息查询",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1594173385329",
+        "type": "linkquery"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "运费登记表",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1623889620353",
+        "type": "linkquery"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "发货状态",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1662088494543",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "最后发货日期（241012停用）",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1594173385664",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "发货总额（241012停用）",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1594173385703",
+        "type": "number"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "验收方式",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1668417748847",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "货到签收",
+            "text": "货到签收"
+          },
+          {
+            "value": "指导安装不含验收",
+            "text": "指导安装不含验收"
+          },
+          {
+            "value": "货到验收",
+            "text": "货到验收"
+          },
+          {
+            "value": "指导安装含验收",
+            "text": "指导安装含验收"
+          },
+          {
+            "value": "安装调试",
+            "text": "安装调试"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "验收所需资料",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1668417749220",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "验收资料上传",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1668417748935",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "验收日期",
+            "labelHidden": false,
+            "name": "_widget_1668417748995",
+            "type": "datetime",
+            "subform": "_widget_1668417748935",
+            "format": "yyyy-MM-dd"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "图片",
+            "labelHidden": false,
+            "name": "_widget_1668417748937",
+            "type": "image",
+            "subform": "_widget_1668417748935"
+          },
+          {
+            "id": "5d118dc922ba776f27472706",
+            "form": "5d118dc922ba776f27472706",
+            "text": "附件",
+            "labelHidden": false,
+            "name": "_widget_1668417748966",
+            "type": "upload",
+            "subform": "_widget_1668417748935"
+          }
+        ]
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "行业分类-小萌",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1698823518549",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "交通运输",
+            "text": "交通运输"
+          },
+          {
+            "value": "储能箱",
+            "text": "储能箱"
+          },
+          {
+            "value": "变压器",
+            "text": "变压器"
+          },
+          {
+            "value": "石油化工",
+            "text": "石油化工"
+          },
+          {
+            "value": "封头",
+            "text": "封头"
+          },
+          {
+            "value": "钢结构",
+            "text": "钢结构"
+          },
+          {
+            "value": "工程机械",
+            "text": "工程机械"
+          },
+          {
+            "value": "机械制造",
+            "text": "机械制造"
+          },
+          {
+            "value": "外贸业务",
+            "text": "外贸业务"
+          },
+          {
+            "value": "畜牧行业",
+            "text": "畜牧行业"
+          },
+          {
+            "value": "环保设备",
+            "text": "环保设备"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "成本-小萌231101",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1698908493692",
+        "type": "number"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "运费-小萌231101",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1698908493693",
+        "type": "number"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "地区-小萌240120",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1705729384963",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "省份-小萌240120",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1705729384962",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "服务费-小萌231101",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1698908493694",
+        "type": "number"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "以下是辅助信息字段",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1616210898698",
+        "type": "separator"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "单行文本（辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1614213005939",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "判断是否含新增（辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1609113829970",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "判断对方合同号是否含新增（辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1670549305841",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同总额（辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1594185418743",
+        "type": "number"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "*限制同一对方合同号只能新增一次",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1670549305842",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "限制同一合同号只能新增一次",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1610611018415",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "下卡日期辅助（辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1616999695532",
+        "type": "number"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "辅助是否含需要提醒（241017增，用于辅助筛选出需要提醒的数据，大于0则是含有需要提醒的数据）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1729124887299",
+        "type": "text"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "text": "合同提交状态（辅助）",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1631177786890",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "不暂存",
+            "text": "不暂存"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "name": "creator",
+        "type": "user",
+        "text": "提交人"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "name": "createTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "提交时间"
+      },
+      {
+        "id": "5d118dc922ba776f27472706",
+        "form": "5d118dc922ba776f27472706",
+        "name": "updateTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "更新时间"
+      }
+    ]
+  }
+}

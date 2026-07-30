@@ -13,6 +13,7 @@ function getSelectedKey(pathname: string): string {
   if (pathname.match(/^\/opportunities/)) return '/opportunities'
   if (pathname.match(/^\/solutions/)) return '/solutions'
   if (pathname.match(/^\/quotes/)) return '/quotes'
+  if (pathname.match(/^\/contract-reviews/)) return '/contract-reviews'
   if (pathname.match(/^\/contracts/)) return '/contracts'
   if (pathname.match(/^\/products/)) return '/products'
   if (pathname.match(/^\/orders/)) return '/orders'
