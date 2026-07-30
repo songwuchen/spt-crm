@@ -135,7 +135,7 @@ describe('ContractDetail', { timeout: 15000 }, () => {
   it('renders contract number after loading', async () => {
     render(<ContractDetail />)
     await waitFor(() => {
-      expect(screen.getByText(/CT-2026-001/)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /CT-2026-001/ })).toBeInTheDocument()
     })
   })
 
@@ -183,7 +183,8 @@ describe('ContractDetail', { timeout: 15000 }, () => {
   it('shows payment terms', async () => {
     render(<ContractDetail />)
     await waitFor(() => {
-      expect(screen.getByText('付款条款')).toBeInTheDocument()
+      // UI 文案已对齐简道云为「收款计划」（原「付款条款」）
+      expect(screen.getAllByText('收款计划').length).toBeGreaterThan(0)
     })
   })
 
@@ -200,7 +201,7 @@ describe('ContractDetail', { timeout: 15000 }, () => {
     ;(contractApi.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: signedContract })
     render(<ContractDetail />)
     await waitFor(() => {
-      expect(screen.getByText(/CT-2026-001/)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /CT-2026-001/ })).toBeInTheDocument()
     })
     expect(screen.queryByText('提交审批')).not.toBeInTheDocument()
     expect(screen.queryByText('签署合同')).not.toBeInTheDocument()
