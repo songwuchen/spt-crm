@@ -248,20 +248,43 @@ curl -H "X-API-Key: $KEY" \
 | `created_at` / `updated_at` | string(ISO) | 时间 |
 
 ### 5.4 合同
-`GET /contracts` — Scope `crm.contract.read`，过滤：`project_id` / `status` + 分页。
-`GET /contracts/{id}` — 详情。
+`GET /contracts` — Scope `crm.contract.read`，过滤：`project_id` / `status` + 分页。  
+`GET /contracts/{id}` — 详情。  
 `POST /contracts` — Scope `crm.contract.write`（须带 `Idempotency-Key`）。
 
-写入语义：**按 `contract_no` upsert**。若租户内已存在相同合同编号，则更新客户/金额/日期/状态/`custom_fields` 等字段并返回原合同；否则新建。`amount_total` 允许负数（对接简道云「变动」冲减）。并发极端情况下仍可能返回 `409 CRM_DUPLICATE_ENTRY`。
+**推送方**：中间服务（如 `crm-integration`）从简道云拉数后调用本接口；CRM **不**主动拉简道云。
+
+写入语义：**按 `contract_no` upsert**。若租户内已存在相同合同编号，则更新客户/金额/日期/状态/登记字段/`custom_fields` 等并返回原合同；否则新建。`amount_total` 允许负数（对接简道云「变动」冲减）。并发极端情况下仍可能返回 `409 CRM_DUPLICATE_ENTRY`。
+
+请求体（写入）主要字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `customer_id` | string | 是 | 先经 `GET/POST /customers` 解析 |
+| `contract_no` | string | 建议 | Upsert 键；省略则 CRM 自动生成 |
+| `project_id` | string | 否 | 外部合同可不挂商机 |
+| `title` | string | 否 | 写入当前版本标题 |
+| `amount_total` | number | 否 | 可为负 |
+| `status` | string | 否 | `draft`/`signed`/`terminated` |
+| `signed_date` / `end_date` / `delivery_date` / `order_date` / `card_date` | string(date) | 否 | ISO 日期 |
+| `drawing_no` / `peer_contract_no` / `acquire_method` / `change_type` | string | 否 | 登记对齐字段 |
+| `assignee_id` / `assignee_name` | string | 否 | 业务员；名称按组织用户精确匹配 |
+| `department_id` / `department_name` | string | 否 | 部门；名称按组织部门精确匹配 |
+| `payment_terms_json` / `key_clauses_json` / `delivery_terms_json` | object/array | 否 | 收款计划 / 合同明细 / 交付条款 |
+| `registration_json` | object | 否 | 质保/行业/验收等扩展分区 |
+| `custom_fields` | object | 否 | 租户自定义扩展 |
+
+响应常见字段：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `id` / `contract_no` | string | 合同 ID / 编号 |
-| `project_id` | string | 所属商机 |
+| `project_id` / `customer_id` | string | 商机 / 客户 |
 | `status` | string | `draft`/`signed`/`terminated` |
 | `amount_total` | number | 合同总额（可为负） |
 | `current_version_no` | int | 当前版本号 |
-| `signed_date` / `end_date` | string(date) | 签署日 / 结束日 |
+| `assignee_name` / `department_name` | string | 业务员 / 部门 |
+| `registration_json` / `custom_fields` | object | 扩展 |
 | `created_at` / `updated_at` | string(ISO) | 时间 |
 
 ### 5.5 事件拉取（对账）
