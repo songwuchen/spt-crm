@@ -1,9 +1,14 @@
-"""Drop unused jdy_contract_sync_state (CRM no longer polls 简道云)."""
+"""Drop unused jdy_contract_sync_state (CRM no longer polls 简道云).
+
+Revises the published head ir01 directly so CI/main does not depend on
+unreleased ct01/ct02. Contract registration migrations (ct01/ct02) chain
+after this revision.
+"""
 from alembic import op
 import sqlalchemy as sa
 
 revision = "ct03c4d5e6f7"
-down_revision = "ct02b3c4d5e6"
+down_revision = "ir01c2d3e4f5"
 branch_labels = None
 depends_on = None
 
