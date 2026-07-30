@@ -13,6 +13,7 @@ import {
   type RegShowWhen,
 } from '@/constants/contractRegistration'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
+import { PolicyItem } from '@/components/lowcode/FieldPolicy'
 
 const DATE_KEYS = new Set([
   'delivery_date', 'order_date', 'card_date', 'end_date', 'note_date', 'accept_date',
@@ -124,22 +125,32 @@ function FieldGrid({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
       {visible.map((f) => {
-        const name = f.source === 'native' ? f.key : ['registration_json', f.key]
         const spanFull = f.widget === 'checkbox' || f.widget === 'textarea' || f.key === 'paint_req'
         const needRequired = f.required || (f.requiredWhen ? isVisible({ ...f, showWhen: f.requiredWhen }, values) : false)
+        const itemProps = {
+          label: f.label,
+          className: 'mb-3',
+          style: spanFull ? { gridColumn: '1 / -1' } : undefined,
+          rules: needRequired ? [{
+            required: true,
+            message: `请填写${f.label}`,
+            type: f.widget === 'checkbox' ? 'array' : undefined,
+            ...(f.widget === 'checkbox' ? { min: 1 } : {}),
+          } as object] : undefined,
+        }
+        // 原生列走 PolicyItem，与 native_field_catalog / 字段策略对齐
+        if (f.source === 'native') {
+          return (
+            <PolicyItem key={f.key} name={f.key} {...itemProps}>
+              <FieldControl field={f} />
+            </PolicyItem>
+          )
+        }
         return (
           <Form.Item
             key={f.key}
-            name={name}
-            label={f.label}
-            className="mb-3"
-            style={spanFull ? { gridColumn: '1 / -1' } : undefined}
-            rules={needRequired ? [{
-              required: true,
-              message: `请填写${f.label}`,
-              type: f.widget === 'checkbox' ? 'array' : undefined,
-              ...(f.widget === 'checkbox' ? { min: 1 } : {}),
-            } as object] : undefined}
+            name={['registration_json', f.key]}
+            {...itemProps}
           >
             <FieldControl field={f} />
           </Form.Item>

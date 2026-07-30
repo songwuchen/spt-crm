@@ -177,7 +177,7 @@ def test_catalog_fields_all_have_a_form_control():
             ("frontend/src/pages/opportunity/OpportunityForm.tsx", "both"),
             ("frontend/src/pages/mobile/MobileOpportunityForm.tsx", "create"),
         ],
-        "contract": [("frontend/src/pages/contract/ContractList.tsx", "create")],
+        "contract": [("frontend/src/components/ContractRegistrationFields.tsx", "create")],
         "order": [("frontend/src/pages/order/OrderList.tsx", "both")],
         "service_ticket": [
             ("frontend/src/pages/service/ServiceTicketList.tsx", "create"),
@@ -186,12 +186,35 @@ def test_catalog_fields_all_have_a_form_control():
         "payment": [("frontend/src/pages/payment/PaymentPage.tsx", "create")],
     }
     root = Path(__file__).resolve().parents[2]
+
+    def _policy_item_names(src: str) -> set[str]:
+        # <PolicyItem name="foo"> 或属性顺序不限
+        return set(re.findall(r"<(?:PolicyItem|MField)\b[^>]*\bname=\"([^\"]+)\"", src))
+
+    def _contract_registration_native_keys() -> set[str]:
+        """ContractRegistrationFields 对 native 字段用 <PolicyItem name={f.key}>，
+        静态扫描字面量抓不到，从常量里收集 source:'native' 的 key。"""
+        csrc = (root / "frontend/src/constants/contractRegistration.ts").read_text(encoding="utf-8")
+        keys: set[str] = set()
+        for m in re.finditer(r"key:\s*'([^']+)'", csrc):
+            start = m.end()
+            nxt = re.search(r"\bkey:\s*'", csrc[start:start + 800])
+            window = csrc[start:start + (nxt.start() if nxt else 800)]
+            if re.search(r"source:\s*['\"]native['\"]", window):
+                keys.add(m.group(1))
+        return keys
+
     for entity in FORM_WIRED:
         assert entity in forms, f"{entity} 已声明接入表单，但测试不知道它的表单文件在哪"
         for rel, scope in forms[entity]:
             src = (root / rel).read_text(encoding="utf-8")
             # MField 是移动端样式的 PolicyItem 别名，两者都算「该字段可填」
-            rendered = set(re.findall(r'<(?:PolicyItem|MField)\s+name="([^"]+)"', src))
+            rendered = _policy_item_names(src)
+            if rel.endswith("ContractRegistrationFields.tsx"):
+                rendered |= _contract_registration_native_keys()
+                # 新建时跳过自动生成的合同号（与 CREATE_SKIP 一致）
+                if scope == "create":
+                    rendered.discard("contract_no")
             missing = []
             for fd in get_native_fields(entity):
                 if not fd.get("form_editable", True):
