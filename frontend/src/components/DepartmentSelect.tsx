@@ -5,7 +5,8 @@ import type { Department } from '@/api/types'
 
 interface Props {
   value?: string
-  onChange?: (v: string | undefined) => void
+  /** 第二个参数为选中节点标题，便于同步写 department_name */
+  onChange?: (v: string | undefined, label?: string) => void
   placeholder?: string
   disabled?: boolean
   allowClear?: boolean
@@ -23,6 +24,17 @@ function toTreeData(nodes: Department[]): TreeNode[] {
     value: n.id,
     children: n.children && n.children.length > 0 ? toTreeData(n.children) : undefined,
   }))
+}
+
+function findTitle(nodes: TreeNode[], id: string): string | undefined {
+  for (const n of nodes) {
+    if (n.value === id) return n.title
+    if (n.children?.length) {
+      const hit = findTitle(n.children, id)
+      if (hit) return hit
+    }
+  }
+  return undefined
 }
 
 // Module-level cache so each page mount doesn't refetch the tree
@@ -49,7 +61,10 @@ export default function DepartmentSelect({ value, onChange, placeholder = '选�
   return (
     <TreeSelect
       value={value}
-      onChange={(v) => onChange?.(v)}
+      onChange={(v) => {
+        const id = (v as string | undefined) || undefined
+        onChange?.(id, id ? findTitle(treeData, id) : undefined)
+      }}
       treeData={treeData}
       placeholder={placeholder}
       disabled={disabled}

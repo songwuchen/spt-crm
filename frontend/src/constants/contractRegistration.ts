@@ -18,6 +18,8 @@ export type RegWidget =
   | 'radio'       // radiogroup
   | 'select'      // combo
   | 'checkbox'    // checkboxgroup / combocheck → 多选
+  | 'person'      // 组织架构选人
+  | 'department'  // 组织架构选部门
 
 export type RegAfterSlot =
   | 'line_items'
@@ -95,8 +97,8 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
     fields: [
       { key: 'card_date', label: '下卡日期', source: 'native', widget: 'date', required: true },
       { key: 'customer_code', label: '客户编号', source: 'reg', widget: 'text' },
-      { key: 'department_name', label: '部门', source: 'native', widget: 'text', required: true },
-      { key: 'assignee_name', label: '业务人员', source: 'native', widget: 'text', required: true },
+      { key: 'department_id', label: '部门', source: 'native', widget: 'department', required: true },
+      { key: 'assignee_id', label: '业务人员', source: 'native', widget: 'person', required: true },
       {
         key: 'change_type', label: '合同状态', source: 'native', widget: 'radio', required: true,
         options: [

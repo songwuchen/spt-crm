@@ -227,8 +227,10 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         # 顺序对齐 frontend CONTRACT_REGISTRATION_SECTIONS（基本信息 → 产品 → 收款 → 其他 → 物流 → 验收）
         # ---- 基本信息（表列）----
         _f("card_date", "下卡日期", "date", default_required=True),
-        _f("department_name", "部门", default_required=True),
-        _f("assignee_name", "业务人员", default_required=True),
+        _f("department_id", "部门", "department", companions=("department_name",),
+           default_required=True),
+        _f("assignee_id", "业务人员", "person", companions=("assignee_name",),
+           default_required=True),
         _f("change_type", "合同状态", "select", options_source="enum:contract_change_type",
            default_required=True,
            options=[{"value": "new", "label": "新增"}, {"value": "change", "label": "变动"}]),

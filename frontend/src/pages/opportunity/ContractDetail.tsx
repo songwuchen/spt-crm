@@ -115,7 +115,9 @@ export default function ContractDetail() {
       peer_contract_no: contract?.peer_contract_no || undefined,
       acquire_method: contract?.acquire_method || undefined,
       change_type: changeType,
+      assignee_id: contract?.assignee_id || undefined,
       assignee_name: contract?.assignee_name || undefined,
+      department_id: contract?.department_id || undefined,
       department_name: contract?.department_name || undefined,
       ...nativeDates,
       registration_json: reg,
@@ -146,7 +148,9 @@ export default function ContractDetail() {
         peer_contract_no: v.peer_contract_no || null,
         acquire_method: v.acquire_method || null,
         change_type: v.change_type || null,
+        assignee_id: v.assignee_id || null,
         assignee_name: v.assignee_name || null,
+        department_id: v.department_id || null,
         department_name: v.department_name || null,
         end_date: fmt(v.end_date),
         delivery_date: fmt(v.delivery_date),
@@ -664,6 +668,13 @@ export default function ContractDetail() {
             return sw.equals.includes(raw == null ? '' : String(raw))
           }
           const resolve = (f: (typeof sec.fields)[0]) => {
+            // 组织架构字段详情展示名称，不展示裸 id
+            if (f.key === 'assignee_id') {
+              return contract.assignee_name || contract.assignee_id || '-'
+            }
+            if (f.key === 'department_id') {
+              return contract.department_name || contract.department_id || '-'
+            }
             const raw = f.source === 'native'
               ? (contract as unknown as Record<string, unknown>)[f.key]
               : reg[f.key]

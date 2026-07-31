@@ -4,7 +4,7 @@
  * 子表通过 slots 插在简道云 subform 对应位置。
  * 合同/项目评审流水号支持选评审记录带出（对齐简道云 linkfield）。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Form, Input, InputNumber, DatePicker, Select, Radio, Checkbox, AutoComplete } from 'antd'
 import type { FormInstance } from 'antd'
@@ -17,6 +17,8 @@ import {
 import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { PolicyItem, useFieldPolicy } from '@/components/lowcode/FieldPolicy'
 import { contractReviewApi, type ContractReview } from '@/api/contractReview'
+import { useUserSelect } from '@/hooks/useSelectOptions'
+import DepartmentSelect from '@/components/DepartmentSelect'
 
 const DATE_KEYS = new Set([
   'delivery_date', 'order_date', 'card_date', 'end_date', 'note_date', 'accept_date',
@@ -24,7 +26,7 @@ const DATE_KEYS = new Set([
 const NATIVE_KEYS = new Set([
   'contract_no', 'drawing_no', 'peer_contract_no', 'acquire_method',
   'delivery_date', 'change_type', 'amount_total', 'order_date', 'card_date', 'end_date',
-  'assignee_name', 'department_name',
+  'assignee_id', 'assignee_name', 'department_id', 'department_name',
 ])
 
 const CREATE_SKIP = new Set(['contract_no'])
@@ -54,6 +56,72 @@ function isVisible(field: RegFieldDef, values: Record<string, unknown>): boolean
     return sw.equals.includes(s)
   }
   return v != null && v !== ''
+}
+
+/** 组织架构选人；同步写 companion name 字段 */
+function OrgPersonField({
+  form,
+  nameKey = 'assignee_name',
+  value,
+  onChange,
+  placeholder = '从组织架构选择',
+}: {
+  form: FormInstance
+  nameKey?: string
+  value?: string
+  onChange?: (v: string | undefined) => void
+  placeholder?: string
+}) {
+  const userSelect = useUserSelect()
+  // 编辑回显：已有 id+name 时注入选项，否则 Select 只显示裸 uuid
+  useEffect(() => {
+    const name = form.getFieldValue(nameKey) as string | undefined
+    if (value && name) userSelect.setInitialOption({ value, label: name })
+    // 仅在挂载/id 变化时补选项
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+  return (
+    <Select
+      allowClear
+      showSearch
+      filterOption={false}
+      placeholder={placeholder}
+      value={value}
+      loading={userSelect.loading}
+      options={userSelect.options}
+      onSearch={userSelect.onSearch}
+      onDropdownVisibleChange={userSelect.onDropdownVisibleChange}
+      onChange={(v, opt) => {
+        const id = (v as string | undefined) || undefined
+        const label = (opt as { label?: string } | undefined)?.label
+        onChange?.(id)
+        form.setFieldsValue({ [nameKey]: id ? (label || undefined) : undefined })
+      }}
+    />
+  )
+}
+
+function OrgDepartmentField({
+  form,
+  nameKey = 'department_name',
+  value,
+  onChange,
+}: {
+  form: FormInstance
+  nameKey?: string
+  value?: string
+  onChange?: (v: string | undefined) => void
+}) {
+  return (
+    <DepartmentSelect
+      value={value}
+      placeholder="从组织架构选择部门"
+      onChange={(id, label) => {
+        onChange?.(id)
+        form.setFieldsValue({ [nameKey]: id ? (label || undefined) : undefined })
+      }}
+    />
+  )
 }
 
 /** 对齐简道云「选择合同/项目评审」：选中后回填流水号及相关字段；也可手输流水号 */
@@ -94,7 +162,9 @@ function ReviewSnPicker({
     if (hit.delivery_period) reg.delivery_clause = hit.delivery_period
     form.setFieldsValue({
       registration_json: reg,
+      ...(hit.department_id ? { department_id: hit.department_id } : {}),
       ...(hit.department_name ? { department_name: hit.department_name } : {}),
+      ...(hit.owner_id ? { assignee_id: hit.owner_id } : {}),
       ...(hit.owner_name ? { assignee_name: hit.owner_name } : {}),
       ...(hit.contract_amount != null && form.getFieldValue('amount_total') == null
         ? { amount_total: hit.contract_amount }
@@ -122,6 +192,13 @@ function FieldControl({ field, form }: { field: RegFieldDef; form: FormInstance 
 
   if (field.key === 'review_sn') {
     return <ReviewSnPicker form={form} />
+  }
+
+  if (widget === 'person' || field.key === 'assignee_id') {
+    return <OrgPersonField form={form} nameKey="assignee_name" placeholder="从组织架构选择业务人员" />
+  }
+  if (widget === 'department' || field.key === 'department_id') {
+    return <OrgDepartmentField form={form} nameKey="department_name" />
   }
 
   // 显隐依赖字段：写入时展开新对象，避免 antd 对嵌套 registration_json 原地改值导致不刷新
@@ -294,6 +371,9 @@ export default function ContractRegistrationFields({
 }: Props) {
   return (
     <div className="space-y-5">
+      {/* companion 显示名：选人/选部门时同步写入，提交落库但不单独展示 */}
+      <Form.Item name="assignee_name" hidden><Input /></Form.Item>
+      <Form.Item name="department_name" hidden><Input /></Form.Item>
       {CONTRACT_REGISTRATION_SECTIONS.map((sec) => (
         <div key={sec.key}>
           <ContractSectionTitle title={sec.title} />

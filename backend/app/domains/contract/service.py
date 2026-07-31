@@ -64,7 +64,8 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, dat
     _NATIVE_CREATE_KEYS = (
         "amount_total", "end_date", "drawing_no", "peer_contract_no",
         "acquire_method", "delivery_date", "change_type", "order_date", "card_date",
-        "assignee_name", "department_name", "registration_json",
+        "assignee_id", "assignee_name", "department_id", "department_name",
+        "registration_json",
     )
     raw = data.model_dump(exclude_unset=True)
     native_payload = {k: raw[k] for k in _NATIVE_CREATE_KEYS if k in raw}
@@ -90,9 +91,9 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, dat
         delivery_terms_json=data.delivery_terms_json,
         registration_json=native.get("registration_json", data.registration_json),
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
-        assignee_id=data.assignee_id,
+        assignee_id=native.get("assignee_id", data.assignee_id),
         assignee_name=native.get("assignee_name", data.assignee_name),
-        department_id=data.department_id,
+        department_id=native.get("department_id", data.department_id),
         department_name=native.get("department_name", data.department_name),
         custom_fields_json=cfj,
     )

@@ -67,14 +67,19 @@ export default function ContractList() {
       if (p.name) reg.project_name = p.name
       const patch: Record<string, unknown> = {
         registration_json: reg,
+        ...(p.owner_id ? { assignee_id: p.owner_id } : {}),
         ...(p.owner_name ? { assignee_name: p.owner_name } : {}),
       }
       if (p.customer_id) {
         try {
           const c = (await customerApi.get(p.customer_id)).data
           if (c?.customer_code) reg.customer_code = c.customer_code
+          if (c?.department_id) patch.department_id = c.department_id
           if (c?.department_name) patch.department_name = c.department_name
-          if (c?.owner_name && !patch.assignee_name) patch.assignee_name = c.owner_name
+          if (c?.owner_id && !patch.assignee_id) {
+            patch.assignee_id = c.owner_id
+            if (c.owner_name) patch.assignee_name = c.owner_name
+          }
           patch.registration_json = { ...reg }
         } catch { /* ignore */ }
       }
@@ -125,7 +130,9 @@ export default function ContractList() {
         ...(v.peer_contract_no ? { peer_contract_no: v.peer_contract_no } : {}),
         ...(v.acquire_method ? { acquire_method: v.acquire_method } : {}),
         ...(v.change_type ? { change_type: v.change_type } : {}),
+        ...(v.assignee_id ? { assignee_id: v.assignee_id } : {}),
         ...(v.assignee_name ? { assignee_name: v.assignee_name } : {}),
+        ...(v.department_id ? { department_id: v.department_id } : {}),
         ...(v.department_name ? { department_name: v.department_name } : {}),
         registration_json: Object.keys(regRaw).length ? regRaw : undefined,
         ...(lines.length ? { key_clauses_json: lines } : {}),
