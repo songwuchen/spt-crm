@@ -186,19 +186,54 @@ function ReviewSnPicker({
   )
 }
 
-function FieldControl({ field, form }: { field: RegFieldDef; form: FormInstance }) {
+function FieldControl({
+  field,
+  form,
+  value,
+  onChange,
+  ...rest
+}: {
+  field: RegFieldDef
+  form: FormInstance
+  value?: unknown
+  onChange?: (...args: any[]) => void
+  [k: string]: unknown
+}) {
   const widget = field.widget || 'text'
   const opts = (field.options || []).map((o) => ({ value: o.value, label: o.label }))
+  // Form.Item 注入的 value/onChange 必须透传到真实控件，否则界面能填但表单 store 仍为空
+  const control = { value, onChange, ...rest } as Record<string, unknown>
 
   if (field.key === 'review_sn') {
-    return <ReviewSnPicker form={form} />
+    return (
+      <ReviewSnPicker
+        form={form}
+        value={value as string | undefined}
+        onChange={onChange as ((v: string) => void) | undefined}
+      />
+    )
   }
 
   if (widget === 'person' || field.key === 'assignee_id') {
-    return <OrgPersonField form={form} nameKey="assignee_name" placeholder="从组织架构选择业务人员" />
+    return (
+      <OrgPersonField
+        form={form}
+        nameKey="assignee_name"
+        value={value as string | undefined}
+        onChange={onChange as ((v: string | undefined) => void) | undefined}
+        placeholder="从组织架构选择业务人员"
+      />
+    )
   }
   if (widget === 'department' || field.key === 'department_id') {
-    return <OrgDepartmentField form={form} nameKey="department_name" />
+    return (
+      <OrgDepartmentField
+        form={form}
+        nameKey="department_name"
+        value={value as string | undefined}
+        onChange={onChange as ((v: string | undefined) => void) | undefined}
+      />
+    )
   }
 
   // 显隐依赖字段：写入时展开新对象，避免 antd 对嵌套 registration_json 原地改值导致不刷新
@@ -222,13 +257,18 @@ function FieldControl({ field, form }: { field: RegFieldDef; form: FormInstance 
   if (widget === 'radio') {
     const useBtn = opts.length <= 4 && opts.every((o) => o.label.length <= 8)
     const trigger = SHOW_TRIGGERS.has(field.key)
+    const handleRadio = (e: { target: { value?: unknown } }) => {
+      onChange?.(e)
+      if (trigger) patchReg(field.key, e.target.value)
+    }
     if (useBtn) {
       return (
         <Radio.Group
+          {...control}
           optionType="button"
           buttonStyle="solid"
           className="flex flex-wrap gap-1"
-          onChange={trigger ? (e) => patchReg(field.key, e.target.value) : undefined}
+          onChange={handleRadio}
         >
           {opts.map((o) => (
             <Radio.Button key={o.value} value={o.value}>{o.label}</Radio.Button>
@@ -238,8 +278,9 @@ function FieldControl({ field, form }: { field: RegFieldDef; form: FormInstance 
     }
     return (
       <Radio.Group
+        {...control}
         className="flex flex-wrap gap-x-3 gap-y-1"
-        onChange={trigger ? (e) => patchReg(field.key, e.target.value) : undefined}
+        onChange={handleRadio}
       >
         {opts.map((o) => (
           <Radio key={o.value} value={o.value}>{o.label}</Radio>
@@ -248,12 +289,13 @@ function FieldControl({ field, form }: { field: RegFieldDef; form: FormInstance 
     )
   }
   if (widget === 'checkbox') {
-    return <Checkbox.Group options={opts} className="flex flex-wrap gap-x-3 gap-y-1" />
+    return <Checkbox.Group {...control} options={opts} className="flex flex-wrap gap-x-3 gap-y-1" />
   }
   if (widget === 'select') {
     if (opts.length) {
       return (
         <Select
+          {...control}
           allowClear
           showSearch
           optionFilterProp="label"
@@ -262,18 +304,25 @@ function FieldControl({ field, form }: { field: RegFieldDef; form: FormInstance 
         />
       )
     }
-    return <AutoComplete allowClear options={[]} placeholder="请输入或选择" filterOption />
+    return <AutoComplete {...control} allowClear options={[]} placeholder="请输入或选择" filterOption />
   }
   if (widget === 'date' || DATE_KEYS.has(field.key)) {
-    return <DatePicker className="w-full" />
+    return <DatePicker {...control} className="w-full" />
   }
   if (widget === 'money' || widget === 'number') {
-    return <InputNumber className="w-full" min={0} precision={widget === 'money' ? 2 : undefined} />
+    return (
+      <InputNumber
+        {...control}
+        className="w-full"
+        min={0}
+        precision={widget === 'money' ? 2 : undefined}
+      />
+    )
   }
   if (widget === 'textarea') {
-    return <Input.TextArea rows={2} />
+    return <Input.TextArea {...control} rows={2} />
   }
-  return <Input allowClear />
+  return <Input {...control} allowClear />
 }
 
 function FieldGrid({

@@ -102,7 +102,19 @@ export default function ContractList() {
   }
   const handleCreate = async () => {
     let v
-    try { v = await createForm.validateFields() } catch { return }
+    try {
+      v = await createForm.validateFields()
+    } catch (err: unknown) {
+      const fields = (err as { errorFields?: { name: (string | number)[]; errors: string[] }[] })?.errorFields || []
+      const first = fields[0]?.errors?.[0]
+      message.warning(first || '请完善必填项后再提交')
+      // 滚到第一个报错项（Modal body 可滚动）
+      const name = fields[0]?.name
+      if (name?.length) {
+        createForm.scrollToField(name, { behavior: 'smooth', block: 'center' })
+      }
+      return
+    }
     const cfError = customFieldsRef.current?.validate()
     if (cfError) {
       message.error(cfError)
@@ -252,7 +264,7 @@ export default function ContractList() {
         onCancel={() => setCreateOpen(false)} okText="创建并完善" width={920} destroyOnClose
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
        <FieldPolicyProvider entityType="contract" form={createForm} customFieldValues={customFields}>
-        <Form form={createForm} layout="vertical" className="mt-3">
+        <Form form={createForm} layout="vertical" className="mt-3" scrollToFirstError>
           <Form.Item name="project_id" label="关联商机" rules={[{ required: true, message: '请选择关联商机' }]}>
             <Select showSearch filterOption={false} placeholder="搜索商机名称 / 编号"
               options={projOpts} loading={projLoading} onSearch={searchProjects}

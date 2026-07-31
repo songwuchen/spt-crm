@@ -198,7 +198,12 @@ export function PolicyItem({ name, rules, label, children, ...rest }: PolicyItem
   const merged = policy.failed ? [...(rules || [])] : (rules || []).filter((r) => !isRequiredRule(r))
   // 脱敏字段不注入必填：用户看不到明文，无从填写。
   if (state.required && !state.masked) {
-    merged.push({ required: true, message: `请填写${typeof finalLabel === 'string' ? finalLabel : ''}` })
+    const fd = policy.nativeFields.find((f) => f.id === fieldId)
+      || policy.customFields.find((f) => f.id === fieldId)
+    const isMulti = fd?.type === 'checkbox' || fd?.type === 'multi_select'
+    merged.push(isMulti
+      ? { type: 'array' as const, min: 1, message: `请填写${typeof finalLabel === 'string' ? finalLabel : ''}` }
+      : { required: true, message: `请填写${typeof finalLabel === 'string' ? finalLabel : ''}` })
   }
 
   // 脱敏字段一律禁用输入：后端已把值换成 "***"，让它可编辑等于允许把 "***" 存回真实列
