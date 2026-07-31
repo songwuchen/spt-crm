@@ -24,6 +24,9 @@ vi.mock('@/api/contract', () => ({
     newVersion: vi.fn(),
     sign: vi.fn(),
     renew: vi.fn(),
+    related: vi.fn().mockResolvedValue({ data: null }),
+    update: vi.fn(),
+    updateVersion: vi.fn(),
   },
 }))
 
@@ -40,6 +43,20 @@ vi.mock('@/api/user', () => ({
 
 vi.mock('@/api/ai', () => ({
   aiApi: { analyze: vi.fn() },
+}))
+
+vi.mock('@/api/payment', () => ({
+  paymentApi: {
+    listPlans: vi.fn().mockResolvedValue({ data: [] }),
+    listMilestones: vi.fn().mockResolvedValue({ data: [] }),
+    bulkCreatePlans: vi.fn(),
+  },
+}))
+
+vi.mock('@/api/delivery', () => ({
+  deliveryApi: {
+    listMilestones: vi.fn().mockResolvedValue({ data: [] }),
+  },
 }))
 
 vi.mock('@/api/activity', () => ({
@@ -59,8 +76,57 @@ vi.mock('@/api/attachment', () => ({
   },
 }))
 
+vi.mock('@/api/lowcode', () => ({
+  lowcodeApi: {
+    entityFormSchema: vi.fn().mockResolvedValue({
+      data: { native_fields: [], field_definitions: [], rule_definitions: [] },
+    }),
+    entityFields: vi.fn().mockResolvedValue({
+      data: { field_definitions: [], rule_definitions: [] },
+    }),
+  },
+}))
+
 vi.mock('@/components/VoiceInput', () => ({
   default: () => null,
+}))
+
+vi.mock('@/components/AttachmentPanel', () => ({
+  default: () => <div data-testid="attachment-panel">AttachmentPanel</div>,
+}))
+
+vi.mock('@/components/ContractAttachmentSlots', () => ({
+  default: () => <div data-testid="contract-attachment-slots" />,
+}))
+
+vi.mock('@/components/ai/AiAnalysisButton', () => ({
+  default: () => null,
+}))
+
+vi.mock('@/components/ContractRegistrationFields', () => ({
+  default: () => null,
+  DATE_KEYS: new Set<string>(),
+}))
+
+// 明细表编辑器列很多，真实渲染会把每个用例拖到 ~8s，CI 15s 超时易踩线
+vi.mock('@/components/ContractTerms', async () => {
+  const actual = await vi.importActual<typeof import('@/components/ContractTerms')>('@/components/ContractTerms')
+  return {
+    ...actual,
+    LineItemsEditor: () => <div data-testid="line-items-editor" />,
+    PaymentTermsEditor: () => <div data-testid="payment-terms-editor" />,
+    PaymentTermsView: () => <div data-testid="payment-terms-view" />,
+    ClauseTermsView: () => <div data-testid="clause-terms-view" />,
+    ContractSubtableTitle: ({ fallback }: { fallback: string }) => <div>{fallback}</div>,
+  }
+})
+
+vi.mock('@/components/lowcode/FieldPolicy', () => ({
+  FieldPolicyProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useFieldPolicy: () => ({
+    loaded: true, failed: false, nativeFields: [], customFields: [], rules: [],
+    states: {}, nativeValues: {}, labelOf: () => undefined,
+  }),
 }))
 
 vi.mock('@/api/client', () => ({
@@ -104,7 +170,10 @@ const mockContract = {
   current_version_no: 1,
   signed_date: null,
   end_date: '2027-03-10',
-  payment_terms_json: { down_payment: '30%', final_payment: '70%' },
+  payment_terms_json: [
+    { kind: '预付款', ratio: 30, amount: 150000 },
+    { kind: '尾款', ratio: 70, amount: 350000 },
+  ],
   delivery_terms_json: null,
   created_by_name: 'Admin',
   created_at: '2026-03-10T00:00:00',
