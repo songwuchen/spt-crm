@@ -3,7 +3,7 @@
  * 权威源：backend native_field_catalog._CONTRACT_LINE_COLUMNS / _CONTRACT_PAY_COLUMNS。
  * FieldPolicy 拉取成功时以 schema 为准；失败时用本文件，须与目录保持同步。
  */
-import type { FieldDefinition, OptionItem } from '@/types/lowcode'
+import type { FieldDefinition } from '@/types/lowcode'
 import {
   LINE_PRODUCT_TYPE_OPTS,
   LINE_ELEC_CTRL_OPTS,
@@ -11,12 +11,14 @@ import {
   PAY_KIND_OPTS,
 } from '@/constants/contractRegistration'
 
+type SimpleOption = { label: string; value: string }
+
 function col(
   id: string,
   label: string,
   type: FieldDefinition['type'] = 'text',
   props: Record<string, unknown> = {},
-  options?: OptionItem[],
+  options?: SimpleOption[],
 ): FieldDefinition {
   const fd: FieldDefinition = {
     id, label, type, required: false,

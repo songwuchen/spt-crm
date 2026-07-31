@@ -283,6 +283,9 @@ def test_catalog_fields_all_have_a_form_control():
                     continue  # 由系统/专用流程写入，表单上本就没有输入项
                 if scope == "create" and not fd.get("available_on_create", True):
                     continue  # 只在记录建立后才出现的字段（如工单解决方案）
+                # 明细子表由业务插槽（ContractTerms）渲染，不是 PolicyItem
+                if fd.get("type") == "detail_table" or fd.get("entity_storage"):
+                    continue
                 if fd["id"] not in rendered:
                     missing.append(fd["id"])
             assert not missing, f"{entity} @ {rel}({scope}): 目录里有但表单没有对应 PolicyItem: {missing}"
@@ -324,6 +327,23 @@ def test_catalog_ids_are_real_columns(entity):
                 f"但 {model.__tablename__} 无此列"
             )
             continue
+        entity_storage = fd.get("entity_storage")
+        if entity_storage:
+            # 整字段 JSON 列：可能在主表，也可能在版本表（如合同明细 key_clauses_json）
+            if entity_storage in columns:
+                continue
+            if entity == "contract" and entity_storage == "key_clauses_json":
+                from app.domains.contract.models import ContractVersion
+                ver_cols = set(ContractVersion.__table__.columns.keys())
+                assert entity_storage in ver_cols, (
+                    f"contract.{fd['id']} entity_storage={entity_storage!r} "
+                    f"不在 Contract 也不在 ContractVersion"
+                )
+                continue
+            assert False, (
+                f"{entity}.{fd['id']} 声明 entity_storage={entity_storage!r}，"
+                f"但 {model.__tablename__} 无此列"
+            )
         assert fd["id"] in columns, f"{entity}.{fd['id']} 不是 {model.__tablename__} 表的列"
     assert entity in CATALOG, f"{entity} 应在 CATALOG 中"
 

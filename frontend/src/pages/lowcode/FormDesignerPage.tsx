@@ -9,7 +9,7 @@ import {
 import {
   DeleteOutlined, PlusOutlined, ArrowLeftOutlined, HolderOutlined, EyeOutlined, BranchesOutlined,
 } from '@ant-design/icons'
-import FieldTypeIcon, { FIELD_TYPE_LABEL as TYPE_LABEL, fieldOption } from '@/components/lowcode/fieldTypeIcon'
+import FieldTypeIcon, { FIELD_TYPE_LABEL as TYPE_LABEL } from '@/components/lowcode/fieldTypeIcon'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core'
@@ -704,12 +704,12 @@ function RulesEditor({ fields, rules, onChange, systemRules = [], systemDefaults
   onSystemChange?: (r: FormRule[]) => void
 }) {
   const fieldOpts = (() => {
-    const top = fields.filter((f) => f.type !== 'detail_table').map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))
+    const top = fields.filter((f) => f.type !== 'detail_table').map((f) => ({ value: f.id, label: f.label }))
     // 子表列也可作规则条件（引擎按「任一行」求值）
     const cols = fields.flatMap((f) =>
-      (f.type === 'detail_table' ? (f.detail_table_columns || []) : []).map((c) =>
-        fieldOption({ value: c.id, label: `${f.label}.${c.label}`, type: c.type }),
-      ),
+      (f.type === 'detail_table' ? (f.detail_table_columns || []) : []).map((c) => ({
+        value: c.id, label: `${f.label}.${c.label}`,
+      })),
     )
     return [...top, ...cols]
   })()
