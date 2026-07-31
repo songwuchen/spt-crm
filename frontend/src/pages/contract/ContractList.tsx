@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import type { ColumnsType } from 'antd/es/table'
 import { contractApi } from '@/api/contract'
 import { projectApi } from '@/api/project'
+import { customerApi } from '@/api/customer'
 import type { ContractItem } from '@/api/types'
 import { contractStatusLabels, contractStatusColors } from '@/constants/labels'
 import { formatChangeType } from '@/constants/contractRegistration'
@@ -17,9 +18,9 @@ import { fmtMoney } from '@/utils/mask'
 import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
 import ContractRegistrationFields from '@/components/ContractRegistrationFields'
-import ContractSectionTitle from '@/components/ContractSectionTitle'
 import ContractAttachmentSlots, { flushPendingAttachments, type PendingAttachments } from '@/components/ContractAttachmentSlots'
-import { PaymentTermsEditor, LineItemsEditor } from '@/components/ContractTerms'
+import { PaymentTermsEditor, LineItemsEditor, ContractSubtableTitle } from '@/components/ContractTerms'
+import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contractDetailTables'
 import dayjs from 'dayjs'
 
 
@@ -54,6 +55,34 @@ export default function ContractList() {
       const r = await projectApi.list({ pageNo: 1, pageSize: 20, keyword: kw || undefined })
       setProjOpts((r.data.items || []).map((p) => ({ label: `${p.name}（${p.project_code}）`, value: p.id })))
     } catch { /* ignore */ } finally { setProjLoading(false) }
+  }
+  /** 对齐简道云选关联后带出：商机 → 客户编号/业务人员/部门/项目名称 */
+  const fillFromProject = async (projectId: string) => {
+    if (!projectId) return
+    try {
+      const r = await projectApi.get(projectId)
+      const p = r.data
+      if (!p) return
+      const reg = { ...(createForm.getFieldValue('registration_json') || {}) } as Record<string, unknown>
+      if (p.name) reg.project_name = p.name
+      const patch: Record<string, unknown> = {
+        registration_json: reg,
+        ...(p.owner_name ? { assignee_name: p.owner_name } : {}),
+      }
+      if (p.customer_id) {
+        try {
+          const c = (await customerApi.get(p.customer_id)).data
+          if (c?.customer_code) reg.customer_code = c.customer_code
+          if (c?.department_name) patch.department_name = c.department_name
+          if (c?.owner_name && !patch.assignee_name) patch.assignee_name = c.owner_name
+          patch.registration_json = { ...reg }
+        } catch { /* ignore */ }
+      }
+      createForm.setFieldsValue(patch)
+    } catch { /* ignore */ }
+  }
+  const syncAmountFromLines = (total: number) => {
+    createForm.setFieldsValue({ amount_total: total || undefined })
   }
   const openCreate = () => {
     createForm.resetFields()
@@ -220,6 +249,7 @@ export default function ContractList() {
           <Form.Item name="project_id" label="关联商机" rules={[{ required: true, message: '请选择关联商机' }]}>
             <Select showSearch filterOption={false} placeholder="搜索商机名称 / 编号"
               options={projOpts} loading={projLoading} onSearch={searchProjects}
+              onChange={(id) => { void fillFromProject(id) }}
               onDropdownVisibleChange={(o) => { if (o && projOpts.length === 0) searchProjects() }} />
           </Form.Item>
           <Form.Item name="title" label="合同标题"><Input placeholder="如：设备采购合同（默认 V1）" /></Form.Item>
@@ -229,13 +259,17 @@ export default function ContractList() {
             slots={{
               line_items: (
                 <div>
-                  <ContractSectionTitle title="合同明细" />
-                  <LineItemsEditor value={createLines} onChange={setCreateLines} />
+                  <ContractSubtableTitle fieldId={LINE_ITEMS_FIELD_ID} fallback="合同明细" />
+                  <LineItemsEditor
+                    value={createLines}
+                    onChange={setCreateLines}
+                    onTotalChange={syncAmountFromLines}
+                  />
                 </div>
               ),
               payment_terms: (
                 <div>
-                  <ContractSectionTitle title="收款计划" />
+                  <ContractSubtableTitle fieldId={PAYMENT_TERMS_FIELD_ID} fallback="收款计划" />
                   <PaymentTermsEditor value={createPay} onChange={setCreatePay} />
                 </div>
               ),

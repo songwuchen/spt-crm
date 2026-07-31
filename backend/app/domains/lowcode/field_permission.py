@@ -206,11 +206,20 @@ async def enforce_native_field_policy(
     all_defs = native_defs + schema["field_definitions"]
     rules = schema["rule_definitions"]
 
-    # 用户提交后的原生值（未提交的键回落到原值），叠加扩展值，作为规则求值输入
+    # 用户提交后的原生值（未提交的键回落到原值），叠加扩展值 + JSON 列摊平，作为规则求值输入
     native_values: dict[str, Any] = {}
     for fd in native_defs:
         fid = fd.get("id")
-        native_values[fid] = payload[fid] if fid in payload else getattr(prior, fid, None)
+        storage = fd.get("json_storage")
+        if storage:
+            blob = payload.get(storage)
+            if not isinstance(blob, dict):
+                blob = getattr(prior, storage, None) if prior is not None else None
+            if not isinstance(blob, dict):
+                blob = {}
+            native_values[fid] = blob.get(fid)
+        else:
+            native_values[fid] = payload[fid] if fid in payload else getattr(prior, fid, None)
     custom_values = payload.get("custom_fields_json")
     if not isinstance(custom_values, dict):
         custom_values = getattr(prior, "custom_fields_json", None) or {}
@@ -224,6 +233,22 @@ async def enforce_native_field_policy(
         fid = fd.get("id")
         st = states.get(fid) or {}
         if st.get("visible", True) and not st.get("readonly", False):
+            continue
+        storage = fd.get("json_storage")
+        if storage:
+            blob = payload.get(storage)
+            if not isinstance(blob, dict) or fid not in blob:
+                continue
+            if prior is not None:
+                prior_blob = getattr(prior, storage, None) or {}
+                if not isinstance(prior_blob, dict):
+                    prior_blob = {}
+                blob[fid] = prior_blob.get(fid)
+            else:
+                blob.pop(fid, None)
+            payload[storage] = blob
+            native_values[fid] = blob.get(fid)
+            stripped = True
             continue
         if fid not in payload:
             continue
@@ -244,7 +269,15 @@ async def enforce_native_field_policy(
             continue  # 表单上没有该输入项（系统/专用流程写入），配必填只会造成无法保存
         if prior is None and fd.get("available_on_create") is False:
             continue  # 该字段只在记录建立后才出现（如工单解决方案），新建时无从填写
-        if required_scope != "all" and fid not in payload:
+        # 明细子表走独立 JSON 列 / 业务组件提交，不在本表单 payload 里按字段 id 校验必填
+        if fd.get("type") == "detail_table" or fd.get("entity_storage"):
+            continue
+        storage = fd.get("json_storage")
+        in_payload = (
+            isinstance(payload.get(storage), dict) and fid in payload[storage]
+            if storage else fid in payload
+        )
+        if required_scope != "all" and not in_payload:
             continue
         st = final_states.get(fid) or {}
         if not st.get("visible", True):

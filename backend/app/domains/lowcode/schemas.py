@@ -39,6 +39,14 @@ class FieldDefinition(BaseModel):
     system_required: bool = False
     options_source: str | None = None
     companions: list[str] | None = None
+    # 非表列：值落在 JSON 列内的 key（如合同 registration_json.xxx）
+    json_storage: str | None = None
+    # 整字段值落在业务表/版本的 JSON 列（如 key_clauses_json），用于 detail_table
+    entity_storage: str | None = None
+    form_editable: bool = True
+    available_on_create: bool = True
+
+    model_config = {"extra": "ignore"}
 
 
 class FormRuleDefinition(BaseModel):
@@ -48,6 +56,8 @@ class FormRuleDefinition(BaseModel):
     target_field_ids: list[str] = Field(default_factory=list)
     condition: dict[str, Any] = Field(default_factory=dict)
     action: dict[str, Any] = Field(default_factory=dict)
+    # 系统规则可被租户停用；缺省 True。租户自建规则一般不需要设。
+    enabled: bool = True
 
 
 # ===== 模板 CRUD =====

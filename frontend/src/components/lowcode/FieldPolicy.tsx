@@ -67,13 +67,17 @@ export function useFieldPolicy() {
 }
 
 export function FieldPolicyProvider({
-  entityType, form, customFieldValues, children,
+  entityType, form, customFieldValues, rulesOverride, nativeFieldsOverride, children,
 }: {
   entityType: string
   /** 业务表单实例；Provider 内部订阅它的全部值用于规则求值。 */
   form: FormInstance
   /** 扩展字段当前值（存于业务表 custom_fields_json）。 */
   customFieldValues?: Record<string, unknown>
+  /** 设计器预览：用本地未保存规则覆盖接口返回的规则。 */
+  rulesOverride?: FormRule[]
+  /** 设计器预览：用画布上的原生字段（含未发布的标签/必填/明细列）覆盖接口 schema。 */
+  nativeFieldsOverride?: FieldDefinition[]
   children: ReactNode
 }) {
   const [schema, setSchema] = useState<{
@@ -101,56 +105,82 @@ export function FieldPolicyProvider({
     return () => { alive = false }
   }, [entityType])
 
+  const effectiveNative = nativeFieldsOverride?.length ? nativeFieldsOverride : schema.native
+  const effectiveRules = rulesOverride ?? schema.rules
+
   // 只有「规则条件真正引用到的字段」的值变化才需要重算状态。Form.useWatch([]) 每次击键
   // 都会返回新对象，若直接用它做依赖，18 个字段的表单每敲一个字符就重跑一遍显隐不动点
   // 求解并刷新 context，导致所有 PolicyItem 连带重渲染。
-  const ruleFieldIds = useMemo(() => collectRuleFieldIds(schema.rules), [schema.rules])
+  const ruleFieldIds = useMemo(() => collectRuleFieldIds(effectiveRules), [effectiveRules])
   const relevantKey = useMemo(() => {
     if (!ruleFieldIds.length) return ''
     const w = watched || {}
-    return JSON.stringify(ruleFieldIds.map((id) => w[id] ?? null))
-  }, [ruleFieldIds, watched])
+    // 摊平 JSON 列（如 registration_json），规则条件才能读到嵌套字段
+    const flat: Record<string, unknown> = { ...w }
+    for (const fd of effectiveNative) {
+      const storage = (fd as { json_storage?: string }).json_storage
+      if (!storage) continue
+      const blob = w[storage]
+      if (blob && typeof blob === 'object' && !Array.isArray(blob)) {
+        Object.assign(flat, blob as Record<string, unknown>)
+      }
+    }
+    return JSON.stringify(ruleFieldIds.map((id) => flat[id] ?? null))
+  }, [ruleFieldIds, watched, effectiveNative])
 
   const value = useMemo<PolicyValue>(() => {
     const nativeValues = watched || {}
-    const all = [...schema.native, ...schema.custom]
-    const merged = { ...nativeValues, ...(customFieldValues || {}) }
-    const states = computeFieldStates(all, merged, schema.rules, deriveRolePerms(all, userRoles))
-    // 只收租户真正改过的标签(label_override)。native 字段的 label 始终有目录默认值，
-    // 若拿它覆盖业务表单的 JSX 标签，会在租户什么都没配时就把既有文案改掉。
-    const labels = new Map(
-      schema.native
-        .filter((f) => typeof f.label_override === 'string' && f.label_override.trim())
-        .map((f) => [f.id, f.label_override as string]),
-    )
+    const all = [...effectiveNative, ...schema.custom]
+    const flatNative: Record<string, unknown> = { ...nativeValues }
+    for (const fd of effectiveNative) {
+      const storage = (fd as { json_storage?: string }).json_storage
+      if (!storage) continue
+      const blob = nativeValues[storage]
+      if (blob && typeof blob === 'object' && !Array.isArray(blob)) {
+        Object.assign(flatNative, blob as Record<string, unknown>)
+      }
+    }
+    const merged = { ...flatNative, ...(customFieldValues || {}) }
+    const states = computeFieldStates(all, merged, effectiveRules, deriveRolePerms(all, userRoles))
+    const labels = new Map<string, string>()
+    for (const f of effectiveNative) {
+      const ov = typeof f.label_override === 'string' ? f.label_override.trim() : ''
+      if (ov) { labels.set(f.id, ov); continue }
+      // 设计器草稿覆盖：画布上的 label 即当前配置
+      if (nativeFieldsOverride?.length && typeof f.label === 'string' && f.label.trim()) {
+        labels.set(f.id, f.label.trim())
+      }
+    }
     return {
       loaded,
       failed,
-      nativeFields: schema.native,
+      nativeFields: effectiveNative,
       customFields: schema.custom,
-      rules: schema.rules,
+      rules: effectiveRules,
       states,
-      nativeValues,
+      nativeValues: flatNative,
       labelOf: (fieldId: string) => labels.get(fieldId),
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema, relevantKey, customFieldValues, userRoles, loaded, failed])
+  }, [schema, relevantKey, customFieldValues, userRoles, loaded, failed, effectiveRules, effectiveNative, nativeFieldsOverride])
 
   return <FieldPolicyContext.Provider value={value}>{children}</FieldPolicyContext.Provider>
 }
 
 type PolicyItemProps = FormItemProps & {
-  /** 原生字段 id，必须与后端 native_field_catalog 里的 id 一致（即业务表列名）。 */
-  name: string
+  /** 原生字段 id，必须与后端 native_field_catalog 里的 id 一致（即业务表列名或 json_storage 内 key）。 */
+  name: string | (string | number)[]
 }
 
 /**
  * 感知字段策略的 Form.Item：自动注入必填规则、按规则隐藏、只读/脱敏时禁用输入控件。
  * 没有 Provider 或该字段无策略时，行为与原生 Form.Item 完全一致（可安全逐个替换）。
+ * name 可为嵌套路径（如 ['registration_json', 'delivery_mode']），策略仍按末段 id 匹配。
  */
 export function PolicyItem({ name, rules, label, children, ...rest }: PolicyItemProps) {
   const policy = useFieldPolicy()
-  const state = policy.states[name]
+  const fieldId = Array.isArray(name) ? String(name[name.length - 1]) : name
+  const state = policy.states[fieldId]
 
   // 策略还没加载完就先按「无策略」渲染，避免必填星号闪烁
   if (!policy.loaded || !state) {
@@ -159,7 +189,7 @@ export function PolicyItem({ name, rules, label, children, ...rest }: PolicyItem
 
   if (!state.visible) return null
 
-  const finalLabel = policy.labelOf(name) ?? label
+  const finalLabel = policy.labelOf(fieldId) ?? label
   // 策略已知时它说了算：调用方 JSX 里硬编码的 {required:true} 只是「策略拉不到时的兜底」，
   // 不能压过租户在设计器里「关掉必填」的配置 —— 否则后端放行了、前端还拦着。
   // 反过来，策略未加载或拉取失败时保留调用方规则，避免客户端校验整个消失。

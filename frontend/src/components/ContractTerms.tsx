@@ -1,90 +1,170 @@
+import { useEffect, useState } from 'react'
 import { Table, Input, InputNumber, DatePicker, Button, Select, Radio } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import DataView, { formatMoney, formatScalar } from './DataView'
+import ContractSectionTitle from './ContractSectionTitle'
+import { useFieldPolicy } from '@/components/lowcode/FieldPolicy'
+import { lowcodeApi } from '@/api/lowcode'
+import type { FieldDefinition } from '@/types/lowcode'
 import {
-  LINE_PRODUCT_TYPE_OPTS,
-  LINE_ELEC_CTRL_OPTS,
-  LINE_YES_NO_OPTS,
-  PAY_KIND_OPTS,
-} from '@/constants/contractRegistration'
+  FALLBACK_LINE_COLUMNS,
+  FALLBACK_PAY_COLUMNS,
+  LINE_ITEMS_FIELD_ID,
+  PAYMENT_TERMS_FIELD_ID,
+} from '@/constants/contractDetailTables'
 
 /**
  * 合同条款（收款计划 / 合同明细）的查看 + 录入编辑。
  *
- * 控件类型对齐简道云：产品类型/电控/付款方式=下拉，是否外币/是否提醒=单选；
- * 外币相关列随「是否外币合同=是」动态显示。
+ * 列定义来自 FieldPolicy（native_field_catalog 的 detail_table）或本地 fallback；
+ * 外币公式 / JDY aliases / 独立 JSON 存储列逻辑保留在此组件。
  */
 
 type Row = Record<string, unknown>
 type Kind = 'text' | 'number' | 'money' | 'pct' | 'date' | 'select' | 'radio'
+type Align = 'left' | 'right' | 'center'
 
-interface FieldSpec {
+export interface FieldSpec {
   key: string
   label: string
   kind: Kind
   aliases?: string[]
   width?: number
-  align?: 'left' | 'right' | 'center'
+  align?: Align
   computed?: boolean
   options?: { value: string; label: string }[]
-  /** 行内动态显隐：依赖本行字段 */
   showWhen?: { field: string; equals: string[] }
 }
 
-// 合同明细（结构化条款）
-export const LINE_FIELDS: FieldSpec[] = [
-  {
-    key: 'is_fx', label: '是否外币合同', kind: 'radio', aliases: ['_widget_1621411268784'],
-    width: 120, align: 'center', options: LINE_YES_NO_OPTS,
-  },
-  {
-    key: 'product_type', label: '产品类型', kind: 'select', aliases: ['_widget_1561431500162'],
-    width: 130, options: LINE_PRODUCT_TYPE_OPTS,
-  },
-  { key: 'name', label: '产品名称', kind: 'text', aliases: ['_widget_1561431500376'], width: 140 },
-  { key: 'spec', label: '规格型号', kind: 'text', aliases: ['_widget_1561431500392'], width: 120 },
-  { key: 'unit', label: '单位', kind: 'text', aliases: ['_widget_1561431500419'], width: 70, align: 'center' },
-  { key: 'qty', label: '数量', kind: 'number', aliases: ['_widget_1561431500458'], width: 90, align: 'right' },
-  {
-    key: 'fx_price', label: '外币单价', kind: 'number', aliases: ['_widget_1621411268153'],
-    width: 110, align: 'right', showWhen: { field: 'is_fx', equals: ['是'] },
-  },
-  {
-    key: 'fx_rate', label: '汇率', kind: 'number', aliases: ['_widget_1621411269220'],
-    width: 90, align: 'right', showWhen: { field: 'is_fx', equals: ['是'] },
-  },
-  { key: 'price', label: '单价', kind: 'money', aliases: ['_widget_1561431500490'], width: 120, align: 'right' },
-  { key: 'amount', label: '总价', kind: 'money', aliases: ['_widget_1561431500514'], width: 130, align: 'right', computed: true },
-  {
-    key: 'fx_amount', label: '外币总价', kind: 'number', aliases: ['_widget_1621411268210'],
-    width: 120, align: 'right', showWhen: { field: 'is_fx', equals: ['是'] },
-  },
-  {
-    key: 'elec_ctrl', label: '电控装置', kind: 'select', aliases: ['_widget_1561431500595'],
-    width: 150, options: LINE_ELEC_CTRL_OPTS,
-  },
-  { key: 'standard', label: '技术参数及要求', kind: 'text', aliases: ['_widget_1565223122750'], width: 160 },
-  { key: 'line_remark', label: '备注', kind: 'text', aliases: ['_widget_1697420581927'], width: 140 },
-]
+function typeToKind(type: string, props?: Record<string, unknown>): Kind {
+  if (props?.percent) return 'pct'
+  if (type === 'amount') return 'money'
+  if (type === 'number') return 'number'
+  if (type === 'date' || type === 'datetime') return 'date'
+  if (type === 'select') return 'select'
+  if (type === 'radio') return 'radio'
+  return 'text'
+}
 
-// 收款计划（付款条款）
-export const PAY_FIELDS: FieldSpec[] = [
-  { key: 'due_date', label: '日期时间', kind: 'date', aliases: ['_widget_1661242797064'], width: 150 },
-  {
-    key: 'kind', label: '付款方式', kind: 'select',
-    aliases: ['_widget_1561431500818', '付款方式', '款项性质'],
-    width: 110, options: PAY_KIND_OPTS,
-  },
-  { key: 'ratio', label: '付款比例', kind: 'pct', aliases: ['_widget_1561431500832', '付款比例（%）'], width: 110, align: 'right' },
-  { key: 'amount', label: '付款金额', kind: 'money', aliases: ['_widget_1561431500855', '付款金额'], width: 130, align: 'right' },
-  {
-    key: 'remind', label: '是否提醒', kind: 'radio',
-    aliases: ['_widget_1665380028160', '是否提醒'],
-    width: 110, align: 'center', options: LINE_YES_NO_OPTS,
-  },
-  { key: 'note', label: '消息辅助', kind: 'text', aliases: ['_widget_1665380027757'], width: 140 },
-]
+/** FieldDefinition 列 → 内部 FieldSpec（兼容旧 toCanonicalRows / 测试） */
+export function columnsToFieldSpecs(columns: FieldDefinition[]): FieldSpec[] {
+  return columns.map((c) => {
+    const props = (c.props || {}) as Record<string, unknown>
+    const showWhen = props.show_when as { field: string; equals: string[] } | undefined
+    const aliases = props.aliases as string[] | undefined
+    const width = typeof props.width === 'number' ? props.width : undefined
+    const align = props.align as Align | undefined
+    return {
+      key: c.id,
+      label: c.label,
+      kind: typeToKind(c.type, props),
+      aliases: Array.isArray(aliases) ? aliases : undefined,
+      width,
+      align,
+      computed: props.computed === true,
+      options: c.options?.map((o) => ({ value: String(o.value), label: o.label })),
+      showWhen: showWhen?.field ? showWhen : undefined,
+    }
+  })
+}
+
+/** @deprecated 使用 FALLBACK_LINE_COLUMNS / resolveLineColumns；保留给旧调用方 */
+export const LINE_FIELDS: FieldSpec[] = columnsToFieldSpecs(FALLBACK_LINE_COLUMNS)
+/** @deprecated 使用 FALLBACK_PAY_COLUMNS / resolvePayColumns */
+export const PAY_FIELDS: FieldSpec[] = columnsToFieldSpecs(FALLBACK_PAY_COLUMNS)
+
+function columnsFromPolicy(
+  nativeFields: FieldDefinition[] | undefined,
+  fieldId: string,
+  fallback: FieldDefinition[],
+): FieldDefinition[] {
+  const fd = nativeFields?.find((f) => f.id === fieldId)
+  const cols = fd?.detail_table_columns
+  return cols?.length ? cols : fallback
+}
+
+export function resolveLineColumns(nativeFields?: FieldDefinition[]): FieldDefinition[] {
+  return columnsFromPolicy(nativeFields, LINE_ITEMS_FIELD_ID, FALLBACK_LINE_COLUMNS)
+}
+
+export function resolvePayColumns(nativeFields?: FieldDefinition[]): FieldDefinition[] {
+  return columnsFromPolicy(nativeFields, PAYMENT_TERMS_FIELD_ID, FALLBACK_PAY_COLUMNS)
+}
+
+/** 子表区块标题：读已发布/策略中的字段 label（设计器改「收款计划→收款2」后业务页同步） */
+export function useContractSubtableTitle(fieldId: string, fallback: string): string {
+  const policy = useFieldPolicy()
+  const [remoteLabel, setRemoteLabel] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (policy.loaded && !policy.failed && policy.nativeFields.length) return
+    let alive = true
+    lowcodeApi.entityFormSchema('contract')
+      .then((r) => {
+        if (!alive) return
+        const fd = (r.data.native_fields || []).find((f) => f.id === fieldId)
+        const name = (typeof fd?.label_override === 'string' && fd.label_override.trim())
+          || (typeof fd?.label === 'string' && fd.label.trim())
+          || ''
+        if (name) setRemoteLabel(name)
+      })
+      .catch(() => { /* fallback */ })
+    return () => { alive = false }
+  }, [fieldId, policy.loaded, policy.failed, policy.nativeFields.length])
+
+  if (policy.loaded && !policy.failed) {
+    const fromPolicy = policy.labelOf(fieldId)
+    if (fromPolicy?.trim()) return fromPolicy.trim()
+    const fd = policy.nativeFields.find((f) => f.id === fieldId)
+    const name = (typeof fd?.label_override === 'string' && fd.label_override.trim())
+      || (typeof fd?.label === 'string' && fd.label.trim())
+    if (name) return name
+  }
+  return remoteLabel || fallback
+}
+
+/** 合同明细 / 收款计划分区标题（跟随设计器字段 label） */
+export function ContractSubtableTitle({
+  fieldId, fallback, className,
+}: {
+  fieldId: string
+  fallback: string
+  className?: string
+}) {
+  const title = useContractSubtableTitle(fieldId, fallback)
+  return <ContractSectionTitle title={title} className={className} />
+}
+
+/** 优先 FieldPolicy；无 Provider 时拉 entityFormSchema；再失败用 fallback */
+function useDetailColumns(
+  fieldId: string,
+  fallback: FieldDefinition[],
+  columnsOverride?: FieldDefinition[],
+): FieldDefinition[] {
+  const policy = useFieldPolicy()
+  const [remote, setRemote] = useState<FieldDefinition[] | null>(null)
+
+  useEffect(() => {
+    if (columnsOverride?.length) return
+    if (policy.loaded && !policy.failed && policy.nativeFields.length) return
+    let alive = true
+    lowcodeApi.entityFormSchema('contract')
+      .then((r) => {
+        if (!alive) return
+        const fd = (r.data.native_fields || []).find((f) => f.id === fieldId)
+        if (fd?.detail_table_columns?.length) setRemote(fd.detail_table_columns)
+      })
+      .catch(() => { /* 用 fallback */ })
+    return () => { alive = false }
+  }, [fieldId, columnsOverride, policy.loaded, policy.failed, policy.nativeFields.length])
+
+  if (columnsOverride?.length) return columnsOverride
+  if (policy.loaded && !policy.failed && policy.nativeFields.length) {
+    return columnsFromPolicy(policy.nativeFields, fieldId, fallback)
+  }
+  return remote?.length ? remote : fallback
+}
 
 const SUM_KEY = 'amount'
 
@@ -139,7 +219,10 @@ function TermsTable({ rows, fields }: { rows: Row[]; fields: FieldSpec[] }) {
         return fmt(f.kind, resolve(r, f), f.options)
       },
     }))
-  const total = rows.reduce((s, r) => s + numOf(resolve(r, { key: SUM_KEY, label: '', kind: 'money', aliases: fields.find((x) => x.key === SUM_KEY)?.aliases })), 0)
+  const total = rows.reduce((s, r) => s + numOf(resolve(r, {
+    key: SUM_KEY, label: '', kind: 'money',
+    aliases: fields.find((x) => x.key === SUM_KEY)?.aliases,
+  })), 0)
   const keyMap = new WeakMap<object, string>()
   rows.forEach((r, i) => keyMap.set(r, String(r._id ?? i)))
 
@@ -173,27 +256,69 @@ function isRowArray(v: unknown): v is Row[] {
 }
 
 /** 收款计划 / 付款条款（只读） */
-export function PaymentTermsView({ value }: { value: unknown }) {
-  return isRowArray(value) ? <TermsTable rows={value} fields={PAY_FIELDS} /> : <DataView value={value} />
+export function PaymentTermsView({ value, columns }: { value: unknown; columns?: FieldDefinition[] }) {
+  const cols = useDetailColumns(PAYMENT_TERMS_FIELD_ID, FALLBACK_PAY_COLUMNS, columns)
+  const fields = columnsToFieldSpecs(cols)
+  return isRowArray(value) ? <TermsTable rows={value} fields={fields} /> : <DataView value={value} />
 }
 
 /** 合同明细 / 结构化条款（只读） */
-export function ClauseTermsView({ value }: { value: unknown }) {
-  return isRowArray(value) ? <TermsTable rows={value} fields={LINE_FIELDS} /> : <DataView value={value} />
+export function ClauseTermsView({ value, columns }: { value: unknown; columns?: FieldDefinition[] }) {
+  const cols = useDetailColumns(LINE_ITEMS_FIELD_ID, FALLBACK_LINE_COLUMNS, columns)
+  const fields = columnsToFieldSpecs(cols)
+  return isRowArray(value) ? <TermsTable rows={value} fields={fields} /> : <DataView value={value} />
 }
 
 // ---- 录入编辑 -----------------------------------------------------------
 
 /** 把任意行（含旧 _widget_* 数据）规整成干净字段，供编辑器使用 */
-export function toCanonicalRows(value: unknown, fields: FieldSpec[]): Row[] {
+export function toCanonicalRows(value: unknown, fields: FieldSpec[] | FieldDefinition[]): Row[] {
   if (!Array.isArray(value)) return []
+  if (!fields.length) return []
+  const specs = 'key' in fields[0]
+    ? (fields as FieldSpec[])
+    : columnsToFieldSpecs(fields as FieldDefinition[])
+  const known = new Set(specs.map((f) => f.key))
+  const aliasKeys = new Set(specs.flatMap((f) => f.aliases || []))
   return value
     .filter((r) => r && typeof r === 'object')
     .map((r) => {
+      const src = r as Row
       const out: Row = {}
-      for (const f of fields) out[f.key] = resolve(r as Row, f)
+      for (const f of specs) out[f.key] = resolve(src, f)
+      // 保留设计器新增的自定义列（不在目录里的 key）
+      for (const [k, v] of Object.entries(src)) {
+        if (known.has(k) || aliasKeys.has(k)) continue
+        if (k.startsWith('_widget_')) continue
+        out[k] = v
+      }
       return out
     })
+}
+
+/** 对齐简道云明细公式后回写行内计算列 */
+export function recomputeLineRow(row: Row): Row {
+  const next = { ...row }
+  const isFx = String(next.is_fx || '') === '是'
+  if (isFx) {
+    const fxPrice = numOf(next.fx_price)
+    const fxRate = numOf(next.fx_rate)
+    if (fxPrice && fxRate) {
+      next.price = Math.round(fxPrice * fxRate * 100) / 100
+    }
+    next.fx_amount = fxPrice && numOf(next.qty)
+      ? Math.round(fxPrice * numOf(next.qty) * 100) / 100
+      : null
+  } else {
+    next.fx_amount = null
+  }
+  const amt = Math.round(numOf(next.qty) * numOf(next.price) * 100) / 100
+  next.amount = amt || null
+  return next
+}
+
+export function sumLineAmounts(rows: Row[]): number {
+  return rows.reduce((s, r) => s + numOf(r.amount), 0)
 }
 
 function CellEditor({
@@ -205,7 +330,13 @@ function CellEditor({
   onChange: (v: unknown) => void
 }) {
   if (f.computed) {
-    return <span className="text-slate-600">{formatMoney(numOf(row.qty) * numOf(row.price))}</span>
+    if (f.key === 'fx_amount') {
+      return <span className="text-slate-600">{formatScalar(row.fx_amount ?? '-')}</span>
+    }
+    return <span className="text-slate-600">{formatMoney(numOf(row.amount))}</span>
+  }
+  if (f.key === 'price' && String(row.is_fx || '') === '是') {
+    return <span className="text-slate-600">{formatMoney(numOf(row.price))}</span>
   }
   if (f.kind === 'radio' && f.options) {
     return (
@@ -273,28 +404,35 @@ function EditableTermsTable({
   fields,
   rows,
   onChange,
+  onTotalChange,
+  recompute = false,
 }: {
   fields: FieldSpec[]
   rows: Row[]
   onChange: (rows: Row[]) => void
+  onTotalChange?: (total: number) => void
+  /** 合同明细行需要外币/总价重算；收款计划不需要 */
+  recompute?: boolean
 }) {
-  const update = (i: number, key: string, val: unknown) => {
-    const next = rows.map((r, j) => (j === i ? { ...r, [key]: val } : r))
-    if (key === 'qty' || key === 'price') {
-      const r = next[i]
-      const amt = numOf(r.qty) * numOf(r.price)
-      next[i] = { ...r, amount: amt || null }
-    }
-    // 切回非外币时清空外币列，避免脏数据
-    if (key === 'is_fx' && val !== '是') {
-      next[i] = { ...next[i], fx_price: null, fx_rate: null, fx_amount: null }
-    }
+  const emit = (next: Row[]) => {
     onChange(next)
+    onTotalChange?.(sumLineAmounts(next))
   }
-  const addRow = () => onChange([...rows, {}])
-  const delRow = (i: number) => onChange(rows.filter((_, j) => j !== i))
+  const update = (i: number, key: string, val: unknown) => {
+    let row: Row = { ...rows[i], [key]: val }
+    if (recompute) {
+      if (key === 'is_fx' && val !== '是') {
+        row = { ...row, fx_price: null, fx_rate: null, fx_amount: null }
+      }
+      if (['qty', 'price', 'fx_price', 'fx_rate', 'is_fx'].includes(key)) {
+        row = recomputeLineRow(row)
+      }
+    }
+    emit(rows.map((r, j) => (j === i ? row : r)))
+  }
+  const addRow = () => emit([...rows, {}])
+  const delRow = (i: number) => emit(rows.filter((_, j) => j !== i))
 
-  // 列：无 showWhen 的固定列 + 任意行需要外币时显示外币列（表头级）
   const anyFx = rows.some((r) => String(r.is_fx || '') === '是')
   const visibleFields = fields.filter((f) => {
     if (!f.showWhen) return true
@@ -350,11 +488,37 @@ function EditableTermsTable({
 }
 
 /** 付款条款（收款计划）编辑器 */
-export function PaymentTermsEditor({ value, onChange }: { value: Row[]; onChange: (v: Row[]) => void }) {
-  return <EditableTermsTable fields={PAY_FIELDS} rows={value} onChange={onChange} />
+export function PaymentTermsEditor({
+  value, onChange, columns,
+}: {
+  value: Row[]
+  onChange: (v: Row[]) => void
+  columns?: FieldDefinition[]
+}) {
+  const cols = useDetailColumns(PAYMENT_TERMS_FIELD_ID, FALLBACK_PAY_COLUMNS, columns)
+  return <EditableTermsTable fields={columnsToFieldSpecs(cols)} rows={value} onChange={onChange} />
 }
 
-/** 合同明细（结构化条款）编辑器 */
-export function LineItemsEditor({ value, onChange }: { value: Row[]; onChange: (v: Row[]) => void }) {
-  return <EditableTermsTable fields={LINE_FIELDS} rows={value} onChange={onChange} />
+/** 合同明细编辑器；onTotalChange 对齐简道云 SUM(总价)→合同总金额 */
+export function LineItemsEditor({
+  value,
+  onChange,
+  onTotalChange,
+  columns,
+}: {
+  value: Row[]
+  onChange: (v: Row[]) => void
+  onTotalChange?: (total: number) => void
+  columns?: FieldDefinition[]
+}) {
+  const cols = useDetailColumns(LINE_ITEMS_FIELD_ID, FALLBACK_LINE_COLUMNS, columns)
+  return (
+    <EditableTermsTable
+      fields={columnsToFieldSpecs(cols)}
+      rows={value}
+      onChange={onChange}
+      onTotalChange={onTotalChange}
+      recompute
+    />
+  )
 }

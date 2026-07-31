@@ -59,7 +59,7 @@ export function computeFieldStates(
     rule.target_field_ids?.length ? rule.target_field_ids : rule.target_field_id ? [rule.target_field_id] : []
 
   const visRules = rules.filter(
-    (r) => r.type === 'visibility' && (r.action as { visible?: boolean }).visible !== undefined,
+    (r) => r.enabled !== false && r.type === 'visibility' && (r.action as { visible?: boolean }).visible !== undefined,
   )
   if (visRules.length) {
     let hidden = new Set<string>()
@@ -83,14 +83,14 @@ export function computeFieldStates(
   }
 
   for (const rule of rules) {
-    if (rule.type !== 'required') continue
+    if (rule.enabled === false || rule.type !== 'required') continue
     const want = (rule.action as { required?: boolean }).required !== false
     const match = evaluateCondition(rule.condition, values, subMap)
     for (const fieldId of targetsOf(rule)) if (states[fieldId]) states[fieldId].required = match ? want : !want
   }
 
   for (const rule of rules) {
-    if (rule.type !== 'readonly') continue
+    if (rule.enabled === false || rule.type !== 'readonly') continue
     const want = (rule.action as { readonly?: boolean }).readonly !== false
     const match = evaluateCondition(rule.condition, values, subMap)
     for (const fieldId of targetsOf(rule)) if (states[fieldId]) states[fieldId].readonly = match ? want : !want

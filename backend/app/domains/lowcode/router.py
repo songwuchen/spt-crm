@@ -172,7 +172,9 @@ async def load_form_design(
     design = (_ver_dict(version) if version
               else {"field_definitions": [], "layout_definition": {}, "rule_definitions": []})
 
-    from app.domains.lowcode.native_field_catalog import has_native_catalog, merge_native_overrides
+    from app.domains.lowcode.native_field_catalog import (
+        has_native_catalog, merge_native_overrides, merge_system_rules, get_system_rules,
+    )
     # is_system 这一半不能省：原生字段只属于实体扩展字段的系统模板，
     # 若某个普通表单模板也带上了 entity_type，不该凭空多出一整套内置字段
     if tpl.is_system and tpl.entity_type and has_native_catalog(tpl.entity_type):
@@ -181,6 +183,13 @@ async def load_form_design(
             merge_native_overrides(tpl.entity_type, stored)
             + [fd for fd in stored if not (isinstance(fd, dict) and fd.get("native"))]
         )
+        # 系统规则可编辑：目录默认 ← 草稿覆盖；defaults 供设计器「恢复默认」
+        design["system_rule_defaults"] = get_system_rules(tpl.entity_type)
+        design["rule_definitions"] = merge_system_rules(
+            tpl.entity_type, design.get("rule_definitions") or [],
+        )
+        design["entity_type"] = tpl.entity_type
+        design["is_system_entity"] = True
     return ok(design)
 
 

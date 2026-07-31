@@ -252,7 +252,9 @@ def compute_field_states(
 
     # 显隐：被隐藏字段的值不再参与其他规则判定，故迭代到不动点（带上限防环）
     vis_rules = [r for r in rules
-                 if r.get("type") == "visibility" and (r.get("action") or {}).get("visible") is not None]
+                 if r.get("enabled") is not False
+                 and r.get("type") == "visibility"
+                 and (r.get("action") or {}).get("visible") is not None]
     if vis_rules:
         hidden: set[str] = set()
         cap = min(len(vis_rules) + 2, 50)
@@ -272,6 +274,8 @@ def compute_field_states(
             hidden = nxt
 
     for rule in rules:
+        if rule.get("enabled") is False:
+            continue
         if rule.get("type") != "required":
             continue
         want = (rule.get("action") or {}).get("required") is not False
@@ -281,6 +285,8 @@ def compute_field_states(
                 states[fid]["required"] = want if match else (not want)
 
     for rule in rules:
+        if rule.get("enabled") is False:
+            continue
         if rule.get("type") != "readonly":
             continue
         want = (rule.get("action") or {}).get("readonly") is not False

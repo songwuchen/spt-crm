@@ -185,6 +185,7 @@ async def save_design(
     latest = await _get_latest_version(db, tenant_id, template_id)
 
     new_defs = [fd.model_dump() for fd in data.field_definitions]
+    # 系统规则（__sys_*）允许落库作租户覆盖；运行时用 merge_system_rules 与目录默认合并。
     rule_defs = [rd.model_dump() for rd in data.rule_definitions]
 
     if latest and latest.status == "draft":
@@ -355,7 +356,7 @@ async def get_entity_form_schema(db: AsyncSession, tenant_id: str, entity_type: 
     原生字段由 native_field_catalog 重建后叠加租户覆盖项，因此 id/type 永远可信；
     扩展字段原样取用。规则可同时引用两类字段（跨原生/扩展的条件显隐正是靠这一点）。
     """
-    from app.domains.lowcode.native_field_catalog import get_system_rules, merge_native_overrides
+    from app.domains.lowcode.native_field_catalog import merge_native_overrides, merge_system_rules
 
     schema = await get_entity_schema(db, tenant_id, entity_type)
     stored = schema["field_definitions"]
@@ -364,8 +365,8 @@ async def get_entity_form_schema(db: AsyncSession, tenant_id: str, entity_type: 
     return {
         "native_fields": native,
         "field_definitions": custom,
-        # 内置规则排在前面：表达「该字段仅在特定条件下适用」的业务事实，租户规则可在其后叠加
-        "rule_definitions": get_system_rules(entity_type) + schema["rule_definitions"],
+        # 内置规则（含租户覆盖）排在前面，其后是纯租户规则
+        "rule_definitions": merge_system_rules(entity_type, schema["rule_definitions"]),
     }
 
 

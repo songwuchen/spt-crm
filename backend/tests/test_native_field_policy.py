@@ -5,10 +5,69 @@
 import pytest
 from httpx import AsyncClient
 
-from app.domains.lowcode.native_field_catalog import merge_native_overrides, get_native_fields
+from app.domains.lowcode.native_field_catalog import merge_native_overrides, get_native_fields, merge_system_rules, get_system_rules
 
 
 # ===== 目录合并（纯函数，无需 DB） =====
+
+def test_contract_detail_tables_in_catalog():
+    fields = get_native_fields("contract")
+    by_id = {f["id"]: f for f in fields}
+    assert by_id["line_items"]["type"] == "detail_table"
+    assert by_id["line_items"]["entity_storage"] == "key_clauses_json"
+    assert by_id["payment_terms"]["entity_storage"] == "payment_terms_json"
+
+    line_ids = [c["id"] for c in by_id["line_items"]["detail_table_columns"]]
+    pay_ids = [c["id"] for c in by_id["payment_terms"]["detail_table_columns"]]
+    # 与简道云/旧 ContractTerms 字段 id 对齐（前端 FALLBACK_* 须同序同 id）
+    assert line_ids == [
+        "is_fx", "product_type", "name", "spec", "unit", "qty",
+        "fx_price", "fx_rate", "price", "amount", "fx_amount",
+        "elec_ctrl", "standard", "line_remark",
+    ]
+    assert pay_ids == ["due_date", "kind", "ratio", "amount", "remind", "note"]
+    fx_price = next(c for c in by_id["line_items"]["detail_table_columns"] if c["id"] == "fx_price")
+    assert fx_price["props"]["show_when"] == {"field": "is_fx", "equals": ["是"]}
+    assert fx_price["props"].get("system_column") is True
+    assert "_widget_" in (fx_price["props"].get("aliases") or [""])[0]
+
+    merged = merge_native_overrides("contract", [{
+        "id": "line_items", "native": True,
+        "detail_table_columns": [
+            {"id": "name", "label": "品名改", "type": "text", "props": {}},
+        ],
+    }])
+    li = next(f for f in merged if f["id"] == "line_items")
+    assert li["detail_table_columns"][0]["label"] == "品名改"
+    assert "detail_table_columns" in __import__(
+        "app.domains.lowcode.native_field_catalog", fromlist=["OVERRIDABLE_KEYS"]
+    ).OVERRIDABLE_KEYS
+
+
+def test_merge_system_rules_override_and_disable():
+    defaults = get_system_rules("contract")
+    assert defaults, "合同应有系统规则"
+    first_id = defaults[0]["id"]
+    merged = merge_system_rules("contract", [
+        {
+            "id": first_id,
+            "type": "visibility",
+            "target_field_id": "change_reason",
+            "condition": {"field": "change_type", "operator": "eq", "value": "custom"},
+            "action": {"visible": True},
+            "enabled": False,
+        },
+        {"id": "tenant_extra", "type": "visibility", "target_field_id": "x",
+         "condition": {}, "action": {"visible": True}},
+    ])
+    overridden = next(r for r in merged if r["id"] == first_id)
+    assert overridden["enabled"] is False
+    assert overridden["condition"]["value"] == "custom"
+    assert any(r["id"] == "tenant_extra" for r in merged)
+    # 未覆盖的系统规则仍在，且排在租户规则前
+    assert merged[-1]["id"] == "tenant_extra"
+    assert len([r for r in merged if str(r["id"]).startswith("__sys_")]) == len(defaults)
+
 
 def test_override_can_make_optional_field_required():
     merged = merge_native_overrides("lead", [
@@ -191,16 +250,17 @@ def test_catalog_fields_all_have_a_form_control():
         # <PolicyItem name="foo"> 或属性顺序不限
         return set(re.findall(r"<(?:PolicyItem|MField)\b[^>]*\bname=\"([^\"]+)\"", src))
 
-    def _contract_registration_native_keys() -> set[str]:
-        """ContractRegistrationFields 对 native 字段用 <PolicyItem name={f.key}>，
-        静态扫描字面量抓不到，从常量里收集 source:'native' 的 key。"""
+    def _contract_registration_keys(source: str | None = None) -> set[str]:
+        """从 contractRegistration 常量收集 key；source 为 'native'|'reg'|None(全部)。"""
         csrc = (root / "frontend/src/constants/contractRegistration.ts").read_text(encoding="utf-8")
         keys: set[str] = set()
         for m in re.finditer(r"key:\s*'([^']+)'", csrc):
             start = m.end()
             nxt = re.search(r"\bkey:\s*'", csrc[start:start + 800])
             window = csrc[start:start + (nxt.start() if nxt else 800)]
-            if re.search(r"source:\s*['\"]native['\"]", window):
+            if source is None:
+                keys.add(m.group(1))
+            elif re.search(rf"source:\s*['\"]{source}['\"]", window):
                 keys.add(m.group(1))
         return keys
 
@@ -211,7 +271,9 @@ def test_catalog_fields_all_have_a_form_control():
             # MField 是移动端样式的 PolicyItem 别名，两者都算「该字段可填」
             rendered = _policy_item_names(src)
             if rel.endswith("ContractRegistrationFields.tsx"):
-                rendered |= _contract_registration_native_keys()
+                # native 与 json_storage(reg) 均走 PolicyItem name={f.key} / 嵌套路径
+                rendered |= _contract_registration_keys("native")
+                rendered |= _contract_registration_keys("reg")
                 # 新建时跳过自动生成的合同号（与 CREATE_SKIP 一致）
                 if scope == "create":
                     rendered.discard("contract_no")
@@ -242,10 +304,11 @@ _ENTITY_MODELS = {
 
 @pytest.mark.parametrize("entity", sorted(_ENTITY_MODELS))
 def test_catalog_ids_are_real_columns(entity):
-    """目录里的 id 必须是该实体表上真实存在的列。
+    """目录里的 id 必须是该实体表上真实存在的列（或声明为 JSON 列内键）。
 
     回归：被删掉的旧 field_rules UI 里 18 个字段有 12 个是不存在的列（customer.phone、
     contract.amount、quote.margin_rate 等），配了规则也永远匹配不到 —— 新目录不能重蹈覆辙。
+    json_storage 字段落在 JSON 列（如 registration_json）内，id 是对象 key 而非表列。
     """
     import importlib
     from app.domains.lowcode.native_field_catalog import CATALOG
@@ -254,6 +317,13 @@ def test_catalog_ids_are_real_columns(entity):
     model = getattr(importlib.import_module(mod), cls)
     columns = set(model.__table__.columns.keys())
     for fd in get_native_fields(entity):
+        storage = fd.get("json_storage")
+        if storage:
+            assert storage in columns, (
+                f"{entity}.{fd['id']} 声明 json_storage={storage!r}，"
+                f"但 {model.__tablename__} 无此列"
+            )
+            continue
         assert fd["id"] in columns, f"{entity}.{fd['id']} 不是 {model.__tablename__} 表的列"
     assert entity in CATALOG, f"{entity} 应在 CATALOG 中"
 

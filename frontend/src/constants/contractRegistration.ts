@@ -54,10 +54,17 @@ export interface RegFieldDef {
   source: RegFieldSource
   widget?: RegWidget
   options?: RegOption[]
+  /**
+   * 本地兜底显隐（策略未加载/失败时用）。
+   * 产品规则已迁到后端 SYSTEM_RULES["contract"]，经 FieldPolicy 求值；
+   * 已编目字段优先走策略，勿只改这里。
+   */
   showWhen?: RegShowWhen
   /** 始终必填 */
   required?: boolean
-  /** 条件必填（通常与 showWhen 同条件） */
+  /**
+   * 条件必填兜底；已编目字段以 SYSTEM_RULES required 为准。
+   */
   requiredWhen?: RegShowWhen
 }
 
@@ -182,8 +189,9 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
           { value: 'YZS', label: 'YZS' },
           { value: 'YZO和YZS', label: 'YZO和YZS' },
         ],
-        showWhen: { field: 'standard_delivery', source: 'reg', equals: ['否'] },
-        requiredWhen: { field: 'standard_delivery', source: 'reg', equals: ['否'] },
+        // 对齐简道云 fieldShowRules：是否标准交付=是 → 显示「方式」
+        showWhen: { field: 'standard_delivery', source: 'reg', equals: ['是'] },
+        requiredWhen: { field: 'standard_delivery', source: 'reg', equals: ['是'] },
       },
       { key: 'is_rotary_sieve', label: '是否为旋振筛', source: 'reg', widget: 'radio', options: YES_NO },
       {

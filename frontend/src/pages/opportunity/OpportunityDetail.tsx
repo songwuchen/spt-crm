@@ -30,7 +30,8 @@ import { usePermission } from '@/hooks/usePermission'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
 import InternalNotes from '@/components/InternalNotes'
-import { PaymentTermsEditor, LineItemsEditor } from '@/components/ContractTerms'
+import { PaymentTermsEditor, LineItemsEditor, ContractSubtableTitle } from '@/components/ContractTerms'
+import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contractDetailTables'
 import { fmtMoney } from '@/utils/mask'
 
 import Icon from '@/components/Icon'
@@ -1679,11 +1680,11 @@ export default function OpportunityDetail() {
             </div>
           </div>
           <div>
-            <div className="text-sm font-bold text-slate-700 mb-2">付款条款（收款计划）</div>
+            <ContractSubtableTitle fieldId={PAYMENT_TERMS_FIELD_ID} fallback="收款计划" />
             <PaymentTermsEditor value={ctPay} onChange={setCtPay} />
           </div>
           <div>
-            <div className="text-sm font-bold text-slate-700 mb-2">合同明细（结构化条款）</div>
+            <ContractSubtableTitle fieldId={LINE_ITEMS_FIELD_ID} fallback="合同明细" />
             <LineItemsEditor value={ctLines} onChange={setCtLines} />
           </div>
         </div>

@@ -45,6 +45,12 @@ export interface FieldDefinition {
   label_override?: string
   /** 派生显示键(owner_id → owner_name)，隐藏/脱敏时须连带处理。 */
   companions?: string[]
+  /** 非表列：值落在该 JSON 列内（如合同 registration_json），id 为对象 key。 */
+  json_storage?: string
+  /** 整字段值落在业务表/版本 JSON 列（如 key_clauses_json），用于 detail_table。 */
+  entity_storage?: string
+  form_editable?: boolean
+  available_on_create?: boolean
 }
 
 /** 业务实体表单的完整字段策略：原生字段 + 扩展字段 + 规则。 */
@@ -62,6 +68,8 @@ export interface FormRule {
   target_field_ids?: string[]
   condition: RuleCondition
   action: Record<string, unknown>
+  /** 为 false 时跳过求值（系统规则可在设计器里停用） */
+  enabled?: boolean
 }
 
 export type RuleConditionNode = RuleConditionItem | RuleConditionGroup
@@ -148,6 +156,11 @@ export interface FormVersion {
   rule_definitions: FormRule[]
   status: string
   published_at?: string | null
+  /** 实体系统模板设计器加载时附带 */
+  entity_type?: string
+  is_system_entity?: boolean
+  /** 系统规则目录默认值，供设计器「恢复默认」 */
+  system_rule_defaults?: FormRule[]
 }
 
 export interface FormInstance {

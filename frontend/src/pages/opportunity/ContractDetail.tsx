@@ -13,17 +13,41 @@ import ContractAttachmentSlots from '@/components/ContractAttachmentSlots'
 import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
 import SignaturePad from '@/components/SignaturePad'
 import DataView, { formatMoney } from '@/components/DataView'
-import { PaymentTermsView, ClauseTermsView, PaymentTermsEditor, LineItemsEditor, toCanonicalRows, PAY_FIELDS, LINE_FIELDS } from '@/components/ContractTerms'
+import {
+  PaymentTermsView, ClauseTermsView, PaymentTermsEditor, LineItemsEditor,
+  toCanonicalRows, sumLineAmounts, resolveLineColumns, resolvePayColumns,
+  ContractSubtableTitle,
+} from '@/components/ContractTerms'
+import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contractDetailTables'
 import ContractRegistrationFields, { DATE_KEYS } from '@/components/ContractRegistrationFields'
 import type { ContractItem, ContractVersion } from '@/api/types'
 import { riskLabels, riskColors } from '@/api/types'
 import { contractStatusColors, contractStatusLabels } from '@/constants/labels'
 import { CONTRACT_REGISTRATION_SECTIONS, formatChangeType, formatRegFieldValue } from '@/constants/contractRegistration'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
+import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
+import { lowcodeApi } from '@/api/lowcode'
+import type { FieldDefinition } from '@/types/lowcode'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import dayjs from 'dayjs'
+
+async function loadContractDetailColumns(): Promise<{
+  lineCols: FieldDefinition[]
+  payCols: FieldDefinition[]
+}> {
+  try {
+    const r = await lowcodeApi.entityFormSchema('contract')
+    const native = r.data.native_fields || []
+    return {
+      lineCols: resolveLineColumns(native),
+      payCols: resolvePayColumns(native),
+    }
+  } catch {
+    return { lineCols: resolveLineColumns(), payCols: resolvePayColumns() }
+  }
+}
 
 import Icon from '@/components/Icon'
 export default function ContractDetail() {
@@ -63,7 +87,7 @@ export default function ContractDetail() {
     milestones: Array<Record<string, unknown>>
   } | null>(null)
 
-  const openEditModal = () => {
+  const openEditModal = async () => {
     const reg = { ...(contract?.registration_json || {}) } as Record<string, unknown>
     // 多选字段历史可能是字符串，规整为数组供 Checkbox.Group
     for (const k of ['missing_items', 'payment_forms', 'smart_points']) {
@@ -96,9 +120,10 @@ export default function ContractDetail() {
       ...nativeDates,
       registration_json: reg,
     })
-    const pays = toCanonicalRows(contract?.payment_terms_json, PAY_FIELDS)
+    const { lineCols, payCols } = await loadContractDetailColumns()
+    const pays = toCanonicalRows(contract?.payment_terms_json, payCols)
     setEditPay(pays.length ? pays : [{}])
-    const lines = toCanonicalRows(currentVersion?.key_clauses_json, LINE_FIELDS)
+    const lines = toCanonicalRows(currentVersion?.key_clauses_json, lineCols)
     setEditLines(lines.length ? lines : [{}])
     setEditModal(true)
   }
@@ -154,7 +179,7 @@ export default function ContractDetail() {
 
   /** 把合同付款条款映射成回款计划草稿（兼容简道云旧 _widget_ 字段） */
   const deriveDraftPlans = (): DraftPlan[] => {
-    const terms = toCanonicalRows(contract?.payment_terms_json, PAY_FIELDS)
+    const terms = toCanonicalRows(contract?.payment_terms_json, resolvePayColumns())
     const total = typeof contract?.amount_total === 'number' ? contract.amount_total : null
     let allRatio = terms.length > 0
     const rows: DraftPlan[] = terms.map((t) => {
@@ -272,9 +297,10 @@ export default function ContractDetail() {
     setVersions(d.versions || [])
     const curVer = d.versions?.find((v) => v.version_no === d.current_version_no)
     setCurrentVersion(curVer || null)
-    const lines = toCanonicalRows(curVer?.key_clauses_json, LINE_FIELDS)
+    const { lineCols, payCols } = await loadContractDetailColumns()
+    const lines = toCanonicalRows(curVer?.key_clauses_json, lineCols)
     setDetailLines(lines.length ? lines : [{}])
-    const pays = toCanonicalRows(d.payment_terms_json, PAY_FIELDS)
+    const pays = toCanonicalRows(d.payment_terms_json, payCols)
     setDetailPay(pays.length ? pays : [{}])
     if (curVer) {
       setSelectedVersionId(curVer.id)
@@ -289,6 +315,10 @@ export default function ContractDetail() {
     try {
       const rows = detailLines.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
       await contractApi.updateVersion(currentVersion.id, { key_clauses_json: rows })
+      const total = sumLineAmounts(rows)
+      if (total > 0) {
+        await contractApi.update(cid!, { amount_total: total })
+      }
       message.success('合同明细已保存')
       fetchContract()
     } catch { message.error('保存明细失败') }
@@ -387,7 +417,7 @@ export default function ContractDetail() {
   const statusColors = contractStatusColors
   const statusLabels = contractStatusLabels
   // 只有结构化（行数组）付款条款才能生成回款计划；非行结构（如 {method:"分期"}）不展示按钮
-  const canGenerate = toCanonicalRows(contract.payment_terms_json, PAY_FIELDS).length > 0 && contract.status !== 'terminated'
+  const canGenerate = toCanonicalRows(contract.payment_terms_json, resolvePayColumns()).length > 0 && contract.status !== 'terminated'
   const genTotal = genRows.reduce((s, r) => s + (r.amount || 0), 0)
   const contractTotal = typeof contract.amount_total === 'number' ? contract.amount_total : null
   const genMismatch = contractTotal != null && Math.abs(genTotal - contractTotal) > 0.01
@@ -440,6 +470,7 @@ export default function ContractDetail() {
       <Modal title="编辑合同登记" open={editModal} onOk={handleEditSave} confirmLoading={editSaving}
         onCancel={() => setEditModal(false)} width={980} okText="保存" cancelText="取消"
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
+        <FieldPolicyProvider entityType="contract" form={editForm}>
         <Form form={editForm} layout="vertical" className="py-2">
           <ContractRegistrationFields
             form={editForm}
@@ -447,13 +478,17 @@ export default function ContractDetail() {
             slots={{
               line_items: (
                 <div>
-                  <ContractSectionTitle title="合同明细" />
-                  <LineItemsEditor value={editLines} onChange={setEditLines} />
+                  <ContractSubtableTitle fieldId={LINE_ITEMS_FIELD_ID} fallback="合同明细" />
+                  <LineItemsEditor
+                    value={editLines}
+                    onChange={setEditLines}
+                    onTotalChange={(t) => editForm.setFieldsValue({ amount_total: t || undefined })}
+                  />
                 </div>
               ),
               payment_terms: (
                 <div>
-                  <ContractSectionTitle title="收款计划" />
+                  <ContractSubtableTitle fieldId={PAYMENT_TERMS_FIELD_ID} fallback="收款计划" />
                   <PaymentTermsEditor value={editPay} onChange={setEditPay} />
                 </div>
               ),
@@ -463,6 +498,7 @@ export default function ContractDetail() {
             }}
           />
         </Form>
+        </FieldPolicyProvider>
       </Modal>
 
       {/* 生成回款计划 Modal */}
@@ -667,7 +703,7 @@ export default function ContractDetail() {
               {sec.afterSlot === 'line_items' && (
                 <div className="mb-4">
                   <div className="flex items-center gap-3 mb-2">
-                    <ContractSectionTitle title="合同明细" className="flex-1 mb-0" />
+                    <ContractSubtableTitle fieldId={LINE_ITEMS_FIELD_ID} fallback="合同明细" className="flex-1 mb-0" />
                     {contract.status !== 'terminated' && (
                       <Button type="primary" size="small" loading={linesSaving} onClick={saveDetailLines}>保存明细</Button>
                     )}
@@ -682,7 +718,7 @@ export default function ContractDetail() {
               {sec.afterSlot === 'payment_terms' && (
                 <div className="mb-4">
                   <div className="flex items-center gap-3 mb-2">
-                    <ContractSectionTitle title="收款计划" className="flex-1 mb-0" />
+                    <ContractSubtableTitle fieldId={PAYMENT_TERMS_FIELD_ID} fallback="收款计划" className="flex-1 mb-0" />
                     <Space>
                       {canGenerate && (
                         <Button size="small" icon={<Icon name="savings" style={{ fontSize: 16 }} />}
