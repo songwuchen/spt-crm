@@ -274,9 +274,6 @@ def test_catalog_fields_all_have_a_form_control():
                 # native 与 json_storage(reg) 均走 PolicyItem name={f.key} / 嵌套路径
                 rendered |= _contract_registration_keys("native")
                 rendered |= _contract_registration_keys("reg")
-                # 新建时跳过自动生成的合同号（与 CREATE_SKIP 一致）
-                if scope == "create":
-                    rendered.discard("contract_no")
             missing = []
             for fd in get_native_fields(entity):
                 if not fd.get("form_editable", True):
