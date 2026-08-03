@@ -729,7 +729,16 @@ export default function ApprovalCenter() {
               key: 'cc',
               label: '抄送我的',
               children: (
-                <FillHeightTable
+                <FillHeightTable<{
+                  cc_id: string
+                  process_instance_id: string
+                  title?: string
+                  status?: string
+                  biz_type?: string
+                  initiator_name?: string
+                  is_read: boolean
+                  created_at?: string
+                }>
                   rowKey="cc_id"
                   loading={tabLoading}
                   size="small"
@@ -740,7 +749,7 @@ export default function ApprovalCenter() {
                   columns={[
                     {
                       title: '标题', dataIndex: 'title', width: 280,
-                      render: (v: string, r) => (
+                      render: (v, r) => (
                         <a className="font-semibold text-primary cursor-pointer" onClick={() => openWfDrawer(r.process_instance_id)}>
                           {v || '审批'}{!r.is_read && <Tag color="red" className="ml-1">未读</Tag>}
                         </a>
@@ -748,23 +757,23 @@ export default function ApprovalCenter() {
                     },
                     {
                       title: '类型', dataIndex: 'biz_type', width: 120,
-                      render: (v: string) => <Tag color="blue">{bizTypeLabels[v] || v || '—'}</Tag>,
+                      render: (v) => <Tag color="blue">{bizTypeLabels[v || ''] || v || '—'}</Tag>,
                     },
                     {
                       title: '状态', dataIndex: 'status', width: 110,
-                      render: (v: string) => renderFlowStatus(v || '', 'wf'),
+                      render: (v) => renderFlowStatus(v || '', 'wf'),
                     },
                     {
                       title: '发起人', dataIndex: 'initiator_name', width: 100,
-                      render: (v: string) => v || '—',
+                      render: (v) => v || '—',
                     },
                     {
                       title: '抄送时间', dataIndex: 'created_at', width: 160,
-                      render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-',
+                      render: (v) => v ? new Date(v).toLocaleString('zh-CN') : '-',
                     },
                     {
                       title: '操作', key: 'op', width: 90,
-                      render: (_: unknown, r: { process_instance_id: string }) => (
+                      render: (_: unknown, r) => (
                         <Button size="small" onClick={() => openWfDrawer(r.process_instance_id)}>查看</Button>
                       ),
                     },

@@ -80,7 +80,7 @@ export default function ApproveFieldForm({
       )}
       <Space direction="vertical" style={{ width: '100%' }} size="small">
         {perms.map((p) => {
-          const meta = metaById[p.field] || { id: p.field, label: p.field, type: 'text' }
+          const meta = metaById[p.field] || { id: p.field, label: p.field, type: 'text' as const }
           const required = p.access === 'required'
           const err = missing.has(p.field)
           const t = meta.type || 'text'

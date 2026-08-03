@@ -38,7 +38,7 @@ interface Props {
 interface FieldDef {
   value: string
   label: string
-  type: 'number' | 'enum'
+  type: 'number' | 'enum' | 'text'
   options?: { value: string; label: string }[]
 }
 
@@ -145,7 +145,8 @@ function getFieldDef(bizType: string, field: string): FieldDef | undefined {
 }
 
 function opsForField(def: FieldDef | undefined): { value: string; label: string }[] {
-  return def?.type === 'enum' ? ENUM_OP_OPTIONS : NUMBER_OP_OPTIONS
+  // text / enum 用等于类运算符；number 用比较运算符
+  return def?.type === 'number' ? NUMBER_OP_OPTIONS : ENUM_OP_OPTIONS
 }
 
 const APPROVER_TYPE_OPTIONS = [
@@ -514,7 +515,7 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
     const first = fields[0]
     setConditionRows([...conditionRows, {
       field: first.value,
-      operator: first.type === 'enum' ? 'eq' : 'gt',
+      operator: first.type === 'number' ? 'gt' : 'eq',
       value: undefined,
     }])
   }
@@ -618,6 +619,9 @@ export default function ApprovalPolicyModal({ open, editingId, initialData, onSa
                           <Select className="w-40" value={typeof row.value === 'string' ? row.value : undefined}
                             onChange={v => updateCondition(i, { value: v })}
                             placeholder="值" options={def.options} />
+                        ) : def?.type === 'text' ? (
+                          <Input className="w-40" value={typeof row.value === 'string' ? row.value : undefined}
+                            onChange={e => updateCondition(i, { value: e.target.value })} placeholder="值" />
                         ) : (
                           <InputNumber className="w-32" value={typeof row.value === 'number' ? row.value : undefined}
                             onChange={v => updateCondition(i, { value: v ?? undefined })} placeholder="值" />
