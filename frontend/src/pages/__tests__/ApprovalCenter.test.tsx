@@ -17,6 +17,7 @@ vi.mock('react-router-dom', async () => {
     useParams: () => ({}),
     // ApprovalCenter 用 location.state 打开 WF 抽屉；测试不挂 Router，需自行 mock
     useLocation: () => ({ pathname: '/approvals', search: '', hash: '', state: null, key: 'test' }),
+    useSearchParams: () => [new URLSearchParams(), vi.fn()] as const,
   }
 })
 
