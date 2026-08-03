@@ -15,6 +15,8 @@ vi.mock('react-router-dom', async () => {
     ...actual,
     useNavigate: () => vi.fn(),
     useParams: () => ({}),
+    // ApprovalCenter 用 location.state 打开 WF 抽屉；测试不挂 Router，需自行 mock
+    useLocation: () => ({ pathname: '/approvals', search: '', hash: '', state: null, key: 'test' }),
   }
 })
 
@@ -38,7 +40,35 @@ vi.mock('@/api/user', () => ({
 
 vi.mock('@/api/unifiedApprovals', () => ({
   fetchUnifiedPending: vi.fn(),
+  fetchUnifiedMine: vi.fn().mockResolvedValue([]),
+  fetchUnifiedDone: vi.fn().mockResolvedValue([]),
   decideUnified: vi.fn(),
+}))
+
+vi.mock('@/api/lowcodeWorkflow', () => ({
+  workflowApi: {
+    todo: vi.fn().mockResolvedValue({ data: { items: [], total: 0 } }),
+    done: vi.fn().mockResolvedValue({ data: { items: [], total: 0 } }),
+    mine: vi.fn().mockResolvedValue({ data: { items: [], total: 0 } }),
+    cc: vi.fn().mockResolvedValue({ data: { items: [], total: 0 } }),
+    listAgents: vi.fn().mockResolvedValue({ data: [] }),
+    createAgent: vi.fn(),
+    deleteAgent: vi.fn(),
+    instance: vi.fn(),
+    act: vi.fn(),
+    withdraw: vi.fn(),
+    urge: vi.fn(),
+  },
+}))
+
+vi.mock('@/components/lowcode/WfProcessDrawer', () => ({
+  useWfProcessDrawer: () => ({ openWith: vi.fn(), node: null }),
+  WfProcessDrawer: () => null,
+  bizEntityPath: () => null,
+}))
+
+vi.mock('@/components/lowcode/fields/PersonField', () => ({
+  default: () => null,
 }))
 
 vi.mock('@/api/client', () => ({
