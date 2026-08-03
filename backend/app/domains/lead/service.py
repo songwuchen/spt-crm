@@ -668,6 +668,7 @@ async def intel_review_lead(
         await db.commit()
         await WorkflowEngine(db, tenant_id).act(
             task_id, user, "reject", opinion=reason or opinion,
+            allow_lead_intel=True,
         )
         await db.refresh(lead)
         await log_action(
@@ -678,16 +679,19 @@ async def intel_review_lead(
         )
         return lead
 
-    # include / attack：先落字段再 approve
+    # include / attack：先落字段再 approve（情报裁定放行引擎拦截）
     lead.reject_reason = None
+    if decision == "attack":
+        # 先写成 attacked，writeback 通过时保留，抄送文案据此区分「不可转化」
+        lead.review_status = "attacked"
     await db.commit()
     await WorkflowEngine(db, tenant_id).act(
         task_id, user, "approve", opinion=opinion,
+        allow_lead_intel=True,
     )
     await db.refresh(lead)
 
-    if decision == "attack":
-        # writeback 会把 review_status 写成 approved，此处覆盖为袭击
+    if decision == "attack" and lead.review_status != "attacked":
         lead.review_status = "attacked"
         await db.commit()
         await db.refresh(lead)

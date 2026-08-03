@@ -85,7 +85,7 @@ const zhCN = {
     groupLowcode: '扩展平台',
     lowcodeForms: '表单中心',
     lowcodeWorkflows: '流程管理',
-    lowcodeApprovals: '审批中心',
+    lowcodeApprovals: '流程审批',
     lowcodeDashboards: '仪表盘',
     lowcodeEntityFields: '自定义字段',
     dashboard: '工作台',

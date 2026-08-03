@@ -69,7 +69,7 @@ const enUS = {
     groupLowcode: 'Platform',
     lowcodeForms: 'Forms',
     lowcodeWorkflows: 'Workflows',
-    lowcodeApprovals: 'Approvals',
+    lowcodeApprovals: 'Workflow Approvals',
     lowcodeDashboards: 'Dashboards',
     lowcodeEntityFields: 'Custom Fields',
     dashboard: 'Dashboard',

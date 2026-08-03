@@ -91,7 +91,8 @@ export async function fetchUnifiedPending(): Promise<UnifiedPendingResult> {
         title: it.title || it.business_no || '审批',
         subtitle: [
           it.initiator_name ? `${it.initiator_name} 发起` : '',
-          it.on_behalf_of && it.delegator_name ? `代 ${it.delegator_name} 审批` : '',
+          it.node_name ? `待审：${it.node_name}` : '',
+          it.on_behalf_of && it.delegator_name ? `代 ${it.delegator_name}` : '',
         ].filter(Boolean).join(' · '),
         bizType: it.biz_type,
         bizId: it.biz_id,
@@ -118,4 +119,124 @@ export async function decideUnified(
     action: action === 'approve' ? 'approved' : 'rejected',
     comment,
   })
+}
+
+export interface UnifiedMineItem {
+  key: string
+  engine: ApprovalEngine
+  instanceId: string
+  title: string
+  status: string
+  bizType?: string | null
+  bizId?: string | null
+  subtitle?: string
+  createdAt?: string
+}
+
+/** 我发起的：旧引擎 + 新工作流。 */
+export async function fetchUnifiedMine(userId?: string): Promise<UnifiedMineItem[]> {
+  const [legacy, wf] = await Promise.allSettled([
+    approvalApi.list(),
+    workflowApi.mine({ pageNo: 1, pageSize: PAGE_SIZE }),
+  ])
+  const out: UnifiedMineItem[] = []
+
+  if (legacy.status === 'fulfilled') {
+    for (const f of legacy.value.data?.items || []) {
+      if (userId && f.submitted_by_id !== userId) continue
+      out.push({
+        key: `legacy:${f.id}`,
+        engine: 'legacy',
+        instanceId: f.id,
+        title: f.title || f.biz_type || '审批',
+        status: f.status,
+        bizType: f.biz_type,
+        bizId: f.biz_id,
+        subtitle: f.total_nodes ? `节点 ${f.current_node}/${f.total_nodes}` : undefined,
+        createdAt: f.created_at,
+      })
+    }
+  }
+
+  if (wf.status === 'fulfilled') {
+    for (const it of wf.value.data?.items || []) {
+      out.push({
+        key: `wf:${it.id}`,
+        engine: 'wf',
+        instanceId: it.id,
+        title: it.title || it.business_no || '审批',
+        status: it.status,
+        bizType: it.biz_type,
+        bizId: it.biz_id,
+        subtitle: it.current_node_name ? `当前：${it.current_node_name}` : undefined,
+        createdAt: it.created_at,
+      })
+    }
+  }
+
+  out.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  return out
+}
+
+export interface UnifiedDoneItem {
+  key: string
+  engine: ApprovalEngine
+  taskId?: string
+  instanceId: string
+  title: string
+  status: string
+  bizType?: string | null
+  subtitle?: string
+  actionAt?: string
+}
+
+/** 我已办：新工作流为主；旧引擎从相关流程里筛本人已处理任务。 */
+export async function fetchUnifiedDone(userId?: string): Promise<UnifiedDoneItem[]> {
+  const [wf, legacy] = await Promise.allSettled([
+    workflowApi.done({ pageNo: 1, pageSize: PAGE_SIZE }),
+    approvalApi.list(),
+  ])
+  const out: UnifiedDoneItem[] = []
+
+  if (wf.status === 'fulfilled') {
+    for (const it of wf.value.data?.items || []) {
+      out.push({
+        key: `wf:${it.task_id}`,
+        engine: 'wf',
+        taskId: it.task_id,
+        instanceId: it.process_instance_id,
+        title: it.title || it.business_no || '审批',
+        status: it.status,
+        bizType: it.biz_type,
+        subtitle: [
+          it.node_name ? `节点：${it.node_name}` : '',
+          it.initiator_name ? `${it.initiator_name} 发起` : '',
+        ].filter(Boolean).join(' · '),
+        actionAt: it.action_at || it.created_at,
+      })
+    }
+  }
+
+  if (legacy.status === 'fulfilled' && userId) {
+    for (const f of legacy.value.data?.items || []) {
+      for (const t of f.tasks || []) {
+        if (t.assignee_id !== userId) continue
+        if (!['approved', 'rejected', 'transferred'].includes(t.status)) continue
+        out.push({
+          key: `legacy:${t.id}`,
+          engine: 'legacy',
+          taskId: t.id,
+          instanceId: f.id,
+          title: f.title || f.biz_type || '审批',
+          status: t.status,
+          bizType: f.biz_type,
+          subtitle: `节点 ${t.node_order}/${f.total_nodes}`,
+          actionAt: t.decided_at || t.created_at,
+        })
+      }
+    }
+  }
+
+  out.sort((a, b) => (b.actionAt || '').localeCompare(a.actionAt || ''))
+  return out
 }

@@ -3,14 +3,46 @@ from fastapi.responses import Response
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_tenant_id, require_permissions
+from app.dependencies import get_db, get_tenant_id, require_permissions, get_current_user
 from app.common.schemas import ok
+from app.common.exceptions import BusinessException
+from app.common.error_codes import FORBIDDEN
 from app.domains.lowcode.field_permission import ok_entity
 from app.common.field_mask import load_mask_policies, apply_field_mask, masked_number
 from app.domains.contract import service
-from app.domains.contract.schemas import ContractCreate, ContractUpdate, ContractVersionUpdate, ContractSign, ContractFromQuote
+from app.domains.contract.schemas import (
+    ContractCreate, ContractUpdate, ContractVersionUpdate, ContractVersionSubmit,
+    ContractSign, ContractFromQuote,
+)
+from app.domains.lowcode import workflow_service as wsvc
+
 
 router = APIRouter(tags=["合同管理"])
+
+
+async def _require_contract_view_or_wf(
+    db: AsyncSession,
+    tenant_id: str,
+    current_user: dict,
+    *,
+    contract_id: str | None = None,
+    version_id: str | None = None,
+) -> bool:
+    """返回是否走审批只读旁路（跳过数据范围）。
+
+    - 审批相关人（待办/已办/发起/抄送/代理）：可只读，即使没有 contract:view，也不受部门数据范围限制
+    - 仅有 contract:view 的普通人：仍走正常数据范围
+    """
+    ok_wf = await wsvc.can_access_contract_via_workflow(
+        db, tenant_id, current_user.get("sub"),
+        contract_id=contract_id, version_id=version_id,
+    )
+    if ok_wf:
+        return True
+    perms = current_user.get("permissions") or []
+    if "contract:view" in perms:
+        return False
+    raise BusinessException(code=FORBIDDEN, message="缺少权限: contract:view")
 
 
 def _contract_dict(c) -> dict:
@@ -164,15 +196,38 @@ async def create_from_quote(
     })
 
 
+@router.post("/api/v1/contracts")
+async def create_contract_standalone(
+    body: ContractCreate,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("contract:create")),
+):
+    """合同管理入口创建：关联商机可选（body.project_id）。"""
+    result = await service.create_contract(
+        db, tenant_id, body.project_id, body, current_user,
+    )
+    return ok({
+        "contract": _contract_dict(result["contract"]),
+        "version": _version_dict(result["version"]),
+    })
+
+
 # --- Contract routes ---
 @router.get("/api/v1/contracts/{contract_id}")
 async def get_contract(
     contract_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("contract:view")),
+    current_user: dict = Depends(get_current_user),
 ):
-    contract = await service.get_contract(db, tenant_id, contract_id, current_user)
+    # 审批相关人可只读查看被审合同（不必具备 contract:view / 不受数据范围限制）
+    via_wf = await _require_contract_view_or_wf(
+        db, tenant_id, current_user, contract_id=contract_id,
+    )
+    contract = await service.get_contract(
+        db, tenant_id, contract_id, None if via_wf else current_user,
+    )
     versions = await service.get_versions_by_contract(db, tenant_id, contract_id)
     perms = current_user.get("permissions", [])
     policies = await load_mask_policies(db, tenant_id)
@@ -326,9 +381,13 @@ async def get_version(
     version_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("contract:view")),
+    current_user: dict = Depends(get_current_user),
 ):
-    v = await service.get_version(db, tenant_id, version_id, _user)
+    via_wf = await _require_contract_view_or_wf(
+        db, tenant_id, current_user, version_id=version_id,
+    )
+    # 审批旁路：不做数据范围校验（get_version 内部若传 user 会校验）
+    v = await service.get_version(db, tenant_id, version_id, None if via_wf else current_user)
     return ok(_version_dict(v))
 
 
@@ -341,6 +400,23 @@ async def update_version(
     current_user: dict = Depends(require_permissions("contract:edit")),
 ):
     v = await service.update_version(db, tenant_id, version_id, body, current_user)
+    return ok(_version_dict(v))
+
+
+@router.post("/api/v1/contract_versions/{version_id}/submit")
+async def submit_version(
+    version_id: str,
+    body: ContractVersionSubmit = ContractVersionSubmit(),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("contract:edit")),
+):
+    """提交合同版本审批（优先流程管理 contract_version）。"""
+    v = await service.submit_version_for_approval(
+        db, tenant_id, version_id, current_user,
+        assignee_ids=body.assignee_ids or None,
+        assignee_names=body.assignee_names,
+    )
     return ok(_version_dict(v))
 
 

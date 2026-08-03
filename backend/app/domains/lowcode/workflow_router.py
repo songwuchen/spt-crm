@@ -113,17 +113,63 @@ async def my_initiated(pageNo: int = Query(1, ge=1), pageSize: int = Query(20, g
     return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
+@router.get("/instances/cc")
+async def my_cc(pageNo: int = Query(1, ge=1), pageSize: int = Query(20, ge=1, le=100),
+                tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+                user: dict = Depends(get_current_user)):
+    """抄送给我的。"""
+    items, total = await wsvc.list_cc(db, tenant_id, user.get("sub"), pageNo, pageSize)
+    return ok({"items": items, "total": total, "pageNo": pageNo, "pageSize": pageSize})
+
+
+@router.get("/instances/by-biz")
+async def instance_by_biz(
+    biz_type: str = Query(..., min_length=1),
+    biz_id: str = Query(..., min_length=1),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """业务详情页：按业务单据查最新流程实例（含 timeline / flow_steps）。无则 data=null。"""
+    detail = await wsvc.find_latest_instance_by_biz(
+        db, tenant_id, biz_type, biz_id, viewer_id=user.get("sub"),
+    )
+    return ok(detail)
+
+
 @router.get("/instances/{instance_id}")
-async def instance_detail(instance_id: str, tenant_id: str = Depends(get_tenant_id),
-                          db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
-    return ok(await wsvc.get_instance_detail(db, tenant_id, instance_id))
+async def instance_detail(
+    instance_id: str,
+    task_id: str | None = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    return ok(await wsvc.get_instance_detail(
+        db, tenant_id, instance_id, viewer_id=user.get("sub"), task_id=task_id,
+    ))
 
 
 @router.post("/tasks/{task_id}/act")
 async def act_task(task_id: str, body: ws.WfActRequest, tenant_id: str = Depends(get_tenant_id),
                    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
-    await WorkflowEngine(db, tenant_id).act(task_id, user, body.action, body.opinion,
-                                            body.transfer_to, body.to_node_id)
+    await WorkflowEngine(db, tenant_id).act(
+        task_id, user, body.action, body.opinion,
+        body.transfer_to, body.to_node_id, body.field_updates,
+    )
+    return ok(None)
+
+
+@router.post("/instances/{instance_id}/comments")
+async def add_comment(
+    instance_id: str,
+    body: ws.WfCommentRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """发表数据评论（对齐简道云），不推进/不完结审批。"""
+    await WorkflowEngine(db, tenant_id).add_comment(instance_id, user, body.content)
     return ok(None)
 
 

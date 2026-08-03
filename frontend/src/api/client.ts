@@ -91,7 +91,11 @@ client.interceptors.response.use(
         return Promise.reject(err)
       }
 
-      message.error(data.message || '请求失败')
+      const silent = response.config.headers?.['X-Silent-Error'] === '1'
+        || response.config.headers?.['x-silent-error'] === '1'
+      if (!silent) {
+        message.error(data.message || '请求失败')
+      }
       return Promise.reject(new Error(data.message))
     }
     return data
@@ -143,7 +147,11 @@ client.interceptors.response.use(
       return Promise.reject(err)
     }
 
-    message.error(data?.message || '网络异常')
+    const silent = error.config?.headers?.['X-Silent-Error'] === '1'
+      || error.config?.headers?.['x-silent-error'] === '1'
+    if (!silent) {
+      message.error(data?.message || '网络异常')
+    }
     return Promise.reject(error)
   },
 )

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Button, Descriptions, Space, Spin, Tag, message, Modal } from 'antd'
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { EditOutlined, DeleteOutlined, AuditOutlined } from '@ant-design/icons'
 import { useNavigate, useParams } from 'react-router-dom'
 import { contractReviewApi, type ContractReview } from '@/api/contractReview'
 import {
@@ -27,6 +27,7 @@ export default function ContractReviewDetail() {
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const [row, setRow] = useState<ContractReview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
 
   const load = () => {
     if (!id) return
@@ -38,12 +39,35 @@ export default function ContractReviewDetail() {
   }
   useEffect(() => { load() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleSubmitApproval = () => {
+    if (!id) return
+    Modal.confirm({
+      title: '提交审批',
+      content: '确认提交本合同评审进入会签流程？提交后请在「扩展平台 → 审批中心」查看进度。',
+      okText: '提交审批',
+      onOk: async () => {
+        setSubmitting(true)
+        try {
+          await contractReviewApi.submit(id)
+          message.success('已提交审批')
+          load()
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          if (msg) message.error(msg)
+        } finally {
+          setSubmitting(false)
+        }
+      },
+    })
+  }
+
   if (loading || !row) {
     return <div className="flex justify-center py-20"><Spin /></div>
   }
 
   const rj = row.review_json || {}
   const contacts = Array.isArray(rj.contacts) ? rj.contacts as Record<string, unknown>[] : []
+  const canSubmit = hasPermission('contract_review:edit') && (row.status === 'draft' || row.status === 'rejected')
 
   const resolve = (source: 'native' | 'reg', key: string) => {
     if (source === 'native') return (row as unknown as Record<string, unknown>)[key]
@@ -64,8 +88,13 @@ export default function ContractReviewDetail() {
         </div>
         <Space>
           <Button onClick={() => navigate('/contract-reviews')}>返回</Button>
+          {canSubmit && (
+            <Button type="primary" icon={<AuditOutlined />} loading={submitting} onClick={handleSubmitApproval}>
+              提交审批
+            </Button>
+          )}
           {hasPermission('contract_review:edit') && (
-            <Button type="primary" icon={<EditOutlined />}
+            <Button icon={<EditOutlined />}
               onClick={() => navigate(`/contract-reviews/${id}/edit`)}>编辑</Button>
           )}
           {hasPermission('contract_review:delete') && (

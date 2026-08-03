@@ -142,6 +142,14 @@ async def provision():
 
         await db.commit()
 
+        # 补齐系统默认审批流（合同版本/评审/线索），打开流程管理即可编辑
+        try:
+            from app.domains.lowcode.workflow_service import ensure_all_biz_defaults
+            await ensure_all_biz_defaults(db, tenant_id)
+            report["wf_defaults"] = "ensured"
+        except Exception as e:
+            report["wf_defaults"] = f"skipped: {e}"
+
         print("=== Tenant provisioning complete ===")
         for k, v in report.items():
             print(f"  {k:20s}: {v}")

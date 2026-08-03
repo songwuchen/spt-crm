@@ -245,14 +245,14 @@ STANDARD_ROLES = [
     },
     {
         "code": "production", "name": "生产/交付专员", "scope": "dept",
-        "desc": "生产管理部及车间:交付里程碑 + 订单",
+        "desc": "生产管理部及车间:交付里程碑 + 订单；可参与合同登记审批",
         "perms": [
             "customer:view", "project:view", "contract:view", "product:view",
             "delivery:view", "delivery:edit",
             "order:view", "order:create", "order:edit",
+            "approval:approve", "approval:decide",
         ],
-    },
-    {
+    },    {
         "code": "production_manager", "name": "生产主管", "scope": "dept", "lowcode_admin": True,
         "desc": "生产负责人:交付/订单全权 + 交付审批",
         "perms": [

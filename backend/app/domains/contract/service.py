@@ -47,10 +47,11 @@ async def get_contract(db: AsyncSession, tenant_id: str, contract_id: str,
     return c
 
 
-async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, data: ContractCreate, user: dict) -> dict:
-    # 不能往看不见的商机里挂合同（写入侧与读取侧同口径）
-    from app.domains.project.service import get_project
-    await get_project(db, tenant_id, project_id, user)
+async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | None, data: ContractCreate, user: dict) -> dict:
+    # 关联商机可选：有则校验可见性；无则允许独立建合同（合同管理列表入口）
+    if project_id:
+        from app.domains.project.service import get_project
+        await get_project(db, tenant_id, project_id, user)
     # 字段级权限：丢弃用户对不可编辑/隐藏/脱敏扩展字段的写入，并校验必填
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
@@ -76,7 +77,7 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str, dat
 
     contract = Contract(
         id=generate_uuid(), tenant_id=tenant_id,
-        project_id=project_id, contract_no=await generate_code(db, tenant_id, "contract"),
+        project_id=project_id or None, contract_no=await generate_code(db, tenant_id, "contract"),
         current_version_no=1,
         amount_total=native.get("amount_total", data.amount_total),
         end_date=native.get("end_date", data.end_date),
@@ -274,6 +275,28 @@ async def sign_contract(db: AsyncSession, tenant_id: str, contract_id: str, sign
     if contract.status == "signed":
         raise BusinessException(code=BUSINESS_ERROR, message="合同已签署")
 
+    # 若登记关联了合同评审流水号，签署前要求该评审已通过（签约闸门）
+    reg = contract.registration_json if isinstance(contract.registration_json, dict) else {}
+    review_sn = str(reg.get("review_sn") or "").strip()
+    if review_sn:
+        from app.domains.contract_review.models import ContractReview
+        rv = (await db.execute(
+            select(ContractReview).where(
+                ContractReview.tenant_id == tenant_id,
+                ContractReview.review_code == review_sn,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if rv is None:
+            raise BusinessException(
+                code=BUSINESS_ERROR,
+                message=f"关联合同评审「{review_sn}」不存在，无法签署",
+            )
+        if rv.status != "approved":
+            raise BusinessException(
+                code=BUSINESS_ERROR,
+                message=f"关联合同评审「{review_sn}」尚未通过（当前：{rv.status}），无法签署",
+            )
+
     parsed_signed_date = date_type.fromisoformat(signed_date)
     if contract.end_date and parsed_signed_date > contract.end_date:
         raise BusinessException(code=BUSINESS_ERROR, message="签署日期不能晚于合同结束日期")
@@ -355,6 +378,71 @@ async def get_versions_by_contract(db: AsyncSession, tenant_id: str, contract_id
     return result.scalars().all()
 
 
+CONTRACT_VERSION_DEFAULT_FLOW_CODE = "SYS_CONTRACT_VERSION_APPROVAL"
+
+
+async def _ensure_contract_version_default_flow(db: AsyncSession, tenant_id: str) -> None:
+    from app.domains.lowcode.workflow_service import ensure_default_definition
+    await ensure_default_definition(
+        db, tenant_id,
+        biz_type="contract_version",
+        code=CONTRACT_VERSION_DEFAULT_FLOW_CODE,
+        name="合同登记审批（运营）",
+        # 系统兜底图在 workflow_service._contract_version_flow_graph（简道云登记运营）
+        approver_rule={"type": "specified_role", "value": "finance_manager", "exclude_initiator": True},
+        multi_mode="or_sign",
+        empty_strategy="auto_approve",
+    )
+
+
+async def submit_version_for_approval(
+    db: AsyncSession, tenant_id: str, version_id: str, user: dict,
+    assignee_ids: list[str] | None = None,
+    assignee_names: list[str] | None = None,
+) -> ContractVersion:
+    """合同版本提交审批：优先流程管理 start_for_biz，未发布时回退旧 approval。"""
+    version = await get_version(db, tenant_id, version_id, user)
+    if version.status in ("approved", "signed"):
+        raise BusinessException(code=BUSINESS_ERROR, message=f"当前版本状态「{version.status}」不可再提交审批")
+
+    await _ensure_contract_version_default_flow(db, tenant_id)
+
+    c = (await db.execute(
+        select(Contract).where(Contract.id == version.contract_id, Contract.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    title = f"合同审批: {c.contract_no if c else ''} V{version.version_no}"
+
+    version.status = "submitted"
+    await db.flush()
+
+    from app.domains.lowcode.workflow_service import start_for_biz
+    pinst = await start_for_biz(db, tenant_id, "contract_version", version_id, user, title=title)
+    if pinst is None:
+        if assignee_ids:
+            from app.domains.approval.schemas import ApprovalSubmit
+            from app.domains.approval.service import submit_approval
+            await submit_approval(db, tenant_id, ApprovalSubmit(
+                biz_type="contract_version",
+                biz_id=version_id,
+                title=title,
+                assignee_ids=assignee_ids,
+                assignee_names=assignee_names,
+            ), user)
+        else:
+            from app.domains.approval.service import auto_trigger_approval
+            await auto_trigger_approval(db, tenant_id, "contract_version", version_id, title, user)
+
+    await db.commit()
+    await db.refresh(version)
+    await log_action(
+        db, tenant_id=tenant_id, user_id=user["sub"],
+        user_name=user.get("real_name") or user.get("username"),
+        action="submit", resource_type="contract_version", resource_id=version_id,
+        summary=title,
+    )
+    return version
+
+
 async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data: ContractVersionUpdate, user: dict) -> ContractVersion:
     version = await get_version(db, tenant_id, version_id, user)
     old_status = version.status if hasattr(version, 'status') else None
@@ -371,6 +459,7 @@ async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data
                 select(Contract).where(Contract.id == version.contract_id, Contract.tenant_id == tenant_id)
             )).scalar_one_or_none()
             title = f"合同审批: {c.contract_no if c else ''} V{version.version_no}"
+            await _ensure_contract_version_default_flow(db, tenant_id)
             # 优先新表单引擎工作流（灰度按 biz_type 切换），未绑定则回退旧引擎
             from app.domains.lowcode.workflow_service import start_for_biz
             pinst = await start_for_biz(db, tenant_id, "contract_version", version_id, user, title=title)

@@ -65,6 +65,13 @@ class WfActRequest(BaseModel):
     opinion: str | None = None
     transfer_to: str | None = None  # transfer 时的接收人
     to_node_id: str | None = None   # return 时退回的目标审批节点
+    # 本节点可填业务字段（对齐简道云 optAuth）；仅 accept 当前节点 field_perms 白名单
+    field_updates: dict[str, Any] | None = None
+
+
+class WfCommentRequest(BaseModel):
+    """数据评论（对齐简道云），与审批意见无关。"""
+    content: str
 
 
 class WfAgentCreate(BaseModel):

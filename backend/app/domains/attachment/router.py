@@ -7,12 +7,13 @@ from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_tenant_id, require_permissions
+from app.dependencies import get_db, get_tenant_id, require_permissions, get_current_user
 from app.common.schemas import ok
 from app.common.exceptions import BusinessException
 from app.common.error_codes import UNAUTHORIZED, FORBIDDEN, NOT_FOUND
 from app.domains.attachment import service
 from app.domains.attachment.storage import get_full_path, build_object_key, StorageError
+from app.domains.lowcode import workflow_service as wsvc
 
 router = APIRouter(prefix="/api/v1/attachments", tags=["附件管理"])
 
@@ -31,6 +32,72 @@ ALLOWED_MIME_PREFIXES = {
 }
 
 PRESIGN_EXPIRES = 600  # 10 minutes
+
+
+def _is_contract_attachment_biz(biz_type: str | None) -> bool:
+    """合同本体及合同登记附件槽位（contract_agreement / contract_image / …）。"""
+    bt = biz_type or ""
+    if bt.startswith("contract_review"):
+        return False
+    return bt == "contract" or bt.startswith("contract_")
+
+
+async def _can_download_via_wf(
+    db: AsyncSession,
+    tenant_id: str,
+    user_id: str | None,
+    *,
+    biz_type: str | None = None,
+    biz_id: str | None = None,
+    attachment_id: str | None = None,
+) -> bool:
+    """审批相关人可只读合同附件（不必有 attachment:download）。"""
+    if not user_id:
+        return False
+    from sqlalchemy import select
+    from app.domains.attachment.models import AttachmentLink
+
+    contract_ids: set[str] = set()
+    if biz_type and biz_id and _is_contract_attachment_biz(biz_type):
+        contract_ids.add(biz_id)
+    if attachment_id:
+        links = (await db.execute(
+            select(AttachmentLink.biz_type, AttachmentLink.biz_id).where(
+                AttachmentLink.tenant_id == tenant_id,
+                AttachmentLink.attachment_id == attachment_id,
+            )
+        )).all()
+        for bt, bid in links:
+            if _is_contract_attachment_biz(bt) and bid:
+                contract_ids.add(bid)
+    for cid in contract_ids:
+        if await wsvc.can_access_contract_via_workflow(
+            db, tenant_id, user_id, contract_id=cid,
+        ):
+            return True
+    return False
+
+
+async def _require_attachment_download_or_wf(
+    db: AsyncSession,
+    tenant_id: str,
+    current_user: dict,
+    *,
+    biz_type: str | None = None,
+    biz_id: str | None = None,
+    attachment_id: str | None = None,
+) -> bool:
+    """有 attachment:download，或合同审批相关人；返回是否走审批旁路（跳过数据范围）。"""
+    via_wf = await _can_download_via_wf(
+        db, tenant_id, current_user.get("sub"),
+        biz_type=biz_type, biz_id=biz_id, attachment_id=attachment_id,
+    )
+    if via_wf:
+        return True
+    perms = current_user.get("permissions") or []
+    if "attachment:download" in perms:
+        return False
+    raise BusinessException(code=FORBIDDEN, message="缺少权限: attachment:download")
 
 
 # ---------------------------------------------------------------------------
@@ -217,9 +284,14 @@ async def list_by_biz(
     biz_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("attachment:download")),
+    current_user: dict = Depends(get_current_user),
 ):
-    items = await service.list_by_biz(db, tenant_id, biz_type, biz_id, _user)
+    via_wf = await _require_attachment_download_or_wf(
+        db, tenant_id, current_user, biz_type=biz_type, biz_id=biz_id,
+    )
+    items = await service.list_by_biz(
+        db, tenant_id, biz_type, biz_id, None if via_wf else current_user,
+    )
     return ok([{
         "id": a.id, "original_name": a.original_name,
         "content_type": a.content_type, "file_size": a.file_size,
@@ -240,14 +312,19 @@ async def get_download_url(
     download: int = Query(0, description="1=下载(attachment) 0=预览(inline)"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("attachment:download")),
+    current_user: dict = Depends(get_current_user),
 ):
     """Return a directly-usable URL for preview/download.
 
     Object storage → a presigned URL (browser fetches OSS/MinIO directly).
     Local storage  → a short token-bearing URL back to this API.
     """
-    att = await service.get_attachment(db, tenant_id, attachment_id, current_user)
+    via_wf = await _require_attachment_download_or_wf(
+        db, tenant_id, current_user, attachment_id=attachment_id,
+    )
+    att = await service.get_attachment(
+        db, tenant_id, attachment_id, None if via_wf else current_user,
+    )
     _check_secrecy(att, current_user)
     storage_type = att.storage_backend or "local"
     inline = not download
@@ -285,10 +362,13 @@ async def download(
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise BusinessException(code=UNAUTHORIZED, message="租户信息缺失")
-    if "attachment:download" not in current_user.get("permissions", []):
-        raise BusinessException(code=FORBIDDEN, message="缺少权限: attachment:download")
+    via_wf = await _require_attachment_download_or_wf(
+        db, tenant_id, current_user, attachment_id=attachment_id,
+    )
 
-    att = await service.get_attachment(db, tenant_id, attachment_id, current_user)
+    att = await service.get_attachment(
+        db, tenant_id, attachment_id, None if via_wf else current_user,
+    )
     _check_secrecy(att, current_user)
 
     storage_type = att.storage_backend or "local"

@@ -1,41 +1,40 @@
-// 扩展平台 → 审批中心: 我的待办 / 我发起的 / 已办 + 处理(通过/驳回/转交/评论) + 流程轨迹。
+// 扩展平台 → 流程审批（桌面已重定向到主审批中心；本页保留兼容移动/深链）
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  Tabs, Button, Space, Tag, Drawer, Input, message, Timeline, Typography, Popconfirm, Divider,
-  Modal, DatePicker, Select,
+  Tabs, Button, Space, Tag, Input, message, Typography, Popconfirm, Modal, DatePicker,
 } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import dayjs from 'dayjs'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import type { WfAgent } from '@/api/lowcodeWorkflow'
-import { lowcodeApi } from '@/api/lowcode'
-import type { WfTodoItem, WfInstanceDetail, FieldDefinition } from '@/types/lowcode'
-import FormRenderer from '@/components/lowcode/FormRenderer'
+import type { WfTodoItem } from '@/types/lowcode'
 import PersonField from '@/components/lowcode/fields/PersonField'
-import { WF_ACTION_TEXT as ACTION_TXT, WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
+import { bizEntityPath, useWfProcessDrawer } from '@/components/lowcode/WfProcessDrawer'
+import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 
 const { Title, Text } = Typography
 
-/** 业务单据审批 → 完整详情页路径（无自定义表单时供审批人跳转查看）。 */
-function bizEntityPath(bizType?: string | null, bizId?: string | null, mobile = false): string | null {
-  if (!bizType || !bizId) return null
-  const p = mobile ? '/m' : ''
-  const map: Record<string, string> = {
-    lead: `${p}/leads/${bizId}`,
-    order: `${p}/orders/${bizId}`,
-    service_ticket: `${p}/service-tickets/${bizId}`,
-  }
-  return map[bizType] || null
+function fmtTime(v?: string | null) {
+  if (!v) return '—'
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return v
+  return d.toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).replace(/\//g, '-')
 }
 
 export default function ApprovalCenter() {
   const [tab, setTab] = useState('todo')
+  const location = useLocation()
+  const navState = (location.state || {}) as { openInstanceId?: string; openTaskId?: string }
   return (
     <div>
-      <Title level={4} style={{ marginTop: 0, marginBottom: 16 }} className="shrink-0">审批中心</Title>
+      <Title level={4} style={{ marginTop: 0, marginBottom: 16 }} className="shrink-0">流程审批</Title>
       <Tabs activeKey={tab} onChange={setTab} className="px-4 pt-2 pb-4" items={[
-        { key: 'todo', label: '我的待办', children: <TodoTab active={tab === 'todo'} /> },
+        { key: 'todo', label: '我的待办', children: <TodoTab active={tab === 'todo'} autoOpen={navState} /> },
         { key: 'mine', label: '我发起的', children: <MineTab active={tab === 'mine'} /> },
         { key: 'done', label: '已办', children: <DoneTab active={tab === 'done'} /> },
         { key: 'agents', label: '我的代理', children: <AgentTab active={tab === 'agents'} /> },
@@ -44,142 +43,33 @@ export default function ApprovalCenter() {
   )
 }
 
-// ---- 处理/查看流程详情抽屉 ----
-function ProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
-  open: boolean; taskId?: string | null; instanceId?: string | null; onClose: () => void; onDone: () => void
+function TodoTab({ active, autoOpen }: {
+  active: boolean
+  autoOpen?: { openInstanceId?: string; openTaskId?: string }
 }) {
   const navigate = useNavigate()
-  const [detail, setDetail] = useState<WfInstanceDetail | null>(null)
-  const [fields, setFields] = useState<FieldDefinition[]>([])
-  const [formData, setFormData] = useState<Record<string, unknown>>({})
-  const [opinion, setOpinion] = useState('')
-  const [transferTo, setTransferTo] = useState<unknown>(undefined)
-  const [returnTo, setReturnTo] = useState<string | undefined>(undefined)
-  const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    if (!open || !instanceId) return
-    setOpinion(''); setTransferTo(undefined); setReturnTo(undefined)
-    ;(async () => {
-      const d = await workflowApi.instance(instanceId)
-      setDetail(d.data)
-      if (d.data.form_instance_id) {
-        const fi = await lowcodeApi.getInstance(d.data.form_instance_id)
-        setFields(fi.data.field_definitions); setFormData(fi.data.form_data)
-      } else { setFields([]); setFormData({}) }
-    })()
-  }, [open, instanceId])
-
-  const act = async (action: string) => {
-    if (!taskId) return
-    if (action === 'transfer' && !transferTo) return message.error('请选择转交接收人')
-    if (action === 'return' && !returnTo) return message.error('请选择退回的目标节点')
-    setBusy(true)
-    try {
-      await workflowApi.act(taskId, {
-        action, opinion,
-        transfer_to: action === 'transfer' ? (Array.isArray(transferTo) ? transferTo[0] : transferTo) as string : undefined,
-        to_node_id: action === 'return' ? returnTo : undefined,
-      })
-      message.success('已处理'); onDone(); onClose()
-    } finally { setBusy(false) }
-  }
-
-  const bizPath = detail ? bizEntityPath(detail.biz_type, detail.biz_id) : null
-  const bizEntries = detail?.biz_detail ? Object.entries(detail.biz_detail) : []
-
-  return (
-    <Drawer title="流程详情" width={640} open={open} onClose={onClose}>
-      {detail && (
-        <>
-          <Space wrap>
-            <b>{detail.title || '(无标题)'}</b>
-            {PSTATUS[detail.status] && <Tag color={PSTATUS[detail.status].color}>{PSTATUS[detail.status].text}</Tag>}
-            {bizPath && (
-              <Button size="small" type="link" onClick={() => { onClose(); navigate(bizPath) }}>
-                查看完整单据
-              </Button>
-            )}
-          </Space>
-          <Divider style={{ margin: '12px 0' }}>{fields.length ? '表单内容' : '业务信息'}</Divider>
-          {fields.length ? (
-            <FormRenderer fields={fields} mode="readonly" value={formData} applyFieldPerms={false} />
-          ) : bizEntries.length ? (
-            <div className="grid grid-cols-1 gap-2 p-3 rounded-lg bg-slate-50 border border-slate-100">
-              {bizEntries.map(([k, v]) => (
-                <div key={k} className="flex gap-3 text-sm">
-                  <span className="shrink-0 w-24 text-slate-500">{k}</span>
-                  <span className="text-slate-800 font-medium whitespace-pre-wrap break-all">{String(v)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
-          )}
-          <Divider style={{ margin: '12px 0' }}>流程轨迹</Divider>
-          <Timeline items={(detail.timeline || []).map((t) => ({
-            children: <div><b>{ACTION_TXT[t.action] || t.action}</b> · {t.actor_name || t.actor_id}
-              {t.opinion ? <div style={{ color: '#888' }}>意见: {t.opinion}</div> : null}
-              <div style={{ fontSize: 12, color: '#aaa' }}>{t.at?.slice(0, 19).replace('T', ' ')}</div></div>,
-          }))} />
-          {taskId && (
-            <>
-              <Divider style={{ margin: '12px 0' }}>审批操作</Divider>
-              <Input.TextArea rows={2} placeholder="审批意见(可选)" value={opinion} onChange={(e) => setOpinion(e.target.value)} style={{ marginBottom: 8 }} />
-              <Space wrap>
-                <Button type="primary" loading={busy} onClick={() => act('approve')}>通过</Button>
-                <Button danger loading={busy} onClick={() => act('reject')}>驳回</Button>
-                <Button loading={busy} onClick={() => act('comment')}>评论</Button>
-              </Space>
-              <div style={{ marginTop: 8 }}>
-                <Space>
-                  <div style={{ width: 220 }}><PersonField value={transferTo} onChange={setTransferTo} /></div>
-                  <Button loading={busy} onClick={() => act('transfer')}>转交</Button>
-                </Space>
-              </div>
-              {(detail.approval_nodes?.length ?? 0) > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <Space>
-                    <Select style={{ width: 220 }} placeholder="退回到审批节点" value={returnTo} onChange={setReturnTo}
-                      options={(detail.approval_nodes || []).map((n) => ({ label: n.name, value: n.id }))} />
-                    <Button loading={busy} onClick={() => act('return')}>退回</Button>
-                  </Space>
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
-    </Drawer>
-  )
-}
-
-function useDrawer(reload: () => void) {
-  const [open, setOpen] = useState(false)
-  const [taskId, setTaskId] = useState<string | null>(null)
-  const [instanceId, setInstanceId] = useState<string | null>(null)
-  const openWith = (iid: string, tid?: string | null) => { setInstanceId(iid); setTaskId(tid || null); setOpen(true) }
-  const node = <ProcessDrawer open={open} taskId={taskId} instanceId={instanceId} onClose={() => setOpen(false)} onDone={reload} />
-  return { openWith, node }
-}
-
-function TodoTab({ active }: { active: boolean }) {
-  const navigate = useNavigate()
+  const location = useLocation()
   const [items, setItems] = useState<WfTodoItem[]>([])
   const [loading, setLoading] = useState(false)
   const load = useCallback(async () => {
     setLoading(true)
     try { const r = await workflowApi.todo({ pageNo: 1, pageSize: 50 }); setItems(r.data.items) } finally { setLoading(false) }
   }, [])
-  const { openWith, node } = useDrawer(load)
+  const { openWith, node } = useWfProcessDrawer(load)
   useEffect(() => { if (active) load() }, [active, load])
+  useEffect(() => {
+    if (!active || !autoOpen?.openInstanceId) return
+    openWith(autoOpen.openInstanceId, autoOpen.openTaskId || null)
+    navigate(location.pathname, { replace: true, state: {} })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, autoOpen?.openInstanceId, autoOpen?.openTaskId])
   const cols = [
     { title: '标题', dataIndex: 'title', render: (v: string) => v || '—' },
-    { title: '单号', dataIndex: 'business_no', render: (v: string) => v || '—' },
-    { title: '来源', key: 'src', width: 130, render: (_: unknown, r: WfTodoItem) => (r.on_behalf_of ? <Tag color="purple">代 {r.delegator_name || '委托人'} 审批</Tag> : <Tag>本人</Tag>) },
-    { title: '发起时间', dataIndex: 'created_at', render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—') },
+    { title: '节点', dataIndex: 'node_name', width: 120, render: (v: string) => v || '—' },
+    { title: '来源', key: 'src', width: 130, render: (_: unknown, r: WfTodoItem) => (r.on_behalf_of ? <Tag color="purple">代 {r.delegator_name || '委托人'} 审批</Tag> : <Tag>指派给我</Tag>) },
+    { title: '发起时间', dataIndex: 'created_at', render: (v: string) => fmtTime(v) },
     { title: '操作', key: 'op', width: 160, render: (_: unknown, r: WfTodoItem) => {
-      const path = bizEntityPath(r.biz_type, r.biz_id)
+      const path = bizEntityPath(r.biz_type, r.biz_id, r.biz_ref_id)
       return (
         <Space size={4}>
           <Button size="small" type="primary" onClick={() => openWith(r.process_instance_id, r.task_id)}>处理</Button>
@@ -201,12 +91,12 @@ function DoneTab({ active }: { active: boolean }) {
     setLoading(true)
     try { const r = await workflowApi.done({ pageNo: 1, pageSize: 50 }); setItems(r.data.items) } finally { setLoading(false) }
   }, [])
-  const { openWith, node } = useDrawer(load)
+  const { openWith, node } = useWfProcessDrawer(load)
   useEffect(() => { if (active) load() }, [active, load])
   const cols = [
     { title: '标题', dataIndex: 'title', render: (v: string) => v || '—' },
     { title: '我的处理', dataIndex: 'status', render: (s: string) => <Tag color={s === 'approved' ? 'green' : s === 'rejected' ? 'red' : s === 'returned' ? 'orange' : 'default'}>{s === 'approved' ? '已通过' : s === 'rejected' ? '已驳回' : s === 'returned' ? '已退回' : s}</Tag> },
-    { title: '处理时间', dataIndex: 'action_at', render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—') },
+    { title: '处理时间', dataIndex: 'action_at', render: (v: string) => fmtTime(v) },
     { title: '操作', key: 'op', width: 90, render: (_: unknown, r: WfTodoItem) => <Button size="small" onClick={() => openWith(r.process_instance_id)}>查看</Button> },
   ]
   return (<>
@@ -291,7 +181,7 @@ function MineTab({ active }: { active: boolean }) {
     setLoading(true)
     try { const r = await workflowApi.mine({ pageNo: 1, pageSize: 50 }); setItems(r.data.items) } finally { setLoading(false) }
   }, [])
-  const { openWith, node } = useDrawer(load)
+  const { openWith, node } = useWfProcessDrawer(load)
   useEffect(() => { if (active) load() }, [active, load])
   const withdraw = async (id: string) => { await workflowApi.withdraw(id); message.success('已撤回'); load() }
   const urge = async (id: string) => {
@@ -306,7 +196,7 @@ function MineTab({ active }: { active: boolean }) {
   const cols = [
     { title: '标题', dataIndex: 'title', render: (v: string) => v || '—' },
     { title: '状态', dataIndex: 'status', render: (s: string) => { const t = PSTATUS[s] || { color: 'default', text: s }; return <Tag color={t.color}>{t.text}</Tag> } },
-    { title: '发起时间', dataIndex: 'created_at', render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—') },
+    { title: '发起时间', dataIndex: 'created_at', render: (v: string) => fmtTime(v) },
     {
       title: '操作', key: 'op', width: 200, render: (_: unknown, r: { id: string; status: string }) => (
         <Space size="small">

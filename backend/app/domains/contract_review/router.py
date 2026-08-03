@@ -104,3 +104,14 @@ async def delete_review(
 ):
     await service.delete_review(db, tenant_id, rid, u)
     return ok()
+
+
+@router.post("/{rid}/submit")
+async def submit_review(
+    rid: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    u=Depends(require_permissions("contract_review:edit")),
+):
+    """提交合同评审审批（走流程管理 contract_review）。"""
+    return ok(_to_dict(await service.submit_for_approval(db, tenant_id, rid, u)))

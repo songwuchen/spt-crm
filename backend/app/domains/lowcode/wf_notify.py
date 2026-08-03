@@ -12,7 +12,7 @@
   通知是旁路，绝不能在调用方的业务 session 上 commit —— 一旦通知侧的 commit 失败，
   调用方 session 会进入 needs-rollback，之后它自己的 commit 就会抛 PendingRollbackError
   (与 audit.log_action 用独立 session 的理由相同)。
-- 深链: PC → /lowcode/approvals(审批中心列表)，移动端 → /m/lowcode/approvals/{实例id}(详情页)，
+- 深链: PC → /approvals(审批中心)，移动端 → /m/lowcode/approvals/{实例id}(详情页)，
   与旧引擎 /approvals 与 /m/approvals/{flow_id} 的分流方式一致，钉钉容器免登链路复用。
 """
 from __future__ import annotations
@@ -55,6 +55,15 @@ async def _user_name(db: AsyncSession, tenant_id: str, user_id: str | None) -> s
         return ""
 
 
+def _skip_external_notify() -> bool:
+    """本地冒烟/联调可设 WF_SKIP_EXTERNAL_NOTIFY=1，跳过钉钉等外呼（避免外网卡住审批）。
+
+    站内通知不受此开关影响。
+    """
+    import os
+    return os.environ.get("WF_SKIP_EXTERNAL_NOTIFY") == "1"
+
+
 async def notify_tasks_created(
     tenant_id: str, inst: WfProcessInstance, task_ids: list[str],
 ) -> None:
@@ -69,6 +78,7 @@ async def notify_tasks_created(
         from app.domains.notification.service import send_notification
         from app.common.msg_integration import dispatch_todo
 
+        skip_external = _skip_external_notify()
         async with _own_session() as db:
             tasks = (await db.execute(select(WfTaskInstance).where(
                 WfTaskInstance.tenant_id == tenant_id,
@@ -91,12 +101,14 @@ async def notify_tasks_created(
                     )
                 except Exception as e:
                     logger.warning("wf send_notification failed: %s", e)
+                if skip_external:
+                    continue
                 try:
                     res = await dispatch_todo(
                         db, tenant_id, t.assignee_id,
                         f"审批待处理: {title}",
                         f"{initiator} 提交了审批，请尽快处理。",
-                        link="/lowcode/approvals",
+                        link="/approvals",
                         mobile_link=f"/m/lowcode/approvals/{inst.id}",
                     )
                     todo_id = (res or {}).get("todo_id")
@@ -158,13 +170,14 @@ async def notify_cc_users(
         from app.domains.notification.service import send_notification
         from app.common.msg_integration import dispatch_todo
 
+        skip_external = _skip_external_notify()
         async with _own_session() as db:
             title = inst.title or inst.biz_type or "流程"
             node_label = node_name or "抄送"
             ntype = "approval_cc"
             biz_type = NOTIFY_BIZ_TYPE
             biz_id = inst.id
-            link = "/lowcode/approvals"
+            link = "/approvals"
             mobile_link = f"/m/lowcode/approvals/{inst.id}"
             content = f"流程「{title}」已抄送您（节点：{node_label}），请知悉。"
 
@@ -176,16 +189,24 @@ async def notify_cc_users(
                 lead_title = (ld.title if ld else None) or title
                 lead_code = (ld.lead_code if ld else None) or ""
                 code = f"「{lead_code}」" if lead_code else ""
+                attacked = bool(ld and getattr(ld, "review_status", None) == "attacked")
                 ntype = "lead_review_approved"
                 biz_type = "lead"
                 biz_id = inst.biz_id
                 link = f"/leads/{inst.biz_id}"
                 mobile_link = f"/m/leads/{inst.biz_id}"
-                title = f"{node_label}: {lead_title}"
-                content = (
-                    f"线索{code}「{lead_title}」相关流程已抄送您（节点：{node_label}）。"
-                    f"请打开线索详情，自行选择是否转化为客户/商机。"
-                )
+                if attacked:
+                    title = f"线索已标记袭击: {lead_title}"
+                    content = (
+                        f"线索{code}「{lead_title}」经情报审批已标记为袭击，"
+                        f"不可转化为客户/商机，请知悉。"
+                    )
+                else:
+                    title = f"{node_label}: {lead_title}"
+                    content = (
+                        f"线索{code}「{lead_title}」相关流程已抄送您（节点：{node_label}）。"
+                        f"请打开线索详情，自行选择是否转化为客户/商机。"
+                    )
             elif inst.biz_type and inst.biz_id:
                 # 其它业务单据：深链尽量落到业务侧（通知路由已覆盖常见类型）
                 biz_type = inst.biz_type
@@ -200,6 +221,8 @@ async def notify_cc_users(
                     )
                 except Exception as e:
                     logger.warning("wf cc send_notification failed: %s", e)
+                if skip_external:
+                    continue
                 try:
                     await dispatch_todo(
                         db, tenant_id, uid, title, content,
@@ -323,6 +346,8 @@ async def notify_review_flow_unavailable(
 
 async def dispatch_msg(tenant_id: str, title: str, content: str) -> None:
     """群消息/webhook 推送（非关键路径，永不抛出）。"""
+    if _skip_external_notify():
+        return
     try:
         from app.common.msg_integration import dispatch_message
         async with _own_session() as db:

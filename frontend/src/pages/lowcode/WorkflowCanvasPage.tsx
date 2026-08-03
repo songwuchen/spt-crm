@@ -10,13 +10,14 @@ import '@xyflow/react/dist/style.css'
 import dagre from '@dagrejs/dagre'
 import {
   Card, Button, Space, Input, InputNumber, Select, Switch, Typography, Tag, message, Empty, Divider,
+  Checkbox,
 } from 'antd'
 import {
-  ArrowLeftOutlined, PlusOutlined, AuditOutlined, SendOutlined, PlayCircleOutlined, StopOutlined,
+  ArrowLeftOutlined, PlusOutlined, DeleteOutlined, AuditOutlined, SendOutlined, PlayCircleOutlined, StopOutlined,
 } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
-import type { WfNode, WfRoute, WfDesign, ApproverType, FieldDefinition } from '@/types/lowcode'
+import type { WfNode, WfRoute, WfDesign, ApproverType, FieldDefinition, WfFieldPerm } from '@/types/lowcode'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 
@@ -38,11 +39,35 @@ const MULTI_MODES = [
   { value: 'sequential', label: '顺序会签' },
 ]
 const OPERATORS = [
+  { value: 'eq', label: '等于' }, { value: 'ne', label: '不等于' },
+  { value: 'in', label: '属于(in)' }, { value: 'not_in', label: '不属于' },
   { value: 'gt', label: '大于' }, { value: 'gte', label: '大于等于' },
   { value: 'lt', label: '小于' }, { value: 'lte', label: '小于等于' },
-  { value: 'eq', label: '等于' }, { value: 'ne', label: '不等于' },
   { value: 'contains', label: '包含' },
+  { value: 'is_empty', label: '为空' }, { value: 'is_not_empty', label: '不为空' },
 ]
+
+type CondLeaf = { field: string; operator: string; value?: unknown }
+
+function condLabel(cond: WfRoute['condition']): string | undefined {
+  if (!cond) return undefined
+  const n = Array.isArray(cond.cond) ? cond.cond.length : (cond as { field?: string }).field ? 1 : 0
+  if (n <= 0) return '条件'
+  return n === 1 ? '条件' : `条件×${n}`
+}
+
+function valueToInput(v: unknown): string {
+  if (Array.isArray(v)) return v.map(String).join(',')
+  if (v == null) return ''
+  return String(v)
+}
+
+function parseCondValue(operator: string, raw: string): unknown {
+  if (operator === 'in' || operator === 'not_in') {
+    return raw.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+  }
+  return raw
+}
 const genId = (p: string) => p + Math.random().toString(36).slice(2, 7)
 
 const NODE_META: Record<string, { color: string; label: string }> = {
@@ -92,6 +117,8 @@ function DesignerInner() {
   const { id = '' } = useParams()
   const nav = useNavigate()
   const [name, setName] = useState('')
+  const [bizType, setBizType] = useState<string | null>(null)
+  const [formTemplateId, setFormTemplateId] = useState<string | null>(null)
   const [formFields, setFormFields] = useState<FieldDefinition[]>([])
   const [rfNodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [rfEdges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -104,6 +131,8 @@ function DesignerInner() {
       try {
         const def = await workflowApi.getDef(id)
         setName(def.data.name)
+        setBizType(def.data.biz_type || null)
+        setFormTemplateId(def.data.form_template_id || null)
         if (def.data.form_template_id) {
           try {
             const v = await lowcodeApi.publishedVersion(def.data.form_template_id)
@@ -134,7 +163,7 @@ function DesignerInner() {
         const needLayout = nodes.some((n) => !n.position)
         const pos = needLayout ? autoLayout(nodes, routes) : {}
         setNodes(nodes.map((n) => ({ id: n.id, type: 'wf', position: n.position || pos[n.id] || { x: 100, y: 100 }, data: { node: n } })))
-        setEdges(routes.map((r) => ({ id: r.id, source: r.source, target: r.target, label: r.condition ? '条件' : undefined, data: { route: r }, animated: !!r.condition })))
+        setEdges(routes.map((r) => ({ id: r.id, source: r.source, target: r.target, label: condLabel(r.condition), data: { route: r }, animated: !!r.condition })))
       } finally { setLoading(false) }
     })()
   }, [id])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -168,7 +197,7 @@ function DesignerInner() {
   }
   const patchEdgeCond = (eid: string, cond: WfRoute['condition']) => {
     setEdges((eds) => eds.map((e) => e.id === eid
-      ? { ...e, label: cond ? '条件' : undefined, animated: !!cond, data: { route: { ...(e.data as { route: WfRoute }).route, condition: cond } } }
+      ? { ...e, label: condLabel(cond), animated: !!cond, data: { route: { ...(e.data as { route: WfRoute }).route, condition: cond } } }
       : e))
   }
   const delSelected = () => {
@@ -192,12 +221,30 @@ function DesignerInner() {
 
   if (loading) return <Card loading />
 
+  const BIZ_LABEL: Record<string, string> = {
+    contract_version: '合同版本（登记运营）',
+    contract_review: '合同评审会签',
+    lead: '线索',
+    order: '订单',
+    quote_version: '报价单',
+    service_ticket: '售后工单',
+    change_request: '变更单',
+    solution: '方案',
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => nav('/lowcode/workflows')}>返回</Button>
           <Title level={4} style={{ margin: 0 }}>可视化流程 · {name}</Title>
+          {bizType ? (
+            <Tag color="geekblue">业务类型 · {BIZ_LABEL[bizType] || bizType}</Tag>
+          ) : formTemplateId ? (
+            <Tag color="blue">已绑定表单</Tag>
+          ) : (
+            <Tag>未绑定</Tag>
+          )}
         </Space>
         <Space>
           <Button icon={<PlusOutlined />} onClick={() => addNode('approval')}>审批节点</Button>
@@ -333,6 +380,59 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
                   )}
                 </>
               )}
+              <Divider style={{ margin: '8px 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>审批意见必填</Text>
+                <Switch size="small" checked={!!node.opinion_required}
+                  onChange={(on) => onPatch({ opinion_required: on })} />
+              </div>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>本节点可填字段</Text>
+                <Select
+                  mode="multiple"
+                  size="small"
+                  allowClear
+                  style={{ width: '100%', marginTop: 4 }}
+                  placeholder="选择审批人可编辑的业务字段"
+                  value={(node.field_perms || []).map((p) => p.field)}
+                  options={formFields
+                    .filter((f) => f.type !== 'detail_table')
+                    .map((f) => ({ value: f.id, label: f.label || f.id }))}
+                  optionFilterProp="label"
+                  showSearch
+                  notFoundContent={<span style={{ fontSize: 12 }}>{fieldEmptyHint}</span>}
+                  onChange={(ids: string[]) => {
+                    const prev = new Map((node.field_perms || []).map((p) => [p.field, p.access]))
+                    const next: WfFieldPerm[] = ids.map((id) => ({
+                      field: id,
+                      access: prev.get(id) || 'editable',
+                    }))
+                    onPatch({ field_perms: next.length ? next : undefined })
+                  }}
+                />
+              </div>
+              {(node.field_perms || []).length > 0 && (
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>必填字段</Text>
+                  <Checkbox.Group
+                    style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}
+                    value={(node.field_perms || []).filter((p) => p.access === 'required').map((p) => p.field)}
+                    options={(node.field_perms || []).map((p) => ({
+                      value: p.field,
+                      label: formFields.find((f) => f.id === p.field)?.label || p.field,
+                    }))}
+                    onChange={(reqIds) => {
+                      const req = new Set(reqIds as string[])
+                      onPatch({
+                        field_perms: (node.field_perms || []).map((p) => ({
+                          ...p,
+                          access: req.has(p.field) ? 'required' : 'editable',
+                        })),
+                      })
+                    }}
+                  />
+                </div>
+              )}
             </>
           )}
         </>
@@ -347,25 +447,74 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
 function EdgeConfig({ route, formFields, onCond, onDelete }: {
   route: WfRoute; formFields: FieldDefinition[]; onCond: (c: WfRoute['condition']) => void; onDelete: () => void
 }) {
-  const c = route.condition?.cond?.[0] as { field?: string; operator?: string; value?: unknown } | undefined
+  const fieldOpts = formFields
+    .filter((f) => f.type !== 'detail_table')
+    .map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))
+  const defaultField = formFields.find((f) => f.type !== 'detail_table')?.id || ''
   const hasCond = !!route.condition
-  const setLeaf = (patch: Record<string, unknown>) => {
-    const leaf = { field: c?.field || '', operator: c?.operator || 'gt', value: c?.value, ...patch }
-    onCond({ rel: 'and', cond: [leaf] })
+  const rel = route.condition?.rel || 'and'
+  const conds: CondLeaf[] = (() => {
+    const c = route.condition
+    if (!c) return []
+    if (Array.isArray(c.cond) && c.cond.length) {
+      return c.cond.map((n) => ({
+        field: n.field || defaultField,
+        operator: n.operator || 'eq',
+        value: n.value,
+      }))
+    }
+    const single = c as { field?: string; operator?: string; value?: unknown }
+    if (single.field && single.operator) {
+      return [{ field: single.field, operator: single.operator, value: single.value }]
+    }
+    return [{ field: defaultField, operator: 'eq', value: '' }]
+  })()
+  const setConds = (next: CondLeaf[], nextRel: 'and' | 'or' = rel) => {
+    onCond({ rel: nextRel, cond: next })
   }
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="small">
       <Text type="secondary" style={{ fontSize: 12 }}>连线条件(满足才走此分支;无条件=默认分支)</Text>
       <Select size="small" style={{ width: '100%' }} value={hasCond ? 'cond' : 'none'}
         options={[{ label: '默认(无条件)', value: 'none' }, { label: '设置条件', value: 'cond' }]}
-        onChange={(v) => onCond(v === 'none' ? null : { rel: 'and', cond: [{ field: formFields[0]?.id || '', operator: 'gt', value: '' }] })} />
+        onChange={(v) => onCond(v === 'none' ? null : { rel: 'and', cond: [{ field: defaultField, operator: 'eq', value: '' }] })} />
       {hasCond && (
         <>
-          <Select size="small" style={{ width: '100%' }} placeholder="字段" value={c?.field}
-            options={formFields.filter((f) => f.type !== 'detail_table').map((f) => fieldOption({ value: f.id, label: f.label, type: f.type }))}
-            onChange={(v) => setLeaf({ field: v })} />
-          <Select size="small" style={{ width: '100%' }} value={c?.operator || 'gt'} options={OPERATORS} onChange={(v) => setLeaf({ operator: v })} />
-          <Input size="small" placeholder="值" value={(c?.value as string) ?? ''} onChange={(e) => setLeaf({ value: e.target.value })} />
+          <Space size={6} wrap>
+            <Text style={{ fontSize: 12 }}>满足</Text>
+            <Select size="small" style={{ width: 72 }} value={rel}
+              options={[{ label: '全部', value: 'and' }, { label: '任一', value: 'or' }]}
+              onChange={(v) => setConds(conds, v)} />
+            <Text style={{ fontSize: 12 }}>条件</Text>
+          </Space>
+          {conds.map((c, ci) => {
+            const noVal = c.operator === 'is_empty' || c.operator === 'is_not_empty'
+            return (
+              <div key={ci} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 8, background: '#fafafa', borderRadius: 6 }}>
+                <Select size="small" style={{ width: '100%' }} placeholder="字段" value={c.field || undefined}
+                  options={fieldOpts}
+                  onChange={(v) => setConds(conds.map((x, k) => (k === ci ? { ...x, field: v } : x)))} />
+                <Select size="small" style={{ width: '100%' }} value={c.operator || 'eq'} options={OPERATORS}
+                  onChange={(v) => setConds(conds.map((x, k) => (k === ci ? { ...x, operator: v } : x)))} />
+                {!noVal && (
+                  <Input size="small"
+                    placeholder={c.operator === 'in' || c.operator === 'not_in' ? '多个值用逗号分隔' : '值'}
+                    value={valueToInput(c.value)}
+                    onChange={(e) => setConds(conds.map((x, k) => (
+                      k === ci ? { ...x, value: parseCondValue(c.operator, e.target.value) } : x
+                    )))} />
+                )}
+                <Button size="small" type="text" danger icon={<DeleteOutlined />} disabled={conds.length <= 1}
+                  onClick={() => setConds(conds.filter((_, k) => k !== ci))} style={{ alignSelf: 'flex-end' }}>
+                  删除此条
+                </Button>
+              </div>
+            )
+          })}
+          <Button size="small" type="dashed" block icon={<PlusOutlined />}
+            onClick={() => setConds([...conds, { field: defaultField, operator: 'eq', value: '' }])}>
+            加条件
+          </Button>
         </>
       )}
       <Divider style={{ margin: '8px 0' }} />

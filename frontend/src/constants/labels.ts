@@ -87,11 +87,19 @@ export const quoteStatusColors: Record<string, string> = {
 }
 
 // --- Contract ---
+// 主合同 Contract.status = draft/signed/terminated（签署前一直是 draft）
 export const contractStatusLabels: Record<string, string> = {
   draft: '草稿', signed: '已签署', terminated: '已终止',
 }
 export const contractStatusColors: Record<string, string> = {
   draft: 'default', signed: 'success', terminated: 'error',
+}
+// 合同版本 ContractVersion.status（审批写回的是版本，不是主合同）
+export const contractVersionStatusLabels: Record<string, string> = {
+  draft: '草稿', submitted: '审批中', approved: '已通过', rejected: '已驳回', signed: '已签署',
+}
+export const contractVersionStatusColors: Record<string, string> = {
+  draft: 'default', submitted: 'processing', approved: 'success', rejected: 'error', signed: 'success',
 }
 
 // --- Solution ---

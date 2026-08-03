@@ -90,6 +90,67 @@ async def test_default_lead_flow_is_provisioned_and_published(client: AsyncClien
     assert approval[0]["empty_strategy"] == "auto_approve"
 
 
+@pytest.mark.asyncio
+async def test_list_definitions_seeds_contract_default_flows(client: AsyncClient, auth_headers, db):
+    """打开流程管理列表应幂等补齐合同版本/合同评审默认流，无需等业务首次提交。"""
+    from app.domains.lowcode.workflow_models import WfProcessDefinition, WfProcessDefinitionVersion
+
+    resp = await client.get("/api/v1/lc/wf/definitions", headers=auth_headers, params={"pageNo": 1, "pageSize": 50})
+    assert resp.json()["code"] == 0, resp.json()
+    items = resp.json()["data"]["items"]
+    by_code = {i["code"]: i for i in items}
+    assert "SYS_CONTRACT_VERSION_APPROVAL" in by_code
+    assert by_code["SYS_CONTRACT_VERSION_APPROVAL"]["biz_type"] == "contract_version"
+    assert by_code["SYS_CONTRACT_VERSION_APPROVAL"]["status"] == "published"
+    assert "SYS_CONTRACT_REVIEW_APPROVAL" in by_code
+    assert by_code["SYS_CONTRACT_REVIEW_APPROVAL"]["biz_type"] == "contract_review"
+    assert by_code["SYS_CONTRACT_REVIEW_APPROVAL"]["status"] == "published"
+
+    # DB 侧确认 category=system_default
+    for code in ("SYS_CONTRACT_VERSION_APPROVAL", "SYS_CONTRACT_REVIEW_APPROVAL"):
+        d = (await db.execute(select(WfProcessDefinition).where(
+            WfProcessDefinition.tenant_id == DEMO_TENANT,
+            WfProcessDefinition.code == code,
+        ))).scalar_one_or_none()
+        assert d is not None and d.category == "system_default"
+
+    # 合同版本：简道云登记运营图（财务 + merge_ops + 标准交付条件）
+    cv = (await db.execute(select(WfProcessDefinition).where(
+        WfProcessDefinition.tenant_id == DEMO_TENANT,
+        WfProcessDefinition.code == "SYS_CONTRACT_VERSION_APPROVAL",
+    ))).scalar_one()
+    ver = (await db.execute(select(WfProcessDefinitionVersion).where(
+        WfProcessDefinitionVersion.process_definition_id == cv.id,
+        WfProcessDefinitionVersion.status == "published",
+    ).order_by(WfProcessDefinitionVersion.version_number.desc()))).scalars().first()
+    assert ver is not None
+    ids = {n.get("id") for n in (ver.node_definitions or [])}
+    assert "approval_finance" in ids and "merge_ops" in ids
+    assert "approval_production" in ids and "approval_procurement" in ids
+    cond_routes = [r for r in (ver.route_definitions or []) if r.get("condition")]
+    assert any(
+        any(c.get("field") == "standard_delivery" for c in (r.get("condition") or {}).get("cond", []))
+        for r in cond_routes
+    )
+
+    # 合同评审：会签汇聚 + 总经理/财务意见 + 法务可填风险
+    cr = (await db.execute(select(WfProcessDefinition).where(
+        WfProcessDefinition.tenant_id == DEMO_TENANT,
+        WfProcessDefinition.code == "SYS_CONTRACT_REVIEW_APPROVAL",
+    ))).scalar_one()
+    cr_ver = (await db.execute(select(WfProcessDefinitionVersion).where(
+        WfProcessDefinitionVersion.process_definition_id == cr.id,
+        WfProcessDefinitionVersion.status == "published",
+    ).order_by(WfProcessDefinitionVersion.version_number.desc()))).scalars().first()
+    assert cr_ver is not None
+    cr_by_id = {n.get("id"): n for n in (cr_ver.node_definitions or [])}
+    assert "merge_review" in cr_by_id and "approval_gm" in cr_by_id
+    assert "approval_biz" in cr_by_id and "approval_legal" in cr_by_id
+    legal_fp = cr_by_id["approval_legal"].get("field_perms") or []
+    assert any(p.get("field") == "legal_risk" for p in legal_fp)
+    assert cr_by_id["approval_gm"].get("opinion_required") is True
+
+
 # ---------- 降级语义 ----------
 
 @pytest.mark.asyncio
@@ -193,6 +254,7 @@ async def test_lead_review_pending_then_reject_writes_reason(client: AsyncClient
 
     await WorkflowEngine(db, DEMO_TENANT).act(
         task.id, {"sub": reviewer_id, "real_name": "测试内勤"}, "reject", opinion="资料不全",
+        allow_lead_intel=True,
     )
 
     await db.refresh(lead)
@@ -223,6 +285,7 @@ async def test_lead_approve_clears_previous_reject_reason(client: AsyncClient, a
 
     await WorkflowEngine(db, DEMO_TENANT).act(
         task.id, {"sub": reviewer_id, "real_name": "测试内勤"}, "approve", opinion="ok",
+        allow_lead_intel=True,
     )
 
     await db.refresh(lead)
@@ -298,6 +361,7 @@ async def test_notifies_reviewer_on_submit_and_initiator_on_reject(
     ))).scalars().first()
     await WorkflowEngine(db, DEMO_TENANT).act(
         task.id, {"sub": lead_intel_user, "real_name": "测试内勤"}, "reject", opinion="不合格",
+        allow_lead_intel=True,
     )
 
     # 驳回 → 发起人收到 approval_decided
@@ -489,3 +553,69 @@ async def test_intel_draft_keeps_pending(client, db, lead_intel_user):
         decision="include", task_id=task.id, customer_newness="old",
     )
     assert lead2.review_status == "approved"
+
+
+@pytest.mark.asyncio
+async def test_lead_bare_approve_rejected(client, db, lead_intel_user):
+    """审批中心裸通过线索必须被引擎拒绝，须走情报裁定。"""
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+    from app.common.exceptions import BusinessException
+
+    _ = client
+    initiator = await _admin_user(db)
+    reviewer_id = lead_intel_user
+    lead_id = await _create_pending_lead(db, "裸通过拦截", initiator)
+    task = await _pending_task_for_lead(db, lead_id, reviewer_id)
+
+    with pytest.raises(BusinessException) as ei:
+        await WorkflowEngine(db, DEMO_TENANT).act(
+            task.id, {"sub": reviewer_id, "real_name": "测试内勤"}, "approve", opinion="ok",
+        )
+    assert "情报审批" in ei.value.message
+
+    with pytest.raises(BusinessException) as ei2:
+        await WorkflowEngine(db, DEMO_TENANT).act(
+            task.id, {"sub": reviewer_id, "real_name": "测试内勤"}, "reject", opinion="no",
+        )
+    assert "情报审批" in ei2.value.message
+
+    await db.refresh(task)
+    assert task.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_intel_attack_cc_not_convert_prompt(client, db, lead_intel_user):
+    """袭击后抄送负责人的文案不得引导转化。"""
+    from app.domains.lead import service as lead_svc
+    from app.domains.lead.models import Lead
+    from app.domains.notification.models import Notification
+
+    _ = client
+    initiator = await _admin_user(db)
+    reviewer_id = lead_intel_user
+    lead_id = await _create_pending_lead(db, "袭击-抄送文案", initiator)
+    lead = (await db.execute(select(Lead).where(Lead.id == lead_id))).scalar_one()
+    owner_id = lead.owner_id or initiator["sub"]
+    if lead.owner_id != owner_id:
+        lead.owner_id = owner_id
+        await db.commit()
+
+    task = await _pending_task_for_lead(db, lead_id, reviewer_id)
+    await lead_svc.intel_review_lead(
+        db, DEMO_TENANT, lead_id,
+        {"sub": reviewer_id, "real_name": "测试内勤", "username": "intel"},
+        decision="attack", task_id=task.id, customer_newness="new",
+    )
+
+    notes = (await db.execute(select(Notification).where(
+        Notification.tenant_id == DEMO_TENANT,
+        Notification.recipient_id == owner_id,
+        Notification.biz_type == "lead",
+        Notification.biz_id == lead_id,
+    ))).scalars().all()
+    assert notes, "袭击后负责人应收到抄送通知"
+    for n in notes:
+        body = f"{n.title or ''}\n{n.content or ''}"
+        assert "袭击" in body
+        assert "自行选择是否转化" not in body
+        assert "请转化为" not in body

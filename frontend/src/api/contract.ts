@@ -6,8 +6,14 @@ export const contractApi = {
     client.get('/api/v1/contracts', { params }),
   listByProject: (projectId: string) =>
     client.get<unknown, ApiResponse<ContractItem[]>>(`/api/v1/projects/${projectId}/contracts`),
-  create: (projectId: string, data: Record<string, unknown>) =>
-    client.post<unknown, ApiResponse<{ contract: ContractItem; version: ContractVersion }>>(`/api/v1/projects/${projectId}/contracts`, data),
+  create: (projectId: string | null | undefined, data: Record<string, unknown>) =>
+    projectId
+      ? client.post<unknown, ApiResponse<{ contract: ContractItem; version: ContractVersion }>>(
+        `/api/v1/projects/${projectId}/contracts`, data,
+      )
+      : client.post<unknown, ApiResponse<{ contract: ContractItem; version: ContractVersion }>>(
+        '/api/v1/contracts', { ...data, project_id: null },
+      ),
   get: (id: string) =>
     client.get<unknown, ApiResponse<ContractItem>>(`/api/v1/contracts/${id}`),
   update: (id: string, data: Record<string, unknown>) =>
@@ -26,6 +32,8 @@ export const contractApi = {
     client.get<unknown, ApiResponse<ContractVersion>>(`/api/v1/contract_versions/${vid}`),
   updateVersion: (vid: string, data: Record<string, unknown>) =>
     client.put<unknown, ApiResponse<ContractVersion>>(`/api/v1/contract_versions/${vid}`, data),
+  submitVersion: (vid: string, data?: { assignee_ids?: string[]; assignee_names?: string[] }) =>
+    client.post<unknown, ApiResponse<ContractVersion>>(`/api/v1/contract_versions/${vid}/submit`, data || {}),
 
   // Renewal
   renew: (contractId: string) =>

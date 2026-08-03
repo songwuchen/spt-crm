@@ -76,7 +76,10 @@ function getBreadcrumbs(pathname: string) {
         items.push({ title: <span className="text-slate-700 font-semibold">方案详情</span> })
         break
       } else if (breadcrumbNameMap['/' + parts.slice(0, i).join('/')]) {
-        items.push({ title: <span className="text-slate-700 font-semibold">详情</span> })
+        // 合同管理下的 /contracts/:id →「合同详情」；商机下的 uuid 段仍为「详情」
+        const parentPath = '/' + parts.slice(0, i).join('/')
+        const label = parentPath === '/contracts' ? '合同详情' : '详情'
+        items.push({ title: <span className="text-slate-700 font-semibold">{label}</span> })
       }
     }
   }

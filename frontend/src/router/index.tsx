@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { createBrowserRouter, redirect, Navigate } from 'react-router-dom'
+import { createBrowserRouter, redirect, Navigate, useLocation } from 'react-router-dom'
 import { Spin } from 'antd'
 import MainLayout from '@/layouts/MainLayout'
 import MobileLayout from '@/layouts/MobileLayout'
@@ -42,7 +42,11 @@ const FormFillPage = lazy(() => import('@/pages/lowcode/FormFillPage'))
 const FormDataListPage = lazy(() => import('@/pages/lowcode/FormDataListPage'))
 const WorkflowList = lazy(() => import('@/pages/lowcode/WorkflowList'))
 const WorkflowDesignerPage = lazy(() => import('@/pages/lowcode/WorkflowCanvasPage'))
-const LcApprovalCenter = lazy(() => import('@/pages/lowcode/ApprovalCenter'))
+/** 桌面端审批入口已统一到 /approvals；旧路径保留重定向以免书签失效 */
+function RedirectLowcodeApprovals() {
+  const loc = useLocation()
+  return <Navigate to="/approvals" replace state={loc.state} />
+}
 const LcDashboardList = lazy(() => import('@/pages/lowcode/DashboardList'))
 const LcDashboardPage = lazy(() => import('@/pages/lowcode/DashboardPage'))
 const LcEntityFieldsAdmin = lazy(() => import('@/pages/lowcode/EntityFieldsAdmin'))
@@ -160,7 +164,7 @@ export const router = createBrowserRouter([
       { path: 'lowcode/forms/:id/data', element: <Guard permission="form_data:view"><FormDataListPage /></Guard> },
       { path: 'lowcode/workflows', element: <Guard permission="workflow:view"><WorkflowList /></Guard> },
       { path: 'lowcode/workflows/:id/design', element: <Guard permission="workflow:manage"><WorkflowDesignerPage /></Guard> },
-      { path: 'lowcode/approvals', element: <Lazy><LcApprovalCenter /></Lazy> },
+      { path: 'lowcode/approvals', element: <RedirectLowcodeApprovals /> },
       { path: 'lowcode/dashboards', element: <Guard permission="dashboard:view"><LcDashboardList /></Guard> },
       { path: 'lowcode/dashboards/:id', element: <Guard permission="dashboard:view"><LcDashboardPage /></Guard> },
       { path: 'lowcode/entity-fields', element: <Guard permission="form:manage"><LcEntityFieldsAdmin /></Guard> },

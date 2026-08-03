@@ -55,9 +55,33 @@ const FIELD_CATALOG: Record<string, FieldDef[]> = {
   ],
   contract_version: [
     { value: 'amount', label: '合同金额', type: 'number' },
+    { value: 'amount_total', label: '合同总金额', type: 'number' },
     { value: 'risk_level', label: '风险等级', type: 'enum', options: [
       { value: 'L', label: '低' }, { value: 'M', label: '中' }, { value: 'H', label: '高' },
     ] },
+    { value: 'change_type', label: '合同状态', type: 'enum', options: [
+      { value: 'new', label: '新增' }, { value: 'change', label: '变动' },
+    ] },
+    { value: 'department_id', label: '部门', type: 'text' },
+    { value: 'industry', label: '行业分类', type: 'text' },
+    { value: 'is_export', label: '设备是否出口', type: 'enum', options: [
+      { value: '是', label: '是' }, { value: '否', label: '否' },
+    ] },
+  ],
+  contract_review: [
+    { value: 'contract_amount', label: '合同金额', type: 'number' },
+    { value: 'is_export', label: '是否出口合同', type: 'enum', options: [
+      { value: '是', label: '是' }, { value: '否', label: '否' },
+    ] },
+    { value: 'need_install', label: '是否需要安装', type: 'text' },
+    { value: 'department_id', label: '部门', type: 'text' },
+    { value: 'industry', label: '所属行业', type: 'text' },
+    { value: 'legal_risk', label: '法务风险', type: 'text' },
+    { value: 'tech_risk', label: '技术风险', type: 'text' },
+    { value: 'biz_risk', label: '业务风险', type: 'text' },
+    { value: 'finance_risk', label: '财务风险', type: 'text' },
+    { value: 'purchase_risk', label: '采购风险', type: 'text' },
+    { value: 'export_risk', label: '出口风险', type: 'text' },
   ],
   change_request: [
     { value: 'change_type', label: '变更类型', type: 'enum', options: [
@@ -137,12 +161,13 @@ const ESCALATION_ACTION_OPTIONS = [
 
 const BIZ_TYPE_OPTIONS = [
   { value: 'quote_version', label: '报价审批' },
-  { value: 'contract_version', label: '合同审批' },
+  { value: 'contract_version', label: '合同版本审批' },
+  { value: 'contract_review', label: '合同评审会签' },
   { value: 'change_request', label: '变更审批' },
   { value: 'solution', label: '方案审批' },
   { value: 'service_ticket', label: '售后工单审批' },
   { value: 'order', label: '订单审批' },
-  { value: 'lead', label: '线索审核' },
+  { value: 'lead', label: '线索审核（已迁可视化流程，仅历史）' },
 ]
 
 const MODE_OPTIONS = [

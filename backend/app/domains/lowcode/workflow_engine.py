@@ -118,6 +118,9 @@ class WorkflowEngine:
         """
         if not self._notify:
             return
+        # 注意：WF_SKIP_EXTERNAL_NOTIFY 只应跳过钉钉/群消息外呼，不能清空本队列——
+        # 否则站内「审批待处理」通知也会一起丢掉（本地联调踩过坑）。
+        # 外呼跳过在 wf_notify.notify_tasks_created / dispatch_todo 内读取该环境变量。
         pending, self._notify = self._notify, []
         from app.domains.lowcode import wf_notify
         for item in pending:
@@ -422,7 +425,9 @@ class WorkflowEngine:
     # ---------- 审批动作 ----------
 
     async def act(self, task_id: str, actor: dict, action: str, opinion: str | None = None,
-                  transfer_to: str | None = None, return_to: str | None = None) -> None:
+                  transfer_to: str | None = None, return_to: str | None = None,
+                  field_updates: dict | None = None, *,
+                  allow_lead_intel: bool = False) -> None:
         task = (await self.db.execute(
             select(WfTaskInstance).where(
                 WfTaskInstance.id == task_id, WfTaskInstance.tenant_id == self.tenant_id,
@@ -451,14 +456,37 @@ class WorkflowEngine:
         inst = await self.db.get(WfProcessInstance, task.process_instance_id)
         if not inst or inst.status != "running":
             raise BusinessException(code=BUSINESS_ERROR, message="流程已结束")
+
+        # 线索审核必须走情报裁定（收录/袭击/回退/暂存），禁止审批中心裸通过/驳回绕过必填
+        if (
+            inst.biz_type == "lead"
+            and action in ("approve", "reject")
+            and not allow_lead_intel
+        ):
+            raise BusinessException(
+                code=VALIDATION_ERROR,
+                message="线索审核请使用情报审批（收录/袭击/回退），不可直接通过或驳回",
+            )
+
         version = await self.db.get(WfProcessDefinitionVersion, inst.process_version_id)
         ctx = ApprovalContext(initiator_id=inst.initiator_id, form_data=await self._form_data(inst),
                               nominated=inst.nominated_approvers or {})
 
+        # 审批通过：按节点 field_perms 写回业务字段（对齐简道云 optAuth）
+        if action == "approve":
+            await self._apply_node_field_updates(
+                inst, version, task, field_updates, opinion=opinion, action=action,
+            )
+            ctx.form_data = await self._form_data(inst)
+
         if action == "comment":
+            content = (opinion or "").strip()
+            if not content:
+                raise BusinessException(code=VALIDATION_ERROR, message="请填写评论内容")
+            # 评论不推进/不完结待办，仅写入讨论区
             self.db.add(WfProcessComment(
                 id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
-                user_id=actor.get("sub"), user_name=actor.get("real_name"), content=opinion or "",
+                user_id=actor.get("sub"), user_name=actor.get("real_name"), content=content,
             ))
             await self.db.commit()
             return
@@ -515,6 +543,65 @@ class WorkflowEngine:
         await self.db.commit()
         await self.flush_notifications(inst)
         await self._audit(inst, actor, "approve")
+
+    async def _apply_node_field_updates(
+        self, inst, version, task, field_updates: dict | None, *,
+        opinion: str | None, action: str,
+    ) -> None:
+        from app.domains.lowcode.wf_field_writeback import (
+            apply_field_updates, parse_field_perms, validate_field_updates,
+        )
+        node_inst = await self.db.get(WfNodeInstance, task.node_instance_id)
+        node_def_id = node_inst.node_def_id if node_inst else None
+        node = self._nodes_by_id(version).get(node_def_id or "") or {}
+        perms = parse_field_perms(node)
+        opinion_required = bool(node.get("opinion_required"))
+        # 无配置且无提交时跳过；有提交或必填/意见要求则走校验
+        if not perms and not field_updates and not opinion_required:
+            return
+        filtered = validate_field_updates(
+            perms, field_updates, opinion=opinion,
+            opinion_required=opinion_required, action=action,
+        )
+        if action == "approve" and filtered:
+            await self._assert_person_field_values(inst.biz_type, filtered)
+        if filtered:
+            await apply_field_updates(
+                self.db, self.tenant_id,
+                biz_type=inst.biz_type, biz_id=inst.biz_id,
+                form_instance_id=inst.form_instance_id,
+                updates=filtered,
+            )
+
+    async def _assert_person_field_values(self, biz_type: str | None, updates: dict) -> None:
+        """人员字段必须能解析到在职用户（供下一节点 form_field_person 使用）。"""
+        from app.domains.lowcode.biz_field_catalog import get_catalog
+        from app.domains.lowcode.approver_resolver import ApproverResolver
+        catalog = {f["id"]: f for f in get_catalog(biz_type or "")}
+        person_keys = [
+            k for k, v in updates.items()
+            if (catalog.get(k) or {}).get("type") in ("person", "user") and v not in (None, "")
+        ]
+        if not person_keys:
+            return
+        resolver = ApproverResolver(self.db, self.tenant_id)
+        labels = {f["id"]: f.get("label") or f["id"] for f in catalog.values()}
+        active = await resolver._active_user_ids()
+        for key in person_keys:
+            raw = updates[key]
+            candidates = raw if isinstance(raw, list) else [raw]
+            resolved: list[str] = []
+            for item in candidates:
+                uid = await resolver._resolve_user_identifier(str(item))
+                if uid and uid in active:
+                    resolved.append(uid)
+            if not resolved:
+                raise BusinessException(
+                    code=VALIDATION_ERROR,
+                    message=f"请选择有效的{labels.get(key, key)}（须从组织架构选择）",
+                )
+            # 写回统一为 user_id，便于下一节点解析
+            updates[key] = resolved[0] if len(resolved) == 1 and not isinstance(raw, list) else resolved
 
     async def _on_task_approved(self, inst, version, task, ctx) -> None:
         ni = await self.db.get(WfNodeInstance, task.node_instance_id)
@@ -810,3 +897,21 @@ class WorkflowEngine:
                 pass
         await self.db.commit()
         return n
+
+    # ---------- 数据评论（对齐简道云，与审批意见无关） ----------
+
+    async def add_comment(self, process_instance_id: str, actor: dict, content: str) -> None:
+        text = (content or "").strip()
+        if not text:
+            raise BusinessException(code=VALIDATION_ERROR, message="请填写评论内容")
+        inst = (await self.db.execute(select(WfProcessInstance).where(
+            WfProcessInstance.id == process_instance_id,
+            WfProcessInstance.tenant_id == self.tenant_id,
+        ))).scalar_one_or_none()
+        if not inst:
+            raise BusinessException(code=NOT_FOUND, message="流程不存在")
+        self.db.add(WfProcessComment(
+            id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
+            user_id=actor.get("sub"), user_name=actor.get("real_name"), content=text,
+        ))
+        await self.db.commit()

@@ -114,3 +114,52 @@ async def delete_review(db: AsyncSession, tenant_id: str, rid: str, user: dict):
         action="delete", resource_type="contract_review", resource_id=rid,
         summary=f"删除合同评审: {code}",
     )
+
+
+CONTRACT_REVIEW_DEFAULT_FLOW_CODE = "SYS_CONTRACT_REVIEW_APPROVAL"
+
+
+async def submit_for_approval(
+    db: AsyncSession, tenant_id: str, rid: str, user: dict,
+) -> ContractReview:
+    """提交合同评审审批：ensure 默认流程 + start_for_biz，状态 → submitted。"""
+    row = await get_review(db, tenant_id, rid)
+    if row.status not in ("draft", "rejected"):
+        raise BusinessException(
+            code=VALIDATION_ERROR,
+            message=f"当前状态「{row.status}」不可提交审批（仅草稿/已驳回可提交）",
+        )
+
+    from app.domains.lowcode.workflow_service import ensure_default_definition, start_for_biz
+
+    await ensure_default_definition(
+        db, tenant_id,
+        biz_type="contract_review",
+        code=CONTRACT_REVIEW_DEFAULT_FLOW_CODE,
+        name="合同评审会签",
+        # 系统兜底图在 workflow_service._contract_review_flow_graph（简道云会签主干）
+        approver_rule={"type": "specified_role", "value": "sales_manager", "exclude_initiator": True},
+        multi_mode="or_sign",
+        empty_strategy="auto_approve",
+    )
+
+    row.status = "submitted"
+    await db.flush()
+
+    title = f"合同评审: {row.review_code} {row.company_name or row.project_title or ''}".strip()
+    pinst = await start_for_biz(db, tenant_id, "contract_review", row.id, user, title=title)
+    if pinst is None:
+        raise BusinessException(
+            code=VALIDATION_ERROR,
+            message="未找到已发布的合同评审流程，请先在扩展平台→流程管理中发布并绑定 contract_review",
+        )
+
+    await db.commit()
+    await db.refresh(row)
+    await log_action(
+        db, tenant_id=tenant_id, user_id=user["sub"],
+        user_name=user.get("real_name") or user.get("username"),
+        action="submit", resource_type="contract_review", resource_id=row.id,
+        summary=f"提交合同评审审批: {row.review_code}",
+    )
+    return row

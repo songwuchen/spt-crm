@@ -42,4 +42,6 @@ export const contractReviewApi = {
     client.put<unknown, ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}`, data),
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/contract-reviews/${id}`),
+  submit: (id: string) =>
+    client.post<unknown, ApiResponse<ContractReview>>(`/api/v1/contract-reviews/${id}/submit`),
 }

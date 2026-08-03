@@ -205,6 +205,11 @@ export interface WfApproverRule {
   levels?: number
 }
 
+export interface WfFieldPerm {
+  field: string
+  access: 'editable' | 'required'
+}
+
 export interface WfNode {
   id: string
   type: WfNodeType
@@ -214,6 +219,20 @@ export interface WfNode {
   empty_strategy?: 'auto_approve' | 'terminate'
   timeout?: WfTimeout | null            // 审批节点超时(SLA)配置
   position?: { x: number; y: number }  // 可视化画布节点坐标
+  /** 本节点审批时可填业务字段（对齐简道云 optAuth） */
+  field_perms?: WfFieldPerm[]
+  /** 通过时必须填写审批意见 */
+  opinion_required?: boolean
+}
+
+export interface WfCurrentTask {
+  task_id: string
+  node_id?: string | null
+  node_name?: string
+  field_perms: WfFieldPerm[]
+  opinion_required?: boolean
+  field_meta: { id: string; label: string; type: string }[]
+  field_values: Record<string, unknown>
 }
 
 export interface WfRoute {
@@ -250,9 +269,13 @@ export interface WfTodoItem {
   initiator_id?: string
   initiator_name?: string | null
   process_status?: string
+  /** 当前待办节点名，如「财务审核」 */
+  node_name?: string | null
   // 承载的业务单据（线索/合同/订单…），用于把待办关联回业务详情页
   biz_type?: string | null
   biz_id?: string | null
+  /** 合同版本等：指向父单据 id（如 contract_id），便于跳转详情 */
+  biz_ref_id?: string | null
   created_at?: string
   action_at?: string
   on_behalf_of?: boolean       // 代理审批：该待办由本人代委托人处理
@@ -266,6 +289,25 @@ export interface WfTimelineItem {
   actor_name?: string
   opinion?: string
   at?: string
+  node_name?: string | null
+}
+
+/** 流程动态节点（对齐简道云右侧时间线） */
+export interface WfFlowStep {
+  node_instance_id: string
+  node_def_id?: string
+  node_name: string
+  node_type?: string
+  status: string
+  status_text?: string
+  assignees?: { id: string; name: string; status: string }[]
+  handler_name?: string | null
+  action?: string | null
+  opinion?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+  duration?: string | null
+  is_current?: boolean
 }
 
 export interface WfInstanceDetail {
@@ -277,8 +319,13 @@ export interface WfInstanceDetail {
   form_instance_id?: string | null
   biz_type?: string | null
   biz_id?: string | null
+  biz_ref_id?: string | null
   /** 业务单据审批（无自定义表单）时的关键字段，label→value */
   biz_detail?: Record<string, string | number>
+  /** 当前登录人待办（含本节点可填字段） */
+  current_task?: WfCurrentTask | null
+  /** 流程动态（按节点，最新在前） */
+  flow_steps?: WfFlowStep[]
   started_at?: string | null
   completed_at?: string | null
   timeline: WfTimelineItem[]

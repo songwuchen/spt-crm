@@ -131,8 +131,9 @@ export default function ContractList() {
       const fmt = (d: unknown) => (d && dayjs.isDayjs(d) ? d.format('YYYY-MM-DD') : undefined)
       const lines = createLines.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
       const pays = createPay.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
-      const res = await contractApi.create(v.project_id, {
+      const res = await contractApi.create(v.project_id || null, {
         title: v.title || 'V1',
+        ...(v.project_id ? { project_id: v.project_id } : {}),
         ...(v.amount_total != null ? { amount_total: v.amount_total } : {}),
         ...(fmt(v.end_date) ? { end_date: fmt(v.end_date) } : {}),
         ...(fmt(v.delivery_date) ? { delivery_date: fmt(v.delivery_date) } : {}),
@@ -165,7 +166,7 @@ export default function ContractList() {
       setCreateOpen(false)
       setCustomFields({})
       setPendingAtts({})
-      if (cid) navigate(`/opportunities/${v.project_id}/contracts/${cid}`)
+      if (cid) navigate(`/contracts/${cid}`)
       else fetchData()
     } catch { message.error('创建失败') } finally { setCreating(false) }
   }
@@ -189,9 +190,7 @@ export default function ContractList() {
   const columns: ColumnsType<ContractItem> = [
     { title: '合同编号', dataIndex: 'contract_no', width: 160,
       render: (v: string, r: ContractItem) => (
-        <a className="font-mono font-bold text-primary" onClick={() => navigate(
-          r.project_id ? `/opportunities/${r.project_id}/contracts/${r.id}` : `/contracts/${r.id}`
-        )}>{v}</a>
+        <a className="font-mono font-bold text-primary" onClick={() => navigate(`/contracts/${r.id}`)}>{v}</a>
       ),
     },
     { title: '图纸编号', dataIndex: 'drawing_no', width: 140, ellipsis: true, render: (v: string) => v || '-' },
@@ -265,10 +264,10 @@ export default function ContractList() {
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
        <FieldPolicyProvider entityType="contract" form={createForm} customFieldValues={customFields}>
         <Form form={createForm} layout="vertical" className="mt-3" scrollToFirstError>
-          <Form.Item name="project_id" label="关联商机" rules={[{ required: true, message: '请选择关联商机' }]}>
-            <Select showSearch filterOption={false} placeholder="搜索商机名称 / 编号"
+          <Form.Item name="project_id" label="关联商机">
+            <Select allowClear showSearch filterOption={false} placeholder="可选：搜索商机名称 / 编号"
               options={projOpts} loading={projLoading} onSearch={searchProjects}
-              onChange={(id) => { void fillFromProject(id) }}
+              onChange={(id) => { if (id) void fillFromProject(id) }}
               onDropdownVisibleChange={(o) => { if (o && projOpts.length === 0) searchProjects() }} />
           </Form.Item>
           <Form.Item name="title" label="合同标题"><Input placeholder="如：设备采购合同（默认 V1）" /></Form.Item>

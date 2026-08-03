@@ -35,6 +35,7 @@ export default function WorkflowDesignerPage() {
   const nav = useNavigate()
   const [name, setName] = useState('')
   const [formTemplateId, setFormTemplateId] = useState<string | null>(null)
+  const [bizType, setBizType] = useState<string | null>(null)
   const [formFields, setFormFields] = useState<FieldDefinition[]>([])
   const [middle, setMiddle] = useState<WfNode[]>([])
   const [loading, setLoading] = useState(true)
@@ -47,6 +48,7 @@ export default function WorkflowDesignerPage() {
         const def = await workflowApi.getDef(id)
         setName(def.data.name)
         setFormTemplateId(def.data.form_template_id || null)
+        setBizType(def.data.biz_type || null)
         if (def.data.form_template_id) {
           try {
             const ver = await lowcodeApi.publishedVersion(def.data.form_template_id)
@@ -131,7 +133,13 @@ export default function WorkflowDesignerPage() {
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={() => nav('/lowcode/workflows')}>返回</Button>
           <Title level={4} style={{ margin: 0 }}>设计流程 · {name}</Title>
-          {formTemplateId ? <Tag color="blue">已绑定表单</Tag> : <Tag>未绑定表单</Tag>}
+          {formTemplateId ? (
+            <Tag color="blue">已绑定表单</Tag>
+          ) : bizType ? (
+            <Tag color="geekblue">业务类型 · {bizType}</Tag>
+          ) : (
+            <Tag>未绑定</Tag>
+          )}
         </Space>
         <Space>
           <Button onClick={openJson}>高级(JSON/分支)</Button>

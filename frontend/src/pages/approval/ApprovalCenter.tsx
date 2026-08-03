@@ -1,13 +1,20 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Tabs, Tag, Space, Modal, Input, Button, message, Spin, Checkbox, Select, Card, Statistic, Row, Col, DatePicker } from 'antd'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Tabs, Tag, Space, Modal, Input, Button, message, Spin, Select, Card, Statistic, Row, Col, DatePicker, Popconfirm } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { CheckCircleOutlined, CloseCircleOutlined, SwapOutlined, UndoOutlined, RedoOutlined, BarChartOutlined, FilterOutlined } from '@ant-design/icons'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { approvalApi } from '@/api/approval'
-import { workflowApi } from '@/api/lowcodeWorkflow'
+import {
+  fetchUnifiedPending, decideUnified, fetchUnifiedMine, fetchUnifiedDone,
+  type UnifiedPendingItem, type UnifiedMineItem, type UnifiedDoneItem,
+} from '@/api/unifiedApprovals'
+import { workflowApi, type WfAgent } from '@/api/lowcodeWorkflow'
+import { useWfProcessDrawer } from '@/components/lowcode/WfProcessDrawer'
+import PersonField from '@/components/lowcode/fields/PersonField'
+import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import client from '@/api/client'
 import { useAuthStore } from '@/stores/useAuthStore'
-import type { ApprovalFlowItem, ApprovalPendingItem } from '@/api/types'
+import type { ApprovalFlowItem } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import {
   approvalBizTypeLabels as bizTypeLabels,
@@ -21,17 +28,41 @@ import {
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { useUserSelect } from '@/hooks/useSelectOptions'
+import dayjs from 'dayjs'
 
 import Icon from '@/components/Icon'
 export default function ApprovalCenter() {
   usePageTitle('审批中心')
   const navigate = useNavigate()
+  const location = useLocation()
   const userInfo = useAuthStore((s) => s.user)
-  const [pending, setPending] = useState<ApprovalPendingItem[]>([])
+  const [pending, setPending] = useState<UnifiedPendingItem[]>([])
   const [allFlows, setAllFlows] = useState<ApprovalFlowItem[]>([])
+  const [mineItems, setMineItems] = useState<UnifiedMineItem[]>([])
+  const [doneItems, setDoneItems] = useState<UnifiedDoneItem[]>([])
+  const [ccItems, setCcItems] = useState<Array<{
+    cc_id: string
+    process_instance_id: string
+    title?: string
+    status?: string
+    biz_type?: string
+    initiator_name?: string
+    is_read: boolean
+    created_at?: string
+  }>>([])
+  const [agents, setAgents] = useState<WfAgent[]>([])
+  const [tabLoading, setTabLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('pending')
   const [loading, setLoading] = useState(true)
+  // 撤回：兼容两套引擎
+  const [withdrawEngine, setWithdrawEngine] = useState<'legacy' | 'wf'>('legacy')
+  // 代理设置
+  const [agentModal, setAgentModal] = useState(false)
+  const [agentUserId, setAgentUserId] = useState<unknown>(undefined)
+  const [agentRange, setAgentRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null)
+  const [agentNote, setAgentNote] = useState('')
   const [decideModal, setDecideModal] = useState(false)
-  const [currentTask, setCurrentTask] = useState<ApprovalPendingItem | null>(null)
+  const [currentTask, setCurrentTask] = useState<UnifiedPendingItem | null>(null)
   const [decideAction, setDecideAction] = useState<'approve' | 'reject'>('approve')
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -41,7 +72,7 @@ export default function ApprovalCenter() {
   const [detailLoading, setDetailLoading] = useState(false)
   // Delegate modal
   const [delegateModal, setDelegateModal] = useState(false)
-  const [delegateTaskId, setDelegateTaskId] = useState('')
+  const [delegateTask, setDelegateTask] = useState<UnifiedPendingItem | null>(null)
   const [delegateUserId, setDelegateUserId] = useState('')
   const [delegateReason, setDelegateReason] = useState('')
   // Withdraw modal
@@ -56,35 +87,102 @@ export default function ApprovalCenter() {
 
   // Statistics
   const [stats, setStats] = useState<Record<string, unknown> | null>(null)
-  // 新工作流引擎里的待办数（本页只展示旧引擎的数据）
-  const [wfPendingCount, setWfPendingCount] = useState(0)
   const [statsLoading, setStatsLoading] = useState(false)
 
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [pRes, fRes] = await Promise.all([
-        approvalApi.myPending(),
+      // 合同/线索等已切到新工作流引擎：待办必须聚合两套引擎，否则审批人在本页看不到
+      const [uRes, fRes] = await Promise.all([
+        fetchUnifiedPending(),
         approvalApi.list(),
       ])
-      setPending(pRes.data || [])
+      setPending(uRes.items || [])
       setAllFlows(fRes.data?.items || [])
-      // 已切到新工作流引擎的业务(线索等)待办不在本页数据源里，单独取个数用于给出入口，
-      // 避免用户在本页看不到待办而误以为没有。失败不影响本页主数据。
-      try {
-        const wfRes = await workflowApi.todo({ pageNo: 1, pageSize: 100 })
-        setWfPendingCount(wfRes?.data?.total ?? 0)
-      } catch {
-        setWfPendingCount(0)
-      }
     } finally {
       setLoading(false)
     }
   }
 
+  const loadMine = useCallback(async () => {
+    setTabLoading(true)
+    try {
+      setMineItems(await fetchUnifiedMine(userInfo?.id))
+    } finally {
+      setTabLoading(false)
+    }
+  }, [userInfo?.id])
+
+  const loadDone = useCallback(async () => {
+    setTabLoading(true)
+    try {
+      setDoneItems(await fetchUnifiedDone(userInfo?.id))
+    } finally {
+      setTabLoading(false)
+    }
+  }, [userInfo?.id])
+
+  const loadCc = useCallback(async () => {
+    setTabLoading(true)
+    try {
+      const r = await workflowApi.cc({ pageNo: 1, pageSize: 100 })
+      setCcItems(r.data?.items || [])
+    } finally {
+      setTabLoading(false)
+    }
+  }, [])
+
+  const loadAgents = useCallback(async () => {
+    setTabLoading(true)
+    try {
+      const r = await workflowApi.listAgents()
+      setAgents(r.data || [])
+    } finally {
+      setTabLoading(false)
+    }
+  }, [])
+
+  const onTabChange = (key: string) => {
+    setActiveTab(key)
+    if (key === 'stats' && !stats) loadStats()
+    if (key === 'mine') loadMine()
+    if (key === 'done') loadDone()
+    if (key === 'cc') loadCc()
+    if (key === 'agents') loadAgents()
+  }
+
+  const { openWith: openWfDrawer, node: wfDrawerNode } = useWfProcessDrawer(() => {
+    fetchData()
+    if (activeTab === 'mine') loadMine()
+    if (activeTab === 'done') loadDone()
+    if (activeTab === 'cc') loadCc()
+  })
+
   useEffect(() => { fetchData() }, [])
 
-  const openDecide = (task: ApprovalPendingItem, action: 'approve' | 'reject') => {
+  // 兼容旧链接 /lowcode/approvals 跳转带来的 state
+  useEffect(() => {
+    const st = (location.state || {}) as { openInstanceId?: string; openTaskId?: string }
+    if (!st.openInstanceId) return
+    openWfDrawer(st.openInstanceId, st.openTaskId || null)
+    navigate(location.pathname, { replace: true, state: {} })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state])
+
+  const openWfHandle = (item: UnifiedPendingItem) => {
+    if (!item.instanceId) {
+      message.warning('缺少流程实例，无法打开')
+      return
+    }
+    openWfDrawer(item.instanceId, item.taskId)
+  }
+
+  const openDecide = (task: UnifiedPendingItem, action: 'approve' | 'reject') => {
+    // 新引擎合同登记等节点可能要求填写采购员/质检员，本页抽屉处理
+    if (task.engine === 'wf') {
+      openWfHandle(task)
+      return
+    }
     setCurrentTask(task)
     setDecideAction(action)
     setComment('')
@@ -95,10 +193,12 @@ export default function ApprovalCenter() {
     if (!currentTask) return
     setSubmitting(true)
     try {
-      await approvalApi.decide(currentTask.id, { action: decideAction === 'approve' ? 'approved' : 'rejected', comment: comment || undefined })
+      await decideUnified(currentTask, decideAction, comment || undefined)
       message.success(decideAction === 'approve' ? '已通过' : '已驳回')
       setDecideModal(false)
       fetchData()
+    } catch {
+      message.error('审批操作失败')
     } finally {
       setSubmitting(false)
     }
@@ -167,8 +267,9 @@ export default function ApprovalCenter() {
   }
 
   // Withdraw
-  const openWithdraw = (flowId: string) => {
+  const openWithdraw = (flowId: string, engine: 'legacy' | 'wf' = 'legacy') => {
     setWithdrawFlowId(flowId)
+    setWithdrawEngine(engine)
     setWithdrawReason('')
     setWithdrawModal(true)
   }
@@ -176,28 +277,72 @@ export default function ApprovalCenter() {
   const handleWithdraw = async () => {
     setSubmitting(true)
     try {
-      await approvalApi.withdraw(withdrawFlowId, { reason: withdrawReason || undefined })
+      if (withdrawEngine === 'wf') {
+        await workflowApi.withdraw(withdrawFlowId)
+      } else {
+        await approvalApi.withdraw(withdrawFlowId, { reason: withdrawReason || undefined })
+      }
       message.success('审批已撤回')
       setWithdrawModal(false)
       fetchData()
+      loadMine()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleUrge = async (instanceId: string) => {
+    try {
+      const r = await workflowApi.urge(instanceId)
+      message.success(`已催办 ${r.data?.notified ?? 0} 人`)
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.warning(msg || '催办失败')
+    }
+  }
+
+  const saveAgent = async () => {
+    if (!agentUserId) { message.error('请选择代理人'); return }
+    if (!agentRange?.[0] || !agentRange?.[1]) { message.error('请选择代理时间段'); return }
+    setSubmitting(true)
+    try {
+      await workflowApi.createAgent({
+        agent_id: String(agentUserId),
+        start_time: agentRange[0].toISOString(),
+        end_time: agentRange[1].toISOString(),
+        note: agentNote || undefined,
+      })
+      message.success('已设置代理')
+      setAgentModal(false)
+      setAgentUserId(undefined)
+      setAgentRange(null)
+      setAgentNote('')
+      loadAgents()
+    } catch {
+      message.error('设置失败')
     } finally {
       setSubmitting(false)
     }
   }
 
   // Delegate
-  const openDelegate = (taskId: string) => {
-    setDelegateTaskId(taskId)
+  const openDelegate = (task: UnifiedPendingItem) => {
+    if (task.engine === 'wf') {
+      openWfHandle(task)
+      return
+    }
+    setDelegateTask(task)
     setDelegateUserId('')
     setDelegateReason('')
     setDelegateModal(true)
   }
 
   const handleDelegate = async () => {
+    if (!delegateTask) return
     if (!delegateUserId) { message.warning('请选择目标审批人'); return }
     setSubmitting(true)
     try {
-      await approvalApi.delegate(delegateTaskId, { target_user_id: delegateUserId, reason: delegateReason || undefined })
+      await approvalApi.delegate(delegateTask.taskId, { target_user_id: delegateUserId, reason: delegateReason || undefined })
       message.success('审批已转交')
       setDelegateModal(false)
       fetchData()
@@ -209,18 +354,29 @@ export default function ApprovalCenter() {
   // Bulk decide
   const handleBulkDecide = (action: 'approved' | 'rejected') => {
     if (selectedRowKeys.length === 0) { message.warning('请选择审批任务'); return }
+    const selected = pending.filter((p) => selectedRowKeys.includes(p.key))
+    const legacyIds = selected.filter((p) => p.engine === 'legacy').map((p) => p.taskId)
+    const wfItems = selected.filter((p) => p.engine === 'wf')
+    if (wfItems.length > 0 && legacyIds.length === 0) {
+      message.info('流程引擎待办请逐条点「处理」（可能需填写节点字段）')
+      return
+    }
     const label = action === 'approved' ? '通过' : '驳回'
     Modal.confirm({
       title: `批量${label}确认`,
-      content: `确定要${label} ${selectedRowKeys.length} 条审批任务吗？`,
+      content: wfItems.length
+        ? `将${label} ${legacyIds.length} 条旧引擎待办；另有 ${wfItems.length} 条流程待办需单独处理。`
+        : `确定要${label} ${legacyIds.length} 条审批任务吗？`,
       onOk: async () => {
         setSubmitting(true)
         try {
-          const res = await approvalApi.bulkDecide({ task_ids: selectedRowKeys, action })
-          const results = res.data || []
-          const successCount = results.filter((r: any) => r.success).length
-          const failCount = results.filter((r: any) => !r.success).length
-          message.info(`完成: 成功 ${successCount} 条，失败 ${failCount} 条`)
+          if (legacyIds.length) {
+            const res = await approvalApi.bulkDecide({ task_ids: legacyIds, action })
+            const results = res.data || []
+            const successCount = results.filter((r: any) => r.success).length
+            const failCount = results.filter((r: any) => !r.success).length
+            message.info(`完成: 成功 ${successCount} 条，失败 ${failCount} 条`)
+          }
           setSelectedRowKeys([])
           fetchData()
         } finally {
@@ -256,13 +412,13 @@ export default function ApprovalCenter() {
   const filteredPending = useMemo(() => {
     let list = pending
     if (filterBizType) {
-      list = list.filter((p) => p.flow?.biz_type === filterBizType)
+      list = list.filter((p) => p.bizType === filterBizType)
     }
     if (filterDateRange && filterDateRange[0] && filterDateRange[1]) {
       const start = filterDateRange[0].startOf('day').valueOf()
       const end = filterDateRange[1].endOf('day').valueOf()
       list = list.filter((p) => {
-        const t = p.flow?.created_at ? new Date(p.flow.created_at).getTime() : 0
+        const t = p.createdAt ? new Date(p.createdAt).getTime() : 0
         return t >= start && t <= end
       })
     }
@@ -270,34 +426,39 @@ export default function ApprovalCenter() {
   }, [pending, filterBizType, filterDateRange])
 
   const pendingBizTypes = useMemo(() => {
-    const types = new Set(pending.map((p) => p.flow?.biz_type).filter(Boolean))
+    const types = new Set(pending.map((p) => p.bizType).filter(Boolean))
     return Array.from(types).map((t) => ({ value: t!, label: bizTypeLabels[t!] || t! }))
   }, [pending])
 
-  const pendingColumns: ColumnsType<ApprovalPendingItem> = [
+  const pendingColumns: ColumnsType<UnifiedPendingItem> = [
     {
-      title: '审批标题', dataIndex: ['flow', 'title'], width: 280,
+      title: '审批标题', dataIndex: 'title', width: 280,
       render: (v: string, r) => (
-        <a className="font-semibold text-primary cursor-pointer" onClick={() => openDetail(r.flow_id)}>{v || '审批申请'}</a>
+        <a
+          className="font-semibold text-primary cursor-pointer"
+          onClick={() => {
+            if (r.engine === 'wf') openWfHandle(r)
+            else if (r.instanceId) openDetail(r.instanceId)
+          }}
+        >
+          {v || '审批申请'}
+        </a>
       ),
     },
     {
-      title: '类型', dataIndex: ['flow', 'biz_type'], width: 120,
-      render: (v: string) => <Tag color="blue">{bizTypeLabels[v] || v}</Tag>,
+      title: '类型', dataIndex: 'bizType', width: 120,
+      render: (v: string) => <Tag color="blue">{bizTypeLabels[v] || v || '—'}</Tag>,
     },
     {
-      title: '模式', dataIndex: ['flow', 'approval_mode'], width: 100,
-      render: (v: string) => v ? <Tag color={approvalModeColors[v] || 'blue'}>{approvalModeLabels[v] || v}</Tag> : null,
+      title: '引擎', dataIndex: 'engine', width: 90,
+      render: (v: string) => v === 'wf' ? <Tag color="purple">流程</Tag> : <Tag>经典</Tag>,
     },
     {
-      title: '发起人', dataIndex: ['flow', 'submitted_by_name'], width: 100,
+      title: '说明', dataIndex: 'subtitle', width: 180,
+      render: (v: string) => <span className="text-sm text-slate-500">{v || '—'}</span>,
     },
     {
-      title: '进度', key: 'progress', width: 100,
-      render: (_, r) => <span className="text-sm text-slate-500">{r.flow.current_node}/{r.flow.total_nodes} 节点</span>,
-    },
-    {
-      title: '发起时间', dataIndex: ['flow', 'created_at'], width: 160,
+      title: '发起时间', dataIndex: 'createdAt', width: 160,
       render: (v: string) => {
         if (!v) return '-'
         const hours = (Date.now() - new Date(v).getTime()) / (1000 * 3600)
@@ -311,21 +472,33 @@ export default function ApprovalCenter() {
       },
     },
     {
-      title: '操作', key: 'actions', width: 220,
+      title: '操作', key: 'actions', width: 240,
       render: (_, r) => (
         <Space>
-          <Button type="primary" size="small" icon={<CheckCircleOutlined />}
-            onClick={() => openDecide(r, 'approve')}>通过</Button>
-          <Button danger size="small" icon={<CloseCircleOutlined />}
-            onClick={() => openDecide(r, 'reject')}>驳回</Button>
-          <Button size="small" icon={<SwapOutlined />}
-            onClick={() => openDelegate(r.id)}>转交</Button>
+          {r.engine === 'wf' ? (
+            <Button type="primary" size="small" onClick={() => openWfHandle(r)}>处理</Button>
+          ) : (
+            <>
+              <Button type="primary" size="small" icon={<CheckCircleOutlined />}
+                onClick={() => openDecide(r, 'approve')}>通过</Button>
+              <Button danger size="small" icon={<CloseCircleOutlined />}
+                onClick={() => openDecide(r, 'reject')}>驳回</Button>
+              <Button size="small" icon={<SwapOutlined />}
+                onClick={() => openDelegate(r)}>转交</Button>
+            </>
+          )}
         </Space>
       ),
     },
   ]
 
-  const myFlows = allFlows.filter((f) => f.submitted_by_id === userInfo?.id)
+  const renderFlowStatus = (status: string, engine?: string) => {
+    if (engine === 'wf' || PSTATUS[status]) {
+      const t = PSTATUS[status] || { color: 'default', text: statusLabels[status] || status }
+      return <Tag color={t.color}>{t.text}</Tag>
+    }
+    return <Tag color={statusColors[status]}>{statusLabels[status] || status}</Tag>
+  }
 
   const historyColumns: ColumnsType<ApprovalFlowItem> = [
     {
@@ -363,19 +536,111 @@ export default function ApprovalCenter() {
     },
   ]
 
-  const mineColumns: ColumnsType<ApprovalFlowItem> = [
-    ...historyColumns,
+  const mineColumns: ColumnsType<UnifiedMineItem> = [
     {
-      title: '操作', key: 'actions', width: 160,
+      title: '审批标题', dataIndex: 'title', width: 280,
+      render: (v, r) => (
+        <a
+          className="font-semibold text-primary cursor-pointer"
+          onClick={() => {
+            if (r.engine === 'wf') openWfDrawer(r.instanceId)
+            else openDetail(r.instanceId)
+          }}
+        >
+          {v || '审批申请'}
+        </a>
+      ),
+    },
+    {
+      title: '类型', dataIndex: 'bizType', width: 120,
+      render: (v: string) => <Tag color="blue">{bizTypeLabels[v] || v || '—'}</Tag>,
+    },
+    {
+      title: '状态', dataIndex: 'status', width: 110,
+      render: (v, r) => renderFlowStatus(v, r.engine),
+    },
+    {
+      title: '进度', dataIndex: 'subtitle', width: 160,
+      render: (v: string) => <span className="text-sm text-slate-500">{v || '—'}</span>,
+    },
+    {
+      title: '发起时间', dataIndex: 'createdAt', width: 160,
+      render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-',
+    },
+    {
+      title: '操作', key: 'actions', width: 220,
       render: (_, r) => (
         <Space>
-          {r.status === 'pending' && (
-            <Button size="small" icon={<UndoOutlined />} onClick={() => openWithdraw(r.id)}>撤回</Button>
+          <Button
+            size="small"
+            onClick={() => {
+              if (r.engine === 'wf') openWfDrawer(r.instanceId)
+              else openDetail(r.instanceId)
+            }}
+          >
+            查看
+          </Button>
+          {r.engine === 'wf' && r.status === 'running' && (
+            <Button size="small" type="link" onClick={() => handleUrge(r.instanceId)}>催办</Button>
           )}
-          {r.status === 'rejected' && (
-            <Button size="small" type="primary" icon={<RedoOutlined />} onClick={() => handleResubmit(r.id)}>重新提交</Button>
+          {((r.engine === 'wf' && r.status === 'running') || (r.engine === 'legacy' && r.status === 'pending')) && (
+            <Button size="small" icon={<UndoOutlined />} onClick={() => openWithdraw(r.instanceId, r.engine)}>撤回</Button>
+          )}
+          {r.engine === 'legacy' && r.status === 'rejected' && (
+            <Button size="small" type="primary" icon={<RedoOutlined />} onClick={() => handleResubmit(r.instanceId)}>重新提交</Button>
           )}
         </Space>
+      ),
+    },
+  ]
+
+  const doneColumns: ColumnsType<UnifiedDoneItem> = [
+    {
+      title: '审批标题', dataIndex: 'title', width: 280,
+      render: (v, r) => (
+        <a
+          className="font-semibold text-primary cursor-pointer"
+          onClick={() => {
+            if (r.engine === 'wf') openWfDrawer(r.instanceId, r.taskId)
+            else openDetail(r.instanceId)
+          }}
+        >
+          {v || '审批申请'}
+        </a>
+      ),
+    },
+    {
+      title: '类型', dataIndex: 'bizType', width: 120,
+      render: (v: string) => <Tag color="blue">{bizTypeLabels[v] || v || '—'}</Tag>,
+    },
+    {
+      title: '我的处理', dataIndex: 'status', width: 110,
+      render: (s: string) => (
+        <Tag color={s === 'approved' ? 'green' : s === 'rejected' ? 'red' : s === 'returned' ? 'orange' : 'default'}>
+          {s === 'approved' ? '已通过' : s === 'rejected' ? '已驳回' : s === 'returned' ? '已退回' : s === 'transferred' ? '已转交' : s}
+        </Tag>
+      ),
+    },
+    {
+      title: '说明', dataIndex: 'subtitle', width: 180,
+      render: (v: string) => <span className="text-sm text-slate-500">{v || '—'}</span>,
+    },
+    {
+      title: '处理时间', dataIndex: 'actionAt', width: 160,
+      render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-',
+    },
+    {
+      title: '操作', key: 'op', width: 90,
+      render: (_, r) => (
+        <Button
+          size="small"
+          onClick={() => {
+            if (r.engine === 'wf') openWfDrawer(r.instanceId, r.taskId)
+            else openDetail(r.instanceId)
+          }}
+        >
+          查看
+        </Button>
       ),
     },
   ]
@@ -387,22 +652,13 @@ export default function ApprovalCenter() {
     <div>
       <div className="mb-6 shrink-0">
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">审批中心</h1>
-        <p className="text-sm text-slate-500 mt-1">管理待审批任务和审批历史</p>
+        <p className="text-sm text-slate-500 mt-1">统一处理合同、线索等业务待办（含可视化流程）</p>
       </div>
-
-      {wfPendingCount > 0 && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-3 shrink-0">
-          <div className="text-sm text-slate-700">
-            你还有 <span className="font-bold text-amber-700">{wfPendingCount}</span> 条待办在
-            「流程审批中心」（线索等业务已使用可视化流程引擎），不在本页列表中。
-          </div>
-          <Button type="primary" onClick={() => navigate('/lowcode/approvals')}>前往处理</Button>
-        </div>
-      )}
+      {wfDrawerNode}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <Tabs defaultActiveKey="pending" className="px-4 pt-2 pb-4"
-          onChange={(key) => { if (key === 'stats' && !stats) loadStats() }}
+        <Tabs activeKey={activeTab} className="px-4 pt-2 pb-4"
+          onChange={onTabChange}
           items={[
             {
               key: 'pending',
@@ -430,7 +686,7 @@ export default function ApprovalCenter() {
                       {selectedRowKeys.length > 0 && <span className="text-sm text-slate-400 self-center">已选 {selectedRowKeys.length}/{filteredPending.length} 项</span>}
                     </div>
                   )}
-                  <FillHeightTable rowKey="id" columns={pendingColumns} dataSource={filteredPending}
+                  <FillHeightTable rowKey="key" columns={pendingColumns} dataSource={filteredPending}
                     rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys as string[]) }}
                     pagination={false} size="small" scroll={{ x: 'max-content' }}
                     locale={{ emptyText: <div className="py-8 text-slate-400">暂无待审批任务</div> }} />
@@ -441,11 +697,127 @@ export default function ApprovalCenter() {
               key: 'mine',
               label: '我发起的',
               children: (
+                <FillHeightTable
+                  rowKey="key"
+                  columns={mineColumns}
+                  dataSource={mineItems}
+                  loading={tabLoading}
+                  pagination={{ pageSize: 15, showSizeChanger: false }}
+                  size="small"
+                  scroll={{ x: 'max-content' }}
+                  locale={{ emptyText: <div className="py-8 text-slate-400">暂无发起的审批</div> }}
+                />
+              ),
+            },
+            {
+              key: 'done',
+              label: '已办',
+              children: (
+                <FillHeightTable
+                  rowKey="key"
+                  columns={doneColumns}
+                  dataSource={doneItems}
+                  loading={tabLoading}
+                  pagination={{ pageSize: 15, showSizeChanger: false }}
+                  size="small"
+                  scroll={{ x: 'max-content' }}
+                  locale={{ emptyText: <div className="py-8 text-slate-400">暂无已办记录</div> }}
+                />
+              ),
+            },
+            {
+              key: 'cc',
+              label: '抄送我的',
+              children: (
+                <FillHeightTable
+                  rowKey="cc_id"
+                  loading={tabLoading}
+                  size="small"
+                  scroll={{ x: 'max-content' }}
+                  pagination={{ pageSize: 15, showSizeChanger: false }}
+                  locale={{ emptyText: <div className="py-8 text-slate-400">暂无抄送</div> }}
+                  dataSource={ccItems}
+                  columns={[
+                    {
+                      title: '标题', dataIndex: 'title', width: 280,
+                      render: (v: string, r) => (
+                        <a className="font-semibold text-primary cursor-pointer" onClick={() => openWfDrawer(r.process_instance_id)}>
+                          {v || '审批'}{!r.is_read && <Tag color="red" className="ml-1">未读</Tag>}
+                        </a>
+                      ),
+                    },
+                    {
+                      title: '类型', dataIndex: 'biz_type', width: 120,
+                      render: (v: string) => <Tag color="blue">{bizTypeLabels[v] || v || '—'}</Tag>,
+                    },
+                    {
+                      title: '状态', dataIndex: 'status', width: 110,
+                      render: (v: string) => renderFlowStatus(v || '', 'wf'),
+                    },
+                    {
+                      title: '发起人', dataIndex: 'initiator_name', width: 100,
+                      render: (v: string) => v || '—',
+                    },
+                    {
+                      title: '抄送时间', dataIndex: 'created_at', width: 160,
+                      render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-',
+                    },
+                    {
+                      title: '操作', key: 'op', width: 90,
+                      render: (_: unknown, r: { process_instance_id: string }) => (
+                        <Button size="small" onClick={() => openWfDrawer(r.process_instance_id)}>查看</Button>
+                      ),
+                    },
+                  ]}
+                />
+              ),
+            },
+            {
+              key: 'agents',
+              label: '我的代理',
+              children: (
                 <div>
-                  <FillHeightTable rowKey="id" columns={mineColumns}
-                    dataSource={myFlows}
-                    pagination={{ pageSize: 15, showSizeChanger: false }} size="small" scroll={{ x: 'max-content' }}
-                    locale={{ emptyText: <div className="py-8 text-slate-400">暂无发起的审批</div> }} />
+                  <div className="mb-3 flex items-center gap-3 shrink-0">
+                    <span className="text-sm text-slate-500">设置某时间段由他人代你审批；代理人会在「待我审批」看到你的待办。</span>
+                    <Button type="primary" size="small" onClick={() => setAgentModal(true)}>新增代理</Button>
+                  </div>
+                  <FillHeightTable
+                    rowKey="id"
+                    loading={tabLoading}
+                    size="small"
+                    scroll={{ x: 'max-content' }}
+                    pagination={false}
+                    dataSource={agents}
+                    locale={{ emptyText: <div className="py-8 text-slate-400">暂未设置代理</div> }}
+                    columns={[
+                      { title: '代理人', dataIndex: 'agent_name', render: (v: string, r: WfAgent) => v || r.agent_id },
+                      {
+                        title: '开始', dataIndex: 'start_time',
+                        render: (v: string) => (v ? new Date(v).toLocaleString('zh-CN') : '—'),
+                      },
+                      {
+                        title: '结束', dataIndex: 'end_time',
+                        render: (v: string) => (v ? new Date(v).toLocaleString('zh-CN') : '—'),
+                      },
+                      {
+                        title: '状态', key: 'st', width: 90,
+                        render: (_: unknown, r: WfAgent) => (r.active_now ? <Tag color="green">生效中</Tag> : <Tag>未生效</Tag>),
+                      },
+                      { title: '备注', dataIndex: 'note', render: (v: string) => v || '—' },
+                      {
+                        title: '操作', key: 'op', width: 80,
+                        render: (_: unknown, r: WfAgent) => (
+                          <Popconfirm title="撤销该代理?" onConfirm={async () => {
+                            await workflowApi.deleteAgent(r.id)
+                            message.success('已撤销')
+                            loadAgents()
+                          }}>
+                            <Button size="small" type="link" danger>撤销</Button>
+                          </Popconfirm>
+                        ),
+                      },
+                    ]}
+                  />
                 </div>
               ),
             },
@@ -511,6 +883,35 @@ export default function ApprovalCenter() {
         />
       </div>
 
+      <Modal
+        title="新增代理"
+        open={agentModal}
+        onOk={saveAgent}
+        confirmLoading={submitting}
+        onCancel={() => setAgentModal(false)}
+        destroyOnClose
+      >
+        <div className="space-y-3 py-2">
+          <div>
+            <div className="mb-1 text-sm">代理人</div>
+            <PersonField value={agentUserId} onChange={setAgentUserId} placeholder="选择代理人" />
+          </div>
+          <div>
+            <div className="mb-1 text-sm">代理时间段</div>
+            <DatePicker.RangePicker
+              showTime
+              className="w-full"
+              value={agentRange as never}
+              onChange={(v) => setAgentRange(v as [dayjs.Dayjs, dayjs.Dayjs] | null)}
+            />
+          </div>
+          <div>
+            <div className="mb-1 text-sm">备注</div>
+            <Input value={agentNote} onChange={(e) => setAgentNote(e.target.value)} placeholder="可选，如：出差期间" />
+          </div>
+        </div>
+      </Modal>
+
       {/* Decide Modal */}
       <Modal
         title={decideAction === 'approve' ? '审批通过' : '审批驳回'}
@@ -524,16 +925,10 @@ export default function ApprovalCenter() {
         {currentTask && (
           <div className="py-2">
             <div className="mb-3 p-3 bg-slate-50 rounded-lg">
-              <div className="text-sm font-bold text-slate-800">{currentTask.flow?.title || '审批申请'}</div>
+              <div className="text-sm font-bold text-slate-800">{currentTask.title || '审批申请'}</div>
               <div className="text-sm text-slate-500 mt-1">
-                类型: {bizTypeLabels[currentTask.flow?.biz_type] || currentTask.flow?.biz_type} ·
-                发起人: {currentTask.flow?.submitted_by_name} ·
-                节点 {currentTask.node_order}/{currentTask.flow?.total_nodes}
-                {currentTask.flow?.approval_mode && currentTask.flow.approval_mode !== 'sequential' && (
-                  <Tag color={approvalModeColors[currentTask.flow.approval_mode]} className="ml-2">
-                    {approvalModeLabels[currentTask.flow.approval_mode]}
-                  </Tag>
-                )}
+                类型: {bizTypeLabels[currentTask.bizType || ''] || currentTask.bizType || '—'}
+                {currentTask.subtitle ? ` · ${currentTask.subtitle}` : ''}
               </div>
             </div>
             <div>

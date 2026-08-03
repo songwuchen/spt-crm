@@ -29,6 +29,12 @@ def _now() -> datetime:
 # ==================== 流程定义 ====================
 
 async def create_definition(db: AsyncSession, tenant_id: str, data: ws.WfDefinitionCreate, user: dict) -> WfProcessDefinition:
+    has_form = bool(data.form_template_id)
+    has_biz = bool(data.biz_type)
+    if has_form and has_biz:
+        raise BusinessException(code=BUSINESS_ERROR, message="绑定表单与业务类型只能二选一")
+    if not has_form and not has_biz:
+        raise BusinessException(code=BUSINESS_ERROR, message="请绑定表单或业务类型之一")
     code = data.code or f"WF_{generate_uuid()[:8].upper()}"
     exists = (await db.execute(select(WfProcessDefinition).where(
         WfProcessDefinition.tenant_id == tenant_id, WfProcessDefinition.code == code,
@@ -59,6 +65,11 @@ async def get_definition(db: AsyncSession, tenant_id: str, def_id: str) -> WfPro
 
 
 async def list_definitions(db, tenant_id, page_no, page_size, name=None):
+    # 打开流程管理即幂等补齐系统默认流（合同版本/评审/线索），无需等业务首次提交
+    try:
+        await ensure_all_biz_defaults(db, tenant_id)
+    except Exception as e:
+        logger.warning("ensure_all_biz_defaults on list failed: %s", e)
     conds = [WfProcessDefinition.tenant_id == tenant_id, WfProcessDefinition.is_deleted == False]  # noqa: E712
     if name:
         conds.append(WfProcessDefinition.name.ilike(f"%{name}%"))
@@ -126,10 +137,12 @@ async def publish(db, tenant_id, def_id, user_id) -> WfProcessDefinitionVersion:
     latest = await _latest_version(db, tenant_id, def_id)
     if not latest or latest.status != "draft":
         raise BusinessException(code=BUSINESS_ERROR, message="没有可发布的草稿版本")
-    # 基本校验: 必须有 start 与 end 节点
+    # 基本校验: 必须有 start 与 end，且至少有一个审批节点（避免 start→end 空流程免审）
     types = {n.get("type") for n in (latest.node_definitions or [])}
     if "start" not in types or "end" not in types:
         raise BusinessException(code=BUSINESS_ERROR, message="流程必须包含开始与结束节点")
+    if "approval" not in types:
+        raise BusinessException(code=BUSINESS_ERROR, message="流程至少包含一个审批节点")
     old = await _published_version(db, tenant_id, def_id)
     if old:
         old.status = "deprecated"
@@ -182,6 +195,397 @@ SYSTEM_DEFAULT_CATEGORY = "system_default"
 # 系统兜底流程排在最后，租户自建流程(sort_order 默认 0)优先命中
 _SYSTEM_DEFAULT_SORT = 9999
 
+# 打开「流程管理」/租户开通时幂等补齐；业务提交路径仍保留 ensure 作双保险。
+BIZ_DEFAULT_SPECS: list[dict] = [
+    {
+        "biz_type": "contract_version",
+        "code": "SYS_CONTRACT_VERSION_APPROVAL",
+        "name": "合同登记审批（运营）",
+        "approver_rule": {"type": "specified_role", "value": "finance_manager", "exclude_initiator": True},
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "biz_type": "contract_review",
+        "code": "SYS_CONTRACT_REVIEW_APPROVAL",
+        "name": "合同评审会签",
+        "approver_rule": {"type": "specified_role", "value": "sales_manager", "exclude_initiator": True},
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "biz_type": "lead",
+        "code": "SYS_LEAD_REVIEW",
+        "name": "线索审核",
+        "approver_rule": {"type": "specified_role", "value": "lead_intel", "exclude_initiator": True},
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+]
+
+
+async def ensure_all_biz_defaults(db, tenant_id: str) -> None:
+    """幂等：为租户补齐合同版本/合同评审/线索等系统默认审批流。"""
+    for spec in BIZ_DEFAULT_SPECS:
+        try:
+            await ensure_default_definition(
+                db, tenant_id,
+                biz_type=spec["biz_type"],
+                code=spec["code"],
+                name=spec["name"],
+                approver_rule=spec["approver_rule"],
+                multi_mode=spec.get("multi_mode", "or_sign"),
+                empty_strategy=spec.get("empty_strategy", "auto_approve"),
+            )
+        except Exception as e:
+            logger.warning("ensure default flow %s failed: %s", spec.get("code"), e)
+
+
+# 引擎在「有条件边命中时会忽略无条件 else」：与条件边并存的必经边需挂恒真条件。
+_ALWAYS_TRUE_COND = {"field": "__always", "operator": "is_empty"}
+
+
+def _fp(*items: tuple[str, str]) -> list[dict]:
+    """field_perms 快捷构造：('legal_risk','required'), ..."""
+    return [{"field": f, "access": a} for f, a in items]
+
+
+def _role_approval_node(
+    nid: str, name: str, role: str, *,
+    field_perms: list[dict] | None = None,
+    opinion_required: bool = False,
+    multi_mode: str = "or_sign",
+) -> dict:
+    node: dict = {
+        "id": nid, "type": "approval", "name": name,
+        "approver_rule": {
+            "type": "specified_role", "value": role, "exclude_initiator": True,
+        },
+        "multi_mode": multi_mode, "empty_strategy": "auto_approve",
+    }
+    if field_perms:
+        node["field_perms"] = field_perms
+    if opinion_required:
+        node["opinion_required"] = True
+    return node
+
+
+def _user_approval_node(
+    nid: str, name: str, usernames: list[str] | str, *,
+    field_perms: list[dict] | None = None,
+    opinion_required: bool = False,
+    multi_mode: str = "or_sign",
+    empty_strategy: str = "auto_approve",
+) -> dict:
+    """指定人员审批（对齐简道云 chargers.users；value 用 CRM username）。"""
+    names = [usernames] if isinstance(usernames, str) else list(usernames)
+    value: str | list[str] = names[0] if len(names) == 1 else names
+    node: dict = {
+        "id": nid, "type": "approval", "name": name,
+        "approver_rule": {
+            "type": "specified_user", "value": value, "exclude_initiator": True,
+        },
+        "multi_mode": multi_mode, "empty_strategy": empty_strategy,
+    }
+    if field_perms:
+        node["field_perms"] = field_perms
+    if opinion_required:
+        node["opinion_required"] = True
+    return node
+
+
+def _field_person_approval_node(
+    nid: str, name: str, field: str, *,
+    field_perms: list[dict] | None = None,
+    multi_mode: str = "or_sign",
+    empty_strategy: str = "auto_approve",
+) -> dict:
+    """表单人员字段审批（对齐简道云 chargers.widgets）。"""
+    node: dict = {
+        "id": nid, "type": "approval", "name": name,
+        "approver_rule": {
+            "type": "form_field_person", "value": field, "exclude_initiator": True,
+        },
+        "multi_mode": multi_mode, "empty_strategy": empty_strategy,
+    }
+    if field_perms:
+        node["field_perms"] = field_perms
+    return node
+
+
+def _and_cond(*parts: dict) -> dict:
+    return {"rel": "and", "cond": list(parts)}
+
+
+# 简道云合同登记 chargers → CRM username（按 real_name 匹配本地用户）
+_JDY_REG_USER = {
+    "finance": "442558535226341870",          # 李焱焱
+    "production": "02374913228906",           # 薛非霞
+    "procurement": "02352513566524",          # 杨霜
+    "warehouse": ["01346931076927160185", "0654354430671114"],  # 段亚非、侯静
+    "qc": "0236420233847",                    # 张国运
+    "finance_maint": "03303022525221387032",  # 刘金花（财务维护，标准交付/旋振筛共用）
+    "prod_office": "02425350081942",          # 杜意敏（生产办/旋振筛）
+    "purch_dept": "286057106726080520",       # 杨丽丽（采购部，挂生产办后）
+    "purch_xzs": "1135263833366065",          # 苏金泓（采购员/旋振筛）
+    "qc_xzs": "02362247571234189",            # 雷贤（质检员/旋振筛）
+    "wh_xzs": "26140402631151393",            # 贾真（仓库人员/旋振筛）
+}
+
+# 简道云合同评审 chargers → CRM username
+_JDY_REVIEW_USER = {
+    "intel": "023656363429294971",            # 王梦茹
+    "gm": "02336214315748",                   # 王思民
+    "finance_opinion": "0433406811775721",    # 张光
+    "design": "02364335378133",               # 曹修国
+    "finance_dir": ["02362556584221", "0433406811775721"],  # 李晋、张光（会签）
+    "production": "01210720669288",           # 周世孔
+    "procurement": "02352513566524",          # 杨霜
+    "qc": "0236420233847",                    # 张国运
+    "export": "01000533004677",               # 王玲玲
+}
+
+CONTRACT_VERSION_DEFAULT_DESC = (
+    "系统默认（对齐简道云合同登记）：审批人按简道云具名配置；"
+    "财务后按标准交付/方式并行产采仓质，再接采购员/质检员/财务维护；"
+    "旋振筛并行生产办/采购员/质检员/仓库人员，生产办后再接采购部与财务维护；最后汇聚结束。"
+    "可在设计器改条件与审批人。"
+)
+
+CONTRACT_REVIEW_DEFAULT_DESC = (
+    "系统默认（对齐简道云合同评审）：审批人按简道云具名/角色配置；"
+    "业务部门 → 情报/法务/设计/财务总监/出口/产采质等会签 → "
+    "总经理 → 财务意见 → 抄送业务员。可在设计器改条件与审批人。"
+)
+
+
+def _contract_version_flow_graph() -> tuple[list[dict], list[dict]]:
+    """合同版本默认图：对齐简道云「合同登记」完整运营拓扑与具名审批人。
+
+    简道云主干（CRM 用 merge 汇聚替代多父结束，避免并行未完就结束）：
+    - 财务 → 产/采/仓/质（标准交付+方式）→ 采后采购员、质后质检员、仓后财务维护
+    - 财务 → 生产办/采购员/质检员/仓库人员（旋振筛=是）→ 生产办后再接采购部+财务维护
+    - 财务 → 结束（标准交付=否 AND 旋振筛=否）
+    """
+    u = _JDY_REG_USER
+    nodes: list[dict] = [
+        {"id": "start", "type": "start", "name": "发起"},
+        _user_approval_node("approval_finance", "财务审核", u["finance"]),
+        # —— 标准交付分支 ——
+        _user_approval_node("approval_production", "生产", u["production"]),
+        _user_approval_node(
+            "approval_procurement", "采购", u["procurement"],
+            field_perms=_fp(("purchasers", "required")),
+        ),
+        _field_person_approval_node("approval_purchaser", "采购员", "purchasers"),
+        _user_approval_node(
+            "approval_warehouse", "仓库", u["warehouse"],
+            field_perms=_fp(("fill_code", "editable")),
+        ),
+        _user_approval_node("approval_finance_maint", "财务维护", u["finance_maint"]),
+        _user_approval_node(
+            "approval_qc", "质检", u["qc"],
+            field_perms=_fp(("inspectors", "required")),
+        ),
+        _field_person_approval_node("approval_inspector", "质检员", "inspectors"),
+        # —— 旋振筛分支 ——
+        _user_approval_node(
+            "approval_prod_office", "生产办", u["prod_office"],
+            field_perms=_fp(("fill_code", "editable")),
+        ),
+        _user_approval_node("approval_purch_dept", "采购部", u["purch_dept"]),
+        _user_approval_node(
+            "approval_finance_maint_xzs", "财务维护（旋振筛）", u["finance_maint"],
+        ),
+        _user_approval_node("approval_purch_xzs", "采购员（旋振筛）", u["purch_xzs"]),
+        _user_approval_node("approval_qc_xzs", "质检员（旋振筛）", u["qc_xzs"]),
+        _user_approval_node(
+            "approval_wh_xzs", "仓库人员", u["wh_xzs"],
+            field_perms=_fp(("fill_code", "editable")),
+        ),
+        {"id": "merge_ops", "type": "merge", "name": "运营汇聚"},
+        {"id": "end", "type": "end", "name": "结束"},
+    ]
+    # 各并行叶节点汇入 merge（条件未激活的边由引擎 early-complete 跳过）
+    leaf_to_merge = [
+        "approval_production",
+        "approval_purchaser",
+        "approval_finance_maint",
+        "approval_inspector",
+        "approval_purch_dept",
+        "approval_finance_maint_xzs",
+        "approval_purch_xzs",
+        "approval_qc_xzs",
+        "approval_wh_xzs",
+    ]
+    std_yes = {"field": "standard_delivery", "operator": "in", "value": ["是"]}
+    std_no = {"field": "standard_delivery", "operator": "in", "value": ["否"]}
+    rotary_yes = {"field": "is_rotary_sieve", "operator": "in", "value": ["是"]}
+    rotary_no = {"field": "is_rotary_sieve", "operator": "in", "value": ["否"]}
+    routes: list[dict] = [
+        {"id": "r_start", "source": "start", "target": "approval_finance"},
+        {
+            "id": "r_fin_prod", "source": "approval_finance", "target": "approval_production",
+            "condition": _and_cond(
+                std_yes, {"field": "delivery_mode", "operator": "in", "value": ["YZO", "YZO和YZS"]},
+            ),
+        },
+        {
+            "id": "r_fin_purch", "source": "approval_finance", "target": "approval_procurement",
+            "condition": _and_cond(
+                std_yes, {"field": "delivery_mode", "operator": "in", "value": ["YZS", "YZO和YZS"]},
+            ),
+        },
+        {
+            "id": "r_fin_wh", "source": "approval_finance", "target": "approval_warehouse",
+            "condition": _and_cond(
+                std_yes, {"field": "delivery_mode", "operator": "in", "value": ["YZO", "YZS", "YZO和YZS"]},
+            ),
+        },
+        {
+            "id": "r_fin_qc", "source": "approval_finance", "target": "approval_qc",
+            "condition": _and_cond(
+                std_yes, {"field": "delivery_mode", "operator": "in", "value": ["YZO", "YZS", "YZO和YZS"]},
+            ),
+        },
+        {
+            "id": "r_fin_po", "source": "approval_finance", "target": "approval_prod_office",
+            "condition": _and_cond(rotary_yes),
+        },
+        {
+            "id": "r_fin_px", "source": "approval_finance", "target": "approval_purch_xzs",
+            "condition": _and_cond(rotary_yes),
+        },
+        {
+            "id": "r_fin_qx", "source": "approval_finance", "target": "approval_qc_xzs",
+            "condition": _and_cond(rotary_yes),
+        },
+        {
+            "id": "r_fin_wx", "source": "approval_finance", "target": "approval_wh_xzs",
+            "condition": _and_cond(rotary_yes),
+        },
+        {
+            "id": "r_fin_end", "source": "approval_finance", "target": "end",
+            "condition": _and_cond(std_no, rotary_no),
+        },
+        # 标准交付二级：采购→采购员；质检→质检员；仓库→财务维护
+        {"id": "r_purch_buyer", "source": "approval_procurement", "target": "approval_purchaser"},
+        {"id": "r_qc_insp", "source": "approval_qc", "target": "approval_inspector"},
+        {"id": "r_wh_fin", "source": "approval_warehouse", "target": "approval_finance_maint"},
+        # 旋振筛：生产办 → 采购部 + 财务维护（并行）
+        {"id": "r_po_dept", "source": "approval_prod_office", "target": "approval_purch_dept"},
+        {"id": "r_po_fin", "source": "approval_prod_office", "target": "approval_finance_maint_xzs"},
+        *[{"id": f"r_{i}_merge", "source": i, "target": "merge_ops"} for i in leaf_to_merge],
+        {"id": "r_merge_end", "source": "merge_ops", "target": "end"},
+    ]
+    return nodes, routes
+
+
+def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
+    """合同评审默认图：对齐简道云会签主干、多条件分支与具名审批人。
+
+    简道云：业务后先情报/法务/设计/财务总监/出口会签 → 总经理 → 财务意见；
+    产采质在财务意见之后，条件为「合同评审 AND 是否反馈=否」。
+    反馈回路/具名抄送/部门 nin 等仍简化。
+    """
+    u = _JDY_REVIEW_USER
+    nodes: list[dict] = [
+        {"id": "start", "type": "start", "name": "发起"},
+        {
+            "id": "approval_biz", "type": "approval", "name": "业务部门审批",
+            "approver_rule": {"type": "dept_head", "exclude_initiator": True},
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+            "field_perms": _fp(("biz_risk", "required"), ("biz_risk_desc", "editable")),
+        },
+        _user_approval_node("approval_intel", "信息情报部审批", u["intel"]),
+        _role_approval_node(
+            "approval_legal", "法务审批", "legal",
+            field_perms=_fp(
+                ("legal_risk", "required"), ("legal_risk_desc", "editable"),
+                ("clause_opinion", "editable"),
+            ),
+        ),
+        _user_approval_node(
+            "approval_design", "设计审批", u["design"],
+            field_perms=_fp(("tech_risk", "required"), ("tech_risk_desc", "editable")),
+        ),
+        _user_approval_node(
+            "approval_finance_dir", "财务总监意见", u["finance_dir"],
+            multi_mode="and_sign",
+            field_perms=_fp(("finance_risk", "required"), ("finance_risk_desc", "editable")),
+        ),
+        _user_approval_node(
+            "approval_export", "出口审批", u["export"],
+            field_perms=_fp(("export_risk", "required"), ("export_risk_desc", "editable")),
+        ),
+        {"id": "merge_review", "type": "merge", "name": "会签汇聚"},
+        _user_approval_node(
+            "approval_gm", "总经理审批", u["gm"], opinion_required=True,
+        ),
+        _user_approval_node(
+            "approval_finance_opinion", "财务意见", u["finance_opinion"],
+            field_perms=_fp(("finance_risk", "required"), ("finance_risk_desc", "editable")),
+        ),
+        # 产采质：简道云挂在财务意见之后
+        _user_approval_node("approval_production", "生产审批", u["production"]),
+        _user_approval_node(
+            "approval_procurement", "采购审批", u["procurement"],
+            field_perms=_fp(("purchase_risk", "required"), ("purchase_risk_desc", "editable")),
+        ),
+        _user_approval_node("approval_qc", "质检审批", u["qc"]),
+        {"id": "merge_ops_post", "type": "merge", "name": "产采质汇聚"},
+        {
+            "id": "cc_owner", "type": "cc", "name": "抄送业务员",
+            "approver_rule": {"type": "form_field_person", "value": "owner_id"},
+        },
+        {"id": "end", "type": "end", "name": "结束"},
+    ]
+    rt_contract = {"field": "review_type", "operator": "in", "value": ["合同评审"]}
+    rt_project = {"field": "review_type", "operator": "in", "value": ["项目评审"]}
+    export_yes = {"field": "is_export", "operator": "in", "value": ["是"]}
+    feedback_no = {"field": "need_feedback", "operator": "in", "value": ["否"]}
+    # 业务后会签（不含产采质）
+    peer_targets = [
+        ("approval_intel", _and_cond(rt_project)),
+        ("approval_legal", _and_cond(rt_contract)),
+        ("approval_design", _ALWAYS_TRUE_COND),
+        ("approval_finance_dir", _ALWAYS_TRUE_COND),
+        # 简道云另有「业务部门 nin 若干部门」；CRM 暂只保留是否出口
+        ("approval_export", _and_cond(export_yes)),
+    ]
+    # 财务意见后：合同评审 + 不反馈 → 产采质
+    post_fin_ops = [
+        ("approval_production", _and_cond(rt_contract, feedback_no)),
+        ("approval_procurement", _and_cond(rt_contract, feedback_no)),
+        ("approval_qc", _and_cond(rt_contract, feedback_no)),
+    ]
+    routes: list[dict] = [
+        {"id": "r_start", "source": "start", "target": "approval_biz"},
+        *[
+            {"id": f"r_biz_{tid}", "source": "approval_biz", "target": tid, "condition": cond}
+            for tid, cond in peer_targets
+        ],
+        {"id": "r_biz_merge", "source": "approval_biz", "target": "merge_review"},
+        *[{"id": f"r_{tid}_merge", "source": tid, "target": "merge_review"} for tid, _ in peer_targets],
+        {"id": "r_merge_gm", "source": "merge_review", "target": "approval_gm"},
+        {"id": "r_gm_fin", "source": "approval_gm", "target": "approval_finance_opinion"},
+        *[
+            {"id": f"r_fin_{tid}", "source": "approval_finance_opinion", "target": tid, "condition": cond}
+            for tid, cond in post_fin_ops
+        ],
+        # 简道云：项目评审 + 不反馈 → 结束
+        {
+            "id": "r_fin_end_project", "source": "approval_finance_opinion", "target": "end",
+            "condition": _and_cond(rt_project, feedback_no),
+        },
+        # 其余（如需反馈）走抄送后结束，避免卡死
+        {"id": "r_fin_cc", "source": "approval_finance_opinion", "target": "cc_owner"},
+        *[{"id": f"r_{tid}_post_merge", "source": tid, "target": "merge_ops_post"} for tid, _ in post_fin_ops],
+        {"id": "r_post_cc", "source": "merge_ops_post", "target": "cc_owner"},
+        {"id": "r_cc_end", "source": "cc_owner", "target": "end"},
+    ]
+    return nodes, routes
+
 
 def _default_flow_graph(
     name: str, approver_rule: dict, multi_mode: str, empty_strategy: str,
@@ -218,11 +622,12 @@ async def ensure_default_definition(
 ) -> WfProcessDefinition | None:
     """为某 biz_type 兜底创建并发布一条「默认流程」。
 
-    线索：start → 内勤审批 → 抄送负责人 → end（抄送可在设计器改/删）。
-    其它业务：start → 审批 → end。
+    - 线索：start → 内勤审批 → 抄送负责人 → end
+    - 合同版本：对齐简道云登记运营流（财务 → 条件并行运营部门）
+    - 合同评审：对齐简道云会签主干
+    - 其它：start → 审批 → end
 
-    已存在任何已发布的同 biz_type 流程时：若是系统兜底线索流且缺抄送节点，则升级一版；
-    否则原样返回（租户自建优先）。
+    已存在任何已发布的同 biz_type 流程时：系统兜底流可按规则升级；租户自建优先命中。
     """
     with_owner_cc = biz_type == "lead"
     # 线索系统兜底流：无论当前命中的是哪条 lead 流程，都尝试给 SYS_LEAD_REVIEW 补抄送节点
@@ -237,6 +642,24 @@ async def ensure_default_definition(
                 db, tenant_id, sys_def, name, approver_rule, multi_mode, empty_strategy,
             )
 
+    if biz_type == "contract_version":
+        sys_def = (await db.execute(select(WfProcessDefinition).where(
+            WfProcessDefinition.tenant_id == tenant_id,
+            WfProcessDefinition.code == code,
+            WfProcessDefinition.is_deleted == False,  # noqa: E712
+        ).limit(1))).scalar_one_or_none()
+        if sys_def and sys_def.status == "published":
+            await _upgrade_contract_version_jdy_reg_if_needed(db, tenant_id, sys_def)
+
+    if biz_type == "contract_review":
+        sys_def = (await db.execute(select(WfProcessDefinition).where(
+            WfProcessDefinition.tenant_id == tenant_id,
+            WfProcessDefinition.code == code,
+            WfProcessDefinition.is_deleted == False,  # noqa: E712
+        ).limit(1))).scalar_one_or_none()
+        if sys_def and sys_def.status == "published":
+            await _upgrade_contract_review_jdy_if_needed(db, tenant_id, sys_def)
+
     existing = (await db.execute(select(WfProcessDefinition).where(
         WfProcessDefinition.tenant_id == tenant_id,
         WfProcessDefinition.biz_type == biz_type,
@@ -246,9 +669,17 @@ async def ensure_default_definition(
     if existing:
         return existing
 
-    nodes, routes = _default_flow_graph(
-        name, approver_rule, multi_mode, empty_strategy, with_owner_cc=with_owner_cc,
-    )
+    if biz_type == "contract_version":
+        nodes, routes = _contract_version_flow_graph()
+        description = CONTRACT_VERSION_DEFAULT_DESC
+    elif biz_type == "contract_review":
+        nodes, routes = _contract_review_flow_graph()
+        description = CONTRACT_REVIEW_DEFAULT_DESC
+    else:
+        nodes, routes = _default_flow_graph(
+            name, approver_rule, multi_mode, empty_strategy, with_owner_cc=with_owner_cc,
+        )
+        description = "系统默认流程（未配置可视化流程时兜底使用，可直接编辑）"
 
     # 同 code 的兜底流程可能已存在但被软删/取消发布 —— 唯一索引 (tenant_id, code)
     # 不区分软删，直接插入会撞唯一键，所以先查后复活。
@@ -257,11 +688,16 @@ async def ensure_default_definition(
         WfProcessDefinition.code == code,
     ).limit(1))).scalar_one_or_none()
     if mine is not None:
-        return await _revive_default_definition(db, tenant_id, mine, nodes, routes)
+        revived = await _revive_default_definition(db, tenant_id, mine, nodes, routes)
+        if biz_type == "contract_version" and revived:
+            await _upgrade_contract_version_jdy_reg_if_needed(db, tenant_id, revived)
+        if biz_type == "contract_review" and revived:
+            await _upgrade_contract_review_jdy_if_needed(db, tenant_id, revived)
+        return revived
 
     d = WfProcessDefinition(
         id=generate_uuid(), tenant_id=tenant_id, name=name, code=code,
-        description="系统默认流程（未配置可视化流程时兜底使用，可直接编辑）",
+        description=description,
         category=SYSTEM_DEFAULT_CATEGORY, biz_type=biz_type,
         status="published", current_version=1, sort_order=_SYSTEM_DEFAULT_SORT,
     )
@@ -275,12 +711,20 @@ async def ensure_default_definition(
     try:
         await db.commit()
     except IntegrityError:
-        # 并发下另一个请求已建好同 code 的定义，回滚后取它（此时它一定是可用的）
+        # 并发下另一个请求已建好同 code 的定义，回滚后复活/取回（避免拿到软删不可用行）
         await db.rollback()
-        return (await db.execute(select(WfProcessDefinition).where(
+        raced = (await db.execute(select(WfProcessDefinition).where(
             WfProcessDefinition.tenant_id == tenant_id,
             WfProcessDefinition.code == code,
         ).limit(1))).scalar_one_or_none()
+        if raced is not None:
+            revived = await _revive_default_definition(db, tenant_id, raced, nodes, routes)
+            if biz_type == "contract_version" and revived:
+                await _upgrade_contract_version_jdy_reg_if_needed(db, tenant_id, revived)
+            if biz_type == "contract_review" and revived:
+                await _upgrade_contract_review_jdy_if_needed(db, tenant_id, revived)
+            return revived
+        return None
     return d
 
 
@@ -294,6 +738,131 @@ def _flow_has_owner_cc(nodes: list | None) -> bool:
         if n.get("id") == "cc_owner":
             return True
     return False
+
+
+def _route_cond_fields(route: dict) -> set[str]:
+    cond = route.get("condition") or {}
+    return {c.get("field") for c in (cond.get("cond") or []) if isinstance(c, dict) and c.get("field")}
+
+
+def _flow_is_jdy_contract_reg(nodes: list | None, routes: list | None = None) -> bool:
+    """已是登记完整运营图（含二级节点）、optAuth/具名审批人齐全，且财务→结束双条件。"""
+    ids = {n.get("id") for n in (nodes or [])}
+    if "merge_ops" not in ids:
+        return False
+    # 简道云二级：采购员/质检员/财务维护/采购部
+    if not {"approval_purchaser", "approval_inspector", "approval_finance_maint", "approval_purch_dept"} <= ids:
+        return False
+    purch_ok = wh_ok = named_finance = False
+    for n in nodes or []:
+        fps = n.get("field_perms") or []
+        if n.get("id") == "approval_procurement":
+            purch_ok = any(
+                p.get("field") == "purchasers" and p.get("access") == "required" for p in fps
+            )
+        if n.get("id") == "approval_warehouse":
+            wh_ok = any(p.get("field") == "fill_code" for p in fps)
+        if n.get("id") == "approval_finance":
+            rule = n.get("approver_rule") or {}
+            named_finance = rule.get("type") == "specified_user"
+    fin_end_dual = False
+    for r in routes or []:
+        if r.get("source") == "approval_finance" and r.get("target") == "end":
+            fields = _route_cond_fields(r)
+            fin_end_dual = "standard_delivery" in fields and "is_rotary_sieve" in fields
+    return purch_ok and wh_ok and named_finance and fin_end_dual
+
+
+def _flow_is_jdy_contract_review(nodes: list | None, routes: list | None = None) -> bool:
+    """已是会签图、具名总经理齐全，且产采质挂在财务意见之后（双条件）。"""
+    has_merge = any(n.get("id") == "merge_review" for n in (nodes or []))
+    if not has_merge:
+        return False
+    legal_ok = named_gm = False
+    for n in nodes or []:
+        if n.get("id") == "approval_legal" and n.get("field_perms"):
+            legal_ok = True
+        if n.get("id") == "approval_gm":
+            rule = n.get("approver_rule") or {}
+            named_gm = rule.get("type") == "specified_user"
+    post_fin_ops = False
+    for r in routes or []:
+        if r.get("source") == "approval_finance_opinion" and r.get("target") == "approval_production":
+            fields = _route_cond_fields(r)
+            post_fin_ops = "review_type" in fields and "need_feedback" in fields
+    return legal_ok and named_gm and post_fin_ops
+
+
+async def _publish_system_default_upgrade(
+    db, tenant_id: str, d: WfProcessDefinition,
+    version: WfProcessDefinitionVersion,
+    new_nodes: list[dict], new_routes: list[dict],
+    description: str, log_tag: str,
+) -> None:
+    next_ver = (version.version_number or 0) + 1
+    nv = WfProcessDefinitionVersion(
+        id=generate_uuid(), tenant_id=tenant_id, process_definition_id=d.id,
+        version_number=next_ver, node_definitions=new_nodes, route_definitions=new_routes,
+        approver_rules=[], status="published", published_at=_now(),
+    )
+    db.add(nv)
+    version.status = "deprecated"
+    d.current_version = next_ver
+    d.status = "published"
+    d.is_deleted = False
+    d.description = description
+    # 同步展示名（若仍是旧系统名）
+    if d.biz_type == "contract_version" and (not d.name or "法务" in (d.name or "") or "签署前" in (d.name or "")):
+        d.name = "合同登记审批（运营）"
+    if d.biz_type == "contract_review" and (not d.name or d.name == "合同评审审批"):
+        d.name = "合同评审会签"
+    await db.commit()
+    logger.info(
+        "已升级系统兜底流程 %s(tenant=%s) → v%s：%s",
+        d.code, tenant_id, next_ver, log_tag,
+    )
+
+
+async def _upgrade_contract_version_jdy_reg_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition,
+) -> None:
+    """系统兜底合同版本流：旧图（单节点/法务+财务等）升级为简道云登记运营图。"""
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    if d.biz_type != "contract_version":
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+    if _flow_is_jdy_contract_reg(version.node_definitions, version.route_definitions):
+        return
+
+    new_nodes, new_routes = _contract_version_flow_graph()
+    await _publish_system_default_upgrade(
+        db, tenant_id, d, version, new_nodes, new_routes,
+        CONTRACT_VERSION_DEFAULT_DESC, "简道云登记运营流(完整二级节点)",
+    )
+
+
+async def _upgrade_contract_review_jdy_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition,
+) -> None:
+    """系统兜底合同评审流：单节点等升级为简道云会签主干。"""
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    if d.biz_type != "contract_review":
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+    if _flow_is_jdy_contract_review(version.node_definitions, version.route_definitions):
+        return
+
+    new_nodes, new_routes = _contract_review_flow_graph()
+    await _publish_system_default_upgrade(
+        db, tenant_id, d, version, new_nodes, new_routes,
+        CONTRACT_REVIEW_DEFAULT_DESC, "简道云评审会签流(多条件)",
+    )
 
 
 async def _upgrade_default_owner_cc_if_needed(
@@ -446,6 +1015,94 @@ async def start_for_biz(
 
 # ==================== 运行时查询 ====================
 
+async def can_access_contract_via_workflow(
+    db,
+    tenant_id: str,
+    user_id: str | None,
+    *,
+    contract_id: str | None = None,
+    version_id: str | None = None,
+) -> bool:
+    """审批相关人可只读合同登记信息（对齐简道云：有待办即可看单据，不必有 contract:view）。
+
+    覆盖：发起人 / 任务处理人(含已办) / 抄送人 / 当前待办的有效代理人。
+    """
+    if not user_id or (not contract_id and not version_id):
+        return False
+    from app.domains.contract.models import ContractVersion
+
+    version_ids: set[str] = set()
+    if version_id:
+        version_ids.add(version_id)
+    if contract_id:
+        rows = (await db.execute(
+            select(ContractVersion.id).where(
+                ContractVersion.tenant_id == tenant_id,
+                ContractVersion.contract_id == contract_id,
+            )
+        )).all()
+        version_ids.update(r[0] for r in rows)
+    if not version_ids:
+        return False
+
+    insts = (await db.execute(
+        select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == tenant_id,
+            WfProcessInstance.biz_type == "contract_version",
+            WfProcessInstance.biz_id.in_(version_ids),
+        )
+    )).scalars().all()
+    if not insts:
+        return False
+    if any(i.initiator_id == user_id for i in insts):
+        return True
+
+    inst_ids = [i.id for i in insts]
+    has_task = (await db.execute(
+        select(WfTaskInstance.id).where(
+            WfTaskInstance.process_instance_id.in_(inst_ids),
+            WfTaskInstance.assignee_id == user_id,
+        ).limit(1)
+    )).scalar_one_or_none()
+    if has_task:
+        return True
+
+    has_cc = (await db.execute(
+        select(WfProcessCc.id).where(
+            WfProcessCc.process_instance_id.in_(inst_ids),
+            WfProcessCc.user_id == user_id,
+        ).limit(1)
+    )).scalar_one_or_none()
+    if has_cc:
+        return True
+
+    from datetime import datetime, timezone
+    from app.domains.organization.models import UserAgent
+    pending_assignees = list({
+        a for a in (await db.execute(
+            select(WfTaskInstance.assignee_id).where(
+                WfTaskInstance.process_instance_id.in_(inst_ids),
+                WfTaskInstance.status == "pending",
+            )
+        )).scalars().all() if a
+    })
+    if pending_assignees:
+        now = datetime.now(timezone.utc)
+        agent_ok = (await db.execute(
+            select(UserAgent.id).where(
+                UserAgent.tenant_id == tenant_id,
+                UserAgent.agent_id == user_id,
+                UserAgent.user_id.in_(pending_assignees),
+                UserAgent.status == "active",
+                UserAgent.start_time <= now,
+                UserAgent.end_time >= now,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if agent_ok:
+            return True
+    return False
+
+
 async def list_todo(db, tenant_id, user_id, page_no, page_size, biz_type=None, biz_id=None):
     """我的待办。biz_type/biz_id 可选，用于业务详情页精确查「这单是否轮到我审」——
     否则调用方只能拉一页待办再在前端过滤，待办多时会漏掉。"""
@@ -484,7 +1141,109 @@ async def list_initiated(db, tenant_id, user_id, page_no, page_size):
     rows = (await db.execute(select(WfProcessInstance).where(*conds)
             .order_by(WfProcessInstance.created_at.desc())
             .offset((page_no - 1) * page_size).limit(page_size))).scalars().all()
-    return [_inst_dict(i) for i in rows], total
+    return await _enrich_instances(db, list(rows)), total
+
+
+async def list_cc(db, tenant_id, user_id, page_no, page_size):
+    """抄送给我的流程。"""
+    conds = [WfProcessCc.tenant_id == tenant_id, WfProcessCc.user_id == user_id]
+    total = (await db.execute(select(func.count()).select_from(WfProcessCc).where(*conds))).scalar_one()
+    ccs = (await db.execute(select(WfProcessCc).where(*conds)
+           .order_by(WfProcessCc.created_at.desc())
+           .offset((page_no - 1) * page_size).limit(page_size))).scalars().all()
+    if not ccs:
+        return [], total
+    inst_ids = {c.process_instance_id for c in ccs}
+    insts = {
+        i.id: i for i in (await db.execute(
+            select(WfProcessInstance).where(WfProcessInstance.id.in_(inst_ids))
+        )).scalars().all()
+    }
+    cv_ids = {
+        i.biz_id for i in insts.values()
+        if i and i.biz_type == "contract_version" and i.biz_id
+    }
+    cv_map: dict[str, str] = {}
+    if cv_ids:
+        from app.domains.contract.models import ContractVersion
+        cv_map = {
+            r[0]: r[1] for r in (await db.execute(
+                select(ContractVersion.id, ContractVersion.contract_id).where(ContractVersion.id.in_(cv_ids))
+            )).all()
+        }
+    from app.domains.auth.models import User
+    initiator_ids = {i.initiator_id for i in insts.values() if i and i.initiator_id}
+    name_map: dict[str, str] = {}
+    if initiator_ids:
+        name_map = {
+            r[0]: (r[1] or r[2]) for r in (await db.execute(
+                select(User.id, User.real_name, User.username).where(User.id.in_(initiator_ids))
+            )).all()
+        }
+    out = []
+    for c in ccs:
+        inst = insts.get(c.process_instance_id)
+        biz_ref_id = None
+        if inst:
+            if inst.biz_type == "contract_version" and inst.biz_id:
+                biz_ref_id = cv_map.get(inst.biz_id)
+            elif inst.biz_type == "contract_review":
+                biz_ref_id = inst.biz_id
+        out.append({
+            "cc_id": c.id,
+            "is_read": bool(c.is_read),
+            "process_instance_id": c.process_instance_id,
+            "title": inst.title if inst else None,
+            "business_no": inst.business_no if inst else None,
+            "status": inst.status if inst else None,
+            "biz_type": inst.biz_type if inst else None,
+            "biz_id": inst.biz_id if inst else None,
+            "biz_ref_id": biz_ref_id,
+            "initiator_id": inst.initiator_id if inst else None,
+            "initiator_name": name_map.get(inst.initiator_id) if inst and inst.initiator_id else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+    return out, total
+
+
+async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
+    """列表补充：合同 biz_ref_id、进行中当前节点名。"""
+    if not rows:
+        return []
+    cv_ids = {i.biz_id for i in rows if i.biz_type == "contract_version" and i.biz_id}
+    cv_map: dict[str, str] = {}
+    if cv_ids:
+        from app.domains.contract.models import ContractVersion
+        cv_map = {
+            r[0]: r[1] for r in (await db.execute(
+                select(ContractVersion.id, ContractVersion.contract_id).where(ContractVersion.id.in_(cv_ids))
+            )).all()
+        }
+    running_ids = [i.id for i in rows if i.status == "running"]
+    current_node: dict[str, str] = {}
+    if running_ids:
+        ni_rows = (await db.execute(
+            select(WfNodeInstance.process_instance_id, WfNodeInstance.node_name).where(
+                WfNodeInstance.process_instance_id.in_(running_ids),
+                WfNodeInstance.status == "running",
+                WfNodeInstance.node_type == "approval",
+            )
+        )).all()
+        for pid, name in ni_rows:
+            if pid not in current_node and name:
+                current_node[pid] = name
+    out = []
+    for i in rows:
+        d = _inst_dict(i)
+        if i.biz_type == "contract_version" and i.biz_id:
+            d["biz_ref_id"] = cv_map.get(i.biz_id)
+        elif i.biz_type == "contract_review":
+            d["biz_ref_id"] = i.biz_id
+        else:
+            d["biz_ref_id"] = None
+        d["current_node_name"] = current_node.get(i.id)
+        out.append(d)
+    return out
 
 
 async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None = None) -> list[dict]:
@@ -502,10 +1261,37 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
         rows = (await db.execute(select(User.id, User.real_name, User.username)
                 .where(User.id.in_(wanted)))).all()
         name_map = {r[0]: (r[1] or r[2]) for r in rows}
+    # 合同版本审批：biz_id 是 version_id，列表「查看单据」需要 contract_id
+    cv_ids = {
+        i.biz_id for i in insts.values()
+        if i and i.biz_type == "contract_version" and i.biz_id
+    }
+    cv_contract_map: dict[str, str] = {}
+    if cv_ids:
+        from app.domains.contract.models import ContractVersion
+        cv_rows = (await db.execute(
+            select(ContractVersion.id, ContractVersion.contract_id).where(ContractVersion.id.in_(cv_ids))
+        )).all()
+        cv_contract_map = {r[0]: r[1] for r in cv_rows}
+    # 节点名：列表展示「待审：财务审核」
+    node_ids = {t.node_instance_id for t in tasks if t.node_instance_id}
+    node_name_map: dict[str, str] = {}
+    if node_ids:
+        ni_rows = (await db.execute(
+            select(WfNodeInstance.id, WfNodeInstance.node_name).where(WfNodeInstance.id.in_(node_ids))
+        )).all()
+        node_name_map = {r[0]: (r[1] or "审批") for r in ni_rows}
+
     out = []
     for t in tasks:
         inst = insts.get(t.process_instance_id)
         on_behalf = viewer_id is not None and t.assignee_id != viewer_id
+        biz_ref_id = None
+        if inst:
+            if inst.biz_type == "contract_version" and inst.biz_id:
+                biz_ref_id = cv_contract_map.get(inst.biz_id)
+            elif inst.biz_type == "contract_review":
+                biz_ref_id = inst.biz_id
         out.append({
             "task_id": t.id, "status": t.status, "opinion": t.opinion,
             "process_instance_id": t.process_instance_id,
@@ -514,9 +1300,11 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
             "initiator_id": inst.initiator_id if inst else None,
             "initiator_name": name_map.get(inst.initiator_id) if inst else None,
             "process_status": inst.status if inst else None,
+            "node_name": node_name_map.get(t.node_instance_id) if t.node_instance_id else None,
             # 承载的业务单据：调用方据此把待办关联回业务详情页(如线索详情页的内联审批卡)
             "biz_type": inst.biz_type if inst else None,
             "biz_id": inst.biz_id if inst else None,
+            "biz_ref_id": biz_ref_id,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "action_at": t.action_at.isoformat() if t.action_at else None,
             # 代理审批：非本人被指派的待办 = 代办，标注委托人
@@ -610,7 +1398,124 @@ def _inst_dict(i: WfProcessInstance) -> dict:
     }
 
 
-async def get_instance_detail(db, tenant_id, instance_id) -> dict:
+def _fmt_duration(start, end) -> str | None:
+    if not start or not end:
+        return None
+    sec = max(0, int((end - start).total_seconds()))
+    if sec < 60:
+        return f"{sec}秒"
+    if sec < 3600:
+        return f"{sec // 60}分{sec % 60}秒"
+    if sec < 86400:
+        h, m = divmod(sec // 60, 60)
+        return f"{h}小时{m}分"
+    d, rem = divmod(sec, 86400)
+    h = rem // 3600
+    return f"{d}天{h}小时"
+
+
+async def _build_flow_steps(db, nodes: list, tasks: list, logs: list) -> list[dict]:
+    """按节点实例构造「流程动态」(对齐简道云右侧时间线)。"""
+    from app.domains.auth.models import User
+
+    # 最新在前
+    nodes_sorted = sorted(
+        nodes,
+        key=lambda n: n.started_at or n.created_at or _now(),
+        reverse=True,
+    )
+    by_node: dict[str, list] = {}
+    for t in tasks:
+        by_node.setdefault(t.node_instance_id, []).append(t)
+    last_log: dict[str, object] = {}
+    for l in logs:
+        if l.node_instance_id:
+            last_log[l.node_instance_id] = l
+
+    uid_set: set[str] = set()
+    for t in tasks:
+        if t.assignee_id:
+            uid_set.add(t.assignee_id)
+    for l in logs:
+        if l.actor_id:
+            uid_set.add(l.actor_id)
+    name_map: dict[str, str] = {}
+    if uid_set:
+        rows = (await db.execute(
+            select(User.id, User.real_name, User.username).where(User.id.in_(uid_set))
+        )).all()
+        name_map = {r[0]: (r[1] or r[2] or r[0]) for r in rows}
+
+    status_text = {
+        "running": "处理中", "completed": "已完成", "cancelled": "已取消",
+        "pending": "待处理",
+    }
+    out = []
+    for n in nodes_sorted:
+        if n.node_type in ("parallel", "merge"):
+            continue
+        nt = by_node.get(n.id) or []
+        assignees = []
+        seen: set[str] = set()
+        for t in nt:
+            if t.assignee_id and t.assignee_id not in seen:
+                seen.add(t.assignee_id)
+                assignees.append({
+                    "id": t.assignee_id,
+                    "name": name_map.get(t.assignee_id, t.assignee_id),
+                    "status": t.status,
+                })
+        lg = last_log.get(n.id)
+        action = getattr(lg, "action", None) if lg else None
+        actor_name = getattr(lg, "actor_name", None) if lg else None
+        opinion = getattr(lg, "opinion", None) if lg else None
+        if n.status == "running" and not actor_name and assignees:
+            pending_names = [a["name"] for a in assignees if a["status"] == "pending"]
+            actor_name = "、".join(pending_names) if pending_names else "、".join(a["name"] for a in assignees)
+            action = action or "pending"
+        end_at = n.completed_at or (getattr(lg, "created_at", None) if lg else None)
+        out.append({
+            "node_instance_id": n.id,
+            "node_def_id": n.node_def_id,
+            "node_name": n.node_name,
+            "node_type": n.node_type,
+            "status": n.status,
+            "status_text": status_text.get(n.status, n.status),
+            "assignees": assignees,
+            "handler_name": actor_name,
+            "action": action,
+            "opinion": opinion,
+            "started_at": n.started_at.isoformat() if n.started_at else None,
+            "completed_at": n.completed_at.isoformat() if n.completed_at else None,
+            "duration": _fmt_duration(n.started_at, end_at),
+            "is_current": n.status == "running",
+        })
+    return out
+
+
+async def find_latest_instance_by_biz(
+    db, tenant_id: str, biz_type: str, biz_id: str,
+    viewer_id: str | None = None,
+) -> dict | None:
+    """业务详情页按 (biz_type, biz_id) 取最新流程实例详情（含审批记录）。无则 None。"""
+    if not biz_type or not biz_id:
+        return None
+    inst = (await db.execute(
+        select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == tenant_id,
+            WfProcessInstance.biz_type == biz_type,
+            WfProcessInstance.biz_id == biz_id,
+        ).order_by(WfProcessInstance.created_at.desc()).limit(1)
+    )).scalar_one_or_none()
+    if not inst:
+        return None
+    return await get_instance_detail(db, tenant_id, inst.id, viewer_id=viewer_id)
+
+
+async def get_instance_detail(
+    db, tenant_id, instance_id, viewer_id: str | None = None,
+    task_id: str | None = None,
+) -> dict:
     inst = (await db.execute(select(WfProcessInstance).where(
         WfProcessInstance.id == instance_id, WfProcessInstance.tenant_id == tenant_id,
     ))).scalar_one_or_none()
@@ -633,26 +1538,143 @@ async def get_instance_detail(db, tenant_id, instance_id) -> dict:
     # 业务单据审批（线索/报价等）没有 form_instance：把业务关键字段塞进 biz_detail，
     # 供审批中心抽屉展示；否则审批人只能看到「无关联表单」。
     biz_detail: dict = {}
+    biz_ref_id = None
     if inst.biz_type and inst.biz_id:
         try:
             from app.domains.approval.service import _resolve_biz_detail
             biz_detail = await _resolve_biz_detail(db, tenant_id, inst.biz_type, inst.biz_id) or {}
         except Exception:
             biz_detail = {}
+        if inst.biz_type == "contract_review":
+            biz_ref_id = inst.biz_id
+        elif inst.biz_type == "contract_version":
+            try:
+                from app.domains.contract.models import ContractVersion
+                ver = await db.get(ContractVersion, inst.biz_id)
+                if ver:
+                    biz_ref_id = ver.contract_id
+            except Exception:
+                biz_ref_id = None
+
+    current_task = await _resolve_current_task_for_viewer(
+        db, tenant_id, inst, version, list(tasks), viewer_id, task_id=task_id,
+    )
+    nodes = (await db.execute(select(WfNodeInstance).where(
+        WfNodeInstance.process_instance_id == instance_id,
+    ))).scalars().all()
+    flow_steps = await _build_flow_steps(db, list(nodes), list(tasks), list(logs))
+    # 补一条「发起」动态（对齐简道云流程发起节点）
+    if inst.started_at:
+        from app.domains.auth.models import User
+        iname = None
+        if inst.initiator_id:
+            u = (await db.execute(
+                select(User.real_name, User.username).where(User.id == inst.initiator_id)
+            )).first()
+            if u:
+                iname = u[0] or u[1]
+        flow_steps.append({
+            "node_instance_id": f"start:{inst.id}",
+            "node_def_id": "start",
+            "node_name": "流程发起",
+            "node_type": "start",
+            "status": "completed",
+            "status_text": "已完成",
+            "assignees": [],
+            "handler_name": iname,
+            "action": "submit",
+            "opinion": None,
+            "started_at": inst.started_at.isoformat(),
+            "completed_at": inst.started_at.isoformat(),
+            "duration": "1秒",
+            "is_current": False,
+        })
+
+    # 轨迹补充节点名
+    ni_name = {n.id: n.node_name for n in nodes}
     return {
         **_inst_dict(inst),
         "approval_nodes": approval_nodes,
         "biz_detail": biz_detail,
+        "biz_ref_id": biz_ref_id,
+        "current_task": current_task,
+        "flow_steps": flow_steps,
         "timeline": [{
             "action": l.action, "actor_id": l.actor_id, "actor_name": l.actor_name,
             "opinion": l.opinion, "at": l.created_at.isoformat() if l.created_at else None,
+            "node_name": ni_name.get(l.node_instance_id) if l.node_instance_id else None,
         } for l in logs],
         "tasks": [{
             "id": t.id, "assignee_id": t.assignee_id, "status": t.status,
             "opinion": t.opinion, "task_order": t.task_order,
+            "node_instance_id": t.node_instance_id,
         } for t in tasks],
         "comments": [{
             "user_id": c.user_id, "user_name": c.user_name, "content": c.content,
             "at": c.created_at.isoformat() if c.created_at else None,
         } for c in comments],
+    }
+
+
+async def _resolve_current_task_for_viewer(
+    db, tenant_id: str, inst: WfProcessInstance,
+    version: WfProcessDefinitionVersion | None,
+    tasks: list, viewer_id: str | None,
+    task_id: str | None = None,
+) -> dict | None:
+    """若 viewer 对本实例有 pending 待办，返回节点可填字段配置与当前值。
+
+    并行会签时同一人可能有多条待办：传入 task_id 时优先解析该任务，避免填错节点字段。
+    """
+    if not viewer_id or inst.status != "running":
+        return None
+    assignees = [viewer_id]
+    try:
+        principals = await active_principals(db, tenant_id, viewer_id)
+        assignees = [viewer_id, *principals]
+    except Exception:
+        pass
+    pending = None
+    if task_id:
+        pending = next(
+            (t for t in tasks
+             if t.id == task_id and t.status == "pending" and t.assignee_id in assignees),
+            None,
+        )
+    if not pending:
+        pending = next(
+            (t for t in tasks if t.status == "pending" and t.assignee_id in assignees),
+            None,
+        )
+    if not pending:
+        return None
+    from app.domains.lowcode.wf_field_writeback import load_field_values, parse_field_perms
+    from app.domains.lowcode.biz_field_catalog import get_catalog
+
+    node_inst = await db.get(WfNodeInstance, pending.node_instance_id)
+    node_def_id = node_inst.node_def_id if node_inst else None
+    nodes = {n.get("id"): n for n in (version.node_definitions if version else [])}
+    node = nodes.get(node_def_id or "") or {}
+    field_perms = parse_field_perms(node)
+    field_ids = [p["field"] for p in field_perms]
+    catalog = {f["id"]: f for f in get_catalog(inst.biz_type or "")}
+    field_meta = []
+    for fid in field_ids:
+        meta = catalog.get(fid) or {"id": fid, "label": fid, "type": "text"}
+        field_meta.append({
+            "id": fid,
+            "label": meta.get("label") or fid,
+            "type": meta.get("type") or "text",
+        })
+    field_values = await load_field_values(
+        db, tenant_id, inst.biz_type, inst.biz_id, inst.form_instance_id, field_ids,
+    )
+    return {
+        "task_id": pending.id,
+        "node_id": node_def_id,
+        "node_name": node.get("name") or "审批",
+        "field_perms": field_perms,
+        "opinion_required": bool(node.get("opinion_required")),
+        "field_meta": field_meta,
+        "field_values": field_values,
     }

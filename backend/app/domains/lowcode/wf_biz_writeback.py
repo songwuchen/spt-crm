@@ -21,6 +21,7 @@ REGISTRY: dict[str, dict[str, str]] = {
     "service_ticket": {"table": "service_tickets", "status_col": "status", "approved": "processing", "rejected": "rejected"},
     "quote_version": {"table": "quote_versions", "status_col": "status", "approved": "approved", "rejected": "rejected"},
     "contract_version": {"table": "contract_versions", "status_col": "status", "approved": "approved", "rejected": "rejected"},
+    "contract_review": {"table": "contract_reviews", "status_col": "status", "approved": "approved", "rejected": "rejected"},
     "change_request": {"table": "change_requests", "status_col": "status", "approved": "approved", "rejected": "rejected"},
     "solution": {"table": "solutions", "status_col": "status", "approved": "approved", "rejected": "rejected"},
 }
@@ -44,6 +45,20 @@ async def writeback(
     val = reg["approved"] if flow_status == "completed" else reg["rejected"] if flow_status == "rejected" else None
     if val is None:
         return
+    # 线索袭击：intel_review 会先把 review_status 写成 attacked，通过回写时不得覆盖为 approved
+    if biz_type == "lead" and flow_status == "completed":
+        cur = (await db.execute(
+            text("SELECT review_status FROM leads WHERE id = :bid AND tenant_id = :tenant"),
+            {"bid": biz_id, "tenant": tenant_id},
+        )).scalar_one_or_none()
+        if cur == "attacked":
+            reason_col = reg.get("reason_col")
+            if reason_col:
+                await db.execute(
+                    text(f"UPDATE leads SET {reason_col} = NULL WHERE id = :bid AND tenant_id = :tenant"),
+                    {"bid": biz_id, "tenant": tenant_id},
+                )
+            return
     sets = [f"{reg['status_col']} = :val"]
     params: dict[str, object] = {"val": val, "bid": biz_id, "tenant": tenant_id}
     reason_col = reg.get("reason_col")

@@ -86,7 +86,7 @@ export const menuGroups: MenuGroup[] = [
     items: [
       { key: '/lowcode/forms', icon: 'dynamic_form', labelKey: 'nav.lowcodeForms', permission: 'form:view' },
       { key: '/lowcode/workflows', icon: 'account_tree', labelKey: 'nav.lowcodeWorkflows', permission: 'workflow:view' },
-      { key: '/lowcode/approvals', icon: 'approval', labelKey: 'nav.lowcodeApprovals' },
+      // 审批入口统一到主菜单「审批中心」，避免双入口混淆
       { key: '/lowcode/dashboards', icon: 'insert_chart', labelKey: 'nav.lowcodeDashboards', permission: 'dashboard:view' },
       { key: '/lowcode/entity-fields', icon: 'tune', labelKey: 'nav.lowcodeEntityFields', permission: 'form:manage' },
     ],

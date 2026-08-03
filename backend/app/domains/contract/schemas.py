@@ -8,6 +8,7 @@ JsonTerms = Union[dict, list]
 
 class ContractCreate(BaseModel):
     title: Optional[str] = None
+    project_id: Optional[str] = Field(None, max_length=36)  # 可选；合同管理入口可不挂商机
     amount_total: Optional[float] = Field(None, ge=0)
     end_date: Optional[date] = None
     drawing_no: Optional[str] = Field(None, max_length=100)
@@ -55,6 +56,12 @@ class ContractVersionUpdate(BaseModel):
     key_clauses_json: Optional[JsonTerms] = None
     risk_level: Optional[str] = None
     status: Optional[str] = None
+
+
+class ContractVersionSubmit(BaseModel):
+    """提交版本审批；assignee 仅在回退旧审批引擎且无策略时需要。"""
+    assignee_ids: list[str] = []
+    assignee_names: Optional[list[str]] = None
 
 
 class ContractFromQuote(BaseModel):

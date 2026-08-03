@@ -28,6 +28,8 @@ ENTITY_TYPES = {"customer", "project", "lead", "contact", "service_ticket", "ord
 @router.get("/pickable-users")
 async def pickable_users(
     keyword: str = Query(None),
+    ids: str | None = Query(None, description="逗号分隔的用户 id，用于回显未落在默认列表中的人选"),
+    usernames: str | None = Query(None, description="逗号分隔的 username，同上"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
@@ -39,8 +41,33 @@ async def pickable_users(
     if keyword:
         like = f"%{keyword}%"
         q = q.where(or_(User.real_name.ilike(like), User.username.ilike(like)))
-    rows = (await db.execute(q.order_by(User.real_name).limit(500))).all()
-    return ok([{"id": r[0], "name": r[1] or r[2]} for r in rows])
+    # 租户用户常超过旧上限 500，导致流程审批人只显示工号不显示姓名
+    rows = (await db.execute(q.order_by(User.real_name).limit(5000))).all()
+    by_id = {r[0]: r for r in rows}
+    # 补齐指定 id/username（即使不在默认排序窗口内）
+    extra_ids = [x.strip() for x in (ids or "").split(",") if x.strip()]
+    extra_names = [x.strip() for x in (usernames or "").split(",") if x.strip()]
+    missing_ids = [i for i in extra_ids if i not in by_id]
+    missing_names = extra_names
+    if missing_ids or missing_names:
+        conds = []
+        if missing_ids:
+            conds.append(User.id.in_(missing_ids))
+        if missing_names:
+            conds.append(User.username.in_(missing_names))
+        extra = (await db.execute(
+            select(User.id, User.real_name, User.username).where(
+                User.tenant_id == tenant_id, or_(*conds),
+            )
+        )).all()
+        for r in extra:
+            by_id[r[0]] = r
+    # 同时返回 username：流程设计里审批人可能存 id 或 username（简道云对齐默认流用 username）
+    out = [
+        {"id": r[0], "name": r[1] or r[2], "username": r[2]}
+        for r in sorted(by_id.values(), key=lambda x: (x[1] or x[2] or ""))
+    ]
+    return ok(out)
 
 
 @router.get("/pickable-departments")

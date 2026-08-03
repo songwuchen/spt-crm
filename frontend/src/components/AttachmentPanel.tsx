@@ -42,12 +42,20 @@ export default function AttachmentPanel({ bizType, bizId, title = '附件', acce
   const [previewUrl, setPreviewUrl] = useState<string>('')
 
   const fetchList = async () => {
+    if (!bizId) {
+      setList([])
+      return
+    }
     setLoading(true)
     try {
       const res = await client.get<unknown, ApiResponse<AttachmentItem[]>>('/api/v1/attachments/by_biz', {
         params: { biz_type: bizType, biz_id: bizId },
+        // 审批抽屉只读场景：列表失败不弹全局 toast，避免刷屏
+        headers: compact ? { 'X-Silent-Error': '1' } : undefined,
       })
-      setList(res.data)
+      setList(res.data || [])
+    } catch {
+      setList([])
     } finally {
       setLoading(false)
     }

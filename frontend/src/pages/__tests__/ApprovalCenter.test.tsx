@@ -36,9 +36,9 @@ vi.mock('@/api/user', () => ({
   userApi: { list: vi.fn() },
 }))
 
-// 审批中心会额外查一次新工作流引擎的待办数，用于提示「还有 N 条待办在流程审批中心」
-vi.mock('@/api/lowcodeWorkflow', () => ({
-  workflowApi: { todo: vi.fn() },
+vi.mock('@/api/unifiedApprovals', () => ({
+  fetchUnifiedPending: vi.fn(),
+  decideUnified: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
@@ -48,7 +48,7 @@ vi.mock('@/api/client', () => ({
 import ApprovalCenter from '../approval/ApprovalCenter'
 import { approvalApi } from '@/api/approval'
 import { userApi } from '@/api/user'
-import { workflowApi } from '@/api/lowcodeWorkflow'
+import { fetchUnifiedPending } from '@/api/unifiedApprovals'
 
 const adminUser: UserInfo = {
   id: 'u-1',
@@ -59,27 +59,17 @@ const adminUser: UserInfo = {
   tenant_id: 't-1',
 }
 
-const mockPending = [
+const mockUnifiedPending = [
   {
-    id: 'task-1',
-    flow_id: 'flow-1',
-    node_order: 1,
-    status: 'pending',
-    assignee_id: 'u-1',
-    assignee_name: 'Admin',
-    flow: {
-      id: 'flow-1',
-      title: '报价审批 - QT-001',
-      biz_type: 'quote_version',
-      biz_id: 'qv-1',
-      status: 'pending',
-      submitted_by_id: 'u-2',
-      submitted_by_name: '张三',
-      current_node: 1,
-      total_nodes: 2,
-      approval_mode: 'sequential',
-      created_at: '2026-03-10T10:00:00',
-    },
+    key: 'legacy:task-1',
+    taskId: 'task-1',
+    engine: 'legacy' as const,
+    title: '报价审批 - QT-001',
+    subtitle: '张三 发起 · 节点 1/2',
+    bizType: 'quote_version',
+    bizId: 'qv-1',
+    instanceId: 'flow-1',
+    createdAt: '2026-03-10T10:00:00',
   },
 ]
 
@@ -120,10 +110,12 @@ describe('ApprovalCenter', { timeout: 15000 }, () => {
     act(() => {
       useAuthStore.getState().setUser(adminUser)
     })
-    ;(approvalApi.myPending as ReturnType<typeof vi.fn>).mockResolvedValue({ data: mockPending })
+    ;(fetchUnifiedPending as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: mockUnifiedPending,
+      total: mockUnifiedPending.length,
+    })
     ;(approvalApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: mockFlows, total: mockFlows.length } })
     ;(userApi.list as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [], total: 0 } })
-    ;(workflowApi.todo as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { items: [], total: 0 } })
   })
 
   it('renders page title', async () => {
@@ -136,7 +128,7 @@ describe('ApprovalCenter', { timeout: 15000 }, () => {
   it('fetches pending and all flows on mount', async () => {
     render(<ApprovalCenter />)
     await waitFor(() => {
-      expect(approvalApi.myPending).toHaveBeenCalled()
+      expect(fetchUnifiedPending).toHaveBeenCalled()
       expect(approvalApi.list).toHaveBeenCalled()
     })
   })
@@ -194,7 +186,7 @@ describe('ApprovalCenter', { timeout: 15000 }, () => {
   })
 
   it('renders empty state when no pending tasks', async () => {
-    ;(approvalApi.myPending as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
+    ;(fetchUnifiedPending as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0 })
     render(<ApprovalCenter />)
     await waitFor(() => {
       expect(screen.getByText('暂无待审批任务')).toBeInTheDocument()

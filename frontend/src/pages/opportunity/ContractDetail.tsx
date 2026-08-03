@@ -7,6 +7,7 @@ import { contractApi } from '@/api/contract'
 import { paymentApi } from '@/api/payment'
 import { deliveryApi } from '@/api/delivery'
 import { approvalApi } from '@/api/approval'
+import { workflowApi } from '@/api/lowcodeWorkflow'
 import { aiApi } from '@/api/ai'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ContractAttachmentSlots from '@/components/ContractAttachmentSlots'
@@ -22,7 +23,9 @@ import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contrac
 import ContractRegistrationFields, { DATE_KEYS } from '@/components/ContractRegistrationFields'
 import type { ContractItem, ContractVersion } from '@/api/types'
 import { riskLabels, riskColors } from '@/api/types'
-import { contractStatusColors, contractStatusLabels } from '@/constants/labels'
+import { contractStatusColors, contractStatusLabels, contractVersionStatusColors, contractVersionStatusLabels } from '@/constants/labels'
+import type { WfInstanceDetail } from '@/types/lowcode'
+import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { CONTRACT_REGISTRATION_SECTIONS, formatChangeType, formatRegFieldValue } from '@/constants/contractRegistration'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
@@ -272,6 +275,8 @@ export default function ContractDetail() {
 
   // Signing workflow
   const [approvalFlow, setApprovalFlow] = useState<import('@/api/types').ApprovalFlowItem | null>(null)
+  const [wfInstance, setWfInstance] = useState<WfInstanceDetail | null>(null)
+  const [wfCommenting, setWfCommenting] = useState(false)
 
   // AI analysis
   const [aiResult, setAiResult] = useState<{
@@ -357,6 +362,18 @@ export default function ContractDetail() {
   }
 
   const fetchApprovalFlow = async (versionId: string) => {
+    // 合同版本审批已切新引擎；旧 approvalApi 仅作兼容回退
+    try {
+      const wfRes = await workflowApi.byBiz({ biz_type: 'contract_version', biz_id: versionId })
+      if (wfRes.data) {
+        setWfInstance(wfRes.data)
+        setApprovalFlow(null)
+        return
+      }
+      setWfInstance(null)
+    } catch {
+      setWfInstance(null)
+    }
     try {
       const res = await approvalApi.list({ biz_type: 'contract_version', biz_id: versionId })
       const flows = res.data?.items || []
@@ -374,15 +391,20 @@ export default function ContractDetail() {
 
   const handleSign = async () => {
     if (!signDate) return
-    await contractApi.sign(cid!, {
-      signed_date: signDate.format('YYYY-MM-DD'),
-      ...(signatureImage ? { signature_image: signatureImage } : {}),
-    })
-    message.success('合同已签署')
-    setSignModal(false)
-    setSignatureImage(null)
-    setShowSignPad(false)
-    fetchContract()
+    try {
+      await contractApi.sign(cid!, {
+        signed_date: signDate.format('YYYY-MM-DD'),
+        ...(signatureImage ? { signature_image: signatureImage } : {}),
+      })
+      message.success('合同已签署')
+      setSignModal(false)
+      setSignatureImage(null)
+      setShowSignPad(false)
+      fetchContract()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      if (msg) message.error(msg)
+    }
   }
 
   const openApprovalModal = () => {
@@ -390,29 +412,53 @@ export default function ContractDetail() {
     setApprovalModal(true)
   }
 
-  const handleSubmitApproval = async () => {
+  const handleSubmitApproval = async (withAssignees = false) => {
+    if (!selectedVersionId) {
+      message.warning('无合同版本，无法提交审批')
+      return
+    }
     setApprovalSubmitting(true)
     try {
-      const approverNames = selectedApprovers.map((id) => userSelect.options.find((o) => o.value === id)?.label || '')
-      const res = await approvalApi.submit({
-        biz_type: 'contract_version',
-        biz_id: selectedVersionId,
-        title: `合同审批 - ${contract?.contract_no} V${currentVersion?.version_no || ''}`,
-        assignee_ids: selectedApprovers,
-        assignee_names: approverNames.length > 0 ? approverNames : undefined,
-      })
-      if (res.data?.approval_mode && res.data.approval_mode !== 'sequential') {
-        message.success(`审批已自动发起（${res.data.approval_mode === 'parallel' ? '并行模式' : '任一通过模式'}）`)
-      } else {
-        message.success('审批已提交')
-      }
+      const payload = withAssignees && selectedApprovers.length > 0
+        ? {
+            assignee_ids: selectedApprovers,
+            assignee_names: selectedApprovers.map(
+              (id) => userSelect.options.find((o) => o.value === id)?.label || '',
+            ),
+          }
+        : {}
+      await contractApi.submitVersion(selectedVersionId, payload)
+      message.success('已提交审批，请在「审批中心」处理待办')
       setApprovalModal(false)
-    } catch (err: any) {
-      if (err?.response?.data?.message) {
-        message.error(err.response.data.message)
+      fetchContract()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      if (!withAssignees && msg && msg.includes('审批人')) {
+        openApprovalModal()
+        message.info('未匹配到流程/策略，请手动选择审批人')
+      } else if (msg) {
+        message.error(msg)
       }
     } finally {
       setApprovalSubmitting(false)
+    }
+  }
+
+  const handleWfComment = async (content: string) => {
+    if (!wfInstance?.id) return
+    setWfCommenting(true)
+    try {
+      await workflowApi.comment(wfInstance.id, content)
+      message.success('评论已发表')
+      const refreshed = await workflowApi.byBiz({
+        biz_type: 'contract_version',
+        biz_id: selectedVersionId,
+      })
+      if (refreshed.data) setWfInstance(refreshed.data)
+    } catch {
+      message.error('发表评论失败')
+    } finally {
+      setWfCommenting(false)
     }
   }
 
@@ -420,6 +466,73 @@ export default function ContractDetail() {
 
   const statusColors = contractStatusColors
   const statusLabels = contractStatusLabels
+  const verStatus = currentVersion?.status || 'draft'
+  // 主合同签署前 status 一直是 draft；展示态以版本审批进度 + 新引擎实例为准
+  const displayStatus = (() => {
+    if (contract.status === 'signed' || contract.status === 'terminated') return contract.status
+    if (verStatus === 'approved' || wfInstance?.status === 'completed') return 'pending_sign'
+    if (verStatus === 'submitted' || wfInstance?.status === 'running') return 'approving'
+    if (verStatus === 'rejected' || wfInstance?.status === 'rejected') return 'rejected'
+    if (approvalFlow?.status === 'approved') return 'pending_sign'
+    if (approvalFlow?.status === 'pending') return 'approving'
+    if (approvalFlow?.status === 'rejected') return 'rejected'
+    return 'draft'
+  })()
+  const displayStatusLabel: Record<string, string> = {
+    draft: '草稿',
+    approving: '审批中',
+    pending_sign: '待签署',
+    rejected: '已驳回',
+    signed: '已签署',
+    terminated: '已终止',
+  }
+  const displayStatusColor: Record<string, string> = {
+    draft: 'default',
+    approving: 'processing',
+    pending_sign: 'warning',
+    rejected: 'error',
+    signed: 'success',
+    terminated: 'error',
+  }
+  const canSubmitApproval = contract.status === 'draft'
+    && (verStatus === 'draft' || verStatus === 'rejected')
+    && wfInstance?.status !== 'running'
+    && approvalFlow?.status !== 'pending'
+  const canSign = contract.status === 'draft'
+  const stepCurrent = (() => {
+    if (contract.status === 'signed' || contract.status === 'terminated') return 3
+    if (verStatus === 'approved' || verStatus === 'signed') return 2
+    if (verStatus === 'submitted' || verStatus === 'rejected') return 1
+    if (wfInstance?.status === 'running' || approvalFlow?.status === 'pending') return 1
+    if (wfInstance?.status === 'completed' || approvalFlow?.status === 'approved') return 2
+    return 0
+  })()
+  const stepStatus: 'error' | undefined =
+    contract.status === 'terminated' || verStatus === 'rejected' || wfInstance?.status === 'rejected' || approvalFlow?.status === 'rejected'
+      ? 'error'
+      : undefined
+  const approvalDesc = (() => {
+    if (wfInstance) {
+      if (wfInstance.status === 'completed') return '已通过'
+      if (wfInstance.status === 'rejected') return '已驳回'
+      if (wfInstance.status === 'running') return wfInstance.flow_steps?.find((s) => s.is_current)?.node_name
+        ? `审批中 · ${wfInstance.flow_steps.find((s) => s.is_current)!.node_name}`
+        : '审批中'
+      if (wfInstance.status === 'withdrawn' || wfInstance.status === 'cancelled') return '已撤回'
+      return wfInstance.status
+    }
+    if (approvalFlow) {
+      if (approvalFlow.status === 'pending') return `${approvalFlow.current_node}/${approvalFlow.total_nodes} 审批中`
+      if (approvalFlow.status === 'approved') return '已通过'
+      if (approvalFlow.status === 'rejected') return '已驳回'
+      if (approvalFlow.status === 'withdrawn') return '已撤回'
+      return approvalFlow.status
+    }
+    if (verStatus === 'submitted') return '审批中'
+    if (verStatus === 'approved' || verStatus === 'signed') return '已通过'
+    if (verStatus === 'rejected') return '已驳回'
+    return '待提交'
+  })()
   // 只有结构化（行数组）付款条款才能生成回款计划；非行结构（如 {method:"分期"}）不展示按钮
   const canGenerate = toCanonicalRows(contract.payment_terms_json, resolvePayColumns()).length > 0 && contract.status !== 'terminated'
   const genTotal = genRows.reduce((s, r) => s + (r.amount || 0), 0)
@@ -433,7 +546,9 @@ export default function ContractDetail() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-slate-900">{contract.contract_no}</h1>
-            <Tag color={statusColors[contract.status]}>{statusLabels[contract.status] || contract.status}</Tag>
+            <Tag color={displayStatusColor[displayStatus] || statusColors[contract.status]}>
+              {displayStatusLabel[displayStatus] || statusLabels[contract.status] || contract.status}
+            </Tag>
           </div>
           <p className="text-sm text-slate-500">
             创建人: {contract.created_by_name || '-'} · {contract.created_at ? new Date(contract.created_at).toLocaleDateString('zh-CN') : ''}
@@ -444,11 +559,12 @@ export default function ContractDetail() {
           {contract.status !== 'terminated' && (
             <Button icon={<EditOutlined />} onClick={openEditModal}>编辑登记信息</Button>
           )}
-          {contract.status === 'draft' && (
-            <>
-              <Button icon={<AuditOutlined />} onClick={openApprovalModal}>提交审批</Button>
-              <Button type="primary" icon={<CheckCircleOutlined />} onClick={() => setSignModal(true)}>签署合同</Button>
-            </>
+          {canSubmitApproval && (
+            <Button icon={<AuditOutlined />} loading={approvalSubmitting}
+              onClick={() => handleSubmitApproval(false)}>提交审批</Button>
+          )}
+          {canSign && (
+            <Button type="primary" icon={<CheckCircleOutlined />} onClick={() => setSignModal(true)}>签署合同</Button>
           )}
           {contract.status === 'signed' && (
             <Button type="primary" loading={renewLoading} onClick={async () => {
@@ -462,13 +578,16 @@ export default function ContractDetail() {
           )}
           <Button icon={<FilePdfOutlined />} onClick={() => downloadFile(`/api/v1/contracts/${cid}/export/pdf`, `contract_${contract.contract_no}.pdf`)}>导出PDF</Button>
           <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
-          {projectId ? (
-            <Button onClick={() => navigate(`/opportunities/${projectId}`)}>返回商机</Button>
+          {projectIdParam ? (
+            <Button onClick={() => navigate(`/opportunities/${projectIdParam}`)}>返回商机</Button>
           ) : (
             <Button onClick={() => navigate('/contracts')}>返回合同列表</Button>
           )}
         </Space>
       </div>
+
+      <div className="flex gap-4 items-start">
+        <div className="flex-1 min-w-0">
 
       {/* 编辑合同登记 */}
       <Modal title="编辑合同登记" open={editModal} onOk={handleEditSave} confirmLoading={editSaving}
@@ -588,39 +707,24 @@ export default function ContractDetail() {
         <div className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">签章流程</div>
         <Steps
           size="small"
-          current={
-            contract.status === 'signed' ? 3 :
-            contract.status === 'terminated' ? 3 :
-            approvalFlow?.status === 'approved' ? 2 :
-            approvalFlow?.status === 'pending' ? 1 :
-            0
-          }
-          status={
-            contract.status === 'terminated' ? 'error' :
-            approvalFlow?.status === 'rejected' ? 'error' :
-            undefined
-          }
+          current={stepCurrent}
+          status={stepStatus}
           items={[
             {
               title: '草稿',
-              description: contract.status === 'draft' && !approvalFlow ? '当前' : '完成',
+              description: stepCurrent === 0 ? '当前' : '完成',
               icon: <Icon name="edit_document" style={{ fontSize: 20 }} />,
             },
             {
               title: '审批',
-              description: approvalFlow
-                ? approvalFlow.status === 'pending'
-                  ? `${approvalFlow.current_node}/${approvalFlow.total_nodes} 审批中`
-                  : approvalFlow.status === 'approved' ? '已通过'
-                  : approvalFlow.status === 'rejected' ? '已驳回'
-                  : approvalFlow.status === 'withdrawn' ? '已撤回' : approvalFlow.status
-                : '待提交',
+              description: approvalDesc,
               icon: <Icon name="approval" style={{ fontSize: 20 }} />,
             },
             {
               title: '签章',
               description: contract.status === 'signed' ? '已签署' :
-                approvalFlow?.status === 'approved' ? '待签署' : '等待中',
+                (verStatus === 'approved' || wfInstance?.status === 'completed' || approvalFlow?.status === 'approved')
+                  ? '待签署' : '等待中',
               icon: <Icon name="draw" style={{ fontSize: 20 }} />,
             },
             {
@@ -632,8 +736,8 @@ export default function ContractDetail() {
             },
           ]}
         />
-        {/* Approval tasks detail */}
-        {approvalFlow?.tasks && approvalFlow.tasks.length > 0 && (
+        {/* 旧引擎审批记录（新引擎改右侧「流程动态」） */}
+        {!wfInstance && approvalFlow?.tasks && approvalFlow.tasks.length > 0 && (
           <div className="mt-4 pt-4 border-t border-slate-100">
             <div className="text-sm font-bold text-slate-400 mb-2">审批记录</div>
             <div className="flex flex-wrap gap-2">
@@ -809,7 +913,11 @@ export default function ContractDetail() {
         {currentVersion && (
           <Descriptions size="small" column={3} bordered>
             <Descriptions.Item label="版本标题">{currentVersion.title || '-'}</Descriptions.Item>
-            <Descriptions.Item label="版本状态"><Tag>{statusLabels[currentVersion.status] || currentVersion.status}</Tag></Descriptions.Item>
+            <Descriptions.Item label="版本状态">
+              <Tag color={contractVersionStatusColors[currentVersion.status] || 'default'}>
+                {contractVersionStatusLabels[currentVersion.status] || currentVersion.status}
+              </Tag>
+            </Descriptions.Item>
             <Descriptions.Item label="风险等级">
               {currentVersion.risk_level ? (
                 <span className={`inline-flex px-2 py-0.5 rounded text-[12px] font-bold border ${riskColors[currentVersion.risk_level] || ''}`}>
@@ -1024,8 +1132,8 @@ export default function ContractDetail() {
         </div>
       </Modal>
 
-      {/* Submit Approval Modal */}
-      <Modal title="提交合同审批" open={approvalModal} onOk={handleSubmitApproval}
+      {/* Submit Approval Modal — 仅旧引擎无策略时手动选人 */}
+      <Modal title="提交合同审批" open={approvalModal} onOk={() => handleSubmitApproval(true)}
         onCancel={() => setApprovalModal(false)} confirmLoading={approvalSubmitting} okText="提交审批">
         <div className="py-2">
           <div className="mb-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
@@ -1039,10 +1147,40 @@ export default function ContractDetail() {
               options={userSelect.options}
               onSearch={userSelect.onSearch}
               onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
-            <div className="text-sm text-slate-400 mt-1">多选时将按选择顺序依次审批</div>
+            <div className="text-sm text-slate-400 mt-1">多选时将按选择顺序依次审批（流程管理未命中时的回退）</div>
           </div>
         </div>
       </Modal>
+        </div>
+
+        {wfInstance && (
+          <aside
+            className="w-[320px] shrink-0 sticky top-4 hidden md:block self-start rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white"
+            style={{ height: 'calc(100vh - 140px)', maxHeight: 840 }}
+          >
+            <WfFlowDynamics
+              steps={wfInstance.flow_steps || []}
+              comments={wfInstance.comments || []}
+              onSubmitComment={handleWfComment}
+              commenting={wfCommenting}
+            />
+          </aside>
+        )}
+      </div>
+
+      {wfInstance && (
+        <div
+          className="md:hidden mt-4 rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white"
+          style={{ height: 420 }}
+        >
+          <WfFlowDynamics
+            steps={wfInstance.flow_steps || []}
+            comments={wfInstance.comments || []}
+            onSubmitComment={handleWfComment}
+            commenting={wfCommenting}
+          />
+        </div>
+      )}
     </div>
   )
 }

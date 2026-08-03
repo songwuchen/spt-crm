@@ -158,11 +158,51 @@ async def _build_policy_context(db: AsyncSession, tenant_id: str, biz_type: str,
             )).scalar_one_or_none()
             if ver:
                 context["risk_level"] = ver.risk_level
+                context["contract_id"] = ver.contract_id
                 c = (await db.execute(
                     select(Contract).where(Contract.id == ver.contract_id, Contract.tenant_id == tenant_id)
                 )).scalar_one_or_none()
                 if c:
-                    context["amount"] = _safe_float(c.amount_total)
+                    amt = _safe_float(c.amount_total)
+                    context["amount"] = amt
+                    context["amount_total"] = amt
+                    context["change_type"] = c.change_type
+                    context["department_id"] = c.department_id
+                    reg = c.registration_json if isinstance(c.registration_json, dict) else {}
+                    context["industry"] = reg.get("industry")
+                    context["is_export"] = reg.get("is_export")
+                    # 对齐简道云合同登记运营分支（标准交付 / 方式 / 旋振筛）
+                    context["standard_delivery"] = reg.get("standard_delivery")
+                    context["delivery_mode"] = reg.get("delivery_mode")
+                    context["is_rotary_sieve"] = reg.get("is_rotary_sieve")
+                    # 二级节点审批人：采购填的采购员 / 质检填的质检员
+                    context["purchasers"] = reg.get("purchasers")
+                    context["inspectors"] = reg.get("inspectors")
+                    context["fill_code"] = reg.get("fill_code")
+        elif biz_type == "contract_review":
+            from app.domains.contract_review.models import ContractReview
+            rv = (await db.execute(
+                select(ContractReview).where(ContractReview.id == biz_id, ContractReview.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if rv:
+                context["contract_amount"] = _safe_float(rv.contract_amount)
+                context["is_export"] = rv.is_export
+                context["need_install"] = rv.need_install
+                context["need_pricing"] = rv.need_pricing
+                context["department_id"] = rv.department_id
+                context["owner_id"] = rv.owner_id
+                context["customer_type"] = rv.customer_type
+                context["payment_term"] = rv.payment_term
+                context["review_type"] = rv.review_type
+                rj = rv.review_json if isinstance(rv.review_json, dict) else {}
+                context["industry"] = rj.get("industry")
+                # 简道云财务意见后分支：合同评审 + 是否反馈=否 → 产采质
+                context["need_feedback"] = rj.get("need_feedback") or getattr(rv, "need_feedback", None)
+                for risk_key in (
+                    "legal_risk", "tech_risk", "biz_risk",
+                    "finance_risk", "purchase_risk", "export_risk",
+                ):
+                    context[risk_key] = rj.get(risk_key)
         elif biz_type == "change_request":
             from app.domains.change.models import ChangeRequest
             cr = (await db.execute(
@@ -1148,11 +1188,49 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
                 select(ContractVersion).where(ContractVersion.id == biz_id, ContractVersion.tenant_id == tenant_id)
             )).scalar_one_or_none()
             if ver:
-                detail["version_no"] = ver.version_no
+                def _put(label: str, val) -> None:
+                    if val is None or val == "":
+                        return
+                    detail[label] = val
+
+                _put("版本号", ver.version_no)
+                _put("风险等级", ver.risk_level)
                 c = (await db.execute(select(Contract).where(Contract.id == ver.contract_id, Contract.tenant_id == tenant_id))).scalar_one_or_none()
                 if c:
-                    detail["contract_no"] = c.contract_no
-                    detail["amount_total"] = f"¥{float(c.amount_total):,.2f}" if c.amount_total is not None else "-"
+                    _put("合同编号", c.contract_no)
+                    _put(
+                        "合同金额",
+                        f"¥{float(c.amount_total):,.2f}" if c.amount_total is not None else None,
+                    )
+                    change_labels = {"new": "新签", "change": "变更", "renew": "续签"}
+                    _put("变更类型", change_labels.get(c.change_type or "", c.change_type))
+                    _put("所属部门", c.department_name)
+                    reg = c.registration_json if isinstance(c.registration_json, dict) else {}
+                    _put("行业", reg.get("industry"))
+                    _put("是否出口", reg.get("is_export"))
+                    _put("是否标准交付", reg.get("standard_delivery"))
+                    _put("交付方式", reg.get("delivery_mode"))
+                    _put("是否旋振筛", reg.get("is_rotary_sieve"))
+
+        elif biz_type == "contract_review":
+            from app.domains.contract_review.models import ContractReview
+            rv = (await db.execute(
+                select(ContractReview).where(ContractReview.id == biz_id, ContractReview.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if rv:
+                detail["review_code"] = rv.review_code
+                detail["review_type"] = rv.review_type
+                detail["company_name"] = rv.company_name
+                detail["project_title"] = rv.project_title
+                detail["owner_name"] = rv.owner_name
+                detail["department_name"] = rv.department_name
+                detail["is_export"] = rv.is_export
+                detail["need_install"] = rv.need_install
+                detail["contract_amount"] = (
+                    f"¥{float(rv.contract_amount):,.2f}" if rv.contract_amount is not None else "-"
+                )
+                detail["payment_term"] = rv.payment_term
+                detail["status"] = rv.status
         elif biz_type == "change_request":
             from app.domains.change.models import ChangeRequest
             cr = (await db.execute(

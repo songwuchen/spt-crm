@@ -28,10 +28,48 @@ export const workflowApi = {
   done: (params: Record<string, unknown>) =>
     client.get<unknown, ApiResponse<PageData<WfTodoItem>>>('/api/v1/lc/wf/tasks/done', { params }),
   mine: (params: Record<string, unknown>) =>
-    client.get<unknown, ApiResponse<PageData<{ id: string; title?: string; business_no?: string; status: string; form_instance_id?: string; created_at?: string }>>>('/api/v1/lc/wf/instances/mine', { params }),
-  instance: (id: string) =>
-    client.get<unknown, ApiResponse<WfInstanceDetail>>(`/api/v1/lc/wf/instances/${id}`),
-  act: (taskId: string, data: { action: string; opinion?: string; transfer_to?: string; to_node_id?: string }) =>
+    client.get<unknown, ApiResponse<PageData<{
+      id: string
+      title?: string
+      business_no?: string
+      status: string
+      form_instance_id?: string
+      biz_type?: string
+      biz_id?: string
+      biz_ref_id?: string
+      current_node_name?: string
+      created_at?: string
+      started_at?: string
+      completed_at?: string
+    }>>>('/api/v1/lc/wf/instances/mine', { params }),
+  cc: (params: Record<string, unknown>) =>
+    client.get<unknown, ApiResponse<PageData<{
+      cc_id: string
+      is_read: boolean
+      process_instance_id: string
+      title?: string
+      business_no?: string
+      status?: string
+      biz_type?: string
+      biz_id?: string
+      biz_ref_id?: string
+      initiator_name?: string
+      created_at?: string
+    }>>>('/api/v1/lc/wf/instances/cc', { params }),
+  /** 业务详情页：按 biz 查最新流程实例（含审批记录）；无流程时 data 为 null */
+  byBiz: (params: { biz_type: string; biz_id: string }) =>
+    client.get<unknown, ApiResponse<WfInstanceDetail | null>>('/api/v1/lc/wf/instances/by-biz', { params }),
+  instance: (id: string, params?: { task_id?: string }) =>
+    client.get<unknown, ApiResponse<WfInstanceDetail>>(`/api/v1/lc/wf/instances/${id}`, { params }),
+  comment: (instanceId: string, content: string) =>
+    client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/instances/${instanceId}/comments`, { content }),
+  act: (taskId: string, data: {
+    action: string
+    opinion?: string
+    transfer_to?: string
+    to_node_id?: string
+    field_updates?: Record<string, unknown>
+  }) =>
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/tasks/${taskId}/act`, data),
   withdraw: (instanceId: string) =>
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/instances/${instanceId}/withdraw`),
