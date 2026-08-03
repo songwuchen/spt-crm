@@ -6,8 +6,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+import json
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, or_, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import BusinessException
@@ -89,6 +90,142 @@ async def install_builtin_template(
     db.add(version)
     await db.commit()
     await db.refresh(tpl)
+    return tpl
+
+
+async def get_template_by_code(
+    db: AsyncSession, tenant_id: str, code: str,
+) -> FormTemplate | None:
+    """按稳定 code 取模板（不含已删除）。"""
+    if not code:
+        return None
+    return (await db.execute(
+        select(FormTemplate).where(
+            FormTemplate.tenant_id == tenant_id,
+            FormTemplate.code == code,
+            FormTemplate.is_deleted == False,  # noqa: E712
+        ).limit(1)
+    )).scalar_one_or_none()
+
+
+async def _ensure_builtin_form_flow(db: AsyncSession, tenant_id: str, key: str, form_id: str) -> None:
+    """若该内置表单在 FORM_DEFAULT_SPECS 中，幂等创建并发布绑定表单的默认审批流。"""
+    from app.domains.lowcode import workflow_service as wsvc
+    spec = next((s for s in wsvc.FORM_DEFAULT_SPECS if s["form_code"] == key), None)
+    if not spec:
+        return
+    try:
+        await wsvc.ensure_default_form_definition(
+            db, tenant_id,
+            form_template_id=form_id,
+            code=spec["code"],
+            name=spec["name"],
+            approver_rule=spec["approver_rule"],
+            multi_mode=spec.get("multi_mode", "or_sign"),
+            empty_strategy=spec.get("empty_strategy", "auto_approve"),
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger("spt_crm.lowcode").warning(
+            "ensure form flow for %s failed: %s", key, e,
+        )
+
+
+def _field_defs_fingerprint(defs: list | None) -> str:
+    """字段 id/类型/选项/流水规则指纹，用于 sync_fields 幂等升级。"""
+    items: list[tuple] = []
+    for f in defs or []:
+        if not isinstance(f, dict) or not f.get("id"):
+            continue
+        items.append((
+            str(f.get("id")),
+            str(f.get("type") or ""),
+            json.dumps(f.get("options") or [], sort_keys=True, ensure_ascii=False),
+            json.dumps(f.get("props") or {}, sort_keys=True, ensure_ascii=False),
+            json.dumps(f.get("default_value"), ensure_ascii=False, default=str)
+            if f.get("default_value") is not None else "",
+        ))
+    return json.dumps(sorted(items), ensure_ascii=False)
+
+
+async def sync_builtin_form_fields(
+    db: AsyncSession, tenant_id: str, key: str, tpl: FormTemplate, user: dict,
+) -> FormTemplate:
+    """图纸等标记 sync_fields 的内置表：字段定义与 builtin 不一致时发布新版本。"""
+    from app.domains.lowcode.builtin_templates import get_builtin
+    bt = get_builtin(key)
+    if not bt or not bt.get("sync_fields"):
+        return tpl
+    want = bt.get("field_definitions") or []
+    if not want:
+        return tpl
+    published = await _get_published_version(db, tenant_id, tpl.id)
+    current = (published.field_definitions if published else None) or []
+    if _field_defs_fingerprint(current) == _field_defs_fingerprint(want):
+        return tpl
+    latest = await _get_latest_version(db, tenant_id, tpl.id)
+    if latest and latest.status == "draft":
+        latest.field_definitions = want
+        await db.commit()
+    else:
+        next_version = (latest.version_number + 1) if latest else 1
+        db.add(FormTemplateVersion(
+            id=generate_uuid(), tenant_id=tenant_id, template_id=tpl.id,
+            version_number=next_version, field_definitions=want,
+            layout_definition=(latest.layout_definition if latest else {}) or {},
+            rule_definitions=(latest.rule_definitions if latest else []) or [],
+            status="draft",
+        ))
+        await db.commit()
+    await publish(db, tenant_id, tpl.id, user.get("sub") or "")
+    await db.refresh(tpl)
+    return tpl
+
+
+async def ensure_builtin_form(
+    db: AsyncSession, tenant_id: str, key: str, user: dict,
+) -> FormTemplate:
+    """侧栏模块用：按固定 code=key 确保内置表单已安装并发布。
+
+    - 已存在：sync_fields 表按 builtin 幂等升级字段；否则不覆盖租户定制。
+    - 不存在：以 code=key 安装 v1 并立即 publish。
+    - 图纸等已配置默认流的模块：同时幂等创建/升级绑定该表单的审批流程。
+    """
+    from app.domains.lowcode.builtin_templates import get_builtin
+    bt = get_builtin(key)
+    if not bt:
+        raise BusinessException(code=NOT_FOUND, message="内置模板不存在")
+
+    existing = await get_template_by_code(db, tenant_id, key)
+    if existing:
+        published = await _get_published_version(db, tenant_id, existing.id)
+        if not published:
+            latest = await _get_latest_version(db, tenant_id, existing.id)
+            if latest and latest.status == "draft":
+                await publish(db, tenant_id, existing.id, user.get("sub") or "")
+                await db.refresh(existing)
+        existing = await sync_builtin_form_fields(db, tenant_id, key, existing, user)
+        await _ensure_builtin_form_flow(db, tenant_id, key, existing.id)
+        return existing
+
+    tpl = FormTemplate(
+        id=generate_uuid(), tenant_id=tenant_id,
+        name=bt["name"], code=key, description=bt.get("description"),
+        category=bt.get("category"), icon=bt.get("icon"),
+        status="draft", current_version=0, created_by=user.get("sub"),
+    )
+    db.add(tpl)
+    await db.flush()
+    db.add(FormTemplateVersion(
+        id=generate_uuid(), tenant_id=tenant_id, template_id=tpl.id,
+        version_number=1, field_definitions=bt["field_definitions"],
+        layout_definition={}, rule_definitions=bt.get("rule_definitions", []),
+        status="draft",
+    ))
+    await db.commit()
+    await publish(db, tenant_id, tpl.id, user.get("sub") or "")
+    await db.refresh(tpl)
+    await _ensure_builtin_form_flow(db, tenant_id, key, tpl.id)
     return tpl
 
 
@@ -518,7 +655,12 @@ async def list_instances(
         FormInstance.is_deleted == False,  # noqa: E712
     ]
     if keyword:
-        conds.append(FormInstance.title.ilike(f"%{keyword}%"))
+        like = f"%{keyword}%"
+        conds.append(or_(
+            FormInstance.title.ilike(like),
+            FormInstance.business_no.ilike(like),
+            cast(FormInstance.form_data, String).ilike(like),
+        ))
     if status:
         conds.append(FormInstance.status == status)
     if owner_ids is not None:  # 数据范围: 仅可见发起人
@@ -559,7 +701,12 @@ async def export_instances(
         FormInstance.is_deleted == False,  # noqa: E712
     ]
     if keyword:
-        conds.append(FormInstance.title.ilike(f"%{keyword}%"))
+        like = f"%{keyword}%"
+        conds.append(or_(
+            FormInstance.title.ilike(like),
+            FormInstance.business_no.ilike(like),
+            cast(FormInstance.form_data, String).ilike(like),
+        ))
     if status:
         conds.append(FormInstance.status == status)
     if owner_ids is not None:

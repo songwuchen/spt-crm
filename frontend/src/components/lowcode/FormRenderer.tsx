@@ -51,6 +51,8 @@ interface Props {
   // 仅参与规则求值、不参与渲染与 onChange 的外部字段值（业务表单里的原生字段值）。
   // 使得「当国别=国外时显示某扩展字段」这类跨原生/扩展的条件能正确判定。
   ruleContext?: Record<string, unknown>
+  /** 填报页流水号预览（未落库）；有已存值时仍优先展示 value */
+  serialPreviews?: Record<string, string>
 }
 
 // 由字段的 visible_roles/edit_roles + 当前用户角色，推导出规则引擎可用的 FieldPermission[]。
@@ -78,7 +80,7 @@ export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]):
   return out
 }
 
-export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext }: Props) {
+export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews }: Props) {
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const rolePerms = useMemo(
     () => (applyFieldPerms ? deriveRolePerms(fields, userRoles) : []),
@@ -117,6 +119,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
               value={value[field.id]}
               allValues={value}
               onChange={(v) => setField(field.id, v)}
+              serialPreview={serialPreviews?.[field.id]}
             />
           </Col>
         )
@@ -126,7 +129,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
 }
 
 function FieldItem({
-  field, state, mode, value, allValues, onChange,
+  field, state, mode, value, allValues, onChange, serialPreview,
 }: {
   field: FieldDefinition
   state?: FieldState
@@ -134,6 +137,7 @@ function FieldItem({
   value: unknown
   allValues: Record<string, unknown>
   onChange: (v: unknown) => void
+  serialPreview?: string
 }) {
   const readonly = mode === 'readonly' || state?.readonly
   const required = state?.required
@@ -153,19 +157,20 @@ function FieldItem({
       </div>
       {masked
         ? <Text type="secondary" title="您所在角色无权查看该字段的明文">{MASK_VALUE}</Text>
-        : <FieldWidget field={field} readonly={!!readonly} value={value} allValues={allValues} onChange={onChange} />}
+        : <FieldWidget field={field} readonly={!!readonly} value={value} allValues={allValues} onChange={onChange} serialPreview={serialPreview} />}
     </div>
   )
 }
 
 function FieldWidget({
-  field, readonly, value, allValues, onChange,
+  field, readonly, value, allValues, onChange, serialPreview,
 }: {
   field: FieldDefinition
   readonly: boolean
   value: unknown
   allValues: Record<string, unknown>
   onChange: (v: unknown) => void
+  serialPreview?: string
 }) {
   const opts = field.options || []
   const ph = field.placeholder
@@ -279,9 +284,19 @@ function FieldWidget({
     case 'switch':
       return <Switch checked={!!value} onChange={(v) => onChange(v)} />
     case 'formula':
-    case 'auto_number':
-      // 系统计算/生成字段: 只读展示(值由后端在提交时计算/生成)
-      return <Input value={value == null ? '' : String(value)} disabled placeholder={field.type === 'auto_number' ? '提交后自动生成' : '自动计算'} />
+    case 'auto_number': {
+      // 系统计算/生成字段: 只读展示。auto_number 优先已存值，否则展示预览号（提交时后端正式取号）
+      const display = value != null && value !== ''
+        ? String(value)
+        : (field.type === 'auto_number' && serialPreview ? serialPreview : '')
+      return (
+        <Input
+          value={display}
+          disabled
+          placeholder={field.type === 'auto_number' ? '提交后自动生成' : '自动计算'}
+        />
+      )
+    }
     case 'detail_table':
       return <DetailTable field={field} readonly={readonly} value={value as Record<string, unknown>[]} onChange={onChange} />
     default:

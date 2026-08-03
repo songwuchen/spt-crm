@@ -9,6 +9,8 @@ JsonTerms = Union[dict, list]
 class ContractCreate(BaseModel):
     title: Optional[str] = None
     project_id: Optional[str] = Field(None, max_length=36)  # 可选；合同管理入口可不挂商机
+    # 编号查询自「合同图纸对应表」带回；空则系统自动生成
+    contract_no: Optional[str] = Field(None, max_length=64)
     amount_total: Optional[float] = Field(None, ge=0)
     end_date: Optional[date] = None
     drawing_no: Optional[str] = Field(None, max_length=100)

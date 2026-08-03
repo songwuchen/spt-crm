@@ -150,7 +150,12 @@ client.interceptors.response.use(
     const silent = error.config?.headers?.['X-Silent-Error'] === '1'
       || error.config?.headers?.['x-silent-error'] === '1'
     if (!silent) {
-      message.error(data?.message || '网络异常')
+      const status = error.response?.status
+      const fallback =
+        status === 404 ? '接口不存在或后端未更新，请刷新/重启服务后重试'
+        : status ? `请求失败 (${status})`
+        : '网络异常'
+      message.error(data?.message || fallback)
     }
     return Promise.reject(error)
   },

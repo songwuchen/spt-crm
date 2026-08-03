@@ -1,0 +1,1426 @@
+{
+  "success": true,
+  "data": {
+    "entryList": [
+      {
+        "id": "5ed054950b82500007c672ab",
+        "child": [
+          {
+            "id": "5e82daaceb1ed80006a628cd"
+          }
+        ]
+      },
+      {
+        "id": "64cc935f7509ec00085b6c4e",
+        "child": [
+          {
+            "id": "5e6ee08be3051400062159ee"
+          },
+          {
+            "id": "5e6edc5b44b7070006d191cb"
+          },
+          {
+            "id": "63719d2d7794a1000a86e39b"
+          },
+          {
+            "id": "5e79c2a94ebc86000601af3b"
+          },
+          {
+            "id": "5fe2b3e3f6f8100008a6e891"
+          },
+          {
+            "id": "6470532c9df3b60008b186f4"
+          },
+          {
+            "id": "6a1d40dd9182192bbcce1a5e"
+          },
+          {
+            "id": "66bc0195c3721f90d2995dc4"
+          },
+          {
+            "id": "652a535738a7bba253a00aa8"
+          }
+        ]
+      },
+      {
+        "id": "6417bc82720c350008fe1db7",
+        "child": [
+          {
+            "id": "65e9872731f4873d2f09e508"
+          },
+          {
+            "id": "5e7857342c5b2700062c775f"
+          },
+          {
+            "id": "6417bca630324900080c681b"
+          }
+        ]
+      },
+      {
+        "id": "64433fcc4e57c900089b5a0a",
+        "child": [
+          {
+            "id": "63e9ce8f26c5880008ed15dc"
+          },
+          {
+            "id": "64433fd8f725d3000885df3f"
+          }
+        ]
+      },
+      {
+        "id": "67186f9f469d9dda56367e46",
+        "child": [
+          {
+            "id": "5e79a58d3e9db80006c52ce4"
+          },
+          {
+            "id": "5e8a868f143e11000646f541"
+          },
+          {
+            "id": "61aefc051d432f0007c46ac9"
+          },
+          {
+            "id": "5e8a867d972baf0006e07738"
+          },
+          {
+            "id": "5e8a86892cb51c0006e19f5b"
+          }
+        ]
+      },
+      {
+        "id": "5e6c740e6d74970006a67190"
+      },
+      {
+        "id": "6348aa69b7a8e1000a060d02"
+      },
+      {
+        "id": "5e7311a0cd48890006429613"
+      },
+      {
+        "id": "5fc5f16446aa5c0006bd3f1d"
+      },
+      {
+        "id": "5e82ed572e68f900064c5064"
+      },
+      {
+        "id": "5e797e0858e36f00069ba8ee"
+      },
+      {
+        "id": "5e79a5af58e36f00069d6a70"
+      },
+      {
+        "id": "5e7577eb0d2d440006b800dd"
+      },
+      {
+        "id": "5e75bebb694dd70007d34355"
+      },
+      {
+        "id": "5ea24e51121b7b0006d2d77e"
+      },
+      {
+        "id": "60d9597ca028990008e71cf7"
+      },
+      {
+        "id": "5e75bf1d00edd300062d2991"
+      },
+      {
+        "id": "64cc933c2de95200087ce2a8",
+        "child": [
+          {
+            "id": "5ea8fd0cb4748f00060356c5"
+          },
+          {
+            "id": "5e75bf652f08d5000634bd5f"
+          },
+          {
+            "id": "5ed054fb4ca0c20006d5ba40"
+          },
+          {
+            "id": "5e6c9feda73e9700063e40ec"
+          },
+          {
+            "id": "5e75bfa7b748120006f6ef3a"
+          },
+          {
+            "id": "5e75bed5ca02180006774a34"
+          },
+          {
+            "id": "5e8a8684eb864500063ecb23"
+          },
+          {
+            "id": "63689f1ff09267000a7f7b7a"
+          },
+          {
+            "id": "61e4d26f914ee10007e171ed"
+          }
+        ]
+      },
+      {
+        "id": "67419b2dfc925f5aa286e3d7"
+      },
+      {
+        "id": "674ff59f9a3ed7b5542a662d"
+      },
+      {
+        "id": "681d7c365408b175a8fd6440"
+      },
+      {
+        "id": "6827f807bdeca67548db64af"
+      },
+      {
+        "id": "69d6fe82af2ab9133d13f21f"
+      }
+    ],
+    "entryMap": {
+      "5e6c740e6d74970006a67190": {
+        "_id": "5e6c740e6d74970006a67191",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 4471,
+        "name": "核价管理流程",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 1,
+        "color": 1,
+        "entryId": "5e6c740e6d74970006a67190",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "核价管理流程"
+      },
+      "5e6c9feda73e9700063e40ec": {
+        "_id": "5e6c9feda73e9700063e40ed",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 3072,
+        "name": "BOM单变更申请（未启用）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc933c2de95200087ce2a8",
+        "icon": 1,
+        "color": 1,
+        "entryId": "5e6c9feda73e9700063e40ec",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "BOM单变更申请（未启用）"
+      },
+      "5e6edc5b44b7070006d191cb": {
+        "_id": "5e6edc5b44b7070006d191cc",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 2048,
+        "name": "安装图设计通知",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc935f7509ec00085b6c4e",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e6edc5b44b7070006d191cb",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "安装图设计通知"
+      },
+      "5e6ee08be3051400062159ee": {
+        "_id": "5e6ee08be3051400062159ef",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 1024,
+        "name": "合同图纸（资料）领用申请",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc935f7509ec00085b6c4e",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e6ee08be3051400062159ee",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "合同图纸（资料）领用申请"
+      },
+      "5e7311a0cd48890006429613": {
+        "_id": "5e7311a0cd48890006429614",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 11264,
+        "name": "合理化建议上报程序（原持续改进）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e7311a0cd48890006429613",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "合理化建议上报程序（原持续改进）"
+      },
+      "5e7577eb0d2d440006b800dd": {
+        "_id": "5e7577eb0d2d440006b800de",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 16637,
+        "name": "设备安装服务流程",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e7577eb0d2d440006b800dd",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "设备安装服务流程"
+      },
+      "5e75bebb694dd70007d34355": {
+        "_id": "5e75bebb694dd70007d34356",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 16894,
+        "name": "工程消缺物资补充流程",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e75bebb694dd70007d34355",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "工程消缺物资补充流程"
+      },
+      "5e75bed5ca02180006774a34": {
+        "_id": "5e75bed5ca02180006774a35",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 5120,
+        "name": "客户服务延期申请（转至客户服务部）230309删关",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc933c2de95200087ce2a8",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e75bed5ca02180006774a34",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "客户服务延期申请（转至客户服务部）230309删关"
+      },
+      "5e75bf1d00edd300062d2991": {
+        "_id": "5e75bf1d00edd300062d2992",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 21760,
+        "name": "特殊放行申请",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e75bf1d00edd300062d2991",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "特殊放行申请"
+      },
+      "5e75bf652f08d5000634bd5f": {
+        "_id": "5e75bf652f08d5000634bd60",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 1024,
+        "name": "标准件追溯流程（240706删导）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc933c2de95200087ce2a8",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e75bf652f08d5000634bd5f",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "标准件追溯流程（240706删导）"
+      },
+      "5e75bfa7b748120006f6ef3a": {
+        "_id": "5e75bfa7b748120006f6ef3b",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 4096,
+        "name": "图纸信息反馈流程（停用）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc933c2de95200087ce2a8",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e75bfa7b748120006f6ef3a",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "图纸信息反馈流程（停用）"
+      },
+      "5e7857342c5b2700062c775f": {
+        "_id": "5e7857342c5b2700062c7760",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 1024,
+        "name": "固定资产及办公用品处置申请CZ-260731",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "6417bc82720c350008fe1db7",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e7857342c5b2700062c775f",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "固定资产及办公用品处置申请CZ-260731"
+      },
+      "5e797e0858e36f00069ba8ee": {
+        "_id": "5e797e0858e36f00069ba8ef",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 16256,
+        "name": "住宿申请单-260731",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e797e0858e36f00069ba8ee",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "住宿申请单-260731"
+      },
+      "5e79a58d3e9db80006c52ce4": {
+        "_id": "5e79a58d3e9db80006c52ce5",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 1024,
+        "name": "采购价格对比裁决流程（250826停用250922删导）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "67186f9f469d9dda56367e46",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e79a58d3e9db80006c52ce4",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "采购价格对比裁决流程（250826停用250922删导）"
+      },
+      "5e79a5af58e36f00069d6a70": {
+        "_id": "5e79a5af58e36f00069d6a71",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 16509,
+        "name": "产品验收申请流程-已迁mes",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e79a5af58e36f00069d6a70",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "产品验收申请流程-已迁mes"
+      },
+      "5e79c2a94ebc86000601af3b": {
+        "_id": "5e79c2a94ebc86000601af3c",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 2688,
+        "name": "图纸领取及安装图设计通知查询",
+        "type": "dash",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc935f7509ec00085b6c4e",
+        "entryId": "5e79c2a94ebc86000601af3b",
+        "dashOff": false,
+        "entryPerm": {
+          "edit": true,
+          "move": true,
+          "copy": true,
+          "delete": true,
+          "favorite": true,
+          "enable": false
+        },
+        "text": "图纸领取及安装图设计通知查询"
+      },
+      "5e82daaceb1ed80006a628cd": {
+        "_id": "5e82daaceb1ed80006a628ce",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 2158,
+        "name": "节点奖惩流程",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "5ed054950b82500007c672ab",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e82daaceb1ed80006a628cd",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "节点奖惩流程"
+      },
+      "5e82ed572e68f900064c5064": {
+        "_id": "5e82ed572e68f900064c5065",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 14912,
+        "name": "创新发明上报程序",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e82ed572e68f900064c5064",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "创新发明上报程序"
+      },
+      "5e8a867d972baf0006e07738": {
+        "_id": "5e8a867d972baf0006e07739",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 4096,
+        "name": "采购合同评审流程",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "67186f9f469d9dda56367e46",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e8a867d972baf0006e07738",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "采购合同评审流程"
+      },
+      "5e8a8684eb864500063ecb23": {
+        "_id": "5e8a8684eb864500063ecb24",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 6144,
+        "name": "固定资产验收申请流程（230309关权限）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc933c2de95200087ce2a8",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e8a8684eb864500063ecb23",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "固定资产验收申请流程（230309关权限）"
+      },
+      "5e8a86892cb51c0006e19f5b": {
+        "_id": "5e8a86892cb51c0006e19f5c",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 5120,
+        "name": "外购、外协件技术反馈流程",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "67186f9f469d9dda56367e46",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e8a86892cb51c0006e19f5b",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "外购、外协件技术反馈流程"
+      },
+      "5e8a868f143e11000646f541": {
+        "_id": "5e8a868f143e11000646f542",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 2048,
+        "name": "原材料调价申请流程（241031关闭）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "67186f9f469d9dda56367e46",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5e8a868f143e11000646f541",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "原材料调价申请流程（241031关闭）"
+      },
+      "5ea24e51121b7b0006d2d77e": {
+        "_id": "5ea24e51121b7b0006d2d77f",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 17022,
+        "name": "工程物资补充查询",
+        "type": "dash",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 4,
+        "color": 3,
+        "entryId": "5ea24e51121b7b0006d2d77e",
+        "entryPerm": {
+          "edit": true,
+          "move": true,
+          "copy": true,
+          "delete": true,
+          "favorite": true
+        },
+        "text": "工程物资补充查询"
+      },
+      "5ea8fd0cb4748f00060356c5": {
+        "_id": "5ea8fd0cb4748f00060356c6",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 512,
+        "name": "废料、废物处理申请（231207停用250419删）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc933c2de95200087ce2a8",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5ea8fd0cb4748f00060356c5",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "废料、废物处理申请（231207停用250419删）"
+      },
+      "5ed054950b82500007c672ab": {
+        "_id": "5ed054950b82500007c672ac",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 2288,
+        "name": "追溯",
+        "type": "group",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "entryId": "5ed054950b82500007c672ab",
+        "entryPerm": {
+          "edit": true,
+          "delete": true,
+          "move": true,
+          "new_coop": true,
+          "new_flow": true,
+          "new_dash": true,
+          "new_subgroup": true,
+          "copy": false,
+          "favorite": false
+        },
+        "text": "追溯"
+      },
+      "5ed054fb4ca0c20006d5ba40": {
+        "_id": "5ed054fb4ca0c20006d5ba41",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 2048,
+        "name": "追溯流程（220728停用250922删导）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc933c2de95200087ce2a8",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5ed054fb4ca0c20006d5ba40",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "追溯流程（220728停用250922删导）"
+      },
+      "5fc5f16446aa5c0006bd3f1d": {
+        "_id": "5fc5f16446aa5c0006bd3f1e",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 13568,
+        "name": "合理化建议",
+        "type": "dash",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 2,
+        "color": 3,
+        "entryId": "5fc5f16446aa5c0006bd3f1d",
+        "entryPerm": {
+          "edit": true,
+          "move": true,
+          "copy": true,
+          "delete": true,
+          "favorite": true
+        },
+        "text": "合理化建议"
+      },
+      "5fe2b3e3f6f8100008a6e891": {
+        "_id": "5fe2b3e3f6f8100008a6e892",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 4096,
+        "name": "前期设计需要供应商提供图纸流程",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc935f7509ec00085b6c4e",
+        "icon": 3,
+        "color": 2,
+        "entryId": "5fe2b3e3f6f8100008a6e891",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "前期设计需要供应商提供图纸流程"
+      },
+      "60d9597ca028990008e71cf7": {
+        "_id": "60d9597ca028990008e71cf8",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 17918,
+        "name": "维修物料出门证",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 3,
+        "color": 2,
+        "entryId": "60d9597ca028990008e71cf7",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "维修物料出门证"
+      },
+      "61aefc051d432f0007c46ac9": {
+        "_id": "61aefc051d432f0007c46aca",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 3072,
+        "is_system_form": false,
+        "name": "采购合同评审查询",
+        "type": "dash",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "67186f9f469d9dda56367e46",
+        "icon": 4,
+        "color": 3,
+        "entryId": "61aefc051d432f0007c46ac9",
+        "entryPerm": {
+          "edit": true,
+          "move": true,
+          "copy": true,
+          "delete": true,
+          "favorite": true
+        },
+        "text": "采购合同评审查询"
+      },
+      "61e4d26f914ee10007e171ed": {
+        "_id": "61e4d26f914ee10007e171ee",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 8192,
+        "is_system_form": false,
+        "name": "车间查图机电子图申请(241004关）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc933c2de95200087ce2a8",
+        "icon": 3,
+        "color": 2,
+        "entryId": "61e4d26f914ee10007e171ed",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "车间查图机电子图申请(241004关）"
+      },
+      "6348aa69b7a8e1000a060d02": {
+        "_id": "6348aa69b7a8e1000a060d03",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 4760,
+        "is_system_form": false,
+        "name": "选型快速通道（260626停止）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "icon": 3,
+        "color": 2,
+        "entryId": "6348aa69b7a8e1000a060d02",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "选型快速通道（260626停止）"
+      },
+      "63689f1ff09267000a7f7b7a": {
+        "_id": "63689f1ff09267000a7f7b7b",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 7168,
+        "is_system_form": false,
+        "name": "呆滞物料趁用通用流程（230804关）",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc933c2de95200087ce2a8",
+        "icon": 3,
+        "color": 2,
+        "entryId": "63689f1ff09267000a7f7b7a",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "呆滞物料趁用通用流程（230804关）"
+      },
+      "63719d2d7794a1000a86e39b": {
+        "_id": "63719d2d7794a1000a86e39c",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 2304,
+        "is_system_form": false,
+        "name": "图纸领取仪表盘",
+        "type": "dash",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc935f7509ec00085b6c4e",
+        "icon": 4,
+        "color": 3,
+        "entryId": "63719d2d7794a1000a86e39b",
+        "entryPerm": {
+          "edit": true,
+          "move": true,
+          "copy": true,
+          "delete": true,
+          "favorite": true
+        },
+        "text": "图纸领取仪表盘"
+      },
+      "63e9ce8f26c5880008ed15dc": {
+        "_id": "63e9ce8f26c5880008ed15dd",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 1024,
+        "is_system_form": false,
+        "name": "企标化需求流程",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64433fcc4e57c900089b5a0a",
+        "icon": 3,
+        "color": 2,
+        "entryId": "63e9ce8f26c5880008ed15dc",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "企标化需求流程"
+      },
+      "6417bc82720c350008fe1db7": {
+        "_id": "6417bc82720c350008fe1db8",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 3604,
+        "is_system_form": false,
+        "name": "固定资产及办公用品处理-260731",
+        "type": "group",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "entryId": "6417bc82720c350008fe1db7",
+        "entryPerm": {
+          "edit": true,
+          "delete": true,
+          "move": true,
+          "new_coop": true,
+          "new_flow": true,
+          "new_dash": true,
+          "new_subgroup": true,
+          "copy": false,
+          "favorite": false
+        },
+        "text": "固定资产及办公用品处理-260731"
+      },
+      "6417bca630324900080c681b": {
+        "_id": "6417bca630324900080c681c",
+        "hasCoop": true,
+        "hasFlow": false,
+        "seq": 2048,
+        "is_system_form": false,
+        "name": "报废类型-鉴定人",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "6417bc82720c350008fe1db7",
+        "icon": 1,
+        "color": 1,
+        "entryId": "6417bca630324900080c681b",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "报废类型-鉴定人"
+      },
+      "64433fcc4e57c900089b5a0a": {
+        "_id": "64433fcc4e57c900089b5a0b",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 4182,
+        "is_system_form": false,
+        "name": "企标化建设",
+        "type": "group",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "entryId": "64433fcc4e57c900089b5a0a",
+        "entryPerm": {
+          "edit": true,
+          "delete": true,
+          "move": true,
+          "new_coop": true,
+          "new_flow": true,
+          "new_dash": true,
+          "new_subgroup": true,
+          "copy": false,
+          "favorite": false
+        },
+        "text": "企标化建设"
+      },
+      "64433fd8f725d3000885df3f": {
+        "_id": "64433fd8f725d3000885df40",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 2048,
+        "is_system_form": false,
+        "name": "企标建设考核流程",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64433fcc4e57c900089b5a0a",
+        "icon": 3,
+        "color": 2,
+        "entryId": "64433fd8f725d3000885df3f",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "企标建设考核流程"
+      },
+      "6470532c9df3b60008b186f4": {
+        "_id": "6470532c9df3b60008b186f5",
+        "hasCoop": true,
+        "hasFlow": false,
+        "seq": 6144,
+        "is_system_form": false,
+        "name": "物料名称",
+        "type": "form",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "64cc935f7509ec00085b6c4e",
+        "icon": 1,
+        "color": 1,
+        "entryId": "6470532c9df3b60008b186f4",
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "物料名称"
+      },
+      "64cc933c2de95200087ce2a8": {
+        "_id": "64cc933c2de95200087ce2a9",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 25602,
+        "is_system_form": false,
+        "name": "停用未用流程",
+        "type": "group",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "entryId": "64cc933c2de95200087ce2a8",
+        "entryPerm": {
+          "edit": true,
+          "delete": true,
+          "move": true,
+          "new_coop": true,
+          "new_flow": true,
+          "new_dash": true,
+          "new_subgroup": true,
+          "copy": false,
+          "favorite": false
+        },
+        "text": "停用未用流程"
+      },
+      "64cc935f7509ec00085b6c4e": {
+        "_id": "64cc935f7509ec00085b6c4f",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 2448,
+        "is_system_form": false,
+        "name": "图纸",
+        "type": "group",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "parent": "1",
+        "entryId": "64cc935f7509ec00085b6c4e",
+        "entryPerm": {
+          "edit": true,
+          "delete": true,
+          "move": true,
+          "new_coop": true,
+          "new_flow": true,
+          "new_dash": true,
+          "new_subgroup": true,
+          "copy": false,
+          "favorite": false
+        },
+        "text": "图纸"
+      },
+      "652a535738a7bba253a00aa8": {
+        "_id": "652a535738a7bba253a00aa9",
+        "entryId": "652a535738a7bba253a00aa8",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "name": "部门编号基础表",
+        "type": "form",
+        "parent": "64cc935f7509ec00085b6c4e",
+        "hasCoop": true,
+        "hasFlow": false,
+        "seq": 7168,
+        "color": 1,
+        "icon": 1,
+        "is_system_form": false,
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "部门编号基础表"
+      },
+      "65e9872731f4873d2f09e508": {
+        "_id": "65e9872731f4873d2f09e507",
+        "entryId": "65e9872731f4873d2f09e508",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "name": "办公设备固定资产验收YS-260731",
+        "type": "form",
+        "parent": "6417bc82720c350008fe1db7",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 512,
+        "color": 2,
+        "icon": 3,
+        "is_system_form": false,
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "办公设备固定资产验收YS-260731"
+      },
+      "66bc0195c3721f90d2995dc4": {
+        "_id": "66bc0195c3721f90d2995dc5",
+        "entryId": "66bc0195c3721f90d2995dc4",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "name": "项目号基础表",
+        "type": "form",
+        "parent": "64cc935f7509ec00085b6c4e",
+        "hasCoop": true,
+        "hasFlow": false,
+        "seq": 6656,
+        "color": 1,
+        "icon": 1,
+        "is_system_form": false,
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "项目号基础表"
+      },
+      "67186f9f469d9dda56367e46": {
+        "_id": "67186f9f469d9dda56367e47",
+        "entryId": "67186f9f469d9dda56367e46",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "name": "采购类",
+        "type": "group",
+        "parent": "1",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 4326,
+        "is_system_form": false,
+        "entryPerm": {
+          "edit": true,
+          "delete": true,
+          "move": true,
+          "new_coop": true,
+          "new_flow": true,
+          "new_dash": true,
+          "new_subgroup": true,
+          "copy": false,
+          "favorite": false
+        },
+        "text": "采购类"
+      },
+      "67419b2dfc925f5aa286e3d7": {
+        "_id": "67419b2dfc925f5aa286e3d8",
+        "entryId": "67419b2dfc925f5aa286e3d7",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "name": "OEM项目外购设备放行流程",
+        "type": "form",
+        "parent": "1",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 26626,
+        "color": 2,
+        "icon": 3,
+        "is_system_form": false,
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "OEM项目外购设备放行流程"
+      },
+      "674ff59f9a3ed7b5542a662d": {
+        "_id": "674ff59f9a3ed7b5542a662f",
+        "entryId": "674ff59f9a3ed7b5542a662d",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "name": "OEM项目合同反馈流程",
+        "type": "form",
+        "parent": "1",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 27650,
+        "color": 2,
+        "icon": 3,
+        "is_system_form": false,
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "OEM项目合同反馈流程"
+      },
+      "681d7c365408b175a8fd6440": {
+        "_id": "681d7c365408b175a8fd643f",
+        "entryId": "681d7c365408b175a8fd6440",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "name": "外采设备数据库",
+        "type": "form",
+        "parent": "1",
+        "hasCoop": true,
+        "hasFlow": false,
+        "seq": 28674,
+        "color": 1,
+        "icon": 1,
+        "is_system_form": false,
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "外采设备数据库"
+      },
+      "6827f807bdeca67548db64af": {
+        "_id": "6827f807bdeca67548db64b0",
+        "entryId": "6827f807bdeca67548db64af",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "name": "外采设备数据库仪表盘",
+        "type": "dash",
+        "parent": "1",
+        "hasCoop": false,
+        "hasFlow": false,
+        "seq": 29698,
+        "color": 3,
+        "icon": 4,
+        "is_system_form": false,
+        "entryPerm": {
+          "edit": true,
+          "move": true,
+          "copy": true,
+          "delete": true,
+          "favorite": true
+        },
+        "text": "外采设备数据库仪表盘"
+      },
+      "69d6fe82af2ab9133d13f21f": {
+        "_id": "69d6fe82af2ab9133d13f220",
+        "entryId": "69d6fe82af2ab9133d13f21f",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "name": "通用专利提交",
+        "type": "form",
+        "parent": "1",
+        "hasCoop": false,
+        "hasFlow": true,
+        "seq": 30722,
+        "color": 1,
+        "icon": 1,
+        "is_system_form": false,
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "通用专利提交"
+      },
+      "6a1d40dd9182192bbcce1a5e": {
+        "_id": "6a1d40dd9182192bbcce1a60",
+        "entryId": "6a1d40dd9182192bbcce1a5e",
+        "appId": "5e6c73fefc53170006bd4e9c",
+        "name": "设计卡号",
+        "type": "form",
+        "parent": "64cc935f7509ec00085b6c4e",
+        "hasCoop": true,
+        "hasFlow": false,
+        "seq": 6400,
+        "color": 1,
+        "icon": 1,
+        "is_system_form": false,
+        "entryPerm": {
+          "edit": true,
+          "show_reference_view": true,
+          "move": true,
+          "favorite": true,
+          "switch_form_type": true,
+          "copy": true,
+          "copy_to_other_app": true,
+          "delete": true
+        },
+        "text": "设计卡号"
+      }
+    },
+    "hasFlowMenu": true,
+    "homeList": []
+  }
+}

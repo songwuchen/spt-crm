@@ -1,0 +1,570 @@
+{
+  "success": true,
+  "data": {
+    "fields": [
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "流水号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1584423635442",
+        "type": "sn"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "日期时间",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1584324747780",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "部门",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1584324747793",
+        "type": "dept"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "申请人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1584324747817",
+        "type": "user"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "是否涉及企标图纸",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1712285733642",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "订货人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1670208477895",
+        "type": "user"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "订货人（文本）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1584324747971",
+        "type": "text"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "合同号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1584324747987",
+        "type": "combo",
+        "colorEnable": false
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "申请事由",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1584324748032",
+        "type": "text"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "设计人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1625449621349",
+        "type": "user"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "设计人(文本)",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1584324748048",
+        "type": "text"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "产品型号",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1584324748064",
+        "type": "text"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "图纸传递途径",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1726128540953",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "钉钉",
+            "text": "钉钉"
+          },
+          {
+            "value": "下生产",
+            "text": "下生产"
+          },
+          {
+            "value": "打印纸质图",
+            "text": "打印纸质图"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "是否解密",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1584324748140",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "解密",
+            "text": "解密"
+          },
+          {
+            "value": "不解密",
+            "text": "不解密"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "是否解密*",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1744187653651",
+        "type": "text"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "打印纸质图提醒：",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1750032665998",
+        "type": "separator"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "图纸类型",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1584324748225",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "认可图",
+            "text": "认可图"
+          },
+          {
+            "value": "报备件",
+            "text": "报备件"
+          },
+          {
+            "value": "验收用",
+            "text": "验收用"
+          },
+          {
+            "value": "生产图",
+            "text": "生产图"
+          },
+          {
+            "value": "改造图",
+            "text": "改造图"
+          },
+          {
+            "value": "总装图",
+            "text": "总装图"
+          },
+          {
+            "value": "零部件图",
+            "text": "零部件图"
+          },
+          {
+            "value": "电气图",
+            "text": "电气图"
+          },
+          {
+            "value": "运输图",
+            "text": "运输图"
+          },
+          {
+            "value": "外协图",
+            "text": "外协图"
+          },
+          {
+            "value": "其他",
+            "text": "其他"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "附件/图片名称",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1669617286395",
+        "type": "text"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "附件",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1584324748414",
+        "type": "upload"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "图片",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1584324748427",
+        "type": "image"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "设计单分派",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1669426933010",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "总部单",
+            "text": "总部单"
+          },
+          {
+            "value": "新乡单",
+            "text": "新乡单"
+          },
+          {
+            "value": "包装单",
+            "text": "包装单"
+          },
+          {
+            "value": "共同",
+            "text": "共同"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "转新乡、工艺包装",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1669426933009",
+        "type": "usergroup"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "设计指派",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1669426933008",
+        "type": "usergroup"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "科室",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1676005090837",
+        "type": "deptgroup"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "下单日期",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1676005090838",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "是否需要总经理审批",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1699839662506",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "打分信息240829取消",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1676609978367",
+        "type": "separator"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "图纸传递途径（多）2024-09-12取消",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1584341179562",
+        "type": "checkboxgroup",
+        "items": [
+          {
+            "value": "图纸数据管理",
+            "text": "图纸数据管理"
+          },
+          {
+            "value": "PLM",
+            "text": "PLM"
+          },
+          {
+            "value": "钉钉",
+            "text": "钉钉"
+          },
+          {
+            "value": "打印纸质图",
+            "text": "打印纸质图"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "图纸规格（240912取消）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1584324748387",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "A3",
+            "text": "A3"
+          },
+          {
+            "value": "A4",
+            "text": "A4"
+          },
+          {
+            "value": "A0",
+            "text": "A0"
+          },
+          {
+            "value": "A1",
+            "text": "A1"
+          },
+          {
+            "value": "A2",
+            "text": "A2"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "是否售后（2022-11-29 已取消）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1584324747730",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "态度240829取消",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1676609978368",
+        "type": "separator"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "态度分数240829取消",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1676609978377",
+        "type": "number"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "交图进度、准确性240829取消",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1676609978369",
+        "type": "separator"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "进度、准确性分数240829取消",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1676609978376",
+        "type": "number"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "专业技能240829取消",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1676609978370",
+        "type": "separator"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "专业技能分数240829取消",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1676609978375",
+        "type": "number"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "备注240829取消",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1676609978371",
+        "type": "separator"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "备注240829取消",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1676609978385",
+        "type": "textarea"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "分数汇总240829取消",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1676609978372",
+        "type": "separator"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "总分240829取消",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1676609978373",
+        "type": "number"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "text": "打分日期240829取消",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1676609978374",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "name": "creator",
+        "type": "user",
+        "text": "提交人"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "name": "createTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "提交时间"
+      },
+      {
+        "id": "5e6ee08be3051400062159ee",
+        "form": "5e6ee08be3051400062159ee",
+        "name": "updateTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "更新时间"
+      }
+    ]
+  }
+}

@@ -139,6 +139,7 @@ export default function ContractList() {
         ...(fmt(v.delivery_date) ? { delivery_date: fmt(v.delivery_date) } : {}),
         ...(fmt(v.order_date) ? { order_date: fmt(v.order_date) } : {}),
         ...(fmt(v.card_date) ? { card_date: fmt(v.card_date) } : {}),
+        ...(v.contract_no ? { contract_no: v.contract_no } : {}),
         ...(v.drawing_no ? { drawing_no: v.drawing_no } : {}),
         ...(v.peer_contract_no ? { peer_contract_no: v.peer_contract_no } : {}),
         ...(v.acquire_method ? { acquire_method: v.acquire_method } : {}),

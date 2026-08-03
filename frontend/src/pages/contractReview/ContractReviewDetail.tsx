@@ -6,6 +6,7 @@ import { contractReviewApi, type ContractReview } from '@/api/contractReview'
 import {
   CONTRACT_REVIEW_SECTIONS,
   CONTRACT_REVIEW_STATUS,
+  findFirstMissingReviewRequired,
   reviewSectionAllFields,
 } from '@/constants/contractReview'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
@@ -40,7 +41,16 @@ export default function ContractReviewDetail() {
   useEffect(() => { load() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmitApproval = () => {
-    if (!id) return
+    if (!id || !row) return
+    const missing = findFirstMissingReviewRequired({
+      ...(row as unknown as Record<string, unknown>),
+      review_json: row.review_json || {},
+    })
+    if (missing) {
+      message.warning(`请先填写「${missing.label}」后再提交审批`)
+      navigate(`/contract-reviews/${id}/edit`, { state: { scrollToField: missing.name } })
+      return
+    }
     Modal.confirm({
       title: '提交审批',
       content: '确认提交本合同评审进入会签流程？提交后请在「扩展平台 → 审批中心」查看进度。',

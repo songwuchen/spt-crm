@@ -182,6 +182,24 @@ async def create_contract(
     })
 
 
+@router.get("/api/v1/contracts/drawing-map-lookups")
+async def drawing_map_lookups(
+    keyword: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """编号查询：从合同图纸对应表选数，回填合同号/图纸编号。"""
+    perms = set(current_user.get("permissions") or [])
+    if not ({"contract:create", "contract:edit", "contract:view"} & perms):
+        raise BusinessException(code=FORBIDDEN, message="缺少权限: contract:create")
+    items = await service.list_drawing_map_lookups(
+        db, tenant_id, current_user, keyword=keyword, limit=limit,
+    )
+    return ok(items)
+
+
 @router.post("/api/v1/contracts/from_quote")
 async def create_from_quote(
     body: ContractFromQuote,

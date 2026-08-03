@@ -1,0 +1,398 @@
+[
+  {
+    "name": "_widget_1584423635442",
+    "title": "流水号",
+    "type": "sn",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324747780",
+    "title": "日期时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324747793",
+    "title": "部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324747817",
+    "title": "申请人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1712285733642",
+    "title": "是否涉及企标图纸",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1670208477895",
+    "title": "订货人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324747971",
+    "title": "订货人（文本）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324747987",
+    "title": "合同号",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324748032",
+    "title": "申请事由",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1625449621349",
+    "title": "设计人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324748048",
+    "title": "设计人(文本)",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324748064",
+    "title": "产品型号",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1726128540953",
+    "title": "图纸传递途径",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "钉钉",
+      "下生产",
+      "打印纸质图"
+    ]
+  },
+  {
+    "name": "_widget_1584324748140",
+    "title": "是否解密",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "解密",
+      "不解密"
+    ]
+  },
+  {
+    "name": "_widget_1744187653651",
+    "title": "是否解密*",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1750032665998",
+    "title": "打印纸质图提醒：",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324748225",
+    "title": "图纸类型",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "认可图",
+      "报备件",
+      "验收用",
+      "生产图",
+      "改造图",
+      "总装图",
+      "零部件图",
+      "电气图",
+      "运输图",
+      "外协图",
+      "其他"
+    ]
+  },
+  {
+    "name": "_widget_1669617286395",
+    "title": "附件/图片名称",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324748414",
+    "title": "附件",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324748427",
+    "title": "图片",
+    "type": "image",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1669426933010",
+    "title": "设计单分派",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "总部单",
+      "新乡单",
+      "包装单",
+      "共同"
+    ]
+  },
+  {
+    "name": "_widget_1669426933009",
+    "title": "转新乡、工艺包装",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1669426933008",
+    "title": "设计指派",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676005090837",
+    "title": "科室",
+    "type": "deptgroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676005090838",
+    "title": "下单日期",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1699839662506",
+    "title": "是否需要总经理审批",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1676609978367",
+    "title": "打分信息240829取消",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584341179562",
+    "title": "图纸传递途径（多）2024-09-12取消",
+    "type": "checkboxgroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "图纸数据管理",
+      "PLM",
+      "钉钉",
+      "打印纸质图"
+    ]
+  },
+  {
+    "name": "_widget_1584324748387",
+    "title": "图纸规格（240912取消）",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "A3",
+      "A4",
+      "A0",
+      "A1",
+      "A2"
+    ]
+  },
+  {
+    "name": "_widget_1584324747730",
+    "title": "是否售后（2022-11-29 已取消）",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1676609978368",
+    "title": "态度240829取消",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676609978377",
+    "title": "态度分数240829取消",
+    "type": "number",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676609978369",
+    "title": "交图进度、准确性240829取消",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676609978376",
+    "title": "进度、准确性分数240829取消",
+    "type": "number",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676609978370",
+    "title": "专业技能240829取消",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676609978375",
+    "title": "专业技能分数240829取消",
+    "type": "number",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676609978371",
+    "title": "备注240829取消",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676609978385",
+    "title": "备注240829取消",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676609978372",
+    "title": "分数汇总240829取消",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676609978373",
+    "title": "总分240829取消",
+    "type": "number",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676609978374",
+    "title": "打分日期240829取消",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "creator",
+    "title": "提交人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "createTime",
+    "title": "提交时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "updateTime",
+    "title": "更新时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  }
+]

@@ -40,6 +40,8 @@ const FormTemplateList = lazy(() => import('@/pages/lowcode/FormTemplateList'))
 const FormDesignerPage = lazy(() => import('@/pages/lowcode/FormDesignerPage'))
 const FormFillPage = lazy(() => import('@/pages/lowcode/FormFillPage'))
 const FormDataListPage = lazy(() => import('@/pages/lowcode/FormDataListPage'))
+const FormModulePage = lazy(() => import('@/pages/drawing/FormModulePage'))
+const FormModuleFillPage = lazy(() => import('@/pages/drawing/FormModuleFillPage'))
 const WorkflowList = lazy(() => import('@/pages/lowcode/WorkflowList'))
 const WorkflowDesignerPage = lazy(() => import('@/pages/lowcode/WorkflowCanvasPage'))
 /** 桌面端审批入口已统一到 /approvals；旧路径保留重定向以免书签失效 */
@@ -187,6 +189,12 @@ export const router = createBrowserRouter([
       { path: 'guarantees', element: <Guard permission="guarantee:view"><GuaranteePage /></Guard> },
       { path: 'equipment-profile', element: <Guard permission="customer:view"><EquipmentProfilePage /></Guard> },
       { path: 'measurements', element: <Guard permission="service:view"><MeasurementPage /></Guard> },
+      { path: 'drawing-requisitions/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="drawing_requisition" listPath="/drawing-requisitions" title="合同图纸领用" /></Guard> },
+      { path: 'drawing-requisitions', element: <Guard permission="form_data:view"><FormModulePage templateCode="drawing_requisition" title="合同图纸领用" basePath="/drawing-requisitions" /></Guard> },
+      { path: 'install-drawing-notices/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="install_drawing_notice" listPath="/install-drawing-notices" title="安装图设计通知" /></Guard> },
+      { path: 'install-drawing-notices', element: <Guard permission="form_data:view"><FormModulePage templateCode="install_drawing_notice" title="安装图设计通知" basePath="/install-drawing-notices" /></Guard> },
+      { path: 'contract-drawing-maps/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="contract_drawing_map" listPath="/contract-drawing-maps" title="合同图纸对应表" /></Guard> },
+      { path: 'contract-drawing-maps', element: <Guard permission="form_data:view"><FormModulePage templateCode="contract_drawing_map" title="合同图纸对应表" basePath="/contract-drawing-maps" /></Guard> },
       { path: 'products', element: <Guard permission="product:view"><ProductList /></Guard> },
       { path: 'orders', element: <Guard permission="order:view"><OrderList /></Guard> },
       { path: 'tenders', element: <Guard permission="tender:view"><TenderList /></Guard> },

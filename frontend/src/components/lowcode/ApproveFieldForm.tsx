@@ -131,6 +131,20 @@ export default function ApproveFieldForm({
               </div>
             )
           }
+          if ((t === 'radio' || t === 'select') && (meta.options?.length ?? 0) > 0) {
+            return (
+              <div key={p.field}>
+                <FieldLabel label={meta.label} required={required} error={err} />
+                <Radio.Group
+                  value={val as string | undefined}
+                  options={(meta.options || []).map((o) => ({ value: o.value, label: o.label }))}
+                  onChange={(e) => setField(p.field, e.target.value)}
+                  style={{ display: 'block', marginTop: 4 }}
+                />
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{meta.label}</Text>}
+              </div>
+            )
+          }
           if (t === 'textarea') {
             return (
               <div key={p.field}>

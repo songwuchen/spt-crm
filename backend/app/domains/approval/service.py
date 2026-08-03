@@ -190,10 +190,12 @@ async def _build_policy_context(db: AsyncSession, tenant_id: str, biz_type: str,
                 context["need_install"] = rv.need_install
                 context["need_pricing"] = rv.need_pricing
                 context["department_id"] = rv.department_id
+                context["department_name"] = rv.department_name
                 context["owner_id"] = rv.owner_id
                 context["customer_type"] = rv.customer_type
                 context["payment_term"] = rv.payment_term
                 context["review_type"] = rv.review_type
+                context["region_manager_id"] = rv.region_manager_id
                 rj = rv.review_json if isinstance(rv.review_json, dict) else {}
                 context["industry"] = rj.get("industry")
                 # 简道云财务意见后分支：合同评审 + 是否反馈=否 → 产采质

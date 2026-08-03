@@ -146,9 +146,26 @@ async def test_list_definitions_seeds_contract_default_flows(client: AsyncClient
     cr_by_id = {n.get("id"): n for n in (cr_ver.node_definitions or [])}
     assert "merge_review" in cr_by_id and "approval_gm" in cr_by_id
     assert "approval_biz" in cr_by_id and "approval_legal" in cr_by_id
+    assert "approval_legal_sup" in cr_by_id
+    assert "approval_region" in cr_by_id and "approval_info_feedback" in cr_by_id
+    assert "approval_design_fb" in cr_by_id and "approval_initiator" in cr_by_id
+    for cid in ("cc_owner", "cc_install", "cc_related", "cc_lili", "cc_xunhan"):
+        assert cid in cr_by_id
     legal_fp = cr_by_id["approval_legal"].get("field_perms") or []
     assert any(p.get("field") == "legal_risk" for p in legal_fp)
     assert cr_by_id["approval_gm"].get("opinion_required") is True
+    # 法务 → 法务主管 → 汇聚；财务意见 → 信息反馈；发起旁路抄送
+    routes = cr_ver.route_definitions or []
+    assert any(r.get("source") == "approval_legal" and r.get("target") == "approval_legal_sup" for r in routes)
+    assert any(
+        r.get("source") == "approval_finance_opinion" and r.get("target") == "approval_info_feedback"
+        for r in routes
+    )
+    assert any(
+        r.get("source") == "approval_design_fb" and r.get("target") == "approval_gm"
+        for r in routes
+    )
+    assert any(r.get("source") == "start" and r.get("target") == "cc_owner" and r.get("always") for r in routes)
 
 
 # ---------- 降级语义 ----------

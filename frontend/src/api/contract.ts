@@ -6,6 +6,15 @@ export const contractApi = {
     client.get('/api/v1/contracts', { params }),
   listByProject: (projectId: string) =>
     client.get<unknown, ApiResponse<ContractItem[]>>(`/api/v1/projects/${projectId}/contracts`),
+  /** 编号查询：合同图纸对应表 */
+  drawingMapLookups: (params?: { keyword?: string; limit?: number }) =>
+    client.get<unknown, ApiResponse<Array<{
+      id: string
+      contract_no: string
+      drawing_no: string
+      department_id?: string | null
+      label: string
+    }>>>('/api/v1/contracts/drawing-map-lookups', { params }),
   create: (projectId: string | null | undefined, data: Record<string, unknown>) =>
     projectId
       ? client.post<unknown, ApiResponse<{ contract: ContractItem; version: ContractVersion }>>(

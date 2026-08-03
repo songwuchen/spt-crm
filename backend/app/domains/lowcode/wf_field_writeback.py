@@ -29,6 +29,7 @@ _REG_JSON_KEYS = frozenset({
     "purchasers", "inspectors", "fill_code",
     "standard_delivery", "delivery_mode", "is_rotary_sieve",
     "industry", "is_export",
+    "contract_type", "accept_method",
 })
 
 

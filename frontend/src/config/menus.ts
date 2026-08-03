@@ -67,6 +67,15 @@ export const menuGroups: MenuGroup[] = [
     ],
   },
   {
+    key: 'group:drawings',
+    titleKey: 'nav.groupDrawings',
+    items: [
+      { key: '/contract-drawing-maps', icon: 'map', labelKey: 'nav.contractDrawingMaps', permission: 'form_data:view' },
+      { key: '/drawing-requisitions', icon: 'draft', labelKey: 'nav.drawingRequisitions', permission: 'form_data:view' },
+      { key: '/install-drawing-notices', icon: 'architecture', labelKey: 'nav.installDrawingNotices', permission: 'form_data:view' },
+    ],
+  },
+  {
     key: 'group:ops',
     titleKey: 'nav.groupOps',
     items: [

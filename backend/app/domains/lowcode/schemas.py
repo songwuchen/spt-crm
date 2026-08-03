@@ -127,6 +127,11 @@ class FormInstanceCreate(BaseModel):
     as_draft: bool = False
 
 
+class PeekSerialsRequest(BaseModel):
+    """填报页预览流水号请求体。"""
+    form_data: dict[str, Any] = Field(default_factory=dict)
+
+
 class FormInstanceUpdate(BaseModel):
     form_data: dict[str, Any] | None = None
     title: str | None = None

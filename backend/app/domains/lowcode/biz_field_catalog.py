@@ -30,6 +30,21 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         {"id": "purchasers", "label": "采购员", "type": "person"},
         {"id": "inspectors", "label": "质检员", "type": "person"},
         {"id": "fill_code", "label": "填写代码", "type": "text"},
+        # 财务审核可改（对齐简道云 optAuth）
+        {
+            "id": "contract_type", "label": "合同类型", "type": "radio",
+            "options": [{"value": "正式", "label": "正式"}, {"value": "非正式", "label": "非正式"}],
+        },
+        {
+            "id": "accept_method", "label": "验收方式", "type": "radio",
+            "options": [
+                {"value": "货到签收", "label": "货到签收"},
+                {"value": "指导安装不含验收", "label": "指导安装不含验收"},
+                {"value": "货到验收", "label": "货到验收"},
+                {"value": "指导安装含验收", "label": "指导安装含验收"},
+                {"value": "安装调试", "label": "安装调试"},
+            ],
+        },
         {"id": "contract_id", "label": "合同ID", "type": "text"},
     ],
     "contract_review": [
@@ -38,8 +53,12 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         {"id": "need_install", "label": "是否需要安装", "type": "text"},
         {"id": "need_pricing", "label": "是否需要核价", "type": "text"},
         {"id": "department_id", "label": "部门", "type": "department"},
+        {"id": "department_name", "label": "业务部门名称", "type": "text"},
         {"id": "owner_id", "label": "业务员", "type": "person"},
+        {"id": "region_manager_id", "label": "区域经理/组长", "type": "person"},
         {"id": "customer_type", "label": "客户类型", "type": "text"},
+        {"id": "need_feedback", "label": "是否反馈", "type": "yes_no"},
+        {"id": "review_type", "label": "评审类型", "type": "text"},
         {"id": "industry", "label": "所属行业", "type": "text"},
         {"id": "clause_opinion", "label": "合同条款审核意见", "type": "textarea"},
         {"id": "legal_risk", "label": "法务风险等级", "type": "risk"},
@@ -54,10 +73,8 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         {"id": "purchase_risk_desc", "label": "采购风险描述", "type": "text"},
         {"id": "export_risk", "label": "出口风险等级", "type": "risk"},
         {"id": "export_risk_desc", "label": "出口风险描述", "type": "text"},
-        {"id": "need_feedback", "label": "是否反馈", "type": "yes_no"},
         {"id": "payment_term", "label": "账期", "type": "text"},
         {"id": "conclusion", "label": "结论描述", "type": "textarea"},
-        {"id": "review_type", "label": "评审类型", "type": "text"},
     ],
     "change_request": [
         {"id": "change_type", "label": "变更类型", "type": "text"},

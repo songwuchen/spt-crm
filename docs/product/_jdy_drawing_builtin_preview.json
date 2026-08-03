@@ -1,0 +1,1086 @@
+{
+  "drawing_requisition": [
+    {
+      "id": "field",
+      "type": "date",
+      "label": "日期时间",
+      "jdy_widget": "_widget_1584324747780"
+    },
+    {
+      "id": "field_2",
+      "type": "department",
+      "label": "部门",
+      "jdy_widget": "_widget_1584324747793"
+    },
+    {
+      "id": "applicant",
+      "type": "person",
+      "label": "申请人",
+      "jdy_widget": "_widget_1584324747817"
+    },
+    {
+      "id": "field_3",
+      "type": "radio",
+      "label": "是否涉及企标图纸",
+      "options": [
+        {
+          "label": "是",
+          "value": "是"
+        },
+        {
+          "label": "否",
+          "value": "否"
+        }
+      ],
+      "jdy_widget": "_widget_1712285733642"
+    },
+    {
+      "id": "field_4",
+      "type": "person",
+      "label": "订货人",
+      "jdy_widget": "_widget_1670208477895"
+    },
+    {
+      "id": "field_5",
+      "type": "text",
+      "label": "订货人（文本）",
+      "jdy_widget": "_widget_1584324747971"
+    },
+    {
+      "id": "contract_no",
+      "type": "select",
+      "label": "合同号",
+      "jdy_widget": "_widget_1584324747987"
+    },
+    {
+      "id": "field_6",
+      "type": "text",
+      "label": "申请事由",
+      "jdy_widget": "_widget_1584324748032"
+    },
+    {
+      "id": "field_7",
+      "type": "person",
+      "label": "设计人",
+      "jdy_widget": "_widget_1625449621349"
+    },
+    {
+      "id": "field_8",
+      "type": "text",
+      "label": "设计人(文本)",
+      "jdy_widget": "_widget_1584324748048"
+    },
+    {
+      "id": "field_9",
+      "type": "text",
+      "label": "产品型号",
+      "jdy_widget": "_widget_1584324748064"
+    },
+    {
+      "id": "field_10",
+      "type": "radio",
+      "label": "图纸传递途径",
+      "options": [
+        {
+          "label": "钉钉",
+          "value": "钉钉"
+        },
+        {
+          "label": "下生产",
+          "value": "下生产"
+        },
+        {
+          "label": "打印纸质图",
+          "value": "打印纸质图"
+        }
+      ],
+      "jdy_widget": "_widget_1726128540953"
+    },
+    {
+      "id": "field_11",
+      "type": "radio",
+      "label": "是否解密",
+      "options": [
+        {
+          "label": "解密",
+          "value": "解密"
+        },
+        {
+          "label": "不解密",
+          "value": "不解密"
+        }
+      ],
+      "jdy_widget": "_widget_1584324748140"
+    },
+    {
+      "id": "field_12",
+      "type": "text",
+      "label": "是否解密*",
+      "jdy_widget": "_widget_1744187653651"
+    },
+    {
+      "id": "field_13",
+      "type": "radio",
+      "label": "图纸类型",
+      "options": [
+        {
+          "label": "认可图",
+          "value": "认可图"
+        },
+        {
+          "label": "报备件",
+          "value": "报备件"
+        },
+        {
+          "label": "验收用",
+          "value": "验收用"
+        },
+        {
+          "label": "生产图",
+          "value": "生产图"
+        },
+        {
+          "label": "改造图",
+          "value": "改造图"
+        },
+        {
+          "label": "总装图",
+          "value": "总装图"
+        },
+        {
+          "label": "零部件图",
+          "value": "零部件图"
+        },
+        {
+          "label": "电气图",
+          "value": "电气图"
+        },
+        {
+          "label": "运输图",
+          "value": "运输图"
+        },
+        {
+          "label": "外协图",
+          "value": "外协图"
+        },
+        {
+          "label": "其他",
+          "value": "其他"
+        }
+      ],
+      "jdy_widget": "_widget_1584324748225"
+    },
+    {
+      "id": "field_14",
+      "type": "text",
+      "label": "附件/图片名称",
+      "jdy_widget": "_widget_1669617286395"
+    },
+    {
+      "id": "attachments",
+      "type": "file",
+      "label": "附件",
+      "jdy_widget": "_widget_1584324748414"
+    },
+    {
+      "id": "field_15",
+      "type": "file",
+      "label": "图片",
+      "jdy_widget": "_widget_1584324748427"
+    },
+    {
+      "id": "field_16",
+      "type": "radio",
+      "label": "设计单分派",
+      "options": [
+        {
+          "label": "总部单",
+          "value": "总部单"
+        },
+        {
+          "label": "新乡单",
+          "value": "新乡单"
+        },
+        {
+          "label": "包装单",
+          "value": "包装单"
+        },
+        {
+          "label": "共同",
+          "value": "共同"
+        }
+      ],
+      "jdy_widget": "_widget_1669426933010"
+    },
+    {
+      "id": "field_17",
+      "type": "person",
+      "label": "转新乡、工艺包装",
+      "jdy_widget": "_widget_1669426933009"
+    },
+    {
+      "id": "field_18",
+      "type": "person",
+      "label": "设计指派",
+      "jdy_widget": "_widget_1669426933008"
+    },
+    {
+      "id": "field_19",
+      "type": "text",
+      "label": "科室",
+      "jdy_widget": "_widget_1676005090837"
+    },
+    {
+      "id": "field_20",
+      "type": "date",
+      "label": "下单日期",
+      "jdy_widget": "_widget_1676005090838"
+    },
+    {
+      "id": "field_21",
+      "type": "radio",
+      "label": "是否需要总经理审批",
+      "options": [
+        {
+          "label": "是",
+          "value": "是"
+        },
+        {
+          "label": "否",
+          "value": "否"
+        }
+      ],
+      "jdy_widget": "_widget_1699839662506"
+    },
+    {
+      "id": "f_2024_09_12",
+      "type": "checkbox",
+      "label": "图纸传递途径（多）2024-09-12取消",
+      "options": [
+        {
+          "label": "图纸数据管理",
+          "value": "图纸数据管理"
+        },
+        {
+          "label": "PLM",
+          "value": "PLM"
+        },
+        {
+          "label": "钉钉",
+          "value": "钉钉"
+        },
+        {
+          "label": "打印纸质图",
+          "value": "打印纸质图"
+        }
+      ],
+      "jdy_widget": "_widget_1584341179562"
+    },
+    {
+      "id": "f_240912",
+      "type": "radio",
+      "label": "图纸规格（240912取消）",
+      "options": [
+        {
+          "label": "A3",
+          "value": "A3"
+        },
+        {
+          "label": "A4",
+          "value": "A4"
+        },
+        {
+          "label": "A0",
+          "value": "A0"
+        },
+        {
+          "label": "A1",
+          "value": "A1"
+        },
+        {
+          "label": "A2",
+          "value": "A2"
+        }
+      ],
+      "jdy_widget": "_widget_1584324748387"
+    },
+    {
+      "id": "f_2022_11_29",
+      "type": "radio",
+      "label": "是否售后（2022-11-29 已取消）",
+      "options": [
+        {
+          "label": "是",
+          "value": "是"
+        },
+        {
+          "label": "否",
+          "value": "否"
+        }
+      ],
+      "jdy_widget": "_widget_1584324747730"
+    },
+    {
+      "id": "f_240829",
+      "type": "number",
+      "label": "态度分数240829取消",
+      "jdy_widget": "_widget_1676609978377"
+    },
+    {
+      "id": "f_240829_2",
+      "type": "number",
+      "label": "进度、准确性分数240829取消",
+      "jdy_widget": "_widget_1676609978376"
+    },
+    {
+      "id": "f_240829_3",
+      "type": "number",
+      "label": "专业技能分数240829取消",
+      "jdy_widget": "_widget_1676609978375"
+    },
+    {
+      "id": "f_240829_4",
+      "type": "textarea",
+      "label": "备注240829取消",
+      "jdy_widget": "_widget_1676609978385"
+    },
+    {
+      "id": "f_240829_5",
+      "type": "number",
+      "label": "总分240829取消",
+      "jdy_widget": "_widget_1676609978373"
+    },
+    {
+      "id": "f_240829_6",
+      "type": "date",
+      "label": "打分日期240829取消",
+      "jdy_widget": "_widget_1676609978374"
+    },
+    {
+      "id": "submitter",
+      "type": "person",
+      "label": "提交人",
+      "jdy_widget": "creator"
+    },
+    {
+      "id": "submit_time",
+      "type": "date",
+      "label": "提交时间",
+      "jdy_widget": "createTime"
+    },
+    {
+      "id": "field_22",
+      "type": "date",
+      "label": "更新时间",
+      "jdy_widget": "updateTime"
+    }
+  ],
+  "install_drawing_notice": [
+    {
+      "id": "field",
+      "type": "date",
+      "label": "日期时间",
+      "jdy_widget": "_widget_1584323675993"
+    },
+    {
+      "id": "field_2",
+      "type": "text",
+      "label": "项目号辅助",
+      "jdy_widget": "_widget_1723510927863"
+    },
+    {
+      "id": "field_3",
+      "type": "text",
+      "label": "项目号（打印模板显示）",
+      "jdy_widget": "_widget_1723510391172"
+    },
+    {
+      "id": "f_0816",
+      "type": "radio",
+      "label": "是否为新项目0816",
+      "options": [
+        {
+          "label": "是",
+          "value": "是"
+        },
+        {
+          "label": "否",
+          "value": "否"
+        }
+      ],
+      "jdy_widget": "_widget_1723596746484"
+    },
+    {
+      "id": "field_4",
+      "type": "select",
+      "label": "项目号选择",
+      "jdy_widget": "_widget_1723598024203"
+    },
+    {
+      "id": "field_5",
+      "type": "person",
+      "label": "业务员",
+      "jdy_widget": "_widget_1723703918992"
+    },
+    {
+      "id": "customer_name",
+      "type": "text",
+      "label": "公司名称",
+      "jdy_widget": "_widget_1723703918990"
+    },
+    {
+      "id": "field_6",
+      "type": "text",
+      "label": "事项",
+      "jdy_widget": "_widget_1723703918991"
+    },
+    {
+      "id": "applicant",
+      "type": "person",
+      "label": "申请人",
+      "jdy_widget": "_widget_1584323676049"
+    },
+    {
+      "id": "field_7",
+      "type": "department",
+      "label": "部门",
+      "jdy_widget": "_widget_1584323676006"
+    },
+    {
+      "id": "field_8",
+      "type": "person",
+      "label": "订货人",
+      "jdy_widget": "_widget_1624943050844"
+    },
+    {
+      "id": "field_9",
+      "type": "text",
+      "label": "订货人（文本）",
+      "jdy_widget": "_widget_1584323676189"
+    },
+    {
+      "id": "field_10",
+      "type": "text",
+      "label": "部门编号",
+      "jdy_widget": "_widget_1697272822537"
+    },
+    {
+      "id": "field_11",
+      "type": "radio",
+      "label": "是否小萌方案",
+      "options": [
+        {
+          "label": "是",
+          "value": "是"
+        },
+        {
+          "label": "否",
+          "value": "否"
+        }
+      ],
+      "jdy_widget": "_widget_1662702145763"
+    },
+    {
+      "id": "field_12",
+      "type": "text",
+      "label": "日期时间（同一天辅助）",
+      "jdy_widget": "_widget_1780302957118"
+    },
+    {
+      "id": "field_13",
+      "type": "text",
+      "label": "同一部门、同一天（辅助）",
+      "jdy_widget": "_widget_1780302957150"
+    },
+    {
+      "id": "count",
+      "type": "text",
+      "label": "count辅助",
+      "jdy_widget": "_widget_1780302957244"
+    },
+    {
+      "id": "field_14",
+      "type": "text",
+      "label": "补位辅助",
+      "jdy_widget": "_widget_1780302957400"
+    },
+    {
+      "id": "f_260601",
+      "type": "number",
+      "label": "设计卡号260601停用",
+      "jdy_widget": "_widget_1673499279532"
+    },
+    {
+      "id": "field_15",
+      "type": "text",
+      "label": "新设计卡号",
+      "jdy_widget": "_widget_1697272822538"
+    },
+    {
+      "id": "f_20230112",
+      "type": "text",
+      "label": "设计卡号20230112停用",
+      "jdy_widget": "_widget_1592212486581"
+    },
+    {
+      "id": "field_16",
+      "type": "radio",
+      "label": "下图类型",
+      "options": [
+        {
+          "label": "出方案图",
+          "value": "出方案图"
+        },
+        {
+          "label": "出测绘图",
+          "value": "出测绘图"
+        },
+        {
+          "label": "修改方案",
+          "value": "修改方案"
+        },
+        {
+          "label": "领图",
+          "value": "领图"
+        }
+      ],
+      "jdy_widget": "_widget_1624352911105"
+    },
+    {
+      "id": "f_240912",
+      "type": "radio",
+      "label": "图纸规格（240912取消）",
+      "options": [
+        {
+          "label": "A3",
+          "value": "A3"
+        },
+        {
+          "label": "A4",
+          "value": "A4"
+        },
+        {
+          "label": "A0",
+          "value": "A0"
+        },
+        {
+          "label": "A1",
+          "value": "A1"
+        },
+        {
+          "label": "A2",
+          "value": "A2"
+        }
+      ],
+      "jdy_widget": "_widget_1584323676438"
+    },
+    {
+      "id": "f_240912_2",
+      "type": "checkbox",
+      "label": "图纸介质（240912取消）",
+      "options": [
+        {
+          "label": "电子图",
+          "value": "电子图"
+        },
+        {
+          "label": "白图",
+          "value": "白图"
+        },
+        {
+          "label": "蓝图",
+          "value": "蓝图"
+        },
+        {
+          "label": "技术资料",
+          "value": "技术资料"
+        },
+        {
+          "label": "其他",
+          "value": "其他"
+        }
+      ],
+      "jdy_widget": "_widget_1584340884876"
+    },
+    {
+      "id": "field_17",
+      "type": "checkbox",
+      "label": "图纸类型（可多选）",
+      "options": [
+        {
+          "label": "安装图",
+          "value": "安装图"
+        },
+        {
+          "label": "电气图",
+          "value": "电气图"
+        },
+        {
+          "label": "油路布置图",
+          "value": "油路布置图"
+        },
+        {
+          "label": "认可图",
+          "value": "认可图"
+        },
+        {
+          "label": "生产图",
+          "value": "生产图"
+        },
+        {
+          "label": "改造图",
+          "value": "改造图"
+        },
+        {
+          "label": "总装图",
+          "value": "总装图"
+        },
+        {
+          "label": "零部件图",
+          "value": "零部件图"
+        },
+        {
+          "label": "运输图",
+          "value": "运输图"
+        },
+        {
+          "label": "外协图",
+          "value": "外协图"
+        },
+        {
+          "label": "核价清单",
+          "value": "核价清单"
+        },
+        {
+          "label": "其他",
+          "value": "其他"
+        }
+      ],
+      "jdy_widget": "_widget_1622075095219"
+    },
+    {
+      "id": "field_18",
+      "type": "radio",
+      "label": "是否解密",
+      "options": [
+        {
+          "label": "解密",
+          "value": "解密"
+        },
+        {
+          "label": "不解密",
+          "value": "不解密"
+        }
+      ],
+      "jdy_widget": "_widget_1584323676350"
+    },
+    {
+      "id": "field_19",
+      "type": "radio",
+      "label": "领图目的",
+      "options": [
+        {
+          "label": "参与投标",
+          "value": "参与投标"
+        },
+        {
+          "label": "报价",
+          "value": "报价"
+        },
+        {
+          "label": "技术交流",
+          "value": "技术交流"
+        },
+        {
+          "label": "预算",
+          "value": "预算"
+        },
+        {
+          "label": "其他",
+          "value": "其他"
+        }
+      ],
+      "jdy_widget": "_widget_1669604747098"
+    },
+    {
+      "id": "f_22_11_28",
+      "type": "radio",
+      "label": "是否有合同号(22/11/28取消）",
+      "options": [
+        {
+          "label": "有",
+          "value": "有"
+        },
+        {
+          "label": "无",
+          "value": "无"
+        }
+      ],
+      "jdy_widget": "_widget_1626156149395"
+    },
+    {
+      "id": "f_22_11_28_2",
+      "type": "select",
+      "label": "合同号(22/11/28取消）",
+      "jdy_widget": "_widget_1584323676205"
+    },
+    {
+      "id": "field_20",
+      "type": "text",
+      "label": "申请事由/修改事项",
+      "jdy_widget": "_widget_1584323676275"
+    },
+    {
+      "id": "field_21",
+      "type": "text",
+      "label": "*申请事由",
+      "jdy_widget": "_widget_1662702831365"
+    },
+    {
+      "id": "f_240416",
+      "type": "radio",
+      "label": "业务反馈240416",
+      "options": [
+        {
+          "label": "中标",
+          "value": "中标"
+        },
+        {
+          "label": "落标",
+          "value": "落标"
+        },
+        {
+          "label": "结果未出",
+          "value": "结果未出"
+        },
+        {
+          "label": "方案未出",
+          "value": "方案未出"
+        },
+        {
+          "label": "其他",
+          "value": "其他"
+        }
+      ],
+      "jdy_widget": "_widget_1713252188931"
+    },
+    {
+      "id": "f_240416_2",
+      "type": "text",
+      "label": "落标原因240416",
+      "jdy_widget": "_widget_1713252188933"
+    },
+    {
+      "id": "field_22",
+      "type": "date",
+      "label": "下卡日期",
+      "jdy_widget": "_widget_1624352039272"
+    },
+    {
+      "id": "field_23",
+      "type": "person",
+      "label": "前期沟通设计人员",
+      "jdy_widget": "_widget_1624352911480"
+    },
+    {
+      "id": "field_24",
+      "type": "date",
+      "label": "要求交图时间",
+      "jdy_widget": "_widget_1624352911499"
+    },
+    {
+      "id": "field_25",
+      "type": "text",
+      "label": "产品型号",
+      "jdy_widget": "_widget_1584323676307"
+    },
+    {
+      "id": "field_26",
+      "type": "text",
+      "label": "行业（停用）",
+      "jdy_widget": "_widget_1624434808736"
+    },
+    {
+      "id": "field_27",
+      "type": "select",
+      "label": "图纸类型已停用（单选）",
+      "options": [
+        {
+          "label": "安装图",
+          "value": "安装图"
+        },
+        {
+          "label": "电气图",
+          "value": "电气图"
+        },
+        {
+          "label": "认可图",
+          "value": "认可图"
+        },
+        {
+          "label": "生产图",
+          "value": "生产图"
+        },
+        {
+          "label": "改造图",
+          "value": "改造图"
+        },
+        {
+          "label": "总装图",
+          "value": "总装图"
+        },
+        {
+          "label": "零部件图",
+          "value": "零部件图"
+        },
+        {
+          "label": "运输图",
+          "value": "运输图"
+        },
+        {
+          "label": "外协图",
+          "value": "外协图"
+        },
+        {
+          "label": "其他",
+          "value": "其他"
+        }
+      ],
+      "jdy_widget": "_widget_1584323676368"
+    },
+    {
+      "id": "field_28",
+      "type": "text",
+      "label": "前期沟通的设计员（文本）",
+      "jdy_widget": "_widget_1584323676291"
+    },
+    {
+      "id": "field_29",
+      "type": "detail_table",
+      "label": "出方案图填写明细",
+      "jdy_widget": "_widget_1624352909418"
+    },
+    {
+      "id": "field_30",
+      "type": "detail_table",
+      "label": "安装环境和现场条件",
+      "jdy_widget": "_widget_1624434803711"
+    },
+    {
+      "id": "field_31",
+      "type": "radio",
+      "label": "安装位置",
+      "options": [
+        {
+          "label": "室内",
+          "value": "室内"
+        },
+        {
+          "label": "室外",
+          "value": "室外"
+        }
+      ],
+      "jdy_widget": "_widget_1624352910598"
+    },
+    {
+      "id": "field_32",
+      "type": "radio",
+      "label": "设备基础图纸",
+      "options": [
+        {
+          "label": "有",
+          "value": "有"
+        },
+        {
+          "label": "无",
+          "value": "无"
+        }
+      ],
+      "jdy_widget": "_widget_1624352910630"
+    },
+    {
+      "id": "field_33",
+      "type": "radio",
+      "label": "安装方式",
+      "options": [
+        {
+          "label": "固定坐式",
+          "value": "固定坐式"
+        },
+        {
+          "label": "移动行走式",
+          "value": "移动行走式"
+        }
+      ],
+      "jdy_widget": "_widget_1624352910614"
+    },
+    {
+      "id": "field_34",
+      "type": "detail_table",
+      "label": "修改方案",
+      "jdy_widget": "_widget_1624352911556"
+    },
+    {
+      "id": "field_35",
+      "type": "detail_table",
+      "label": "出方案图填写明细-物料特性",
+      "jdy_widget": "_widget_1624352910323"
+    },
+    {
+      "id": "field_36",
+      "type": "detail_table",
+      "label": "非出方案图填写明细-物料特性",
+      "jdy_widget": "_widget_1670207254643"
+    },
+    {
+      "id": "f_230320",
+      "type": "textarea",
+      "label": "简述行业、工艺位置、特殊要求（230320沟通不用显示）",
+      "jdy_widget": "_widget_1624352909302"
+    },
+    {
+      "id": "field_37",
+      "type": "text",
+      "label": "注意",
+      "jdy_widget": "_widget_1679722777387"
+    },
+    {
+      "id": "field_38",
+      "type": "textarea",
+      "label": "附件名称",
+      "jdy_widget": "_widget_1586759251628"
+    },
+    {
+      "id": "field_39",
+      "type": "radio",
+      "label": "设计单分派",
+      "options": [
+        {
+          "label": "总部单",
+          "value": "总部单"
+        },
+        {
+          "label": "新乡单",
+          "value": "新乡单"
+        },
+        {
+          "label": "包装单",
+          "value": "包装单"
+        },
+        {
+          "label": "共同",
+          "value": "共同"
+        }
+      ],
+      "jdy_widget": "_widget_1668992972400"
+    },
+    {
+      "id": "field_40",
+      "type": "person",
+      "label": "转新乡、工艺包装",
+      "jdy_widget": "_widget_1668992972425"
+    },
+    {
+      "id": "field_41",
+      "type": "person",
+      "label": "设计指派",
+      "jdy_widget": "_widget_1584415118691"
+    },
+    {
+      "id": "field_42",
+      "type": "radio",
+      "label": "是否上交图纸",
+      "options": [
+        {
+          "label": "图纸已交",
+          "value": "图纸已交"
+        }
+      ],
+      "jdy_widget": "_widget_1674957454888"
+    },
+    {
+      "id": "field_43",
+      "type": "text",
+      "label": "科室多选",
+      "jdy_widget": "_widget_1676007312737"
+    },
+    {
+      "id": "field_44",
+      "type": "date",
+      "label": "下单日期",
+      "jdy_widget": "_widget_1676007312736"
+    },
+    {
+      "id": "field_45",
+      "type": "person",
+      "label": "转孙伟、刘万涛",
+      "jdy_widget": "_widget_1662703176057"
+    },
+    {
+      "id": "field_46",
+      "type": "file",
+      "label": "附件（不能放图片）",
+      "jdy_widget": "_widget_1584348631246"
+    },
+    {
+      "id": "field_47",
+      "type": "file",
+      "label": "图片",
+      "jdy_widget": "_widget_1584348816654"
+    },
+    {
+      "id": "field_48",
+      "type": "number",
+      "label": "态度分数",
+      "jdy_widget": "_widget_1676601972672"
+    },
+    {
+      "id": "field_49",
+      "type": "number",
+      "label": "进度、准确性分数",
+      "jdy_widget": "_widget_1676601972673"
+    },
+    {
+      "id": "field_50",
+      "type": "number",
+      "label": "专业技能分数",
+      "jdy_widget": "_widget_1676601972674"
+    },
+    {
+      "id": "remark",
+      "type": "textarea",
+      "label": "备注",
+      "jdy_widget": "_widget_1676601353553"
+    },
+    {
+      "id": "field_51",
+      "type": "number",
+      "label": "总分",
+      "jdy_widget": "_widget_1676601972702"
+    },
+    {
+      "id": "field_52",
+      "type": "date",
+      "label": "打分日期",
+      "jdy_widget": "_widget_1677119447744"
+    },
+    {
+      "id": "submitter",
+      "type": "person",
+      "label": "提交人",
+      "jdy_widget": "creator"
+    },
+    {
+      "id": "submit_time",
+      "type": "date",
+      "label": "提交时间",
+      "jdy_widget": "createTime"
+    },
+    {
+      "id": "field_53",
+      "type": "date",
+      "label": "更新时间",
+      "jdy_widget": "updateTime"
+    }
+  ]
+}

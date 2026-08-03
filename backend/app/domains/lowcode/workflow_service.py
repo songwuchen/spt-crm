@@ -65,7 +65,7 @@ async def get_definition(db: AsyncSession, tenant_id: str, def_id: str) -> WfPro
 
 
 async def list_definitions(db, tenant_id, page_no, page_size, name=None):
-    # 打开流程管理即幂等补齐系统默认流（合同版本/评审/线索），无需等业务首次提交
+    # 打开流程管理即幂等补齐系统默认流（合同/线索 + 图纸等表单绑定流）
     try:
         await ensure_all_biz_defaults(db, tenant_id)
     except Exception as e:
@@ -224,6 +224,57 @@ BIZ_DEFAULT_SPECS: list[dict] = [
 ]
 
 
+# 自定义表单（内置模块）默认审批流：绑定 form_template_id，表单提交走 maybe_start_for_form。
+FORM_DEFAULT_SPECS: list[dict] = [
+    {
+        "form_code": "drawing_requisition",
+        "code": "SYS_DRAWING_REQUISITION",
+        "name": "合同图纸（资料）领用申请",
+        "approver_rule": {
+            "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "form_code": "install_drawing_notice",
+        "code": "SYS_INSTALL_DRAWING_NOTICE",
+        "name": "安装图设计通知",
+        "approver_rule": {
+            "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+]
+
+DRAWING_FORM_FLOW_DESC = (
+    "对齐简道云通用流程拓扑（具名审批人/角色在 CRM 无对应用户时 empty_strategy=auto_approve；"
+    "详见 docs/product/_jdy_drawing_forms.md）"
+)
+
+
+def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
+    try:
+        from app.domains.lowcode._drawing_jdy_generated import DRAWING_JDY
+    except Exception:
+        return None
+    pack = DRAWING_JDY.get(form_code)
+    if not pack:
+        return None
+    nodes = pack.get("flow_nodes") or []
+    routes = pack.get("flow_routes") or []
+    if not nodes:
+        return None
+    return nodes, routes
+
+
+def _flow_is_jdy_drawing(nodes: list | None) -> bool:
+    """已对齐简道云图纸流：含总工/图纸领取等关键节点名。"""
+    names = {n.get("name") for n in (nodes or [])}
+    return "总工审批" in names and ("图纸领取" in names or "设计指派安排" in names)
+
+
 async def ensure_all_biz_defaults(db, tenant_id: str) -> None:
     """幂等：为租户补齐合同版本/合同评审/线索等系统默认审批流。"""
     for spec in BIZ_DEFAULT_SPECS:
@@ -239,6 +290,17 @@ async def ensure_all_biz_defaults(db, tenant_id: str) -> None:
             )
         except Exception as e:
             logger.warning("ensure default flow %s failed: %s", spec.get("code"), e)
+    await ensure_all_form_defaults(db, tenant_id)
+
+
+async def ensure_all_form_defaults(db, tenant_id: str) -> None:
+    """幂等：安装图纸等内置表单（若尚未安装），并补齐绑定表单的默认审批流。"""
+    from app.domains.lowcode.service import ensure_builtin_form
+    for spec in FORM_DEFAULT_SPECS:
+        try:
+            await ensure_builtin_form(db, tenant_id, spec["form_code"], {"sub": None})
+        except Exception as e:
+            logger.warning("ensure form flow %s failed: %s", spec.get("code"), e)
 
 
 # 引擎在「有条件边命中时会忽略无条件 else」：与条件边并存的必经边需挂恒真条件。
@@ -313,6 +375,31 @@ def _field_person_approval_node(
     return node
 
 
+def _creator_approval_node(
+    nid: str, name: str, *,
+    field_perms: list[dict] | None = None,
+    multi_mode: str = "or_sign",
+    empty_strategy: str = "auto_approve",
+) -> dict:
+    """发起人审批（对齐简道云 chargers.creator）。"""
+    node: dict = {
+        "id": nid, "type": "approval", "name": name,
+        "approver_rule": {"type": "creator"},
+        "multi_mode": multi_mode, "empty_strategy": empty_strategy,
+    }
+    if field_perms:
+        node["field_perms"] = field_perms
+    return node
+
+
+def _cc_node(nid: str, name: str, approver_rule: dict) -> dict:
+    """抄送节点（旁路通知，不阻塞主链；出边可为空）。"""
+    return {
+        "id": nid, "type": "cc", "name": name,
+        "approver_rule": approver_rule,
+    }
+
+
 def _and_cond(*parts: dict) -> dict:
     return {"rel": "and", "cond": list(parts)}
 
@@ -334,7 +421,7 @@ _JDY_REG_USER = {
 
 # 简道云合同评审 chargers → CRM username
 _JDY_REVIEW_USER = {
-    "intel": "023656363429294971",            # 王梦茹
+    "intel": "023656363429294971",            # 王梦茹/王梦颖
     "gm": "02336214315748",                   # 王思民
     "finance_opinion": "0433406811775721",    # 张光
     "design": "02364335378133",               # 曹修国
@@ -343,6 +430,12 @@ _JDY_REVIEW_USER = {
     "procurement": "02352513566524",          # 杨霜
     "qc": "0236420233847",                    # 张国运
     "export": "01000533004677",               # 王玲玲
+    "legal_sup": "492105073721398323",        # 史守义（法务主管）
+    # 抄送具名
+    "cc_install": ["080160552326376700", "02364307332960", "232040221426613133"],  # 杜珍珍/韩利民/杜金波
+    "cc_related": ["02364249424532", "023656363429294971", "02362556584221"],  # 李惠萍/王梦颖/李晋
+    "cc_lili": "02364313303546",              # 李莉
+    "cc_xunhan": "01670210101135172",         # 许曼（简道云迅焊）
 }
 
 CONTRACT_VERSION_DEFAULT_DESC = (
@@ -353,9 +446,11 @@ CONTRACT_VERSION_DEFAULT_DESC = (
 )
 
 CONTRACT_REVIEW_DEFAULT_DESC = (
-    "系统默认（对齐简道云合同评审）：审批人按简道云具名/角色配置；"
-    "业务部门 → 情报/法务/设计/财务总监/出口/产采质等会签 → "
-    "总经理 → 财务意见 → 抄送业务员。可在设计器改条件与审批人。"
+    "系统默认（对齐简道云合同评审）：发起旁路抄送业务员/安装组；"
+    "可选区域经理 → 业务部门 → 情报/法务→法务主管/设计/财务总监/出口会签 → "
+    "总经理 → 财务意见；不反馈时产采质+发起人直达结束，需反馈时走信息反馈回路再入总经理；"
+    "财务意见旁路抄送相关人/李莉/迅焊。国际营销部门用业务部门名称包含「国际」近似匹配。"
+    "可在设计器改条件与审批人。"
 )
 
 
@@ -370,7 +465,14 @@ def _contract_version_flow_graph() -> tuple[list[dict], list[dict]]:
     u = _JDY_REG_USER
     nodes: list[dict] = [
         {"id": "start", "type": "start", "name": "发起"},
-        _user_approval_node("approval_finance", "财务审核", u["finance"]),
+        _user_approval_node(
+            "approval_finance", "财务审核", u["finance"],
+            # 对齐简道云 optAuth=3：财务可改合同类型、验收方式
+            field_perms=_fp(
+                ("contract_type", "editable"),
+                ("accept_method", "editable"),
+            ),
+        ),
         # —— 标准交付分支 ——
         _user_approval_node("approval_production", "生产", u["production"]),
         _user_approval_node(
@@ -482,15 +584,31 @@ def _contract_version_flow_graph() -> tuple[list[dict], list[dict]]:
 
 
 def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
-    """合同评审默认图：对齐简道云会签主干、多条件分支与具名审批人。
+    """合同评审默认图：对齐简道云截图拓扑（会签 + 反馈 + 旁路抄送）。
 
-    简道云：业务后先情报/法务/设计/财务总监/出口会签 → 总经理 → 财务意见；
-    产采质在财务意见之后，条件为「合同评审 AND 是否反馈=否」。
-    反馈回路/具名抄送/部门 nin 等仍简化。
+    简道云主干：
+    - 发起旁路：抄送业务员；负责安装 → 抄送金微星
+    - 发起 →（合同评审且有区域经理）区域经理 → 业务部门；否则直接业务部门
+    - 业务后并行：情报(项目评审) / 法务→法务主管(合同评审) / 设计 / 财务总监 /
+      出口(出口=是 且部门名不含「国际」)
+    - 汇聚 → 总经理 → 财务意见
+    - 财务意见旁路：抄送相关人；部门含「国际」→ 抄送李莉；含「迅焊」→ 抄送迅焊
+    - 财务意见后：不反馈+合同评审 → 产采质+发起人 → 结束；不反馈+项目评审 → 结束；
+      需反馈 → 信息反馈 →（可选反馈区域经理）→ 反馈业务部门 → 设计审批1 → 再入总经理
     """
     u = _JDY_REVIEW_USER
     nodes: list[dict] = [
         {"id": "start", "type": "start", "name": "发起"},
+        # —— 发起旁路抄送（always 边，不抢占 else）——
+        _cc_node(
+            "cc_owner", "抄送业务员",
+            {"type": "form_field_person", "value": "owner_id"},
+        ),
+        _cc_node(
+            "cc_install", "抄送金微星",
+            {"type": "specified_user", "value": u["cc_install"]},
+        ),
+        _field_person_approval_node("approval_region", "区域经理/组长", "region_manager_id"),
         {
             "id": "approval_biz", "type": "approval", "name": "业务部门审批",
             "approver_rule": {"type": "dept_head", "exclude_initiator": True},
@@ -505,6 +623,7 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
                 ("clause_opinion", "editable"),
             ),
         ),
+        _user_approval_node("approval_legal_sup", "法务主管审批", u["legal_sup"]),
         _user_approval_node(
             "approval_design", "设计审批", u["design"],
             field_perms=_fp(("tech_risk", "required"), ("tech_risk_desc", "editable")),
@@ -526,63 +645,156 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
             "approval_finance_opinion", "财务意见", u["finance_opinion"],
             field_perms=_fp(("finance_risk", "required"), ("finance_risk_desc", "editable")),
         ),
-        # 产采质：简道云挂在财务意见之后
+        # —— 财务意见旁路抄送 ——
+        _cc_node(
+            "cc_related", "抄送相关人",
+            {
+                "type": "mixed",
+                "value": [
+                    {"type": "specified_user", "value": u["cc_related"]},
+                    {"type": "creator"},
+                    {"type": "form_field_person", "value": "owner_id"},
+                ],
+            },
+        ),
+        _cc_node(
+            "cc_lili", "抄送李莉",
+            {"type": "specified_user", "value": u["cc_lili"]},
+        ),
+        _cc_node(
+            "cc_xunhan", "抄送迅焊",
+            {"type": "specified_user", "value": u["cc_xunhan"]},
+        ),
+        # 财务意见后：产采质 + 发起人（不反馈时）→ 直达结束
         _user_approval_node("approval_production", "生产审批", u["production"]),
         _user_approval_node(
             "approval_procurement", "采购审批", u["procurement"],
             field_perms=_fp(("purchase_risk", "required"), ("purchase_risk_desc", "editable")),
         ),
         _user_approval_node("approval_qc", "质检审批", u["qc"]),
+        _creator_approval_node("approval_initiator", "发起人"),
         {"id": "merge_ops_post", "type": "merge", "name": "产采质汇聚"},
+        # 反馈回路
+        _creator_approval_node(
+            "approval_info_feedback", "信息反馈",
+            field_perms=_fp(("need_feedback", "editable")),
+        ),
+        _field_person_approval_node(
+            "approval_feedback_region", "反馈区域经理/组长", "region_manager_id",
+        ),
         {
-            "id": "cc_owner", "type": "cc", "name": "抄送业务员",
-            "approver_rule": {"type": "form_field_person", "value": "owner_id"},
+            "id": "approval_feedback_biz", "type": "approval", "name": "反馈业务部门",
+            "approver_rule": {"type": "dept_head", "exclude_initiator": True},
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
         },
+        _user_approval_node("approval_design_fb", "设计审批1", u["design"]),
         {"id": "end", "type": "end", "name": "结束"},
     ]
     rt_contract = {"field": "review_type", "operator": "in", "value": ["合同评审"]}
     rt_project = {"field": "review_type", "operator": "in", "value": ["项目评审"]}
     export_yes = {"field": "is_export", "operator": "in", "value": ["是"]}
+    # 简道云：业务部门 nin 国际营销范围 → CRM 用部门名不含「国际」近似
+    not_intl = {"field": "department_name", "operator": "not_contains", "value": "国际"}
+    intl_dept = {"field": "department_name", "operator": "contains", "value": "国际"}
+    xunhan_dept = {"field": "department_name", "operator": "contains", "value": "迅焊"}
     feedback_no = {"field": "need_feedback", "operator": "in", "value": ["否"]}
-    # 业务后会签（不含产采质）
-    peer_targets = [
+    feedback_yes = {"field": "need_feedback", "operator": "in", "value": ["是"]}
+    region_set = {"field": "region_manager_id", "operator": "is_not_empty"}
+    install_yes = {"field": "need_install", "operator": "in", "value": ["负责安装"]}
+    peer_to_merge = [
         ("approval_intel", _and_cond(rt_project)),
-        ("approval_legal", _and_cond(rt_contract)),
         ("approval_design", _ALWAYS_TRUE_COND),
         ("approval_finance_dir", _ALWAYS_TRUE_COND),
-        # 简道云另有「业务部门 nin 若干部门」；CRM 暂只保留是否出口
-        ("approval_export", _and_cond(export_yes)),
+        ("approval_export", _and_cond(export_yes, not_intl)),
     ]
-    # 财务意见后：合同评审 + 不反馈 → 产采质
     post_fin_ops = [
         ("approval_production", _and_cond(rt_contract, feedback_no)),
         ("approval_procurement", _and_cond(rt_contract, feedback_no)),
         ("approval_qc", _and_cond(rt_contract, feedback_no)),
+        ("approval_initiator", _and_cond(rt_contract, feedback_no)),
     ]
     routes: list[dict] = [
-        {"id": "r_start", "source": "start", "target": "approval_biz"},
+        # 发起旁路抄送（always，不抢占区域经理/业务 else）
+        {"id": "r_start_cc_owner", "source": "start", "target": "cc_owner", "always": True},
+        {
+            "id": "r_start_cc_install", "source": "start", "target": "cc_install",
+            "always": True, "condition": _and_cond(install_yes),
+        },
+        # 发起：有区域经理则先审，否则直接业务部门
+        {
+            "id": "r_start_region", "source": "start", "target": "approval_region",
+            "condition": _and_cond(rt_contract, region_set),
+        },
+        {"id": "r_start_biz", "source": "start", "target": "approval_biz"},
+        {"id": "r_region_biz", "source": "approval_region", "target": "approval_biz"},
+        # 业务 → 会签分支
+        {
+            "id": "r_biz_legal", "source": "approval_biz", "target": "approval_legal",
+            "condition": _and_cond(rt_contract),
+        },
         *[
             {"id": f"r_biz_{tid}", "source": "approval_biz", "target": tid, "condition": cond}
-            for tid, cond in peer_targets
+            for tid, cond in peer_to_merge
         ],
         {"id": "r_biz_merge", "source": "approval_biz", "target": "merge_review"},
-        *[{"id": f"r_{tid}_merge", "source": tid, "target": "merge_review"} for tid, _ in peer_targets],
+        # 法务 → 法务主管 → 汇聚
+        {"id": "r_legal_sup", "source": "approval_legal", "target": "approval_legal_sup"},
+        {"id": "r_legal_sup_merge", "source": "approval_legal_sup", "target": "merge_review"},
+        *[{"id": f"r_{tid}_merge", "source": tid, "target": "merge_review"} for tid, _ in peer_to_merge],
+        # 主干
         {"id": "r_merge_gm", "source": "merge_review", "target": "approval_gm"},
         {"id": "r_gm_fin", "source": "approval_gm", "target": "approval_finance_opinion"},
+        # 财务意见旁路抄送
+        {
+            "id": "r_fin_cc_related", "source": "approval_finance_opinion",
+            "target": "cc_related", "always": True,
+        },
+        {
+            "id": "r_fin_cc_lili", "source": "approval_finance_opinion",
+            "target": "cc_lili", "always": True, "condition": _and_cond(intl_dept),
+        },
+        {
+            "id": "r_fin_cc_xunhan", "source": "approval_finance_opinion",
+            "target": "cc_xunhan", "always": True, "condition": _and_cond(xunhan_dept),
+        },
+        # 财务意见后主分支
         *[
             {"id": f"r_fin_{tid}", "source": "approval_finance_opinion", "target": tid, "condition": cond}
             for tid, cond in post_fin_ops
         ],
-        # 简道云：项目评审 + 不反馈 → 结束
         {
             "id": "r_fin_end_project", "source": "approval_finance_opinion", "target": "end",
             "condition": _and_cond(rt_project, feedback_no),
         },
-        # 其余（如需反馈）走抄送后结束，避免卡死
-        {"id": "r_fin_cc", "source": "approval_finance_opinion", "target": "cc_owner"},
+        {
+            "id": "r_fin_feedback", "source": "approval_finance_opinion",
+            "target": "approval_info_feedback",
+            "condition": _and_cond(feedback_yes),
+        },
+        # 反馈字段为空等兜底：直接结束，避免卡死
+        {"id": "r_fin_end_fallback", "source": "approval_finance_opinion", "target": "end"},
         *[{"id": f"r_{tid}_post_merge", "source": tid, "target": "merge_ops_post"} for tid, _ in post_fin_ops],
-        {"id": "r_post_cc", "source": "merge_ops_post", "target": "cc_owner"},
-        {"id": "r_cc_end", "source": "cc_owner", "target": "end"},
+        {"id": "r_post_end", "source": "merge_ops_post", "target": "end"},
+        # 反馈回路
+        {
+            "id": "r_fb_region", "source": "approval_info_feedback",
+            "target": "approval_feedback_region",
+            "condition": _and_cond(rt_contract, region_set),
+        },
+        {"id": "r_fb_biz", "source": "approval_info_feedback", "target": "approval_feedback_biz"},
+        {
+            "id": "r_fb_region_biz", "source": "approval_feedback_region",
+            "target": "approval_feedback_biz",
+        },
+        {
+            "id": "r_fb_biz_design", "source": "approval_feedback_biz",
+            "target": "approval_design_fb",
+            "condition": _and_cond(feedback_yes),
+        },
+        # 反馈过程中若已改为不反馈，直接再入总经理（避免卡在反馈业务部门）
+        {"id": "r_fb_biz_gm", "source": "approval_feedback_biz", "target": "approval_gm"},
+        # 设计审批1 再入总经理
+        {"id": "r_design_fb_gm", "source": "approval_design_fb", "target": "approval_gm"},
     ]
     return nodes, routes
 
@@ -613,6 +825,125 @@ def _default_flow_graph(
         nodes.append({"id": "end", "type": "end", "name": "结束"})
         routes.append({"id": "r_end", "source": "approval_1", "target": "end"})
     return nodes, routes
+
+
+async def ensure_default_form_definition(
+    db, tenant_id, form_template_id: str, code: str, name: str,
+    approver_rule: dict | None = None,
+    multi_mode: str = "or_sign",
+    empty_strategy: str = "auto_approve",
+) -> WfProcessDefinition | None:
+    """为自定义表单幂等创建并发布默认审批流（绑定 form_template_id）。
+
+    表单提交后由 maybe_start_for_form 命中；可在流程管理中继续编辑节点。
+    图纸两表优先使用简道云对齐拓扑（DRAWING_JDY），否则回退单节点。
+    """
+    rule = approver_rule or {
+        "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+    }
+    form_code = next(
+        (s["form_code"] for s in FORM_DEFAULT_SPECS if s["code"] == code),
+        None,
+    )
+    jdy_graph = _drawing_flow_graph(form_code) if form_code else None
+    if jdy_graph:
+        nodes, routes = jdy_graph
+        description = DRAWING_FORM_FLOW_DESC
+    else:
+        nodes, routes = _default_flow_graph(name, rule, multi_mode, empty_strategy)
+        description = "系统默认流程（表单提交后自动发起，可在流程管理中编辑）"
+
+    existing = (await db.execute(select(WfProcessDefinition).where(
+        WfProcessDefinition.tenant_id == tenant_id,
+        WfProcessDefinition.form_template_id == form_template_id,
+        WfProcessDefinition.status == "published",
+        WfProcessDefinition.is_deleted == False,  # noqa: E712
+    ).limit(1))).scalar_one_or_none()
+    if existing:
+        await _upgrade_drawing_form_flow_if_needed(db, tenant_id, existing, form_code)
+        return existing
+
+    mine = (await db.execute(select(WfProcessDefinition).where(
+        WfProcessDefinition.tenant_id == tenant_id,
+        WfProcessDefinition.code == code,
+    ).limit(1))).scalar_one_or_none()
+    if mine is not None:
+        mine.form_template_id = form_template_id
+        mine.biz_type = None
+        mine.name = name
+        mine.description = description
+        mine.category = SYSTEM_DEFAULT_CATEGORY
+        mine.sort_order = _SYSTEM_DEFAULT_SORT
+        revived = await _revive_default_definition(db, tenant_id, mine, nodes, routes)
+        if revived:
+            await _upgrade_drawing_form_flow_if_needed(db, tenant_id, revived, form_code)
+        return revived
+
+    d = WfProcessDefinition(
+        id=generate_uuid(), tenant_id=tenant_id, name=name, code=code,
+        description=description,
+        category=SYSTEM_DEFAULT_CATEGORY,
+        form_template_id=form_template_id,
+        biz_type=None,
+        status="published", current_version=1, sort_order=_SYSTEM_DEFAULT_SORT,
+    )
+    db.add(d)
+    v = WfProcessDefinitionVersion(
+        id=generate_uuid(), tenant_id=tenant_id, process_definition_id=d.id,
+        version_number=1, node_definitions=nodes, route_definitions=routes,
+        approver_rules=[], status="published", published_at=_now(),
+    )
+    db.add(v)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raced = (await db.execute(select(WfProcessDefinition).where(
+            WfProcessDefinition.tenant_id == tenant_id,
+            WfProcessDefinition.code == code,
+        ).limit(1))).scalar_one_or_none()
+        if raced is not None:
+            raced.form_template_id = form_template_id
+            raced.biz_type = None
+            raced.name = name
+            raced.description = description
+            raced.category = SYSTEM_DEFAULT_CATEGORY
+            raced.sort_order = _SYSTEM_DEFAULT_SORT
+            revived = await _revive_default_definition(db, tenant_id, raced, nodes, routes)
+            if revived:
+                await _upgrade_drawing_form_flow_if_needed(db, tenant_id, revived, form_code)
+            return revived
+        return None
+    return d
+
+
+async def _upgrade_drawing_form_flow_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition, form_code: str | None,
+) -> None:
+    """系统兜底图纸表单流：单节点等升级为简道云对齐拓扑。"""
+    if not form_code:
+        return
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    if d.code not in ("SYS_DRAWING_REQUISITION", "SYS_INSTALL_DRAWING_NOTICE"):
+        return
+    graph = _drawing_flow_graph(form_code)
+    if not graph:
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+    if _flow_is_jdy_drawing(version.node_definitions):
+        return
+    new_nodes, new_routes = graph
+    if form_code == "drawing_requisition":
+        d.name = "合同图纸（资料）领用申请"
+    elif form_code == "install_drawing_notice":
+        d.name = "安装图设计通知"
+    await _publish_system_default_upgrade(
+        db, tenant_id, d, version, new_nodes, new_routes,
+        DRAWING_FORM_FLOW_DESC, f"简道云图纸流({form_code})",
+    )
 
 
 async def ensure_default_definition(
@@ -753,7 +1084,7 @@ def _flow_is_jdy_contract_reg(nodes: list | None, routes: list | None = None) ->
     # 简道云二级：采购员/质检员/财务维护/采购部
     if not {"approval_purchaser", "approval_inspector", "approval_finance_maint", "approval_purch_dept"} <= ids:
         return False
-    purch_ok = wh_ok = named_finance = False
+    purch_ok = wh_ok = named_finance = finance_fp_ok = False
     for n in nodes or []:
         fps = n.get("field_perms") or []
         if n.get("id") == "approval_procurement":
@@ -765,32 +1096,58 @@ def _flow_is_jdy_contract_reg(nodes: list | None, routes: list | None = None) ->
         if n.get("id") == "approval_finance":
             rule = n.get("approver_rule") or {}
             named_finance = rule.get("type") == "specified_user"
+            fin_fields = {p.get("field") for p in fps if isinstance(p, dict)}
+            finance_fp_ok = {"contract_type", "accept_method"} <= fin_fields
     fin_end_dual = False
     for r in routes or []:
         if r.get("source") == "approval_finance" and r.get("target") == "end":
             fields = _route_cond_fields(r)
             fin_end_dual = "standard_delivery" in fields and "is_rotary_sieve" in fields
-    return purch_ok and wh_ok and named_finance and fin_end_dual
+    return purch_ok and wh_ok and named_finance and finance_fp_ok and fin_end_dual
 
 
 def _flow_is_jdy_contract_review(nodes: list | None, routes: list | None = None) -> bool:
-    """已是会签图、具名总经理齐全，且产采质挂在财务意见之后（双条件）。"""
-    has_merge = any(n.get("id") == "merge_review" for n in (nodes or []))
-    if not has_merge:
+    """已是完整会签图：旁路抄送/法务主管/区域经理/反馈回路齐全。"""
+    ids = {n.get("id") for n in (nodes or [])}
+    if "merge_review" not in ids:
         return False
-    legal_ok = named_gm = False
+    required = {
+        "approval_legal_sup", "approval_region", "approval_info_feedback",
+        "approval_design_fb", "approval_initiator",
+        "cc_owner", "cc_install", "cc_related", "cc_lili", "cc_xunhan",
+    }
+    if not required <= ids:
+        return False
+    legal_ok = named_gm = named_legal_sup = False
     for n in nodes or []:
         if n.get("id") == "approval_legal" and n.get("field_perms"):
             legal_ok = True
         if n.get("id") == "approval_gm":
             rule = n.get("approver_rule") or {}
             named_gm = rule.get("type") == "specified_user"
-    post_fin_ops = False
+        if n.get("id") == "approval_legal_sup":
+            rule = n.get("approver_rule") or {}
+            named_legal_sup = rule.get("type") == "specified_user"
+    post_fin_ops = has_feedback_route = has_design_fb_reentry = has_start_cc = False
+    export_not_intl = False
     for r in routes or []:
+        if r.get("source") == "start" and r.get("target") == "cc_owner" and r.get("always"):
+            has_start_cc = True
         if r.get("source") == "approval_finance_opinion" and r.get("target") == "approval_production":
             fields = _route_cond_fields(r)
             post_fin_ops = "review_type" in fields and "need_feedback" in fields
-    return legal_ok and named_gm and post_fin_ops
+        if r.get("source") == "approval_finance_opinion" and r.get("target") == "approval_info_feedback":
+            has_feedback_route = True
+        if r.get("source") == "approval_design_fb" and r.get("target") == "approval_gm":
+            has_design_fb_reentry = True
+        if r.get("source") == "approval_biz" and r.get("target") == "approval_export":
+            fields = _route_cond_fields(r)
+            export_not_intl = "is_export" in fields and "department_name" in fields
+    return (
+        legal_ok and named_gm and named_legal_sup
+        and post_fin_ops and has_feedback_route and has_design_fb_reentry
+        and has_start_cc and export_not_intl
+    )
 
 
 async def _publish_system_default_upgrade(
@@ -861,7 +1218,7 @@ async def _upgrade_contract_review_jdy_if_needed(
     new_nodes, new_routes = _contract_review_flow_graph()
     await _publish_system_default_upgrade(
         db, tenant_id, d, version, new_nodes, new_routes,
-        CONTRACT_REVIEW_DEFAULT_DESC, "简道云评审会签流(多条件)",
+        CONTRACT_REVIEW_DEFAULT_DESC, "简道云评审会签流(旁路抄送/反馈回路)",
     )
 
 
@@ -1661,11 +2018,14 @@ async def _resolve_current_task_for_viewer(
     field_meta = []
     for fid in field_ids:
         meta = catalog.get(fid) or {"id": fid, "label": fid, "type": "text"}
-        field_meta.append({
+        item = {
             "id": fid,
             "label": meta.get("label") or fid,
             "type": meta.get("type") or "text",
-        })
+        }
+        if meta.get("options"):
+            item["options"] = meta["options"]
+        field_meta.append(item)
     field_values = await load_field_values(
         db, tenant_id, inst.biz_type, inst.biz_id, inst.form_instance_id, field_ids,
     )

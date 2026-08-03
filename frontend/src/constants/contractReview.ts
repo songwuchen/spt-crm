@@ -248,6 +248,60 @@ export function reviewSectionAllFields(sec: ReviewSection): ReviewFieldDef[] {
   return [...sec.fields, ...(sec.fieldsAfterSlot || [])]
 }
 
+/** 取字段当前值（native 顶层 / reg → review_json） */
+export function readReviewFieldValue(
+  row: Record<string, unknown>,
+  field: ReviewFieldDef,
+): unknown {
+  if (field.source === 'native') return row[field.key]
+  const rj = (row.review_json || {}) as Record<string, unknown>
+  return rj[field.key]
+}
+
+function reviewDepVisible(
+  dep: ReviewShowWhen | undefined,
+  row: Record<string, unknown>,
+): boolean {
+  if (!dep) return true
+  const v = dep.source === 'native'
+    ? row[dep.field]
+    : ((row.review_json || {}) as Record<string, unknown>)[dep.field]
+  if (dep.equals?.length) {
+    return dep.equals.includes(v == null ? '' : String(v))
+  }
+  return v != null && v !== ''
+}
+
+function isEmptyReviewValue(v: unknown, widget?: ReviewWidget): boolean {
+  if (v == null || v === '') return true
+  if (widget === 'checkbox' && Array.isArray(v) && v.length === 0) return true
+  return false
+}
+
+/**
+ * 找出第一条未填的必填项（含 requiredWhen），用于提交前拦截并滚到编辑页对应字段。
+ * 返回 Form name path + 中文标签。
+ */
+export function findFirstMissingReviewRequired(
+  row: Record<string, unknown>,
+): { name: (string | number)[]; label: string } | null {
+  for (const sec of CONTRACT_REVIEW_SECTIONS) {
+    for (const f of reviewSectionAllFields(sec)) {
+      if (!reviewDepVisible(f.showWhen, row)) continue
+      const need = f.required || (f.requiredWhen ? reviewDepVisible(f.requiredWhen, row) : false)
+      if (!need) continue
+      const v = readReviewFieldValue(row, f)
+      if (isEmptyReviewValue(v, f.widget)) {
+        return {
+          name: f.source === 'native' ? [f.key] : ['review_json', f.key],
+          label: f.label,
+        }
+      }
+    }
+  }
+  return null
+}
+
 export const REVIEW_NATIVE_KEYS = new Set([
   'review_type', 'is_export', 'need_pricing', 'need_install',
   'owner_name', 'region_manager_name', 'department_name', 'company_name',

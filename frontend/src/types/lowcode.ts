@@ -231,7 +231,7 @@ export interface WfCurrentTask {
   node_name?: string
   field_perms: WfFieldPerm[]
   opinion_required?: boolean
-  field_meta: { id: string; label: string; type: string }[]
+  field_meta: { id: string; label: string; type: string; options?: { value: string; label: string }[] }[]
   field_values: Record<string, unknown>
 }
 

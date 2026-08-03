@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
-from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR
+from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR, DUPLICATE_ENTRY
 from app.domains.contract.models import Contract, ContractVersion
 from app.domains.contract.schemas import ContractCreate, ContractUpdate, ContractVersionUpdate
 from app.domains.audit.service import log_action
@@ -14,6 +14,64 @@ from app.common.code_generator import generate_code
 
 logger = logging.getLogger("spt_crm.contract")
 
+
+async def _resolve_create_contract_no(
+    db: AsyncSession, tenant_id: str, requested: str | None,
+) -> str:
+    """优先使用编号查询带回的合同号；空则系统生成。"""
+    no = (requested or "").strip()
+    if not no:
+        return await generate_code(db, tenant_id, "contract")
+    exists = (await db.execute(
+        select(Contract.id).where(
+            Contract.tenant_id == tenant_id,
+            Contract.contract_no == no,
+        ).limit(1)
+    )).scalar_one_or_none()
+    if exists:
+        raise BusinessException(code=DUPLICATE_ENTRY, message=f"合同号「{no}」已存在")
+    return no
+
+
+async def list_drawing_map_lookups(
+    db: AsyncSession, tenant_id: str, user: dict, keyword: str | None = None, limit: int = 50,
+) -> list[dict]:
+    """合同登记「编号查询」：列出合同图纸对应表记录供选数回填。"""
+    from app.domains.lowcode import service as lc_svc
+    tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
+    items, _ = await lc_svc.list_instances(
+        db, tenant_id, tpl.id, 1, min(max(limit, 1), 100),
+        keyword=keyword or None, status=None, owner_ids=None,
+    )
+    out: list[dict] = []
+    q = (keyword or "").strip().lower()
+    for inst in items:
+        if inst.status == "draft":
+            continue
+        fd = inst.form_data if isinstance(inst.form_data, dict) else {}
+        contract_no = str(fd.get("contract_no") or "").strip()
+        drawing_no = str(fd.get("drawing_no") or "").strip()
+        if not contract_no and not drawing_no:
+            continue
+        if q and q not in contract_no.lower() and q not in drawing_no.lower():
+            # list_instances 已用 JSON 模糊搜；这里再兜底一次
+            label_probe = f"{contract_no} {drawing_no}".lower()
+            if q not in label_probe:
+                continue
+        dept = fd.get("department")
+        department_id = None
+        if isinstance(dept, str) and dept.strip():
+            department_id = dept.strip()
+        elif isinstance(dept, dict) and dept.get("id"):
+            department_id = str(dept["id"])
+        out.append({
+            "id": inst.id,
+            "contract_no": contract_no,
+            "drawing_no": drawing_no,
+            "department_id": department_id,
+            "label": " · ".join(x for x in (contract_no, drawing_no) if x),
+        })
+    return out
 
 
 # ==================== Contract ====================
@@ -63,7 +121,7 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     # 实际提交的字段上校验（与 update 的 payload scope 一致）。exclude_unset 避免把
     # 未传字段以 None 塞进 payload 后被误判为「已提交但为空」。
     _NATIVE_CREATE_KEYS = (
-        "amount_total", "end_date", "drawing_no", "peer_contract_no",
+        "contract_no", "amount_total", "end_date", "drawing_no", "peer_contract_no",
         "acquire_method", "delivery_date", "change_type", "order_date", "card_date",
         "assignee_id", "assignee_name", "department_id", "department_name",
         "registration_json",
@@ -75,9 +133,13 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
         required_scope="payload",
     )
 
+    contract_no = await _resolve_create_contract_no(
+        db, tenant_id, native.get("contract_no") or data.contract_no,
+    )
+
     contract = Contract(
         id=generate_uuid(), tenant_id=tenant_id,
-        project_id=project_id or None, contract_no=await generate_code(db, tenant_id, "contract"),
+        project_id=project_id or None, contract_no=contract_no,
         current_version_no=1,
         amount_total=native.get("amount_total", data.amount_total),
         end_date=native.get("end_date", data.end_date),

@@ -30,6 +30,11 @@ export const lowcodeApi = {
     client.get<unknown, ApiResponse<BuiltinTemplate[]>>('/api/v1/lc/builtin-templates'),
   installBuiltin: (key: string) =>
     client.post<unknown, ApiResponse<FormTemplate>>(`/api/v1/lc/builtin-templates/${key}/install`),
+  /** 侧栏模块：按稳定 code=key 确保已安装并发布 */
+  ensureBuiltin: (key: string) =>
+    client.post<unknown, ApiResponse<FormTemplate>>(`/api/v1/lc/builtin-templates/${key}/ensure`),
+  getTemplateByCode: (code: string) =>
+    client.get<unknown, ApiResponse<FormTemplate>>(`/api/v1/lc/form-templates/by-code/${encodeURIComponent(code)}`),
 
   // ---- 设计 / 版本 / 发布 ----
   loadDesign: (id: string) =>
@@ -42,6 +47,12 @@ export const lowcodeApi = {
     client.get<unknown, ApiResponse<FormVersion[]>>(`/api/v1/lc/form-templates/${id}/versions`),
   publishedVersion: (id: string) =>
     client.get<unknown, ApiResponse<FormVersion>>(`/api/v1/lc/form-templates/${id}/published-version`),
+  /** 预览下一流水号（不消耗计数），用于填报页即时展示 */
+  peekSerials: (id: string, form_data: Record<string, unknown>) =>
+    client.post<unknown, ApiResponse<Record<string, string>>>(
+      `/api/v1/lc/form-templates/${id}/peek-serials`,
+      { form_data },
+    ),
 
   // ---- 实体扩展字段(统一自定义字段) ----
   entityFields: (entityType: string) =>

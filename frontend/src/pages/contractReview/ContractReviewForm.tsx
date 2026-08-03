@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Button, Form, Input, Space, Table, message, Select, Tag } from 'antd'
+import { Button, Form, Input, Space, Table, message, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { contractReviewApi } from '@/api/contractReview'
 import ContractReviewFields from '@/components/ContractReviewFields'
@@ -29,10 +29,13 @@ function newContact(): ContactRow {
   return { key: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
 }
 
+type LocState = { scrollToField?: (string | number)[] }
+
 export default function ContractReviewForm() {
   const { id } = useParams<{ id: string }>()
   const isEdit = !!id && id !== 'new'
   const navigate = useNavigate()
+  const location = useLocation()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -84,6 +87,14 @@ export default function ContractReviewForm() {
       if (d.customer_id && d.company_name) {
         customerSelect.setInitialOption({ label: d.company_name, value: d.customer_id })
       }
+      // 从详情「提交审批」跳转过来时，滚到第一个缺填项
+      const scrollTo = (location.state as LocState | null)?.scrollToField
+      if (scrollTo?.length) {
+        setTimeout(() => {
+          form.scrollToField(scrollTo, { behavior: 'smooth', block: 'center' })
+          form.validateFields([scrollTo]).catch(() => { /* 标红即可 */ })
+        }, 200)
+      }
     }).catch(() => message.error('加载失败')).finally(() => setLoading(false))
   }, [id, isEdit]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -123,6 +134,24 @@ export default function ContractReviewForm() {
     }
   }
 
+  /** 与合同管理新建一致：校验失败时提示并滚到第一个必填项 */
+  const handleSave = async () => {
+    let values: Record<string, unknown>
+    try {
+      values = await form.validateFields()
+    } catch (err: unknown) {
+      const fields = (err as { errorFields?: { name: (string | number)[]; errors: string[] }[] })?.errorFields || []
+      const first = fields[0]?.errors?.[0]
+      message.warning(first || '请完善必填项后再提交')
+      const name = fields[0]?.name
+      if (name?.length) {
+        form.scrollToField(name, { behavior: 'smooth', block: 'center' })
+      }
+      return
+    }
+    await onFinish(values)
+  }
+
   if (loading) return <div className="p-8 text-slate-400">加载中…</div>
 
   return (
@@ -131,12 +160,18 @@ export default function ContractReviewForm() {
         <h2 className="text-xl font-semibold m-0">{isEdit ? '编辑合同评审' : '新建合同评审'}</h2>
         <Space>
           <Button onClick={() => navigate(isEdit ? `/contract-reviews/${id}` : '/contract-reviews')}>取消</Button>
-          <Button type="primary" loading={saving} onClick={() => form.submit()}>保存</Button>
+          <Button type="primary" loading={saving} onClick={handleSave}>保存</Button>
         </Space>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
-        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ review_json: {} }}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
+          scrollToFirstError={{ behavior: 'smooth', block: 'center' }}
+          initialValues={{ review_json: {} }}
+        >
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 mb-2">
             <Form.Item name="status" label="状态">
               <Select options={[...CONTRACT_REVIEW_STATUS]} />
@@ -287,7 +322,7 @@ export default function ContractReviewForm() {
 
       <div className="flex justify-end gap-2 mt-2 mb-6">
         <Button onClick={() => navigate(isEdit ? `/contract-reviews/${id}` : '/contract-reviews')}>取消</Button>
-        <Button type="primary" loading={saving} onClick={() => form.submit()}>保存</Button>
+        <Button type="primary" loading={saving} onClick={handleSave}>保存</Button>
       </div>
     </div>
   )

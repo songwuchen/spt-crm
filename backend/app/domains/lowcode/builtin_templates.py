@@ -104,7 +104,103 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
             {"id": "reason", "type": "textarea", "label": "采购事由", "required": True},
         ],
     },
+    {
+        "key": "drawing_requisition",
+        "name": "合同图纸（资料）领用申请",
+        "category": "图纸",
+        "icon": "FileImageOutlined",
+        "description": "对齐简道云通用流程「合同图纸（资料）领用申请」。字段见 docs/product/_jdy_drawing_forms.md。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "install_drawing_notice",
+        "name": "安装图设计通知",
+        "category": "图纸",
+        "icon": "BuildOutlined",
+        "description": "对齐简道云通用流程「安装图设计通知」。字段见 docs/product/_jdy_drawing_forms.md。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "contract_drawing_map",
+        "name": "合同图纸对应表",
+        "category": "图纸",
+        "icon": "ApartmentOutlined",
+        "description": (
+            "简道云「图纸档案管理」→「合同图纸对应表」(app=5b2af2c3… entry=5b2af2e1…)。"
+            "编号规则：WMGF+yyyyMM+三位月序（如 WMGF202608018）；SY+yy+三位年序。"
+            "合同登记「编号查询」从此表带出合同号/图纸编号/业务部门。"
+        ),
+        "sync_fields": True,
+        "field_definitions": [
+            {"id": "pre_issue", "type": "radio", "label": "预下号", "required": True,
+             "options": _opt("是", "否"), "default_value": "否"},
+            {"id": "apply_date", "type": "date", "label": "日期时间", "required": True,
+             "props": {"default_today": True}},
+            {"id": "number_attr", "type": "radio", "label": "编号属性", "required": True,
+             "options": _opt("WMGF", "SY"), "default_value": "WMGF"},
+            {"id": "contract_no", "type": "text", "label": "合同号", "required": True},
+            {"id": "department", "type": "department", "label": "业务部门"},
+            {
+                "id": "drawing_no", "type": "auto_number", "label": "图纸编号",
+                "props": {
+                    "serial_rules": [
+                        {"type": "field", "field_id": "number_attr"},
+                        {
+                            "type": "date",
+                            "date_field": "apply_date",
+                            "format": "yyyyMM",
+                            "format_by_field": {
+                                "field_id": "number_attr",
+                                "map": {"WMGF": "yyyyMM", "SY": "yy"},
+                            },
+                        },
+                        {
+                            "type": "counter",
+                            "digits": 3,
+                            "fixed": True,
+                            "initial_value": 1,
+                            "date_field": "apply_date",
+                            "reset_period": "monthly",
+                            "reset_period_by_field": {
+                                "field_id": "number_attr",
+                                "map": {"WMGF": "monthly", "SY": "yearly"},
+                            },
+                            "period_scope_field": "number_attr",
+                        },
+                    ],
+                },
+            },
+            {"id": "remark", "type": "textarea", "label": "备注"},
+        ],
+    },
 ]
+
+
+def _apply_drawing_jdy_fields() -> None:
+    try:
+        from app.domains.lowcode._drawing_jdy_generated import DRAWING_JDY
+    except Exception:
+        return
+    for t in BUILTIN_TEMPLATES:
+        pack = DRAWING_JDY.get(t["key"])
+        if not pack:
+            continue
+        defs = []
+        for fd in pack.get("field_definitions") or []:
+            clean = {k: v for k, v in fd.items() if k != "jdy_widget"}
+            if clean.get("type") == "detail_table" and clean.get("detail_table_columns"):
+                clean["detail_table_columns"] = [
+                    {k: v for k, v in c.items() if k != "jdy_widget"}
+                    for c in clean["detail_table_columns"]
+                ]
+            defs.append(clean)
+        t["field_definitions"] = defs
+        t["name"] = pack.get("name") or t["name"]
+
+
+_apply_drawing_jdy_fields()
 
 
 def list_builtin() -> list[dict[str, Any]]:

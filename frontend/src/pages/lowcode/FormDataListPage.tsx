@@ -1,6 +1,6 @@
 // 扩展平台 → 表单数据列表: 某模板的填报记录(看/改/删 + 去填报)。
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   Button, Space, Tag, Modal, message, Popconfirm, Typography,
 } from 'antd'
@@ -24,6 +24,31 @@ const STATUS_TAG: Record<string, { color: string; text: string }> = {
   withdrawn: { color: 'default', text: '已撤回' },
 }
 
+/** 列表不宜展开的重字段类型 */
+const LIST_EXCLUDE_TYPES = new Set([
+  'formula', 'detail_table', 'file', 'image', 'rich_text', 'signature',
+  'textarea', 'address', 'location', 'cascade', 'sub_table_data',
+])
+
+/** 列表优先展示的类型（同优先级按 schema 顺序） */
+const LIST_PRIORITY = new Set([
+  'auto_number', 'text', 'number', 'amount', 'date', 'datetime',
+  'select', 'radio', 'checkbox', 'switch', 'person', 'department',
+])
+
+function pickListColumns(fields: FieldDefinition[], max = 10): FieldDefinition[] {
+  const listable = fields.filter((f) => !LIST_EXCLUDE_TYPES.has(f.type))
+  const preferred = listable.filter((f) => LIST_PRIORITY.has(f.type))
+  const rest = listable.filter((f) => !LIST_PRIORITY.has(f.type))
+  // 流水号、合同号等关键列尽量靠前：auto_number 提到最前
+  const sorted = [
+    ...preferred.filter((f) => f.type === 'auto_number'),
+    ...preferred.filter((f) => f.type !== 'auto_number'),
+    ...rest,
+  ]
+  return sorted.slice(0, max)
+}
+
 function cellText(field: FieldDefinition, v: unknown): string {
   if (v == null || v === '') return '—'
   const opts = field.options || []
@@ -33,12 +58,38 @@ function cellText(field: FieldDefinition, v: unknown): string {
   if (field.type === 'switch') return v ? '是' : '否'
   if (field.type === 'detail_table') return `${(v as unknown[]).length} 行`
   if (field.type === 'amount') return `¥${Number(v).toFixed(2)}`
+  if (field.type === 'department' || field.type === 'department_multi') {
+    if (typeof v === 'object' && v !== null && 'name' in (v as object)) {
+      return String((v as { name?: string }).name || '—')
+    }
+    if (Array.isArray(v)) {
+      return v.map((x) => (typeof x === 'object' && x && 'name' in x ? String((x as { name?: string }).name) : String(x))).join('，')
+    }
+  }
+  if (field.type === 'person' || field.type === 'person_multi') {
+    if (typeof v === 'object' && v !== null && ('name' in (v as object) || 'real_name' in (v as object))) {
+      const o = v as { name?: string; real_name?: string }
+      return String(o.real_name || o.name || '—')
+    }
+  }
   return String(v)
 }
 
-export default function FormDataListPage() {
-  const { id = '' } = useParams()
+export default function FormDataListPage({
+  templateId: propId,
+  moduleTitle,
+  fillPath: fillPathProp,
+}: {
+  /** 侧栏模块传入；缺省则从路由 /lowcode/forms/:id/data 取 */
+  templateId?: string
+  moduleTitle?: string
+  /** 侧栏模块显式指定「新增」路径，避免落到 /lowcode/forms/... 导致菜单高亮错乱 */
+  fillPath?: string
+} = {}) {
+  const { id: paramId = '' } = useParams()
+  const id = propId || paramId
   const nav = useNavigate()
+  const location = useLocation()
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const [name, setName] = useState('')
   const [colFields, setColFields] = useState<FieldDefinition[]>([])
@@ -48,8 +99,12 @@ export default function FormDataListPage() {
   const [pageNo, setPageNo] = useState(1)
   const [loading, setLoading] = useState(false)
   const [viewRec, setViewRec] = useState<{ fields: FieldDefinition[]; value: Record<string, unknown>; readonly: boolean; id: string } | null>(null)
+  const isModule = Boolean(propId)
+  const fillPath = fillPathProp
+    || (isModule ? `${location.pathname.replace(/\/$/, '')}/fill` : `/lowcode/forms/${id}/fill`)
 
   const load = useCallback(async () => {
+    if (!id) return
     setLoading(true)
     try {
       const res = await lowcodeApi.listInstances({ template_id: id, pageNo, pageSize: 20 })
@@ -59,13 +114,14 @@ export default function FormDataListPage() {
   }, [id, pageNo])
 
   useEffect(() => {
+    if (!id) return
     (async () => {
       const tpl = await lowcodeApi.getTemplate(id)
       setName(tpl.data.name)
       try {
         const ver = await lowcodeApi.publishedVersion(id)
         const fs = (ver.data.field_definitions as FieldDefinition[]) || []
-        setColFields(fs.filter((f) => f.type !== 'formula').slice(0, 4).concat(fs.filter((f) => f.type === 'formula').slice(0, 1)))
+        setColFields(pickListColumns(fs))
         setRules((ver.data.rule_definitions as FormRule[]) || [])
       } catch { /* 未发布 */ }
     })()
@@ -95,8 +151,11 @@ export default function FormDataListPage() {
   }
 
   const columns = [
-    { title: '单号', dataIndex: 'business_no', key: 'business_no', render: (v: string) => v || '—' },
-    { title: '标题', dataIndex: 'title', key: 'title', render: (v: string) => v || '—' },
+    // 侧栏业务模块不展示空的「单号/标题」（本类表单以图纸编号等业务字段为主）
+    ...(!isModule ? [
+      { title: '单号', dataIndex: 'business_no', key: 'business_no', render: (v: string) => v || '—' },
+      { title: '标题', dataIndex: 'title', key: 'title', render: (v: string) => v || '—' },
+    ] : []),
     ...colFields.map((f) => ({
       title: f.label, key: f.id,
       render: (_: unknown, r: FormInstance) => cellText(f, r.form_data?.[f.id]),
@@ -124,15 +183,17 @@ export default function FormDataListPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }} className="shrink-0">
         <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => nav('/lowcode/forms')}>返回</Button>
-          <Title level={4} style={{ margin: 0 }}>{name} · 数据</Title>
+          {!isModule && (
+            <Button icon={<ArrowLeftOutlined />} onClick={() => nav('/lowcode/forms')}>返回</Button>
+          )}
+          <Title level={4} style={{ margin: 0 }}>{moduleTitle || name}{isModule ? '' : ' · 数据'}</Title>
         </Space>
         <Space>
           <Button icon={<DownloadOutlined />} disabled={total === 0}
             onClick={() => downloadFile(`/api/v1/lc/form-instances/export?template_id=${encodeURIComponent(id)}`, `${name || '表单数据'}.xlsx`)}>
             导出
           </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => nav(`/lowcode/forms/${id}/fill`)}>新增填报</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => nav(fillPath)}>新增</Button>
         </Space>
       </div>
       <FillHeightTable

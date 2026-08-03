@@ -70,11 +70,24 @@ const FIELD_CATALOG: Record<string, FieldDef[]> = {
   ],
   contract_review: [
     { value: 'contract_amount', label: '合同金额', type: 'number' },
+    { value: 'review_type', label: '评审类型', type: 'enum', options: [
+      { value: '合同评审', label: '合同评审' }, { value: '项目评审', label: '项目评审' },
+    ] },
     { value: 'is_export', label: '是否出口合同', type: 'enum', options: [
+      { value: '是', label: '是' }, { value: '否', label: '否' },
+    ] },
+    { value: 'need_feedback', label: '是否反馈', type: 'enum', options: [
       { value: '是', label: '是' }, { value: '否', label: '否' },
     ] },
     { value: 'need_install', label: '是否需要安装', type: 'text' },
     { value: 'department_id', label: '部门', type: 'text' },
+    { value: 'department_name', label: '业务部门名称', type: 'text' },
+    { value: 'region_manager_id', label: '区域经理/组长', type: 'text' },
+    { value: 'need_install', label: '是否需要安装', type: 'enum', options: [
+      { value: '指导安装', label: '指导安装' },
+      { value: '负责安装', label: '负责安装' },
+      { value: '无需指导安装', label: '无需指导安装' },
+    ] },
     { value: 'industry', label: '所属行业', type: 'text' },
     { value: 'legal_risk', label: '法务风险', type: 'text' },
     { value: 'tech_risk', label: '技术风险', type: 'text' },

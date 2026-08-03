@@ -63,6 +63,23 @@ def period_key_for(period_type: str, dt: datetime) -> str:
     return ""
 
 
+def _parse_form_date(raw: Any) -> datetime | None:
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, datetime):
+        return raw if raw.tzinfo else raw.replace(tzinfo=LOCAL_TZ)
+    s = str(raw).strip()
+    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(s[:19] if "T" in s or " " in s else s[:10], fmt).replace(tzinfo=LOCAL_TZ)
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(LOCAL_TZ)
+    except ValueError:
+        return None
+
+
 def normalize_serial_rules(props: dict[str, Any] | None) -> list[dict[str, Any]]:
     """取出规则数组;无 serial_rules 的旧字段(prefix/digits)转等价规则。"""
     props = props or {}
@@ -104,6 +121,23 @@ async def next_counter_value(
     return int(row)
 
 
+async def peek_counter_value(
+    db: AsyncSession, tenant_id: str, template_id: str, field_id: str,
+    period_key: str, initial_value: int,
+) -> int:
+    """预览下一号（不落库）。无计数行时返回 initial_value。"""
+    row = (await db.execute(
+        text(
+            "SELECT current_value FROM lc_serial_counter "
+            "WHERE tenant_id=:tenant AND template_id=:tpl AND field_id=:fid AND period_key=:pkey"
+        ),
+        {"tenant": tenant_id, "tpl": template_id, "fid": field_id, "pkey": period_key},
+    )).scalar_one_or_none()
+    if row is None:
+        return initial_value
+    return int(row) + 1
+
+
 def _field_value_text(field_id: str, form_data: dict[str, Any], field_defs: list[dict[str, Any]]) -> str:
     value = (form_data or {}).get(field_id)
     if value is None or value == "":
@@ -118,11 +152,70 @@ def _field_value_text(field_id: str, form_data: dict[str, Any], field_defs: list
     return str(value)
 
 
-async def generate_serial_value(
-    db: AsyncSession, tenant_id: str, template_id: str,
-    field_def: dict[str, Any], form_data: dict[str, Any], field_defs: list[dict[str, Any]],
+def _resolve_serial_dt(rule: dict[str, Any], form_data: dict[str, Any], now: datetime) -> datetime:
+    date_field = rule.get("date_field")
+    if date_field:
+        parsed = _parse_form_date((form_data or {}).get(date_field))
+        if parsed:
+            return parsed
+    return now
+
+
+def _map_by_field(
+    by: dict[str, Any] | None, form_data: dict[str, Any], field_defs: list[dict[str, Any]],
+) -> str | None:
+    """按依赖字段取值查 map：优先表单原始 value，再回退到选项 label。"""
+    by = by or {}
+    fid = by.get("field_id")
+    mapping = by.get("map") or {}
+    if not fid or not isinstance(mapping, dict):
+        return None
+    raw = (form_data or {}).get(fid)
+    if raw is not None and raw != "" and str(raw) in mapping:
+        return str(mapping[str(raw)])
+    label = _field_value_text(str(fid), form_data, field_defs)
+    if label in mapping:
+        return str(mapping[label])
+    return None
+
+
+def _resolve_date_format(
+    rule: dict[str, Any], form_data: dict[str, Any], field_defs: list[dict[str, Any]],
 ) -> str:
-    """按 serial_rules 生成一条流水号(提交时调用)。"""
+    fmt = str(rule.get("format") or "yyyyMMdd")
+    mapped = _map_by_field(rule.get("format_by_field"), form_data, field_defs)
+    return mapped if mapped is not None else fmt
+
+
+def _resolve_reset_period(
+    rule: dict[str, Any], form_data: dict[str, Any], field_defs: list[dict[str, Any]],
+) -> str:
+    mapped = _map_by_field(rule.get("reset_period_by_field"), form_data, field_defs)
+    if mapped is not None:
+        return mapped
+    return str(rule.get("reset_period") or "none")
+
+
+def _counter_period_key(
+    rule: dict[str, Any], form_data: dict[str, Any], field_defs: list[dict[str, Any]], dt: datetime,
+) -> str:
+    """周期 key：可选拼上依赖字段(如编号属性)，使 WMGF/SY 分序列。"""
+    period_type = _resolve_reset_period(rule, form_data, field_defs)
+    base = period_key_for(period_type, dt)
+    scope_field = rule.get("period_scope_field") or (rule.get("reset_period_by_field") or {}).get("field_id")
+    if scope_field:
+        raw = (form_data or {}).get(str(scope_field))
+        scope = str(raw) if raw not in (None, "") else (
+            _field_value_text(str(scope_field), form_data, field_defs) or "_"
+        )
+        return f"{scope}:{base}" if base else scope
+    return base
+
+async def _build_serial_parts(
+    db: AsyncSession | None, tenant_id: str | None, template_id: str | None,
+    field_def: dict[str, Any], form_data: dict[str, Any], field_defs: list[dict[str, Any]],
+    *, peek: bool,
+) -> str:
     rules = normalize_serial_rules(field_def.get("props"))
     now = local_now()
     parts: list[str] = []
@@ -137,20 +230,49 @@ async def generate_serial_value(
                 initial = int(rule.get("initial_value", 1))
             except (TypeError, ValueError):
                 initial = 1
-            period_type = rule.get("reset_period") or "none"
-            raw = await next_counter_value(
-                db, tenant_id, template_id, str(field_def.get("id")),
-                period_key_for(period_type, now), initial,
-            )
+            dt = _resolve_serial_dt(rule, form_data, now)
+            pkey = _counter_period_key(rule, form_data, field_defs, dt)
+            if peek:
+                assert db is not None and tenant_id is not None and template_id is not None
+                raw = await peek_counter_value(
+                    db, tenant_id, template_id, str(field_def.get("id")), pkey, initial,
+                )
+            else:
+                assert db is not None and tenant_id is not None and template_id is not None
+                raw = await next_counter_value(
+                    db, tenant_id, template_id, str(field_def.get("id")), pkey, initial,
+                )
             num = raw % (10 ** digits)
             parts.append(str(num).zfill(digits) if rule.get("fixed", True) else str(num))
         elif rtype == "date":
-            parts.append(format_serial_date(str(rule.get("format") or "yyyyMMdd"), now))
+            dt = _resolve_serial_dt(rule, form_data, now)
+            fmt = _resolve_date_format(rule, form_data, field_defs)
+            parts.append(format_serial_date(fmt, dt))
         elif rtype == "text":
             parts.append(str(rule.get("value") or ""))
         elif rtype == "field":
             parts.append(_field_value_text(str(rule.get("field_id") or ""), form_data, field_defs))
     return "".join(parts)
+
+
+async def generate_serial_value(
+    db: AsyncSession, tenant_id: str, template_id: str,
+    field_def: dict[str, Any], form_data: dict[str, Any], field_defs: list[dict[str, Any]],
+) -> str:
+    """按 serial_rules 生成一条流水号(提交时调用)。"""
+    return await _build_serial_parts(
+        db, tenant_id, template_id, field_def, form_data, field_defs, peek=False,
+    )
+
+
+async def peek_serial_value(
+    db: AsyncSession, tenant_id: str, template_id: str,
+    field_def: dict[str, Any], form_data: dict[str, Any], field_defs: list[dict[str, Any]],
+) -> str:
+    """预览下一流水号（不消耗计数），供填报页「点击添加」即时展示。"""
+    return await _build_serial_parts(
+        db, tenant_id, template_id, field_def, form_data, field_defs, peek=True,
+    )
 
 
 async def generate_serials_for_submit(
@@ -162,3 +284,16 @@ async def generate_serials_for_submit(
         if fd.get("type") == "auto_number" and not (form_data or {}).get(fd.get("id")):
             form_data[fd["id"]] = await generate_serial_value(db, tenant_id, template_id, fd, form_data, field_defs)
     return form_data
+
+
+async def peek_serials_for_form(
+    db: AsyncSession, tenant_id: str, template_id: str,
+    field_defs: list[dict[str, Any]], form_data: dict[str, Any],
+) -> dict[str, str]:
+    """返回各 auto_number 字段的预览号。"""
+    out: dict[str, str] = {}
+    for fd in field_defs or []:
+        fid = fd.get("id")
+        if fd.get("type") == "auto_number" and fid:
+            out[str(fid)] = await peek_serial_value(db, tenant_id, template_id, fd, form_data, field_defs)
+    return out

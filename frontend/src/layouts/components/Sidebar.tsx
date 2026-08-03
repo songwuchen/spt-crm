@@ -5,46 +5,23 @@ import { menuGroups, PROTECTED_MENU_KEYS } from '@/config/menus'
 import { t } from '@/locales'
 
 import Icon from '@/components/Icon'
+
+/** 侧栏高亮：按菜单项 key 最长前缀匹配，避免 /xxx/fill 掉到首页或串到别的模块。 */
 function getSelectedKey(pathname: string): string {
-  if (pathname.match(/^\/customers/)) return '/customers'
-  if (pathname.match(/^\/customer-pool/)) return '/customer-pool'
-  if (pathname.match(/^\/contacts/)) return '/contacts'
-  if (pathname.match(/^\/leads/)) return '/leads'
-  if (pathname.match(/^\/opportunities/)) return '/opportunities'
-  if (pathname.match(/^\/solutions/)) return '/solutions'
-  if (pathname.match(/^\/quotes/)) return '/quotes'
-  if (pathname.match(/^\/contract-reviews/)) return '/contract-reviews'
-  if (pathname.match(/^\/contracts/)) return '/contracts'
-  if (pathname.match(/^\/products/)) return '/products'
-  if (pathname.match(/^\/orders/)) return '/orders'
-  if (pathname.match(/^\/tenders/)) return '/tenders'
-  if (pathname.match(/^\/follow-ups/)) return '/follow-ups'
-  if (pathname.match(/^\/payments/)) return '/payments'
-  if (pathname.match(/^\/commissions/)) return '/commissions'
-  if (pathname.match(/^\/collection/)) return '/collection'
-  if (pathname.match(/^\/guarantees/)) return '/guarantees'
-  if (pathname.match(/^\/equipment-profile/)) return '/equipment-profile'
-  if (pathname.match(/^\/service-tickets/)) return '/service-tickets'
-  if (pathname.match(/^\/measurements/)) return '/measurements'
-  if (pathname.match(/^\/sales-targets/)) return '/sales-targets'
-  if (pathname.match(/^\/analytics/)) return '/analytics'
-  if (pathname.match(/^\/calendar/)) return '/calendar'
-  if (pathname.match(/^\/change-requests/)) return '/change-requests'
-  if (pathname.match(/^\/milestones/)) return '/milestones'
-  if (pathname.match(/^\/tasks/)) return '/tasks'
-  if (pathname.match(/^\/approvals/)) return '/approvals'
-  if (pathname.match(/^\/ai-center/)) return '/ai-center'
-  if (pathname.match(/^\/admin\/departments/)) return '/admin/departments'
-  if (pathname.match(/^\/admin\/users/)) return '/admin/users'
-  if (pathname.match(/^\/admin\/roles/)) return '/admin/roles'
-  if (pathname.match(/^\/admin\/audit/)) return '/admin/audit'
-  if (pathname.match(/^\/admin\/settings/)) return '/admin/settings'
-  if (pathname.match(/^\/admin\/api-docs/)) return '/admin/api-docs'
-  if (pathname.match(/^\/admin\/openapi/)) return '/admin/openapi'
-  if (pathname.match(/^\/admin\/system-health/)) return '/admin/system-health'
-  if (pathname.match(/^\/admin\/dingtalk/)) return '/admin/dingtalk'
-  if (pathname.match(/^\/admin\/data-manage/)) return '/admin/data-manage'
-  return '/'
+  const keys = menuGroups.flatMap((g) => g.items.map((i) => i.key))
+  let best = '/'
+  let bestLen = 0
+  for (const key of keys) {
+    if (key === '/') continue
+    if (pathname === key || pathname.startsWith(key + '/')) {
+      if (key.length > bestLen) {
+        best = key
+        bestLen = key.length
+      }
+    }
+  }
+  if (pathname === '/' || pathname === '') return '/'
+  return best
 }
 
 export default function Sidebar() {

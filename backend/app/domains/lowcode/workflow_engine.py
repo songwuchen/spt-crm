@@ -69,7 +69,9 @@ def _cmp(actual: Any, op: str, expected: Any) -> bool:
         lst = expected if isinstance(expected, list) else str(expected).split(",")
         return all(str(actual) != str(e) for e in lst)
     if op == "contains":
-        return str(expected) in str(actual)
+        return str(expected) in str(actual or "")
+    if op == "not_contains":
+        return str(expected) not in str(actual or "")
     return False
 
 
@@ -181,12 +183,30 @@ class WorkflowEngine:
         return [r for r in (version.route_definitions or []) if r.get("source") == node_id]
 
     def _next_targets(self, version: WfProcessDefinitionVersion, node_id: str, form_data: dict) -> list[str]:
-        """按连线条件选下一节点: 命中条件的边优先;都不命中则走无条件(默认/else)边。"""
+        """按连线条件选下一节点。
+
+        - 普通边：命中条件的优先；都不命中则走无条件(else)边
+        - ``always: true`` 边：对齐简道云抄送旁路，与条件/else 并行，互不抢占
+          （有条件时仍需条件为真；无条件则恒发）
+        旁路边排在前面，避免 end 先激活导致同批抄送被跳过。
+        """
         routes = self._outgoing(version, node_id)
-        matched = [r["target"] for r in routes if r.get("condition") and evaluate_condition(r["condition"], form_data)]
-        if matched:
-            return matched
-        return [r["target"] for r in routes if not r.get("condition")]
+        always_routes = [r for r in routes if r.get("always")]
+        exclusive = [r for r in routes if not r.get("always")]
+        matched = [
+            r["target"] for r in exclusive
+            if r.get("condition") and evaluate_condition(r["condition"], form_data)
+        ]
+        core = matched if matched else [
+            r["target"] for r in exclusive if not r.get("condition")
+        ]
+        always_targets: list[str] = []
+        for r in always_routes:
+            cond = r.get("condition")
+            if cond and not evaluate_condition(cond, form_data):
+                continue
+            always_targets.append(r["target"])
+        return list(dict.fromkeys([*always_targets, *core]))
 
     # ---------- 提交(发起流程) ----------
 

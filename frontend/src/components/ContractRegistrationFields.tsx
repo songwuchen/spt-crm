@@ -2,7 +2,7 @@
  * 合同登记表单分区（对齐简道云「合同登记表」字段顺序 + 控件类型 + 动态显隐）。
  * native → 表单顶层字段；reg → registration_json.*
  * 子表通过 slots 插在简道云 subform 对应位置。
- * 合同/项目评审流水号支持选评审记录带出（对齐简道云 linkfield）。
+ * 合同/项目评审流水号、编号查询（合同图纸对应表）支持选数带出（对齐简道云 linkfield）。
  */
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -17,6 +17,7 @@ import {
 import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { PolicyItem, useFieldPolicy } from '@/components/lowcode/FieldPolicy'
 import { contractReviewApi, type ContractReview } from '@/api/contractReview'
+import { contractApi } from '@/api/contract'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
 
@@ -28,8 +29,6 @@ const NATIVE_KEYS = new Set([
   'delivery_date', 'change_type', 'amount_total', 'order_date', 'card_date', 'end_date',
   'assignee_id', 'assignee_name', 'department_id', 'department_name',
 ])
-
-const CREATE_SKIP = new Set(['contract_no'])
 
 type Props = {
   form: FormInstance
@@ -186,6 +185,73 @@ function ReviewSnPicker({
   )
 }
 
+/** 对齐简道云「编号查询」：从合同图纸对应表选数，回填合同号 / 图纸编号 / 部门 */
+function DrawingMapPicker({
+  value,
+  onChange,
+  form,
+}: {
+  value?: string
+  onChange?: (v: string) => void
+  form: FormInstance
+}) {
+  const [opts, setOpts] = useState<{
+    label: string
+    value: string
+    contractNo: string
+    drawingNo: string
+    departmentId?: string | null
+  }[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const search = async (kw?: string) => {
+    setLoading(true)
+    try {
+      const r = await contractApi.drawingMapLookups({ keyword: kw || undefined, limit: 50 })
+      setOpts((r.data || []).map((row) => ({
+        value: row.id,
+        label: row.label || [row.contract_no, row.drawing_no].filter(Boolean).join(' · '),
+        contractNo: row.contract_no || '',
+        drawingNo: row.drawing_no || '',
+        departmentId: row.department_id,
+      })))
+    } catch { /* ignore */ } finally {
+      setLoading(false)
+    }
+  }
+
+  const applyPick = (id: string) => {
+    const hit = opts.find((o) => o.value === id)
+    if (!hit) {
+      onChange?.(id || '')
+      return
+    }
+    onChange?.(hit.label)
+    const reg = { ...(form.getFieldValue('registration_json') || {}) } as Record<string, unknown>
+    reg.number_lookup = hit.label
+    form.setFieldsValue({
+      registration_json: reg,
+      ...(hit.contractNo ? { contract_no: hit.contractNo } : {}),
+      ...(hit.drawingNo ? { drawing_no: hit.drawingNo } : {}),
+      ...(hit.departmentId ? { department_id: hit.departmentId } : {}),
+    })
+  }
+
+  return (
+    <AutoComplete
+      allowClear
+      value={value}
+      options={opts.map((o) => ({ value: o.value, label: o.label }))}
+      placeholder="从合同图纸对应表选择，自动回填合同号与图纸编号"
+      onSearch={search}
+      onFocus={() => { if (opts.length === 0) void search() }}
+      onSelect={(v) => applyPick(String(v))}
+      onChange={(v) => onChange?.(v ?? '')}
+      notFoundContent={loading ? '加载中…' : '暂无匹配记录，请先在「合同图纸对应表」登记'}
+    />
+  )
+}
+
 function FieldControl({
   field,
   form,
@@ -207,6 +273,15 @@ function FieldControl({
   if (field.key === 'review_sn') {
     return (
       <ReviewSnPicker
+        form={form}
+        value={value as string | undefined}
+        onChange={onChange as ((v: string) => void) | undefined}
+      />
+    )
+  }
+  if (field.key === 'number_lookup') {
+    return (
+      <DrawingMapPicker
         form={form}
         value={value as string | undefined}
         onChange={onChange as ((v: string) => void) | undefined}
@@ -327,7 +402,6 @@ function FieldControl({
 
 function FieldGrid({
   fields,
-  mode,
   regOnly,
   form,
 }: {
@@ -351,7 +425,6 @@ function FieldGrid({
           registration_json: (all.registration_json as Record<string, unknown>) || {},
         }
         const visible = fields.filter((f) => {
-          if (mode === 'create' && CREATE_SKIP.has(f.key)) return false
           if (regOnly && f.source === 'native') return false
           const inCatalog = catalogById.has(f.key)
           const state = policy.states[f.key]

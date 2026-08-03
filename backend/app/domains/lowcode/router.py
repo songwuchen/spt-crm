@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions, get_data_scope
 from app.common.schemas import ok
 from app.common.exceptions import BusinessException
-from app.common.error_codes import VALIDATION_ERROR
+from app.common.error_codes import VALIDATION_ERROR, NOT_FOUND
 from app.common.export import build_excel, excel_response
 from app.domains.lowcode import schemas, service
 
@@ -146,6 +146,31 @@ async def install_builtin_template(
     return ok(_tpl_dict(tpl))
 
 
+@router.post("/builtin-templates/{key}/ensure")
+async def ensure_builtin_template(
+    key: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_permissions("form_data:view")),
+):
+    """侧栏模块入口：按稳定 code=key 确保内置表单已安装并发布（不覆盖已有字段定制）。"""
+    tpl = await service.ensure_builtin_form(db, tenant_id, key, user)
+    return ok(_tpl_dict(tpl))
+
+
+@router.get("/form-templates/by-code/{code}")
+async def get_form_template_by_code(
+    code: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("form:view")),
+):
+    tpl = await service.get_template_by_code(db, tenant_id, code)
+    if not tpl:
+        raise BusinessException(code=NOT_FOUND, message="表单模板不存在")
+    return ok(_tpl_dict(tpl))
+
+
 @router.get("/form-templates/{template_id}")
 async def get_form_template(
     template_id: str,
@@ -264,6 +289,24 @@ async def get_published_form_version(
     """填报页加载已发布 schema。"""
     version = await service.get_published_version(db, tenant_id, template_id)
     return ok(_ver_dict(version))
+
+
+@router.post("/form-templates/{template_id}/peek-serials")
+async def peek_form_serials(
+    template_id: str,
+    body: schemas.PeekSerialsRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("form_data:create")),
+):
+    """填报页预览下一流水号（不消耗计数），对齐简道云「点添加即显示编号」。"""
+    from app.domains.lowcode.serial_number import peek_serials_for_form
+    version = await service.get_published_version(db, tenant_id, template_id)
+    field_defs = version.field_definitions or []
+    previews = await peek_serials_for_form(
+        db, tenant_id, template_id, field_defs, body.form_data or {},
+    )
+    return ok(previews)
 
 
 # ==================== 实体扩展字段(统一自定义字段到表单引擎) ====================
