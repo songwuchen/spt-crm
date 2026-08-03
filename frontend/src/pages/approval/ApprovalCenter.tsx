@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Tabs, Tag, Space, Modal, Input, Button, message, Spin, Select, Card, Statistic, Row, Col, DatePicker, Popconfirm } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { CheckCircleOutlined, CloseCircleOutlined, SwapOutlined, UndoOutlined, RedoOutlined, BarChartOutlined, FilterOutlined } from '@ant-design/icons'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { approvalApi } from '@/api/approval'
 import {
   fetchUnifiedPending, decideUnified, fetchUnifiedMine, fetchUnifiedDone,
@@ -35,6 +35,7 @@ export default function ApprovalCenter() {
   usePageTitle('审批中心')
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const userInfo = useAuthStore((s) => s.user)
   const [pending, setPending] = useState<UnifiedPendingItem[]>([])
   const [allFlows, setAllFlows] = useState<ApprovalFlowItem[]>([])
@@ -160,14 +161,28 @@ export default function ApprovalCenter() {
 
   useEffect(() => { fetchData() }, [])
 
-  // 兼容旧链接 /lowcode/approvals 跳转带来的 state
+  // 深链：通知/钉钉 → /approvals?wf=实例id 或 ?flow=旧引擎流程id；亦兼容 location.state
   useEffect(() => {
-    const st = (location.state || {}) as { openInstanceId?: string; openTaskId?: string }
-    if (!st.openInstanceId) return
-    openWfDrawer(st.openInstanceId, st.openTaskId || null)
-    navigate(location.pathname, { replace: true, state: {} })
+    const st = (location.state || {}) as { openInstanceId?: string; openTaskId?: string; openFlowId?: string }
+    const wfId = searchParams.get('wf') || st.openInstanceId || null
+    const flowId = searchParams.get('flow') || st.openFlowId || null
+    const taskId = searchParams.get('task') || st.openTaskId || null
+    if (!wfId && !flowId) return
+
+    if (wfId) openWfDrawer(wfId, taskId)
+    else if (flowId) openDetail(flowId)
+
+    // 清掉查询参数 / state，避免刷新反复弹开
+    if (searchParams.has('wf') || searchParams.has('flow') || searchParams.has('task')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('wf'); next.delete('flow'); next.delete('task')
+      setSearchParams(next, { replace: true })
+    }
+    if (st.openInstanceId || st.openFlowId) {
+      navigate(location.pathname, { replace: true, state: {} })
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state])
+  }, [location.state, searchParams])
 
   const openWfHandle = (item: UnifiedPendingItem) => {
     if (!item.instanceId) {
@@ -386,12 +401,16 @@ export default function ApprovalCenter() {
     })
   }
 
-  // Resubmit
-  const handleResubmit = async (flowId: string) => {
+  // Resubmit（旧引擎驳回/撤回；新引擎撤回/驳回）
+  const handleResubmit = async (flowId: string, engine: 'legacy' | 'wf' = 'legacy') => {
     setSubmitting(true)
     try {
-      await approvalApi.resubmit(flowId, {})
-      message.success('审批已重新提交')
+      if (engine === 'wf') {
+        await workflowApi.resubmit(flowId)
+      } else {
+        await approvalApi.resubmit(flowId, {})
+      }
+      message.success('已重新发起审批')
       fetchData()
     } finally {
       setSubmitting(false)
@@ -586,8 +605,16 @@ export default function ApprovalCenter() {
           {((r.engine === 'wf' && r.status === 'running') || (r.engine === 'legacy' && r.status === 'pending')) && (
             <Button size="small" icon={<UndoOutlined />} onClick={() => openWithdraw(r.instanceId, r.engine)}>撤回</Button>
           )}
-          {r.engine === 'legacy' && r.status === 'rejected' && (
-            <Button size="small" type="primary" icon={<RedoOutlined />} onClick={() => handleResubmit(r.instanceId)}>重新提交</Button>
+          {((r.engine === 'wf' && (r.status === 'withdrawn' || r.status === 'rejected'))
+            || (r.engine === 'legacy' && (r.status === 'rejected' || r.status === 'withdrawn'))) && (
+            <Button
+              size="small"
+              type="primary"
+              icon={<RedoOutlined />}
+              onClick={() => handleResubmit(r.instanceId, r.engine)}
+            >
+              重新发起
+            </Button>
           )}
         </Space>
       ),
@@ -756,8 +783,11 @@ export default function ApprovalCenter() {
                       ),
                     },
                     {
-                      title: '类型', dataIndex: 'biz_type', width: 120,
-                      render: (v) => <Tag color="blue">{bizTypeLabels[v || ''] || v || '—'}</Tag>,
+                      title: '类型', key: 'type', width: 120,
+                      render: (_: unknown, r: { biz_type?: string; process_name?: string | null }) => {
+                        const t = r.biz_type || r.process_name || ''
+                        return <Tag color="blue">{bizTypeLabels[t] || t || '—'}</Tag>
+                      },
                     },
                     {
                       title: '状态', dataIndex: 'status', width: 110,

@@ -37,6 +37,7 @@ export const workflowApi = {
       biz_type?: string
       biz_id?: string
       biz_ref_id?: string
+      process_name?: string | null
       current_node_name?: string
       created_at?: string
       started_at?: string
@@ -53,12 +54,16 @@ export const workflowApi = {
       biz_type?: string
       biz_id?: string
       biz_ref_id?: string
+      process_name?: string | null
       initiator_name?: string
       created_at?: string
     }>>>('/api/v1/lc/wf/instances/cc', { params }),
   /** 业务详情页：按 biz 查最新流程实例（含审批记录）；无流程时 data 为 null */
   byBiz: (params: { biz_type: string; biz_id: string }) =>
     client.get<unknown, ApiResponse<WfInstanceDetail | null>>('/api/v1/lc/wf/instances/by-biz', { params }),
+  /** 表单详情：按 form_instance_id 查最新流程（兼容未回写 process_instance_id 的旧数据） */
+  byFormInstance: (params: { form_instance_id: string }) =>
+    client.get<unknown, ApiResponse<WfInstanceDetail | null>>('/api/v1/lc/wf/instances/by-form-instance', { params }),
   instance: (id: string, params?: { task_id?: string }) =>
     client.get<unknown, ApiResponse<WfInstanceDetail>>(`/api/v1/lc/wf/instances/${id}`, { params }),
   comment: (instanceId: string, content: string) =>
@@ -73,6 +78,10 @@ export const workflowApi = {
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/tasks/${taskId}/act`, data),
   withdraw: (instanceId: string) =>
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/instances/${instanceId}/withdraw`),
+  resubmit: (instanceId: string) =>
+    client.post<unknown, ApiResponse<{ id: string; status: string; title?: string }>>(
+      `/api/v1/lc/wf/instances/${instanceId}/resubmit`,
+    ),
   urge: (instanceId: string) =>
     client.post<unknown, ApiResponse<{ notified: number }>>(`/api/v1/lc/wf/instances/${instanceId}/urge`),
 

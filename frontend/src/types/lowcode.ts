@@ -9,6 +9,7 @@ export type FieldType =
   | 'formula' | 'auto_number'
   | 'related_doc' | 'address' | 'location' | 'cascade' | 'rich_text'
   | 'signature' | 'select_data' | 'relation' | 'sub_table_data'
+  | 'section' | 'separator'
 
 export interface OptionItem {
   label: string
@@ -172,12 +173,14 @@ export interface FormInstance {
   initiator_id: string
   amount?: number | null
   form_data: Record<string, unknown>
+  process_instance_id?: string | null
   created_at: string
 }
 
 export interface FormInstanceDetail extends FormInstance {
   field_definitions: FieldDefinition[]
   rule_definitions: FormRule[]
+  process_instance_id?: string | null
 }
 
 // ===== 审批流程 =====
@@ -265,6 +268,8 @@ export interface WfTodoItem {
   status: string
   process_instance_id: string
   title?: string | null
+  /** 流程定义名称（表单绑定流无 biz_type 时作类型/标题兜底） */
+  process_name?: string | null
   business_no?: string | null
   initiator_id?: string
   initiator_name?: string | null
@@ -322,6 +327,12 @@ export interface WfInstanceDetail {
   biz_ref_id?: string | null
   /** 业务单据审批（无自定义表单）时的关键字段，label→value */
   biz_detail?: Record<string, string | number>
+  /** 流程定义名称（表单绑定流无 biz_type 时作类型兜底） */
+  process_name?: string | null
+  /** 表单绑定流：字段定义+数据（审批详情内嵌，避免再调 form_data:view） */
+  form_fields?: FieldDefinition[]
+  form_data?: Record<string, unknown>
+  form_rules?: FormRule[]
   /** 当前登录人待办（含本节点可填字段） */
   current_task?: WfCurrentTask | null
   /** 流程动态（按节点，最新在前） */

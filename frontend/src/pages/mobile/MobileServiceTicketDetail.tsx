@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
 import MobileIcon from '@/components/MobileIcon'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Modal, message } from 'antd'
 import { serviceTicketApi } from '@/api/serviceTicket'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePermission } from '@/hooks/usePermission'
 import { ticketTypeLabels } from '@/constants/labels'
+import { t } from '@/locales'
 
 interface TicketDetail {
   id: string; ticket_no: string; title: string; description?: string
@@ -30,6 +33,8 @@ export default function MobileServiceTicketDetail() {
   usePageTitle('工单详情')
   const { id } = useParams()
   const navigate = useNavigate()
+  const { hasPermission } = usePermission()
+  const canDelete = hasPermission('service:delete')
   const [ticket, setTicket] = useState<TicketDetail | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -40,6 +45,24 @@ export default function MobileServiceTicketDetail() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [id])
+
+  const handleDelete = () => {
+    if (!id || !ticket) return
+    Modal.confirm({
+      title: t('common.confirmDelete'),
+      content: t('service.deleteConfirm', { name: ticket.ticket_no }),
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await serviceTicketApi.delete(id)
+          message.success(t('service.ticketDeleted'))
+          navigate('/m/service-tickets')
+        } catch {
+          message.error('删除失败')
+        }
+      },
+    })
+  }
 
   if (loading) return <div className="text-center py-12 text-slate-400">加载中...</div>
   if (!ticket) return <div className="text-center py-12 text-slate-400 text-sm">工单不存在</div>
@@ -53,7 +76,7 @@ export default function MobileServiceTicketDetail() {
         <button onClick={() => navigate(-1)} className="text-slate-400">
           <MobileIcon name="arrow_back" style={{ fontSize: 20 }} />
         </button>
-        <h1 className="text-lg font-extrabold text-slate-900">{ticket.ticket_no}</h1>
+        <h1 className="text-lg font-extrabold text-slate-900 flex-1">{ticket.ticket_no}</h1>
         <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${sc.color}`}>{sc.label}</span>
       </div>
 
@@ -125,6 +148,15 @@ export default function MobileServiceTicketDetail() {
           })}
         </div>
       </div>
+
+      {canDelete && (
+        <button
+          onClick={handleDelete}
+          className="mt-4 w-full py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold"
+        >
+          删除工单
+        </button>
+      )}
     </div>
   )
 }

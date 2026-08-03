@@ -19,9 +19,17 @@ function fmtTime(v?: string | null) {
 
 function stepDotColor(step: WfFlowStep) {
   if (step.is_current || step.status === 'running') return '#1677ff'
+  if (step.status === 'rejected') return '#ef4444'
   if (step.status === 'completed') return '#12b876'
   if (step.status === 'cancelled') return '#94a3b8'
   return '#cbd5e1'
+}
+
+function stepTagColor(step: WfFlowStep) {
+  if (step.status === 'rejected') return 'error'
+  if (step.is_current || step.status === 'running') return 'processing'
+  if (step.status === 'completed') return 'success'
+  return 'default'
 }
 
 export default function WfFlowDynamics({
@@ -75,13 +83,10 @@ export default function WfFlowDynamics({
                   className="absolute left-[-9px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm"
                   style={{ background: stepDotColor(s) }}
                 />
-                <div className={`rounded-lg border p-3 ${s.is_current ? 'border-blue-300 bg-blue-50/60' : 'border-slate-200 bg-white'}`}>
+                <div className={`rounded-lg border p-3 ${s.is_current ? 'border-blue-300 bg-blue-50/60' : s.status === 'rejected' ? 'border-red-200 bg-red-50/40' : 'border-slate-200 bg-white'}`}>
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="font-semibold text-slate-800 text-sm">{s.node_name}</span>
-                    <Tag
-                      color={s.is_current ? 'processing' : s.status === 'completed' ? 'success' : 'default'}
-                      className="m-0"
-                    >
+                    <Tag color={stepTagColor(s)} className="m-0">
                       {s.status_text || s.status}
                     </Tag>
                   </div>

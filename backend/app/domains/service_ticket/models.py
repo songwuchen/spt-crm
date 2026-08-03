@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, JSON, Integer, Numeric, Date, DateTime
+from sqlalchemy import String, Text, JSON, Integer, Numeric, Date, DateTime, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import TenantScopedBase
@@ -34,6 +34,7 @@ class ServiceTicket(TenantScopedBase):
     satisfaction_score: Mapped[int | None] = mapped_column(Integer)  # 1-5 stars
     satisfaction_comment: Mapped[str | None] = mapped_column(Text)
     satisfaction_at: Mapped[str | None] = mapped_column(DateTime(timezone=True))
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
 
 class RenewalOpportunity(TenantScopedBase):

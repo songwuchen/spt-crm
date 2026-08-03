@@ -408,6 +408,36 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         _f("owner_id", "负责人", "person", companions=("owner_name",)),
         _f("remark", "备注", "textarea"),
     ],
+    # 合同评审表单尚未接 PolicyItem（不在 FORM_WIRED），目录供设计器只读展示与读取侧脱敏。
+    "contract_review": [
+        _f("review_type", "合同评审/项目评审", "select",
+           options=[{"value": "合同评审", "label": "合同评审"},
+                    {"value": "项目评审", "label": "项目评审"}]),
+        _f("is_export", "是否出口合同", "select", options=_YES_NO, default_required=True),
+        _f("need_pricing", "是否核价", "select", default_required=True,
+           options=[{"value": "有核价", "label": "有核价"}, {"value": "未核价", "label": "未核价"}]),
+        _f("need_install", "是否需要安装", "select", default_required=True,
+           options=[{"value": "指导安装", "label": "指导安装"},
+                    {"value": "负责安装", "label": "负责安装"},
+                    {"value": "无需指导安装", "label": "无需指导安装"}]),
+        _f("owner_id", "业务员", "person", companions=("owner_name",), default_required=True),
+        _f("region_manager_id", "区域经理/组长", "person",
+           companions=("region_manager_name",)),
+        _f("department_id", "业务部门", "department", companions=("department_name",)),
+        _f("company_name", "公司名称", default_required=True),
+        _f("elec_ctrl", "电控装置", "select", default_required=True,
+           options=[{"value": v, "label": v} for v in (
+               "含电控电缆", "含电控不含电缆", "不含电控不含电缆", "不含电控含电缆",
+           )]),
+        _f("customer_type", "客户类型", "select",
+           options=[{"value": "新客户", "label": "新客户"}, {"value": "老客户", "label": "老客户"}]),
+        _f("project_title", "项目名称及应用", "textarea"),
+        _f("reported_at", "报备时间", "datetime", default_required=True),
+        _f("contract_amount", "合同价格（元）", "amount"),
+        _f("delivery_period", "交货期"),
+        _f("payment_term", "账期", default_required=True),
+        _f("conclusion", "结论描述", "textarea"),
+    ],
 }
 
 

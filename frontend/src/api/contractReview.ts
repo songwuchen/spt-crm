@@ -26,6 +26,7 @@ export interface ContractReview {
   conclusion?: string | null
   payment_term?: string | null
   review_json?: Record<string, unknown>
+  custom_fields_json?: Record<string, unknown>
   created_by_name?: string | null
   created_at?: string
   updated_at?: string

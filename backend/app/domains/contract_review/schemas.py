@@ -27,6 +27,7 @@ class ContractReviewCreate(BaseModel):
     conclusion: Optional[str] = None
     payment_term: Optional[str] = Field(None, max_length=200)
     review_json: Optional[dict[str, Any]] = None
+    custom_fields_json: Optional[dict[str, Any]] = None
 
 
 class ContractReviewUpdate(BaseModel):
@@ -52,3 +53,4 @@ class ContractReviewUpdate(BaseModel):
     conclusion: Optional[str] = None
     payment_term: Optional[str] = Field(None, max_length=200)
     review_json: Optional[dict[str, Any]] = None
+    custom_fields_json: Optional[dict[str, Any]] = None

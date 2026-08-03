@@ -454,7 +454,9 @@ async def list_stage_history(db, tenant_id, project_id):
 
 
 async def query_service_tickets(db, tenant_id, *, customer_id, status, updated_since=None, page=1, page_size=20):
-    base = select(ServiceTicket).where(ServiceTicket.tenant_id == tenant_id)
+    base = select(ServiceTicket).where(
+        ServiceTicket.tenant_id == tenant_id, ServiceTicket.is_deleted == False,  # noqa: E712
+    )
     if customer_id:
         base = base.where(ServiceTicket.customer_id == customer_id)
     if status:
@@ -466,7 +468,10 @@ async def query_service_tickets(db, tenant_id, *, customer_id, status, updated_s
 
 
 async def get_service_ticket(db, tenant_id, obj_id):
-    return await _get_one(db, ServiceTicket, tenant_id, obj_id)
+    row = await _get_one(db, ServiceTicket, tenant_id, obj_id)
+    if row is not None and getattr(row, "is_deleted", False):
+        return None
+    return row
 
 
 async def query_milestones(db, tenant_id, *, project_id, page, page_size):

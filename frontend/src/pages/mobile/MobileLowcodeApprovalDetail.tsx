@@ -47,9 +47,14 @@ export default function MobileLowcodeApprovalDetail() {
         const d = await workflowApi.instance(id, taskId ? { task_id: taskId } : undefined)
         setDetail(d.data)
         setFieldUpdates({ ...(d.data.current_task?.field_values || {}) })
-        if (d.data.form_instance_id) {
-          const fi = await lowcodeApi.getInstance(d.data.form_instance_id)
-          setFields(fi.data.field_definitions); setFormData(fi.data.form_data)
+        if (d.data.form_fields?.length) {
+          setFields(d.data.form_fields)
+          setFormData(d.data.form_data || {})
+        } else if (d.data.form_instance_id) {
+          try {
+            const fi = await lowcodeApi.getInstance(d.data.form_instance_id)
+            setFields(fi.data.field_definitions); setFormData(fi.data.form_data)
+          } catch { /* 无 form_data:view 且非审批相关人时忽略 */ }
         }
       } catch { message.error('加载失败') } finally { setLoading(false) }
     })()

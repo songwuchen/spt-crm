@@ -137,6 +137,20 @@ async def instance_by_biz(
     return ok(detail)
 
 
+@router.get("/instances/by-form-instance")
+async def instance_by_form_instance(
+    form_instance_id: str = Query(..., min_length=1),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """表单详情：按 form_instance_id 查最新流程实例。无则 data=null。"""
+    detail = await wsvc.find_latest_instance_by_form_instance(
+        db, tenant_id, form_instance_id, viewer_id=user.get("sub"),
+    )
+    return ok(detail)
+
+
 @router.get("/instances/{instance_id}")
 async def instance_detail(
     instance_id: str,
@@ -178,6 +192,14 @@ async def withdraw(instance_id: str, tenant_id: str = Depends(get_tenant_id),
                    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
     await WorkflowEngine(db, tenant_id).withdraw(instance_id, user)
     return ok(None)
+
+
+@router.post("/instances/{instance_id}/resubmit")
+async def resubmit(instance_id: str, tenant_id: str = Depends(get_tenant_id),
+                   db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
+    """已撤回/已驳回：发起人重新发起审批（新建流程实例）。"""
+    inst = await WorkflowEngine(db, tenant_id).resubmit(instance_id, user)
+    return ok({"id": inst.id, "status": inst.status, "title": inst.title})
 
 
 @router.post("/instances/{instance_id}/urge")

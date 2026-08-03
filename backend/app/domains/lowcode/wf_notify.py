@@ -12,8 +12,8 @@
   通知是旁路，绝不能在调用方的业务 session 上 commit —— 一旦通知侧的 commit 失败，
   调用方 session 会进入 needs-rollback，之后它自己的 commit 就会抛 PendingRollbackError
   (与 audit.log_action 用独立 session 的理由相同)。
-- 深链: PC → /approvals(审批中心)，移动端 → /m/lowcode/approvals/{实例id}(详情页)，
-  与旧引擎 /approvals 与 /m/approvals/{flow_id} 的分流方式一致，钉钉容器免登链路复用。
+- 深链: PC → /approvals?wf={实例id}(审批中心并打开抽屉)，移动端 → /m/lowcode/approvals/{实例id}(详情页)，
+  与旧引擎 /approvals?flow= 与 /m/approvals/{flow_id} 的分流方式一致，钉钉容器免登链路复用。
 """
 from __future__ import annotations
 
@@ -108,8 +108,8 @@ async def notify_tasks_created(
                         db, tenant_id, t.assignee_id,
                         f"审批待处理: {title}",
                         f"{initiator} 提交了审批，请尽快处理。",
-                        link="/approvals",
-                        mobile_link=f"/m/lowcode/approvals/{inst.id}",
+                        link=f"/approvals?wf={inst.id}&task={t.id}",
+                        mobile_link=f"/m/lowcode/approvals/{inst.id}?task={t.id}",
                     )
                     todo_id = (res or {}).get("todo_id")
                     if todo_id:
@@ -177,7 +177,7 @@ async def notify_cc_users(
             ntype = "approval_cc"
             biz_type = NOTIFY_BIZ_TYPE
             biz_id = inst.id
-            link = "/approvals"
+            link = f"/approvals?wf={inst.id}"
             mobile_link = f"/m/lowcode/approvals/{inst.id}"
             content = f"流程「{title}」已抄送您（节点：{node_label}），请知悉。"
 

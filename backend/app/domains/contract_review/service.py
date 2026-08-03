@@ -13,6 +13,76 @@ from app.domains.contract_review.schemas import ContractReviewCreate, ContractRe
 ALLOWED_STATUS = {"draft", "submitted", "approved", "rejected"}
 
 
+async def _hydrate_display_names(
+    db: AsyncSession, tenant_id: str, rows: list[ContractReview],
+) -> None:
+    """业务员/区域经理/部门仅存了 id 时，补齐 *_name 供列表与详情展示（不落库）。"""
+    if not rows:
+        return
+    user_ids: set[str] = set()
+    dept_ids: set[str] = set()
+    for r in rows:
+        if r.owner_id and not (r.owner_name or "").strip():
+            user_ids.add(r.owner_id)
+        if r.region_manager_id and not (r.region_manager_name or "").strip():
+            user_ids.add(r.region_manager_id)
+        if r.department_id and not (r.department_name or "").strip():
+            dept_ids.add(r.department_id)
+    users: dict[str, str] = {}
+    depts: dict[str, str] = {}
+    if user_ids:
+        from app.domains.auth.models import User
+        for u in (await db.execute(
+            select(User).where(User.tenant_id == tenant_id, User.id.in_(user_ids))
+        )).scalars().all():
+            users[u.id] = (u.real_name or u.username or "").strip()
+    if dept_ids:
+        from app.domains.organization.models import Department
+        for d in (await db.execute(
+            select(Department).where(
+                Department.tenant_id == tenant_id, Department.id.in_(dept_ids),
+            )
+        )).scalars().all():
+            depts[d.id] = (d.name or "").strip()
+    for r in rows:
+        if r.owner_id and not (r.owner_name or "").strip():
+            r.owner_name = users.get(r.owner_id) or r.owner_name
+        if r.region_manager_id and not (r.region_manager_name or "").strip():
+            r.region_manager_name = users.get(r.region_manager_id) or r.region_manager_name
+        if r.department_id and not (r.department_name or "").strip():
+            r.department_name = depts.get(r.department_id) or r.department_name
+
+
+async def _resolve_names_into_dump(
+    db: AsyncSession, tenant_id: str, dump: dict,
+) -> None:
+    """创建/更新时：有 id 无 name 则查库写入，避免再次落成「只存 UUID」。"""
+    from app.domains.auth.models import User
+    from app.domains.organization.models import Department
+
+    async def user_label(uid: str | None) -> str | None:
+        if not uid:
+            return None
+        u = (await db.execute(
+            select(User).where(User.id == uid, User.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if not u:
+            return None
+        return (u.real_name or u.username or "").strip() or None
+
+    if dump.get("owner_id") and not (dump.get("owner_name") or "").strip():
+        dump["owner_name"] = await user_label(dump.get("owner_id"))
+    if dump.get("region_manager_id") and not (dump.get("region_manager_name") or "").strip():
+        dump["region_manager_name"] = await user_label(dump.get("region_manager_id"))
+    if dump.get("department_id") and not (dump.get("department_name") or "").strip():
+        did = dump.get("department_id")
+        d = (await db.execute(
+            select(Department).where(Department.id == did, Department.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if d:
+            dump["department_name"] = (d.name or "").strip() or None
+
+
 async def list_reviews(
     db: AsyncSession,
     tenant_id: str,
@@ -38,10 +108,11 @@ async def list_reviews(
         ))
 
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
-    items = (await db.execute(
+    items = list((await db.execute(
         base.order_by(ContractReview.created_at.desc())
         .offset((page_no - 1) * page_size).limit(page_size)
-    )).scalars().all()
+    )).scalars().all())
+    await _hydrate_display_names(db, tenant_id, items)
     return items, total
 
 
@@ -51,6 +122,7 @@ async def get_review(db: AsyncSession, tenant_id: str, rid: str) -> ContractRevi
     )).scalar_one_or_none()
     if not row:
         raise BusinessException(code=NOT_FOUND, message="合同评审不存在")
+    await _hydrate_display_names(db, tenant_id, [row])
     return row
 
 
@@ -62,6 +134,7 @@ async def create_review(
     if status not in ALLOWED_STATUS:
         raise BusinessException(code=VALIDATION_ERROR, message="无效状态")
     dump["status"] = status
+    await _resolve_names_into_dump(db, tenant_id, dump)
     code = await generate_code(db, tenant_id, "contract_review")
     row = ContractReview(
         id=generate_uuid(),
@@ -90,6 +163,7 @@ async def update_review(
     dump = data.model_dump(exclude_unset=True)
     if "status" in dump and dump["status"] not in ALLOWED_STATUS:
         raise BusinessException(code=VALIDATION_ERROR, message="无效状态")
+    await _resolve_names_into_dump(db, tenant_id, dump)
     for field, val in dump.items():
         setattr(row, field, val)
     await db.commit()
@@ -148,7 +222,7 @@ async def submit_for_approval(
 
     title = f"合同评审: {row.review_code} {row.company_name or row.project_title or ''}".strip()
     pinst = await start_for_biz(db, tenant_id, "contract_review", row.id, user, title=title)
-    if pinst is None:
+    if not pinst:
         raise BusinessException(
             code=VALIDATION_ERROR,
             message="未找到已发布的合同评审流程，请先在扩展平台→流程管理中发布并绑定 contract_review",
@@ -162,4 +236,5 @@ async def submit_for_approval(
         action="submit", resource_type="contract_review", resource_id=row.id,
         summary=f"提交合同评审审批: {row.review_code}",
     )
+    await _hydrate_display_names(db, tenant_id, [row])
     return row

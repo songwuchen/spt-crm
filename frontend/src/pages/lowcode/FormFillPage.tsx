@@ -9,6 +9,7 @@ import type { FieldDefinition, FormRule } from '@/types/lowcode'
 import FormRenderer, { validateRequired, deriveRolePerms } from '@/components/lowcode/FormRenderer'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { DRAWING_FORM_LAYOUT, applyDrawingFormLayout } from '@/constants/drawingFormLayout'
 
 const { Title } = Typography
 
@@ -50,12 +51,17 @@ export default function FormFillPage({
   templateId: propId,
   returnTo,
   pageTitle,
+  templateCode,
+  contentMaxWidth,
 }: {
   /** 侧栏模块传入；缺省则从路由 /lowcode/forms/:id/fill 取 */
   templateId?: string
   /** 返回/提交后跳转；模块入口传列表路径，避免掉进扩展平台 */
   returnTo?: string
   pageTitle?: string
+  /** 内置模块 code，用于图纸表单分区布局 */
+  templateCode?: string
+  contentMaxWidth?: number
 } = {}) {
   const { id: paramId = '' } = useParams()
   const id = propId || paramId
@@ -71,6 +77,10 @@ export default function FormFillPage({
   const [submitting, setSubmitting] = useState(false)
   const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const depKey = serialDepKey(fields, value)
+
+  const layout = templateCode ? DRAWING_FORM_LAYOUT[templateCode] : undefined
+  const displayFields = layout ? applyDrawingFormLayout(templateCode, fields) : fields
+  const maxWidth = contentMaxWidth ?? layout?.contentMaxWidth ?? 760
 
   useEffect(() => {
     if (!id) return
@@ -107,8 +117,8 @@ export default function FormFillPage({
 
   const submit = async (asDraft: boolean) => {
     if (!asDraft) {
-      const states = computeFieldStates(fields, value, rules, deriveRolePerms(fields, userRoles))
-      const e = validateRequired(fields, states, value)
+      const states = computeFieldStates(displayFields, value, rules, deriveRolePerms(displayFields, userRoles))
+      const e = validateRequired(displayFields, states, value)
       if (e) { message.error(e); return }
     }
     setSubmitting(true)
@@ -137,9 +147,9 @@ export default function FormFillPage({
         <Button icon={<ArrowLeftOutlined />} onClick={() => nav(backPath)}>返回</Button>
         <Title level={4} style={{ margin: 0 }}>{pageTitle || `填报 · ${name}`}</Title>
       </Space>
-      <div style={{ maxWidth: 760 }}>
+      <div style={{ maxWidth }}>
         <FormRenderer
-          fields={fields}
+          fields={displayFields}
           rules={rules}
           mode="edit"
           value={value}

@@ -28,6 +28,67 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# 表单填报未传 title 时，从模板名 + 关键业务字段拼审批标题（对齐合同评审/线索「有意义的标题」）
+_TITLE_FIELD_IDS = (
+    "apply_reason", "apply_or_change", "apply_reason_star",
+    "contract_no", "drawing_no", "company_name", "title", "reason",
+    "applicant_name", "orderer_name", "remark",
+)
+_TITLE_LABEL_HINTS = (
+    "申请事由", "*申请事由", "申请事由/修改事项",
+    "合同号", "图纸编号", "标题", "事由", "备注",
+)
+
+
+def _title_snippet(val) -> str:
+    if val is None:
+        return ""
+    if isinstance(val, dict):
+        return str(val.get("name") or val.get("label") or "").strip()
+    if isinstance(val, list):
+        parts = [_title_snippet(x) for x in val]
+        return "、".join(p for p in parts if p)[:40]
+    s = str(val).strip()
+    if not s or s == "None":
+        return ""
+    # 人员/部门字段常存 UUID，不当作标题片段
+    if len(s) >= 32 and s.count("-") >= 4:
+        return ""
+    return s
+
+
+def derive_form_instance_title(
+    template_name: str | None,
+    form_data: dict | None,
+    field_defs: list | None = None,
+) -> str:
+    """生成表单实例/流程标题，如「合同图纸（资料）领用申请: xxx」。"""
+    name = (template_name or "表单申请").strip() or "表单申请"
+    data = form_data or {}
+    snippet = ""
+    for fid in _TITLE_FIELD_IDS:
+        snippet = _title_snippet(data.get(fid))
+        if snippet:
+            break
+    if not snippet and field_defs:
+        by_label = {
+            str(f.get("label") or "").strip(): f.get("id")
+            for f in field_defs if isinstance(f, dict) and f.get("id")
+        }
+        for hint in _TITLE_LABEL_HINTS:
+            fid = by_label.get(hint)
+            if not fid:
+                continue
+            snippet = _title_snippet(data.get(fid))
+            if snippet:
+                break
+    if snippet:
+        if len(snippet) > 40:
+            snippet = snippet[:39] + "…"
+        return f"{name}: {snippet}"
+    return name
+
+
 # ==================== 模板 ====================
 
 async def create_template(
@@ -132,18 +193,50 @@ async def _ensure_builtin_form_flow(db: AsyncSession, tenant_id: str, key: str, 
 
 
 def _field_defs_fingerprint(defs: list | None) -> str:
-    """字段 id/类型/选项/流水规则指纹，用于 sync_fields 幂等升级。"""
+    """字段 id/类型/选项/必填/标签/流水规则指纹，用于 sync_fields 幂等升级。"""
     items: list[tuple] = []
     for f in defs or []:
         if not isinstance(f, dict) or not f.get("id"):
             continue
+        cols = []
+        for c in f.get("detail_table_columns") or []:
+            if not isinstance(c, dict) or not c.get("id"):
+                continue
+            cols.append((
+                str(c.get("id")),
+                str(c.get("type") or ""),
+                str(c.get("label") or ""),
+                bool(c.get("required")),
+                json.dumps(c.get("options") or [], sort_keys=True, ensure_ascii=False),
+            ))
         items.append((
             str(f.get("id")),
             str(f.get("type") or ""),
+            str(f.get("label") or ""),
+            bool(f.get("required")),
             json.dumps(f.get("options") or [], sort_keys=True, ensure_ascii=False),
             json.dumps(f.get("props") or {}, sort_keys=True, ensure_ascii=False),
             json.dumps(f.get("default_value"), ensure_ascii=False, default=str)
             if f.get("default_value") is not None else "",
+            json.dumps(cols, ensure_ascii=False),
+        ))
+    return json.dumps(sorted(items), ensure_ascii=False)
+
+
+def _rules_fingerprint(rules: list | None) -> str:
+    """规则 id/type/target/condition/action 指纹，用于 sync_fields 与字段一并升级。"""
+    items: list[tuple] = []
+    for r in rules or []:
+        if not isinstance(r, dict) or not r.get("id"):
+            continue
+        items.append((
+            str(r.get("id")),
+            str(r.get("type") or ""),
+            str(r.get("target_field_id") or ""),
+            json.dumps(r.get("target_field_ids") or [], ensure_ascii=False),
+            json.dumps(r.get("condition") or {}, sort_keys=True, ensure_ascii=False),
+            json.dumps(r.get("action") or {}, sort_keys=True, ensure_ascii=False),
+            bool(r.get("enabled", True)),
         ))
     return json.dumps(sorted(items), ensure_ascii=False)
 
@@ -151,7 +244,7 @@ def _field_defs_fingerprint(defs: list | None) -> str:
 async def sync_builtin_form_fields(
     db: AsyncSession, tenant_id: str, key: str, tpl: FormTemplate, user: dict,
 ) -> FormTemplate:
-    """图纸等标记 sync_fields 的内置表：字段定义与 builtin 不一致时发布新版本。"""
+    """图纸等标记 sync_fields 的内置表：字段/规则与 builtin 不一致时发布新版本。"""
     from app.domains.lowcode.builtin_templates import get_builtin
     bt = get_builtin(key)
     if not bt or not bt.get("sync_fields"):
@@ -159,13 +252,18 @@ async def sync_builtin_form_fields(
     want = bt.get("field_definitions") or []
     if not want:
         return tpl
+    want_rules = bt.get("rule_definitions") or []
     published = await _get_published_version(db, tenant_id, tpl.id)
     current = (published.field_definitions if published else None) or []
-    if _field_defs_fingerprint(current) == _field_defs_fingerprint(want):
+    current_rules = (published.rule_definitions if published else None) or []
+    same_fields = _field_defs_fingerprint(current) == _field_defs_fingerprint(want)
+    same_rules = _rules_fingerprint(current_rules) == _rules_fingerprint(want_rules)
+    if same_fields and same_rules:
         return tpl
     latest = await _get_latest_version(db, tenant_id, tpl.id)
     if latest and latest.status == "draft":
         latest.field_definitions = want
+        latest.rule_definitions = want_rules
         await db.commit()
     else:
         next_version = (latest.version_number + 1) if latest else 1
@@ -173,7 +271,7 @@ async def sync_builtin_form_fields(
             id=generate_uuid(), tenant_id=tenant_id, template_id=tpl.id,
             version_number=next_version, field_definitions=want,
             layout_definition=(latest.layout_definition if latest else {}) or {},
-            rule_definitions=(latest.rule_definitions if latest else []) or [],
+            rule_definitions=want_rules,
             status="draft",
         ))
         await db.commit()
@@ -589,10 +687,14 @@ async def create_instance(
             raise BusinessException(code=VALIDATION_ERROR, message=err)
         form_data = await generate_serials_for_submit(db, tenant_id, data.template_id, field_defs, form_data)
 
+    title = (data.title or "").strip() or None
+    if not title:
+        title = derive_form_instance_title(tpl.name, form_data, field_defs)
+
     inst = FormInstance(
         id=generate_uuid(), tenant_id=tenant_id,
         template_id=data.template_id, template_version_id=published.id,
-        title=data.title, remark=data.remark,
+        title=title, remark=data.remark,
         status="draft" if data.as_draft else "submitted",
         initiator_id=user.get("sub"), initiator_dept_id=user.get("dept_id"),
         amount=_extract_amount(form_data, field_defs),
@@ -609,6 +711,7 @@ async def create_instance(
         pinst = await wsvc.maybe_start_for_form(db, tenant_id, data.template_id, inst, user, form_data)
         if pinst is not None:
             inst.status = pinst.status
+            inst.process_instance_id = pinst.id
             await db.commit()
             await db.refresh(inst)
     return inst

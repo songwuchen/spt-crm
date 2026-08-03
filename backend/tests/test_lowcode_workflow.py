@@ -278,6 +278,26 @@ async def test_lead_review_pending_then_reject_writes_reason(client: AsyncClient
     assert lead.review_status == "rejected"
     assert lead.reject_reason == "资料不全", "驳回原因未回写到线索"
 
+    # 驳回后节点实例必须结束，否则流程动态会一直显示「处理中」
+    from app.domains.lowcode.workflow_models import WfNodeInstance
+    from app.domains.lowcode import workflow_service as wf_svc
+    await db.refresh(inst)
+    assert inst.status == "rejected"
+    running_nodes = (await db.execute(select(WfNodeInstance).where(
+        WfNodeInstance.process_instance_id == inst.id,
+        WfNodeInstance.status == "running",
+    ))).scalars().all()
+    assert running_nodes == [], "驳回后不应残留 running 节点"
+    rejected_nodes = (await db.execute(select(WfNodeInstance).where(
+        WfNodeInstance.process_instance_id == inst.id,
+        WfNodeInstance.status == "rejected",
+    ))).scalars().all()
+    assert rejected_nodes, "驳回节点应标记为 rejected"
+    detail = await wf_svc.get_instance_detail(db, DEMO_TENANT, inst.id)
+    current_steps = [s for s in detail["flow_steps"] if s.get("is_current")]
+    assert current_steps == [], "驳回后流程动态不应有「处理中」节点"
+    assert any(s["status"] == "rejected" and s["status_text"] == "已驳回" for s in detail["flow_steps"])
+
 
 @pytest.mark.asyncio
 async def test_lead_approve_clears_previous_reject_reason(client: AsyncClient, auth_headers, db, lead_intel_user):

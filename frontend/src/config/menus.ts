@@ -85,6 +85,7 @@ export const menuGroups: MenuGroup[] = [
       { key: '/calendar', icon: 'calendar_month', labelKey: 'nav.calendar' },
       { key: '/tasks', icon: 'checklist', labelKey: 'nav.tasks' },
       { key: '/approvals', icon: 'task_alt', labelKey: 'nav.approvals' },
+      { key: '/notifications', icon: 'notifications', labelKey: 'nav.notifications' },
       { key: '/ai-center', icon: 'smart_toy', labelKey: 'nav.aiCenter', permission: 'project:view' },
       { key: '/knowledge-base', icon: 'menu_book', labelKey: 'nav.knowledgeBase', permission: 'project:view' },
     ],

@@ -281,6 +281,7 @@ const enUS = {
     createdAt: 'Created At',
     createdBy: 'Created By',
     deleteConfirm: 'Are you sure you want to delete ticket "{name}"?',
+    ticketDeleted: 'Ticket deleted',
     ticketsTab: 'Service Tickets',
     renewalsTab: 'Renewals ({count})',
     slaRate: 'SLA Compliance Rate',

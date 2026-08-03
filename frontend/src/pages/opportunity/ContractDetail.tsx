@@ -33,7 +33,8 @@ import { lowcodeApi } from '@/api/lowcode'
 import type { FieldDefinition } from '@/types/lowcode'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import DetailSkeleton from '@/components/DetailSkeleton'
-import { useUserSelect } from '@/hooks/useSelectOptions'
+import { useUserSelect, useCustomerSelect } from '@/hooks/useSelectOptions'
+import { customerApi } from '@/api/customer'
 import dayjs from 'dayjs'
 
 async function loadContractDetailColumns(): Promise<{
@@ -118,6 +119,7 @@ export default function ContractDetail() {
       peer_contract_no: contract?.peer_contract_no || undefined,
       acquire_method: contract?.acquire_method || undefined,
       change_type: changeType,
+      customer_id: contract?.customer_id || undefined,
       assignee_id: contract?.assignee_id || undefined,
       assignee_name: contract?.assignee_name || undefined,
       department_id: contract?.department_id || undefined,
@@ -125,6 +127,16 @@ export default function ContractDetail() {
       ...nativeDates,
       registration_json: reg,
     })
+    if (contract?.customer_id) {
+      const cidCust = contract.customer_id
+      if (contract.customer_name) {
+        customerSelect.setInitialOption({ label: contract.customer_name, value: cidCust })
+      } else {
+        customerApi.get(cidCust).then((r) => {
+          if (r.data?.name) customerSelect.setInitialOption({ label: r.data.name, value: cidCust })
+        }).catch(() => {})
+      }
+    }
     const { lineCols, payCols } = await loadContractDetailColumns()
     const pays = toCanonicalRows(contract?.payment_terms_json, payCols)
     setEditPay(pays.length ? pays : [{}])
@@ -151,6 +163,7 @@ export default function ContractDetail() {
         peer_contract_no: v.peer_contract_no || null,
         acquire_method: v.acquire_method || null,
         change_type: v.change_type || null,
+        customer_id: v.customer_id || null,
         assignee_id: v.assignee_id || null,
         assignee_name: v.assignee_name || null,
         department_id: v.department_id || null,
@@ -272,6 +285,7 @@ export default function ContractDetail() {
   const [approvalSubmitting, setApprovalSubmitting] = useState(false)
 
   const userSelect = useUserSelect()
+  const customerSelect = useCustomerSelect()
 
   // Signing workflow
   const [approvalFlow, setApprovalFlow] = useState<import('@/api/types').ApprovalFlowItem | null>(null)
@@ -595,6 +609,33 @@ export default function ContractDetail() {
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
         <FieldPolicyProvider entityType="contract" form={editForm}>
         <Form form={editForm} layout="vertical" className="py-2">
+          <Form.Item name="customer_id" label="关联客户">
+            <Select
+              allowClear showSearch filterOption={false}
+              placeholder="搜索客户管理中的客户"
+              options={customerSelect.options}
+              loading={customerSelect.loading}
+              onSearch={customerSelect.onSearch}
+              onDropdownVisibleChange={customerSelect.onDropdownVisibleChange}
+              onChange={async (id?: string) => {
+                if (!id) return
+                try {
+                  const c = (await customerApi.get(id)).data
+                  if (!c) return
+                  const reg = { ...(editForm.getFieldValue('registration_json') || {}) } as Record<string, unknown>
+                  if (c.customer_code) reg.customer_code = c.customer_code
+                  const patch: Record<string, unknown> = { registration_json: reg }
+                  if (c.department_id) patch.department_id = c.department_id
+                  if (c.department_name) patch.department_name = c.department_name
+                  if (c.owner_id) {
+                    patch.assignee_id = c.owner_id
+                    if (c.owner_name) patch.assignee_name = c.owner_name
+                  }
+                  editForm.setFieldsValue(patch)
+                } catch { /* ignore */ }
+              }}
+            />
+          </Form.Item>
           <ContractRegistrationFields
             form={editForm}
             mode="edit"

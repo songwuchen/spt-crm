@@ -313,6 +313,7 @@ const zhCN = {
     createdAt: '创建时间',
     createdBy: '创建人',
     deleteConfirm: '确定要删除工单「{name}」？',
+    ticketDeleted: '工单已删除',
     ticketsTab: '售后工单',
     renewalsTab: '续约/复购 ({count})',
     slaRate: 'SLA 达标率',

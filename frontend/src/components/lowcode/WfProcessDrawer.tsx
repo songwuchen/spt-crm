@@ -107,9 +107,19 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     const d = await workflowApi.instance(instanceId, taskId ? { task_id: taskId } : undefined)
     setDetail(d.data)
     setFieldUpdates({ ...(d.data.current_task?.field_values || {}) })
-    if (d.data.form_instance_id) {
-      const fi = await lowcodeApi.getInstance(d.data.form_instance_id)
-      setFields(fi.data.field_definitions); setFormData(fi.data.form_data)
+    // 优先用流程详情内嵌的表单快照（审批人不必有 form_data:view）
+    if (d.data.form_fields?.length) {
+      setFields(d.data.form_fields)
+      setFormData(d.data.form_data || {})
+    } else if (d.data.form_instance_id) {
+      try {
+        const fi = await lowcodeApi.getInstance(d.data.form_instance_id)
+        setFields(fi.data.field_definitions)
+        setFormData(fi.data.form_data)
+      } catch {
+        setFields([])
+        setFormData({})
+      }
     } else {
       setFields([]); setFormData({})
     }
@@ -215,7 +225,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     )}
                   </div>
                   <Title level={4} style={{ margin: '6px 0 0' }} className="!text-lg truncate">
-                    {detail.title || '(无标题)'}
+                    {detail.title || detail.business_no || '(无标题)'}
                   </Title>
                   <div className="mt-2 inline-flex items-center gap-2 rounded-md bg-blue-50 text-blue-700 px-2.5 py-1 text-sm font-medium">
                     当前节点：{currentNode}
@@ -240,7 +250,9 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     ? '合同登记信息'
                     : detail.biz_type === 'lead'
                       ? '线索信息'
-                      : '业务信息'}
+                      : detail.biz_type === 'contract_review'
+                        ? '合同评审信息'
+                        : '业务信息'}
                 </div>
                 {fields.length ? (
                   <FormRenderer fields={fields} mode="readonly" value={formData} applyFieldPerms={false} />

@@ -183,11 +183,25 @@ async def maybe_start_for_form(db, tenant_id, template_id, form_instance, user, 
     version = await _published_version(db, tenant_id, d.id)
     if not version:
         return None
+
+    title = (getattr(form_instance, "title", None) or "").strip() or None
+    if not title:
+        from app.domains.lowcode.service import derive_form_instance_title
+        from app.domains.lowcode.models import FormTemplate
+        tpl = await db.get(FormTemplate, template_id)
+        title = derive_form_instance_title(
+            (tpl.name if tpl else None) or d.name,
+            form_data,
+            getattr(form_instance, "field_definitions", None),
+        )
+        form_instance.title = title
+        await db.flush()
+
     engine = WorkflowEngine(db, tenant_id)
     # 注意: 引擎内部会 commit;此处不额外 commit(调用方 create_instance 已在 flush 后)
     return await engine.submit(
         d.id, version, user, form_instance_id=form_instance.id,
-        form_data=form_data, title=form_instance.title,
+        form_data=form_data, title=title,
     )
 
 
@@ -273,6 +287,21 @@ def _flow_is_jdy_drawing(nodes: list | None) -> bool:
     """已对齐简道云图纸流：含总工/图纸领取等关键节点名。"""
     names = {n.get("name") for n in (nodes or [])}
     return "总工审批" in names and ("图纸领取" in names or "设计指派安排" in names)
+
+
+def _drawing_flow_has_cc_end_bug(nodes: list | None, routes: list | None) -> bool:
+    """旧生成器把叶子抄送接到 end，或入抄送边未标 always —— 需再升级。"""
+    cc_ids = {n.get("id") for n in (nodes or []) if n.get("type") == "cc" and n.get("id")}
+    if not cc_ids:
+        return False
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        if r.get("target") == "end" and r.get("source") in cc_ids:
+            return True
+        if r.get("target") in cc_ids and not r.get("always"):
+            return True
+    return False
 
 
 async def ensure_all_biz_defaults(db, tenant_id: str) -> None:
@@ -933,7 +962,12 @@ async def _upgrade_drawing_form_flow_if_needed(
     version = await _published_version(db, tenant_id, d.id)
     if not version:
         return
-    if _flow_is_jdy_drawing(version.node_definitions):
+    if (
+        _flow_is_jdy_drawing(version.node_definitions)
+        and not _drawing_flow_has_cc_end_bug(
+            version.node_definitions, version.route_definitions,
+        )
+    ):
         return
     new_nodes, new_routes = graph
     if form_code == "drawing_requisition":
@@ -1460,6 +1494,75 @@ async def can_access_contract_via_workflow(
     return False
 
 
+async def can_access_form_via_workflow(
+    db,
+    tenant_id: str,
+    user_id: str | None,
+    form_instance_id: str | None,
+) -> bool:
+    """审批相关人可只读表单数据（对齐合同：有待办即可看单据，不必有 form_data:view）。
+
+    覆盖：发起人 / 任务处理人(含已办) / 抄送人 / 当前待办的有效代理人。
+    """
+    if not user_id or not form_instance_id:
+        return False
+    insts = (await db.execute(
+        select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == tenant_id,
+            WfProcessInstance.form_instance_id == form_instance_id,
+        )
+    )).scalars().all()
+    if not insts:
+        return False
+    if any(i.initiator_id == user_id for i in insts):
+        return True
+
+    inst_ids = [i.id for i in insts]
+    has_task = (await db.execute(
+        select(WfTaskInstance.id).where(
+            WfTaskInstance.process_instance_id.in_(inst_ids),
+            WfTaskInstance.assignee_id == user_id,
+        ).limit(1)
+    )).scalar_one_or_none()
+    if has_task:
+        return True
+
+    has_cc = (await db.execute(
+        select(WfProcessCc.id).where(
+            WfProcessCc.process_instance_id.in_(inst_ids),
+            WfProcessCc.user_id == user_id,
+        ).limit(1)
+    )).scalar_one_or_none()
+    if has_cc:
+        return True
+
+    from datetime import datetime, timezone
+    from app.domains.organization.models import UserAgent
+    pending_assignees = list({
+        a for a in (await db.execute(
+            select(WfTaskInstance.assignee_id).where(
+                WfTaskInstance.process_instance_id.in_(inst_ids),
+                WfTaskInstance.status == "pending",
+            )
+        )).scalars().all() if a
+    })
+    if pending_assignees:
+        now = datetime.now(timezone.utc)
+        agent_ok = (await db.execute(
+            select(UserAgent.id).where(
+                UserAgent.tenant_id == tenant_id,
+                UserAgent.agent_id == user_id,
+                UserAgent.user_id.in_(pending_assignees),
+                UserAgent.status == "active",
+                UserAgent.start_time <= now,
+                UserAgent.end_time >= now,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if agent_ok:
+            return True
+    return False
+
+
 async def list_todo(db, tenant_id, user_id, page_no, page_size, biz_type=None, biz_id=None):
     """我的待办。biz_type/biz_id 可选，用于业务详情页精确查「这单是否轮到我审」——
     否则调用方只能拉一页待办再在前端过滤，待办多时会漏掉。"""
@@ -1537,11 +1640,23 @@ async def list_cc(db, tenant_id, user_id, page_no, page_size):
                 select(User.id, User.real_name, User.username).where(User.id.in_(initiator_ids))
             )).all()
         }
+    def_ids = {i.process_definition_id for i in insts.values() if i and i.process_definition_id}
+    def_name_map: dict[str, str] = {}
+    if def_ids:
+        def_name_map = {
+            r[0]: r[1] for r in (await db.execute(
+                select(WfProcessDefinition.id, WfProcessDefinition.name).where(
+                    WfProcessDefinition.id.in_(def_ids)
+                )
+            )).all()
+        }
     out = []
     for c in ccs:
         inst = insts.get(c.process_instance_id)
         biz_ref_id = None
+        process_name = None
         if inst:
+            process_name = def_name_map.get(inst.process_definition_id)
             if inst.biz_type == "contract_version" and inst.biz_id:
                 biz_ref_id = cv_map.get(inst.biz_id)
             elif inst.biz_type == "contract_review":
@@ -1556,6 +1671,7 @@ async def list_cc(db, tenant_id, user_id, page_no, page_size):
             "biz_type": inst.biz_type if inst else None,
             "biz_id": inst.biz_id if inst else None,
             "biz_ref_id": biz_ref_id,
+            "process_name": process_name,
             "initiator_id": inst.initiator_id if inst else None,
             "initiator_name": name_map.get(inst.initiator_id) if inst and inst.initiator_id else None,
             "created_at": c.created_at.isoformat() if c.created_at else None,
@@ -1564,7 +1680,7 @@ async def list_cc(db, tenant_id, user_id, page_no, page_size):
 
 
 async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
-    """列表补充：合同 biz_ref_id、进行中当前节点名。"""
+    """列表补充：合同 biz_ref_id、进行中当前节点名、流程定义名（表单流无 biz_type 时作类型兜底）。"""
     if not rows:
         return []
     cv_ids = {i.biz_id for i in rows if i.biz_type == "contract_version" and i.biz_id}
@@ -1589,6 +1705,16 @@ async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
         for pid, name in ni_rows:
             if pid not in current_node and name:
                 current_node[pid] = name
+    def_ids = {i.process_definition_id for i in rows if i.process_definition_id}
+    def_name_map: dict[str, str] = {}
+    if def_ids:
+        def_name_map = {
+            r[0]: r[1] for r in (await db.execute(
+                select(WfProcessDefinition.id, WfProcessDefinition.name).where(
+                    WfProcessDefinition.id.in_(def_ids)
+                )
+            )).all()
+        }
     out = []
     for i in rows:
         d = _inst_dict(i)
@@ -1599,6 +1725,7 @@ async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
         else:
             d["biz_ref_id"] = None
         d["current_node_name"] = current_node.get(i.id)
+        d["process_name"] = def_name_map.get(i.process_definition_id)
         out.append(d)
     return out
 
@@ -1639,12 +1766,59 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
         )).all()
         node_name_map = {r[0]: (r[1] or "审批") for r in ni_rows}
 
+    # 流程定义名：表单绑定流常无 biz_type，用流程名作类型/标题兜底
+    def_ids = {i.process_definition_id for i in insts.values() if i and i.process_definition_id}
+    def_name_map: dict[str, str] = {}
+    if def_ids:
+        def_name_map = {
+            r[0]: r[1] for r in (await db.execute(
+                select(WfProcessDefinition.id, WfProcessDefinition.name).where(
+                    WfProcessDefinition.id.in_(def_ids)
+                )
+            )).all()
+        }
+
+    # 空标题：从表单实例补齐（只读拼装，不在列表路径落库以免拖慢）
+    empty_form_ids = {
+        i.form_instance_id for i in insts.values()
+        if i and not (i.title or "").strip() and i.form_instance_id
+    }
+    form_title_map: dict[str, str] = {}
+    if empty_form_ids:
+        from app.domains.lowcode.models import FormInstance, FormTemplate
+        from app.domains.lowcode.service import derive_form_instance_title
+        fis = (await db.execute(
+            select(FormInstance).where(FormInstance.id.in_(empty_form_ids))
+        )).scalars().all()
+        tpl_ids = {fi.template_id for fi in fis if fi.template_id}
+        tpl_map = {}
+        if tpl_ids:
+            tpl_map = {
+                t.id: t.name for t in (await db.execute(
+                    select(FormTemplate).where(FormTemplate.id.in_(tpl_ids))
+                )).scalars().all()
+            }
+        for fi in fis:
+            form_title_map[fi.id] = derive_form_instance_title(
+                tpl_map.get(fi.template_id),
+                fi.form_data if isinstance(fi.form_data, dict) else {},
+                fi.field_definitions,
+            )
+
     out = []
     for t in tasks:
         inst = insts.get(t.process_instance_id)
         on_behalf = viewer_id is not None and t.assignee_id != viewer_id
         biz_ref_id = None
+        process_name = None
+        title = None
         if inst:
+            process_name = def_name_map.get(inst.process_definition_id)
+            title = (inst.title or "").strip() or None
+            if not title and inst.form_instance_id:
+                title = form_title_map.get(inst.form_instance_id)
+            if not title:
+                title = process_name
             if inst.biz_type == "contract_version" and inst.biz_id:
                 biz_ref_id = cv_contract_map.get(inst.biz_id)
             elif inst.biz_type == "contract_review":
@@ -1652,7 +1826,8 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
         out.append({
             "task_id": t.id, "status": t.status, "opinion": t.opinion,
             "process_instance_id": t.process_instance_id,
-            "title": inst.title if inst else None,
+            "title": title,
+            "process_name": process_name,
             "business_no": inst.business_no if inst else None,
             "initiator_id": inst.initiator_id if inst else None,
             "initiator_name": name_map.get(inst.initiator_id) if inst else None,
@@ -1771,7 +1946,9 @@ def _fmt_duration(start, end) -> str | None:
     return f"{d}天{h}小时"
 
 
-async def _build_flow_steps(db, nodes: list, tasks: list, logs: list) -> list[dict]:
+async def _build_flow_steps(
+    db, nodes: list, tasks: list, logs: list, process_status: str | None = None,
+) -> list[dict]:
     """按节点实例构造「流程动态」(对齐简道云右侧时间线)。"""
     from app.domains.auth.models import User
 
@@ -1805,7 +1982,7 @@ async def _build_flow_steps(db, nodes: list, tasks: list, logs: list) -> list[di
 
     status_text = {
         "running": "处理中", "completed": "已完成", "cancelled": "已取消",
-        "pending": "待处理",
+        "pending": "待处理", "rejected": "已驳回",
     }
     out = []
     for n in nodes_sorted:
@@ -1826,7 +2003,17 @@ async def _build_flow_steps(db, nodes: list, tasks: list, logs: list) -> list[di
         action = getattr(lg, "action", None) if lg else None
         actor_name = getattr(lg, "actor_name", None) if lg else None
         opinion = getattr(lg, "opinion", None) if lg else None
-        if n.status == "running" and not actor_name and assignees:
+        # 历史数据兼容：旧版驳回未关闭节点，仍为 running，但操作已是驳回 / 流程已结束
+        display_status = n.status
+        if display_status == "running":
+            if action in ("reject", "auto_reject") or process_status == "rejected":
+                display_status = "rejected"
+            elif process_status == "withdrawn":
+                display_status = "cancelled"
+            elif process_status == "completed":
+                # 旁路抄送误触 end 等历史数据：流程已结束但节点未关
+                display_status = "cancelled"
+        if display_status == "running" and not actor_name and assignees:
             pending_names = [a["name"] for a in assignees if a["status"] == "pending"]
             actor_name = "、".join(pending_names) if pending_names else "、".join(a["name"] for a in assignees)
             action = action or "pending"
@@ -1836,8 +2023,8 @@ async def _build_flow_steps(db, nodes: list, tasks: list, logs: list) -> list[di
             "node_def_id": n.node_def_id,
             "node_name": n.node_name,
             "node_type": n.node_type,
-            "status": n.status,
-            "status_text": status_text.get(n.status, n.status),
+            "status": display_status,
+            "status_text": status_text.get(display_status, display_status),
             "assignees": assignees,
             "handler_name": actor_name,
             "action": action,
@@ -1845,7 +2032,7 @@ async def _build_flow_steps(db, nodes: list, tasks: list, logs: list) -> list[di
             "started_at": n.started_at.isoformat() if n.started_at else None,
             "completed_at": n.completed_at.isoformat() if n.completed_at else None,
             "duration": _fmt_duration(n.started_at, end_at),
-            "is_current": n.status == "running",
+            "is_current": display_status == "running",
         })
     return out
 
@@ -1862,6 +2049,24 @@ async def find_latest_instance_by_biz(
             WfProcessInstance.tenant_id == tenant_id,
             WfProcessInstance.biz_type == biz_type,
             WfProcessInstance.biz_id == biz_id,
+        ).order_by(WfProcessInstance.created_at.desc()).limit(1)
+    )).scalar_one_or_none()
+    if not inst:
+        return None
+    return await get_instance_detail(db, tenant_id, inst.id, viewer_id=viewer_id)
+
+
+async def find_latest_instance_by_form_instance(
+    db, tenant_id: str, form_instance_id: str,
+    viewer_id: str | None = None,
+) -> dict | None:
+    """表单详情页：按 form_instance_id 取最新流程实例（兼容未回写 process_instance_id 的旧数据）。"""
+    if not form_instance_id:
+        return None
+    inst = (await db.execute(
+        select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == tenant_id,
+            WfProcessInstance.form_instance_id == form_instance_id,
         ).order_by(WfProcessInstance.created_at.desc()).limit(1)
     )).scalar_one_or_none()
     if not inst:
@@ -1896,6 +2101,42 @@ async def get_instance_detail(
     # 供审批中心抽屉展示；否则审批人只能看到「无关联表单」。
     biz_detail: dict = {}
     biz_ref_id = None
+    process_name = None
+    try:
+        dfn = await db.get(WfProcessDefinition, inst.process_definition_id)
+        process_name = dfn.name if dfn else None
+    except Exception:
+        process_name = None
+
+    # 表单流历史数据可能没写 title：从关联表单/流程名补齐展示（并回写）
+    if not (inst.title or "").strip():
+        healed = None
+        if inst.form_instance_id:
+            try:
+                from app.domains.lowcode.models import FormInstance, FormTemplate
+                from app.domains.lowcode.service import derive_form_instance_title
+                fi = await db.get(FormInstance, inst.form_instance_id)
+                if fi:
+                    tpl = await db.get(FormTemplate, fi.template_id) if fi.template_id else None
+                    healed = derive_form_instance_title(
+                        (tpl.name if tpl else None) or process_name,
+                        fi.form_data if isinstance(fi.form_data, dict) else {},
+                        fi.field_definitions,
+                    )
+                    if healed and not (fi.title or "").strip():
+                        fi.title = healed
+            except Exception:
+                healed = None
+        if not healed:
+            healed = process_name
+        if healed:
+            inst.title = healed
+            try:
+                await db.commit()
+                await db.refresh(inst)
+            except Exception:
+                await db.rollback()
+
     if inst.biz_type and inst.biz_id:
         try:
             from app.domains.approval.service import _resolve_biz_detail
@@ -1913,13 +2154,34 @@ async def get_instance_detail(
             except Exception:
                 biz_ref_id = None
 
+    # 表单绑定流：把字段定义+数据嵌进详情，审批人不必再调 form_data:view
+    form_fields: list = []
+    form_data: dict = {}
+    form_rules: list = []
+    if inst.form_instance_id:
+        try:
+            from app.domains.lowcode.models import FormInstance, FormTemplateVersion
+            fi = await db.get(FormInstance, inst.form_instance_id)
+            if fi and not getattr(fi, "is_deleted", False):
+                form_fields = list(fi.field_definitions or [])
+                form_data = dict(fi.form_data or {}) if isinstance(fi.form_data, dict) else {}
+                ver = await db.get(FormTemplateVersion, fi.template_version_id) if fi.template_version_id else None
+                if ver:
+                    if not form_fields:
+                        form_fields = list(ver.field_definitions or [])
+                    form_rules = list(ver.rule_definitions or [])
+        except Exception:
+            form_fields, form_data, form_rules = [], {}, []
+
     current_task = await _resolve_current_task_for_viewer(
         db, tenant_id, inst, version, list(tasks), viewer_id, task_id=task_id,
     )
     nodes = (await db.execute(select(WfNodeInstance).where(
         WfNodeInstance.process_instance_id == instance_id,
     ))).scalars().all()
-    flow_steps = await _build_flow_steps(db, list(nodes), list(tasks), list(logs))
+    flow_steps = await _build_flow_steps(
+        db, list(nodes), list(tasks), list(logs), process_status=inst.status,
+    )
     # 补一条「发起」动态（对齐简道云流程发起节点）
     if inst.started_at:
         from app.domains.auth.models import User
@@ -1951,9 +2213,13 @@ async def get_instance_detail(
     ni_name = {n.id: n.node_name for n in nodes}
     return {
         **_inst_dict(inst),
+        "process_name": process_name,
         "approval_nodes": approval_nodes,
         "biz_detail": biz_detail,
         "biz_ref_id": biz_ref_id,
+        "form_fields": form_fields,
+        "form_data": form_data,
+        "form_rules": form_rules,
         "current_task": current_task,
         "flow_steps": flow_steps,
         "timeline": [{

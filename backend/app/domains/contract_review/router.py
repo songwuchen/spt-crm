@@ -35,6 +35,7 @@ def _to_dict(r) -> dict:
         "conclusion": r.conclusion,
         "payment_term": r.payment_term,
         "review_json": r.review_json or {},
+        "custom_fields_json": r.custom_fields_json or {},
         "created_by_id": r.created_by_id,
         "created_by_name": r.created_by_name,
         "created_at": r.created_at.isoformat() if r.created_at else "",

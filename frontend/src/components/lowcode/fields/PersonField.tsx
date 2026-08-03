@@ -120,6 +120,19 @@ function dualOptions(opts: UserOpt[], raws: string[]): UserOpt[] {
   return out
 }
 
+/** 列表/导出用：用户 id 或工号 → 显示名 */
+export async function getPersonLabelMap(ids: string[]): Promise<Record<string, string>> {
+  const raws = [...new Set((ids || []).map(String).filter(Boolean))]
+  let opts = await loadBaseUsers()
+  if (raws.length) opts = await hydrateMissing(raws, opts)
+  const map: Record<string, string> = {}
+  for (const o of opts) {
+    map[o.value] = o.label
+    if (o.username) map[o.username] = o.label
+  }
+  return map
+}
+
 export default function PersonField({
   value, onChange, multi, readonly, placeholder,
 }: {

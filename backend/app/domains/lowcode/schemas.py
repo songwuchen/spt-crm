@@ -150,6 +150,7 @@ class FormInstanceOut(BaseModel):
     amount: Decimal | None = None
     form_data: dict[str, Any]
     field_definitions: list[dict[str, Any]]
+    process_instance_id: str | None = None
     remark: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -167,6 +168,7 @@ class FormInstanceListItem(BaseModel):
     initiator_id: str
     amount: Decimal | None = None
     form_data: dict[str, Any]
+    process_instance_id: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

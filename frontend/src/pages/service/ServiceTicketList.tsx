@@ -16,6 +16,7 @@ import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
 import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
+import { usePermission } from '@/hooks/usePermission'
 import { t } from '@/locales'
 
 const { TextArea } = Input
@@ -33,6 +34,8 @@ interface SlaStats {
 export default function ServiceTicketList() {
   usePageTitle(t('service.pageTitle'))
   const navigate = useNavigate()
+  const { hasPermission } = usePermission()
+  const canDelete = hasPermission('service:delete')
   const [slaStats, setSlaStats] = useState<SlaStats | null>(null)
   const [tickets, setTickets] = useState<ServiceTicketItem[]>([])
   const [total, setTotal] = useState(0)
@@ -132,6 +135,27 @@ export default function ServiceTicketList() {
     { title: t('common.owner'), dataIndex: 'assigned_to_name', render: (v: string) => v || '-' },
     { title: t('common.createdBy'), dataIndex: 'created_by_name', responsive: ['lg'] as any },
     { title: t('common.createdAt'), dataIndex: 'created_at', responsive: ['xl'] as any, render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
+    ...(canDelete ? [{
+      title: '', key: 'actions', width: 80, fixed: 'right' as const,
+      render: (_: unknown, record: ServiceTicketItem) => (
+        <a className="text-rose-500 text-sm font-bold hover:text-rose-600" onClick={() => {
+          Modal.confirm({
+            title: t('common.confirmDelete'),
+            content: t('service.deleteConfirm', { name: record.ticket_no }),
+            okType: 'danger',
+            onOk: async () => {
+              try {
+                await serviceTicketApi.delete(record.id)
+                message.success(t('service.ticketDeleted'))
+                fetchTickets()
+              } catch {
+                message.error('删除失败')
+              }
+            },
+          })
+        }}>{t('common.delete')}</a>
+      ),
+    }] : []),
   ]
 
   const view = useListView<ServiceTicketItem>('service_ticket', ticketColumns, { pageKey: 'service_tickets', entityType: 'service_ticket' })
@@ -328,6 +352,26 @@ export default function ServiceTicketList() {
                     {selectedTicketKeys.length > 0 && (
                       <Button onClick={() => { assignForm.resetFields(); setBatchAssignModal(true) }}>
                         {t('service.batchAssign', { count: selectedTicketKeys.length })}
+                      </Button>
+                    )}
+                    {canDelete && selectedTicketKeys.length > 0 && (
+                      <Button danger onClick={() => {
+                        Modal.confirm({
+                          title: t('common.confirmDelete'),
+                          content: `确定删除选中的 ${selectedTicketKeys.length} 个工单？`,
+                          okType: 'danger',
+                          onOk: async () => {
+                            const results = await Promise.allSettled(
+                              selectedTicketKeys.map((id) => serviceTicketApi.delete(id as string)),
+                            )
+                            const ok = results.filter((r) => r.status === 'fulfilled').length
+                            message.success(`已删除 ${ok} 个工单`)
+                            setSelectedTicketKeys([])
+                            fetchTickets()
+                          },
+                        })
+                      }}>
+                        批量删除 ({selectedTicketKeys.length})
                       </Button>
                     )}
                     <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>{t('common.import')}</Button>

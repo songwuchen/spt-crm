@@ -1,0 +1,1505 @@
+{
+  "app_id": "5e6c73fefc53170006bd4e9c",
+  "app_name": "通用流程",
+  "fetched_via": "wrapper /api/token + 直连 jiandaoyun edit",
+  "forms": {
+    "requisition": {
+      "source": {
+        "app_id": "5e6c73fefc53170006bd4e9c",
+        "entry_id": "5e6ee08be3051400062159ee",
+        "name": "合同图纸（资料）领用申请",
+        "note": "来自简道云 POST /_/admin/app/.../form/.../edit 原始配置；wrapper GET /api/form/.../fields 仅返回格式化 fields，会丢掉 fieldShowRules/allowBlank 细节",
+        "wrapper_raw_endpoint": null,
+        "fetched_via": "wrapper http://192.168.0.6:8015/api/token + 直连 jiandaoyun edit",
+        "raw_file": "_jdy_drawing_requisition_edit_raw.json"
+      },
+      "required_fields": [
+        {
+          "widget": "_widget_1584324747780",
+          "label": "日期时间",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1584324747793",
+          "label": "部门",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1584324747817",
+          "label": "申请人",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1670208477895",
+          "label": "订货人",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1584324748032",
+          "label": "申请事由",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1726128540953",
+          "label": "图纸传递途径",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1584324748140",
+          "label": "是否解密",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1584324748225",
+          "label": "图纸类型",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1669617286395",
+          "label": "附件/图片名称",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1669426933010",
+          "label": "设计单分派",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1669426933009",
+          "label": "转新乡、工艺包装",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1669426933008",
+          "label": "设计指派",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1676005090837",
+          "label": "科室",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1676005090838",
+          "label": "下单日期",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1699839662506",
+          "label": "是否需要总经理审批",
+          "allowBlank": false
+        }
+      ],
+      "required_fields_detail": [
+        {
+          "widget": "_widget_1584324747780",
+          "label": "日期时间",
+          "allowBlank": false,
+          "type": "datetime"
+        },
+        {
+          "widget": "_widget_1584324747793",
+          "label": "部门",
+          "allowBlank": false,
+          "type": "dept"
+        },
+        {
+          "widget": "_widget_1584324747817",
+          "label": "申请人",
+          "allowBlank": false,
+          "type": "user"
+        },
+        {
+          "widget": "_widget_1670208477895",
+          "label": "订货人",
+          "allowBlank": false,
+          "type": "user"
+        },
+        {
+          "widget": "_widget_1584324748032",
+          "label": "申请事由",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1726128540953",
+          "label": "图纸传递途径",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1584324748140",
+          "label": "是否解密",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1584324748225",
+          "label": "图纸类型",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1669617286395",
+          "label": "附件/图片名称",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1669426933010",
+          "label": "设计单分派",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1669426933009",
+          "label": "转新乡、工艺包装",
+          "allowBlank": false,
+          "type": "usergroup"
+        },
+        {
+          "widget": "_widget_1669426933008",
+          "label": "设计指派",
+          "allowBlank": false,
+          "type": "usergroup"
+        },
+        {
+          "widget": "_widget_1676005090837",
+          "label": "科室",
+          "allowBlank": false,
+          "type": "deptgroup"
+        },
+        {
+          "widget": "_widget_1676005090838",
+          "label": "下单日期",
+          "allowBlank": false,
+          "type": "datetime"
+        },
+        {
+          "widget": "_widget_1699839662506",
+          "label": "是否需要总经理审批",
+          "allowBlank": false,
+          "type": "radiogroup"
+        }
+      ],
+      "fieldShowRules": [
+        {
+          "scope": "form",
+          "index": 0,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1669426933010",
+              "trigger_label": "设计单分派",
+              "method": "in",
+              "value": [
+                "总部单",
+                "共同"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1669426933008",
+              "label": "设计指派"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "type": "text",
+                  "method": "in",
+                  "value": [
+                    "总部单",
+                    "共同"
+                  ],
+                  "hasEmpty": false,
+                  "field": "_widget_1669426933010"
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1669426933008"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 1,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1669426933010",
+              "trigger_label": "设计单分派",
+              "method": "in",
+              "value": [
+                "新乡单",
+                "郑州单",
+                "共同",
+                "包装单"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1669426933009",
+              "label": "转新乡、工艺包装"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "field": "_widget_1669426933010",
+                  "type": "text",
+                  "method": "in",
+                  "value": [
+                    "新乡单",
+                    "郑州单",
+                    "共同",
+                    "包装单"
+                  ],
+                  "hasEmpty": false
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1669426933009"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 2,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1726128540953",
+              "trigger_label": "图纸传递途径",
+              "method": "ne",
+              "value": [
+                "图纸数据管理（查图机）"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1584324748140",
+              "label": "是否解密"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "field": "_widget_1726128540953",
+                  "type": "text",
+                  "method": "ne",
+                  "value": [
+                    "图纸数据管理（查图机）"
+                  ]
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1584324748140"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 3,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1726128540953",
+              "trigger_label": "图纸传递途径",
+              "method": "in",
+              "value": [
+                "打印纸质图"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1750032665998",
+              "label": "打印纸质图提醒："
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "field": "_widget_1726128540953",
+                  "type": "text",
+                  "method": "in",
+                  "value": [
+                    "打印纸质图"
+                  ],
+                  "hasEmpty": false
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1750032665998"
+            ]
+          }
+        }
+      ],
+      "subformFieldShowRules": [],
+      "widgetsMap_option_visibility": [],
+      "counts": {
+        "required_fields": 15,
+        "fieldShowRules": 4,
+        "subformFieldShowRules": 0,
+        "widgetsMap_option_visibility": 0,
+        "label_map": 41
+      }
+    },
+    "install_notice": {
+      "source": {
+        "app_id": "5e6c73fefc53170006bd4e9c",
+        "entry_id": "5e6edc5b44b7070006d191cb",
+        "name": "安装图设计通知",
+        "note": "来自简道云 POST /_/admin/app/.../form/.../edit 原始配置；wrapper GET /api/form/.../fields 仅返回格式化 fields，会丢掉 fieldShowRules/allowBlank 细节",
+        "wrapper_raw_endpoint": null,
+        "fetched_via": "wrapper http://192.168.0.6:8015/api/token + 直连 jiandaoyun edit",
+        "raw_file": "_jdy_install_drawing_notice_edit_raw.json"
+      },
+      "required_fields": [
+        {
+          "widget": "_widget_1723596746484",
+          "label": "是否为新项目0816",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1723598024203",
+          "label": "项目号选择",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1624943050844",
+          "label": "订货人",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1662702145763",
+          "label": "是否小萌方案",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1624352911105",
+          "label": "下图类型",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1622075095219",
+          "label": "图纸类型（可多选）",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1584323676350",
+          "label": "是否解密",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1669604747098",
+          "label": "领图目的",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1662702831365",
+          "label": "*申请事由",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1713252188931",
+          "label": "业务反馈240416",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1713252188933",
+          "label": "落标原因240416",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1624352909418",
+          "label": "出方案图填写明细",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1624434803711",
+          "label": "安装环境和现场条件",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1624434804752",
+          "label": "工艺位置",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1624352910598",
+          "label": "安装位置",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1624352910630",
+          "label": "设备基础图纸",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1624352910614",
+          "label": "安装方式",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1670209699036",
+          "label": "行业*",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1685081858434",
+          "label": "物料名称（可多选）",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1670209699039",
+          "label": "*堆密度（kg/m³)",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1685081858184",
+          "label": "筛孔尺寸mm*",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1670209699040",
+          "label": "*处理量(t/h)",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1670209699041",
+          "label": "*入料粒度",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1670312768934",
+          "label": "*筛分效率是否有要求",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1670209699042",
+          "label": "*粒度分布",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1670209699043",
+          "label": "*筛分效率",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1670209699044",
+          "label": "*水分含量%",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1586759251628",
+          "label": "附件名称",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1668992972400",
+          "label": "设计单分派",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1668992972425",
+          "label": "转新乡、工艺包装",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1584415118691",
+          "label": "设计指派",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1674957454888",
+          "label": "是否上交图纸",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1676007312737",
+          "label": "科室多选",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1676007312736",
+          "label": "下单日期",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1676601972672",
+          "label": "态度分数",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1676601972673",
+          "label": "进度、准确性分数",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1676601972674",
+          "label": "专业技能分数",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1676601353553",
+          "label": "备注",
+          "allowBlank": false
+        }
+      ],
+      "required_fields_detail": [
+        {
+          "widget": "_widget_1723596746484",
+          "label": "是否为新项目0816",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1723598024203",
+          "label": "项目号选择",
+          "allowBlank": false,
+          "type": "combo"
+        },
+        {
+          "widget": "_widget_1624943050844",
+          "label": "订货人",
+          "allowBlank": false,
+          "type": "user"
+        },
+        {
+          "widget": "_widget_1662702145763",
+          "label": "是否小萌方案",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1624352911105",
+          "label": "下图类型",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1622075095219",
+          "label": "图纸类型（可多选）",
+          "allowBlank": false,
+          "type": "checkboxgroup"
+        },
+        {
+          "widget": "_widget_1584323676350",
+          "label": "是否解密",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1669604747098",
+          "label": "领图目的",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1662702831365",
+          "label": "*申请事由",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1713252188931",
+          "label": "业务反馈240416",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1713252188933",
+          "label": "落标原因240416",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1624352909418",
+          "label": "出方案图填写明细",
+          "allowBlank": false,
+          "type": "subform"
+        },
+        {
+          "widget": "_widget_1624434803711",
+          "label": "安装环境和现场条件",
+          "allowBlank": false,
+          "type": "subform"
+        },
+        {
+          "widget": "_widget_1624434804752",
+          "label": "工艺位置",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1624352910598",
+          "label": "安装位置",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1624352910630",
+          "label": "设备基础图纸",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1624352910614",
+          "label": "安装方式",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1670209699036",
+          "label": "行业*",
+          "allowBlank": false,
+          "type": "combo"
+        },
+        {
+          "widget": "_widget_1685081858434",
+          "label": "物料名称（可多选）",
+          "allowBlank": false,
+          "type": "combocheck"
+        },
+        {
+          "widget": "_widget_1670209699039",
+          "label": "*堆密度（kg/m³)",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1685081858184",
+          "label": "筛孔尺寸mm*",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1670209699040",
+          "label": "*处理量(t/h)",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1670209699041",
+          "label": "*入料粒度",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1670312768934",
+          "label": "*筛分效率是否有要求",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1670209699042",
+          "label": "*粒度分布",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1670209699043",
+          "label": "*筛分效率",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1670209699044",
+          "label": "*水分含量%",
+          "allowBlank": false,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1586759251628",
+          "label": "附件名称",
+          "allowBlank": false,
+          "type": "textarea"
+        },
+        {
+          "widget": "_widget_1668992972400",
+          "label": "设计单分派",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1668992972425",
+          "label": "转新乡、工艺包装",
+          "allowBlank": false,
+          "type": "usergroup"
+        },
+        {
+          "widget": "_widget_1584415118691",
+          "label": "设计指派",
+          "allowBlank": false,
+          "type": "usergroup"
+        },
+        {
+          "widget": "_widget_1674957454888",
+          "label": "是否上交图纸",
+          "allowBlank": false,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1676007312737",
+          "label": "科室多选",
+          "allowBlank": false,
+          "type": "deptgroup"
+        },
+        {
+          "widget": "_widget_1676007312736",
+          "label": "下单日期",
+          "allowBlank": false,
+          "type": "datetime"
+        },
+        {
+          "widget": "_widget_1676601972672",
+          "label": "态度分数",
+          "allowBlank": false,
+          "type": "number"
+        },
+        {
+          "widget": "_widget_1676601972673",
+          "label": "进度、准确性分数",
+          "allowBlank": false,
+          "type": "number"
+        },
+        {
+          "widget": "_widget_1676601972674",
+          "label": "专业技能分数",
+          "allowBlank": false,
+          "type": "number"
+        },
+        {
+          "widget": "_widget_1676601353553",
+          "label": "备注",
+          "allowBlank": false,
+          "type": "textarea"
+        }
+      ],
+      "fieldShowRules": [
+        {
+          "scope": "form",
+          "index": 0,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1624352911105",
+              "trigger_label": "下图类型",
+              "method": "in",
+              "value": [
+                "出方案图"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1624352909418",
+              "label": "出方案图填写明细"
+            },
+            {
+              "widget": "_widget_1624434803711",
+              "label": "安装环境和现场条件"
+            },
+            {
+              "widget": "_widget_1624352910598",
+              "label": "安装位置"
+            },
+            {
+              "widget": "_widget_1624352910630",
+              "label": "设备基础图纸"
+            },
+            {
+              "widget": "_widget_1624352910614",
+              "label": "安装方式"
+            },
+            {
+              "widget": "_widget_1624352910323",
+              "label": "出方案图填写明细-物料特性"
+            },
+            {
+              "widget": "_widget_1713252188931",
+              "label": "业务反馈240416"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "field": "_widget_1624352911105",
+                  "type": "text",
+                  "method": "in",
+                  "value": [
+                    "出方案图"
+                  ],
+                  "hasEmpty": false
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1624352909418",
+              "_widget_1624434803711",
+              "_widget_1624352910598",
+              "_widget_1624352910630",
+              "_widget_1624352910614",
+              "_widget_1624352910323",
+              "_widget_1713252188931"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 1,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1624352911105",
+              "trigger_label": "下图类型",
+              "method": "in",
+              "value": [
+                "出方案图",
+                "出测绘图"
+              ],
+              "type": "text",
+              "mode": null
+            },
+            {
+              "trigger_widget": "_widget_1662702145763",
+              "trigger_label": "是否小萌方案",
+              "method": "eq",
+              "value": [
+                "否"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1624352909302",
+              "label": "简述行业、工艺位置、特殊要求（230320沟通不用显示）"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "type": "text",
+                  "method": "in",
+                  "hasEmpty": true,
+                  "value": [
+                    "出方案图",
+                    "出测绘图"
+                  ],
+                  "field": "_widget_1624352911105"
+                },
+                {
+                  "type": "text",
+                  "method": "eq",
+                  "value": [
+                    "否"
+                  ],
+                  "field": "_widget_1662702145763"
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1624352909302"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 2,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1624352911105",
+              "trigger_label": "下图类型",
+              "method": "eq",
+              "value": [
+                "领图"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1624352911405",
+              "label": "图纸领取信息填写"
+            },
+            {
+              "widget": "_widget_1622075095219",
+              "label": "图纸类型（可多选）"
+            },
+            {
+              "widget": "_widget_1584323676350",
+              "label": "是否解密"
+            },
+            {
+              "widget": "_widget_1713252188931",
+              "label": "业务反馈240416"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "field": "_widget_1624352911105",
+                  "type": "text",
+                  "method": "eq",
+                  "value": [
+                    "领图"
+                  ]
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1624352911405",
+              "_widget_1622075095219",
+              "_widget_1584323676350",
+              "_widget_1713252188931"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 3,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1624352911105",
+              "trigger_label": "下图类型",
+              "method": "in",
+              "value": [
+                "出方案图",
+                "出测绘图",
+                "修改方案"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1624352911968",
+              "label": "安装图通知单及设计卡填写信息"
+            },
+            {
+              "widget": "_widget_1624352911499",
+              "label": "要求交图时间"
+            },
+            {
+              "widget": "_widget_1584323676307",
+              "label": "产品型号"
+            },
+            {
+              "widget": "_widget_1624434808736",
+              "label": "行业（停用）"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "type": "text",
+                  "method": "in",
+                  "hasEmpty": false,
+                  "value": [
+                    "出方案图",
+                    "出测绘图",
+                    "修改方案"
+                  ],
+                  "field": "_widget_1624352911105"
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1624352911968",
+              "_widget_1624352911499",
+              "_widget_1584323676307",
+              "_widget_1624434808736"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 4,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1624352911105",
+              "trigger_label": "下图类型",
+              "method": "in",
+              "value": [
+                "领图",
+                "出测绘图"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1670207254643",
+              "label": "非出方案图填写明细-物料特性"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "type": "text",
+                  "method": "in",
+                  "value": [
+                    "领图",
+                    "出测绘图"
+                  ],
+                  "hasEmpty": false,
+                  "field": "_widget_1624352911105"
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1670207254643"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 5,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1626156149395",
+              "trigger_label": "是否有合同号(22/11/28取消）",
+              "method": "eq",
+              "value": [
+                "有"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1584323676205",
+              "label": "合同号(22/11/28取消）"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "type": "text",
+                  "method": "eq",
+                  "value": [
+                    "有"
+                  ],
+                  "field": "_widget_1626156149395"
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1584323676205"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 6,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1662702145763",
+              "trigger_label": "是否小萌方案",
+              "method": "in",
+              "value": [
+                "否"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1586759251628",
+              "label": "附件名称"
+            },
+            {
+              "widget": "_widget_1624352911480",
+              "label": "前期沟通设计人员"
+            },
+            {
+              "widget": "_widget_1584323676275",
+              "label": "申请事由/修改事项"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "type": "text",
+                  "method": "in",
+                  "hasEmpty": true,
+                  "value": [
+                    "否"
+                  ],
+                  "field": "_widget_1662702145763"
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1586759251628",
+              "_widget_1624352911480",
+              "_widget_1584323676275"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 7,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1662702145763",
+              "trigger_label": "是否小萌方案",
+              "method": "eq",
+              "value": [
+                "是"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1662702831365",
+              "label": "*申请事由"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "type": "text",
+                  "method": "eq",
+                  "value": [
+                    "是"
+                  ],
+                  "field": "_widget_1662702145763"
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1662702831365"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 8,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1668992972400",
+              "trigger_label": "设计单分派",
+              "method": "in",
+              "value": [
+                "新乡单",
+                "郑州单",
+                "共同",
+                "包装单"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1668992972425",
+              "label": "转新乡、工艺包装"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "field": "_widget_1668992972400",
+                  "type": "text",
+                  "method": "in",
+                  "value": [
+                    "新乡单",
+                    "郑州单",
+                    "共同",
+                    "包装单"
+                  ],
+                  "hasEmpty": false
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1668992972425"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 9,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1668992972400",
+              "trigger_label": "设计单分派",
+              "method": "in",
+              "value": [
+                "总部单",
+                "共同"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1584415118691",
+              "label": "设计指派"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "type": "text",
+                  "method": "in",
+                  "value": [
+                    "总部单",
+                    "共同"
+                  ],
+                  "hasEmpty": false,
+                  "field": "_widget_1668992972400"
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1584415118691"
+            ]
+          }
+        },
+        {
+          "scope": "form",
+          "index": 10,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1713252188931",
+              "trigger_label": "业务反馈240416",
+              "method": "eq",
+              "value": [
+                "落标"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1713252188933",
+              "label": "落标原因240416"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "field": "_widget_1713252188931",
+                  "type": "text",
+                  "method": "eq",
+                  "value": [
+                    "落标"
+                  ]
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1713252188933"
+            ]
+          }
+        }
+      ],
+      "subformFieldShowRules": [
+        {
+          "scope": "subform",
+          "subform_widget": "_widget_1624352910323",
+          "subform_label": "出方案图填写明细-物料特性",
+          "index": 0,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1624434806187",
+              "trigger_label": "筛分效率是否有要求",
+              "method": "eq",
+              "value": [
+                "是"
+              ]
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1624434805419",
+              "label": "水分含量%"
+            },
+            {
+              "widget": "_widget_1625038769012",
+              "label": "筛分效率"
+            },
+            {
+              "widget": "_widget_1624352910389",
+              "label": "粒度分布"
+            },
+            {
+              "widget": "_widget_1670209699042",
+              "label": "*粒度分布"
+            },
+            {
+              "widget": "_widget_1670209699043",
+              "label": "*筛分效率"
+            },
+            {
+              "widget": "_widget_1670209699044",
+              "label": "*水分含量%"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "type": "text",
+                  "method": "eq",
+                  "value": [
+                    "是"
+                  ],
+                  "field": "_widget_1624434806187",
+                  "entryId": "_widget_1624352910323"
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1624434805419",
+              "_widget_1625038769012",
+              "_widget_1624352910389",
+              "_widget_1670209699042",
+              "_widget_1670209699043",
+              "_widget_1670209699044"
+            ]
+          }
+        },
+        {
+          "scope": "subform",
+          "subform_widget": "_widget_1670207254643",
+          "subform_label": "非出方案图填写明细-物料特性",
+          "index": 0,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1670207254651",
+              "trigger_label": "筛分效率是否有要求",
+              "method": "eq",
+              "value": [
+                "是"
+              ]
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1670207254654",
+              "label": "水分含量%"
+            },
+            {
+              "widget": "_widget_1670207254653",
+              "label": "筛分效率"
+            },
+            {
+              "widget": "_widget_1670207254655",
+              "label": "粒度组成"
+            },
+            {
+              "widget": "_widget_1670207254652",
+              "label": "粒度分布"
+            }
+          ],
+          "raw": {
+            "filter": {
+              "cond": [
+                {
+                  "type": "text",
+                  "method": "eq",
+                  "value": [
+                    "是"
+                  ],
+                  "field": "_widget_1670207254651",
+                  "entryId": "_widget_1624352910323"
+                }
+              ],
+              "rel": "and"
+            },
+            "fields": [
+              "_widget_1670207254654",
+              "_widget_1670207254653",
+              "_widget_1670207254655",
+              "_widget_1670207254652"
+            ]
+          }
+        }
+      ],
+      "widgetsMap_option_visibility": [],
+      "counts": {
+        "required_fields": 38,
+        "fieldShowRules": 11,
+        "subformFieldShowRules": 2,
+        "widgetsMap_option_visibility": 0,
+        "label_map": 125
+      }
+    }
+  },
+  "errors": []
+}

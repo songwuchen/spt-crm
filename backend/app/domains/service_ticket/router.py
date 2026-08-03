@@ -431,6 +431,7 @@ async def sla_stats(
     open_tickets = (await db.execute(
         select(func.count(ServiceTicket.id)).where(
             ServiceTicket.tenant_id == tenant_id, *scope_where,
+            ServiceTicket.is_deleted == False,  # noqa: E712
             ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
         )
     )).scalar() or 0
@@ -438,6 +439,7 @@ async def sla_stats(
     resolved_tickets = (await db.execute(
         select(func.count(ServiceTicket.id)).where(
             ServiceTicket.tenant_id == tenant_id, *scope_where,
+            ServiceTicket.is_deleted == False,  # noqa: E712
             ServiceTicket.status.in_(["resolved", "closed"]),
         )
     )).scalar() or 0
@@ -450,6 +452,7 @@ async def sla_stats(
     open_items = (await db.execute(
         select(ServiceTicket).where(
             ServiceTicket.tenant_id == tenant_id, *scope_where,
+            ServiceTicket.is_deleted == False,  # noqa: E712
             ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
         )
     )).scalars().all()
@@ -468,6 +471,7 @@ async def sla_stats(
     priority_rows = (await db.execute(
         select(ServiceTicket.priority, func.count(ServiceTicket.id).label("count")).where(
             ServiceTicket.tenant_id == tenant_id, *scope_where,
+            ServiceTicket.is_deleted == False,  # noqa: E712
             ServiceTicket.status.in_(["open", "assigned", "in_progress"]),
         ).group_by(ServiceTicket.priority)
     )).all()
@@ -502,6 +506,7 @@ async def knowledge_search(
 
     q = select(ServiceTicket).where(
         ServiceTicket.tenant_id == tenant_id,
+        ServiceTicket.is_deleted == False,  # noqa: E712
         ServiceTicket.status.in_(["resolved", "closed"]),
         ServiceTicket.resolution != None,
         or_(

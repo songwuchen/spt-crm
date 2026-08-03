@@ -44,10 +44,10 @@ const FormModulePage = lazy(() => import('@/pages/drawing/FormModulePage'))
 const FormModuleFillPage = lazy(() => import('@/pages/drawing/FormModuleFillPage'))
 const WorkflowList = lazy(() => import('@/pages/lowcode/WorkflowList'))
 const WorkflowDesignerPage = lazy(() => import('@/pages/lowcode/WorkflowCanvasPage'))
-/** 桌面端审批入口已统一到 /approvals；旧路径保留重定向以免书签失效 */
+/** 桌面端审批入口已统一到 /approvals；旧路径保留重定向（含 query/state）以免书签失效 */
 function RedirectLowcodeApprovals() {
   const loc = useLocation()
-  return <Navigate to="/approvals" replace state={loc.state} />
+  return <Navigate to={`/approvals${loc.search || ''}`} replace state={loc.state} />
 }
 const LcDashboardList = lazy(() => import('@/pages/lowcode/DashboardList'))
 const LcDashboardPage = lazy(() => import('@/pages/lowcode/DashboardPage'))

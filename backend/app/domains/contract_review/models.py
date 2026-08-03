@@ -44,6 +44,8 @@ class ContractReview(TenantScopedBase):
     payment_term: Mapped[str | None] = mapped_column(String(200))
 
     review_json: Mapped[dict | None] = mapped_column(JSON)
+    # 扩展平台「自定义字段 → 合同评审」：值存于此，与原生列 / review_json 分离
+    custom_fields_json: Mapped[dict | None] = mapped_column(JSON)
 
     created_by_id: Mapped[str | None] = mapped_column(String(36))
     created_by_name: Mapped[str | None] = mapped_column(String(100))

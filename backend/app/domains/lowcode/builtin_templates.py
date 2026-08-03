@@ -198,6 +198,7 @@ def _apply_drawing_jdy_fields() -> None:
             defs.append(clean)
         t["field_definitions"] = defs
         t["name"] = pack.get("name") or t["name"]
+        t["rule_definitions"] = pack.get("rule_definitions") or []
 
 
 _apply_drawing_jdy_fields()

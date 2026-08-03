@@ -58,6 +58,7 @@ export default function FormModuleFillPage({
       templateId={templateId}
       returnTo={listPath}
       pageTitle={`新增 · ${title}`}
+      templateCode={templateCode}
     />
   )
 }

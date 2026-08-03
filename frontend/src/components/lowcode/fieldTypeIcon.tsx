@@ -10,6 +10,7 @@ import {
   TableOutlined, FunctionOutlined, FieldNumberOutlined, LinkOutlined,
   EnvironmentOutlined, AimOutlined, HighlightOutlined, FileTextOutlined,
   DatabaseOutlined, DeploymentUnitOutlined, BlockOutlined, BorderOuterOutlined,
+  MinusOutlined,
 } from '@ant-design/icons'
 import type { FieldType } from '@/types/lowcode'
 
@@ -53,6 +54,8 @@ export const FIELD_TYPE_ICON: Record<FieldType, IconComp> = {
   related_doc: LinkOutlined,
   select_data: DatabaseOutlined,
   relation: DeploymentUnitOutlined,
+  section: MinusOutlined,
+  separator: MinusOutlined,
 }
 
 // 搜索/筛选 schema(api/searchSchema.ts)用的是另一套更窄的类型名,在此归一到 FieldType,
@@ -87,6 +90,7 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   // 缺了就会在画布和属性面板显示 sub_table_data 这种英文原名。
   related_doc: '关联文档', location: '定位', select_data: '数据联动',
   relation: '关联记录', sub_table_data: '子表数据',
+  section: '分区标题', separator: '分隔线',
 }
 
 /**

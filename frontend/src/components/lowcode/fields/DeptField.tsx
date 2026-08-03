@@ -32,6 +32,12 @@ async function loadTree(): Promise<DeptCache> {
   return inflight
 }
 
+/** 列表/导出用：部门 id → 名称 */
+export async function getDeptNameMap(): Promise<Record<string, string>> {
+  const c = await loadTree()
+  return { ...(c.names || {}) }
+}
+
 export default function DeptField({
   value, onChange, multi, readonly, placeholder,
 }: {

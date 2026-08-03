@@ -368,7 +368,7 @@ async def _create_todo_for_task(db: AsyncSession, tenant_id: str, flow: Approval
         content = f"{flow.submitted_by_name or ''} 提交了审批，请尽快处理。"
         res = await dispatch_todo(
             db, tenant_id, task.assignee_id, title, content,
-            link="/approvals", mobile_link=f"/m/approvals/{flow.id}",
+            link=f"/approvals?flow={flow.id}", mobile_link=f"/m/approvals/{flow.id}",
         )
         todo_id = res.get("todo_id")
         if todo_id:
@@ -966,10 +966,10 @@ async def delegate_task(db: AsyncSession, tenant_id: str, task_id: str, target_u
 
 
 async def resubmit_approval(db: AsyncSession, tenant_id: str, flow_id: str, data, user: dict) -> ApprovalFlow:
-    """Resubmit a rejected approval flow, creating a new flow linked to the original."""
+    """Resubmit a rejected/withdrawn approval flow, creating a new flow linked to the original."""
     original = await get_flow(db, tenant_id, flow_id)
-    if original.status != "rejected":
-        raise BusinessException(code=BUSINESS_ERROR, message="只能重新提交已驳回的审批流")
+    if original.status not in ("rejected", "withdrawn"):
+        raise BusinessException(code=BUSINESS_ERROR, message="只能重新提交已驳回或已撤回的审批流")
     if original.submitted_by_id != user["sub"]:
         raise BusinessException(code=BUSINESS_ERROR, message="只有原发起人可以重新提交")
 
@@ -1216,23 +1216,43 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
 
         elif biz_type == "contract_review":
             from app.domains.contract_review.models import ContractReview
+            from app.domains.contract_review.service import _hydrate_display_names
             rv = (await db.execute(
                 select(ContractReview).where(ContractReview.id == biz_id, ContractReview.tenant_id == tenant_id)
             )).scalar_one_or_none()
             if rv:
-                detail["review_code"] = rv.review_code
-                detail["review_type"] = rv.review_type
-                detail["company_name"] = rv.company_name
-                detail["project_title"] = rv.project_title
-                detail["owner_name"] = rv.owner_name
-                detail["department_name"] = rv.department_name
-                detail["is_export"] = rv.is_export
-                detail["need_install"] = rv.need_install
-                detail["contract_amount"] = (
-                    f"¥{float(rv.contract_amount):,.2f}" if rv.contract_amount is not None else "-"
+                await _hydrate_display_names(db, tenant_id, [rv])
+
+                def _put(label: str, val) -> None:
+                    if val is None:
+                        return
+                    s = str(val).strip() if not isinstance(val, (int, float)) else str(val)
+                    if s == "" or s == "None":
+                        return
+                    detail[label] = s if not isinstance(val, (int, float)) else val
+
+                status_labels = {
+                    "draft": "草稿", "submitted": "已提交",
+                    "approved": "已通过", "rejected": "已驳回",
+                }
+                _put("评审编号", rv.review_code)
+                _put("评审类型", rv.review_type)
+                _put("公司名称", rv.company_name)
+                _put("项目名称", rv.project_title)
+                _put("业务员", rv.owner_name)
+                _put("业务部门", rv.department_name)
+                _put("区域经理", rv.region_manager_name)
+                _put("是否出口合同", rv.is_export)
+                _put("是否核价", rv.need_pricing)
+                _put("是否需要安装", rv.need_install)
+                _put("客户类型", rv.customer_type)
+                _put("电控装置", rv.elec_ctrl)
+                _put(
+                    "合同价格",
+                    f"¥{float(rv.contract_amount):,.2f}" if rv.contract_amount is not None else None,
                 )
-                detail["payment_term"] = rv.payment_term
-                detail["status"] = rv.status
+                _put("账期", rv.payment_term)
+                _put("状态", status_labels.get(rv.status or "", rv.status))
         elif biz_type == "change_request":
             from app.domains.change.models import ChangeRequest
             cr = (await db.execute(

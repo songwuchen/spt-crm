@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button, Tag, Select, Input, Space, Spin, Descriptions, Modal, Form, Rate, Table, message } from 'antd'
+import { DeleteOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { serviceTicketApi } from '@/api/serviceTicket'
 import { orderApi } from '@/api/order'
@@ -17,6 +18,8 @@ import SubscribeButton from '@/components/SubscribeButton'
 import SlaCountdown from '@/components/SlaCountdown'
 import InternalNotes from '@/components/InternalNotes'
 import DataView from '@/components/DataView'
+import { usePermission } from '@/hooks/usePermission'
+import { t } from '@/locales'
 
 import Icon from '@/components/Icon'
 const { TextArea } = Input
@@ -32,6 +35,8 @@ export default function ServiceTicketDetail() {
   usePageTitle('工单详情')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { hasPermission } = usePermission()
+  const canDelete = hasPermission('service:delete')
   const [ticket, setTicket] = useState<ServiceTicketItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [activities, setActivities] = useState<ActivityItem[]>([])
@@ -185,6 +190,24 @@ export default function ServiceTicketDetail() {
           )}
           <Button onClick={openAssignModal}>分配</Button>
           <Button onClick={openEditModal}>编辑</Button>
+          {canDelete && (
+            <Button danger icon={<DeleteOutlined />} onClick={() => {
+              Modal.confirm({
+                title: t('common.confirmDelete'),
+                content: t('service.deleteConfirm', { name: ticket.ticket_no }),
+                okType: 'danger',
+                onOk: async () => {
+                  try {
+                    await serviceTicketApi.delete(id!)
+                    message.success(t('service.ticketDeleted'))
+                    navigate('/service-tickets')
+                  } catch {
+                    message.error('删除失败')
+                  }
+                },
+              })
+            }}>删除</Button>
+          )}
           <SubscribeButton bizType="service_ticket" bizId={id!} bizName={ticket.ticket_no} />
           <Button onClick={() => navigate('/service-tickets')}>返回列表</Button>
         </Space>

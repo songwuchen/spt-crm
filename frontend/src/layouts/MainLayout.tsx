@@ -42,6 +42,7 @@ const breadcrumbNameMap: Record<string, string> = {
   '/analytics': '数据分析',
   '/ai-center': 'AI 中心',
   '/approvals': '审批中心',
+  '/notifications': '通知中心',
   '/profile': '个人设置',
   '/admin/departments': '部门管理',
   '/admin/users': '用户管理',

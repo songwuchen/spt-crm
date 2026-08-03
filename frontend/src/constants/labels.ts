@@ -24,7 +24,12 @@ export const taskStatusColorsApproval: Record<string, string> = {
 }
 export const approvalBizTypeLabels: Record<string, string> = {
   quote_version: '报价审批', contract_version: '合同审批', change_request: '变更审批', solution: '方案审批',
-  lead: '线索审核',
+  lead: '线索审核', contract_review: '合同评审',
+  // 表单绑定流（无 biz_type 时前端用 process_name 兜底，此处做短标签）
+  drawing_requisition: '图纸领用',
+  install_drawing_notice: '安装图通知',
+  '合同图纸（资料）领用申请': '图纸领用',
+  '安装图设计通知': '安装图通知',
 }
 
 // --- Service Ticket ---

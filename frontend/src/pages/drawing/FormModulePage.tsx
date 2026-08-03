@@ -59,6 +59,7 @@ export default function FormModulePage({
       templateId={templateId}
       moduleTitle={title}
       fillPath={`${basePath.replace(/\/$/, '')}/fill`}
+      templateCode={templateCode}
     />
   )
 }

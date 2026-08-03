@@ -10,6 +10,8 @@ import { currentZone } from '@/config/zone'
 /**
  * Resolve the in-app target route for a notification. Returns null when the
  * biz_type has no dedicated detail page (caller then just marks it read).
+ *
+ * 审批类：桌面端带查询参数，审批中心据此打开对应抽屉/详情（不再只落到空列表）。
  */
 export function notificationTarget(bizType?: string, bizId?: string): string | null {
   const mobile = currentZone() === 'mobile'
@@ -17,13 +19,13 @@ export function notificationTarget(bizType?: string, bizId?: string): string | n
   switch (bizType) {
     case 'approval_flow':
     case 'approval':
-      // 移动端有按流程的详情页；Web 端用审批中心列表
-      return mobile ? (bizId ? `/m/approvals/${bizId}` : '/m/approvals') : '/approvals'
+      // 旧引擎：移动端有按流程的详情页；Web 端用 ?flow= 打开审批详情
+      if (mobile) return bizId ? `/m/approvals/${bizId}` : '/m/approvals'
+      return bizId ? `/approvals?flow=${encodeURIComponent(bizId)}` : '/approvals'
     case 'wf_instance':
-      // 桌面端已统一到 /approvals；移动端仍走 lowcode 详情深链
-      return mobile
-        ? (bizId ? `/m/lowcode/approvals/${bizId}` : '/m/lowcode/approvals')
-        : '/approvals'
+      // 新工作流：移动端进 lowcode 详情；桌面端 ?wf= 打开流程抽屉
+      if (mobile) return bizId ? `/m/lowcode/approvals/${bizId}` : '/m/lowcode/approvals'
+      return bizId ? `/approvals?wf=${encodeURIComponent(bizId)}` : '/approvals'
     case 'lead':
       return bizId ? `${p}/leads/${bizId}` : `${p}/leads`
     case 'service_ticket':
@@ -33,8 +35,18 @@ export function notificationTarget(bizType?: string, bizId?: string): string | n
     case 'contract':
       // 移动端无合同详情路由，回退到合同列表
       return mobile ? '/m/contracts' : (bizId ? `/opportunities/contracts/${bizId}` : null)
+    case 'contract_review':
+      return bizId ? `${p}/contract-reviews/${bizId}` : `${p}/contract-reviews`
+    case 'contract_version':
+      // 通知若带的是版本 id（非流程实例），无法稳定拼合同 URL，回审批中心
+      return mobile ? '/m/approvals' : '/approvals'
     case 'customer':
       return bizId ? `${p}/customers/${bizId}` : null
+    case 'quote_version':
+    case 'change_request':
+    case 'solution':
+    case 'order':
+      return mobile ? '/m/approvals' : '/approvals'
     default:
       return null
   }

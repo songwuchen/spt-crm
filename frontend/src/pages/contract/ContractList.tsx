@@ -13,6 +13,7 @@ import { formatChangeType } from '@/constants/contractRegistration'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import { useListView } from '@/hooks/useListView'
+import { useCustomerSelect } from '@/hooks/useSelectOptions'
 import ListToolbar from '@/components/list/ListToolbar'
 import { fmtMoney } from '@/utils/mask'
 import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
@@ -49,6 +50,7 @@ export default function ContractList() {
   const [pendingAtts, setPendingAtts] = useState<PendingAttachments>({})
   const [projOpts, setProjOpts] = useState<{ label: string; value: string }[]>([])
   const [projLoading, setProjLoading] = useState(false)
+  const customerSelect = useCustomerSelect()
   const searchProjects = async (kw?: string) => {
     setProjLoading(true)
     try {
@@ -56,7 +58,25 @@ export default function ContractList() {
       setProjOpts((r.data.items || []).map((p) => ({ label: `${p.name}（${p.project_code}）`, value: p.id })))
     } catch { /* ignore */ } finally { setProjLoading(false) }
   }
-  /** 对齐简道云选关联后带出：商机 → 客户编号/业务人员/部门/项目名称 */
+  /** 选客户后回填客户编号 / 部门 / 业务员（对齐客户管理主数据） */
+  const fillFromCustomer = async (customerId?: string) => {
+    if (!customerId) return
+    try {
+      const c = (await customerApi.get(customerId)).data
+      if (!c) return
+      const reg = { ...(createForm.getFieldValue('registration_json') || {}) } as Record<string, unknown>
+      if (c.customer_code) reg.customer_code = c.customer_code
+      const patch: Record<string, unknown> = { registration_json: reg }
+      if (c.department_id) patch.department_id = c.department_id
+      if (c.department_name) patch.department_name = c.department_name
+      if (c.owner_id) {
+        patch.assignee_id = c.owner_id
+        if (c.owner_name) patch.assignee_name = c.owner_name
+      }
+      createForm.setFieldsValue(patch)
+    } catch { /* ignore */ }
+  }
+  /** 对齐简道云选关联后带出：商机 → 客户/客户编号/业务人员/部门/项目名称 */
   const fillFromProject = async (projectId: string) => {
     if (!projectId) return
     try {
@@ -71,8 +91,10 @@ export default function ContractList() {
         ...(p.owner_name ? { assignee_name: p.owner_name } : {}),
       }
       if (p.customer_id) {
+        patch.customer_id = p.customer_id
         try {
           const c = (await customerApi.get(p.customer_id)).data
+          if (c?.name) customerSelect.setInitialOption({ label: c.name, value: p.customer_id })
           if (c?.customer_code) reg.customer_code = c.customer_code
           if (c?.department_id) patch.department_id = c.department_id
           if (c?.department_name) patch.department_name = c.department_name
@@ -148,6 +170,7 @@ export default function ContractList() {
         ...(v.assignee_name ? { assignee_name: v.assignee_name } : {}),
         ...(v.department_id ? { department_id: v.department_id } : {}),
         ...(v.department_name ? { department_name: v.department_name } : {}),
+        ...(v.customer_id ? { customer_id: v.customer_id } : {}),
         registration_json: Object.keys(regRaw).length ? regRaw : undefined,
         ...(lines.length ? { key_clauses_json: lines } : {}),
         ...(pays.length ? { payment_terms_json: pays } : {}),
@@ -270,6 +293,17 @@ export default function ContractList() {
               options={projOpts} loading={projLoading} onSearch={searchProjects}
               onChange={(id) => { if (id) void fillFromProject(id) }}
               onDropdownVisibleChange={(o) => { if (o && projOpts.length === 0) searchProjects() }} />
+          </Form.Item>
+          <Form.Item name="customer_id" label="关联客户">
+            <Select
+              allowClear showSearch filterOption={false}
+              placeholder="搜索客户管理中的客户"
+              options={customerSelect.options}
+              loading={customerSelect.loading}
+              onSearch={customerSelect.onSearch}
+              onDropdownVisibleChange={customerSelect.onDropdownVisibleChange}
+              onChange={(id) => { void fillFromCustomer(id) }}
+            />
           </Form.Item>
           <Form.Item name="title" label="合同标题"><Input placeholder="如：设备采购合同（默认 V1）" /></Form.Item>
           <ContractRegistrationFields

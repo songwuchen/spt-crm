@@ -169,6 +169,10 @@ def _entity_model(entity_type: str):
     from app.domains.service_ticket.models import ServiceTicket
     from app.domains.contract.models import Contract
     try:
+        from app.domains.contract_review.models import ContractReview
+    except Exception:  # pragma: no cover
+        ContractReview = None
+    try:
         from app.domains.quote.models import Quote
     except Exception:  # pragma: no cover
         Quote = None
@@ -180,6 +184,7 @@ def _entity_model(entity_type: str):
         "customer": Customer, "contact": Contact, "lead": Lead,
         "project": OpportunityProject, "order": Order,
         "service_ticket": ServiceTicket, "contract": Contract,
+        "contract_review": ContractReview,
         "quote": Quote, "payment": PaymentRecord,
     }
     m = mapping.get(entity_type)
@@ -192,7 +197,7 @@ def _entity_model(entity_type: str):
 #: 拥有 custom_fields_json 扩展字段、需在高级搜索中合并自定义字段的资源
 ENTITY_RESOURCES = {
     "customer", "lead", "project", "contact", "order",
-    "service_ticket", "contract", "quote", "payment",
+    "service_ticket", "contract", "contract_review", "quote", "payment",
 }
 
 

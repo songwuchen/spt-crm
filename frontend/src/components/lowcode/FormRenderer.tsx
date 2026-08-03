@@ -19,6 +19,7 @@ import AddressField from './fields/AddressField'
 import CascadeField, { type CascadeOption } from './fields/CascadeField'
 import RichTextField from './fields/RichTextField'
 import SignatureField from './fields/SignatureField'
+import ContractSectionTitle from '@/components/ContractSectionTitle'
 
 const { TextArea } = Input
 const { Text } = Typography
@@ -106,10 +107,17 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
   return (
     <Row gutter={16}>
       {topFields.map((field) => {
+        if (field.type === 'section' || field.type === 'separator') {
+          return (
+            <Col span={24} key={field.id}>
+              <ContractSectionTitle title={field.label} className="mt-2 mb-1" />
+            </Col>
+          )
+        }
         const st = states[field.id]
         if (st && !st.visible) return null
-        const span = field.span || 24
-        // antd 24 栅格
+        // detail_table 强制整行，避免明细列被挤扁
+        const span = field.type === 'detail_table' ? 24 : (field.span || 24)
         return (
           <Col span={span} key={field.id}>
             <FieldItem
@@ -342,6 +350,7 @@ function DetailTable({
       title: (<span>{c.required && <span style={{ color: '#ff4d4f' }}>*</span>}{c.label}</span>),
       dataIndex: c.id,
       key: c.id,
+      minWidth: 140,
       render: (_: unknown, _row: Record<string, unknown>, idx: number) => (
         <FieldWidget
           field={c} readonly={readonly}
@@ -363,6 +372,7 @@ function DetailTable({
       <Table
         size="small" rowKey={(_, i) => String(i)} pagination={false}
         dataSource={rows} columns={columns as never}
+        scroll={{ x: 'max-content' }}
         locale={{ emptyText: '暂无明细' }}
       />
       {!readonly && (
@@ -383,6 +393,7 @@ export function validateRequired(
   const empty = (v: unknown) => v == null || v === '' || (Array.isArray(v) && v.length === 0)
   for (const f of fields) {
     if (f.type === 'formula' || f.type === 'auto_number') continue
+    if (f.type === 'section' || f.type === 'separator') continue
     const st = states[f.id]
     if (st && !st.visible) continue
     // 脱敏字段跳过必填：看不到明文就无法填写，脱敏+必填会让记录永远存不下去

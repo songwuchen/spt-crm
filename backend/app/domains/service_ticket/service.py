@@ -34,8 +34,12 @@ async def list_tickets(
     current_user: dict | None = None,
     adv_filter: str | None = None, sort_by: str | None = None, sort_order: str | None = None,
 ):
-    q = select(ServiceTicket).where(ServiceTicket.tenant_id == tenant_id)
-    count_q = select(func.count(ServiceTicket.id)).where(ServiceTicket.tenant_id == tenant_id)
+    q = select(ServiceTicket).where(
+        ServiceTicket.tenant_id == tenant_id, ServiceTicket.is_deleted == False,  # noqa: E712
+    )
+    count_q = select(func.count(ServiceTicket.id)).where(
+        ServiceTicket.tenant_id == tenant_id, ServiceTicket.is_deleted == False,  # noqa: E712
+    )
 
     # 数据范围：工单此前只按 tenant 过滤，current_user 只喂给高级筛选没参与鉴权，
     # 于是每个销售都能翻到全公司工单的故障描述/客户名/满意度评价
@@ -94,7 +98,11 @@ async def get_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, user: dic
     user=None 表示系统内部调用（审批引擎、SLA 提醒 worker 等），不做范围校验。
     """
     t = (await db.execute(
-        select(ServiceTicket).where(ServiceTicket.id == ticket_id, ServiceTicket.tenant_id == tenant_id)
+        select(ServiceTicket).where(
+            ServiceTicket.id == ticket_id,
+            ServiceTicket.tenant_id == tenant_id,
+            ServiceTicket.is_deleted == False,  # noqa: E712
+        )
     )).scalar_one_or_none()
     if not t:
         raise BusinessException(code=NOT_FOUND, message="工单不存在")
@@ -106,6 +114,7 @@ async def get_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, user: dic
                 select(ServiceTicket.id).where(
                     ServiceTicket.id == ticket_id,
                     ServiceTicket.tenant_id == tenant_id,
+                    ServiceTicket.is_deleted == False,  # noqa: E712
                     clause,
                 ).limit(1)
             )).scalar_one_or_none()
@@ -226,11 +235,12 @@ async def update_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, data: 
 
 async def delete_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, user: dict):
     ticket = await get_ticket(db, tenant_id, ticket_id, user)
-    await db.delete(ticket)
+    ticket_no = ticket.ticket_no
+    ticket.is_deleted = True
     await db.commit()
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="delete", resource_type="service_ticket", resource_id=ticket_id,
-                     summary=f"删除售后工单: {ticket.ticket_no}")
+                     summary=f"删除售后工单: {ticket_no}")
 
 
 # ==================== RenewalOpportunity ====================

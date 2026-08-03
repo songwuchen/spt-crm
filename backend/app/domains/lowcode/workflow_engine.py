@@ -182,6 +182,21 @@ class WorkflowEngine:
     def _outgoing(self, version: WfProcessDefinitionVersion, node_id: str) -> list[dict]:
         return [r for r in (version.route_definitions or []) if r.get("source") == node_id]
 
+    async def _has_live_work(self, inst: WfProcessInstance) -> bool:
+        """是否仍有未办结的审批节点或待办（旁路抄送触达 end 时用来判断能否收尾）。"""
+        other_running = (await self.db.execute(select(WfNodeInstance.id).where(
+            WfNodeInstance.process_instance_id == inst.id,
+            WfNodeInstance.status == "running",
+            WfNodeInstance.node_type == "approval",
+        ).limit(1))).scalar_one_or_none()
+        if other_running:
+            return True
+        live_task = (await self.db.execute(select(WfTaskInstance.id).where(
+            WfTaskInstance.process_instance_id == inst.id,
+            WfTaskInstance.status.in_(["pending", "waiting"]),
+        ).limit(1))).scalar_one_or_none()
+        return live_task is not None
+
     def _next_targets(self, version: WfProcessDefinitionVersion, node_id: str, form_data: dict) -> list[str]:
         """按连线条件选下一节点。
 
@@ -247,7 +262,10 @@ class WorkflowEngine:
 
     async def _audit(self, inst: WfProcessInstance, actor: dict, action: str) -> None:
         from app.domains.lowcode import wf_notify
-        labels = {"submit": "提交审批", "approve": "审批通过", "reject": "审批驳回", "withdraw": "撤回审批"}
+        labels = {
+            "submit": "提交审批", "approve": "审批通过", "reject": "审批驳回",
+            "withdraw": "撤回审批", "resubmit": "重新发起",
+        }
         await wf_notify.audit(
             self.db, self.tenant_id, inst, actor, f"wf_{action}",
             f"{labels.get(action, action)}: {inst.title or inst.biz_type or ''}",
@@ -271,6 +289,10 @@ class WorkflowEngine:
                              node: dict, ctx: ApprovalContext) -> None:
         ntype = node.get("type")
         if ntype == "end":
+            # 主链与旁路抄送可能并行：抄送先「到达」end 时，审批节点/待办仍在，
+            # 不能提前 completed（否则会出现表头已通过、图纸领取仍处理中）。
+            if await self._has_live_work(inst):
+                return
             await self._complete_instance(inst, "completed")
             return
         if ntype == "cc":
@@ -690,6 +712,16 @@ class WorkflowEngine:
             t.status = "cancelled"
         # 被作废的待办要一并完结其钉钉待办,否则会一直挂在审批人的钉钉里
         self._queue("todos_done", [t.id for t in tasks])
+        # 关闭仍在 running 的节点，避免流程动态长期显示「处理中」
+        # （超时自动驳回会先把当前节点置 rejected，这里兜底并行闸内其它 running 节点）
+        now = _now()
+        nis = (await self.db.execute(select(WfNodeInstance).where(
+            WfNodeInstance.process_instance_id == inst.id,
+            WfNodeInstance.status == "running",
+        ))).scalars().all()
+        for ni in nis:
+            ni.status = "rejected"
+            ni.completed_at = now
         await self._complete_instance(inst, "rejected", reason=reason)
 
     # ---------- 收尾 / 回写 ----------
@@ -697,6 +729,23 @@ class WorkflowEngine:
     async def _complete_instance(self, inst, status: str, reason: str | None = None) -> None:
         inst.status = status
         inst.completed_at = _now()
+        # 收尾时关掉残留 running 节点 / pending 待办，避免流程动态长期「处理中」
+        now = _now()
+        nis = (await self.db.execute(select(WfNodeInstance).where(
+            WfNodeInstance.process_instance_id == inst.id,
+            WfNodeInstance.status == "running",
+        ))).scalars().all()
+        for ni in nis:
+            ni.status = "cancelled" if status == "completed" else "rejected"
+            ni.completed_at = now
+        tasks = (await self.db.execute(select(WfTaskInstance).where(
+            WfTaskInstance.process_instance_id == inst.id,
+            WfTaskInstance.status.in_(["pending", "waiting"]),
+        ))).scalars().all()
+        for t in tasks:
+            t.status = "cancelled"
+        if tasks:
+            self._queue("todos_done", [t.id for t in tasks])
         await self.db.flush()
         # 回写关联表单实例状态
         if inst.form_instance_id:
@@ -769,12 +818,15 @@ class WorkflowEngine:
         inst.status = "withdrawn"
         inst.completed_at = _now()
         self._log(inst.id, None, None, actor, "withdraw", None)
+        # 表单回到草稿，便于修改后重新发起；业务单据回写到可再提交状态（见 REGISTRY.withdrawn）。
         if inst.form_instance_id:
             fi = await self.db.get(FormInstance, inst.form_instance_id)
             if fi:
-                fi.status = "withdrawn"
+                fi.status = "draft"
+        if inst.biz_type and inst.biz_id:
+            from app.domains.lowcode.wf_biz_writeback import writeback
+            await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, "withdrawn")
         # 被撤回而作废的待办，完结其钉钉待办并通知当前审批人（对齐旧引擎 withdraw_flow）。
-        # 注意：撤回**不**回写业务单据状态——旧引擎同样不回写，此处刻意保持一致。
         self._queue("todos_done", [t.id for t in tasks])
         self._queue("withdrawn", current_assignees, actor, inst)
         from app.domains.lowcode import wf_notify
@@ -782,6 +834,81 @@ class WorkflowEngine:
         await self.db.commit()
         await self.flush_notifications(inst)
         await self._audit(inst, actor, "withdraw")
+
+    async def resubmit(self, process_instance_id: str, actor: dict) -> WfProcessInstance:
+        """已撤回/已驳回流程由发起人重新发起：新建流程实例，挂回同一表单或业务单据。"""
+        inst = (await self.db.execute(
+            select(WfProcessInstance).where(
+                WfProcessInstance.id == process_instance_id,
+                WfProcessInstance.tenant_id == self.tenant_id,
+            )
+        )).scalar_one_or_none()
+        if not inst:
+            raise BusinessException(code=NOT_FOUND, message="流程不存在")
+        if inst.initiator_id != actor.get("sub"):
+            raise BusinessException(code=FORBIDDEN, message="仅发起人可重新发起")
+        if inst.status not in ("withdrawn", "rejected"):
+            raise BusinessException(code=BUSINESS_ERROR, message="仅已撤回或已驳回的流程可重新发起")
+
+        # 防重：同一表单/业务已有进行中流程则直接返回
+        if inst.form_instance_id:
+            existing = (await self.db.execute(select(WfProcessInstance).where(
+                WfProcessInstance.tenant_id == self.tenant_id,
+                WfProcessInstance.form_instance_id == inst.form_instance_id,
+                WfProcessInstance.status == "running",
+            ).limit(1))).scalar_one_or_none()
+            if existing:
+                return existing
+        if inst.biz_type and inst.biz_id:
+            existing = (await self.db.execute(select(WfProcessInstance).where(
+                WfProcessInstance.tenant_id == self.tenant_id,
+                WfProcessInstance.biz_type == inst.biz_type,
+                WfProcessInstance.biz_id == inst.biz_id,
+                WfProcessInstance.status == "running",
+            ).limit(1))).scalar_one_or_none()
+            if existing:
+                return existing
+
+        # 优先用当前已发布版本，保证重新发起吃到最新流程设计
+        version = (await self.db.execute(select(WfProcessDefinitionVersion).where(
+            WfProcessDefinitionVersion.tenant_id == self.tenant_id,
+            WfProcessDefinitionVersion.process_definition_id == inst.process_definition_id,
+            WfProcessDefinitionVersion.status == "published",
+        ).order_by(WfProcessDefinitionVersion.version_number.desc()).limit(1))).scalar_one_or_none()
+        if not version:
+            version = await self.db.get(WfProcessDefinitionVersion, inst.process_version_id)
+        if not version:
+            raise BusinessException(code=BUSINESS_ERROR, message="流程未发布，无法重新发起")
+
+        form_data = await self._form_data(inst)
+        title = inst.title
+        if inst.form_instance_id:
+            fi = await self.db.get(FormInstance, inst.form_instance_id)
+            if fi:
+                fi.status = "submitted"
+                title = (fi.title or "").strip() or title
+                form_data = dict(fi.form_data or {}) or form_data
+        if inst.biz_type and inst.biz_id:
+            from app.domains.lowcode.wf_biz_writeback import writeback
+            await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, "submitted")
+
+        self._log(inst.id, None, None, actor, "resubmit", "重新发起")
+        await self.db.flush()
+
+        new_inst = await self.submit(
+            inst.process_definition_id, version, actor,
+            form_instance_id=inst.form_instance_id,
+            form_data=form_data, title=title,
+            biz_type=inst.biz_type, biz_id=inst.biz_id,
+            nominated=dict(inst.nominated_approvers or {}) or None,
+        )
+        if inst.form_instance_id:
+            fi = await self.db.get(FormInstance, inst.form_instance_id)
+            if fi:
+                fi.status = new_inst.status
+                fi.process_instance_id = new_inst.id
+                await self.db.commit()
+        return new_inst
 
     # ---------- 超时(SLA) ----------
 

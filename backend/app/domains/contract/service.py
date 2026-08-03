@@ -107,9 +107,10 @@ async def get_contract(db: AsyncSession, tenant_id: str, contract_id: str,
 
 async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | None, data: ContractCreate, user: dict) -> dict:
     # 关联商机可选：有则校验可见性；无则允许独立建合同（合同管理列表入口）
+    project = None
     if project_id:
         from app.domains.project.service import get_project
-        await get_project(db, tenant_id, project_id, user)
+        project = await get_project(db, tenant_id, project_id, user)
     # 字段级权限：丢弃用户对不可编辑/隐藏/脱敏扩展字段的写入，并校验必填
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
@@ -137,9 +138,13 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
         db, tenant_id, native.get("contract_no") or data.contract_no,
     )
 
+    # 显式指定优先；未传时从关联商机带出客户，保证列表「客户名称」可补全
+    customer_id = data.customer_id or (getattr(project, "customer_id", None) if project else None)
+
     contract = Contract(
         id=generate_uuid(), tenant_id=tenant_id,
-        project_id=project_id or None, contract_no=contract_no,
+        project_id=project_id or None, customer_id=customer_id,
+        contract_no=contract_no,
         current_version_no=1,
         amount_total=native.get("amount_total", data.amount_total),
         end_date=native.get("end_date", data.end_date),

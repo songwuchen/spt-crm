@@ -11,14 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions, get_data_scope
 from app.common.schemas import ok
 from app.common.exceptions import BusinessException
-from app.common.error_codes import VALIDATION_ERROR, NOT_FOUND
+from app.common.error_codes import VALIDATION_ERROR, NOT_FOUND, FORBIDDEN
 from app.common.export import build_excel, excel_response
 from app.domains.lowcode import schemas, service
 
 router = APIRouter(prefix="/api/v1/lc", tags=["扩展平台-表单引擎"])
 
 # 允许配置扩展字段的既有业务实体
-ENTITY_TYPES = {"customer", "project", "lead", "contact", "service_ticket", "order", "contract", "quote", "payment"}
+ENTITY_TYPES = {
+    "customer", "project", "lead", "contact", "service_ticket", "order",
+    "contract", "contract_review", "quote", "payment",
+}
 
 
 # ==================== 人员/部门选择器(任意登录用户可用) ====================
@@ -467,9 +470,15 @@ async def get_form_instance(
     instance_id: str,
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("form_data:view")),
+    user: dict = Depends(get_current_user),
 ):
-    return ok(await service.get_instance(db, tenant_id, instance_id, user=_user))
+    """查看表单数据。审批相关人可只读旁路（不必有 form_data:view）。"""
+    perms = user.get("permissions") or []
+    if "form_data:view" not in perms:
+        from app.domains.lowcode import workflow_service as wsvc
+        if not await wsvc.can_access_form_via_workflow(db, tenant_id, user.get("sub"), instance_id):
+            raise BusinessException(code=FORBIDDEN, message="缺少权限: form_data:view")
+    return ok(await service.get_instance(db, tenant_id, instance_id, user=user))
 
 
 @router.put("/form-instances/{instance_id}")

@@ -76,7 +76,7 @@ REGISTRY: dict[str, dict[str, Any]] = {
         ],
     },
     "service_ticket": {
-        "label": "售后工单", "table": "service_tickets", "perm": "service:view", "soft_delete": False,
+        "label": "售后工单", "table": "service_tickets", "perm": "service:view", "soft_delete": True,
         "dimensions": [
             {"field": "type", "label": "类型"},
             {"field": "priority", "label": "优先级"},

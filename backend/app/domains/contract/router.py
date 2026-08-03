@@ -250,6 +250,11 @@ async def get_contract(
     perms = current_user.get("permissions", [])
     policies = await load_mask_policies(db, tenant_id)
     contract_dict = apply_field_mask(_contract_dict(contract), "contract", perms, policies)
+    # 详情也补客户名（无商机链或仅挂 customer_id 的合同）
+    if contract.customer_id and not contract_dict.get("customer_name"):
+        from app.common.list_enrich import customer_names_map
+        names = await customer_names_map(db, tenant_id, [contract.customer_id])
+        contract_dict["customer_name"] = names.get(contract.customer_id)
     from app.domains.lowcode.field_permission import strip_entity_dicts
     await strip_entity_dicts(db, tenant_id, "contract", [contract_dict], current_user.get("roles"))
     return ok({

@@ -69,14 +69,28 @@ export default function ContractReviewList() {
         <a className="text-primary font-bold" onClick={() => navigate(`/contract-reviews/${r.id}`)}>{v}</a>
       ),
     },
+    { title: '公司名称', dataIndex: 'company_name', ellipsis: true, width: 200 },
     { title: '类型', dataIndex: 'review_type', width: 100 },
-    { title: '公司名称', dataIndex: 'company_name', ellipsis: true },
-    { title: '项目', dataIndex: 'project_title', ellipsis: true, width: 180 },
+    {
+      title: '是否出口', dataIndex: 'is_export', width: 90,
+      render: (v) => v || '-',
+    },
+    {
+      title: '是否核价', dataIndex: 'need_pricing', width: 100,
+      render: (v) => v || '-',
+    },
     {
       title: '合同价格', dataIndex: 'contract_amount', width: 120,
       render: (v) => money(v),
     },
-    { title: '业务员', dataIndex: 'owner_name', width: 90 },
+    {
+      title: '业务员', dataIndex: 'owner_name', width: 100,
+      render: (v) => v || '-',
+    },
+    {
+      title: '区域经理', dataIndex: 'region_manager_name', width: 100,
+      render: (v) => v || '-',
+    },
     {
       title: '状态', dataIndex: 'status', width: 90,
       render: (v: string) => <Tag color={STATUS_COLOR[v] || 'default'}>{STATUS_LABEL[v] || v}</Tag>,

@@ -1,20 +1,35 @@
-"""Generate CRM builtin fields + flow graphs from pulled JDY drawing dumps."""
+"""Generate CRM builtin fields + flow graphs from pulled JDY drawing dumps.
+
+Also emits rule_definitions from docs/product/_jdy_drawing_forms_linkages.json
+(allowBlank / fieldShowRules / subformFieldShowRules). Do NOT re-pull JDY.
+"""
 from __future__ import annotations
 
 import json
 import re
+from collections import defaultdict
 from pathlib import Path
 
 OUT = Path(r"g:\ruolin-a\spt-crm\docs\product")
 GEN = Path(r"g:\ruolin-a\spt-crm\backend\app\domains\lowcode\_drawing_jdy_generated.py")
+LINKAGES = OUT / "_jdy_drawing_forms_linkages.json"
 
-NOISE_KEYS = (
-    "取消", "停用", "辅助", "已取消", "不用显示", "打印模板", "同一天", "补位",
+# Soft noise: drop unused junk. Overridden when field is required or in show-rules.
+SOFT_NOISE_KEYS = (
+    "辅助", "已取消", "打印模板", "同一天", "补位",
     "count辅助", "240829", "240912", "240416", "0816", "260601", "20230112",
-    "22/11/28", "230320",
 )
+# Always drop even if they appear in show-rules (cancelled / disabled junk).
+HARD_DROP_KEYS = ("取消", "停用", "不用显示", "22/11/28", "230320")
 SYS_IDS = {"creator", "createTime", "updateTime", "appId", "entryId", "_id"}
 SKIP_TYPES = {"separator", "button", "pagebreak", "hint", "flowstate", "sn", "aggregation"}
+# Separator we promote to a text hint field (show-rule target).
+PAPER_TIP_MARKERS = ("打印纸质图提醒",)
+
+FORM_LINKAGE_KEY = {
+    "drawing_requisition": "requisition",
+    "install_drawing_notice": "install_notice",
+}
 
 TITLE_SLUG = {
     "日期时间": "apply_datetime",
@@ -80,6 +95,47 @@ TITLE_SLUG = {
     "备注": "remark",
     "总分": "score_total",
     "打分日期": "score_date",
+    "业务反馈240416": "biz_feedback",
+    "落标原因240416": "lose_bid_reason",
+    "打印纸质图提醒：": "paper_print_tip",
+    "打印纸质图提醒": "paper_print_tip",
+    # detail columns
+    "设备名称": "equipment_name",
+    "设计要求": "design_req",
+    "是否有附件/修改图": "has_attach_or_rev",
+    "图纸数量": "drawing_qty",
+    "是否核价": "need_pricing",
+    "海拔高度（m)": "altitude_m",
+    "环境温度­°C（最高/最低）": "env_temp_c",
+    "大气压力KP": "atm_pressure_kp",
+    "供电电源V": "power_supply_v",
+    "防爆区域": "explosion_zone",
+    "工艺位置": "process_position",
+    "需要修改的设备名称": "change_equipment_name",
+    "修改部位": "change_part",
+    "修改原因": "change_reason",
+    "行业*": "industry_star",
+    "行业": "industry",
+    "物料名称（可多选）": "material_names",
+    "物料名称": "material_name",
+    "*堆密度（kg/m³)": "bulk_density_star",
+    "堆密度（kg/m³)": "bulk_density",
+    "温度­°C": "temp_c",
+    "筛孔尺寸mm*": "mesh_size_star",
+    "筛孔尺寸mm": "mesh_size",
+    "*处理量(t/h)": "throughput_star",
+    "处理量(t/h)": "throughput",
+    "*入料粒度": "feed_size_star",
+    "入料粒度": "feed_size",
+    "*筛分效率是否有要求": "need_screening_eff_star",
+    "筛分效率是否有要求": "need_screening_eff",
+    "*粒度分布": "particle_dist_star",
+    "粒度分布": "particle_dist",
+    "*筛分效率": "screening_eff_star",
+    "筛分效率": "screening_eff",
+    "*水分含量%": "moisture_star",
+    "水分含量%": "moisture",
+    "粒度组成": "particle_composition",
 }
 
 
@@ -87,16 +143,37 @@ def label_of(f: dict) -> str:
     return (f.get("title") or f.get("text") or f.get("label") or "").strip()
 
 
-def is_noise(label: str, name: str) -> bool:
+def is_hard_drop(label: str, name: str) -> bool:
     if name in SYS_IDS:
         return True
     lab = label or ""
-    if any(k in lab for k in NOISE_KEYS):
-        return True
-    # 纯系统/空标签
     if not lab or lab.startswith("_"):
         return True
-    return False
+    return any(k in lab for k in HARD_DROP_KEYS)
+
+
+def is_soft_noise(label: str) -> bool:
+    return any(k in (label or "") for k in SOFT_NOISE_KEYS)
+
+
+def is_paper_tip(label: str) -> bool:
+    return any(m in (label or "") for m in PAPER_TIP_MARKERS)
+
+
+def should_keep_field(
+    label: str,
+    name: str,
+    required_widgets: set[str],
+    rule_widgets: set[str],
+) -> bool:
+    """Keep unless hard-drop junk; soft-noise kept when required / in show-rules."""
+    if is_hard_drop(label, name):
+        return False
+    if name in required_widgets or name in rule_widgets:
+        return True
+    if is_soft_noise(label):
+        return False
+    return True
 
 
 def map_type(t: str) -> str:
@@ -111,6 +188,7 @@ def map_type(t: str) -> str:
         "dept": "department", "department": "department", "deptgroup": "department",
         "upload": "file", "image": "file", "file": "file",
         "subform": "detail_table", "switch": "switch",
+        "separator": "text",  # only used when promoted (paper tip)
     }.get(t, "text")
 
 
@@ -146,30 +224,81 @@ def slug_for(label: str, used: set[str]) -> str:
     return slug
 
 
-def sub_columns(f: dict) -> list[dict]:
+def load_linkage_pack(key: str) -> dict:
+    if not LINKAGES.exists():
+        return {}
+    data = json.loads(LINKAGES.read_text(encoding="utf-8"))
+    lk = FORM_LINKAGE_KEY.get(key, key)
+    return (data.get("forms") or {}).get(lk) or {}
+
+
+def collect_linkage_sets(pack: dict) -> tuple[set[str], set[str], set[str]]:
+    """Return (required_widgets, rule_widgets, required_detail_widgets)."""
+    required: set[str] = set()
+    for r in pack.get("required_fields") or []:
+        if isinstance(r, dict) and r.get("widget"):
+            required.add(r["widget"])
+    rule_widgets: set[str] = set()
+    for rule in pack.get("fieldShowRules") or []:
+        for c in rule.get("conditions") or []:
+            if c.get("trigger_widget"):
+                rule_widgets.add(c["trigger_widget"])
+        for sf in rule.get("show_fields") or []:
+            if sf.get("widget"):
+                rule_widgets.add(sf["widget"])
+    for rule in pack.get("subformFieldShowRules") or []:
+        if rule.get("subform_widget"):
+            rule_widgets.add(rule["subform_widget"])
+        for c in rule.get("conditions") or []:
+            if c.get("trigger_widget"):
+                rule_widgets.add(c["trigger_widget"])
+        for sf in rule.get("show_fields") or []:
+            if sf.get("widget"):
+                rule_widgets.add(sf["widget"])
+    return required, rule_widgets, required
+
+
+def sub_columns(
+    f: dict,
+    used: set[str],
+    required_widgets: set[str],
+    rule_widgets: set[str],
+) -> list[dict]:
     cols = f.get("widgets") or []
     if not cols:
-        cols = [x for x in (f.get("items") or []) if isinstance(x, dict) and x.get("type") and x.get("type") not in SKIP_TYPES]
-    used: set[str] = set()
+        cols = [
+            x for x in (f.get("items") or [])
+            if isinstance(x, dict) and x.get("type") and x.get("type") not in SKIP_TYPES
+        ]
     out = []
     for c in cols:
         lab = label_of(c) or c.get("name") or "col"
-        if is_noise(lab, c.get("name") or ""):
+        name = c.get("name") or ""
+        if not should_keep_field(lab, name, required_widgets, rule_widgets):
             continue
-        typ = map_type(c.get("type") or "")
+        typ0 = (c.get("type") or "").lower()
+        if typ0 in SKIP_TYPES:
+            continue
+        typ = map_type(typ0)
         if typ == "detail_table":
             continue
         fd = {"id": slug_for(lab, used), "type": typ, "label": lab}
+        if name in required_widgets:
+            fd["required"] = True
         opts = options_of(c)
         if opts and typ in ("select", "radio", "checkbox"):
             fd["options"] = opts
-        if c.get("name"):
-            fd["jdy_widget"] = c["name"]
+        if name:
+            fd["jdy_widget"] = name
         out.append(fd)
     return out
 
 
-def build_fields(raw: dict) -> list[dict]:
+def build_fields(
+    raw: dict,
+    required_widgets: set[str],
+    rule_widgets: set[str],
+) -> list[dict]:
     data = raw.get("data", raw)
     fields = data.get("fields") if isinstance(data, dict) else data
     used: set[str] = set()
@@ -178,28 +307,161 @@ def build_fields(raw: dict) -> list[dict]:
         if not isinstance(f, dict):
             continue
         typ0 = (f.get("type") or "").lower()
-        if typ0 in SKIP_TYPES:
-            continue
         lab = label_of(f)
         name = f.get("name") or ""
-        if not lab or is_noise(lab, name):
+        promote_tip = typ0 == "separator" and is_paper_tip(lab)
+        if typ0 in SKIP_TYPES and not promote_tip:
             continue
+        if not lab or not should_keep_field(lab, name, required_widgets, rule_widgets):
+            # paper tip: keep even if not yet in rule_widgets set edge-case
+            if not (promote_tip and name in rule_widgets):
+                continue
+        if promote_tip:
+            typ0 = "text"
+            lab = lab.rstrip("：").rstrip(":")
         slug = slug_for(lab, used)
         typ = map_type(typ0)
         fd: dict = {"id": slug, "type": typ, "label": lab}
-        if f.get("required"):
+        if name in required_widgets or f.get("required"):
             fd["required"] = True
+        if promote_tip:
+            tip = (f.get("value") or "").strip()
+            if tip:
+                tip_plain = re.sub(r"<[^>]+>", "", tip).strip()
+                fd["description"] = tip_plain or tip
+            else:
+                fd["description"] = (
+                    "流程通过后，请发起人等候研究院通知，到档案室签字领取纸质图，"
+                    "图纸使用完毕，需第一时间归还给档案室。"
+                )
+            fd["props"] = {**(fd.get("props") or {}), "readonly": True}
         opts = options_of(f)
         if opts and typ in ("select", "radio", "checkbox"):
             fd["options"] = opts
         if typ == "detail_table":
-            cols = sub_columns(f)
+            cols = sub_columns(f, used, required_widgets, rule_widgets)
             if cols:
                 fd["detail_table_columns"] = cols
         if name:
             fd["jdy_widget"] = name
         out.append(fd)
     return out
+
+
+def widget_slug_map(fields: list[dict]) -> dict[str, str]:
+    m: dict[str, str] = {}
+    for f in fields:
+        if f.get("jdy_widget"):
+            m[f["jdy_widget"]] = f["id"]
+        for c in f.get("detail_table_columns") or []:
+            if c.get("jdy_widget"):
+                m[c["jdy_widget"]] = c["id"]
+    return m
+
+
+def required_slug_set(fields: list[dict]) -> set[str]:
+    out: set[str] = set()
+    for f in fields:
+        if f.get("required"):
+            out.add(f["id"])
+        for c in f.get("detail_table_columns") or []:
+            if c.get("required"):
+                out.add(c["id"])
+    return out
+
+
+def map_show_condition(rel: str | None, conditions: list, widget_slug: dict[str, str]) -> dict | None:
+    """Map one JDY filter to CRM condition. eq/ne unwrap single-value lists."""
+    mapped = []
+    for c in conditions or []:
+        if not isinstance(c, dict):
+            continue
+        field = c.get("trigger_widget") or c.get("field")
+        if not field:
+            continue
+        slug = widget_slug.get(field)
+        if not slug:
+            # trigger not in CRM fields → cannot evaluate; skip leaf
+            continue
+        method = c.get("method") or "eq"
+        op = {
+            "eq": "eq", "ne": "ne", "in": "in", "nin": "not_in",
+            "empty": "is_empty", "not_empty": "is_not_empty",
+        }.get(method, "eq")
+        val = c.get("value")
+        if isinstance(val, list) and len(val) == 1 and op in ("eq", "ne"):
+            val = val[0]
+        mapped.append({"field": slug, "operator": op, "value": val})
+    if not mapped:
+        return None
+    rel_s = (rel or "and").lower()
+    if len(mapped) == 1 and rel_s == "and":
+        return mapped[0]
+    return {"rel": rel_s, "cond": mapped}
+
+
+def or_merge(conds: list[dict]) -> dict:
+    if len(conds) == 1:
+        return conds[0]
+    return {"rel": "or", "cond": conds}
+
+
+def build_rule_definitions(linkage: dict, fields: list[dict]) -> list[dict]:
+    widget_slug = widget_slug_map(fields)
+    req_slugs = required_slug_set(fields)
+    # target_slug -> list of CRM conditions that show it
+    by_target: dict[str, list[dict]] = defaultdict(list)
+
+    for rule in linkage.get("fieldShowRules") or []:
+        cond = map_show_condition(rule.get("rel"), rule.get("conditions") or [], widget_slug)
+        if not cond:
+            continue
+        for sf in rule.get("show_fields") or []:
+            wid = (sf or {}).get("widget")
+            slug = widget_slug.get(wid) if wid else None
+            if not slug:
+                continue  # orphan / hard-dropped / separator skipped
+            by_target[slug].append(cond)
+
+    for rule in linkage.get("subformFieldShowRules") or []:
+        cond = map_show_condition(rule.get("rel"), rule.get("conditions") or [], widget_slug)
+        if not cond:
+            continue
+        for sf in rule.get("show_fields") or []:
+            wid = (sf or {}).get("widget")
+            slug = widget_slug.get(wid) if wid else None
+            if not slug:
+                continue
+            by_target[slug].append(cond)
+
+    rules: list[dict] = []
+    for slug, conds in by_target.items():
+        # de-dupe identical condition dicts
+        uniq: list[dict] = []
+        seen: set[str] = set()
+        for c in conds:
+            key = json.dumps(c, sort_keys=True, ensure_ascii=False)
+            if key in seen:
+                continue
+            seen.add(key)
+            uniq.append(c)
+        merged = or_merge(uniq)
+        rules.append({
+            "id": f"jdy_vis_{slug}",
+            "type": "visibility",
+            "target_field_id": slug,
+            "condition": merged,
+            "action": {"visible": True},
+        })
+        if slug in req_slugs:
+            rules.append({
+                "id": f"jdy_req_{slug}",
+                "type": "required",
+                "target_field_id": slug,
+                "condition": merged,
+                "action": {"required": True},
+            })
+    return rules
 
 
 def charger_rule(chargers: dict | None, widget_slug: dict[str, str]) -> dict:
@@ -221,7 +483,6 @@ def charger_rule(chargers: dict | None, widget_slug: dict[str, str]) -> dict:
         return {"type": "department_leader"}
     roles = c.get("roles") or []
     if roles and isinstance(roles[0], dict) and roles[0].get("name"):
-        # CRM 无同名角色时会空批 → auto_approve
         return {"type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
                 "jdy_role_hint": roles[0].get("name")}
     return {"type": "specified_role", "value": "sales_manager", "exclude_initiator": True}
@@ -232,10 +493,10 @@ def map_condition(cond_obj: dict | None, widget_slug: dict[str, str]) -> dict | 
     if not cond_obj or not isinstance(cond_obj, dict):
         return None
     if cond_obj.get("isElse"):
-        return None  # else = no condition on that exclusive edge; engine uses unconditional
+        return None
     conds = cond_obj.get("cond") or []
     if not conds:
-        return {"field": "__always", "operator": "is_empty"}  # always true if empty cond list with isElse false?
+        return {"field": "__always", "operator": "is_empty"}
     mapped = []
     for c in conds:
         if not isinstance(c, dict):
@@ -247,7 +508,7 @@ def map_condition(cond_obj: dict | None, widget_slug: dict[str, str]) -> dict | 
         method = c.get("method") or "eq"
         op = {"eq": "eq", "ne": "ne", "in": "in", "nin": "not_in", "empty": "is_empty", "not_empty": "is_not_empty"}.get(method, "eq")
         val = c.get("value")
-        if isinstance(val, list) and len(val) == 1 and op == "eq":
+        if isinstance(val, list) and len(val) == 1 and op in ("eq", "ne"):
             val = val[0]
         mapped.append({"field": slug, "operator": op, "value": val})
     if not mapped:
@@ -262,9 +523,8 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
     notes: list[str] = []
     wf = (wf_raw.get("workflow_config") or {}) if isinstance(wf_raw, dict) else {}
     flows = wf.get("flows") or []
-    widget_slug = {f["jdy_widget"]: f["id"] for f in fields if f.get("jdy_widget")}
+    widget_slug = widget_slug_map(fields)
 
-    # index by flowId
     by_id = {}
     for f in flows:
         if isinstance(f, dict) and "flowId" in f:
@@ -272,14 +532,13 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
 
     nodes: list[dict] = [{"id": "start", "type": "start", "name": "发起"}]
     routes: list[dict] = []
-    node_id_map: dict[int, str] = {}  # flowId -> crm node id
+    node_id_map: dict[int, str] = {}
 
     def nid(fid, name, typ):
         safe = re.sub(r"[^a-zA-Z0-9_]+", "_", f"n{fid}_{name}")[:48].strip("_") or f"n{fid}"
         node_id_map[fid] = safe
         return safe
 
-    # create nodes (skip end -1 and start 0 as special)
     for f in flows:
         if not isinstance(f, dict):
             continue
@@ -291,7 +550,6 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
         crm_id = nid(fid, name, jdy_type)
         if jdy_type == "cc":
             rule = charger_rule(
-                # cc uses ccUsers
                 {**({} if not isinstance(f.get("ccUsers"), dict) else {
                     "users": f["ccUsers"].get("users") or [],
                     "widgets": f["ccUsers"].get("widgets") or [],
@@ -318,9 +576,7 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
 
     nodes.append({"id": "end", "type": "end", "name": "结束"})
 
-    # Build adjacency from each node's condition map: condition keys are source flowIds
-    # In JDY, node.condition = { sourceFlowId: condObj } means "this node is reached from sourceFlowId when cond"
-    incoming: dict[int, list[tuple[int, dict | None]]] = {}  # target -> [(source, cond)]
+    incoming: dict[int, list[tuple[int, dict | None]]] = {}
     for f in flows:
         if not isinstance(f, dict):
             continue
@@ -335,7 +591,6 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
                 continue
             incoming.setdefault(tid, []).append((sid, cobj if isinstance(cobj, dict) else None))
 
-    # Also ensure start connects: find nodes that have source 0
     def crm_ref(fid: int) -> str:
         if fid == 0:
             return "start"
@@ -345,7 +600,6 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
 
     route_i = 0
     for tid, sources in incoming.items():
-        # group: conditional vs else
         else_edges = []
         cond_edges = []
         for sid, cobj in sources:
@@ -354,7 +608,6 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
             elif cobj and (cobj.get("cond") or cobj.get("rel")):
                 cond_edges.append((sid, cobj))
             else:
-                # empty {} often means unconditional always
                 else_edges.append((sid, cobj))
 
         for sid, cobj in cond_edges:
@@ -367,20 +620,28 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
         for sid, cobj in else_edges:
             route_i += 1
             r = {"id": f"r_{route_i}", "source": crm_ref(sid), "target": crm_ref(tid)}
-            # if there are sibling cond edges from same source, else needs always-true or no cond
-            # CRM: when mixed, unconditional acts as else
             routes.append(r)
 
-    # If start has no outgoing, connect start to first approval
     if not any(r["source"] == "start" for r in routes):
         first = next((n["id"] for n in nodes if n["type"] == "approval"), "end")
         routes.append({"id": "r_start", "source": "start", "target": first})
         notes.append("未解析到发起后继，已兜底连到首个审批节点")
 
-    # Ensure every approval/cc has a path to end eventually: if node has no outgoing, link to end
+    # 抄送是旁路通知：入边标 always，避免与主链 else 互斥；叶子抄送不要接到 end，
+    # 否则会与主链并行时提前把整单标成已通过（图纸领取等节点变孤儿）。
+    cc_ids = {n["id"] for n in nodes if n.get("type") == "cc"}
+    for r in routes:
+        if r.get("target") in cc_ids and not r.get("always"):
+            r["always"] = True
+
     sources = {r["source"] for r in routes}
     for n in nodes:
-        if n["type"] in ("approval", "cc") and n["id"] not in sources:
+        if n["id"] in sources:
+            continue
+        if n["type"] == "cc":
+            notes.append(f"节点「{n['name']}」无出边（抄送旁路，不接到结束）")
+            continue
+        if n["type"] == "approval":
             route_i += 1
             routes.append({"id": f"r_end_{route_i}", "source": n["id"], "target": "end"})
             notes.append(f"节点「{n['name']}」无出边，已接到结束")
@@ -388,13 +649,54 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
     return nodes, routes, notes
 
 
+def _cond_summary(cond: dict) -> str:
+    if not cond:
+        return ""
+    if "cond" in cond and isinstance(cond.get("cond"), list):
+        parts = [_cond_summary(c) if isinstance(c, dict) and "cond" in c else
+                 f"{c.get('field')} {c.get('operator')} {c.get('value')!r}"
+                 for c in cond["cond"] if isinstance(c, dict)]
+        return f"({(cond.get('rel') or 'and').upper()} " + "; ".join(parts) + ")"
+    return f"{cond.get('field')} {cond.get('operator')} {cond.get('value')!r}"
+
+
+CONTRACT_DRAWING_MAP_MD = """# 图纸相关表单字段对照
+
+## 0. 合同图纸对应表（图纸档案管理，非通用流程）
+
+- **builtin key / code**: `contract_drawing_map`
+- **路由**: `/contract-drawing-maps`
+- **简道云**: app=`5b2af2c3a57134271be3717b` / entry=`5b2af2e131765151ee89230c`
+
+| slug | 标签 | 类型 | 必填 | 说明 |
+|------|------|------|------|------|
+| pre_issue | 预下号 | radio(是/否) | 是 | 默认「否」 |
+| apply_date | 日期时间 | date | 是 | 默认当天；参与编号日期段 |
+| number_attr | 编号属性 | radio(WMGF/SY) | 是 | 默认 WMGF；分序列 |
+| contract_no | 合同号 | text | 是 | |
+| department | 业务部门 | department | | |
+| drawing_no | 图纸编号 | auto_number | | WMGF+yyyyMM+3位月序 / SY+yy+3位年序；填报页 peek 预览 |
+| remark | 备注 | textarea | | |
+
+编号示例：`WMGF202608018`、`SY26001`。合同登记「编号查询」从此表带出合同号/图纸编号/业务部门。
+
+---
+"""
+
+
 def main():
     result = {}
     md = [
+        CONTRACT_DRAWING_MAP_MD.rstrip(),
+        "",
         "# 图纸通用流程表单字段对照",
         "",
         "> 状态：**已从简道云 live 拉取并对齐 CRM builtin**（app=`5e6c73fefc53170006bd4e9c`）。",
         "> entry：领用 `5e6ee08be3051400062159ee` / 安装图 `5e6edc5b44b7070006d191cb`。",
+        ">",
+        "> **必填 / 显隐规则**来源：`_jdy_drawing_*_edit_raw.json` → `_jdy_drawing_forms_linkages.json`",
+        "> （`allowBlank===false`、`fieldShowRules`、`subformFieldShowRules`）。",
+        "> wrapper `GET /api/form/.../fields` 不含这些细节；生成器 `_gen_drawing_jdy.py` 合并进 builtin。",
         "",
     ]
     for key, title in (
@@ -403,20 +705,32 @@ def main():
     ):
         fields_raw = json.loads((OUT / f"_jdy_{key}_fields.json").read_text(encoding="utf-8"))
         wf_raw = json.loads((OUT / f"_jdy_{key}_workflows_raw.json").read_text(encoding="utf-8"))
-        fields = build_fields(fields_raw)
+        linkage = load_linkage_pack(key)
+        required_widgets, rule_widgets, _ = collect_linkage_sets(linkage)
+        fields = build_fields(fields_raw, required_widgets, rule_widgets)
+        rules = build_rule_definitions(linkage, fields)
         nodes, routes, notes = build_flow(wf_raw, fields, title)
         result[key] = {
             "name": title,
             "field_definitions": fields,
+            "rule_definitions": rules,
             "flow_nodes": nodes,
             "flow_routes": routes,
             "notes": notes,
         }
+        n_req = sum(1 for f in fields if f.get("required"))
+        n_req_cols = sum(
+            1 for f in fields for c in (f.get("detail_table_columns") or []) if c.get("required")
+        )
+        n_vis = sum(1 for r in rules if r.get("type") == "visibility")
+        n_req_r = sum(1 for r in rules if r.get("type") == "required")
         md += [
             f"## {title}",
             "",
             f"- **builtin key**: `{key}`",
             f"- **字段数（去噪后）**: {len(fields)}",
+            f"- **必填字段**: {n_req}" + (f"（含子表列 {n_req_cols}）" if n_req_cols else ""),
+            f"- **规则**: 显隐 {n_vis} / 条件必填 {n_req_r}",
             f"- **流程节点数（CRM）**: {len(nodes)} / 连线 {len(routes)}",
             "",
             "| slug | 标签 | type | 必填 | jdy_widget |",
@@ -427,14 +741,34 @@ def main():
                 f"| {fd['id']} | {fd['label']} | {fd['type']} | "
                 f"{'是' if fd.get('required') else ''} | `{fd.get('jdy_widget','')}` |"
             )
+            for col in fd.get("detail_table_columns") or []:
+                md.append(
+                    f"| └ {col['id']} | {col['label']} | {col['type']} | "
+                    f"{'是' if col.get('required') else ''} | `{col.get('jdy_widget','')}` |"
+                )
+        md += ["", "### 显隐 / 条件必填规则", ""]
+        if not rules:
+            md.append("- （无）")
+        else:
+            md.append(f"| id | type | target | condition |")
+            md.append(f"|----|------|--------|-----------|")
+            for r in rules:
+                md.append(
+                    f"| `{r['id']}` | {r['type']} | `{r.get('target_field_id','')}` | "
+                    f"{_cond_summary(r.get('condition') or {})} |"
+                )
         md += ["", "### 流程降级备注", ""]
         for n in notes:
             md.append(f"- {n}")
         md.append("")
-        print(f"{key}: fields={len(fields)} nodes={len(nodes)} routes={len(routes)} notes={len(notes)}")
+        print(
+            f"{key}: fields={len(fields)} required={n_req}+cols{n_req_cols} "
+            f"rules={len(rules)}(vis={n_vis},req={n_req_r}) "
+            f"nodes={len(nodes)} routes={len(routes)}"
+        )
 
     GEN.write_text(
-        "# -*- coding: utf-8 -*-\n"
+        "# -*- coding: utf-8 -*\n"
         "\"\"\"Auto-generated from docs/product/_jdy_* drawing dumps. Do not edit by hand.\"\"\"\n"
         "from __future__ import annotations\n"
         "import json\n\n"

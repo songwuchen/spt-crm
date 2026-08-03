@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Form, Input, Space, Table, message, Select } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
@@ -7,11 +7,12 @@ import { contractReviewApi } from '@/api/contractReview'
 import ContractReviewFields from '@/components/ContractReviewFields'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
+import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
 import { CONTRACT_REVIEW_STATUS, REVIEW_NATIVE_KEYS } from '@/constants/contractReview'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { useCustomerSelect, useUserSelect } from '@/hooks/useSelectOptions'
-import DepartmentSelect from '@/components/DepartmentSelect'
+import { useCustomerSelect } from '@/hooks/useSelectOptions'
 
 type ContactRow = {
   key: string
@@ -29,6 +30,11 @@ function newContact(): ContactRow {
   return { key: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
 }
 
+const EMAIL_OR_ASK_OPTS = [
+  { value: '邮箱', label: '邮箱' },
+  { value: '请示', label: '请示' },
+]
+
 type LocState = { scrollToField?: (string | number)[] }
 
 export default function ContractReviewForm() {
@@ -40,12 +46,16 @@ export default function ContractReviewForm() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [contacts, setContacts] = useState<ContactRow[]>([newContact()])
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
+  const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const [reviewId, setReviewId] = useState<string | undefined>(isEdit ? id : undefined)
   const customerSelect = useCustomerSelect()
-  const ownerSelect = useUserSelect()
-  const managerSelect = useUserSelect()
   const currentUser = useAuthStore((s) => s.user)
   usePageTitle(isEdit ? '编辑合同评审' : '新建合同评审')
+
+  const patchContact = (key: string, patch: Partial<ContactRow>) => {
+    setContacts((rows) => rows.map((x) => (x.key === key ? { ...x, ...patch } : x)))
+  }
 
   useEffect(() => {
     if (!isEdit) {
@@ -56,12 +66,7 @@ export default function ContractReviewForm() {
         owner_name: currentUser?.real_name || currentUser?.username,
         review_json: {},
       })
-      if (currentUser) {
-        ownerSelect.setInitialOption({
-          label: currentUser.real_name || currentUser.username || '',
-          value: currentUser.id,
-        })
-      }
+      setCustomFields({})
       return
     }
     setLoading(true)
@@ -73,17 +78,17 @@ export default function ContractReviewForm() {
       setContacts(contactList.length
         ? contactList.map((c, i) => ({ ...c, key: c.key || `c-${i}` }))
         : [newContact()])
+      setCustomFields(d.custom_fields_json || {})
+      // 兼容历史：feedback_members 曾存纯文本
+      let feedbackMembers = rj.feedback_members as unknown
+      if (typeof feedbackMembers === 'string' && feedbackMembers.trim()) {
+        feedbackMembers = feedbackMembers.split(/[,，\s]+/).filter(Boolean)
+      }
       form.setFieldsValue({
         ...d,
         reported_at: d.reported_at ? dayjs(d.reported_at) : undefined,
-        review_json: { ...rj, contacts: undefined },
+        review_json: { ...rj, contacts: undefined, feedback_members: feedbackMembers },
       })
-      if (d.owner_id && d.owner_name) {
-        ownerSelect.setInitialOption({ label: d.owner_name, value: d.owner_id })
-      }
-      if (d.region_manager_id && d.region_manager_name) {
-        managerSelect.setInitialOption({ label: d.region_manager_name, value: d.region_manager_id })
-      }
       if (d.customer_id && d.company_name) {
         customerSelect.setInitialOption({ label: d.company_name, value: d.customer_id })
       }
@@ -99,17 +104,24 @@ export default function ContractReviewForm() {
   }, [id, isEdit]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const buildPayload = (values: Record<string, unknown>) => {
+    // validateFields 只含已注册 Form.Item；companion 姓名靠 hidden 项 + getFieldsValue(true)
+    const all = form.getFieldsValue(true) as Record<string, unknown>
+    const merged = { ...all, ...values }
     const review_json = {
-      ...((values.review_json as Record<string, unknown>) || {}),
+      ...((merged.review_json as Record<string, unknown>) || {}),
       contacts: contacts.map(({ key: _k, ...rest }) => rest),
     }
-    const payload: Record<string, unknown> = { review_json }
+    const payload: Record<string, unknown> = {
+      review_json,
+      custom_fields_json: customFields,
+    }
     for (const k of REVIEW_NATIVE_KEYS) {
       if (k === 'review_json') continue
-      if (values[k] !== undefined) payload[k] = values[k]
+      if (merged[k] !== undefined) payload[k] = merged[k]
     }
-    if (values.reported_at) {
-      payload.reported_at = (values.reported_at as dayjs.Dayjs).toISOString()
+    if (merged.reported_at) {
+      payload.reported_at = (merged.reported_at as dayjs.Dayjs).toISOString?.()
+        || merged.reported_at
     }
     return payload
   }
@@ -149,6 +161,11 @@ export default function ContractReviewForm() {
       }
       return
     }
+    const cfErr = customFieldsRef.current?.validate()
+    if (cfErr) {
+      message.warning(cfErr)
+      return
+    }
     await onFinish(values)
   }
 
@@ -165,159 +182,154 @@ export default function ContractReviewForm() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={onFinish}
-          scrollToFirstError={{ behavior: 'smooth', block: 'center' }}
-          initialValues={{ review_json: {} }}
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 mb-2">
-            <Form.Item name="status" label="状态">
-              <Select options={[...CONTRACT_REVIEW_STATUS]} />
-            </Form.Item>
-            <Form.Item name="customer_id" label="关联客户">
-              <Select
-                allowClear showSearch filterOption={false}
-                placeholder="搜索客户"
-                options={customerSelect.options}
-                loading={customerSelect.loading}
-                onSearch={customerSelect.onSearch}
-                onDropdownVisibleChange={customerSelect.onDropdownVisibleChange}
-                onChange={(_v, opt) => {
-                  const o = opt as { label?: string } | undefined
-                  if (o?.label) form.setFieldValue('company_name', o.label)
-                }}
-              />
-            </Form.Item>
-            <Form.Item name="department_id" label="部门（选择）">
-              <DepartmentSelect
-                onChange={(v) => {
-                  form.setFieldValue('department_id', v)
-                }}
-              />
-            </Form.Item>
-            <Form.Item name="owner_id" label="业务员（选择）" className="hidden">
-              <Input />
-            </Form.Item>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 mb-4">
-            <Form.Item label="业务员（系统用户）">
-              <Select
-                allowClear showSearch filterOption={false}
-                options={ownerSelect.options}
-                loading={ownerSelect.loading}
-                onSearch={ownerSelect.onSearch}
-                onDropdownVisibleChange={ownerSelect.onDropdownVisibleChange}
-                value={form.getFieldValue('owner_id')}
-                onChange={(v, opt) => {
-                  form.setFieldsValue({
-                    owner_id: v,
-                    owner_name: (opt as { label?: string } | undefined)?.label,
-                  })
-                }}
-              />
-            </Form.Item>
-            <Form.Item label="区域经理/组长（系统用户）">
-              <Select
-                allowClear showSearch filterOption={false}
-                options={managerSelect.options}
-                loading={managerSelect.loading}
-                onSearch={managerSelect.onSearch}
-                onDropdownVisibleChange={managerSelect.onDropdownVisibleChange}
-                value={form.getFieldValue('region_manager_id')}
-                onChange={(v, opt) => {
-                  form.setFieldsValue({
-                    region_manager_id: v,
-                    region_manager_name: (opt as { label?: string } | undefined)?.label,
-                  })
-                }}
-              />
-            </Form.Item>
-          </div>
-
-          <ContractReviewFields
+        <FieldPolicyProvider entityType="contract_review" form={form} customFieldValues={customFields}>
+          <Form
             form={form}
-            mode={isEdit ? 'edit' : 'create'}
-            slots={{
-              contacts: (
-                <div>
-                  <ContractSectionTitle title="联系信息" />
-                  <Table
-                    size="small"
-                    pagination={false}
-                    rowKey="key"
-                    dataSource={contacts}
-                    columns={[
-                      {
-                        title: '联系人', dataIndex: 'contact_name',
-                        render: (v, r) => (
-                          <Input value={v} onChange={(e) => setContacts((rows) =>
-                            rows.map((x) => x.key === r.key ? { ...x, contact_name: e.target.value } : x))} />
-                        ),
-                      },
-                      {
-                        title: '上级领导', dataIndex: 'superior',
-                        render: (v, r) => (
-                          <Input value={v} onChange={(e) => setContacts((rows) =>
-                            rows.map((x) => x.key === r.key ? { ...x, superior: e.target.value } : x))} />
-                        ),
-                      },
-                      {
-                        title: '手机', dataIndex: 'mobile', width: 130,
-                        render: (v, r) => (
-                          <Input value={v} onChange={(e) => setContacts((rows) =>
-                            rows.map((x) => x.key === r.key ? { ...x, mobile: e.target.value } : x))} />
-                        ),
-                      },
-                      {
-                        title: '职务', dataIndex: 'title', width: 100,
-                        render: (v, r) => (
-                          <Input value={v} onChange={(e) => setContacts((rows) =>
-                            rows.map((x) => x.key === r.key ? { ...x, title: e.target.value } : x))} />
-                        ),
-                      },
-                      {
-                        title: '邮箱', dataIndex: 'email',
-                        render: (v, r) => (
-                          <Input value={v} onChange={(e) => setContacts((rows) =>
-                            rows.map((x) => x.key === r.key ? { ...x, email: e.target.value } : x))} />
-                        ),
-                      },
-                      {
-                        title: '', key: 'op', width: 48,
-                        render: (_, r) => (
-                          <Button type="text" danger icon={<DeleteOutlined />}
-                            onClick={() => setContacts((rows) => rows.filter((x) => x.key !== r.key))} />
-                        ),
-                      },
-                    ]}
-                  />
-                  <Button type="dashed" block className="mt-2" icon={<PlusOutlined />}
-                    onClick={() => setContacts((rows) => [...rows, newContact()])}>
-                    添加联系人
-                  </Button>
-                </div>
-              ),
-              review_files: reviewId ? (
-                <div className="space-y-3">
-                  <AttachmentPanel bizType="contract_review" bizId={reviewId} title="附件" />
-                  <AttachmentPanel bizType="contract_review_image" bizId={reviewId} title="图片" accept="image/*" />
-                </div>
-              ) : (
-                <div className="text-sm text-slate-400">保存后可上传附件/图片</div>
-              ),
-              feedback_files: reviewId ? (
-                <div className="space-y-3">
-                  <AttachmentPanel bizType="contract_review_feedback" bizId={reviewId} title="反馈附件" />
-                  <AttachmentPanel bizType="contract_review_feedback_image" bizId={reviewId} title="反馈图片" accept="image/*" />
-                </div>
-              ) : (
-                <div className="text-sm text-slate-400">保存后可上传反馈附件</div>
-              ),
-            }}
-          />
-        </Form>
+            layout="vertical"
+            onFinish={onFinish}
+            scrollToFirstError={{ behavior: 'smooth', block: 'center' }}
+            initialValues={{ review_json: {} }}
+          >
+            {/* companion 姓名：须注册为 Form.Item，否则 validateFields 不会带回 */}
+            <Form.Item name="owner_name" hidden><Input /></Form.Item>
+            <Form.Item name="region_manager_name" hidden><Input /></Form.Item>
+            <Form.Item name="department_name" hidden><Input /></Form.Item>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 mb-4">
+              <Form.Item name="status" label="状态">
+                <Select options={[...CONTRACT_REVIEW_STATUS]} />
+              </Form.Item>
+              <Form.Item name="customer_id" label="关联客户">
+                <Select
+                  allowClear showSearch filterOption={false}
+                  placeholder="搜索客户（可选，选中后回填公司名称）"
+                  options={customerSelect.options}
+                  loading={customerSelect.loading}
+                  onSearch={customerSelect.onSearch}
+                  onDropdownVisibleChange={customerSelect.onDropdownVisibleChange}
+                  onChange={(_v, opt) => {
+                    const o = opt as { label?: string } | undefined
+                    if (o?.label) form.setFieldValue('company_name', o.label)
+                  }}
+                />
+              </Form.Item>
+            </div>
+
+            <ContractReviewFields
+              form={form}
+              mode={isEdit ? 'edit' : 'create'}
+              slots={{
+                contacts: (
+                  <div>
+                    <ContractSectionTitle title="联系信息" />
+                    <Table
+                      size="small"
+                      pagination={false}
+                      rowKey="key"
+                      dataSource={contacts}
+                      scroll={{ x: 1100 }}
+                      columns={[
+                        {
+                          title: '联系人', dataIndex: 'contact_name', width: 120,
+                          render: (v, r) => (
+                            <Input value={v} onChange={(e) => patchContact(r.key, { contact_name: e.target.value })} />
+                          ),
+                        },
+                        {
+                          title: '上级领导', dataIndex: 'superior', width: 110,
+                          render: (v, r) => (
+                            <Input value={v} onChange={(e) => patchContact(r.key, { superior: e.target.value })} />
+                          ),
+                        },
+                        {
+                          title: '手机', dataIndex: 'mobile', width: 130,
+                          render: (v, r) => (
+                            <Input value={v} onChange={(e) => patchContact(r.key, { mobile: e.target.value })} />
+                          ),
+                        },
+                        {
+                          title: '职务', dataIndex: 'title', width: 100,
+                          render: (v, r) => (
+                            <Input value={v} onChange={(e) => patchContact(r.key, { title: e.target.value })} />
+                          ),
+                        },
+                        {
+                          title: '邮箱or请示', dataIndex: 'email_or_ask', width: 120,
+                          render: (v, r) => (
+                            <Select
+                              allowClear
+                              className="w-full"
+                              options={EMAIL_OR_ASK_OPTS}
+                              value={v || undefined}
+                              onChange={(val) => patchContact(r.key, { email_or_ask: val })}
+                            />
+                          ),
+                        },
+                        {
+                          title: '邮箱', dataIndex: 'email', width: 160,
+                          render: (v, r) => (
+                            <Input value={v} onChange={(e) => patchContact(r.key, { email: e.target.value })} />
+                          ),
+                        },
+                        {
+                          title: '请示', dataIndex: 'ask', width: 140,
+                          render: (v, r) => (
+                            <Input value={v} onChange={(e) => patchContact(r.key, { ask: e.target.value })} />
+                          ),
+                        },
+                        {
+                          title: '地址', dataIndex: 'address', width: 180,
+                          render: (v, r) => (
+                            <Input value={v} onChange={(e) => patchContact(r.key, { address: e.target.value })} />
+                          ),
+                        },
+                        {
+                          title: '', key: 'op', width: 48, fixed: 'right',
+                          render: (_, r) => (
+                            <Button type="text" danger icon={<DeleteOutlined />}
+                              onClick={() => setContacts((rows) => rows.filter((x) => x.key !== r.key))} />
+                          ),
+                        },
+                      ]}
+                    />
+                    <Button type="dashed" block className="mt-2" icon={<PlusOutlined />}
+                      onClick={() => setContacts((rows) => [...rows, newContact()])}>
+                      添加联系人
+                    </Button>
+                  </div>
+                ),
+                pricing_files: reviewId ? (
+                  <AttachmentPanel bizType="contract_review_cost" bizId={reviewId} title="成本附件" />
+                ) : (
+                  <div className="text-sm text-slate-400">保存后可上传成本附件</div>
+                ),
+                review_files: reviewId ? (
+                  <div className="space-y-3">
+                    <AttachmentPanel bizType="contract_review" bizId={reviewId} title="附件" />
+                    <AttachmentPanel bizType="contract_review_image" bizId={reviewId} title="图片" accept="image/*" />
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-400">保存后可上传附件/图片</div>
+                ),
+                feedback_files: reviewId ? (
+                  <div className="space-y-3">
+                    <AttachmentPanel bizType="contract_review_feedback" bizId={reviewId} title="反馈附件" />
+                    <AttachmentPanel bizType="contract_review_feedback_image" bizId={reviewId} title="反馈图片" accept="image/*" />
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-400">保存后可上传反馈附件</div>
+                ),
+              }}
+            />
+
+            <EntityCustomFields
+              ref={customFieldsRef}
+              entityType="contract_review"
+              value={customFields}
+              onChange={setCustomFields}
+            />
+          </Form>
+        </FieldPolicyProvider>
       </div>
 
       <div className="flex justify-end gap-2 mt-2 mb-6">

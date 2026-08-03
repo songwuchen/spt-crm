@@ -6,13 +6,16 @@ import { t } from '@/locales'
 
 import Icon from '@/components/Icon'
 
-/** 侧栏高亮：按菜单项 key 最长前缀匹配，避免 /xxx/fill 掉到首页或串到别的模块。 */
+/** 侧栏高亮：按菜单项 key 最长前缀匹配；无匹配时不高亮（勿回落到工作台）。 */
 function getSelectedKey(pathname: string): string {
   const keys = menuGroups.flatMap((g) => g.items.map((i) => i.key))
-  let best = '/'
+  let best = ''
   let bestLen = 0
   for (const key of keys) {
-    if (key === '/') continue
+    if (key === '/') {
+      if (pathname === '/' || pathname === '') return '/'
+      continue
+    }
     if (pathname === key || pathname.startsWith(key + '/')) {
       if (key.length > bestLen) {
         best = key
@@ -20,7 +23,6 @@ function getSelectedKey(pathname: string): string {
       }
     }
   }
-  if (pathname === '/' || pathname === '') return '/'
   return best
 }
 
