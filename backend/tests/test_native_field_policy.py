@@ -295,6 +295,7 @@ _ENTITY_MODELS = {
     "contact": ("app.domains.customer.models", "Contact"),
     "project": ("app.domains.project.models", "OpportunityProject"),
     "contract": ("app.domains.contract.models", "Contract"),
+    "contract_review": ("app.domains.contract_review.models", "ContractReview"),
     "quote": ("app.domains.quote.models", "Quote"),
     "order": ("app.domains.order.models", "Order"),
     "service_ticket": ("app.domains.service_ticket.models", "ServiceTicket"),

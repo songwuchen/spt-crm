@@ -421,15 +421,16 @@ def _mock_response(prompt: str) -> str:
             "overall_comment": "报价整体合理，建议关注利润率优化空间。",
         }, ensure_ascii=False)
 
-    if "合同" in prompt or "contract" in prompt.lower():
+    # 更具体的任务关键词须排在「合同/contract」等宽匹配之前：相似商机候选列表里
+    # 常带有「合同」字样的历史项目名，否则会误返回合同风险分析 JSON。
+    if "相似" in prompt or "similar" in prompt.lower():
         return json.dumps({
-            "risk_level": "M",
-            "clauses": [
-                {"clause": "交付周期", "risk": "M", "detail": "交付周期较紧，需评估产能"},
-                {"clause": "违约条款", "risk": "L", "detail": "违约金比例在合理范围"},
-                {"clause": "知识产权", "risk": "H", "detail": "IP 归属条款缺失，建议补充"},
+            "similar_projects": [
+                {"name": "XX公司数字化转型", "similarity_score": 85, "reason": "同行业、相近金额、已赢单"},
+                {"name": "YY集团MES项目", "similarity_score": 72, "reason": "相似技术栈、同阶段推进"},
+                {"name": "ZZ工厂智能制造", "similarity_score": 68, "reason": "同金额区间、类似决策流程"},
             ],
-            "overall_comment": "合同主要风险在交付周期和知识产权条款，建议在签署前补充完善。",
+            "insights": "相似赢单项目的共同特征是在S3阶段快速推进技术验证，平均签约周期45天。建议参考XX公司项目的推进策略。",
         }, ensure_ascii=False)
 
     if "汇总" in prompt or "跟进记录" in prompt or "summarize" in prompt.lower():
@@ -444,14 +445,15 @@ def _mock_response(prompt: str) -> str:
             "suggestion": "建议尽快提交正式报价，强调技术优势和服务价值，避免陷入价格战。",
         }, ensure_ascii=False)
 
-    if "相似" in prompt or "similar" in prompt.lower():
+    if "合同" in prompt or "contract" in prompt.lower():
         return json.dumps({
-            "similar_projects": [
-                {"name": "XX公司数字化转型", "similarity_score": 85, "reason": "同行业、相近金额、已赢单"},
-                {"name": "YY集团MES项目", "similarity_score": 72, "reason": "相似技术栈、同阶段推进"},
-                {"name": "ZZ工厂智能制造", "similarity_score": 68, "reason": "同金额区间、类似决策流程"},
+            "risk_level": "M",
+            "clauses": [
+                {"clause": "交付周期", "risk": "M", "detail": "交付周期较紧，需评估产能"},
+                {"clause": "违约条款", "risk": "L", "detail": "违约金比例在合理范围"},
+                {"clause": "知识产权", "risk": "H", "detail": "IP 归属条款缺失，建议补充"},
             ],
-            "insights": "相似赢单项目的共同特征是在S3阶段快速推进技术验证，平均签约周期45天。建议参考XX公司项目的推进策略。",
+            "overall_comment": "合同主要风险在交付周期和知识产权条款，建议在签署前补充完善。",
         }, ensure_ascii=False)
 
     return json.dumps({"message": "AI 分析完成", "result": "暂无特定分析结果"}, ensure_ascii=False)

@@ -42,7 +42,7 @@ export default function DeptField({
   value, onChange, multi, readonly, placeholder,
 }: {
   value: unknown
-  onChange: (v: unknown) => void
+  onChange?: (v: unknown) => void
   multi?: boolean
   readonly?: boolean
   placeholder?: string
@@ -72,7 +72,7 @@ export default function DeptField({
       multiple={!!multi}
       placeholder={placeholder || '选择部门'}
       value={(value as string | string[]) ?? (multi ? [] : undefined)}
-      onChange={(v) => onChange(v)}
+      onChange={(v) => onChange?.(v)}
     />
   )
 }

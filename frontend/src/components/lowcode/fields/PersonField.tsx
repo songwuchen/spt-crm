@@ -137,7 +137,7 @@ export default function PersonField({
   value, onChange, multi, readonly, placeholder,
 }: {
   value: unknown
-  onChange: (v: unknown) => void
+  onChange?: (v: unknown) => void
   multi?: boolean
   readonly?: boolean
   placeholder?: string
@@ -188,7 +188,7 @@ export default function PersonField({
       options={selectOpts}
       optionFilterProp="label"
       notFoundContent={loading ? <Spin size="small" /> : '无用户'}
-      onChange={(v) => onChange(v)}
+      onChange={(v) => onChange?.(v)}
     />
   )
 }
