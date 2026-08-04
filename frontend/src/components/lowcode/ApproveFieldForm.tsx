@@ -1,8 +1,9 @@
 /** 审批节点可填业务字段表单（对齐简道云 optAuth）。 */
 import { useEffect, useState } from 'react'
 import { Input, Radio, Space, Typography } from 'antd'
-import type { WfCurrentTask, WfFieldPerm } from '@/types/lowcode'
+import type { FieldDefinition, WfCurrentTask, WfFieldPerm } from '@/types/lowcode'
 import PersonField from '@/components/lowcode/fields/PersonField'
+import FormRenderer from '@/components/lowcode/FormRenderer'
 
 const { Text } = Typography
 
@@ -86,6 +87,29 @@ export default function ApproveFieldForm({
           const t = meta.type || 'text'
           const val = values[p.field]
           const status = err ? 'error' as const : undefined
+
+          if (t === 'detail_table') {
+            const fd: FieldDefinition = {
+              id: p.field,
+              label: meta.label,
+              type: 'detail_table',
+              required,
+              detail_table_columns: meta.detail_table_columns,
+              available_on_create: true,
+            }
+            return (
+              <div key={p.field} className={err ? 'approve-field-error' : undefined}>
+                <FormRenderer
+                  fields={[fd]}
+                  mode="edit"
+                  value={{ [p.field]: val }}
+                  onChange={(next) => setField(p.field, next[p.field])}
+                  rules={[]}
+                />
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请填写{meta.label}</Text>}
+              </div>
+            )
+          }
 
           if (t === 'person' || t === 'user' || t === 'person_multi') {
             return (

@@ -28,6 +28,8 @@ export const approvalBizTypeLabels: Record<string, string> = {
   // 表单绑定流（无 biz_type 时前端用 process_name 兜底，此处做短标签）
   drawing_requisition: '图纸领用',
   install_drawing_notice: '安装图通知',
+  prod_card_supplement: '生产卡',
+  '生产卡/补充流程': '生产卡',
   scheme_management: '方案管理',
   '合同图纸（资料）领用申请': '图纸领用',
   '安装图设计通知': '安装图通知',
@@ -107,6 +109,33 @@ export const contractVersionStatusLabels: Record<string, string> = {
 }
 export const contractVersionStatusColors: Record<string, string> = {
   draft: 'default', submitted: 'processing', approved: 'success', rejected: 'error', signed: 'success',
+}
+/** 列表/详情展示态：主表签署态 + 当前版本审批态合成 */
+export const contractDisplayStatusLabels: Record<string, string> = {
+  draft: '草稿',
+  approving: '审批中',
+  pending_sign: '待签署',
+  rejected: '已驳回',
+  signed: '已签署',
+  terminated: '已终止',
+}
+export const contractDisplayStatusColors: Record<string, string> = {
+  draft: 'default',
+  approving: 'processing',
+  pending_sign: 'warning',
+  rejected: 'error',
+  signed: 'success',
+  terminated: 'error',
+}
+export function resolveContractDisplayStatus(
+  contractStatus: string,
+  versionStatus?: string | null,
+): string {
+  if (contractStatus === 'signed' || contractStatus === 'terminated') return contractStatus
+  if (versionStatus === 'approved' || versionStatus === 'signed') return 'pending_sign'
+  if (versionStatus === 'submitted') return 'approving'
+  if (versionStatus === 'rejected') return 'rejected'
+  return 'draft'
 }
 
 // --- Solution ---

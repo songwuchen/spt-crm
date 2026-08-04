@@ -13,7 +13,10 @@ import { DRAWING_FORM_LAYOUT, applyDrawingFormLayout } from '@/constants/drawing
 
 const { Title } = Typography
 
-function buildInitialValues(fields: FieldDefinition[]): Record<string, unknown> {
+function buildInitialValues(
+  fields: FieldDefinition[],
+  currentUser?: { id?: string; real_name?: string; username?: string } | null,
+): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const f of fields) {
     if (f.default_value !== undefined && f.default_value !== null && f.default_value !== '') {
@@ -23,6 +26,10 @@ function buildInitialValues(fields: FieldDefinition[]): Record<string, unknown> 
     const props = (f.props || {}) as Record<string, unknown>
     if (props.default_today && (f.type === 'date' || f.type === 'datetime')) {
       out[f.id] = dayjs().format(f.type === 'datetime' ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD')
+      continue
+    }
+    if (props.default_current_user && (f.type === 'person' || f.type === 'person_multi') && currentUser?.id) {
+      out[f.id] = f.type === 'person_multi' ? [currentUser.id] : currentUser.id
     }
   }
   return out
@@ -77,6 +84,7 @@ export default function FormFillPage({
   const [submitting, setSubmitting] = useState(false)
   const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const depKey = serialDepKey(fields, value)
+  const currentUser = useAuthStore((s) => s.user)
 
   const layout = templateCode ? DRAWING_FORM_LAYOUT[templateCode] : undefined
   const displayFields = layout ? applyDrawingFormLayout(templateCode, fields) : fields
@@ -93,12 +101,30 @@ export default function FormFillPage({
         setName(tpl.data.name)
         setFields(defs)
         setRules((ver.data.rule_definitions as FormRule[]) || [])
-        setValue(buildInitialValues(defs))
+        setValue(buildInitialValues(defs, useAuthStore.getState().user))
       } catch {
         setErr('该表单尚未发布或不存在')
       } finally { setLoading(false) }
     })()
   }, [id])
+
+  // 用户信息晚于 schema 加载时，补填 default_current_user 人员字段
+  useEffect(() => {
+    if (!currentUser?.id || !fields.length) return
+    setValue((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const f of fields) {
+        const props = (f.props || {}) as Record<string, unknown>
+        if (!props.default_current_user) continue
+        if (f.type !== 'person' && f.type !== 'person_multi') continue
+        if (next[f.id] != null && next[f.id] !== '') continue
+        next[f.id] = f.type === 'person_multi' ? [currentUser.id] : currentUser.id
+        changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [currentUser?.id, fields])
 
   useEffect(() => {
     if (!id || loading || !fields.some((f) => f.type === 'auto_number')) return

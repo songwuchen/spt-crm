@@ -312,10 +312,13 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
     fieldOptions.unshift({ value: fieldValue, label: fieldValue })
   }
   const fieldEmptyHint = formFields.length === 0
-    ? '未加载到业务/表单字段，请刷新页面或检查流程是否绑定了业务类型'
+    ? '未加载到业务/表单字段，请刷新页面或检查流程是否绑定了表单/业务类型'
     : (meta?.needValue === 'field_person'
       ? '目录中暂无人员类字段（线索应有「负责人」）。请确认已发布最新后端并刷新。'
       : '目录中暂无部门类字段')
+  const permFieldEmptyHint = formFields.length === 0
+    ? '未加载到表单字段：请确认本流程已绑定表单模板，且表单已发布'
+    : '无可选字段'
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="small">
@@ -388,6 +391,10 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
               </div>
               <div>
                 <Text type="secondary" style={{ fontSize: 12 }}>本节点可填字段</Text>
+                <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 2 }}>
+                  审批人在本节点待办里可改这些字段；勾选「必填」则通过时校验。
+                  表单里设为「仅审批时填写」的字段也应加到这里。
+                </Text>
                 <Select
                   mode="multiple"
                   size="small"
@@ -395,12 +402,13 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
                   style={{ width: '100%', marginTop: 4 }}
                   placeholder="选择审批人可编辑的业务字段"
                   value={(node.field_perms || []).map((p) => p.field)}
-                  options={formFields
-                    .filter((f) => f.type !== 'detail_table')
-                    .map((f) => ({ value: f.id, label: f.label || f.id }))}
+                  options={formFields.map((f) => ({
+                    value: f.id,
+                    label: `${f.label || f.id}${f.available_on_create === false ? '（仅审批）' : ''}`,
+                  }))}
                   optionFilterProp="label"
                   showSearch
-                  notFoundContent={<span style={{ fontSize: 12 }}>{fieldEmptyHint}</span>}
+                  notFoundContent={<span style={{ fontSize: 12 }}>{permFieldEmptyHint}</span>}
                   onChange={(ids: string[]) => {
                     const prev = new Map((node.field_perms || []).map((p) => [p.field, p.access]))
                     const next: WfFieldPerm[] = ids.map((id) => ({

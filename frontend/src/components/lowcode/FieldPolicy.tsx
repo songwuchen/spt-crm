@@ -190,16 +190,20 @@ export function PolicyItem({ name, rules, label, children, ...rest }: PolicyItem
   if (!state.visible) return null
 
   const finalLabel = policy.labelOf(fieldId) ?? label
-  // 策略已知时它说了算：调用方 JSX 里硬编码的 {required:true} 只是「策略拉不到时的兜底」，
-  // 不能压过租户在设计器里「关掉必填」的配置 —— 否则后端放行了、前端还拦着。
-  // 反过来，策略未加载或拉取失败时保留调用方规则，避免客户端校验整个消失。
+  const fd = policy.nativeFields.find((f) => f.id === fieldId)
+    || policy.customFields.find((f) => f.id === fieldId)
+  // 策略已知时：租户「关掉必填」优先于目录 default_required；
+  // 但调用方显式传入的 required 规则（业务表单硬约束，如合同号）与 system_required 仍生效。
+  // 策略未加载/失败时保留调用方规则，避免客户端校验整个消失。
   const isRequiredRule = (r: unknown) =>
     typeof r === 'object' && r !== null && (r as { required?: boolean }).required === true
+  const callerRequired = (rules || []).some(isRequiredRule)
   const merged = policy.failed ? [...(rules || [])] : (rules || []).filter((r) => !isRequiredRule(r))
   // 脱敏字段不注入必填：用户看不到明文，无从填写。
-  if (state.required && !state.masked) {
-    const fd = policy.nativeFields.find((f) => f.id === fieldId)
-      || policy.customFields.find((f) => f.id === fieldId)
+  const mustRequired = !!(fd as { system_required?: boolean } | undefined)?.system_required
+    || !!state.required
+    || callerRequired
+  if (mustRequired && !state.masked) {
     const isMulti = fd?.type === 'checkbox' || fd?.type === 'multi_select'
     merged.push(isMulti
       ? { type: 'array' as const, min: 1, message: `请填写${typeof finalLabel === 'string' ? finalLabel : ''}` }

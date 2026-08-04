@@ -39,6 +39,15 @@ RELATED_PROJECT = {
 }
 
 
+# 方案管理不需要：订货人/设计人文本桩、是否解密（及仅依赖它的备注）
+DROP_FIELD_IDS = frozenset({
+    "order_person_text",
+    "designer_text",
+    "need_decrypt",
+    "need_decrypt_note",
+})
+
+
 def _and_scheme(scheme: str, cond: dict | None) -> dict:
     scheme_cond = {"field": "scheme_type", "operator": "eq", "value": scheme}
     if not cond:
@@ -208,6 +217,40 @@ def build() -> dict:
     ]
     flow_routes = [*req_routes, *ins_routes]
 
+    # 申请人默认当前用户；合同号改为引用合同管理；去掉订货人文本 / 是否解密等
+    for f in fields:
+        if f.get("id") == "applicant":
+            props = dict(f.get("props") or {})
+            props["default_current_user"] = True
+            f["props"] = props
+        if f.get("id") == "contract_no":
+            f["type"] = "contract"
+            f["label"] = "合同号"
+            f["description"] = "从合同管理中选择合同。"
+            f.pop("options", None)
+        if f.get("id") == "offices_multi":
+            f["type"] = "department_multi"
+    fields = [f for f in fields if f.get("id") not in DROP_FIELD_IDS]
+
+    def _cond_refs_drop(cond: dict | None) -> bool:
+        if not isinstance(cond, dict):
+            return False
+        if cond.get("field") in DROP_FIELD_IDS:
+            return True
+        return any(_cond_refs_drop(c) for c in (cond.get("cond") or []) if isinstance(c, dict))
+
+    def _rule_keep(rule: dict) -> bool:
+        tids = set(rule.get("target_field_ids") or [])
+        if rule.get("target_field_id"):
+            tids.add(rule["target_field_id"])
+        if tids & DROP_FIELD_IDS:
+            return False
+        if _cond_refs_drop(rule.get("condition") if isinstance(rule.get("condition"), dict) else None):
+            return False
+        return True
+
+    rules = [r for r in rules if _rule_keep(r)]
+
     return {
         "name": "方案管理",
         "field_definitions": fields,
@@ -218,6 +261,7 @@ def build() -> dict:
             "合成自 drawing_requisition + install_drawing_notice；独立 code=scheme_management。",
             "scheme_type=requisition|install 分流字段与审批。",
             "related_project 可选关联商机（非必填）。",
+            "申请人默认当前用户；合同号 type=contract 引用合同管理；不含 order_person_text / designer_text / need_decrypt。",
         ],
     }
 

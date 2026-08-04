@@ -102,6 +102,14 @@ async def _latest_version(db, tenant_id, def_id) -> WfProcessDefinitionVersion |
     ).order_by(WfProcessDefinitionVersion.version_number.desc()).limit(1))).scalar_one_or_none()
 
 
+async def _draft_version(db, tenant_id, def_id) -> WfProcessDefinitionVersion | None:
+    return (await db.execute(select(WfProcessDefinitionVersion).where(
+        WfProcessDefinitionVersion.tenant_id == tenant_id,
+        WfProcessDefinitionVersion.process_definition_id == def_id,
+        WfProcessDefinitionVersion.status == "draft",
+    ).order_by(WfProcessDefinitionVersion.version_number.desc()).limit(1))).scalar_one_or_none()
+
+
 async def _published_version(db, tenant_id, def_id) -> WfProcessDefinitionVersion | None:
     return (await db.execute(select(WfProcessDefinitionVersion).where(
         WfProcessDefinitionVersion.tenant_id == tenant_id,
@@ -112,14 +120,15 @@ async def _published_version(db, tenant_id, def_id) -> WfProcessDefinitionVersio
 
 async def save_design(db, tenant_id, def_id, data: ws.WfSaveDesign, user_id) -> WfProcessDefinitionVersion:
     await get_definition(db, tenant_id, def_id)
-    latest = await _latest_version(db, tenant_id, def_id)
-    if latest and latest.status == "draft":
-        latest.node_definitions = data.node_definitions
-        latest.route_definitions = data.route_definitions
-        latest.approver_rules = data.approver_rules
+    draft = await _draft_version(db, tenant_id, def_id)
+    if draft:
+        draft.node_definitions = data.node_definitions
+        draft.route_definitions = data.route_definitions
+        draft.approver_rules = data.approver_rules
         await db.commit()
-        await db.refresh(latest)
-        return latest
+        await db.refresh(draft)
+        return draft
+    latest = await _latest_version(db, tenant_id, def_id)
     v = WfProcessDefinitionVersion(
         id=generate_uuid(), tenant_id=tenant_id, process_definition_id=def_id,
         version_number=(latest.version_number + 1) if latest else 1,
@@ -134,8 +143,8 @@ async def save_design(db, tenant_id, def_id, data: ws.WfSaveDesign, user_id) -> 
 
 async def publish(db, tenant_id, def_id, user_id) -> WfProcessDefinitionVersion:
     d = await get_definition(db, tenant_id, def_id)
-    latest = await _latest_version(db, tenant_id, def_id)
-    if not latest or latest.status != "draft":
+    latest = await _draft_version(db, tenant_id, def_id)
+    if not latest:
         raise BusinessException(code=BUSINESS_ERROR, message="没有可发布的草稿版本")
     # 基本校验: 必须有 start 与 end，且至少有一个审批节点（避免 start→end 空流程免审）
     types = {n.get("type") for n in (latest.node_definitions or [])}
@@ -157,7 +166,51 @@ async def publish(db, tenant_id, def_id, user_id) -> WfProcessDefinitionVersion:
 
 
 async def get_design(db, tenant_id, def_id) -> WfProcessDefinitionVersion | None:
-    return await _latest_version(db, tenant_id, def_id)
+    """返回可编辑设计：优先活跃草稿，否则已发布；系统表单流先对齐简道云并清旧草稿。"""
+    d = await get_definition(db, tenant_id, def_id)
+    form_code = None
+    if d.code in (
+        "SYS_DRAWING_REQUISITION",
+        "SYS_INSTALL_DRAWING_NOTICE",
+        "SYS_SCHEME_MANAGEMENT",
+        "SYS_PROD_CARD_SUPPLEMENT",
+    ):
+        form_code = next(
+            (s["form_code"] for s in FORM_DEFAULT_SPECS if s["code"] == d.code),
+            None,
+        )
+        if form_code:
+            await _upgrade_drawing_form_flow_if_needed(db, tenant_id, d, form_code)
+            await _discard_stale_system_draft_if_needed(db, tenant_id, d, form_code)
+    draft = await _draft_version(db, tenant_id, def_id)
+    if draft:
+        return draft
+    return await _published_version(db, tenant_id, def_id)
+
+
+async def _discard_stale_system_draft_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition, form_code: str,
+) -> None:
+    """系统流已对齐简道云后，若仍有未对齐的草稿盖在上面，废弃草稿以免设计器读旧图。"""
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    latest = await _draft_version(db, tenant_id, d.id)
+    if not latest:
+        return
+    published = await _published_version(db, tenant_id, d.id)
+    if not published:
+        return
+    if not _flow_is_jdy_form_graph(form_code, published.node_definitions):
+        return
+    # 草稿已是对齐拓扑则保留（用户可能在调布局/审批人）
+    if _flow_is_jdy_form_graph(form_code, latest.node_definitions):
+        return
+    latest.status = "deprecated"
+    await db.commit()
+    logger.info(
+        "已废弃盖住系统流的旧草稿 %s v%s(tenant=%s)",
+        d.code, latest.version_number, tenant_id,
+    )
 
 
 async def get_versions(db, tenant_id, def_id):
@@ -270,11 +323,21 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "multi_mode": "or_sign",
         "empty_strategy": "auto_approve",
     },
+    {
+        "form_code": "prod_card_supplement",
+        "code": "SYS_PROD_CARD_SUPPLEMENT",
+        "name": "生产卡/补充流程",
+        "approver_rule": {
+            "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
 ]
 
 DRAWING_FORM_FLOW_DESC = (
-    "对齐简道云通用流程拓扑（具名审批人/角色在 CRM 无对应用户时 empty_strategy=auto_approve；"
-    "详见 docs/product/_jdy_drawing_forms.md）"
+    "对齐简道云表单流程拓扑（图纸/方案/生产卡；具名审批人/角色在 CRM 无对应用户时 "
+    "empty_strategy=auto_approve；详见 docs/product/_jdy_*_forms.md）"
 )
 
 
@@ -288,6 +351,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     try:
         from app.domains.lowcode._scheme_management_generated import SCHEME_MANAGEMENT_JDY
         packs.update(SCHEME_MANAGEMENT_JDY)
+    except Exception:
+        pass
+    try:
+        from app.domains.lowcode._prod_card_jdy_generated import PROD_CARD_JDY
+        packs.update(PROD_CARD_JDY)
     except Exception:
         pass
     pack = packs.get(form_code)
@@ -304,6 +372,46 @@ def _flow_is_jdy_drawing(nodes: list | None) -> bool:
     """已对齐简道云图纸流：含总工/图纸领取等关键节点名。"""
     names = {n.get("name") for n in (nodes or [])}
     return "总工审批" in names and ("图纸领取" in names or "设计指派安排" in names)
+
+
+def _flow_has_node_field_perms(nodes: list | None) -> bool:
+    return any(
+        isinstance(n, dict) and n.get("type") == "approval" and n.get("field_perms")
+        for n in (nodes or [])
+    )
+
+
+def _flow_is_jdy_prod_card(nodes: list | None) -> bool:
+    """已对齐简道云生产卡/补充（含 V43「业务员确认」；非旧「财务报价」简图）。"""
+    names = {n.get("name") for n in (nodes or [])}
+    if "财务报价" in names:
+        return False
+    return (
+        "业务员确认" in names
+        and "财务核价" in names
+        and "法务审核" in names
+        and "区域经理/组长" in names
+        and len(nodes or []) >= 20
+    )
+
+
+def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
+    if form_code in ("drawing_requisition", "install_drawing_notice", "scheme_management"):
+        return _flow_is_jdy_drawing(nodes)
+    if form_code == "prod_card_supplement":
+        return _flow_is_jdy_prod_card(nodes)
+    return False
+
+
+def _flow_has_legacy_department_leader(nodes: list | None) -> bool:
+    """旧生成器把部门主管写成 department_leader，需升级为 dept_head。"""
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        rule = n.get("approver_rule") or {}
+        if isinstance(rule, dict) and rule.get("type") == "department_leader":
+            return True
+    return False
 
 
 def _drawing_flow_has_cc_end_bug(nodes: list | None, routes: list | None) -> bool:
@@ -966,12 +1074,17 @@ async def ensure_default_form_definition(
 async def _upgrade_drawing_form_flow_if_needed(
     db, tenant_id: str, d: WfProcessDefinition, form_code: str | None,
 ) -> None:
-    """系统兜底图纸表单流：单节点等升级为简道云对齐拓扑。"""
+    """系统兜底表单流：单节点/旧简图升级为简道云对齐拓扑（图纸/方案/生产卡）。"""
     if not form_code:
         return
     if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
         return
-    if d.code not in ("SYS_DRAWING_REQUISITION", "SYS_INSTALL_DRAWING_NOTICE"):
+    if d.code not in (
+        "SYS_DRAWING_REQUISITION",
+        "SYS_INSTALL_DRAWING_NOTICE",
+        "SYS_SCHEME_MANAGEMENT",
+        "SYS_PROD_CARD_SUPPLEMENT",
+    ):
         return
     graph = _drawing_flow_graph(form_code)
     if not graph:
@@ -979,23 +1092,30 @@ async def _upgrade_drawing_form_flow_if_needed(
     version = await _published_version(db, tenant_id, d.id)
     if not version:
         return
+    new_nodes, new_routes = graph
     if (
-        _flow_is_jdy_drawing(version.node_definitions)
+        _flow_is_jdy_form_graph(form_code, version.node_definitions)
         and not _drawing_flow_has_cc_end_bug(
             version.node_definitions, version.route_definitions,
         )
+        and not _flow_has_legacy_department_leader(version.node_definitions)
+        and not (
+            _flow_has_node_field_perms(new_nodes)
+            and not _flow_has_node_field_perms(version.node_definitions)
+        )
     ):
         return
-    new_nodes, new_routes = graph
     if form_code == "drawing_requisition":
         d.name = "合同图纸（资料）领用申请"
     elif form_code == "install_drawing_notice":
         d.name = "安装图设计通知"
     elif form_code == "scheme_management":
         d.name = "方案管理"
+    elif form_code == "prod_card_supplement":
+        d.name = "生产卡/补充流程"
     await _publish_system_default_upgrade(
         db, tenant_id, d, version, new_nodes, new_routes,
-        DRAWING_FORM_FLOW_DESC, f"简道云图纸流({form_code})",
+        DRAWING_FORM_FLOW_DESC, f"简道云表单流({form_code})",
     )
 
 
@@ -1209,7 +1329,21 @@ async def _publish_system_default_upgrade(
     new_nodes: list[dict], new_routes: list[dict],
     description: str, log_tag: str,
 ) -> None:
-    next_ver = (version.version_number or 0) + 1
+    # 版本号取全部版本(含草稿)最大值+1，避免与未发布草稿撞号
+    latest_any = await _latest_version(db, tenant_id, d.id)
+    base_ver = max(
+        version.version_number or 0,
+        (latest_any.version_number if latest_any else 0) or 0,
+    )
+    next_ver = base_ver + 1
+    # 废弃草稿：设计器 get_design 读最新版本，旧草稿会盖住刚升级的 published
+    drafts = (await db.execute(select(WfProcessDefinitionVersion).where(
+        WfProcessDefinitionVersion.tenant_id == tenant_id,
+        WfProcessDefinitionVersion.process_definition_id == d.id,
+        WfProcessDefinitionVersion.status == "draft",
+    ))).scalars().all()
+    for draft in drafts:
+        draft.status = "deprecated"
     nv = WfProcessDefinitionVersion(
         id=generate_uuid(), tenant_id=tenant_id, process_definition_id=d.id,
         version_number=next_ver, node_definitions=new_nodes, route_definitions=new_routes,
@@ -1228,8 +1362,8 @@ async def _publish_system_default_upgrade(
         d.name = "合同评审会签"
     await db.commit()
     logger.info(
-        "已升级系统兜底流程 %s(tenant=%s) → v%s：%s",
-        d.code, tenant_id, next_ver, log_tag,
+        "已升级系统兜底流程 %s(tenant=%s) → v%s：%s（废弃草稿 %s 条）",
+        d.code, tenant_id, next_ver, log_tag, len(drafts),
     )
 
 
@@ -2300,6 +2434,23 @@ async def _resolve_current_task_for_viewer(
     field_perms = parse_field_perms(node)
     field_ids = [p["field"] for p in field_perms]
     catalog = {f["id"]: f for f in get_catalog(inst.biz_type or "")}
+    # 表单绑定流：用实例/模板字段定义补全控件类型（biz_field_catalog 无表单字段）
+    if inst.form_instance_id:
+        from app.domains.lowcode.models import FormInstance
+        fi = await db.get(FormInstance, inst.form_instance_id)
+        form_defs = []
+        if fi and fi.tenant_id == tenant_id:
+            form_defs = list(fi.field_definitions or [])
+            if not form_defs:
+                from app.domains.lowcode.service import get_published_version
+                try:
+                    ver = await get_published_version(db, tenant_id, fi.template_id)
+                    form_defs = list((ver.field_definitions if ver else None) or [])
+                except Exception:
+                    form_defs = []
+        for fd in form_defs:
+            if isinstance(fd, dict) and fd.get("id") and fd["id"] not in catalog:
+                catalog[fd["id"]] = fd
     field_meta = []
     for fid in field_ids:
         meta = catalog.get(fid) or {"id": fid, "label": fid, "type": "text"}
@@ -2310,6 +2461,8 @@ async def _resolve_current_task_for_viewer(
         }
         if meta.get("options"):
             item["options"] = meta["options"]
+        if meta.get("detail_table_columns"):
+            item["detail_table_columns"] = meta["detail_table_columns"]
         field_meta.append(item)
     field_values = await load_field_values(
         db, tenant_id, inst.biz_type, inst.biz_id, inst.form_instance_id, field_ids,

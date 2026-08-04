@@ -23,7 +23,7 @@ import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contrac
 import ContractRegistrationFields, { DATE_KEYS } from '@/components/ContractRegistrationFields'
 import type { ContractItem, ContractVersion } from '@/api/types'
 import { riskLabels, riskColors } from '@/api/types'
-import { contractStatusColors, contractStatusLabels, contractVersionStatusColors, contractVersionStatusLabels } from '@/constants/labels'
+import { contractDisplayStatusColors, contractDisplayStatusLabels, resolveContractDisplayStatus, contractVersionStatusColors, contractVersionStatusLabels } from '@/constants/labels'
 import type { WfInstanceDetail } from '@/types/lowcode'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { CONTRACT_REGISTRATION_SECTIONS, formatChangeType, formatRegFieldValue } from '@/constants/contractRegistration'
@@ -113,6 +113,8 @@ export default function ContractDetail() {
     let changeType = contract?.change_type || undefined
     if (changeType === '新增') changeType = 'new'
     if (changeType === '变动') changeType = 'change'
+    delete reg.number_lookup
+    delete reg.number_attr
     editForm.setFieldsValue({
       amount_total: typeof contract?.amount_total === 'number' ? contract.amount_total : undefined,
       drawing_no: contract?.drawing_no || undefined,
@@ -150,6 +152,8 @@ export default function ContractDetail() {
     try {
       const v = await editForm.validateFields()
       const regRaw = { ...(v.registration_json || {}) } as Record<string, unknown>
+      delete regRaw.number_lookup
+      delete regRaw.number_attr
       for (const [k, val] of Object.entries(regRaw)) {
         if (val && typeof val === 'object' && dayjs.isDayjs(val)) {
           regRaw[k] = val.format('YYYY-MM-DD')
@@ -159,7 +163,8 @@ export default function ContractDetail() {
       const payload: Record<string, unknown> = {
         payment_terms_json: editPay,
         registration_json: regRaw,
-        drawing_no: v.drawing_no || null,
+        // 图纸编号系统生成后不可在编辑里清空；有值才回写
+        ...(v.drawing_no ? { drawing_no: v.drawing_no } : {}),
         peer_contract_no: v.peer_contract_no || null,
         acquire_method: v.acquire_method || null,
         change_type: v.change_type || null,
@@ -478,8 +483,6 @@ export default function ContractDetail() {
 
   if (!contract) return <DetailSkeleton />
 
-  const statusColors = contractStatusColors
-  const statusLabels = contractStatusLabels
   const verStatus = currentVersion?.status || 'draft'
   // 主合同签署前 status 一直是 draft；展示态以版本审批进度 + 新引擎实例为准
   const displayStatus = (() => {
@@ -490,24 +493,8 @@ export default function ContractDetail() {
     if (approvalFlow?.status === 'approved') return 'pending_sign'
     if (approvalFlow?.status === 'pending') return 'approving'
     if (approvalFlow?.status === 'rejected') return 'rejected'
-    return 'draft'
+    return resolveContractDisplayStatus(contract.status, verStatus)
   })()
-  const displayStatusLabel: Record<string, string> = {
-    draft: '草稿',
-    approving: '审批中',
-    pending_sign: '待签署',
-    rejected: '已驳回',
-    signed: '已签署',
-    terminated: '已终止',
-  }
-  const displayStatusColor: Record<string, string> = {
-    draft: 'default',
-    approving: 'processing',
-    pending_sign: 'warning',
-    rejected: 'error',
-    signed: 'success',
-    terminated: 'error',
-  }
   const canSubmitApproval = contract.status === 'draft'
     && (verStatus === 'draft' || verStatus === 'rejected')
     && wfInstance?.status !== 'running'
@@ -560,8 +547,8 @@ export default function ContractDetail() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-slate-900">{contract.contract_no}</h1>
-            <Tag color={displayStatusColor[displayStatus] || statusColors[contract.status]}>
-              {displayStatusLabel[displayStatus] || statusLabels[contract.status] || contract.status}
+            <Tag color={contractDisplayStatusColors[displayStatus] || 'default'}>
+              {contractDisplayStatusLabels[displayStatus] || displayStatus}
             </Tag>
           </div>
           <p className="text-sm text-slate-500">

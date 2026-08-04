@@ -212,6 +212,8 @@ export const router = createBrowserRouter([
       { path: 'contract-reviews/new', element: <Guard permission="contract_review:create"><ContractReviewForm /></Guard> },
       { path: 'contract-reviews/:id/edit', element: <Guard permission="contract_review:edit"><ContractReviewForm /></Guard> },
       { path: 'contract-reviews/:id', element: <Guard permission="contract_review:view"><ContractReviewDetail /></Guard> },
+      { path: 'prod-card-supplements/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="prod_card_supplement" listPath="/prod-card-supplements" title="生产卡/补充流程" /></Guard> },
+      { path: 'prod-card-supplements', element: <Guard permission="form_data:view"><FormModulePage templateCode="prod_card_supplement" title="生产卡/补充流程" basePath="/prod-card-supplements" /></Guard> },
       { path: 'change-requests', element: <Guard permission="change:view"><ChangeRequestList /></Guard> },
       { path: 'milestones', element: <Guard permission="delivery:view"><MilestoneList /></Guard> },
       { path: 'approvals', element: <Lazy><ApprovalCenter /></Lazy> },

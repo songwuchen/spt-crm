@@ -986,6 +986,17 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         if existing:
             return await update_contract_from_openapi(db, ctx, existing, data)
 
+    from app.domains.contract.service import _resolve_create_drawing_no
+    reg = getattr(data, "registration_json", None) or {}
+    if not isinstance(reg, dict):
+        reg = {}
+    drawing_no = await _resolve_create_drawing_no(
+        db, ctx.tenant_id,
+        {"sub": ctx.app_id, "real_name": "开放平台", "username": "openapi"},
+        getattr(data, "drawing_no", None),
+        apply_date=getattr(data, "order_date", None) or reg.get("apply_date"),
+    )
+
     contract = Contract(
         id=generate_uuid(), tenant_id=ctx.tenant_id,
         project_id=data.project_id,
@@ -995,7 +1006,7 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         status=data.status or "draft",
         signed_date=_to_date(data.signed_date),
         end_date=_to_date(data.end_date),
-        drawing_no=getattr(data, "drawing_no", None),
+        drawing_no=drawing_no,
         peer_contract_no=getattr(data, "peer_contract_no", None),
         acquire_method=getattr(data, "acquire_method", None),
         delivery_date=_to_date(getattr(data, "delivery_date", None)),
@@ -1005,7 +1016,7 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         amount_total=data.amount_total,
         payment_terms_json=data.payment_terms_json,
         delivery_terms_json=data.delivery_terms_json,
-        registration_json=getattr(data, "registration_json", None),
+        registration_json=reg or None,
         custom_fields_json=data.custom_fields or None,
         created_by_id=ctx.app_id, created_by_name="开放平台",
     )

@@ -31,6 +31,8 @@ const breadcrumbNameMap: Record<string, string> = {
   '/contracts': '合同管理',
   '/contract-reviews': '合同评审',
   '/contract-reviews/new': '新建合同评审',
+  '/prod-card-supplements': '生产卡/补充流程',
+  '/prod-card-supplements/fill': '新增',
   '/solutions': '方案管理',
   '/solutions/fill': '新增',
   '/drawing-requisitions': '合同图纸领用',

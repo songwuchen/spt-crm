@@ -45,6 +45,8 @@ class FieldDefinition(BaseModel):
     entity_storage: str | None = None
     form_editable: bool = True
     available_on_create: bool = True
+    # initiator | approver | readonly — 对齐简道云 optAuth 阶段
+    fill_stage: str | None = None
 
     model_config = {"extra": "ignore"}
 

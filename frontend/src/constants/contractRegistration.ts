@@ -68,6 +68,9 @@ export interface RegFieldDef {
    * 条件必填兜底；已编目字段以 SYSTEM_RULES required 为准。
    */
   requiredWhen?: RegShowWhen
+  /** 只读展示（如系统自动生成的图纸编号） */
+  readOnly?: boolean
+  placeholder?: string
 }
 
 export interface RegSection {
@@ -137,10 +140,11 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
           { value: '非正式', label: '非正式' },
         ],
       },
-      // 对齐简道云「编号查询」linkfield：从合同图纸对应表选数，回填合同号/图纸编号/部门
-      { key: 'number_lookup', label: '编号查询', source: 'reg', widget: 'text' },
-      { key: 'contract_no', label: '合同号', source: 'native', widget: 'text', required: true },
-      { key: 'drawing_no', label: '图纸编号', source: 'native', widget: 'text', required: true },
+      { key: 'contract_no', label: '合同号', source: 'native', widget: 'text', required: true, placeholder: '请填写合同号' },
+      {
+        key: 'drawing_no', label: '图纸编号', source: 'native', widget: 'text', readOnly: true,
+        placeholder: '保存后系统自动生成（WMGF…）',
+      },
       { key: 'project_name', label: '项目名称', source: 'reg', widget: 'text' },
       { key: 'peer_contract_no', label: '对方合同号', source: 'native', widget: 'text' },
       { key: 'tax_included', label: '是否含税', source: 'reg', widget: 'radio', options: YES_NO, required: true },

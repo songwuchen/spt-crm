@@ -99,6 +99,7 @@ const zhCN = {
     quotes: '报价管理',
     contracts: '合同管理',
     contractReviews: '合同评审',
+    prodCardSupplements: '生产卡/补充流程',
     drawingRequisitions: '合同图纸领用',
     installDrawingNotices: '安装图设计通知',
     contractDrawingMaps: '合同图纸对应表',

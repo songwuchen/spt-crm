@@ -328,6 +328,8 @@ export interface ContractItem {
   contract_no: string
   current_version_no: number
   status: string
+  /** 当前版本审批态；列表展示态由此与 status 合成 */
+  current_version_status?: string
   signed_date?: string
   end_date?: string
   drawing_no?: string | null

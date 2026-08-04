@@ -15,6 +15,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import PersonField from './fields/PersonField'
 import DeptField from './fields/DeptField'
 import ProjectField from './fields/ProjectField'
+import ContractField from './fields/ContractField'
 import FileField from './fields/FileField'
 import AddressField from './fields/AddressField'
 import CascadeField, { type CascadeOption } from './fields/CascadeField'
@@ -31,13 +32,13 @@ const SUPPORTED = new Set([
   'select', 'multi_select', 'radio', 'checkbox', 'switch',
   'formula', 'auto_number', 'detail_table',
   'person', 'person_multi', 'department', 'department_multi', 'file', 'image',
-  'address', 'cascade', 'rich_text', 'signature', 'project',
+  'address', 'cascade', 'rich_text', 'signature', 'project', 'contract',
 ])
 
 // 这些类型自行渲染只读态(名称/URL 需异步解析或富媒体展示),不走通用 ReadonlyValue。
 const SELF_RENDER_READONLY = new Set([
   'detail_table', 'person', 'person_multi', 'department', 'department_multi', 'file', 'image',
-  'address', 'cascade', 'rich_text', 'signature', 'project',
+  'address', 'cascade', 'rich_text', 'signature', 'project', 'contract',
 ])
 
 const GROUP_TYPES = new Set(['tab_group', 'collapse_section'])
@@ -115,6 +116,8 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
             </Col>
           )
         }
+        // 审批阶段才填的字段：创建/编辑填报页不展示（详情只读仍展示）
+        if (mode === 'edit' && field.available_on_create === false) return null
         const st = states[field.id]
         if (st && !st.visible) return null
         // detail_table 强制整行，避免明细列被挤扁
@@ -208,6 +211,8 @@ function FieldWidget({
       return <DeptField value={value} onChange={onChange} multi={field.type === 'department_multi'} readonly={readonly} placeholder={ph} />
     case 'project':
       return <ProjectField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
+    case 'contract':
+      return <ContractField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
     case 'file':
       return <FileField value={value} onChange={onChange} readonly={readonly} />
     case 'image':
@@ -397,6 +402,8 @@ export function validateRequired(
   for (const f of fields) {
     if (f.type === 'formula' || f.type === 'auto_number') continue
     if (f.type === 'section' || f.type === 'separator') continue
+    // 审批阶段字段：创建不必填
+    if (f.available_on_create === false) continue
     const st = states[f.id]
     if (st && !st.visible) continue
     // 脱敏字段跳过必填：看不到明文就无法填写，脱敏+必填会让记录永远存不下去

@@ -33,7 +33,7 @@
 
 - **builtin key**: `drawing_requisition`
 - **字段数（去噪后）**: 25
-- **必填字段**: 15
+- **必填字段**: 9
 - **规则**: 显隐 4 / 条件必填 3
 - **流程节点数（CRM）**: 21 / 连线 30
 
@@ -58,12 +58,12 @@
 | attachment_name | 附件/图片名称 | text | 是 | `_widget_1669617286395` |
 | attachments | 附件 | file |  | `_widget_1584324748414` |
 | images | 图片 | file |  | `_widget_1584324748427` |
-| design_dispatch | 设计单分派 | radio | 是 | `_widget_1669426933010` |
-| transfer_packaging_users | 转新乡、工艺包装 | person | 是 | `_widget_1669426933009` |
-| design_assignees | 设计指派 | person | 是 | `_widget_1669426933008` |
-| offices | 科室 | department | 是 | `_widget_1676005090837` |
-| order_date | 下单日期 | datetime | 是 | `_widget_1676005090838` |
-| need_gm_approval | 是否需要总经理审批 | radio | 是 | `_widget_1699839662506` |
+| design_dispatch | 设计单分派 | radio |  | `_widget_1669426933010` |
+| transfer_packaging_users | 转新乡、工艺包装 | person |  | `_widget_1669426933009` |
+| design_assignees | 设计指派 | person |  | `_widget_1669426933008` |
+| offices | 科室 | department |  | `_widget_1676005090837` |
+| order_date | 下单日期 | datetime |  | `_widget_1676005090838` |
+| need_gm_approval | 是否需要总经理审批 | radio |  | `_widget_1699839662506` |
 
 ### 显隐 / 条件必填规则
 
@@ -99,12 +99,13 @@
 - 节点「抄送刘松潮」无出边（抄送旁路，不接到结束）
 - 节点「抄送樊磊」无出边（抄送旁路，不接到结束）
 - 节点「抄送组长」无出边（抄送旁路，不接到结束）
+- optAuth：6 个字段仅审批可写（创建 available_on_create=false，必填下沉到节点 field_perms）
 
 ## 安装图设计通知
 
 - **builtin key**: `install_drawing_notice`
 - **字段数（去噪后）**: 51
-- **必填字段**: 27（含子表列 11）
+- **必填字段**: 20（含子表列 11）
 - **规则**: 显隐 29 / 条件必填 16
 - **流程节点数（CRM）**: 21 / 连线 27
 
@@ -129,8 +130,8 @@
 | pickup_purpose | 领图目的 | radio | 是 | `_widget_1669604747098` |
 | apply_or_change | 申请事由/修改事项 | text |  | `_widget_1584323676275` |
 | apply_reason_star | *申请事由 | text | 是 | `_widget_1662702831365` |
-| biz_feedback | 业务反馈240416 | radio | 是 | `_widget_1713252188931` |
-| lose_bid_reason | 落标原因240416 | text | 是 | `_widget_1713252188933` |
+| biz_feedback | 业务反馈240416 | radio |  | `_widget_1713252188931` |
+| lose_bid_reason | 落标原因240416 | text |  | `_widget_1713252188933` |
 | card_date | 下卡日期 | datetime |  | `_widget_1624352039272` |
 | pre_designers | 前期沟通设计人员 | person |  | `_widget_1624352911480` |
 | require_draw_date | 要求交图时间 | datetime |  | `_widget_1624352911499` |
@@ -195,12 +196,12 @@
 | └ particle_composition_2 | 粒度组成 | text |  | `_widget_1670207254655` |
 | attention | 注意 | text |  | `_widget_1679722777387` |
 | attachment_names | 附件名称 | textarea | 是 | `_widget_1586759251628` |
-| design_dispatch | 设计单分派 | radio | 是 | `_widget_1668992972400` |
-| transfer_packaging_users | 转新乡、工艺包装 | person | 是 | `_widget_1668992972425` |
-| design_assignees | 设计指派 | person | 是 | `_widget_1584415118691` |
+| design_dispatch | 设计单分派 | radio |  | `_widget_1668992972400` |
+| transfer_packaging_users | 转新乡、工艺包装 | person |  | `_widget_1668992972425` |
+| design_assignees | 设计指派 | person |  | `_widget_1584415118691` |
 | need_submit_drawing | 是否上交图纸 | radio | 是 | `_widget_1674957454888` |
-| offices_multi | 科室多选 | department | 是 | `_widget_1676007312737` |
-| order_date | 下单日期 | datetime | 是 | `_widget_1676007312736` |
+| offices_multi | 科室多选 | department |  | `_widget_1676007312737` |
+| order_date | 下单日期 | datetime |  | `_widget_1676007312736` |
 | transfer_sw_lwt | 转孙伟、刘万涛 | person |  | `_widget_1662703176057` |
 | attachments_no_image | 附件（不能放图片） | file |  | `_widget_1584348631246` |
 | images | 图片 | file |  | `_widget_1584348816654` |
@@ -282,4 +283,5 @@
 - 节点「抄送李兴玉」无出边（抄送旁路，不接到结束）
 - 节点「抄送刘松潮」无出边（抄送旁路，不接到结束）
 - 节点「抄送樊磊」无出边（抄送旁路，不接到结束）
+- optAuth：8 个字段仅审批可写（创建 available_on_create=false，必填下沉到节点 field_perms）
 

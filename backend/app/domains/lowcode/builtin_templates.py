@@ -135,6 +135,15 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "sync_fields": True,
     },
     {
+        "key": "prod_card_supplement",
+        "name": "生产卡/补充流程",
+        "category": "合同",
+        "icon": "ContainerOutlined",
+        "description": "对齐简道云数据中心「生产卡/补充流程」。字段见 docs/product/_jdy_prod_card_forms.md。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
         "key": "contract_drawing_map",
         "name": "合同图纸对应表",
         "category": "图纸",
@@ -142,7 +151,7 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "description": (
             "简道云「图纸档案管理」→「合同图纸对应表」(app=5b2af2c3… entry=5b2af2e1…)。"
             "编号规则：WMGF+yyyyMM+三位月序（如 WMGF202608018）；SY+yy+三位年序。"
-            "合同登记「编号查询」从此表带出合同号/图纸编号/业务部门。"
+            "合同登记创建时按此规则自动生成图纸编号（不再从本表选数回填）。"
         ),
         "sync_fields": True,
         "field_definitions": [
@@ -199,7 +208,11 @@ def _apply_drawing_jdy_fields() -> None:
         from app.domains.lowcode._scheme_management_generated import SCHEME_MANAGEMENT_JDY
     except Exception:
         SCHEME_MANAGEMENT_JDY = {}
-    packs = {**DRAWING_JDY, **SCHEME_MANAGEMENT_JDY}
+    try:
+        from app.domains.lowcode._prod_card_jdy_generated import PROD_CARD_JDY
+    except Exception:
+        PROD_CARD_JDY = {}
+    packs = {**DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY}
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])
         if not pack:

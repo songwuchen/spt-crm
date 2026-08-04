@@ -10,7 +10,6 @@ from app.common.error_codes import NOT_FOUND, BUSINESS_ERROR, DUPLICATE_ENTRY
 from app.domains.contract.models import Contract, ContractVersion
 from app.domains.contract.schemas import ContractCreate, ContractUpdate, ContractVersionUpdate
 from app.domains.audit.service import log_action
-from app.common.code_generator import generate_code
 
 logger = logging.getLogger("spt_crm.contract")
 
@@ -18,10 +17,10 @@ logger = logging.getLogger("spt_crm.contract")
 async def _resolve_create_contract_no(
     db: AsyncSession, tenant_id: str, requested: str | None,
 ) -> str:
-    """优先使用编号查询带回的合同号；空则系统生成。"""
+    """合同号由业务手填，不可为空；系统不再自动生成 CT- 流水。"""
     no = (requested or "").strip()
     if not no:
-        return await generate_code(db, tenant_id, "contract")
+        raise BusinessException(code=BUSINESS_ERROR, message="请填写合同号")
     exists = (await db.execute(
         select(Contract.id).where(
             Contract.tenant_id == tenant_id,
@@ -33,10 +32,54 @@ async def _resolve_create_contract_no(
     return no
 
 
+async def _resolve_create_drawing_no(
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict,
+    requested: str | None,
+    *,
+    apply_date: str | date_type | None = None,
+) -> str:
+    """图纸编号：有传入则校验唯一后沿用；空则按 WMGF+yyyyMM+三位月序自动生成。"""
+    no = (requested or "").strip()
+    if no:
+        exists = (await db.execute(
+            select(Contract.id).where(
+                Contract.tenant_id == tenant_id,
+                Contract.drawing_no == no,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if exists:
+            raise BusinessException(code=DUPLICATE_ENTRY, message=f"图纸编号「{no}」已存在")
+        return no
+
+    from app.domains.lowcode import service as lc_svc
+    from app.domains.lowcode.builtin_templates import get_builtin
+    from app.domains.lowcode.serial_number import generate_serial_value
+
+    tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
+    bt = get_builtin("contract_drawing_map") or {}
+    field_defs = list(bt.get("field_definitions") or [])
+    drawing_fd = next((f for f in field_defs if f.get("id") == "drawing_no"), None)
+    if not drawing_fd:
+        raise BusinessException(code=BUSINESS_ERROR, message="图纸编号规则未配置")
+
+    if isinstance(apply_date, date_type):
+        apply_s = apply_date.isoformat()
+    else:
+        apply_s = (str(apply_date).strip() if apply_date else "") or datetime.now(timezone.utc).date().isoformat()
+
+    # 合同登记固定 WMGF 前缀（不再暴露编号属性）
+    form_data = {"number_attr": "WMGF", "apply_date": apply_s}
+    return await generate_serial_value(
+        db, tenant_id, tpl.id, drawing_fd, form_data, field_defs,
+    )
+
+
 async def list_drawing_map_lookups(
     db: AsyncSession, tenant_id: str, user: dict, keyword: str | None = None, limit: int = 50,
 ) -> list[dict]:
-    """合同登记「编号查询」：列出合同图纸对应表记录供选数回填。"""
+    """合同评审等选图纸编号：列出合同图纸对应表记录供选数。"""
     from app.domains.lowcode import service as lc_svc
     tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
     items, _ = await lc_svc.list_instances(
@@ -138,6 +181,18 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
         db, tenant_id, native.get("contract_no") or data.contract_no,
     )
 
+    reg = native.get("registration_json", data.registration_json) or {}
+    if not isinstance(reg, dict):
+        reg = {}
+    # 历史残留字段清理：编号属性已从合同登记移除
+    reg = {k: v for k, v in reg.items() if k not in ("number_attr", "number_lookup")}
+    apply_date = native.get("order_date", data.order_date) or reg.get("apply_date")
+    drawing_no = await _resolve_create_drawing_no(
+        db, tenant_id, user,
+        native.get("drawing_no", data.drawing_no),
+        apply_date=apply_date,
+    )
+
     # 显式指定优先；未传时从关联商机带出客户，保证列表「客户名称」可补全
     customer_id = data.customer_id or (getattr(project, "customer_id", None) if project else None)
 
@@ -148,7 +203,7 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
         current_version_no=1,
         amount_total=native.get("amount_total", data.amount_total),
         end_date=native.get("end_date", data.end_date),
-        drawing_no=native.get("drawing_no", data.drawing_no),
+        drawing_no=drawing_no,
         peer_contract_no=native.get("peer_contract_no", data.peer_contract_no),
         acquire_method=native.get("acquire_method", data.acquire_method),
         delivery_date=native.get("delivery_date", data.delivery_date),
@@ -157,7 +212,7 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
         card_date=native.get("card_date", data.card_date),
         payment_terms_json=data.payment_terms_json,
         delivery_terms_json=data.delivery_terms_json,
-        registration_json=native.get("registration_json", data.registration_json),
+        registration_json=reg or None,
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
         assignee_id=native.get("assignee_id", data.assignee_id),
         assignee_name=native.get("assignee_name", data.assignee_name),

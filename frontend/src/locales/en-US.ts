@@ -83,6 +83,7 @@ const enUS = {
     quotes: 'Quotes',
     contracts: 'Contracts',
     contractReviews: 'Contract Reviews',
+    prodCardSupplements: 'Prod Card / Supplement',
     drawingRequisitions: 'Drawing Requisition',
     installDrawingNotices: 'Install Drawing Notice',
     contractDrawingMaps: 'Contract Drawing Map',

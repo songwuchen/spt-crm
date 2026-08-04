@@ -58,6 +58,7 @@ class FieldType(StrEnum):
   RELATION = "relation"
     SUB_TABLE_DATA = "sub_table_data"    # 关联子表(主表内联操作另一独立表单的多条记录)
     PROJECT = "project"                  # 关联商机(opportunity project)
+    CONTRACT = "contract"                # 关联合同(合同管理)
 
 
 #: 可作为明细子表列的字段类型白名单(与前端 detailColumnTypes 对齐)

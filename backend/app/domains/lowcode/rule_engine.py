@@ -313,6 +313,9 @@ def validate_required_with_rules(
     for f in fields or []:
         if f.get("type") in ("formula", "auto_number"):
             continue
+        # 审批阶段才填的字段：创建/提交不校验必填
+        if f.get("available_on_create") is False:
+            continue
         st = states.get(f.get("id")) or {}
         if st and not st.get("visible", True):
             continue

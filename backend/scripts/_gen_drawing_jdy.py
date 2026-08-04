@@ -184,8 +184,8 @@ def map_type(t: str) -> str:
         "radiogroup": "radio", "radio": "radio",
         "checkboxgroup": "checkbox", "checkbox": "checkbox", "combocheck": "checkbox",
         "combo": "select", "select": "select",
-        "user": "person", "usergroup": "person",
-        "dept": "department", "department": "department", "deptgroup": "department",
+        "user": "person", "usergroup": "person_multi",
+        "dept": "department", "department": "department", "deptgroup": "department_multi",
         "upload": "file", "image": "file", "file": "file",
         "subform": "detail_table", "switch": "switch",
         "separator": "text",  # only used when promoted (paper tip)
@@ -480,7 +480,8 @@ def charger_rule(chargers: dict | None, widget_slug: dict[str, str]) -> dict:
         return {"type": "form_field_person", "value": slug}
     dm = c.get("deptManager") or {}
     if dm.get("deptWidgets") or dm.get("creator") or dm.get("charger"):
-        return {"type": "department_leader"}
+        # CRM ApproverType 为 dept_head（非 department_leader）
+        return {"type": "dept_head", "exclude_initiator": True}
     roles = c.get("roles") or []
     if roles and isinstance(roles[0], dict) and roles[0].get("name"):
         return {"type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
@@ -530,7 +531,12 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
         if isinstance(f, dict) and "flowId" in f:
             by_id[f["flowId"]] = f
 
-    nodes: list[dict] = [{"id": "start", "type": "start", "name": "发起"}]
+    start_name = "发起"
+    for f in flows:
+        if isinstance(f, dict) and f.get("flowId") == 0 and (f.get("name") or "").strip():
+            start_name = str(f["name"]).strip()
+            break
+    nodes: list[dict] = [{"id": "start", "type": "start", "name": start_name}]
     routes: list[dict] = []
     node_id_map: dict[int, str] = {}
 
@@ -646,7 +652,129 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
             routes.append({"id": f"r_end_{route_i}", "source": n["id"], "target": "end"})
             notes.append(f"节点「{n['name']}」无出边，已接到结束")
 
+    apply_jdy_opt_auth(fields, flows, nodes, node_id_map, notes)
     return nodes, routes, notes
+
+
+# 简道云 optAuth 位：1=可见 2=可写 4=简报
+_JDY_OPT_VIEW = 1
+_JDY_OPT_EDIT = 2
+
+
+def _slug_from_opt_widget(widget: str, widget_slug: dict[str, str]) -> str | None:
+    if widget in widget_slug:
+        return widget_slug[widget]
+    top = str(widget).split(".", 1)[0]
+    return widget_slug.get(top)
+
+
+def apply_jdy_opt_auth(
+    fields: list[dict],
+    flows: list,
+    nodes: list[dict],
+    node_id_map: dict[int, str],
+    notes: list[str],
+) -> None:
+    """把简道云节点 optAuth 落到字段阶段属性 + 审批节点 field_perms。
+
+    - 发起节点可写 → available_on_create=True（创建可填/可必填）
+    - 仅审批节点可写 → available_on_create=False，创建隐藏且去掉 required；
+      对应节点 field_perms=required（原 allowBlank=false）或 editable
+    """
+    widget_slug = widget_slug_map(fields)
+    by_id = {
+        f.get("flowId"): f for f in flows
+        if isinstance(f, dict) and "flowId" in f
+    }
+    start_oa = (by_id.get(0) or {}).get("optAuth") or {}
+    start_edit: set[str] = set()
+    start_view: set[str] = set()
+    for w, flags in start_oa.items() if isinstance(start_oa, dict) else []:
+        if not isinstance(flags, int):
+            continue
+        slug = _slug_from_opt_widget(str(w), widget_slug)
+        if not slug:
+            continue
+        if flags & _JDY_OPT_VIEW:
+            start_view.add(slug)
+        if flags & _JDY_OPT_EDIT:
+            start_edit.add(slug)
+
+    approval_edit: dict[str, set[str]] = {}
+    for fid, f in by_id.items():
+        if fid in (-1, 0) or (f.get("type") or "flow") == "cc":
+            continue
+        crm_id = node_id_map.get(fid)
+        if not crm_id:
+            continue
+        oa = f.get("optAuth") or {}
+        if not isinstance(oa, dict):
+            continue
+        for w, flags in oa.items():
+            if not isinstance(flags, int) or not (flags & _JDY_OPT_EDIT):
+                continue
+            slug = _slug_from_opt_widget(str(w), widget_slug)
+            if slug:
+                approval_edit.setdefault(slug, set()).add(crm_id)
+
+    originally_required = {fd["id"] for fd in fields if fd.get("required")}
+    n_approver_only = 0
+    for fd in fields:
+        fid = fd.get("id")
+        if not fid or not fd.get("jdy_widget"):
+            continue
+        if fid in start_edit:
+            fd["available_on_create"] = True
+            fd["fill_stage"] = "initiator"
+            continue
+        if fid in approval_edit:
+            fd["available_on_create"] = False
+            fd["fill_stage"] = "approver"
+            if fd.get("required"):
+                fd["required"] = False
+            n_approver_only += 1
+            continue
+        if fid in start_view:
+            fd["available_on_create"] = True
+            fd["fill_stage"] = "initiator"
+            if fd.get("required") and fid not in start_edit:
+                fd["required"] = False
+                fd["form_editable"] = False
+            continue
+        # 无 optAuth 条目：保持生成器原样，避免误藏 CRM 自有字段
+
+    for fid, f in by_id.items():
+        if fid in (-1, 0) or (f.get("type") or "flow") == "cc":
+            continue
+        crm_id = node_id_map.get(fid)
+        node = next((n for n in nodes if n.get("id") == crm_id), None)
+        if not node or node.get("type") != "approval":
+            continue
+        perms: list[dict] = []
+        seen: set[str] = set()
+        oa = f.get("optAuth") or {}
+        if not isinstance(oa, dict):
+            continue
+        for w, flags in oa.items():
+            if not isinstance(flags, int) or not (flags & _JDY_OPT_EDIT):
+                continue
+            slug = _slug_from_opt_widget(str(w), widget_slug)
+            if not slug or slug in seen:
+                continue
+            seen.add(slug)
+            if slug not in start_edit and slug in originally_required:
+                access = "required"
+            else:
+                access = "editable"
+            perms.append({"field": slug, "access": access})
+        if perms:
+            node["field_perms"] = perms
+
+    if n_approver_only:
+        notes.append(
+            f"optAuth：{n_approver_only} 个字段仅审批可写"
+            f"（创建 available_on_create=false，必填下沉到节点 field_perms）"
+        )
 
 
 def _cond_summary(cond: dict) -> str:

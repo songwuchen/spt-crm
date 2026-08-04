@@ -104,16 +104,16 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
       {
         title: '共用基本信息',
         fieldIds: [
-          'apply_datetime', 'department', 'applicant', 'order_person', 'order_person_text',
-          'product_model', 'need_decrypt', 'design_dispatch', 'transfer_packaging_users',
+          'apply_datetime', 'department', 'applicant', 'order_person',
+          'product_model', 'design_dispatch', 'transfer_packaging_users',
           'design_assignees', 'order_date', 'images',
         ],
       },
       {
         title: '有合同号 · 领用',
         fieldIds: [
-          'involve_std_drawing', 'contract_no', 'apply_reason', 'designer', 'designer_text',
-          'transfer_channel', 'need_decrypt_note', 'paper_print_tip', 'drawing_type',
+          'involve_std_drawing', 'contract_no', 'apply_reason', 'designer',
+          'transfer_channel', 'paper_print_tip', 'drawing_type',
           'attachment_name', 'attachments', 'offices', 'need_gm_approval',
         ],
       },
@@ -146,7 +146,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
 const SHORT_TYPES = new Set([
   'text', 'select', 'radio', 'person', 'person_multi',
   'department', 'department_multi', 'date', 'datetime', 'number',
-  'amount', 'multi_select', 'switch', 'formula', 'auto_number', 'project',
+  'amount', 'multi_select', 'switch', 'formula', 'auto_number', 'project', 'contract',
 ])
 
 function defaultSpan(field: FieldDefinition): number {

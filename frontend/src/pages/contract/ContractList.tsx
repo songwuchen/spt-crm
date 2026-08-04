@@ -8,7 +8,7 @@ import { contractApi } from '@/api/contract'
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
 import type { ContractItem } from '@/api/types'
-import { contractStatusLabels, contractStatusColors } from '@/constants/labels'
+import { contractDisplayStatusLabels, contractDisplayStatusColors, resolveContractDisplayStatus } from '@/constants/labels'
 import { formatChangeType } from '@/constants/contractRegistration'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
@@ -137,14 +137,17 @@ export default function ContractList() {
       }
       return
     }
-    const cfError = customFieldsRef.current?.validate()
+      const cfError = customFieldsRef.current?.validate()
     if (cfError) {
       message.error(cfError)
       return
     }
+    const contractNo = String(v.contract_no || '').trim()
     setCreating(true)
     try {
       const regRaw = { ...(v.registration_json || {}) } as Record<string, unknown>
+      delete regRaw.number_lookup
+      delete regRaw.number_attr
       for (const [k, val] of Object.entries(regRaw)) {
         if (val && typeof val === 'object' && dayjs.isDayjs(val)) {
           regRaw[k] = val.format('YYYY-MM-DD')
@@ -161,8 +164,8 @@ export default function ContractList() {
         ...(fmt(v.delivery_date) ? { delivery_date: fmt(v.delivery_date) } : {}),
         ...(fmt(v.order_date) ? { order_date: fmt(v.order_date) } : {}),
         ...(fmt(v.card_date) ? { card_date: fmt(v.card_date) } : {}),
-        ...(v.contract_no ? { contract_no: v.contract_no } : {}),
-        ...(v.drawing_no ? { drawing_no: v.drawing_no } : {}),
+        contract_no: contractNo,
+        // 图纸编号由后端按编号属性规则自动生成，不传 drawing_no
         ...(v.peer_contract_no ? { peer_contract_no: v.peer_contract_no } : {}),
         ...(v.acquire_method ? { acquire_method: v.acquire_method } : {}),
         ...(v.change_type ? { change_type: v.change_type } : {}),
@@ -236,7 +239,10 @@ export default function ContractList() {
       render: (_: unknown, r: ContractItem) => (r.registration_json as any)?.industry || '-',
     },
     { title: '状态', dataIndex: 'status', width: 90,
-      render: (v: string) => <Tag color={contractStatusColors[v] || 'default'}>{contractStatusLabels[v] || v}</Tag>,
+      render: (_: string, r: ContractItem) => {
+        const ds = resolveContractDisplayStatus(r.status, r.current_version_status)
+        return <Tag color={contractDisplayStatusColors[ds] || 'default'}>{contractDisplayStatusLabels[ds] || ds}</Tag>
+      },
     },
     { title: '金额', dataIndex: 'amount_total', width: 120, align: 'right',
       render: (v: number | string) => <span className="font-bold">{fmtMoney(v)}</span> },
@@ -266,9 +272,9 @@ export default function ContractList() {
             value={keyword} onChange={(e) => setKeyword(e.target.value)}
             onPressEnter={() => { setPageNo(1); fetchData(1, keyword, filterStatus) }}
             allowClear style={{ width: 280 }} />
-          <Select placeholder="签署状态" allowClear style={{ width: 130 }} value={filterStatus}
+          <Select placeholder="状态" allowClear style={{ width: 130 }} value={filterStatus}
             onChange={(v) => { setFilterStatus(v); setPageNo(1); fetchData(1, keyword, v) }}
-            options={Object.entries(contractStatusLabels).map(([k, v]) => ({ value: k, label: v }))} />
+            options={Object.entries(contractDisplayStatusLabels).map(([k, v]) => ({ value: k, label: v }))} />
           <ListToolbar resource="contract" view={view} onChange={() => setReload((r) => r + 1)} />
         </div>
       </div>

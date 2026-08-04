@@ -6,6 +6,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 
 interface ContractBrief {
   id: string; contract_no: string; status: string
+  current_version_status?: string
   amount_total?: number; signed_date?: string; end_date?: string
   project_name?: string; created_by_name?: string
   start_date?: string; title?: string
@@ -13,9 +14,20 @@ interface ContractBrief {
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
   draft: { label: '草稿', color: 'text-slate-600', bg: 'bg-slate-100' },
-  pending: { label: '待审批', color: 'text-amber-700', bg: 'bg-amber-50' },
+  approving: { label: '审批中', color: 'text-amber-700', bg: 'bg-amber-50' },
+  pending_sign: { label: '待签署', color: 'text-orange-700', bg: 'bg-orange-50' },
+  rejected: { label: '已驳回', color: 'text-red-600', bg: 'bg-red-50' },
   signed: { label: '已签署', color: 'text-emerald-700', bg: 'bg-emerald-50' },
   terminated: { label: '已终止', color: 'text-red-600', bg: 'bg-red-50' },
+}
+
+function displayOf(c: ContractBrief) {
+  if (c.status === 'signed' || c.status === 'terminated') return c.status
+  const vs = c.current_version_status
+  if (vs === 'approved' || vs === 'signed') return 'pending_sign'
+  if (vs === 'submitted') return 'approving'
+  if (vs === 'rejected') return 'rejected'
+  return 'draft'
 }
 
 export default function MobileContracts() {
@@ -33,9 +45,10 @@ export default function MobileContracts() {
       .finally(() => setLoading(false))
   }, [])
 
-  const filtered = filterStatus ? contracts.filter(c => c.status === filterStatus) : contracts
+  const filtered = filterStatus ? contracts.filter(c => displayOf(c) === filterStatus) : contracts
   const statusCounts = contracts.reduce<Record<string, number>>((acc, c) => {
-    acc[c.status] = (acc[c.status] || 0) + 1; return acc
+    const ds = displayOf(c)
+    acc[ds] = (acc[ds] || 0) + 1; return acc
   }, {})
 
   return (
@@ -69,7 +82,7 @@ export default function MobileContracts() {
       ) : (
         <div className="space-y-2">
           {filtered.map((c) => {
-            const sc = statusConfig[c.status] || statusConfig.draft
+            const sc = statusConfig[displayOf(c)] || statusConfig.draft
             const daysLeft = c.end_date ? Math.ceil((new Date(c.end_date).getTime() - Date.now()) / 86400000) : null
             return (
               <div key={c.id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 cursor-pointer active:bg-slate-50"
@@ -117,10 +130,12 @@ export default function MobileContracts() {
 
             {/* Status timeline */}
             <div className="flex items-center gap-1 mb-5">
-              {['draft', 'pending', 'signed'].map((step, i) => {
-                const steps = ['draft', 'pending', 'signed']
-                const currentIdx = steps.indexOf(detail.status)
-                const isActive = i <= currentIdx
+              {(['draft', 'approving', 'signed'] as const).map((step, i) => {
+                const ds = displayOf(detail)
+                const order = ['draft', 'approving', 'pending_sign', 'signed']
+                const currentIdx = Math.max(0, order.indexOf(ds === 'rejected' ? 'draft' : ds === 'terminated' ? 'signed' : ds))
+                const stepIdx = step === 'approving' ? 1 : step === 'signed' ? 3 : 0
+                const isActive = stepIdx <= currentIdx
                 const sc = statusConfig[step]
                 return (
                   <div key={step} className="flex items-center gap-1 flex-1">
@@ -128,7 +143,7 @@ export default function MobileContracts() {
                       isActive ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'
                     }`}>{i + 1}</div>
                     <span className={`text-[12px] font-medium ${isActive ? 'text-slate-800' : 'text-slate-400'}`}>{sc.label}</span>
-                    {i < 2 && <div className={`flex-1 h-0.5 ${isActive && i < currentIdx ? 'bg-primary' : 'bg-slate-100'}`} />}
+                    {i < 2 && <div className={`flex-1 h-0.5 ${isActive && stepIdx < currentIdx ? 'bg-primary' : 'bg-slate-100'}`} />}
                   </div>
                 )
               })}

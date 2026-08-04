@@ -38,7 +38,7 @@ const { Title, Text } = Typography
 const PALETTE: { group: string; types: FieldType[] }[] = [
   { group: '基础', types: ['text', 'textarea', 'number', 'amount', 'date', 'datetime', 'switch'] },
   { group: '选择', types: ['select', 'multi_select', 'radio', 'checkbox', 'cascade'] },
-  { group: '高级', types: ['person', 'person_multi', 'department', 'department_multi', 'project', 'file', 'image', 'address', 'rich_text', 'signature', 'formula', 'auto_number', 'detail_table'] },
+  { group: '高级', types: ['person', 'person_multi', 'department', 'department_multi', 'project', 'contract', 'file', 'image', 'address', 'rich_text', 'signature', 'formula', 'auto_number', 'detail_table'] },
 ]
 const CHOICE_TYPES = new Set(['select', 'multi_select', 'radio', 'checkbox'])
 /** 与后端 DETAIL_COLUMN_TYPES 对齐：可作为明细子表列的类型 */
@@ -423,6 +423,7 @@ function SortableFieldCard({ field, selected, onSelect, onDelete }: {
           <Tag style={{ marginLeft: 4 }}>{(field.detail_table_columns || []).length} 列</Tag>
         )}
         {field.native && <Tag style={{ marginLeft: 4 }} color="gold">内置</Tag>}
+        {field.available_on_create === false && <Tag style={{ marginLeft: 4 }} color="orange">仅审批填</Tag>}
         {field.json_storage && <Tag style={{ marginLeft: 4 }}>登记JSON</Tag>}
         {field.form_editable === false && <Tag style={{ marginLeft: 4 }}>只读列</Tag>}
         {field.type === 'detail_table' && (field.detail_table_columns || []).length > 0 && (
@@ -590,12 +591,41 @@ function FieldProps({ field, roleOptions, onPatch }: {
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <span><Text style={{ fontSize: 12 }}>必填 </Text>
           {/* system_required = 数据库 NOT NULL 或业务强依赖，锁死不给改 */}
-          <Switch size="small" checked={!!field.required} disabled={!!field.system_required}
+          <Switch size="small" checked={!!field.required} disabled={!!field.system_required || field.available_on_create === false}
             onChange={(v) => onPatch({ required: v })} />
           {field.system_required && <Text type="secondary" style={{ fontSize: 12 }}> (系统必填)</Text>}
         </span>
         <span style={{ flex: 1 }}><Text type="secondary" style={{ fontSize: 12 }}>宽度 </Text>
           <Select size="small" style={{ width: 90 }} value={field.span || 24} options={SPANS} onChange={(v) => onPatch({ span: v })} /></span>
+      </div>
+      <div>
+        <Text type="secondary" style={{ fontSize: 12 }}>填写阶段</Text>
+        <Select
+          size="small"
+          style={{ width: '100%', marginTop: 4 }}
+          value={field.available_on_create === false ? 'approver' : 'initiator'}
+          options={[
+            { value: 'initiator', label: '发起时填写（创建页可见）' },
+            { value: 'approver', label: '仅审批时填写（创建隐藏）' },
+          ]}
+          onChange={(v) => {
+            if (v === 'approver') {
+              onPatch({
+                available_on_create: false,
+                fill_stage: 'approver',
+                // 创建不必填：必填改到流程节点「本节点可填字段」里勾选
+                required: false,
+              })
+            } else {
+              onPatch({ available_on_create: true, fill_stage: 'initiator' })
+            }
+          }}
+        />
+        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+          {field.available_on_create === false
+            ? '创建页不展示。请到「流程设计」对应审批节点 → 本节点可填字段 中勾选，并可设为节点必填。'
+            : '发起人在填报/提交时可见；勾选上方「必填」即创建必填。'}
+        </Text>
       </div>
       <div><Text type="secondary" style={{ fontSize: 12 }}>提示文本</Text>
         <Input size="small" value={field.placeholder || ''} onChange={(e) => onPatch({ placeholder: e.target.value })} /></div>

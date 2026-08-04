@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-BASE = "http://127.0.0.1:8002"
+BASE = "http://127.0.0.1:8004"
 USER, PASS = "admin", "admin123"
 
 
@@ -177,7 +177,6 @@ def main():
         "order_person": uid,
         "apply_reason": f"冒烟领用 {stamp}",
         "transfer_channel": "钉钉",
-        "need_decrypt": "不解密",
         "drawing_type": "生产图",
         "attachment_name": "冒烟附件",
         "design_dispatch": "总部单",
@@ -206,14 +205,13 @@ def main():
         "is_xiaomeng": "是",
         "drawing_issue_type": "领图",
         "drawing_types": ["安装图"],
-        "need_decrypt": "不解密",
         "pickup_purpose": "报价",
         "apply_reason_star": f"冒烟安装图 {stamp}",
         "biz_feedback": "结果未出",
         "design_dispatch": "总部单",
         "design_assignees": uid,
         "need_submit_drawing": "图纸已交",
-        "offices_multi": did,
+        "offices_multi": [did],
         "order_date": now,
         "attachment_names": "冒烟",
         "score_attitude": 5,

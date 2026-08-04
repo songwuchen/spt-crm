@@ -165,6 +165,10 @@ class ApproverResolver:
                 out.append(leader)
         return out
 
+    # 简道云/旧前端曾写 department_leader，与 dept_head 同义
+    async def _r_department_leader(self, rule: dict, ctx: ApprovalContext) -> list[str]:
+        return await self._r_dept_head(rule, ctx)
+
     async def _r_direct_supervisor(self, _rule: dict, ctx: ApprovalContext) -> list[str]:
         """发起人各部门向上找第一个有负责人(≠发起人)的部门,取其负责人。"""
         out: list[str] = []
@@ -246,12 +250,15 @@ class ApproverResolver:
         return list(rows)
 
     async def _r_form_field_person(self, rule: dict, ctx: ApprovalContext) -> list[str]:
-        value = ctx.form_data.get(rule.get("value", ""))
+        # value 可为单字段，或字段列表（取任一非空，如「是/否业务人员」）
+        fields = self._as_list(rule.get("value"))
         out = []
-        for v in self._as_list(value):
-            uid = await self._resolve_user_identifier(v)
-            if uid:
-                out.append(uid)
+        for field in fields:
+            value = ctx.form_data.get(field, "")
+            for v in self._as_list(value):
+                uid = await self._resolve_user_identifier(v)
+                if uid:
+                    out.append(uid)
         return out
 
     async def _r_form_field_dept(self, rule: dict, ctx: ApprovalContext) -> list[str]:

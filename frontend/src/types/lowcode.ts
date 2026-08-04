@@ -11,6 +11,7 @@ export type FieldType =
   | 'signature' | 'select_data' | 'relation' | 'sub_table_data'
   | 'section' | 'separator'
   | 'project'
+  | 'contract'
 
 export interface OptionItem {
   label: string
@@ -53,6 +54,8 @@ export interface FieldDefinition {
   entity_storage?: string
   form_editable?: boolean
   available_on_create?: boolean
+  /** initiator | approver | readonly — 对齐简道云 optAuth 填写阶段 */
+  fill_stage?: 'initiator' | 'approver' | 'readonly' | string
 }
 
 /** 业务实体表单的完整字段策略：原生字段 + 扩展字段 + 规则。 */
@@ -235,7 +238,13 @@ export interface WfCurrentTask {
   node_name?: string
   field_perms: WfFieldPerm[]
   opinion_required?: boolean
-  field_meta: { id: string; label: string; type: string; options?: { value: string; label: string }[] }[]
+  field_meta: {
+    id: string
+    label: string
+    type: string
+    options?: { value: string; label: string }[]
+    detail_table_columns?: FieldDefinition[]
+  }[]
   field_values: Record<string, unknown>
 }
 

@@ -24,7 +24,7 @@ import PaymentGantt from '@/components/PaymentGantt'
 import { roleApi } from '@/api/user'
 import type { OpportunityProject, ProjectStageHistory, QuoteItem, ContractItem, SolutionItem, DeliveryMilestone, ErpOrderLink, PaymentPlanItem, PaymentRecordItem, InvoiceItem, ChangeRequestItem, Customer, AclShareItem, ProjectMember } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
-import { opportunityStatusMap, quoteStatusLabels, quoteStatusColors, contractStatusLabels, contractStatusColors } from '@/constants/labels'
+import { opportunityStatusMap, quoteStatusLabels, quoteStatusColors, contractDisplayStatusLabels, contractDisplayStatusColors, resolveContractDisplayStatus } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import { useUserSelect } from '@/hooks/useSelectOptions'
@@ -298,6 +298,7 @@ export default function OpportunityDetail() {
 
   // 新建合同（可直接录入条款）
   const [contractModal, setContractModal] = useState(false)
+  const [ctContractNo, setCtContractNo] = useState('')
   const [ctAmount, setCtAmount] = useState<number | null>(null)
   const [ctEndDate, setCtEndDate] = useState<dayjs.Dayjs | null>(null)
   const [ctPay, setCtPay] = useState<Record<string, unknown>[]>([])
@@ -305,6 +306,7 @@ export default function OpportunityDetail() {
   const [ctSaving, setCtSaving] = useState(false)
 
   const handleCreateContract = () => {
+    setCtContractNo('')
     setCtAmount(null)
     setCtEndDate(null)
     setCtPay([])
@@ -313,10 +315,16 @@ export default function OpportunityDetail() {
   }
 
   const doCreateContract = async () => {
+    const no = ctContractNo.trim()
+    if (!no) {
+      message.error('请填写合同号')
+      return
+    }
     setCtSaving(true)
     try {
       await contractApi.create(id!, {
         title: 'V1',
+        contract_no: no,
         ...(ctAmount != null ? { amount_total: ctAmount } : {}),
         ...(ctEndDate ? { end_date: ctEndDate.format('YYYY-MM-DD') } : {}),
         ...(ctPay.length ? { payment_terms_json: ctPay } : {}),
@@ -884,9 +892,10 @@ export default function OpportunityDetail() {
                         { title: '版本', dataIndex: 'current_version_no', render: (v) => `V${v}` },
                         // 合同金额可被脱敏成 "***"，fmtMoney 自带该判定
                         { title: '合同金额', dataIndex: 'amount_total', render: (v) => fmtMoney(v) },
-                        { title: '状态', dataIndex: 'status', render: (v) => (
-                          <Tag color={contractStatusColors[v] || 'default'}>{contractStatusLabels[v] || v}</Tag>
-                        )},
+                        { title: '状态', dataIndex: 'status', render: (v, r) => {
+                          const ds = resolveContractDisplayStatus(v, (r as { current_version_status?: string }).current_version_status)
+                          return <Tag color={contractDisplayStatusColors[ds] || 'default'}>{contractDisplayStatusLabels[ds] || ds}</Tag>
+                        }},
                         { title: '签署日期', dataIndex: 'signed_date', render: (v) => v || '-' },
                         { title: '', key: 'actions', render: (_, r) => (
                           <Space size={4}>
@@ -1671,6 +1680,10 @@ export default function OpportunityDetail() {
         <div className="space-y-5 py-2">
           <div className="flex flex-wrap gap-6">
             <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">合同号</label>
+              <Input value={ctContractNo} onChange={(e) => setCtContractNo(e.target.value)} style={{ width: 220 }} placeholder="请填写合同号" allowClear />
+            </div>
+            <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">合同金额</label>
               <InputNumber value={ctAmount} min={0} onChange={(v) => setCtAmount(v)} style={{ width: 220 }} addonBefore="¥" placeholder="输入金额" />
             </div>
@@ -1679,6 +1692,7 @@ export default function OpportunityDetail() {
               <DatePicker value={ctEndDate} onChange={(d) => setCtEndDate(d)} style={{ width: 220 }} />
             </div>
           </div>
+          <p className="text-xs text-slate-400 -mt-2">图纸编号将在保存时按 WMGF 规则自动生成</p>
           <div>
             <ContractSubtableTitle fieldId={PAYMENT_TERMS_FIELD_ID} fallback="收款计划" />
             <PaymentTermsEditor value={ctPay} onChange={setCtPay} />

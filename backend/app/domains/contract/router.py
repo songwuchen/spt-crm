@@ -75,6 +75,58 @@ def _contract_dict(c) -> dict:
     }
 
 
+async def _attach_current_version_status(db: AsyncSession, tenant_id: str, contracts, rows: list[dict]) -> list[dict]:
+    """列表展示用：主表签署前一直是 draft，审批态在当前版本上。"""
+    if not contracts or not rows:
+        return rows
+    from app.domains.contract.models import ContractVersion
+    ids = [c.id for c in contracts]
+    ver_rows = (await db.execute(
+        select(ContractVersion.contract_id, ContractVersion.version_no, ContractVersion.status).where(
+            ContractVersion.tenant_id == tenant_id,
+            ContractVersion.contract_id.in_(ids),
+        )
+    )).all()
+    ver_map = {(cid, vno): st for cid, vno, st in ver_rows}
+    by_id = {c.id: c for c in contracts}
+    for d in rows:
+        c = by_id.get(d.get("id"))
+        if not c:
+            continue
+        d["current_version_status"] = ver_map.get((c.id, c.current_version_no)) or "draft"
+    return rows
+
+
+def _apply_contract_display_status_filter(q, cq, tenant_id: str, status: str):
+    """筛选「展示态」：draft/approving/pending_sign/rejected 看版本；signed/terminated 看主表。"""
+    from app.domains.contract.models import Contract, ContractVersion
+    from sqlalchemy import and_, exists
+
+    if status in ("signed", "terminated"):
+        return q.where(Contract.status == status), cq.where(Contract.status == status)
+
+    ver_pred = {
+        "draft": ContractVersion.status == "draft",
+        "approving": ContractVersion.status == "submitted",
+        "pending_sign": ContractVersion.status.in_(("approved", "signed")),
+        "rejected": ContractVersion.status == "rejected",
+    }.get(status)
+    if ver_pred is None:
+        # 兼容旧筛选项：直接按主表 status
+        return q.where(Contract.status == status), cq.where(Contract.status == status)
+
+    ver_exists = exists().where(and_(
+        ContractVersion.tenant_id == tenant_id,
+        ContractVersion.contract_id == Contract.id,
+        ContractVersion.version_no == Contract.current_version_no,
+        ver_pred,
+    ))
+    return (
+        q.where(Contract.status == "draft").where(ver_exists),
+        cq.where(Contract.status == "draft").where(ver_exists),
+    )
+
+
 def _version_dict(v) -> dict:
     return {
         "id": v.id, "contract_id": v.contract_id, "version_no": v.version_no,
@@ -103,8 +155,7 @@ async def list_contracts(
     q = select(Contract).where(Contract.tenant_id == tenant_id)
     cq = select(func.count(Contract.id)).where(Contract.tenant_id == tenant_id)
     if status:
-        q = q.where(Contract.status == status)
-        cq = cq.where(Contract.status == status)
+        q, cq = _apply_contract_display_status_filter(q, cq, tenant_id, status)
     if keyword:
         like = f"%{keyword}%"
         from sqlalchemy import or_
@@ -148,6 +199,7 @@ async def list_contracts(
         if not base.get("customer_name") and c.customer_id:
             base["customer_name"] = direct_cust.get(c.customer_id)
         rows.append(base)
+    rows = await _attach_current_version_status(db, tenant_id, items, rows)
     rows = apply_field_mask(rows, "contract", perms, policies)
     # 角色键控的字段权限（隐藏/脱敏），与按权限脱敏的 apply_field_mask 并行生效
     from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
@@ -164,7 +216,9 @@ async def list_project_contracts(
     _user=Depends(require_permissions("contract:view")),
 ):
     items = await service.list_contracts_by_project(db, tenant_id, project_id, _user)
-    return ok([_contract_dict(c) for c in items])
+    rows = [_contract_dict(c) for c in items]
+    rows = await _attach_current_version_status(db, tenant_id, items, rows)
+    return ok(rows)
 
 
 @router.post("/api/v1/projects/{project_id}/contracts")
@@ -190,7 +244,7 @@ async def drawing_map_lookups(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """编号查询：从合同图纸对应表选数，回填合同号/图纸编号。"""
+    """编号查询（合同评审等）：从合同图纸对应表选数。"""
     perms = set(current_user.get("permissions") or [])
     if not ({"contract:create", "contract:edit", "contract:view"} & perms):
         raise BusinessException(code=FORBIDDEN, message="缺少权限: contract:create")

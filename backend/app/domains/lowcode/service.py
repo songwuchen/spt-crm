@@ -214,6 +214,8 @@ def _field_defs_fingerprint(defs: list | None) -> str:
             str(f.get("type") or ""),
             str(f.get("label") or ""),
             bool(f.get("required")),
+            bool(f.get("available_on_create", True)),
+            str(f.get("fill_stage") or ""),
             json.dumps(f.get("options") or [], sort_keys=True, ensure_ascii=False),
             json.dumps(f.get("props") or {}, sort_keys=True, ensure_ascii=False),
             json.dumps(f.get("default_value"), ensure_ascii=False, default=str)
@@ -256,6 +258,8 @@ async def sync_builtin_form_fields(
     published = await _get_published_version(db, tenant_id, tpl.id)
     current = (published.field_definitions if published else None) or []
     current_rules = (published.rule_definitions if published else None) or []
+    # 合并：保留租户在设计器里配的阶段/必填/权限/标签，避免 ensure 覆盖页面配置
+    want = _merge_builtin_field_defs(want, current)
     same_fields = _field_defs_fingerprint(current) == _field_defs_fingerprint(want)
     same_rules = _rules_fingerprint(current_rules) == _rules_fingerprint(want_rules)
     if same_fields and same_rules:
@@ -278,6 +282,61 @@ async def sync_builtin_form_fields(
     await publish(db, tenant_id, tpl.id, user.get("sub") or "")
     await db.refresh(tpl)
     return tpl
+
+
+_FIELD_TENANT_OVERRIDE_KEYS = (
+    "available_on_create", "fill_stage", "required", "form_editable",
+    "visible_roles", "unmask_roles", "edit_roles",
+    "label", "placeholder", "description", "span",
+)
+
+
+def _merge_builtin_field_defs(want: list, current: list) -> list:
+    """builtin 结构为准，租户阶段/必填/权限/文案覆盖同 id 字段。"""
+    cur_by_id = {
+        f.get("id"): f for f in (current or [])
+        if isinstance(f, dict) and f.get("id")
+    }
+    out: list = []
+    seen: set[str] = set()
+    for f in want or []:
+        if not isinstance(f, dict) or not f.get("id"):
+            continue
+        fid = f["id"]
+        seen.add(fid)
+        c = cur_by_id.get(fid)
+        if not c:
+            out.append(dict(f))
+            continue
+        merged = dict(f)
+        for k in _FIELD_TENANT_OVERRIDE_KEYS:
+            if k in c:
+                merged[k] = c[k]
+        # 明细列：按列 id 保留必填等
+        want_cols = merged.get("detail_table_columns") or []
+        cur_cols = {
+            col.get("id"): col for col in (c.get("detail_table_columns") or [])
+            if isinstance(col, dict) and col.get("id")
+        }
+        if want_cols and cur_cols:
+            new_cols = []
+            for col in want_cols:
+                if not isinstance(col, dict) or not col.get("id"):
+                    continue
+                cc = cur_cols.get(col["id"])
+                if not cc:
+                    new_cols.append(dict(col))
+                    continue
+                mc = dict(col)
+                for k in ("required", "label", "placeholder"):
+                    if k in cc:
+                        mc[k] = cc[k]
+                new_cols.append(mc)
+            merged["detail_table_columns"] = new_cols
+        out.append(merged)
+    # sync_fields 内置表以 builtin 字段列表为准：不再把「当前有、builtin 已删」的字段
+    # 当租户扩展保留，否则删字段（如 order_person_text）永远删不掉。
+    return out
 
 
 async def ensure_builtin_form(

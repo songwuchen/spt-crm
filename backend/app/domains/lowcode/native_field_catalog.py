@@ -246,8 +246,9 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         _f("factory_no", "出厂编号", json_storage="registration_json"),
         # ---- 合同产品信息（表列）----
         _f("order_date", "订货日期", "date", default_required=True),
-        _f("contract_no", "合同号", form_editable=True, available_on_create=True, default_required=True),
-        _f("drawing_no", "图纸编号", default_required=True),
+        _f("contract_no", "合同号", form_editable=True, available_on_create=True,
+           system_required=True),  # 业务手填，不可被租户降为非必填
+        _f("drawing_no", "图纸编号", form_editable=False, available_on_create=False, default_required=False),
         _f("peer_contract_no", "对方合同号"),
         _f("amount_total", "合同总金额", "amount", default_required=True),
         # 合同明细子表：值存版本 key_clauses_json；列可在设计器覆盖
