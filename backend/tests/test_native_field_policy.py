@@ -131,7 +131,7 @@ async def test_non_form_editable_field_can_be_masked_but_not_required(
         await publish([{"id": "signed_date", "native": True, "label": "签订日期",
                         "type": "date", "required": True}])
         r = (await client.post(f"/api/v1/projects/{proj_id}/contracts",
-                               json={"amount_total": 100}, headers=h)).json()
+                               json={"contract_no": f"CT-POLICY-{proj_id[:8].upper()}", "amount_total": 100}, headers=h)).json()
         assert r["code"] == 0, f"表单上填不了的字段不该拦住保存: {r}"
         await client.delete(f"/api/v1/contracts/{r['data']['contract']['id']}", headers=h)
     finally:

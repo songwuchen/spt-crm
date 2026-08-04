@@ -10,7 +10,7 @@ import {
   TableOutlined, FunctionOutlined, FieldNumberOutlined, LinkOutlined,
   EnvironmentOutlined, AimOutlined, HighlightOutlined, FileTextOutlined,
   DatabaseOutlined, DeploymentUnitOutlined, BlockOutlined, BorderOuterOutlined,
-  ProjectOutlined, FileProtectOutlined,
+  MinusOutlined, ProjectOutlined, FileProtectOutlined,
 } from '@ant-design/icons'
 import type { FieldType } from '@/types/lowcode'
 

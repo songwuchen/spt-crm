@@ -11,7 +11,9 @@ async def test_ar_aging(client: AsyncClient, auth_headers: dict):
     cust_id = cust.json()["data"]["id"]
     proj = await client.post("/api/v1/projects", json={"name": "账龄商机", "customer_id": cust_id}, headers=h)
     proj_id = proj.json()["data"]["id"]
-    c = await client.post(f"/api/v1/projects/{proj_id}/contracts", json={"amount_total": 100000}, headers=h)
+    c = await client.post(f"/api/v1/projects/{proj_id}/contracts", json={
+        "contract_no": f"CT-AGING-{proj_id[:8].upper()}", "amount_total": 100000,
+    }, headers=h)
     contract_id = c.json()["data"]["contract"]["id"]
     await client.post(f"/api/v1/contracts/{contract_id}/sign", json={"signed_date": today}, headers=h)
     await client.post(f"/api/v1/projects/{proj_id}/payment_records", json={"amount": 30000, "received_date": today}, headers=h)

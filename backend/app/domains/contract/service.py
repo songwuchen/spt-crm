@@ -365,6 +365,7 @@ async def create_from_quote(db: AsyncSession, tenant_id: str, quote_id: str, use
     amount = float(current_ver.price_total) if current_ver and current_ver.price_total else None
     terms = current_ver.terms_summary_json if current_ver else None
 
+    from app.common.code_generator import generate_code
     contract = Contract(
         id=generate_uuid(), tenant_id=tenant_id,
         project_id=quote.project_id, contract_no=await generate_code(db, tenant_id, "contract"),

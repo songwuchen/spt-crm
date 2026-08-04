@@ -19,8 +19,10 @@ async def test_contract_full_flow(client: AsyncClient, auth_headers: dict):
     }, headers=h)
     proj_id = proj.json()["data"]["id"]
 
-    # Create contract
-    c_resp = await client.post(f"/api/v1/projects/{proj_id}/contracts", json={}, headers=h)
+    # Create contract（合同号必填，测试显式传入）
+    c_resp = await client.post(f"/api/v1/projects/{proj_id}/contracts", json={
+        "contract_no": f"CT-TEST-{proj_id[:8].upper()}",
+    }, headers=h)
     assert c_resp.json()["code"] == 0
     contract_id = c_resp.json()["data"]["contract"]["id"]
     ver_id = c_resp.json()["data"]["version"]["id"]
@@ -108,7 +110,7 @@ async def test_masked_contract_amount_cannot_be_overwritten(client: AsyncClient,
         "name": "脱敏合同商机", "customer_id": cust_id, "stage_code": "S1",
     }, headers=h)).json()["data"]["id"]
     contract_id = (await client.post(f"/api/v1/projects/{proj_id}/contracts",
-                                     json={"amount_total": 88888}, headers=h)
+                                     json={"contract_no": f"CT-MASK-{proj_id[:8].upper()}", "amount_total": 88888}, headers=h)
                    ).json()["data"]["contract"]["id"]
 
     try:
