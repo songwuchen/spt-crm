@@ -38,7 +38,7 @@ const { Title, Text } = Typography
 const PALETTE: { group: string; types: FieldType[] }[] = [
   { group: '基础', types: ['text', 'textarea', 'number', 'amount', 'date', 'datetime', 'switch'] },
   { group: '选择', types: ['select', 'multi_select', 'radio', 'checkbox', 'cascade'] },
-  { group: '高级', types: ['person', 'person_multi', 'department', 'department_multi', 'file', 'image', 'address', 'rich_text', 'signature', 'formula', 'auto_number', 'detail_table'] },
+  { group: '高级', types: ['person', 'person_multi', 'department', 'department_multi', 'project', 'file', 'image', 'address', 'rich_text', 'signature', 'formula', 'auto_number', 'detail_table'] },
 ]
 const CHOICE_TYPES = new Set(['select', 'multi_select', 'radio', 'checkbox'])
 /** 与后端 DETAIL_COLUMN_TYPES 对齐：可作为明细子表列的类型 */

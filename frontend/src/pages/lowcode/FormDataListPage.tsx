@@ -17,6 +17,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { DRAWING_FORM_LAYOUT, applyDrawingFormLayout } from '@/constants/drawingFormLayout'
 import { getPersonLabelMap } from '@/components/lowcode/fields/PersonField'
 import { getDeptNameMap } from '@/components/lowcode/fields/DeptField'
+import { getProjectLabelMap } from '@/components/lowcode/fields/ProjectField'
 
 const { Title, Text } = Typography
 
@@ -39,7 +40,7 @@ const LIST_EXCLUDE_TYPES = new Set([
 /** 列表优先展示的类型（同优先级按 schema 顺序） */
 const LIST_PRIORITY = new Set([
   'auto_number', 'text', 'number', 'amount', 'date', 'datetime',
-  'select', 'radio', 'checkbox', 'switch', 'person', 'department',
+  'select', 'radio', 'checkbox', 'switch', 'person', 'department', 'project',
 ])
 
 function pickListColumns(fields: FieldDefinition[], max = 8): FieldDefinition[] {
@@ -64,7 +65,7 @@ function pickListColumns(fields: FieldDefinition[], max = 8): FieldDefinition[] 
   return sorted.slice(0, max)
 }
 
-type NameMaps = { users: Record<string, string>; depts: Record<string, string> }
+type NameMaps = { users: Record<string, string>; depts: Record<string, string>; projects: Record<string, string> }
 
 function collectIds(v: unknown): string[] {
   if (v == null || v === '') return []
@@ -106,6 +107,11 @@ function cellText(field: FieldDefinition, v: unknown, maps?: NameMaps): string {
     const ids = collectIds(v)
     if (!ids.length) return '—'
     return ids.map((id) => maps?.users[id] || id).join('，')
+  }
+  if (field.type === 'project') {
+    const ids = collectIds(v)
+    if (!ids.length) return '—'
+    return ids.map((id) => maps?.projects[id] || id).join('，')
   }
   if (Array.isArray(v)) return v.map(labelOf).join('，')
   return String(v)
@@ -150,7 +156,7 @@ export default function FormDataListPage({
   const [viewRec, setViewRec] = useState<ViewRec | null>(null)
   const [wfDetail, setWfDetail] = useState<WfInstanceDetail | null>(null)
   const [wfCommenting, setWfCommenting] = useState(false)
-  const [nameMaps, setNameMaps] = useState<NameMaps>({ users: {}, depts: {} })
+  const [nameMaps, setNameMaps] = useState<NameMaps>({ users: {}, depts: {}, projects: {} })
   const isModule = Boolean(propId)
   const fillPath = fillPathProp
     || (isModule ? `${location.pathname.replace(/\/$/, '')}/fill` : `/lowcode/forms/${id}/fill`)
@@ -181,23 +187,29 @@ export default function FormDataListPage({
   }, [id])
   useEffect(() => { load() }, [load])
 
-  // 列表里 person/department 存的是 id，需解析成姓名/部门名
+  // 列表里 person/department/project 存的是 id，需解析成姓名/部门名/商机名
   useEffect(() => {
     if (!items.length || !colFields.length) return
     const personIds: string[] = []
+    const projectIds: string[] = []
     const needDept = colFields.some((f) => f.type === 'department' || f.type === 'department_multi')
     for (const f of colFields) {
-      if (f.type !== 'person' && f.type !== 'person_multi') continue
-      for (const row of items) personIds.push(...collectIds(row.form_data?.[f.id]))
+      if (f.type === 'person' || f.type === 'person_multi') {
+        for (const row of items) personIds.push(...collectIds(row.form_data?.[f.id]))
+      }
+      if (f.type === 'project') {
+        for (const row of items) projectIds.push(...collectIds(row.form_data?.[f.id]))
+      }
     }
     let alive = true
     ;(async () => {
-      const [users, depts] = await Promise.all([
+      const [users, depts, projects] = await Promise.all([
         personIds.length ? getPersonLabelMap(personIds) : Promise.resolve({}),
         needDept ? getDeptNameMap() : Promise.resolve({}),
+        projectIds.length ? getProjectLabelMap(projectIds) : Promise.resolve({}),
       ])
       if (!alive) return
-      setNameMaps({ users, depts })
+      setNameMaps({ users, depts, projects })
     })()
     return () => { alive = false }
   }, [items, colFields])

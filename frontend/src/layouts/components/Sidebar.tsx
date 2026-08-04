@@ -52,7 +52,11 @@ export default function Sidebar() {
           // 整组被隐藏 → 跳过
           if (hiddenSet.has(group.key)) return null
           const visibleItems = group.items.filter((item) => {
-            if (!item.permission || hasPermission(item.permission)) {
+            const permOk = !item.permission
+              || (Array.isArray(item.permission)
+                ? item.permission.some((p) => hasPermission(p))
+                : hasPermission(item.permission))
+            if (permOk) {
               // 系统配置入口永不隐藏，避免管理员锁死
               return !hiddenSet.has(item.key) || PROTECTED_MENU_KEYS.includes(item.key)
             }

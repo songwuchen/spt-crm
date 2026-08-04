@@ -28,8 +28,10 @@ export const approvalBizTypeLabels: Record<string, string> = {
   // 表单绑定流（无 biz_type 时前端用 process_name 兜底，此处做短标签）
   drawing_requisition: '图纸领用',
   install_drawing_notice: '安装图通知',
+  scheme_management: '方案管理',
   '合同图纸（资料）领用申请': '图纸领用',
   '安装图设计通知': '安装图通知',
+  '方案管理': '方案管理',
 }
 
 // --- Service Ticket ---

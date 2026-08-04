@@ -100,7 +100,17 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         {"id": "reporter_id", "label": "报备人", "type": "person"},
         {"id": "department_id", "label": "部门", "type": "department"},
     ],
-    "solution": [],
+    "solution": [
+        {"id": "solution_no", "label": "方案编号", "type": "text"},
+        {"id": "status", "label": "状态", "type": "text"},
+        {"id": "assignee_id", "label": "负责人", "type": "person"},
+        {"id": "assignee_name", "label": "负责人姓名", "type": "text"},
+        {"id": "department_id", "label": "部门", "type": "department"},
+        {"id": "department_name", "label": "部门名称", "type": "text"},
+        {"id": "current_version_no", "label": "当前版本号", "type": "number"},
+        {"id": "created_by_id", "label": "创建人", "type": "person"},
+        {"id": "project_id", "label": "商机ID", "type": "text"},
+    ],
 }
 
 

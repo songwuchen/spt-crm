@@ -93,12 +93,60 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
       attachments: 24, attachments_no_image: 24,
     },
   },
+  // 方案管理：scheme_type 分流；独有字段靠规则显隐，布局按类型分区列出
+  scheme_management: {
+    contentMaxWidth: 1100,
+    sections: [
+      {
+        title: '方案类型',
+        fieldIds: ['scheme_type', 'related_project'],
+      },
+      {
+        title: '共用基本信息',
+        fieldIds: [
+          'apply_datetime', 'department', 'applicant', 'order_person', 'order_person_text',
+          'product_model', 'need_decrypt', 'design_dispatch', 'transfer_packaging_users',
+          'design_assignees', 'order_date', 'images',
+        ],
+      },
+      {
+        title: '有合同号 · 领用',
+        fieldIds: [
+          'involve_std_drawing', 'contract_no', 'apply_reason', 'designer', 'designer_text',
+          'transfer_channel', 'need_decrypt_note', 'paper_print_tip', 'drawing_type',
+          'attachment_name', 'attachments', 'offices', 'need_gm_approval',
+        ],
+      },
+      {
+        title: '无合同号 · 投标/安装图',
+        fieldIds: [
+          'project_no', 'is_new_project', 'sales_person', 'customer_name', 'matter',
+          'dept_code', 'is_xiaomeng', 'design_card_no', 'drawing_issue_type', 'drawing_types',
+          'pickup_purpose', 'apply_or_change', 'apply_reason_star', 'biz_feedback',
+          'lose_bid_reason', 'card_date', 'pre_designers', 'require_draw_date',
+          'pre_designer_text', 'scheme_detail', 'install_env', 'install_position',
+          'foundation_drawing', 'install_method', 'change_scheme', 'scheme_material',
+          'non_scheme_material', 'attention', 'attachment_names', 'attachments_no_image',
+          'need_submit_drawing', 'offices_multi', 'transfer_sw_lwt',
+          'score_attitude', 'score_progress', 'score_skill', 'score_total', 'score_date', 'remark',
+        ],
+      },
+    ],
+    spans: {
+      scheme_type: 24,
+      related_project: 24,
+      apply_reason: 24, paper_print_tip: 24, attachments: 24, images: 24,
+      scheme_detail: 24, install_env: 24, scheme_material: 24, non_scheme_material: 24,
+      change_scheme: 24, apply_or_change: 24, apply_reason_star: 24, remark: 24, attention: 24,
+      attachments_no_image: 24,
+    },
+  },
 }
 
 const SHORT_TYPES = new Set([
   'text', 'select', 'radio', 'person', 'person_multi',
   'department', 'department_multi', 'date', 'datetime', 'number',
-  'amount', 'multi_select', 'switch', 'formula', 'auto_number',
+  'amount', 'multi_select', 'switch', 'formula', 'auto_number', 'project',
 ])
 
 function defaultSpan(field: FieldDefinition): number {

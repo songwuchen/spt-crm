@@ -7,7 +7,8 @@ export interface MenuItem {
   key: string          // 路由路径，同时作为别名/隐藏的存储键
   icon: string         // Material Symbols 图标名
   labelKey: string     // i18n 文案 key（默认名）
-  permission?: string  // 需要的权限（如 customer:view）
+  /** 单个权限，或任一命中即可 */
+  permission?: string | string[]
 }
 
 export interface MenuGroup {
@@ -36,7 +37,7 @@ export const menuGroups: MenuGroup[] = [
     titleKey: 'nav.groupDeals',
     items: [
       { key: '/opportunities', icon: 'rocket_launch', labelKey: 'nav.opportunities', permission: 'project:view' },
-      { key: '/solutions', icon: 'lightbulb', labelKey: 'nav.solutions', permission: 'solution:view' },
+      { key: '/solutions', icon: 'lightbulb', labelKey: 'nav.solutions', permission: 'form_data:view' },
       { key: '/quotes', icon: 'sell', labelKey: 'nav.quotes', permission: 'quote:view' },
       { key: '/contracts', icon: 'contract', labelKey: 'nav.contracts', permission: 'contract:view' },
       { key: '/contract-reviews', icon: 'fact_check', labelKey: 'nav.contractReviews', permission: 'contract_review:view' },

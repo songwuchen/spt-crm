@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Any, Optional, Union
 from pydantic import BaseModel
 
 
@@ -11,6 +11,7 @@ class SolutionCreate(BaseModel):
     assignee_name: Optional[str] = None
     department_id: Optional[str] = None
     department_name: Optional[str] = None
+    custom_fields_json: Optional[dict[str, Any]] = None
 
 
 class SolutionUpdate(BaseModel):
@@ -19,6 +20,7 @@ class SolutionUpdate(BaseModel):
     assignee_name: Optional[str] = None
     department_id: Optional[str] = None
     department_name: Optional[str] = None
+    custom_fields_json: Optional[dict[str, Any]] = None
 
 
 class SolutionVersionUpdate(BaseModel):

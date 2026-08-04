@@ -49,13 +49,29 @@ async def create_solution(db: AsyncSession, tenant_id: str, project_id: str, dat
     # 创建前校验父商机可见性：否则可以往看不到的商机下塞子记录（越权写入）
     from app.domains.project.service import get_project
     await get_project(db, tenant_id, project_id, user)
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
+    )
+    cfj = await sanitize_entity_write(
+        db, tenant_id, "solution", data.custom_fields_json, None, user.get("roles"))
+    await validate_entity_custom_fields(db, tenant_id, "solution", cfj, user.get("roles"))
+    raw = data.model_dump(exclude_unset=True)
+    native_keys = ("assignee_id", "assignee_name", "department_id", "department_name")
+    native_payload = {k: raw[k] for k in native_keys if k in raw}
+    native = await enforce_native_field_policy(
+        db, tenant_id, "solution", native_payload, None, user.get("roles"),
+        required_scope="payload",
+    )
     solution = Solution(
         id=generate_uuid(), tenant_id=tenant_id,
         project_id=project_id, solution_no=_generate_solution_no(),
         current_version_no=1,
         created_by_id=user["sub"], created_by_name=user.get("real_name") or user.get("username"),
-        assignee_id=data.assignee_id, assignee_name=data.assignee_name,
-        department_id=data.department_id, department_name=data.department_name,
+        assignee_id=native.get("assignee_id", data.assignee_id),
+        assignee_name=native.get("assignee_name", data.assignee_name),
+        department_id=native.get("department_id", data.department_id),
+        department_name=native.get("department_name", data.department_name),
+        custom_fields_json=cfj or None,
     )
     db.add(solution)
 
@@ -81,7 +97,16 @@ async def create_solution(db: AsyncSession, tenant_id: str, project_id: str, dat
 async def update_solution(db: AsyncSession, tenant_id: str, solution_id: str, data: SolutionUpdate, user: dict) -> Solution:
     solution = await get_solution(db, tenant_id, solution_id, user)
     old_status = solution.status
-    for field, val in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    if "custom_fields_json" in payload:
+        from app.domains.lowcode.field_permission import sanitize_entity_write, validate_entity_custom_fields
+        cfj = await sanitize_entity_write(
+            db, tenant_id, "solution", payload.get("custom_fields_json"),
+            solution.custom_fields_json, user.get("roles"),
+        )
+        await validate_entity_custom_fields(db, tenant_id, "solution", cfj, user.get("roles"))
+        payload["custom_fields_json"] = cfj
+    for field, val in payload.items():
         setattr(solution, field, val)
     await db.commit()
     await db.refresh(solution)

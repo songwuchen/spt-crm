@@ -420,6 +420,7 @@ export interface SolutionItem {
   assignee_name?: string
   department_id?: string
   department_name?: string
+  custom_fields_json?: Record<string, unknown>
   created_at: string
   updated_at: string
   // Joined from get detail

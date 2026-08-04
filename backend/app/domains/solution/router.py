@@ -17,6 +17,7 @@ def _solution_dict(s) -> dict:
         "created_by_id": s.created_by_id, "created_by_name": s.created_by_name,
         "assignee_id": s.assignee_id, "assignee_name": s.assignee_name,
         "department_id": s.department_id, "department_name": s.department_name,
+        "custom_fields_json": s.custom_fields_json or {},
         "created_at": s.created_at.isoformat() if s.created_at else "",
         "updated_at": s.updated_at.isoformat() if s.updated_at else "",
     }
@@ -73,8 +74,11 @@ async def list_solutions(
         .offset((pageNo - 1) * pageSize).limit(pageSize)
     )).scalars().all()
     from app.common.list_enrich import project_names_map
+    from app.domains.lowcode.field_permission import strip_entity_dicts
     name_map = await project_names_map(db, tenant_id, [s.project_id for s in items])
-    return ok({"items": [{**_solution_dict(s), **(name_map.get(s.project_id) or {})} for s in items], "total": total})
+    rows = [{**_solution_dict(s), **(name_map.get(s.project_id) or {})} for s in items]
+    await strip_entity_dicts(db, tenant_id, "solution", rows, current_user.get("roles"))
+    return ok({"items": rows, "total": total})
 
 
 # --- Project-scoped routes ---
@@ -87,7 +91,10 @@ async def list_project_solutions(
     _user=Depends(require_permissions("solution:view")),
 ):
     items = await service.list_solutions_by_project(db, tenant_id, project_id, _user)
-    return ok([_solution_dict(s) for s in items])
+    from app.domains.lowcode.field_permission import strip_entity_dicts
+    rows = [_solution_dict(s) for s in items]
+    await strip_entity_dicts(db, tenant_id, "solution", rows, _user.get("roles"))
+    return ok(rows)
 
 
 @router.post("/api/v1/projects/{project_id}/solutions")
@@ -118,11 +125,14 @@ async def get_solution(
     versions = await service.get_versions_by_solution(db, tenant_id, solution_id)
     current_ver = next((v for v in versions if v.version_no == solution.current_version_no), None)
 
-    return ok({
+    from app.domains.lowcode.field_permission import strip_entity_dicts
+    d = {
         **_solution_dict(solution),
         "versions": [_version_dict(v) for v in versions],
         "current_version": _version_dict(current_ver) if current_ver else None,
-    })
+    }
+    await strip_entity_dicts(db, tenant_id, "solution", [d], _user.get("roles"))
+    return ok(d)
 
 
 @router.put("/api/v1/solutions/{solution_id}")
@@ -134,7 +144,10 @@ async def update_solution(
     current_user: dict = Depends(require_permissions("solution:edit")),
 ):
     s = await service.update_solution(db, tenant_id, solution_id, body, current_user)
-    return ok(_solution_dict(s))
+    from app.domains.lowcode.field_permission import strip_entity_dicts
+    d = _solution_dict(s)
+    await strip_entity_dicts(db, tenant_id, "solution", [d], current_user.get("roles"))
+    return ok(d)
 
 
 @router.delete("/api/v1/solutions/{solution_id}")

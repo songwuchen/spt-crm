@@ -123,6 +123,18 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "sync_fields": True,
     },
     {
+        "key": "scheme_management",
+        "name": "方案管理",
+        "category": "图纸",
+        "icon": "BulbOutlined",
+        "description": (
+            "独立合成表单：有合同号→领用字段/审批；无合同号→安装图/投标方案字段/审批。"
+            "不与 drawing_requisition / install_drawing_notice 共用 code。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
         "key": "contract_drawing_map",
         "name": "合同图纸对应表",
         "category": "图纸",
@@ -182,9 +194,14 @@ def _apply_drawing_jdy_fields() -> None:
     try:
         from app.domains.lowcode._drawing_jdy_generated import DRAWING_JDY
     except Exception:
-        return
+        DRAWING_JDY = {}
+    try:
+        from app.domains.lowcode._scheme_management_generated import SCHEME_MANAGEMENT_JDY
+    except Exception:
+        SCHEME_MANAGEMENT_JDY = {}
+    packs = {**DRAWING_JDY, **SCHEME_MANAGEMENT_JDY}
     for t in BUILTIN_TEMPLATES:
-        pack = DRAWING_JDY.get(t["key"])
+        pack = packs.get(t["key"])
         if not pack:
             continue
         defs = []

@@ -10,13 +10,13 @@ import {
   TableOutlined, FunctionOutlined, FieldNumberOutlined, LinkOutlined,
   EnvironmentOutlined, AimOutlined, HighlightOutlined, FileTextOutlined,
   DatabaseOutlined, DeploymentUnitOutlined, BlockOutlined, BorderOuterOutlined,
-  MinusOutlined,
+  MinusOutlined, ProjectOutlined,
 } from '@ant-design/icons'
 import type { FieldType } from '@/types/lowcode'
 
 type IconComp = React.ComponentType<{ className?: string; style?: React.CSSProperties }>
 
-// 覆盖 types/lowcode.ts 中全部 29 个 FieldType（Record 强约束，新增类型漏配会编译报错）
+// 覆盖 types/lowcode.ts 中全部 FieldType（Record 强约束，新增类型漏配会编译报错）
 export const FIELD_TYPE_ICON: Record<FieldType, IconComp> = {
   // 基础
   text: FontSizeOutlined,
@@ -54,6 +54,7 @@ export const FIELD_TYPE_ICON: Record<FieldType, IconComp> = {
   related_doc: LinkOutlined,
   select_data: DatabaseOutlined,
   relation: DeploymentUnitOutlined,
+  project: ProjectOutlined,
   section: MinusOutlined,
   separator: MinusOutlined,
 }
@@ -89,7 +90,7 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   // 设计器控件面板暂未开放这 5 类(PALETTE 里没有),但表单 JSON / 后端模板可能带过来,
   // 缺了就会在画布和属性面板显示 sub_table_data 这种英文原名。
   related_doc: '关联文档', location: '定位', select_data: '数据联动',
-  relation: '关联记录', sub_table_data: '子表数据',
+  relation: '关联记录', sub_table_data: '子表数据', project: '关联商机',
   section: '分区标题', separator: '分隔线',
 }
 

@@ -10,6 +10,7 @@ export type FieldType =
   | 'related_doc' | 'address' | 'location' | 'cascade' | 'rich_text'
   | 'signature' | 'select_data' | 'relation' | 'sub_table_data'
   | 'section' | 'separator'
+  | 'project'
 
 export interface OptionItem {
   label: string

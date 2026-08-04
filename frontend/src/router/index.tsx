@@ -113,7 +113,6 @@ const ChangeRequestList = lazy(() => import('@/pages/change/ChangeRequestList'))
 const MilestoneList = lazy(() => import('@/pages/delivery/MilestoneList'))
 const QuoteList = lazy(() => import('@/pages/quote/QuoteList'))
 const ContractList = lazy(() => import('@/pages/contract/ContractList'))
-const SolutionList = lazy(() => import('@/pages/solution/SolutionList'))
 const DashboardSnapshot = lazy(() => import('@/pages/dashboard/DashboardSnapshot'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
@@ -121,7 +120,7 @@ function Lazy({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<Spin className="flex justify-center mt-20" />}>{children}</Suspense>
 }
 
-function Guard({ permission, children }: { permission: string; children: React.ReactNode }) {
+function Guard({ permission, children }: { permission: string | string[]; children: React.ReactNode }) {
   return <Lazy><PermissionGuard permission={permission}>{children}</PermissionGuard></Lazy>
 }
 
@@ -205,7 +204,8 @@ export const router = createBrowserRouter([
       { path: 'reports/product', element: <Guard permission="product:view"><ProductReport /></Guard> },
       { path: 'reports/customer-lifecycle', element: <Guard permission="customer:view"><CustomerLifecycleReport /></Guard> },
       { path: 'reports/team-performance', element: <Guard permission="project:view"><TeamPerformanceReport /></Guard> },
-      { path: 'solutions', element: <Guard permission="solution:view"><SolutionList /></Guard> },
+      { path: 'solutions/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="scheme_management" listPath="/solutions" title="方案管理" /></Guard> },
+      { path: 'solutions', element: <Guard permission="form_data:view"><FormModulePage templateCode="scheme_management" title="方案管理" basePath="/solutions" /></Guard> },
       { path: 'quotes', element: <Guard permission="quote:view"><QuoteList /></Guard> },
       { path: 'contracts', element: <Guard permission="contract:view"><ContractList /></Guard> },
       { path: 'contract-reviews', element: <Guard permission="contract_review:view"><ContractReviewList /></Guard> },

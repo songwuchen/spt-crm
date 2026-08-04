@@ -243,6 +243,7 @@ def test_catalog_fields_all_have_a_form_control():
             ("frontend/src/pages/service/ServiceTicketDetail.tsx", "edit"),
         ],
         "payment": [("frontend/src/pages/payment/PaymentPage.tsx", "create")],
+        "solution": [("frontend/src/pages/solution/SolutionList.tsx", "create")],
     }
     root = Path(__file__).resolve().parents[2]
 
@@ -300,6 +301,7 @@ _ENTITY_MODELS = {
     "order": ("app.domains.order.models", "Order"),
     "service_ticket": ("app.domains.service_ticket.models", "ServiceTicket"),
     "payment": ("app.domains.payment.models", "PaymentRecord"),
+    "solution": ("app.domains.solution.models", "Solution"),
 }
 
 

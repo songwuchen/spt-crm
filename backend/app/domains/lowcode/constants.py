@@ -55,8 +55,9 @@ class FieldType(StrEnum):
     RICH_TEXT = "rich_text"
     SIGNATURE = "signature"
     SELECT_DATA = "select_data"          # 从另一表单取数
-    RELATION = "relation"
+  RELATION = "relation"
     SUB_TABLE_DATA = "sub_table_data"    # 关联子表(主表内联操作另一独立表单的多条记录)
+    PROJECT = "project"                  # 关联商机(opportunity project)
 
 
 #: 可作为明细子表列的字段类型白名单(与前端 detailColumnTypes 对齐)

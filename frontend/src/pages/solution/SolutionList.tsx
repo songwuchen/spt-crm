@@ -12,6 +12,10 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import { useListView } from '@/hooks/useListView'
 import ListToolbar from '@/components/list/ListToolbar'
+import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
+import DepartmentSelect from '@/components/DepartmentSelect'
+import { useUserSelect } from '@/hooks/useSelectOptions'
 
 export default function SolutionList() {
   usePageTitle('方案管理')
@@ -27,6 +31,7 @@ export default function SolutionList() {
 
   const { hasPermission } = usePermission()
   const canCreate = hasPermission('solution:create')
+  const assigneeSelect = useUserSelect()
 
   // 新增方案（需指定关联商机）
   const [createOpen, setCreateOpen] = useState(false)
@@ -34,6 +39,8 @@ export default function SolutionList() {
   const [createForm] = Form.useForm()
   const [projOpts, setProjOpts] = useState<{ label: string; value: string }[]>([])
   const [projLoading, setProjLoading] = useState(false)
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
+  const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const searchProjects = async (kw?: string) => {
     setProjLoading(true)
     try {
@@ -41,15 +48,29 @@ export default function SolutionList() {
       setProjOpts((r.data.items || []).map((p) => ({ label: `${p.name}（${p.project_code}）`, value: p.id })))
     } catch { /* ignore */ } finally { setProjLoading(false) }
   }
-  const openCreate = () => { createForm.resetFields(); setProjOpts([]); searchProjects(); setCreateOpen(true) }
+  const openCreate = () => {
+    createForm.resetFields()
+    setCustomFields({})
+    setProjOpts([])
+    searchProjects()
+    setCreateOpen(true)
+  }
   const handleCreate = async () => {
     let v
     try { v = await createForm.validateFields() } catch { return }
+    const cfErr = customFieldsRef.current?.validate()
+    if (cfErr) { message.error(cfErr); return }
     setCreating(true)
     try {
+      const assigneeName = assigneeSelect.options.find((o) => o.value === v.assignee_id)?.label
       const res = await solutionApi.create(v.project_id, {
         title: v.title || 'V1',
         ...(v.summary ? { summary: v.summary } : {}),
+        assignee_id: v.assignee_id || undefined,
+        assignee_name: assigneeName || v.assignee_name || undefined,
+        department_id: v.department_id || undefined,
+        department_name: v.department_name || undefined,
+        custom_fields_json: customFields,
       }) as any
       message.success('方案已创建，请在详情页完善配置与附件')
       setCreateOpen(false)
@@ -129,21 +150,48 @@ export default function SolutionList() {
         />
       </div>
 
-      {/* 新增方案 */}
+      {/* 新增方案：原生字段走自定义字段策略；扩展字段在「扩展平台→自定义字段→方案管理」设计并发布后出现 */}
       <Modal title="新增方案" open={createOpen} onOk={handleCreate} confirmLoading={creating}
-        onCancel={() => setCreateOpen(false)} okText="创建并完善" width={520} destroyOnClose>
-        <Form form={createForm} layout="vertical" className="mt-3">
-          <Form.Item name="project_id" label="关联商机" rules={[{ required: true, message: '请选择关联商机' }]}>
-            <Select showSearch filterOption={false} placeholder="搜索商机名称 / 编号"
-              options={projOpts} loading={projLoading} onSearch={searchProjects}
-              onDropdownVisibleChange={(o) => { if (o && projOpts.length === 0) searchProjects() }} />
-          </Form.Item>
-          <Form.Item name="title" label="方案标题"><Input placeholder="如：技术方案 V1（默认 V1）" /></Form.Item>
-          <Form.Item name="summary" label="方案概要">
-            <Input.TextArea rows={3} placeholder="方案主要内容 / 技术要点（可在详情页继续完善）" />
-          </Form.Item>
-          <div className="text-[12px] text-slate-400">方案编号将自动生成；创建后将跳转到方案详情页，可完善配置、风险并发起审批。</div>
-        </Form>
+        onCancel={() => setCreateOpen(false)} okText="创建并完善" width={640} destroyOnClose>
+        <FieldPolicyProvider entityType="solution" form={createForm} customFieldValues={customFields}>
+          <Form form={createForm} layout="vertical" className="mt-3">
+            <Form.Item name="project_id" label="关联商机" rules={[{ required: true, message: '请选择关联商机' }]}>
+              <Select showSearch filterOption={false} placeholder="搜索商机名称 / 编号"
+                options={projOpts} loading={projLoading} onSearch={searchProjects}
+                onDropdownVisibleChange={(o) => { if (o && projOpts.length === 0) searchProjects() }} />
+            </Form.Item>
+            <Form.Item name="title" label="方案标题"><Input placeholder="如：技术方案 V1（默认 V1）" /></Form.Item>
+            <Form.Item name="summary" label="方案概要">
+              <Input.TextArea rows={3} placeholder="方案主要内容 / 技术要点（可在详情页继续完善）" />
+            </Form.Item>
+            <PolicyItem name="assignee_id" label="负责人">
+              <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
+                loading={assigneeSelect.loading}
+                options={assigneeSelect.options}
+                onSearch={assigneeSelect.onSearch}
+                onDropdownVisibleChange={assigneeSelect.onDropdownVisibleChange}
+                onChange={(id) => {
+                  const name = assigneeSelect.options.find((o) => o.value === id)?.label
+                  createForm.setFieldsValue({ assignee_name: name })
+                }}
+              />
+            </PolicyItem>
+            <Form.Item name="assignee_name" hidden><Input /></Form.Item>
+            <PolicyItem name="department_id" label="部门">
+              <DepartmentSelect onChange={(id, label) => {
+                createForm.setFieldsValue({ department_id: id, department_name: label })
+              }} />
+            </PolicyItem>
+            <Form.Item name="department_name" hidden><Input /></Form.Item>
+            <EntityCustomFields
+              ref={customFieldsRef}
+              entityType="solution"
+              value={customFields}
+              onChange={setCustomFields}
+            />
+            <div className="text-[12px] text-slate-400">方案编号将自动生成；创建后将跳转到方案详情页，可完善配置、风险并发起审批。</div>
+          </Form>
+        </FieldPolicyProvider>
       </Modal>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button, Select, Tag, Space, Spin, Descriptions, Input, message, Modal, Table, Alert } from 'antd'
 import { CopyOutlined, EditOutlined, SaveOutlined, CloseOutlined, SwapOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -8,12 +8,15 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import type { SolutionItem, SolutionVersion, ApprovalFlowItem } from '@/api/types'
 import { solutionStatusLabels as statusLabels, solutionStatusColors as statusColors, approvalStatusLabels } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePermission } from '@/hooks/usePermission'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import SolutionConfigEditor, { normalizeConfig, serializeConfig } from '@/components/SolutionConfigEditor'
 import type { ConfigRow } from '@/components/SolutionConfigEditor'
 import SolutionRiskEditor, { normalizeRisks, serializeRisks } from '@/components/SolutionRiskEditor'
 import type { RiskRow } from '@/components/SolutionRiskEditor'
 import DataView from '@/components/DataView'
+import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
+import { lowcodeApi } from '@/api/lowcode'
 
 const { TextArea } = Input
 
@@ -36,6 +39,19 @@ export default function SolutionDetail() {
   const [compareResult, setCompareResult] = useState<any>(null)
   const [compareLoading, setCompareLoading] = useState(false)
   const [approvalFlow, setApprovalFlow] = useState<ApprovalFlowItem | null>(null)
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
+  const [editingCustom, setEditingCustom] = useState(false)
+  const [savingCustom, setSavingCustom] = useState(false)
+  const [hasExtFields, setHasExtFields] = useState(false)
+  const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
+  const { hasPermission } = usePermission()
+  const canEdit = hasPermission('solution:edit')
+
+  useEffect(() => {
+    lowcodeApi.entityFields('solution')
+      .then((r) => setHasExtFields((r.data.field_definitions || []).length > 0))
+      .catch(() => setHasExtFields(false))
+  }, [])
 
   const fetchApprovalFlow = async () => {
     try {
@@ -49,11 +65,29 @@ export default function SolutionDetail() {
     const res = await solutionApi.get(sid!)
     const d = res.data
     setSolution(d)
+    setCustomFields(d.custom_fields_json || {})
+    setEditingCustom(false)
     setVersions(d.versions || [])
     const curVer = d.versions?.find((v) => v.version_no === d.current_version_no)
     setCurrentVersion(curVer || null)
     if (curVer) setSelectedVersionId(curVer.id)
     fetchApprovalFlow()
+  }
+
+  const saveCustomFields = async () => {
+    const cfErr = customFieldsRef.current?.validate()
+    if (cfErr) { message.error(cfErr); return }
+    setSavingCustom(true)
+    try {
+      await solutionApi.update(sid!, { custom_fields_json: customFields })
+      message.success('扩展字段已保存')
+      setEditingCustom(false)
+      await fetchSolution()
+    } catch {
+      message.error('保存失败')
+    } finally {
+      setSavingCustom(false)
+    }
   }
 
   const fetchVersion = async (vid: string) => {
@@ -285,6 +319,33 @@ export default function SolutionDetail() {
           </div>
         )}
       </div>
+
+      {hasExtFields && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
+          {canEdit && (
+            <div className="flex justify-end gap-2 mb-2">
+              {!editingCustom ? (
+                <Button size="small" icon={<EditOutlined />} onClick={() => setEditingCustom(true)}>编辑扩展字段</Button>
+              ) : (
+                <Space>
+                  <Button size="small" type="primary" icon={<SaveOutlined />} loading={savingCustom} onClick={saveCustomFields}>保存</Button>
+                  <Button size="small" icon={<CloseOutlined />} onClick={() => {
+                    setCustomFields(solution.custom_fields_json || {})
+                    setEditingCustom(false)
+                  }}>取消</Button>
+                </Space>
+              )}
+            </div>
+          )}
+          <EntityCustomFields
+            ref={customFieldsRef}
+            entityType="solution"
+            value={customFields}
+            onChange={setCustomFields}
+            readOnly={!editingCustom}
+          />
+        </div>
+      )}
 
       {/* Attachments */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">

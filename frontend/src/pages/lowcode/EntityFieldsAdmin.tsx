@@ -15,6 +15,7 @@ const ENTITIES: { type: string; label: string; desc: string }[] = [
   { type: 'order', label: '订单', desc: '订单扩展字段' },
   { type: 'contract', label: '合同', desc: '登记字段 + 合同明细/收款计划子表列' },
   { type: 'contract_review', label: '合同评审', desc: '合同评审扩展字段（设计后在新建/编辑/详情展示）' },
+  { type: 'solution', label: '方案管理', desc: '方案编号/负责人/部门等原生字段 + 扩展字段；设计并发布后在「新增方案」与详情展示' },
   { type: 'service_ticket', label: '售后工单', desc: '工单扩展字段' },
   // 报价/回款的扩展字段已在 QuoteDetail、PaymentPage 渲染，后端白名单也一直支持，
   // 这里此前漏了入口，导致这两个实体的字段无处可设计。

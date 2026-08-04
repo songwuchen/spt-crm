@@ -260,6 +260,16 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "multi_mode": "or_sign",
         "empty_strategy": "auto_approve",
     },
+    {
+        "form_code": "scheme_management",
+        "code": "SYS_SCHEME_MANAGEMENT",
+        "name": "方案管理",
+        "approver_rule": {
+            "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
 ]
 
 DRAWING_FORM_FLOW_DESC = (
@@ -269,11 +279,18 @@ DRAWING_FORM_FLOW_DESC = (
 
 
 def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
+    packs: dict = {}
     try:
         from app.domains.lowcode._drawing_jdy_generated import DRAWING_JDY
+        packs.update(DRAWING_JDY)
     except Exception:
-        return None
-    pack = DRAWING_JDY.get(form_code)
+        pass
+    try:
+        from app.domains.lowcode._scheme_management_generated import SCHEME_MANAGEMENT_JDY
+        packs.update(SCHEME_MANAGEMENT_JDY)
+    except Exception:
+        pass
+    pack = packs.get(form_code)
     if not pack:
         return None
     nodes = pack.get("flow_nodes") or []
@@ -974,6 +991,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "合同图纸（资料）领用申请"
     elif form_code == "install_drawing_notice":
         d.name = "安装图设计通知"
+    elif form_code == "scheme_management":
+        d.name = "方案管理"
     await _publish_system_default_upgrade(
         db, tenant_id, d, version, new_nodes, new_routes,
         DRAWING_FORM_FLOW_DESC, f"简道云图纸流({form_code})",

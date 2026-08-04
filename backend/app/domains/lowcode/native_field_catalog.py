@@ -156,7 +156,7 @@ _CONTRACT_PAY_COLUMNS: list[dict[str, Any]] = [
 # 接入某实体表单后，把它加进来，test_catalog_fields_all_have_a_form_control 会开始校验对齐。
 FORM_WIRED: set[str] = {
     "lead", "customer", "contact", "project", "contract", "order",
-    "service_ticket", "payment",
+    "service_ticket", "payment", "solution",
 }
 
 
@@ -407,6 +407,21 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         _f("delivery_date", "交付日期", "date"),
         _f("owner_id", "负责人", "person", companions=("owner_name",)),
         _f("remark", "备注", "textarea"),
+    ],
+    # 方案管理：独立业务实体（勿与图纸领用/安装图低代码表单混用）。
+    # 表单尚未接 PolicyItem（不在 FORM_WIRED），目录供设计器只读展示与读取侧脱敏。
+    "solution": [
+        _f("solution_no", "方案编号", form_editable=False, available_on_create=False),
+        _f("status", "状态", "select", form_editable=False, available_on_create=False,
+           options=[{"value": "draft", "label": "草稿"},
+                    {"value": "reviewing", "label": "评审中"},
+                    {"value": "approved", "label": "已批准"},
+                    {"value": "obsolete", "label": "已作废"}]),
+        _f("assignee_id", "负责人", "person", companions=("assignee_name",)),
+        _f("department_id", "部门", "department", companions=("department_name",)),
+        _f("current_version_no", "当前版本号", "number", form_editable=False, available_on_create=False),
+        _f("created_by_id", "创建人", "person", companions=("created_by_name",),
+           form_editable=False, available_on_create=False),
     ],
     # 合同评审表单尚未接 PolicyItem（不在 FORM_WIRED），目录供设计器只读展示与读取侧脱敏。
     "contract_review": [
