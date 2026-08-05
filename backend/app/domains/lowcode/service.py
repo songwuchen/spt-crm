@@ -534,9 +534,12 @@ async def save_design(
     await get_template(db, tenant_id, template_id)
     latest = await _get_latest_version(db, tenant_id, template_id)
 
-    new_defs = [fd.model_dump() for fd in data.field_definitions]
+    # exclude_unset：避免 FieldDefinition 默认值（如 available_on_create=True）
+    # 在「只改 required」的局部保存里写进库，进而 merge 时盖掉目录里的 False
+    # （工单「解决方案」等仅编辑可见字段会被误拦新建）。
+    new_defs = [fd.model_dump(exclude_unset=True) for fd in data.field_definitions]
     # 系统规则（__sys_*）允许落库作租户覆盖；运行时用 merge_system_rules 与目录默认合并。
-    rule_defs = [rd.model_dump() for rd in data.rule_definitions]
+    rule_defs = [rd.model_dump(exclude_unset=True) for rd in data.rule_definitions]
 
     if latest and latest.status == "draft":
         latest.field_definitions = new_defs
