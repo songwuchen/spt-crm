@@ -50,7 +50,8 @@ RELATED_CUSTOMER = {
 }
 
 
-# 方案管理不需要：订货人/设计人文本桩、是否解密、项目号/是否新项目/业务员
+# 方案管理不需要：订货人/设计人文本桩、是否解密、项目号/是否新项目/业务员、
+# 以及「修改方案 / 非出方案图物料特性」明细（下图类型选项仍保留）
 DROP_FIELD_IDS = frozenset({
     "order_person_text",
     "designer_text",
@@ -59,6 +60,8 @@ DROP_FIELD_IDS = frozenset({
     "project_no",
     "is_new_project",
     "sales_person",
+    "change_scheme",
+    "non_scheme_material",
 })
 
 
@@ -225,6 +228,69 @@ def build() -> dict:
                 "action": {"visible": True},
             })
 
+    # 独有字段的静态 required 改为「随 scheme_type 的条件必填」：
+    # 避免显隐规则未生效时，对侧（如无合同号）仍被「附件/图片名称」拦住。
+    def _rule_targets(rule: dict) -> set[str]:
+        tids = set(rule.get("target_field_ids") or [])
+        if rule.get("target_field_id"):
+            tids.add(rule["target_field_id"])
+        return tids
+
+    required_ruled: set[str] = set()
+    for r in rules:
+        if r.get("type") == "required":
+            required_ruled |= _rule_targets(r)
+
+    by_id = {f["id"]: f for f in fields}
+    # 这些字段只做类型显隐，不自动抬成条件必填（业务上常选填；避免「规则只有显示、提交却拦必填」）
+    OPTIONAL_EXCLUSIVE = {"attachment_name", "attachment_names", "attachments", "attachments_no_image", "images"}
+    for fid in sorted(req_only):
+        f = by_id.get(fid)
+        if not f or not f.get("required"):
+            continue
+        f["required"] = False
+        if fid in OPTIONAL_EXCLUSIVE or fid in required_ruled:
+            continue
+        rules.append({
+            "id": f"sm_req_req_only_{fid}",
+            "type": "required",
+            "target_field_id": fid,
+            "condition": {"field": "scheme_type", "operator": "eq", "value": "requisition"},
+            "action": {"required": True},
+        })
+        required_ruled.add(fid)
+    for fid in sorted(ins_only):
+        if fid == "apply_or_change":
+            continue
+        f = by_id.get(fid)
+        if not f or not f.get("required"):
+            continue
+        f["required"] = False
+        if fid in OPTIONAL_EXCLUSIVE or fid in required_ruled:
+            continue
+        rules.append({
+            "id": f"sm_req_ins_only_{fid}",
+            "type": "required",
+            "target_field_id": fid,
+            "condition": {"field": "scheme_type", "operator": "eq", "value": "install"},
+            "action": {"required": True},
+        })
+        required_ruled.add(fid)
+
+    # 去掉附件类字段上残留的条件必填（含简道云带过来的）
+    def _drop_attach_required(rule: dict) -> bool:
+        if rule.get("type") != "required":
+            return True
+        tids = set(rule.get("target_field_ids") or [])
+        if rule.get("target_field_id"):
+            tids.add(rule["target_field_id"])
+        return not (tids & OPTIONAL_EXCLUSIVE)
+
+    rules = [r for r in rules if _drop_attach_required(r)]
+    for fid in OPTIONAL_EXCLUSIVE:
+        if fid in by_id:
+            by_id[fid]["required"] = False
+
     # 流程：start 按 scheme_type 分叉
     req_nodes, req_routes = _prefix_flow(
         req.get("flow_nodes") or [], req.get("flow_routes") or [], "req_", "requisition",
@@ -308,7 +374,8 @@ def build() -> dict:
             "合成自 drawing_requisition + install_drawing_notice；独立 code=scheme_management。",
             "scheme_type=requisition|install 分流字段与审批。",
             "related_project / related_customer 可选；公司名称文本由二者回填。",
-            "下图类型含 出方案图 / 出测绘图 / 修改方案 / 领图。",
+            "下图类型含 出方案图 / 出测绘图 / 修改方案 / 领图（选项保留）。",
+            "不含 change_scheme / non_scheme_material 明细表。",
             "申请人默认当前用户；合同号 type=contract 引用合同管理；"
             "不含 order_person_text / designer_text / need_decrypt / project_no / is_new_project / sales_person。",
         ],

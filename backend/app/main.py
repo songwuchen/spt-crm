@@ -18,6 +18,8 @@ from app.domains.openapi.middleware import OpenApiCallLogMiddleware
 from app.domains.auth.router import router as auth_router
 from app.domains.tenant.router import router as tenant_router
 from app.domains.organization.router import router as org_router
+from app.domains.organization.pickable_scope_router import router as pickable_scope_admin_router
+from app.domains.organization.pickable_scope_router import lc_router as pickable_scope_lc_router
 from app.domains.customer.router import router as customer_router
 from app.domains.customer.router import pool_router as customer_pool_router
 from app.domains.lead.router import router as lead_router, public_router as lead_public_router
@@ -145,6 +147,8 @@ app.add_exception_handler(Exception, generic_exception_handler)
 app.include_router(auth_router)
 app.include_router(tenant_router)
 app.include_router(org_router)
+app.include_router(pickable_scope_admin_router)
+app.include_router(pickable_scope_lc_router)
 app.include_router(customer_router)
 app.include_router(customer_pool_router)
 app.include_router(lead_router)

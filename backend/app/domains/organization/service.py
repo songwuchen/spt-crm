@@ -510,6 +510,86 @@ async def grant_permissions(db: AsyncSession, tenant_id: str, role_id: str, perm
     await invalidate_tenant_auth_cache(tenant_id)
 
 
+async def _get_role_or_404(db: AsyncSession, tenant_id: str, role_id: str) -> Role:
+    role = (await db.execute(
+        select(Role).where(Role.id == role_id, Role.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not role:
+        raise BusinessException(code=NOT_FOUND, message="角色不存在")
+    return role
+
+
+async def count_role_members(db: AsyncSession, tenant_id: str, role_ids: list[str]) -> dict[str, int]:
+    if not role_ids:
+        return {}
+    rows = (await db.execute(
+        select(UserRole.role_id, func.count(UserRole.id))
+        .where(UserRole.tenant_id == tenant_id, UserRole.role_id.in_(role_ids))
+        .group_by(UserRole.role_id)
+    )).all()
+    return {rid: int(n) for rid, n in rows}
+
+
+async def list_role_members(
+    db: AsyncSession, tenant_id: str, role_id: str,
+    page_no: int = 1, page_size: int = 50, keyword: str | None = None,
+) -> tuple[list[User], int]:
+    await _get_role_or_404(db, tenant_id, role_id)
+    return await list_users(
+        db, tenant_id, page_no, page_size, keyword, role_id=role_id, is_active=None,
+    )
+
+
+async def add_role_members(db: AsyncSession, tenant_id: str, role_id: str, user_ids: list[str]) -> int:
+    """给角色追加成员（幂等）。返回新增条数。"""
+    await _get_role_or_404(db, tenant_id, role_id)
+    if not user_ids:
+        return 0
+    await _validate_role_dept_ids(db, tenant_id, [role_id], None)
+    valid_ids = set((await db.execute(
+        select(User.id).where(User.tenant_id == tenant_id, User.id.in_(user_ids))
+    )).scalars().all())
+    if not valid_ids:
+        return 0
+    existing = set((await db.execute(
+        select(UserRole.user_id).where(
+            UserRole.tenant_id == tenant_id,
+            UserRole.role_id == role_id,
+            UserRole.user_id.in_(valid_ids),
+        )
+    )).scalars().all())
+    added = 0
+    for uid in valid_ids:
+        if uid in existing:
+            continue
+        db.add(UserRole(id=generate_uuid(), tenant_id=tenant_id, user_id=uid, role_id=role_id))
+        added += 1
+    await db.commit()
+    from app.domains.auth.service import invalidate_user_auth_cache
+    for uid in valid_ids:
+        await invalidate_user_auth_cache(uid, tenant_id)
+    return added
+
+
+async def remove_role_members(db: AsyncSession, tenant_id: str, role_id: str, user_ids: list[str]) -> int:
+    """从角色移除成员。返回移除条数。"""
+    await _get_role_or_404(db, tenant_id, role_id)
+    if not user_ids:
+        return 0
+    result = await db.execute(
+        delete(UserRole).where(
+            UserRole.tenant_id == tenant_id,
+            UserRole.role_id == role_id,
+            UserRole.user_id.in_(user_ids),
+        )
+    )
+    await db.commit()
+    from app.domains.auth.service import invalidate_user_auth_cache
+    for uid in user_ids:
+        await invalidate_user_auth_cache(uid, tenant_id)
+    return int(result.rowcount or 0)
+
+
 async def list_permissions(db: AsyncSession):
     result = await db.execute(select(Permission).order_by(Permission.group_name, Permission.code))
     return result.scalars().all()

@@ -133,6 +133,7 @@ const zhCN = {
     departments: '部门管理',
     users: '用户管理',
     roles: '角色权限',
+    pickableScopes: '可选范围',
     auditLog: '操作日志',
     settings: '系统配置',
     apiDocs: 'API 文档',

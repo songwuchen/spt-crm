@@ -229,3 +229,59 @@ async def sync_all_tenants_additive(db, perms_by_code=None) -> dict:
     result["_total_perms_added"] = total
     result["_tenants_scanned"] = len(tenant_ids)
     return result
+
+
+# 业务流程依赖、需在租户内保证存在的角色（不做全量标准同步）
+BUSINESS_ROLE_CODES = ("room_leader",)
+
+
+async def ensure_business_roles(
+    db, tenant_id: str, codes: list[str] | tuple[str, ...] | None = None,
+) -> list[str]:
+    """确保业务依赖角色存在；缺失则按目录创建并挂权限。返回新建的 code 列表。
+
+    flush only — 调用方负责 commit。
+    """
+    want = [c for c in (codes or BUSINESS_ROLE_CODES) if c in _ROLE_BY_CODE]
+    if not want:
+        return []
+    perms_by_code = await _ensure_permissions(db, write=True)
+    existing = {
+        r.code: r
+        for r in (
+            await db.execute(
+                select(Role).where(Role.tenant_id == tenant_id, Role.code.in_(want))
+            )
+        ).scalars().all()
+    }
+    created: list[str] = []
+    for code in want:
+        if code in existing:
+            continue
+        rd = _ROLE_BY_CODE[code]
+        role = Role(
+            id=generate_uuid(),
+            tenant_id=tenant_id,
+            code=rd["code"],
+            name=rd["name"],
+            description=rd.get("desc"),
+            data_scope=rd["scope"],
+            is_system=False,
+        )
+        db.add(role)
+        await db.flush()
+        for pcode in role_perm_codes(rd):
+            perm = perms_by_code.get(pcode)
+            if not perm:
+                continue
+            db.add(RolePermission(
+                id=generate_uuid(),
+                tenant_id=tenant_id,
+                role_id=role.id,
+                permission_id=perm.id,
+            ))
+        existing[code] = role
+        created.append(code)
+    if created:
+        await db.flush()
+    return created

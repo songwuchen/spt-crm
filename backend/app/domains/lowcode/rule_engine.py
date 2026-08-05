@@ -273,6 +273,11 @@ def compute_field_states(
                 break
             hidden = nxt
 
+    # 被隐藏的字段一律非必填，避免「静态 required + 显隐规则」在规则未命中时误拦提交
+    for st in states.values():
+        if not st.get("visible", True):
+            st["required"] = False
+
     for rule in rules:
         if rule.get("enabled") is False:
             continue
@@ -282,7 +287,10 @@ def compute_field_states(
         match = evaluate_condition(rule.get("condition") or {}, values, sub_map)
         for fid in _targets_of(rule):
             if fid in states:
-                states[fid]["required"] = want if match else (not want)
+                if not states[fid].get("visible", True):
+                    states[fid]["required"] = False
+                else:
+                    states[fid]["required"] = want if match else (not want)
 
     for rule in rules:
         if rule.get("enabled") is False:

@@ -1,9 +1,16 @@
 /** 审批节点可填业务字段表单（对齐简道云 optAuth）。 */
-import { useEffect, useState } from 'react'
-import { Input, Radio, Space, Typography } from 'antd'
-import type { FieldDefinition, WfCurrentTask, WfFieldPerm } from '@/types/lowcode'
-import PersonField from '@/components/lowcode/fields/PersonField'
+import { useEffect, useMemo, useState } from 'react'
+import { DatePicker, Input, Radio, Space, Typography } from 'antd'
+import dayjs from 'dayjs'
+import type {
+  FieldDefinition, FieldPermission, FormRule, WfCurrentTask, WfFieldPerm,
+} from '@/types/lowcode'
+import PersonField, {
+  filterDeptIdsFromValues, shouldFilterByDeptFields, type PickableScope,
+} from '@/components/lowcode/fields/PersonField'
+import DeptField from '@/components/lowcode/fields/DeptField'
 import FormRenderer from '@/components/lowcode/FormRenderer'
+import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 
 const { Text } = Typography
 
@@ -24,12 +31,75 @@ function isEmpty(v: unknown): boolean {
   return false
 }
 
+function buildApproveFields(
+  fieldMeta: WfCurrentTask['field_meta'] | undefined,
+  fieldPerms: WfFieldPerm[] | undefined,
+  formFields?: FieldDefinition[],
+): FieldDefinition[] {
+  const byId = new Map<string, FieldDefinition>()
+  for (const f of formFields || []) {
+    if (f?.id) byId.set(f.id, f)
+  }
+  for (const m of fieldMeta || []) {
+    if (!m?.id) continue
+    const base = byId.get(m.id)
+    byId.set(m.id, {
+      ...(base || { id: m.id, type: (m.type || 'text') as FieldDefinition['type'], label: m.label }),
+      id: m.id,
+      label: m.label || base?.label || m.id,
+      type: (m.type || base?.type || 'text') as FieldDefinition['type'],
+      options: m.options?.length ? m.options : base?.options,
+      detail_table_columns: m.detail_table_columns || base?.detail_table_columns,
+      props: { ...(base?.props || {}), ...(m.props || {}) },
+      required: false,
+    })
+  }
+  // 确保节点可填字段一定在 states 里
+  for (const p of fieldPerms || []) {
+    if (!byId.has(p.field)) {
+      byId.set(p.field, {
+        id: p.field,
+        type: 'text',
+        label: p.field,
+        required: false,
+      })
+    }
+  }
+  return [...byId.values()]
+}
+
 export function missingRequiredFields(
   fieldPerms: WfFieldPerm[] | undefined,
   values: Record<string, unknown>,
+  opts?: {
+    rules?: FormRule[]
+    formFields?: FieldDefinition[]
+    formData?: Record<string, unknown>
+    fieldMeta?: WfCurrentTask['field_meta']
+  },
 ): string[] {
-  return (fieldPerms || [])
-    .filter((p) => p.access === 'required' && isEmpty(values[p.field]))
+  const perms = fieldPerms || []
+  if (!perms.length) return []
+  const rules = opts?.rules || []
+  if (!rules.length) {
+    return perms
+      .filter((p) => p.access === 'required' && isEmpty(values[p.field]))
+      .map((p) => p.field)
+  }
+  const fields = buildApproveFields(opts?.fieldMeta, perms, opts?.formFields)
+  const merged = { ...(opts?.formData || {}), ...values }
+  const permissions: FieldPermission[] = perms.map((p) => ({
+    fieldId: p.field,
+    access: p.access === 'required' ? 'required' : 'editable',
+  }))
+  const states = computeFieldStates(fields, merged, rules, permissions)
+  return perms
+    .filter((p) => {
+      const st = states[p.field]
+      if (st && !st.visible) return false
+      const req = st ? st.required : p.access === 'required'
+      return req && isEmpty(values[p.field])
+    })
     .map((p) => p.field)
 }
 
@@ -48,6 +118,9 @@ export default function ApproveFieldForm({
   onChange,
   showTitle = true,
   highlightMissing = false,
+  rules = [],
+  formData = {},
+  formFields = [],
 }: {
   currentTask: WfCurrentTask
   values: Record<string, unknown>
@@ -56,11 +129,35 @@ export default function ApproveFieldForm({
   showTitle?: boolean
   /** 点击通过后高亮未填必填项 */
   highlightMissing?: boolean
+  /** 表单显隐/必填规则（如设计单分派 → 转新乡） */
+  rules?: FormRule[]
+  /** 整单已有字段值（含 scheme_type 等，供规则求值） */
+  formData?: Record<string, unknown>
+  formFields?: FieldDefinition[]
 }) {
   const metaById = Object.fromEntries((currentTask.field_meta || []).map((m) => [m.id, m]))
   const perms = currentTask.field_perms || []
   const [localHighlight, setLocalHighlight] = useState(highlightMissing)
   useEffect(() => { setLocalHighlight(highlightMissing) }, [highlightMissing])
+
+  const mergedValues = useMemo(
+    () => ({ ...formData, ...values }),
+    [formData, values],
+  )
+
+  const fieldsForRules = useMemo(
+    () => buildApproveFields(currentTask.field_meta, perms, formFields),
+    [currentTask.field_meta, perms, formFields],
+  )
+
+  const fieldStates = useMemo(() => {
+    if (!rules.length) return null
+    const permissions: FieldPermission[] = perms.map((p) => ({
+      fieldId: p.field,
+      access: p.access === 'required' ? 'required' : 'editable',
+    }))
+    return computeFieldStates(fieldsForRules, mergedValues, rules, permissions)
+  }, [rules, perms, fieldsForRules, mergedValues])
 
   if (!perms.length) return null
 
@@ -69,7 +166,11 @@ export default function ApproveFieldForm({
   }
 
   const missing = new Set(
-    localHighlight ? missingRequiredFields(perms, values) : [],
+    localHighlight
+      ? missingRequiredFields(perms, values, {
+        rules, formFields, formData, fieldMeta: currentTask.field_meta,
+      })
+      : [],
   )
 
   return (
@@ -81,20 +182,32 @@ export default function ApproveFieldForm({
       )}
       <Space direction="vertical" style={{ width: '100%' }} size="small">
         {perms.map((p) => {
+          const st = fieldStates?.[p.field]
+          if (st && !st.visible) return null
+
+          const formFd = formFields.find((f) => f.id === p.field)
           const meta = metaById[p.field] || { id: p.field, label: p.field, type: 'text' as const }
-          const required = p.access === 'required'
+          const required = st ? st.required : p.access === 'required'
           const err = missing.has(p.field)
-          const t = meta.type || 'text'
+          // 实例 field_meta 可能落后：优先已发布/表单字段类型（如下单日期应为 datetime）
+          const t = formFd?.type || meta.type || 'text'
           const val = values[p.field]
           const status = err ? 'error' as const : undefined
+          const label = meta.label || formFd?.label || p.field
+          const options = (meta.options?.length ? meta.options : formFd?.options) || []
+          const detailCols = meta.detail_table_columns || formFd?.detail_table_columns
+          const fieldProps = {
+            ...((formFd?.props as Record<string, unknown> | undefined) || {}),
+            ...((meta.props as Record<string, unknown> | undefined) || {}),
+          }
 
           if (t === 'detail_table') {
             const fd: FieldDefinition = {
               id: p.field,
-              label: meta.label,
+              label,
               type: 'detail_table',
               required,
-              detail_table_columns: meta.detail_table_columns,
+              detail_table_columns: detailCols,
               available_on_create: true,
             }
             return (
@@ -106,103 +219,148 @@ export default function ApproveFieldForm({
                   onChange={(next) => setField(p.field, next[p.field])}
                   rules={[]}
                 />
-                {err && <Text type="danger" style={{ fontSize: 12 }}>请填写{meta.label}</Text>}
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请填写{label}</Text>}
               </div>
             )
           }
 
           if (t === 'person' || t === 'user' || t === 'person_multi') {
+            const scope = (fieldProps as { pickable_scope?: PickableScope })?.pickable_scope
+            const useDeptFilter = shouldFilterByDeptFields(scope, p.field)
             return (
               <div key={p.field} className={err ? 'approve-field-error' : undefined}>
-                <FieldLabel label={meta.label} required={required} error={err} />
+                <FieldLabel label={label} required={required} error={err} />
                 <div style={{ marginTop: 4 }}>
                   <PersonField
                     value={val}
                     onChange={(v) => setField(p.field, v)}
                     multi={t === 'person_multi'}
-                    placeholder={`请选择${meta.label}`}
+                    placeholder={`请选择${label}`}
+                    pickableScope={scope}
+                    deptIds={useDeptFilter ? filterDeptIdsFromValues(values, scope?.filter_by_fields) : undefined}
                   />
                 </div>
-                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{meta.label}</Text>}
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
               </div>
             )
           }
+
+          if (t === 'department' || t === 'department_multi') {
+            const scopeCode = (fieldProps as { pickable_scope?: PickableScope })?.pickable_scope?.scope_code
+            return (
+              <div key={p.field} className={err ? 'approve-field-error' : undefined}>
+                <FieldLabel label={label} required={required} error={err} />
+                <div style={{ marginTop: 4 }}>
+                  <DeptField
+                    value={val}
+                    onChange={(v) => setField(p.field, v)}
+                    multi={t === 'department_multi'}
+                    placeholder={`请选择${label}`}
+                    scopeCode={scopeCode}
+                  />
+                </div>
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
+              </div>
+            )
+          }
+
           if (t === 'risk') {
             return (
               <div key={p.field}>
-                <FieldLabel label={meta.label} required={required} error={err} />
+                <FieldLabel label={label} required={required} error={err} />
                 <Radio.Group
                   value={val as string | undefined}
                   options={RISK_OPTS}
                   onChange={(e) => setField(p.field, e.target.value)}
                   style={{ display: 'block', marginTop: 4 }}
                 />
-                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{meta.label}</Text>}
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
               </div>
             )
           }
           if (t === 'yes_no') {
             return (
               <div key={p.field}>
-                <FieldLabel label={meta.label} required={required} error={err} />
+                <FieldLabel label={label} required={required} error={err} />
                 <Radio.Group
                   value={val as string | undefined}
                   options={YES_NO_OPTS}
                   onChange={(e) => setField(p.field, e.target.value)}
                   style={{ display: 'block', marginTop: 4 }}
                 />
-                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{meta.label}</Text>}
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
               </div>
             )
           }
-          if ((t === 'radio' || t === 'select') && (meta.options?.length ?? 0) > 0) {
+          if ((t === 'radio' || t === 'select') && options.length > 0) {
             return (
               <div key={p.field}>
-                <FieldLabel label={meta.label} required={required} error={err} />
+                <FieldLabel label={label} required={required} error={err} />
                 <Radio.Group
                   value={val as string | undefined}
-                  options={(meta.options || []).map((o) => ({ value: o.value, label: o.label }))}
+                  options={options.map((o) => ({ value: o.value, label: o.label }))}
                   onChange={(e) => setField(p.field, e.target.value)}
                   style={{ display: 'block', marginTop: 4 }}
                 />
-                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{meta.label}</Text>}
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
+              </div>
+            )
+          }
+          if (t === 'date' || t === 'datetime') {
+            const parsed = val ? dayjs(val as string) : null
+            return (
+              <div key={p.field} className={err ? 'approve-field-error' : undefined}>
+                <FieldLabel label={label} required={required} error={err} />
+                <DatePicker
+                  style={{ width: '100%', marginTop: 4 }}
+                  status={status}
+                  showTime={t === 'datetime'}
+                  value={parsed?.isValid() ? parsed : null}
+                  placeholder={required ? `请选择${label}` : undefined}
+                  onChange={(d) => setField(
+                    p.field,
+                    d ? d.format(t === 'datetime' ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD') : null,
+                  )}
+                />
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
               </div>
             )
           }
           if (t === 'textarea') {
             return (
               <div key={p.field}>
-                <FieldLabel label={meta.label} required={required} error={err} />
+                <FieldLabel label={label} required={required} error={err} />
                 <Input.TextArea
                   rows={2}
                   status={status}
                   value={(val as string) ?? ''}
                   onChange={(e) => setField(p.field, e.target.value)}
                   style={{ marginTop: 4 }}
-                  placeholder={required ? `请填写${meta.label}` : undefined}
+                  placeholder={required ? `请填写${label}` : undefined}
                 />
-                {err && <Text type="danger" style={{ fontSize: 12 }}>请填写{meta.label}</Text>}
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请填写{label}</Text>}
               </div>
             )
           }
           return (
             <div key={p.field}>
-              <FieldLabel label={meta.label} required={required} error={err} />
+              <FieldLabel label={label} required={required} error={err} />
               <Input
                 size="small"
                 status={status}
                 value={(val as string) ?? ''}
                 onChange={(e) => setField(p.field, e.target.value)}
                 style={{ marginTop: 4 }}
-                placeholder={required ? `请填写${meta.label}` : undefined}
+                placeholder={required ? `请填写${label}` : undefined}
               />
-              {err && <Text type="danger" style={{ fontSize: 12 }}>请填写{meta.label}</Text>}
+              {err && <Text type="danger" style={{ fontSize: 12 }}>请填写{label}</Text>}
             </div>
           )
         })}
       </Space>
       <style>{`
-        .approve-field-error .ant-select-selector {
+        .approve-field-error .ant-select-selector,
+        .approve-field-error .ant-select-selector:hover {
           border-color: #ff4d4f !important;
         }
       `}</style>

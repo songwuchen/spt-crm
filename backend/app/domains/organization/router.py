@@ -15,7 +15,7 @@ from app.database import generate_uuid
 from app.domains.organization.schemas import (
     DepartmentCreate, DepartmentUpdate, DepartmentOut,
     UserCreate, UserUpdate, UserBulkRoles, UserOut, ResetPassword,
-    RoleCreate, RoleUpdate, RoleOut, GrantPermissions,
+    RoleCreate, RoleUpdate, RoleOut, GrantPermissions, RoleMembersBody,
     DeptRoleRuleCreate, DeptRoleRuleUpdate, DeptRoleRuleOut,
 )
 from app.domains.organization import service
@@ -254,7 +254,12 @@ async def list_roles(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("role:view")),
 ):
+    from app.common.rbac_sync import ensure_business_roles
+    created = await ensure_business_roles(db, tenant_id)
+    if created:
+        await db.commit()
     roles = await service.list_roles(db, tenant_id)
+    counts = await service.count_role_members(db, tenant_id, [r.id for r in roles])
     role_list = []
     for r in roles:
         role_list.append({
@@ -262,6 +267,7 @@ async def list_roles(
             "description": r.description, "is_system": r.is_system,
             "data_scope": r.data_scope or "self",
             "permissions": [rp.permission.code for rp in r.role_permissions],
+            "member_count": counts.get(r.id, 0),
         })
     return ok(role_list)
 
@@ -310,6 +316,57 @@ async def grant_perms(
 ):
     await service.grant_permissions(db, tenant_id, role_id, body.permission_ids)
     return ok()
+
+
+@router.get("/roles/{role_id}/members")
+async def list_role_members(
+    role_id: str,
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(50, ge=1, le=200),
+    keyword: str = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:view")),
+):
+    """角色成员列表（CRM 内维护，非简道云拉取）。"""
+    items, total = await service.list_role_members(
+        db, tenant_id, role_id, pageNo, pageSize, keyword,
+    )
+    user_list = []
+    for u in items:
+        user_list.append({
+            "id": u.id,
+            "username": u.username,
+            "real_name": u.real_name,
+            "phone": u.phone,
+            "is_active": u.is_active,
+            "departments": [ud.department.name for ud in u.user_departments],
+        })
+    return ok({"items": user_list, "total": total, "pageNo": pageNo, "pageSize": pageSize})
+
+
+@router.post("/roles/{role_id}/members")
+async def add_role_members(
+    role_id: str,
+    body: RoleMembersBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    n = await service.add_role_members(db, tenant_id, role_id, body.user_ids)
+    return ok({"added": n})
+
+
+@router.post("/roles/{role_id}/members/remove")
+async def remove_role_members(
+    role_id: str,
+    body: RoleMembersBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    n = await service.remove_role_members(db, tenant_id, role_id, body.user_ids)
+    return ok({"removed": n})
 
 
 @router.get("/permissions")

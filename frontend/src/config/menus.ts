@@ -118,6 +118,7 @@ export const menuGroups: MenuGroup[] = [
       { key: '/admin/departments', icon: 'account_tree', labelKey: 'nav.departments', permission: 'dept:view' },
       { key: '/admin/users', icon: 'group', labelKey: 'nav.users', permission: 'user:view' },
       { key: '/admin/roles', icon: 'admin_panel_settings', labelKey: 'nav.roles', permission: 'role:view' },
+      { key: '/admin/pickable-scopes', icon: 'groups', labelKey: 'nav.pickableScopes', permission: 'role:view' },
       { key: '/admin/audit', icon: 'history', labelKey: 'nav.auditLog', permission: 'audit:view' },
       { key: '/admin/settings', icon: 'settings', labelKey: 'nav.settings', permission: 'role:manage' },
       { key: '/admin/api-docs', icon: 'api', labelKey: 'nav.apiDocs', permission: 'role:manage' },

@@ -1,4 +1,5 @@
 // 部门选择字段(department / department_multi)。值为部门 id(单)或 id 数组(多)。
+// props.pickable_scope.scope_code 可限制可选部门树。
 import { useEffect, useState } from 'react'
 import { TreeSelect } from 'antd'
 import client from '@/api/client'
@@ -7,9 +8,9 @@ import type { ApiResponse, Department } from '@/api/types'
 interface TreeNode { title: string; value: string; children?: TreeNode[] }
 interface DeptCache { tree: TreeNode[]; names: Record<string, string>; ts: number }
 
-let cache: DeptCache | null = null
+const cacheByScope = new Map<string, DeptCache>()
+const inflightByScope = new Map<string, Promise<DeptCache>>()
 const TTL = 5 * 60 * 1000
-let inflight: Promise<DeptCache> | null = null
 
 function build(nodes: Department[], names: Record<string, string>): TreeNode[] {
   return nodes.map((n) => {
@@ -18,18 +19,26 @@ function build(nodes: Department[], names: Record<string, string>): TreeNode[] {
   })
 }
 
-async function loadTree(): Promise<DeptCache> {
-  if (cache && Date.now() - cache.ts < TTL) return cache
-  if (inflight) return inflight
-  // 仅需登录即可访问(原 admin 接口需 dept:view,非管理员选不了部门)
-  inflight = client.get<unknown, ApiResponse<Department[]>>('/api/v1/lc/pickable-departments').then((res) => {
-    const names: Record<string, string> = {}
-    const tree = build((res.data as Department[]) || [], names)
-    cache = { tree, names, ts: Date.now() }
-    inflight = null
-    return cache
-  }).catch(() => { inflight = null; return { tree: [], names: {}, ts: Date.now() } })
-  return inflight
+async function loadTree(scopeCode?: string | null): Promise<DeptCache> {
+  const key = scopeCode || '__all__'
+  const cached = cacheByScope.get(key)
+  if (cached && Date.now() - cached.ts < TTL) return cached
+  const pending = inflightByScope.get(key)
+  if (pending) return pending
+  const params: Record<string, string> = {}
+  if (scopeCode) params.scope_code = scopeCode
+  const p = client.get<unknown, ApiResponse<Department[]>>('/api/v1/lc/pickable-departments', { params })
+    .then((res) => {
+      const names: Record<string, string> = {}
+      const tree = build((res.data as Department[]) || [], names)
+      const entry = { tree, names, ts: Date.now() }
+      cacheByScope.set(key, entry)
+      return entry
+    })
+    .catch(() => ({ tree: [], names: {}, ts: Date.now() }))
+    .finally(() => { inflightByScope.delete(key) })
+  inflightByScope.set(key, p)
+  return p
 }
 
 /** 列表/导出用：部门 id → 名称 */
@@ -39,23 +48,29 @@ export async function getDeptNameMap(): Promise<Record<string, string>> {
 }
 
 export default function DeptField({
-  value, onChange, multi, readonly, placeholder,
+  value, onChange, multi, readonly, placeholder, scopeCode,
 }: {
   value: unknown
   onChange?: (v: unknown) => void
   multi?: boolean
   readonly?: boolean
   placeholder?: string
+  /** 可选范围编码（department 类型） */
+  scopeCode?: string | null
 }) {
-  const [tree, setTree] = useState<TreeNode[]>(cache?.tree || [])
-  const [names, setNames] = useState<Record<string, string>>(cache?.names || {})
-  const [loading, setLoading] = useState(!cache)
+  const cacheKey = scopeCode || '__all__'
+  const [tree, setTree] = useState<TreeNode[]>(cacheByScope.get(cacheKey)?.tree || [])
+  const [names, setNames] = useState<Record<string, string>>(cacheByScope.get(cacheKey)?.names || {})
+  const [loading, setLoading] = useState(!cacheByScope.get(cacheKey))
 
   useEffect(() => {
     let alive = true
-    loadTree().then((c) => { if (alive && c) { setTree(c.tree); setNames(c.names); setLoading(false) } })
+    setLoading(true)
+    loadTree(scopeCode).then((c) => {
+      if (alive && c) { setTree(c.tree); setNames(c.names); setLoading(false) }
+    })
     return () => { alive = false }
-  }, [])
+  }, [scopeCode])
 
   if (readonly) {
     const ids = multi ? (Array.isArray(value) ? value : []) : value ? [value] : []

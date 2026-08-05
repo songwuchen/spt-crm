@@ -19,6 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { lowcodeApi } from '@/api/lowcode'
 import { roleApi } from '@/api/user'
+import { pickableScopeApi } from '@/api/pickableScope'
 import type { Role } from '@/api/types'
 import type { FieldDefinition, FieldType, FormRule } from '@/types/lowcode'
 import type { CascadeOption } from '@/components/lowcode/fields/CascadeField'
@@ -50,6 +51,13 @@ const DETAIL_COLUMN_TYPES: FieldType[] = [
 const DETAIL_COL_OPTS = DETAIL_COLUMN_TYPES.map((t) => ({ label: TYPE_LABEL[t] || t, value: t }))
 const SPANS = [{ label: '整行', value: 24 }, { label: '1/2', value: 12 }, { label: '1/3', value: 8 }, { label: '1/4', value: 6 }]
 const genId = () => 'f' + Math.random().toString(36).slice(2, 9)
+/** 角色列表尚未同步时，已写入 props 的 code 仍显示中文名 */
+const ROLE_CODE_FALLBACK: Record<string, string> = {
+  room_leader: '各室领导',
+  admin: '管理员',
+  sales: '销售',
+  finance: '财务',
+}
 
 // ---- 级联选项 文本<->树 ----
 function parseCascade(text: string): CascadeOption[] {
@@ -84,6 +92,8 @@ export default function FormDesignerPage() {
   const [jsonOpen, setJsonOpen] = useState(false)
   const [jsonText, setJsonText] = useState('')
   const [roles, setRoles] = useState<Role[]>([])
+  const [personScopes, setPersonScopes] = useState<{ label: string; value: string }[]>([])
+  const [deptScopes, setDeptScopes] = useState<{ label: string; value: string }[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
   const [rulesOpen, setRulesOpen] = useState(false)
   const [previewVal, setPreviewVal] = useState<Record<string, unknown>>({})
@@ -135,9 +145,28 @@ export default function FormDesignerPage() {
       } finally { setLoading(false) }
     })()
     roleApi.list().then((r) => setRoles(r.data || [])).catch(() => { /* 角色不可用 */ })
+    pickableScopeApi.listForPicker({ kind: 'person' }).then((r) => {
+      setPersonScopes((r.data || []).map((s) => ({
+        value: s.code,
+        label: `${s.name}（${s.code}）`,
+      })))
+    }).catch(() => {})
+    pickableScopeApi.listForPicker({ kind: 'department' }).then((r) => {
+      setDeptScopes((r.data || []).map((s) => ({
+        value: s.code,
+        label: `${s.name}（${s.code}）`,
+      })))
+    }).catch(() => {})
   }, [id])
 
-  const roleOptions = roles.map((r) => ({ label: r.name, value: r.code }))
+  const roleOptions = useMemo(() => {
+    const opts = roles.map((r) => ({ label: r.name || ROLE_CODE_FALLBACK[r.code] || r.code, value: r.code }))
+    const known = new Set(opts.map((o) => o.value))
+    for (const [code, name] of Object.entries(ROLE_CODE_FALLBACK)) {
+      if (!known.has(code)) opts.push({ label: name, value: code })
+    }
+    return opts
+  }, [roles])
   const sel = fields.find((f) => f.id === selId) || null
   const patch = (fid: string, p: Partial<FieldDefinition>) => setFields((fs) => fs.map((f) => (f.id === fid ? { ...f, ...p } : f)))
 
@@ -230,9 +259,15 @@ export default function FormDesignerPage() {
         </Space>
       </div>
 
+      {/* 左右栏 sticky：中间画布随主内容区窗口滚动，避免选字段后再滚回属性栏 */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
         {/* 字段面板 */}
-        <Card size="small" title="字段类型" style={{ width: 190, flex: '0 0 190px' }} styles={{ body: { padding: 10 } }}>
+        <Card
+          size="small"
+          title="字段类型"
+          style={{ width: 190, flex: '0 0 190px', position: 'sticky', top: 12, maxHeight: 'calc(100vh - 88px)', overflow: 'auto', alignSelf: 'flex-start' }}
+          styles={{ body: { padding: 10 } }}
+        >
           {PALETTE.map((g) => (
             <div key={g.group} style={{ marginBottom: 10 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>{g.group}</Text>
@@ -245,7 +280,7 @@ export default function FormDesignerPage() {
           ))}
         </Card>
 
-        {/* 画布 */}
+        {/* 画布：高度随内容撑开，由页面 Content 统一滚动 */}
         <Card size="small" title="表单画布(拖动手柄排序)" style={{ flex: 1, minWidth: 0 }}>
           {entityType && (
             <Alert
@@ -301,10 +336,20 @@ export default function FormDesignerPage() {
         </Card>
 
         {/* 属性 */}
-        <Card size="small" title="字段属性" style={{ width: 300, flex: '0 0 300px' }}>
+        <Card
+          size="small"
+          title="字段属性"
+          style={{ width: 300, flex: '0 0 300px', position: 'sticky', top: 12, maxHeight: 'calc(100vh - 88px)', overflow: 'auto', alignSelf: 'flex-start' }}
+        >
           {/* 字段属性：改标签时同步 label_override，发布后业务页才能覆盖硬编码文案 */}
           {sel ? (
-            <FieldProps key={sel.id} field={sel} roleOptions={roleOptions} onPatch={(p) => {
+            <FieldProps
+              key={sel.id}
+              field={sel}
+              roleOptions={roleOptions}
+              personScopeOptions={personScopes}
+              deptScopeOptions={deptScopes}
+              onPatch={(p) => {
               if (sel.native && typeof p.label === 'string') {
                 patch(sel.id, { ...p, label_override: p.label })
               } else {
@@ -568,8 +613,12 @@ function DetailColumnsEditor({ columns, onChange }: {
 }
 
 // ---- 字段属性面板 ----
-function FieldProps({ field, roleOptions, onPatch }: {
-  field: FieldDefinition; roleOptions: { label: string; value: string }[]; onPatch: (p: Partial<FieldDefinition>) => void
+function FieldProps({ field, roleOptions, personScopeOptions, deptScopeOptions, onPatch }: {
+  field: FieldDefinition
+  roleOptions: { label: string; value: string }[]
+  personScopeOptions: { label: string; value: string }[]
+  deptScopeOptions: { label: string; value: string }[]
+  onPatch: (p: Partial<FieldDefinition>) => void
 }) {
   const [permOpen, setPermOpen] = useState(false)
   const setProp = (k: string, v: unknown) => onPatch({ props: { ...field.props, [k]: v } })
@@ -586,8 +635,10 @@ function FieldProps({ field, roleOptions, onPatch }: {
       )}
       <div><Text type="secondary" style={{ fontSize: 12 }}>标签</Text>
         <Input size="small" value={field.label} onChange={(e) => onPatch({ label: e.target.value })} /></div>
-      <div><Text type="secondary" style={{ fontSize: 12 }}>字段 id</Text>
-        <Input size="small" value={field.id} disabled /></div>
+      <div>
+        <Text type="secondary" style={{ fontSize: 12 }}>字段 id（系统标识，界面显示用上方标签）</Text>
+        <Input size="small" value={field.id} disabled />
+      </div>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <span><Text style={{ fontSize: 12 }}>必填 </Text>
           {/* system_required = 数据库 NOT NULL 或业务强依赖，锁死不给改 */}
@@ -660,6 +711,70 @@ function FieldProps({ field, roleOptions, onPatch }: {
       {field.type === 'formula' && (
         <div><Text type="secondary" style={{ fontSize: 12 }}>公式(如 $amt# * 2)</Text>
           <Input size="small" value={(field.props?.formula as string) || ''} onChange={(e) => setProp('formula', e.target.value)} /></div>
+      )}
+      {(field.type === 'person' || field.type === 'person_multi') && (
+        <div>
+          <Text type="secondary" style={{ fontSize: 12 }}>可选人员范围</Text>
+          <Select
+            allowClear
+            size="small"
+            style={{ width: '100%', marginTop: 4 }}
+            placeholder="留空=全部用户"
+            options={personScopeOptions}
+            value={(field.props?.pickable_scope as { scope_code?: string } | undefined)?.scope_code || undefined}
+            onChange={(code) => {
+              const props = { ...(field.props || {}) }
+              if (code) {
+                const prev = (props.pickable_scope as Record<string, unknown>) || {}
+                props.pickable_scope = {
+                  scope_code: code,
+                  ...(prev.filter_by_fields ? { filter_by_fields: prev.filter_by_fields } : {}),
+                }
+              } else {
+                delete props.pickable_scope
+              }
+              onPatch({ props })
+            }}
+          />
+          <div style={{ marginTop: 8 }}>
+            <Switch
+              size="small"
+              checked={!!((field.props?.pickable_scope as { filter_by_fields?: string[] } | undefined)?.filter_by_fields?.length)}
+              disabled={!(field.props?.pickable_scope as { scope_code?: string } | undefined)?.scope_code}
+              onChange={(on) => {
+                const props = { ...(field.props || {}) }
+                const prev = { ...((props.pickable_scope as Record<string, unknown>) || {}) }
+                if (on) prev.filter_by_fields = ['offices', 'offices_multi']
+                else delete prev.filter_by_fields
+                props.pickable_scope = prev
+                onPatch({ props })
+              }}
+            />
+            <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>按同单「科室」字段再收窄</Text>
+          </div>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+            范围在「系统管理 → 可选范围」里直接勾选。预置「方案管理-设计指派」「方案管理-科室」。
+          </Text>
+        </div>
+      )}
+      {(field.type === 'department' || field.type === 'department_multi') && (
+        <div>
+          <Text type="secondary" style={{ fontSize: 12 }}>可选部门范围</Text>
+          <Select
+            allowClear
+            size="small"
+            style={{ width: '100%', marginTop: 4 }}
+            placeholder="留空=全部部门"
+            options={deptScopeOptions}
+            value={(field.props?.pickable_scope as { scope_code?: string } | undefined)?.scope_code || undefined}
+            onChange={(code) => {
+              const props = { ...(field.props || {}) }
+              if (code) props.pickable_scope = { scope_code: code }
+              else delete props.pickable_scope
+              onPatch({ props })
+            }}
+          />
+        </div>
       )}
 
       {field.type === 'detail_table' && (
@@ -769,6 +884,7 @@ function RulesEditor({ fields, rules, onChange, systemRules = [], systemDefaults
             <RuleCard
               key={r.id}
               rule={r}
+              fields={fields}
               fieldOpts={fieldOpts}
               isSystem
               onChange={(nr) => onSystemChange?.(systemRules.map((x, k) => (k === i ? nr : x)))}
@@ -785,6 +901,7 @@ function RulesEditor({ fields, rules, onChange, systemRules = [], systemDefaults
         <RuleCard
           key={r.id}
           rule={r}
+          fields={fields}
           fieldOpts={fieldOpts}
           onChange={(nr) => onChange(rules.map((x, k) => (k === i ? nr : x)))}
           onDelete={() => onChange(rules.filter((_, k) => k !== i))}
@@ -794,14 +911,23 @@ function RulesEditor({ fields, rules, onChange, systemRules = [], systemDefaults
   )
 }
 
-function RuleCard({ rule: r, fieldOpts, onChange, onDelete, onReset, isSystem }: {
+function RuleCard({ rule: r, fields, fieldOpts, onChange, onDelete, onReset, isSystem }: {
   rule: FormRule
+  fields: FieldDefinition[]
   fieldOpts: { value: string; label: string }[]
   onChange: (r: FormRule) => void
   onDelete?: () => void
   onReset?: () => void
   isSystem?: boolean
 }) {
+  const fieldsById = useMemo(() => {
+    const m = new Map<string, FieldDefinition>()
+    for (const f of fields) {
+      m.set(f.id, f)
+      for (const c of f.detail_table_columns || []) m.set(c.id, c as FieldDefinition)
+    }
+    return m
+  }, [fields])
   const fields0 = fieldOpts[0]?.value || ''
   const conds: { field: string; operator: string; value?: unknown }[] = (() => {
     const c = r.condition
@@ -869,27 +995,46 @@ function RuleCard({ rule: r, fieldOpts, onChange, onDelete, onReset, isSystem }:
       )}
       {conds.map((c, ci) => {
         const noVal = c.operator === 'is_empty' || c.operator === 'is_not_empty'
+        const srcField = fieldsById.get(c.field)
+        const choiceOpts = (srcField?.options || []).map((o) => ({ value: o.value, label: o.label || o.value }))
+        const useChoice = choiceOpts.length > 0 && (c.operator === 'eq' || c.operator === 'ne' || c.operator === 'in' || c.operator === 'not_in')
         return (
           <div key={ci} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
             <Select size="small" style={{ width: 120 }} placeholder="字段" value={c.field || undefined} options={fieldOpts}
               disabled={disabled}
-              onChange={(v) => setConds(conds.map((x, k) => (k === ci ? { ...x, field: v } : x)))} />
+              onChange={(v) => setConds(conds.map((x, k) => (k === ci ? { ...x, field: v, value: undefined } : x)))} />
             <Select size="small" style={{ width: 110 }} value={c.operator} options={RULE_OPS}
               disabled={disabled}
               onChange={(v) => setConds(conds.map((x, k) => (k === ci ? { ...x, operator: v } : x)))} />
             {!noVal && (
-              <Input size="small" style={{ flex: 1 }} placeholder="值"
-                value={Array.isArray(c.value) ? c.value.join(',') : ((c.value as string) ?? '')}
-                disabled={disabled}
-                onChange={(e) => {
-                  const raw = e.target.value
-                  // 逗号分隔 → in 运算符常用数组；其它运算符仍用字符串
-                  const value = c.operator === 'in'
-                    ? raw.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
-                    : raw
-                  setConds(conds.map((x, k) => (k === ci ? { ...x, value } : x)))
-                }}
-              />
+              useChoice ? (
+                <Select
+                  size="small"
+                  style={{ flex: 1, minWidth: 160 }}
+                  placeholder="选择选项"
+                  mode={c.operator === 'in' || c.operator === 'not_in' ? 'multiple' : undefined}
+                  options={choiceOpts}
+                  disabled={disabled}
+                  value={
+                    c.operator === 'in' || c.operator === 'not_in'
+                      ? (Array.isArray(c.value) ? c.value : (c.value != null && c.value !== '' ? [c.value] : []))
+                      : (c.value as string | undefined)
+                  }
+                  onChange={(v) => setConds(conds.map((x, k) => (k === ci ? { ...x, value: v } : x)))}
+                />
+              ) : (
+                <Input size="small" style={{ flex: 1 }} placeholder="值"
+                  value={Array.isArray(c.value) ? c.value.join(',') : ((c.value as string) ?? '')}
+                  disabled={disabled}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    const value = c.operator === 'in'
+                      ? raw.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+                      : raw
+                    setConds(conds.map((x, k) => (k === ci ? { ...x, value } : x)))
+                  }}
+                />
+              )
             )}
             <Button size="small" type="text" danger icon={<DeleteOutlined />} disabled={disabled || conds.length <= 1}
               onClick={() => setConds(conds.filter((_, k) => k !== ci))} />

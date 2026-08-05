@@ -140,6 +140,12 @@ class FormInstanceUpdate(BaseModel):
     remark: str | None = None
 
 
+class FormInstanceSubmit(BaseModel):
+    """草稿提交审批：可顺带带上最终表单数据。"""
+    form_data: dict[str, Any] | None = None
+    title: str | None = None
+
+
 class FormInstanceOut(BaseModel):
     id: str
     template_id: str

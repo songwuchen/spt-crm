@@ -233,6 +233,15 @@ STANDARD_ROLES = [
         ],
     },
     {
+        "code": "room_leader", "name": "各室领导", "scope": "dept",
+        "desc": "中央研究院各室领导；对齐简道云设计指派/设计人选人范围（JDY role 63815e3a7fb607000acc9195）",
+        "perms": [
+            "customer:view", "project:view", "quote:view", "contract:view", "product:view",
+            "solution:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
         "code": "tech_chief", "name": "技术总工/评审", "scope": "all", "lowcode_admin": True,
         "desc": "全局技术只读 + 方案/变更评审与审批",
         "perms": [

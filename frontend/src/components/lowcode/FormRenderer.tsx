@@ -12,7 +12,9 @@ import type { FieldDefinition, FormRule, FieldState, FieldPermission } from '@/t
 import { computeFieldStates } from './RuleEngine'
 import { MASK_VALUE } from '@/utils/mask'
 import { useAuthStore } from '@/stores/useAuthStore'
-import PersonField from './fields/PersonField'
+import PersonField, {
+  filterDeptIdsFromValues, shouldFilterByDeptFields, type PickableScope,
+} from './fields/PersonField'
 import DeptField from './fields/DeptField'
 import ProjectField from './fields/ProjectField'
 import ContractField from './fields/ContractField'
@@ -207,11 +209,35 @@ function FieldWidget({
 
   switch (field.type) {
     case 'person':
-    case 'person_multi':
-      return <PersonField value={value} onChange={onChange} multi={field.type === 'person_multi'} readonly={readonly} placeholder={ph} />
+    case 'person_multi': {
+      const scope = (field.props as { pickable_scope?: PickableScope } | undefined)?.pickable_scope
+      const useDeptFilter = shouldFilterByDeptFields(scope, field.id)
+      return (
+        <PersonField
+          value={value}
+          onChange={onChange}
+          multi={field.type === 'person_multi'}
+          readonly={readonly}
+          placeholder={ph}
+          pickableScope={scope}
+          deptIds={useDeptFilter ? filterDeptIdsFromValues(allValues, scope?.filter_by_fields) : undefined}
+        />
+      )
+    }
     case 'department':
-    case 'department_multi':
-      return <DeptField value={value} onChange={onChange} multi={field.type === 'department_multi'} readonly={readonly} placeholder={ph} />
+    case 'department_multi': {
+      const scopeCode = (field.props as { pickable_scope?: PickableScope } | undefined)?.pickable_scope?.scope_code
+      return (
+        <DeptField
+          value={value}
+          onChange={onChange}
+          multi={field.type === 'department_multi'}
+          readonly={readonly}
+          placeholder={ph}
+          scopeCode={scopeCode}
+        />
+      )
+    }
     case 'project':
       return <ProjectField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
     case 'contract':

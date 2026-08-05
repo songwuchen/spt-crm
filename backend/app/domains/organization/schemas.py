@@ -107,6 +107,10 @@ class GrantPermissions(BaseModel):
     permission_ids: List[str]
 
 
+class RoleMembersBody(BaseModel):
+    user_ids: List[str]
+
+
 # --- Dept -> Role auto-assignment rules ---
 class DeptRoleRuleCreate(BaseModel):
     department_id: str

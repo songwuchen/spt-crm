@@ -601,12 +601,41 @@ class WorkflowEngine:
         # 无配置且无提交时跳过；有提交或必填/意见要求则走校验
         if not perms and not field_updates and not opinion_required:
             return
+
+        form_fields: list = []
+        form_rules: list = []
+        form_data: dict = {}
+        if inst.form_instance_id:
+            try:
+                from app.domains.lowcode.models import FormInstance, FormTemplateVersion
+                from app.domains.lowcode.service import get_published_version
+                fi = await self.db.get(FormInstance, inst.form_instance_id)
+                if fi and fi.tenant_id == self.tenant_id:
+                    form_data = dict(fi.form_data or {}) if isinstance(fi.form_data, dict) else {}
+                    form_fields = list(fi.field_definitions or [])
+                    try:
+                        pub = await get_published_version(self.db, self.tenant_id, fi.template_id)
+                        if pub:
+                            form_rules = list(pub.rule_definitions or [])
+                            if not form_fields:
+                                form_fields = list(pub.field_definitions or [])
+                    except Exception:
+                        ver = await self.db.get(FormTemplateVersion, fi.template_version_id) if fi.template_version_id else None
+                        if ver:
+                            form_rules = list(ver.rule_definitions or [])
+                            if not form_fields:
+                                form_fields = list(ver.field_definitions or [])
+            except Exception:
+                form_fields, form_rules, form_data = [], [], {}
+
         filtered = validate_field_updates(
             perms, field_updates, opinion=opinion,
             opinion_required=opinion_required, action=action,
+            form_fields=form_fields, form_rules=form_rules, form_data=form_data,
         )
         if action == "approve" and filtered:
             await self._assert_person_field_values(inst.biz_type, filtered)
+            await self._assert_pickable_scope(inst, filtered)
         if filtered:
             await apply_field_updates(
                 self.db, self.tenant_id,
@@ -614,6 +643,186 @@ class WorkflowEngine:
                 form_instance_id=inst.form_instance_id,
                 updates=filtered,
             )
+
+    async def _assert_pickable_scope(self, inst, updates: dict) -> None:
+        """人员/部门字段若配置了 pickable_scope，所选值必须在范围内。"""
+        from sqlalchemy import select
+        from app.common.exceptions import BusinessException
+        from app.common.error_codes import VALIDATION_ERROR
+        from app.domains.auth.models import User, Role, UserRole
+        from app.domains.organization.models import Department
+        from app.domains.lowcode.pickable_scope import (
+            role_codes_from_field, scope_code_from_field, filter_by_fields_from_field,
+        )
+        from app.domains.lowcode.models import FormInstance
+        from app.domains.lowcode.service import get_published_version
+        from app.domains.organization import pickable_scope_service as pss
+
+        form_defs: list = []
+        form_data: dict = {}
+        if inst.form_instance_id:
+            fi = await self.db.get(FormInstance, inst.form_instance_id)
+            if fi and fi.tenant_id == self.tenant_id:
+                form_data = dict(fi.form_data or {})
+                try:
+                    ver = await get_published_version(self.db, self.tenant_id, fi.template_id)
+                    form_defs = list((ver.field_definitions if ver else None) or [])
+                except Exception:
+                    form_defs = []
+        if not form_defs:
+            return
+        # 审批写回的值优先
+        merged = {**form_data, **(updates or {})}
+        by_id = {f["id"]: f for f in form_defs if isinstance(f, dict) and f.get("id")}
+        person_types = {"person", "person_multi", "user"}
+        dept_types = {"department", "department_multi"}
+
+        for key, raw in updates.items():
+            fd = by_id.get(key)
+            if not fd or raw in (None, "", []):
+                continue
+            ftype = str(fd.get("type") or "")
+            candidates = [str(x) for x in (raw if isinstance(raw, list) else [raw]) if x]
+            if not candidates:
+                continue
+
+            scode = scope_code_from_field(fd)
+            label = fd.get("label") or key
+
+            # —— 部门字段：按部门可选范围校验 ——
+            if ftype in dept_types:
+                if not scode:
+                    continue
+                await pss.ensure_preset_scopes(self.db, self.tenant_id)
+                scope = await pss.get_scope_by_code(self.db, self.tenant_id, scode)
+                if not scope:
+                    raise BusinessException(
+                        code=VALIDATION_ERROR,
+                        message=f"「{label}」可选范围「{scode}」不存在，请到「系统管理 → 可选范围」配置",
+                    )
+                allowed_depts = await pss.resolve_department_ids(
+                    self.db, self.tenant_id, scope,
+                )
+                if allowed_depts is None:
+                    continue
+                bad = [c for c in candidates if c not in allowed_depts]
+                if not bad:
+                    continue
+                rows = (
+                    await self.db.execute(
+                        select(Department.id, Department.name).where(
+                            Department.tenant_id == self.tenant_id,
+                            Department.id.in_(bad),
+                        )
+                    )
+                ).all()
+                name_by_id = {r[0]: (r[1] or r[0]) for r in rows}
+                bad_labels = [name_by_id.get(c, c) for c in bad]
+                raise BusinessException(
+                    code=VALIDATION_ERROR,
+                    message=f"「{label}」所选部门不在可选范围内: {', '.join(bad_labels)}",
+                )
+
+            # —— 人员字段：按人员可选范围（可再按科室收窄）——
+            if ftype not in person_types:
+                continue
+
+            extra_depts: list[str] = []
+            for fid in filter_by_fields_from_field(fd):
+                v = merged.get(fid)
+                if isinstance(v, list):
+                    extra_depts.extend(str(x) for x in v if x)
+                elif v not in (None, ""):
+                    extra_depts.append(str(v))
+
+            allowed: set[str] | None = None
+            if scode:
+                await pss.ensure_preset_scopes(self.db, self.tenant_id)
+                scope = await pss.get_scope_by_code(self.db, self.tenant_id, scode)
+                if not scope:
+                    raise BusinessException(
+                        code=VALIDATION_ERROR,
+                        message=f"「{label}」可选范围「{scode}」不存在，请到「系统管理 → 可选范围」配置",
+                    )
+                # 部门类范围误绑到人员字段时，不应按人员解析
+                if getattr(scope, "kind", None) == "department":
+                    continue
+                allowed = await pss.resolve_person_ids(
+                    self.db, self.tenant_id, scope, extra_dept_ids=extra_depts or None,
+                )
+                if allowed is None:
+                    continue
+            else:
+                codes = role_codes_from_field(fd)
+                if not codes:
+                    continue
+                role_ids = (
+                    await self.db.execute(
+                        select(Role.id).where(Role.tenant_id == self.tenant_id, Role.code.in_(codes))
+                    )
+                ).scalars().all()
+                if not role_ids and any(c == "room_leader" for c in codes):
+                    from app.common.rbac_sync import ensure_business_roles
+                    created = await ensure_business_roles(self.db, self.tenant_id, ["room_leader"])
+                    if created:
+                        await self.db.flush()
+                    role_ids = (
+                        await self.db.execute(
+                            select(Role.id).where(Role.tenant_id == self.tenant_id, Role.code.in_(codes))
+                        )
+                    ).scalars().all()
+                if not role_ids:
+                    raise BusinessException(
+                        code=VALIDATION_ERROR,
+                        message=f"「{label}」可选角色未配置，请到「系统管理 → 可选范围 / 角色」维护",
+                    )
+                allowed = set(
+                    (
+                        await self.db.execute(
+                            select(UserRole.user_id).where(
+                                UserRole.tenant_id == self.tenant_id,
+                                UserRole.role_id.in_(role_ids),
+                            )
+                        )
+                    ).scalars().all()
+                )
+                if extra_depts:
+                    from app.domains.organization.pickable_scope_service import _user_ids_in_depts
+                    allowed &= await _user_ids_in_depts(self.db, self.tenant_id, extra_depts, True)
+
+            rows = (
+                await self.db.execute(
+                    select(User.id, User.username, User.real_name).where(
+                        User.tenant_id == self.tenant_id,
+                        (User.id.in_(candidates)) | (User.username.in_(candidates)),
+                    )
+                )
+            ).all()
+            id_by_key = {}
+            name_by_id: dict[str, str] = {}
+            for uid, uname, rname in rows:
+                id_by_key[uid] = uid
+                if uname:
+                    id_by_key[uname] = uid
+                name_by_id[uid] = (rname or uname or uid)
+            bad = []
+            bad_labels = []
+            for c in candidates:
+                uid = id_by_key.get(c)
+                if not uid or uid not in allowed:
+                    bad.append(c)
+                    bad_labels.append(name_by_id.get(uid or "", c) if uid else c)
+            if bad:
+                hint = ""
+                if extra_depts:
+                    hint = "（已按所选科室收窄，请确认人选属于该科室，或先改科室）"
+                raise BusinessException(
+                    code=VALIDATION_ERROR,
+                    message=(
+                        f"「{label}」所选人员不在可选范围内: "
+                        f"{', '.join(bad_labels)}{hint}"
+                    ),
+                )
 
     async def _assert_person_field_values(self, biz_type: str | None, updates: dict) -> None:
         """人员字段必须能解析到在职用户（供下一节点 form_field_person 使用）。"""

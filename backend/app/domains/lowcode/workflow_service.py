@@ -2444,25 +2444,41 @@ async def _resolve_current_task_for_viewer(
     field_ids = [p["field"] for p in field_perms]
     catalog = {f["id"]: f for f in get_catalog(inst.biz_type or "")}
     # 表单绑定流：用实例/模板字段定义补全控件类型（biz_field_catalog 无表单字段）
+    published_by_id: dict = {}
     if inst.form_instance_id:
         from app.domains.lowcode.models import FormInstance
         fi = await db.get(FormInstance, inst.form_instance_id)
         form_defs = []
         if fi and fi.tenant_id == tenant_id:
             form_defs = list(fi.field_definitions or [])
-            if not form_defs:
-                from app.domains.lowcode.service import get_published_version
-                try:
-                    ver = await get_published_version(db, tenant_id, fi.template_id)
-                    form_defs = list((ver.field_definitions if ver else None) or [])
-                except Exception:
-                    form_defs = []
+            from app.domains.lowcode.service import get_published_version
+            try:
+                ver = await get_published_version(db, tenant_id, fi.template_id)
+                pub_defs = list((ver.field_definitions if ver else None) or [])
+                published_by_id = {
+                    fd["id"]: fd for fd in pub_defs
+                    if isinstance(fd, dict) and fd.get("id")
+                }
+                if not form_defs:
+                    form_defs = pub_defs
+            except Exception:
+                published_by_id = {}
         for fd in form_defs:
             if isinstance(fd, dict) and fd.get("id") and fd["id"] not in catalog:
                 catalog[fd["id"]] = fd
     field_meta = []
     for fid in field_ids:
-        meta = catalog.get(fid) or {"id": fid, "label": fid, "type": "text"}
+        meta = dict(catalog.get(fid) or {"id": fid, "label": fid, "type": "text"})
+        # 实例快照可能落后：pickable_scope 等以已发布模板为准，避免审批人选为空
+        pub = published_by_id.get(fid)
+        if isinstance(pub, dict):
+            if pub.get("type"):
+                meta["type"] = pub["type"]
+            pub_props = pub.get("props") if isinstance(pub.get("props"), dict) else {}
+            if pub_props.get("pickable_scope"):
+                props = dict(meta.get("props") or {})
+                props["pickable_scope"] = pub_props["pickable_scope"]
+                meta["props"] = props
         item = {
             "id": fid,
             "label": meta.get("label") or fid,
@@ -2472,9 +2488,19 @@ async def _resolve_current_task_for_viewer(
             item["options"] = meta["options"]
         if meta.get("detail_table_columns"):
             item["detail_table_columns"] = meta["detail_table_columns"]
+        if isinstance(meta.get("props"), dict) and meta["props"]:
+            item["props"] = meta["props"]
         field_meta.append(item)
+    # 把人选范围依赖的科室等字段一并读出（即使本节点不可编辑），便于按科室收窄人选
+    value_ids = list(field_ids)
+    for item in field_meta:
+        scope = (item.get("props") or {}).get("pickable_scope") if isinstance(item.get("props"), dict) else None
+        if isinstance(scope, dict):
+            for dep in scope.get("filter_by_fields") or []:
+                if dep and dep not in value_ids:
+                    value_ids.append(str(dep))
     field_values = await load_field_values(
-        db, tenant_id, inst.biz_type, inst.biz_id, inst.form_instance_id, field_ids,
+        db, tenant_id, inst.biz_type, inst.biz_id, inst.form_instance_id, value_ids,
     )
     return {
         "task_id": pending.id,

@@ -17,6 +17,7 @@ from app.database import Base, TenantScopedBase, PlatformBase
 from app.domains.auth.models import User, Role, Permission, UserRole, RolePermission
 from app.domains.tenant.models import PlatformTenant
 from app.domains.organization.models import Department, UserDepartment, Post, UserPost, UserAgent
+from app.domains.organization.pickable_scope_models import PickableScope  # noqa: F401
 from app.domains.customer.models import Customer, Contact, CustomerRelation, AclShare
 from app.domains.lead.models import Lead
 from app.domains.attachment.models import Attachment, AttachmentLink

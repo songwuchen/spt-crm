@@ -66,8 +66,14 @@ def validate_field_updates(
     opinion: str | None = None,
     opinion_required: bool = False,
     action: str = "approve",
+    form_fields: list[dict] | None = None,
+    form_rules: list[dict] | None = None,
+    form_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """校验并过滤 field_updates；仅 approve 时强制 required / opinion_required。"""
+    """校验并过滤 field_updates；仅 approve 时强制 required / opinion_required。
+
+    若传入 form_rules，按规则引擎显隐/条件必填判定：隐藏字段不强制必填。
+    """
     allowed = {p["field"]: p["access"] for p in field_perms}
     raw = updates if isinstance(updates, dict) else {}
     unknown = [k for k in raw if k not in allowed]
@@ -81,10 +87,35 @@ def validate_field_updates(
     if action == "approve":
         if opinion_required and _is_empty(opinion):
             raise BusinessException(code=VALIDATION_ERROR, message="请填写审批意见")
-        missing = [
-            f for f, acc in allowed.items()
-            if acc == "required" and _is_empty(filtered.get(f))
-        ]
+        required_ids = {f for f, acc in allowed.items() if acc == "required"}
+        if form_rules and required_ids:
+            from app.domains.lowcode.rule_engine import compute_field_states
+
+            # 合成字段定义：保证节点字段 + 条件依赖字段都在 states 里
+            by_id: dict[str, dict] = {}
+            for fd in form_fields or []:
+                if isinstance(fd, dict) and fd.get("id"):
+                    by_id[str(fd["id"])] = dict(fd)
+            for fid in allowed:
+                by_id.setdefault(fid, {"id": fid, "type": "text", "label": fid, "required": False})
+            fields = list(by_id.values())
+            merged = {**(form_data or {}), **filtered}
+            permissions = [
+                {"fieldId": f, "access": "required" if acc == "required" else "editable"}
+                for f, acc in allowed.items()
+            ]
+            states = compute_field_states(fields, merged, form_rules, permissions)
+            missing = [
+                f for f in required_ids
+                if states.get(f, {}).get("visible", True)
+                and states.get(f, {}).get("required", True)
+                and _is_empty(filtered.get(f))
+            ]
+        else:
+            missing = [
+                f for f, acc in allowed.items()
+                if acc == "required" and _is_empty(filtered.get(f))
+            ]
         if missing:
             raise BusinessException(
                 code=VALIDATION_ERROR,

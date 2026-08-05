@@ -151,7 +151,12 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     const ct = detail?.current_task
     if (action === 'approve' && ct) {
       if (ct.opinion_required && !opinion.trim()) return message.error('请填写审批意见')
-      const miss = missingRequiredFields(ct.field_perms, fieldUpdates)
+      const miss = missingRequiredFields(ct.field_perms, fieldUpdates, {
+        rules: detail?.form_rules,
+        formFields: fields,
+        formData,
+        fieldMeta: ct.field_meta,
+      })
       if (miss.length) {
         setFieldHighlight(true)
         const labels = miss.map((id) => ct.field_meta?.find((m) => m.id === id)?.label || id)
@@ -255,7 +260,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                         : '业务信息'}
                 </div>
                 {fields.length ? (
-                  <FormRenderer fields={fields} mode="readonly" value={formData} applyFieldPerms={false} />
+                  <FormRenderer
+                    fields={fields}
+                    mode="readonly"
+                    value={formData}
+                    rules={detail.form_rules || []}
+                    applyFieldPerms={false}
+                  />
                 ) : detail.biz_type === 'contract_version' ? (
                   contractLoading ? (
                     <div className="py-8 text-center"><Spin /></div>
@@ -302,6 +313,9 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     onChange={setFieldUpdates}
                     showTitle={false}
                     highlightMissing={fieldHighlight}
+                    rules={detail.form_rules || []}
+                    formData={formData}
+                    formFields={fields}
                   />
                 </section>
               )}

@@ -192,6 +192,53 @@ def map_type(t: str) -> str:
     }.get(t, "text")
 
 
+def jdy_widget_limit(f: dict) -> dict | None:
+    """字段上的人选/部门限制：可能在顶层或嵌套 widget 里。"""
+    lim = f.get("limit")
+    if isinstance(lim, dict):
+        return lim
+    w = f.get("widget")
+    if isinstance(w, dict) and isinstance(w.get("limit"), dict):
+        return w["limit"]
+    return None
+
+
+def apply_pickable_scope(fd: dict, limit: dict | None = None, jdy_field: dict | None = None) -> None:
+    """把 JDY limit.roles 写成 props.pickable_scope.role_codes。"""
+    from app.domains.lowcode.pickable_scope import pickable_scope_from_jdy_limit
+    lim = limit if limit is not None else (jdy_widget_limit(jdy_field or {}) if jdy_field else None)
+    scope = pickable_scope_from_jdy_limit(lim)
+    if not scope:
+        return
+    props = dict(fd.get("props") or {})
+    props["pickable_scope"] = scope
+    fd["props"] = props
+
+
+def load_widget_limits_from_edit_raw(path: Path) -> dict[str, dict]:
+    """从 *_edit_raw.json 提取 widgetName -> limit。"""
+    if not path.exists():
+        return {}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    out: dict[str, dict] = {}
+
+    def walk(node):
+        if isinstance(node, dict):
+            w = node.get("widget") if isinstance(node.get("widget"), dict) else node
+            name = w.get("widgetName") or w.get("name") or node.get("name")
+            lim = w.get("limit") if isinstance(w.get("limit"), dict) else None
+            if name and lim and (lim.get("roles") or lim.get("departs")):
+                out[str(name)] = lim
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for it in node:
+                walk(it)
+
+    walk(raw)
+    return out
+
+
 def options_of(f: dict) -> list[dict]:
     items = f.get("items") or []
     out = []
@@ -298,10 +345,12 @@ def build_fields(
     raw: dict,
     required_widgets: set[str],
     rule_widgets: set[str],
+    widget_limits: dict[str, dict] | None = None,
 ) -> list[dict]:
     data = raw.get("data", raw)
     fields = data.get("fields") if isinstance(data, dict) else data
     used: set[str] = set()
+    limits = widget_limits or {}
     out = []
     for f in fields or []:
         if not isinstance(f, dict):
@@ -344,6 +393,7 @@ def build_fields(
                 fd["detail_table_columns"] = cols
         if name:
             fd["jdy_widget"] = name
+        apply_pickable_scope(fd, limit=limits.get(name) or jdy_widget_limit(f))
         out.append(fd)
     return out
 
@@ -835,7 +885,8 @@ def main():
         wf_raw = json.loads((OUT / f"_jdy_{key}_workflows_raw.json").read_text(encoding="utf-8"))
         linkage = load_linkage_pack(key)
         required_widgets, rule_widgets, _ = collect_linkage_sets(linkage)
-        fields = build_fields(fields_raw, required_widgets, rule_widgets)
+        widget_limits = load_widget_limits_from_edit_raw(OUT / f"_jdy_{key}_edit_raw.json")
+        fields = build_fields(fields_raw, required_widgets, rule_widgets, widget_limits)
         rules = build_rule_definitions(linkage, fields)
         nodes, routes, notes = build_flow(wf_raw, fields, title)
         result[key] = {

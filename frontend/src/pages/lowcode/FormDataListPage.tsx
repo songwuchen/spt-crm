@@ -296,6 +296,28 @@ export default function FormDataListPage({
     load()
   }
 
+  const submitDraft = async () => {
+    if (!viewRec) return
+    const displayFields = drawingLayout
+      ? applyDrawingFormLayout(templateCode, viewRec.fields)
+      : viewRec.fields
+    const states = computeFieldStates(
+      displayFields, viewRec.value, viewRec.rules,
+      deriveRolePerms(displayFields, userRoles),
+    )
+    const e = validateRequired(displayFields, states, viewRec.value)
+    if (e) { message.error(e); return }
+    try {
+      await lowcodeApi.submitInstance(viewRec.id, { form_data: viewRec.value })
+      message.success('已提交审批')
+      closeView()
+      load()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '提交失败')
+    }
+  }
+
   const handleWfComment = async (content: string) => {
     if (!wfDetail?.id) return
     setWfCommenting(true)
@@ -336,11 +358,14 @@ export default function FormDataListPage({
       render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—'),
     },
     {
-      title: '操作', key: 'op', width: 180, fixed: 'right' as const,
+      title: '操作', key: 'op', width: 220, fixed: 'right' as const,
       render: (_: unknown, r: FormInstance) => (
         <Space size="small">
           <Button size="small" type="link" onClick={() => openView(r.id, true)}>查看</Button>
           <Button size="small" type="link" onClick={() => openView(r.id, false)}>编辑</Button>
+          {r.status === 'draft' && (
+            <Button size="small" type="link" onClick={() => openView(r.id, false)}>提交审批</Button>
+          )}
           <Popconfirm title="确认删除该记录?" onConfirm={() => del(r.id)}>
             <Button size="small" type="link" danger>删除</Button>
           </Popconfirm>
@@ -385,10 +410,18 @@ export default function FormDataListPage({
       <Modal
         title={viewRec?.readonly ? '查看记录' : '编辑记录'} open={!!viewRec} width={modalWidth}
         onCancel={closeView}
-        footer={viewRec?.readonly ? null : [
-          <Button key="c" onClick={closeView}>取消</Button>,
-          <Button key="s" type="primary" onClick={saveEdit}>保存</Button>,
-        ]}
+        footer={viewRec?.readonly ? null : (
+          viewRec?.status === 'draft'
+            ? [
+                <Button key="c" onClick={closeView}>取消</Button>,
+                <Button key="s" onClick={saveEdit}>存草稿</Button>,
+                <Button key="sub" type="primary" onClick={submitDraft}>提交审批</Button>,
+              ]
+            : [
+                <Button key="c" onClick={closeView}>取消</Button>,
+                <Button key="s" type="primary" onClick={saveEdit}>保存</Button>,
+              ]
+        )}
         destroyOnClose
         styles={{ body: { paddingTop: 12 } }}
       >

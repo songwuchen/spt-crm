@@ -245,6 +245,7 @@ export interface WfCurrentTask {
     type: string
     options?: { value: string; label: string }[]
     detail_table_columns?: FieldDefinition[]
+    props?: Record<string, unknown>
   }[]
   field_values: Record<string, unknown>
 }

@@ -72,7 +72,12 @@ export default function MobileLowcodeApprovalDetail() {
       if (ct.opinion_required && !opinion.trim()) {
         message.error('请填写审批意见'); return
       }
-      const miss = missingRequiredFields(ct.field_perms, fieldUpdates)
+      const miss = missingRequiredFields(ct.field_perms, fieldUpdates, {
+        rules: detail?.form_rules,
+        formFields: fields,
+        formData,
+        fieldMeta: ct.field_meta,
+      })
       if (miss.length) {
         setFieldHighlight(true)
         const labels = miss.map((fid) => ct.field_meta?.find((m) => m.id === fid)?.label || fid)
@@ -127,7 +132,13 @@ export default function MobileLowcodeApprovalDetail() {
       {fields.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
           <div className="text-sm font-bold text-slate-500 mb-2">表单内容</div>
-          <FormRenderer fields={fields} mode="readonly" value={formData} applyFieldPerms={false} />
+          <FormRenderer
+            fields={fields}
+            mode="readonly"
+            value={formData}
+            rules={detail.form_rules || []}
+            applyFieldPerms={false}
+          />
         </div>
       )}
 
@@ -197,6 +208,9 @@ export default function MobileLowcodeApprovalDetail() {
               values={fieldUpdates}
               onChange={setFieldUpdates}
               highlightMissing={fieldHighlight}
+              rules={detail.form_rules || []}
+              formData={formData}
+              formFields={fields}
             />
           )}
           <Input.TextArea

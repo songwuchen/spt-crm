@@ -305,14 +305,62 @@ async def sync_builtin_form_fields(
                     {"label": "领图", "value": "领图"},
                 ]
                 break
+        # 明细表已从方案管理去掉（选项仍保留）
+        want = [
+            fd for fd in want
+            if not (
+                isinstance(fd, dict)
+                and fd.get("id") in ("change_scheme", "non_scheme_material")
+            )
+        ]
         want_rules = [
             r for r in want_rules
             if not (
                 isinstance(r, dict)
-                and r.get("type") == "visibility"
                 and (
-                    r.get("target_field_id") == "apply_or_change"
-                    or "apply_or_change" in (r.get("target_field_ids") or [])
+                    (
+                        r.get("type") == "visibility"
+                        and (
+                            r.get("target_field_id") == "apply_or_change"
+                            or "apply_or_change" in (r.get("target_field_ids") or [])
+                        )
+                    )
+                    or (
+                        r.get("target_field_id") in ("change_scheme", "non_scheme_material")
+                        or bool(set(r.get("target_field_ids") or []) & {
+                            "change_scheme", "non_scheme_material",
+                        })
+                    )
+                )
+            )
+        ]
+        # 条件必填字段：禁止租户旧版把 static required=True 盖回来
+        cond_required_ids: set[str] = set()
+        for r in want_rules:
+            if not isinstance(r, dict) or r.get("type") != "required":
+                continue
+            if r.get("target_field_id"):
+                cond_required_ids.add(str(r["target_field_id"]))
+            for tid in r.get("target_field_ids") or []:
+                cond_required_ids.add(str(tid))
+        for fd in want:
+            if isinstance(fd, dict) and fd.get("id") in cond_required_ids:
+                fd["required"] = False
+        # 附件类：只做显隐，强制非必填（对齐业务预期，避免规则「显示」与提交「必填」打架）
+        attach_optional = {
+            "attachment_name", "attachment_names", "attachments", "attachments_no_image", "images",
+        }
+        for fd in want:
+            if isinstance(fd, dict) and fd.get("id") in attach_optional:
+                fd["required"] = False
+        want_rules = [
+            r for r in want_rules
+            if not (
+                isinstance(r, dict)
+                and r.get("type") == "required"
+                and (
+                    r.get("target_field_id") in attach_optional
+                    or any(t in attach_optional for t in (r.get("target_field_ids") or []))
                 )
             )
         ]
@@ -848,13 +896,26 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
 
     field_defs = inst.field_definitions or []
     rule_defs: list = []
-    version = await db.get(FormTemplateVersion, inst.template_version_id)
-    if not version:
-        version = await _get_published_version(db, tenant_id, inst.template_id)
-    if version:
-        if not field_defs:
-            field_defs = version.field_definitions or []
-        rule_defs = version.rule_definitions or []
+    # 草稿跟最新已发布 schema（必填/显隐），避免旧快照 required 与当前规则打架
+    if inst.status == "draft":
+        published = await _get_published_version(db, tenant_id, inst.template_id)
+        if published:
+            field_defs = published.field_definitions or field_defs
+            rule_defs = published.rule_definitions or []
+        else:
+            version = await db.get(FormTemplateVersion, inst.template_version_id)
+            if version:
+                if not field_defs:
+                    field_defs = version.field_definitions or []
+                rule_defs = version.rule_definitions or []
+    else:
+        version = await db.get(FormTemplateVersion, inst.template_version_id)
+        if not version:
+            version = await _get_published_version(db, tenant_id, inst.template_id)
+        if version:
+            if not field_defs:
+                field_defs = version.field_definitions or []
+            rule_defs = version.rule_definitions or []
 
     out = schemas.FormInstanceOut.model_validate(inst).model_dump()
     # 字段级权限：按查看者角色剔除隐藏字段(定义+值)，不可编辑字段标记 readonly
@@ -976,6 +1037,67 @@ async def update_instance(
 
     await db.commit()
     await db.refresh(inst)
+    return inst
+
+
+async def submit_instance(
+    db: AsyncSession, tenant_id: str, instance_id: str,
+    data: schemas.FormInstanceSubmit, user: dict,
+) -> FormInstance:
+    """草稿 → 正式提交：校验必填、取流水号、启动绑定流程。"""
+    inst = (await db.execute(
+        select(FormInstance).where(
+            FormInstance.id == instance_id,
+            FormInstance.tenant_id == tenant_id,
+            FormInstance.is_deleted == False,  # noqa: E712
+        )
+    )).scalar_one_or_none()
+    if not inst:
+        raise BusinessException(code=NOT_FOUND, message="表单数据不存在")
+    if inst.status != "draft":
+        raise BusinessException(code=VALIDATION_ERROR, message="仅草稿可提交审批")
+
+    # 提交时按最新已发布版本校验并定稿，与设计器当前规则对齐
+    published = await _get_published_version(db, tenant_id, inst.template_id)
+    version = published or await db.get(FormTemplateVersion, inst.template_version_id)
+    field_defs = (version.field_definitions if version else inst.field_definitions) or []
+    rule_defs = (version.rule_definitions if version else []) or []
+    user_name = user.get("real_name") or user.get("username") or ""
+
+    raw_in = data.form_data if data.form_data is not None else (inst.form_data or {})
+    raw = sanitize_write(raw_in, inst.form_data, field_defs, user.get("roles"))
+    form_data = compute_formula_fields(dict(raw or {}), field_defs, user_name)
+
+    err = validate_required(field_defs, form_data, rule_defs,
+                            role_field_permissions(field_defs, user.get("roles")))
+    if err:
+        raise BusinessException(code=VALIDATION_ERROR, message=err)
+    form_data = await generate_serials_for_submit(db, tenant_id, inst.template_id, field_defs, form_data)
+
+    if data.title is not None:
+        title = (data.title or "").strip() or None
+        if title:
+            inst.title = title
+    if not inst.title:
+        tpl = await get_template(db, tenant_id, inst.template_id)
+        inst.title = derive_form_instance_title(tpl.name, form_data, field_defs)
+
+    inst.form_data = form_data
+    inst.amount = _extract_amount(form_data, field_defs)
+    inst.field_definitions = field_defs
+    if published:
+        inst.template_version_id = published.id
+    inst.status = "submitted"
+    await db.commit()
+    await db.refresh(inst)
+
+    from app.domains.lowcode import workflow_service as wsvc
+    pinst = await wsvc.maybe_start_for_form(db, tenant_id, inst.template_id, inst, user, form_data)
+    if pinst is not None:
+        inst.status = pinst.status
+        inst.process_instance_id = pinst.id
+        await db.commit()
+        await db.refresh(inst)
     return inst
 
 

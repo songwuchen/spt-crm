@@ -1,16 +1,19 @@
 // 客户选择字段(customer)。值为客户 id。
+// 审批人未必有 customer:view：回显走 /lc/pickable-customers，只读不拉全量列表。
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Select, Spin } from 'antd'
-import { customerApi } from '@/api/customer'
-import type { Customer } from '@/api/types'
+import client from '@/api/client'
+import type { ApiResponse } from '@/api/types'
 
 interface COpt { label: string; value: string }
+type CustRow = { id: string; name?: string; customer_code?: string | null }
 
 let cache: { opts: COpt[]; ts: number } | null = null
 const TTL = 5 * 60 * 1000
 let inflight: Promise<COpt[]> | null = null
+const silent = { headers: { 'X-Silent-Error': '1' } }
 
-function toOpts(rows: Pick<Customer, 'id' | 'name' | 'customer_code'>[]): COpt[] {
+function toOpts(rows: CustRow[]): COpt[] {
   return (rows || []).map((c) => ({
     label: c.name ? `${c.name}${c.customer_code ? `（${c.customer_code}）` : ''}` : (c.customer_code || c.id),
     value: c.id,
@@ -18,8 +21,11 @@ function toOpts(rows: Pick<Customer, 'id' | 'name' | 'customer_code'>[]): COpt[]
 }
 
 async function fetchList(keyword?: string): Promise<COpt[]> {
-  const r = await customerApi.list({ pageNo: 1, pageSize: 50, keyword: keyword || undefined })
-  return toOpts(r.data?.items || [])
+  const r = await client.get<unknown, ApiResponse<CustRow[]>>('/api/v1/lc/pickable-customers', {
+    params: { keyword: keyword || undefined },
+    ...silent,
+  })
+  return toOpts(r.data || [])
 }
 
 async function loadBase(): Promise<COpt[]> {
@@ -38,20 +44,33 @@ async function loadBase(): Promise<COpt[]> {
 async function hydrateMissing(ids: string[], opts: COpt[]): Promise<COpt[]> {
   let next = opts
   const have = new Set(next.map((o) => o.value))
-  for (const id of ids) {
-    if (!id || have.has(id)) continue
-    try {
-      const r = await customerApi.get(id)
-      const c = r.data
-      if (c?.id) {
-        const opt = toOpts([c])[0]
-        next = [...next, opt]
-        have.add(id)
-        cache = { opts: next, ts: Date.now() }
+  const missing = ids.filter((id) => id && !have.has(id))
+  if (!missing.length) return next
+  try {
+    const r = await client.get<unknown, ApiResponse<CustRow[]>>('/api/v1/lc/pickable-customers', {
+      params: { ids: missing.join(',') },
+      ...silent,
+    })
+    const found = toOpts(r.data || [])
+    for (const o of found) {
+      if (!have.has(o.value)) {
+        next = [...next, o]
+        have.add(o.value)
       }
-    } catch {
-      next = [...next, { label: id, value: id }]
-      have.add(id)
+    }
+    for (const id of missing) {
+      if (!have.has(id)) {
+        next = [...next, { label: id, value: id }]
+        have.add(id)
+      }
+    }
+    cache = { opts: next, ts: Date.now() }
+  } catch {
+    for (const id of missing) {
+      if (!have.has(id)) {
+        next = [...next, { label: id, value: id }]
+        have.add(id)
+      }
     }
   }
   return next
@@ -60,8 +79,9 @@ async function hydrateMissing(ids: string[], opts: COpt[]): Promise<COpt[]> {
 /** 列表/导出用：客户 id → 显示名 */
 export async function getCustomerLabelMap(ids: string[]): Promise<Record<string, string>> {
   const raws = [...new Set((ids || []).map(String).filter(Boolean))]
-  let opts = await loadBase()
-  if (raws.length) opts = await hydrateMissing(raws, opts)
+  let opts: COpt[] = []
+  if (raws.length) opts = await hydrateMissing(raws, [])
+  else opts = await loadBase()
   const map: Record<string, string> = {}
   for (const o of opts) map[o.value] = o.label
   return map
@@ -83,14 +103,22 @@ export default function CustomerField({
   useEffect(() => {
     let alive = true
     setLoading(true)
-    loadBase()
-      .then(async (base) => {
+    ;(async () => {
+      try {
+        if (readonly) {
+          const next = raw ? await hydrateMissing([raw], []) : []
+          if (alive) setOpts(next)
+          return
+        }
+        const base = await loadBase()
         const next = raw ? await hydrateMissing([raw], base) : base
         if (alive) setOpts(next)
-      })
-      .finally(() => { if (alive) setLoading(false) })
+      } finally {
+        if (alive) setLoading(false)
+      }
+    })()
     return () => { alive = false }
-  }, [raw])
+  }, [raw, readonly])
 
   useEffect(() => () => {
     if (searchTimer.current) clearTimeout(searchTimer.current)
@@ -134,6 +162,7 @@ export default function CustomerField({
                 return merged
               })
             })
+            .catch(() => {})
             .finally(() => setLoading(false))
         }, 250)
       }}

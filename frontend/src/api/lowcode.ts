@@ -72,6 +72,11 @@ export const lowcodeApi = {
     client.post<unknown, ApiResponse<{ id: string; status: string; business_no?: string }>>('/api/v1/lc/form-instances', data),
   updateInstance: (id: string, data: { form_data?: Record<string, unknown>; title?: string }) =>
     client.put<unknown, ApiResponse<{ id: string; status: string }>>(`/api/v1/lc/form-instances/${id}`, data),
+  /** 草稿提交审批（校验必填并启动绑定流程） */
+  submitInstance: (id: string, data?: { form_data?: Record<string, unknown>; title?: string }) =>
+    client.post<unknown, ApiResponse<{ id: string; status: string; business_no?: string; process_instance_id?: string }>>(
+      `/api/v1/lc/form-instances/${id}/submit`, data || {},
+    ),
   deleteInstance: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/lc/form-instances/${id}`),
 }

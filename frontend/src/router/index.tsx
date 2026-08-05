@@ -31,6 +31,7 @@ const PaymentPage = lazy(() => import('@/pages/payment/PaymentPage'))
 const DepartmentPage = lazy(() => import('@/pages/admin/department/DepartmentPage'))
 const UserList = lazy(() => import('@/pages/admin/user/UserList'))
 const RoleList = lazy(() => import('@/pages/admin/role/RoleList'))
+const PickableScopePage = lazy(() => import('@/pages/admin/PickableScopePage'))
 const AuditLogPage = lazy(() => import('@/pages/admin/audit/AuditLogPage'))
 const SettingsPage = lazy(() => import('@/pages/admin/settings/SettingsPage'))
 const AnalyticsPage = lazy(() => import('@/pages/analytics/AnalyticsPage'))
@@ -228,6 +229,7 @@ export const router = createBrowserRouter([
       { path: 'admin/departments', element: <Guard permission="dept:view"><DepartmentPage /></Guard> },
       { path: 'admin/users', element: <Guard permission="user:view"><UserList /></Guard> },
       { path: 'admin/roles', element: <Guard permission="role:view"><RoleList /></Guard> },
+      { path: 'admin/pickable-scopes', element: <Guard permission="role:view"><PickableScopePage /></Guard> },
       { path: 'admin/audit', element: <Guard permission="audit:view"><AuditLogPage /></Guard> },
       { path: 'admin/settings', element: <Guard permission="role:manage"><SettingsPage /></Guard> },
       { path: 'platform/tenants', element: <Guard permission="role:manage"><PlatformTenants /></Guard> },

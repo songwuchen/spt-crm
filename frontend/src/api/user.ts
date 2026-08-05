@@ -58,6 +58,14 @@ export const roleApi = {
     client.post<unknown, ApiResponse<null>>(`/api/admin/v1/tenant/roles/${roleId}/grant_permissions`, { permission_ids: permissionIds }),
   delete: (roleId: string) =>
     client.delete<unknown, ApiResponse<null>>(`/api/admin/v1/tenant/roles/${roleId}`),
+  listMembers: (roleId: string, params?: { pageNo?: number; pageSize?: number; keyword?: string }) =>
+    client.get<unknown, ApiResponse<PageData<{
+      id: string; username: string; real_name?: string; phone?: string; is_active: boolean; departments: string[]
+    }>>>(`/api/admin/v1/tenant/roles/${roleId}/members`, { params }),
+  addMembers: (roleId: string, userIds: string[]) =>
+    client.post<unknown, ApiResponse<{ added: number }>>(`/api/admin/v1/tenant/roles/${roleId}/members`, { user_ids: userIds }),
+  removeMembers: (roleId: string, userIds: string[]) =>
+    client.post<unknown, ApiResponse<{ removed: number }>>(`/api/admin/v1/tenant/roles/${roleId}/members/remove`, { user_ids: userIds }),
 }
 
 export interface RbacSyncPreview {

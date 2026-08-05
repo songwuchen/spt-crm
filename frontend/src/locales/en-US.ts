@@ -117,6 +117,7 @@ const enUS = {
     departments: 'Departments',
     users: 'Users',
     roles: 'Roles & Permissions',
+    pickableScopes: 'Pickable Scopes',
     auditLog: 'Audit Log',
     settings: 'Settings',
     apiDocs: 'API Docs',

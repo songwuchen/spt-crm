@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Modal, Form, Input, Select, Space, message, Checkbox, Tag, Alert, Spin } from 'antd'
+import { Button, Modal, Form, Input, Select, Space, message, Checkbox, Tag } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
-import { PlusOutlined, DeleteOutlined, SearchOutlined, SyncOutlined } from '@ant-design/icons'
-import { roleApi, permissionApi, rbacApi } from '@/api/user'
-import type { RbacSyncPreview } from '@/api/user'
+import { PlusOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
+import { roleApi, permissionApi } from '@/api/user'
 import type { Role, PermissionItem } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 
@@ -34,55 +33,6 @@ export default function RoleList() {
   const [roleScope, setRoleScope] = useState<string | undefined>()
   const [editingRole, setEditingRole] = useState<Role | null>(null)
   const [form] = Form.useForm()
-
-  // 同步标准角色与权限
-  const [syncModal, setSyncModal] = useState(false)
-  const [syncMode, setSyncMode] = useState<'additive' | 'reset'>('additive')
-  const [syncPreview, setSyncPreview] = useState<RbacSyncPreview | null>(null)
-  const [syncLoading, setSyncLoading] = useState(false)
-  const [syncApplying, setSyncApplying] = useState(false)
-
-  const loadSyncPreview = async (mode: 'additive' | 'reset') => {
-    setSyncLoading(true)
-    try {
-      const res = await rbacApi.previewStandardSync(mode)
-      setSyncPreview(res.data)
-    } catch (e: any) {
-      message.error(e?.response?.data?.message || '预览失败')
-    } finally {
-      setSyncLoading(false)
-    }
-  }
-
-  const openSync = () => {
-    setSyncMode('additive')
-    setSyncPreview(null)
-    setSyncModal(true)
-    loadSyncPreview('additive')
-  }
-
-  const changeSyncMode = (mode: 'additive' | 'reset') => {
-    setSyncMode(mode)
-    loadSyncPreview(mode)
-  }
-
-  const doApplySync = async () => {
-    setSyncApplying(true)
-    try {
-      const res = await rbacApi.applyStandardSync(syncMode)
-      const r = res.data
-      const extra = r.roles_updated.length ? `、更新 ${r.roles_updated.length} 个角色` : ''
-      message.success(`同步完成:新建 ${r.created_roles.length} 个角色、新增 ${r.perms_added} 项授权、移除 ${r.perms_removed} 项${extra}`)
-      setSyncModal(false)
-      // 同步可能新建了权限行,一并刷新权限目录,否则权限矩阵看不到新权限
-      fetchRoles()
-      fetchPermissions()
-    } catch (e: any) {
-      message.error(e?.response?.data?.message || '同步失败')
-    } finally {
-      setSyncApplying(false)
-    }
-  }
 
   const fetchRoles = async () => {
     const res = await roleApi.list()
@@ -269,16 +219,11 @@ export default function RoleList() {
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">角色权限</h1>
           <p className="text-sm text-slate-500 mt-0.5">管理角色和权限分配</p>
         </div>
-        <Space>
-          <Button icon={<SyncOutlined />} onClick={openSync} className="font-bold">
-            同步标准角色与权限
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />}
-            onClick={openCreate}
-            className="shadow-lg shadow-primary/20 font-bold">
-            新建角色
-          </Button>
-        </Space>
+        <Button type="primary" icon={<PlusOutlined />}
+          onClick={openCreate}
+          className="shadow-lg shadow-primary/20 font-bold">
+          新建角色
+        </Button>
       </div>
 
       {/* Filters */}
@@ -417,118 +362,6 @@ export default function RoleList() {
             )
           })}
         </div>
-      </Modal>
-
-      {/* 同步标准角色与权限 Modal */}
-      <Modal
-        title="同步标准角色与权限"
-        open={syncModal}
-        width={640}
-        onCancel={() => setSyncModal(false)}
-        onOk={doApplySync}
-        okText={syncMode === 'reset' ? '应用同步(含移除)' : '应用同步'}
-        okButtonProps={{
-          loading: syncApplying,
-          danger: syncMode === 'reset',
-          disabled: syncLoading || !syncPreview
-            || (syncPreview.summary.roles_to_create + syncPreview.summary.perms_to_add + syncPreview.summary.perms_to_remove
-                + syncPreview.summary.roles_to_update + syncPreview.summary.permissions_to_create === 0),
-        }}
-      >
-        <Alert
-          type="info"
-          showIcon
-          className="mb-3"
-          message="把本租户的「系统标准角色」对齐到系统标准目录"
-          description="按需新建缺失的标准角色、补齐标准权限(含扩展平台)。自定义 / 人名角色不受影响。变更后本租户用户会自动刷新权限(无需等 5 分钟缓存)。"
-        />
-
-        <Checkbox
-          className="mb-3"
-          checked={syncMode === 'reset'}
-          onChange={(e) => changeSyncMode(e.target.checked ? 'reset' : 'additive')}
-        >
-          <span className="text-sm">高级:重置为标准(<span className="text-rose-500 font-semibold">移除</span>标准角色上的多余/自定义授权)</span>
-        </Checkbox>
-
-        {syncLoading || !syncPreview ? (
-          <div className="flex justify-center py-10"><Spin /></div>
-        ) : (
-          (() => {
-            const s = syncPreview.summary
-            const nothing = s.roles_to_create + s.perms_to_add + s.perms_to_remove
-              + s.roles_to_update + s.permissions_to_create === 0
-            if (nothing) {
-              return <Alert type="success" showIcon message="已是最新 — 本租户标准角色权限无需变更。" />
-            }
-            return (
-              <div className="max-h-[420px] overflow-y-auto space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  <Tag color="blue">新建角色 {s.roles_to_create}</Tag>
-                  <Tag color="green">新增授权 {s.perms_to_add}</Tag>
-                  {syncMode === 'reset' && <Tag color="red">移除授权 {s.perms_to_remove}</Tag>}
-                  {syncMode === 'reset' && s.roles_to_update > 0 && <Tag color="orange">更新角色 {s.roles_to_update}</Tag>}
-                  {s.permissions_to_create > 0 && <Tag>补权限目录 {s.permissions_to_create}</Tag>}
-                </div>
-
-                {syncPreview.roles_to_update.length > 0 && (
-                  <div className="border border-orange-100 bg-orange-50/40 rounded-lg p-3">
-                    <div className="text-sm font-bold text-orange-500 mb-2">将对齐角色属性(名称/描述/数据范围)</div>
-                    <div className="space-y-1">
-                      {syncPreview.roles_to_update.map((r) => (
-                        <div key={r.code} className="text-[13px]">
-                          <span className="font-mono font-semibold text-slate-700">{r.code}</span>
-                          <span className="text-slate-500">:{r.changes.join('、')}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {syncPreview.roles_to_create.length > 0 && (
-                  <div className="border border-slate-100 rounded-lg p-3">
-                    <div className="text-sm font-bold text-slate-500 mb-2">将新建角色</div>
-                    <div className="flex flex-wrap gap-2">
-                      {syncPreview.roles_to_create.map((r) => (
-                        <Tag key={r.code} color="blue">{r.name} <span className="opacity-60">({r.code} · {r.perm_count} 权限)</span></Tag>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {Object.keys(syncPreview.perms_to_add).length > 0 && (
-                  <div className="border border-slate-100 rounded-lg p-3">
-                    <div className="text-sm font-bold text-slate-500 mb-2">给现有标准角色新增权限</div>
-                    <div className="space-y-2">
-                      {Object.entries(syncPreview.perms_to_add).map(([code, perms]) => (
-                        <div key={code} className="text-[13px]">
-                          <span className="font-mono font-semibold text-slate-700">{code}</span>
-                          <span className="text-slate-400"> +{perms.length}:</span>{' '}
-                          <span className="text-slate-500">{perms.map((p) => p.name).join('、')}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {syncMode === 'reset' && Object.keys(syncPreview.perms_to_remove).length > 0 && (
-                  <div className="border border-rose-100 bg-rose-50/40 rounded-lg p-3">
-                    <div className="text-sm font-bold text-rose-500 mb-2">将从标准角色移除(重置)</div>
-                    <div className="space-y-2">
-                      {Object.entries(syncPreview.perms_to_remove).map(([code, perms]) => (
-                        <div key={code} className="text-[13px]">
-                          <span className="font-mono font-semibold text-slate-700">{code}</span>
-                          <span className="text-rose-400"> -{perms.length}:</span>{' '}
-                          <span className="text-slate-500">{perms.map((p) => p.name).join('、')}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })()
-        )}
       </Modal>
     </div>
   )

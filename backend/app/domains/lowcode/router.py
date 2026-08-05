@@ -33,21 +33,78 @@ async def pickable_users(
     keyword: str = Query(None),
     ids: str | None = Query(None, description="逗号分隔的用户 id，用于回显未落在默认列表中的人选"),
     usernames: str | None = Query(None, description="逗号分隔的 username，同上"),
+    role_codes: str | None = Query(
+        None,
+        description="逗号分隔的角色 code（兼容旧配置）",
+    ),
+    scope_code: str | None = Query(None, description="可选范围编码（优先于 role_codes）"),
+    dept_ids: str | None = Query(
+        None,
+        description="逗号分隔的部门 id；在范围结果上再收窄（表单科室联动）",
+    ),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    from app.domains.auth.models import User
+    from app.domains.auth.models import User, Role, UserRole
+    from app.domains.organization import pickable_scope_service as pss
+
+    extra_depts = [x.strip() for x in (dept_ids or "").split(",") if x.strip()]
+    scoped_uids: set[str] | None = None
+
+    if scope_code:
+        await pss.ensure_preset_scopes(db, tenant_id)
+        await db.commit()
+        scope = await pss.get_scope_by_code(db, tenant_id, scope_code.strip())
+        if not scope or scope.kind != "person":
+            return ok([])
+        scoped_uids = await pss.resolve_person_ids(db, tenant_id, scope, extra_dept_ids=extra_depts or None)
+    else:
+        codes = [c.strip() for c in (role_codes or "").split(",") if c.strip()]
+        if codes:
+            from app.common.rbac_sync import ensure_business_roles
+            need_ensure = [c for c in codes if c == "room_leader"]
+            if need_ensure:
+                created = await ensure_business_roles(db, tenant_id, need_ensure)
+                if created:
+                    await db.commit()
+            role_ids = (
+                await db.execute(
+                    select(Role.id).where(Role.tenant_id == tenant_id, Role.code.in_(codes))
+                )
+            ).scalars().all()
+            if not role_ids:
+                return ok([])
+            scoped_uids = set(
+                (
+                    await db.execute(
+                        select(UserRole.user_id).where(
+                            UserRole.tenant_id == tenant_id, UserRole.role_id.in_(role_ids),
+                        )
+                    )
+                ).scalars().all()
+            )
+            if extra_depts:
+                from app.domains.organization.pickable_scope_service import _user_ids_in_depts
+                in_dept = await _user_ids_in_depts(db, tenant_id, extra_depts, True)
+                scoped_uids &= in_dept
+        elif extra_depts:
+            from app.domains.organization.pickable_scope_service import _user_ids_in_depts
+            scoped_uids = await _user_ids_in_depts(db, tenant_id, extra_depts, True)
+
     q = select(User.id, User.real_name, User.username).where(
         User.tenant_id == tenant_id, User.is_active == True,  # noqa: E712
     )
+    if scoped_uids is not None:
+        if not scoped_uids:
+            return ok([])
+        q = q.where(User.id.in_(scoped_uids))
+
     if keyword:
         like = f"%{keyword}%"
         q = q.where(or_(User.real_name.ilike(like), User.username.ilike(like)))
-    # 租户用户常超过旧上限 500，导致流程审批人只显示工号不显示姓名
     rows = (await db.execute(q.order_by(User.real_name).limit(5000))).all()
     by_id = {r[0]: r for r in rows}
-    # 补齐指定 id/username（即使不在默认排序窗口内）
     extra_ids = [x.strip() for x in (ids or "").split(",") if x.strip()]
     extra_names = [x.strip() for x in (usernames or "").split(",") if x.strip()]
     missing_ids = [i for i in extra_ids if i not in by_id]
@@ -65,7 +122,6 @@ async def pickable_users(
         )).all()
         for r in extra:
             by_id[r[0]] = r
-    # 同时返回 username：流程设计里审批人可能存 id 或 username（简道云对齐默认流用 username）
     out = [
         {"id": r[0], "name": r[1] or r[2], "username": r[2]}
         for r in sorted(by_id.values(), key=lambda x: (x[1] or x[2] or ""))
@@ -75,12 +131,130 @@ async def pickable_users(
 
 @router.get("/pickable-departments")
 async def pickable_departments(
+    scope_code: str | None = Query(None, description="可选范围编码（department 类型）"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
     from app.domains.organization.service import get_department_tree
-    return ok(await get_department_tree(db, tenant_id))
+    from app.domains.organization import pickable_scope_service as pss
+
+    tree = await get_department_tree(db, tenant_id)
+    if not scope_code:
+        return ok(tree)
+
+    await pss.ensure_preset_scopes(db, tenant_id)
+    await db.commit()
+    scope = await pss.get_scope_by_code(db, tenant_id, scope_code.strip())
+    if not scope or scope.kind != "department":
+        return ok([])
+    allowed = await pss.resolve_department_ids(db, tenant_id, scope)
+    if allowed is None:
+        return ok(tree)
+
+    def prune(nodes: list) -> list:
+        out = []
+        for n in nodes or []:
+            kids = prune(n.get("children") or [])
+            if n.get("id") in allowed or kids:
+                nn = dict(n)
+                nn["children"] = kids
+                # 不在允许集合内的祖先仅作展开用，仍返回（与 TreeSelect 常见行为一致）
+                out.append(nn)
+        return out
+
+    return ok(prune(tree))
+
+
+@router.get("/pickable-projects")
+async def pickable_projects(
+    keyword: str | None = Query(None),
+    ids: str | None = Query(None, description="逗号分隔的商机 id，用于只读回显"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """表单/审批回显商机名称：仅需登录，不要求 project:view。"""
+    from app.domains.project.models import OpportunityProject as Project
+
+    id_list = [x.strip() for x in (ids or "").split(",") if x.strip()]
+    q = select(Project.id, Project.name, Project.project_code).where(
+        Project.tenant_id == tenant_id, Project.is_deleted == False,  # noqa: E712
+    )
+    if id_list:
+        q = q.where(Project.id.in_(id_list))
+    elif keyword:
+        like = f"%{keyword}%"
+        q = q.where(or_(Project.name.ilike(like), Project.project_code.ilike(like))).limit(50)
+    else:
+        q = q.order_by(Project.updated_at.desc()).limit(50)
+    rows = (await db.execute(q)).all()
+    return ok([
+        {"id": r[0], "name": r[1], "project_code": r[2]}
+        for r in rows
+    ])
+
+
+@router.get("/pickable-customers")
+async def pickable_customers(
+    keyword: str | None = Query(None),
+    ids: str | None = Query(None, description="逗号分隔的客户 id，用于只读回显"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """表单/审批回显客户名称：仅需登录，不要求 customer:view。"""
+    from app.domains.customer.models import Customer
+
+    id_list = [x.strip() for x in (ids or "").split(",") if x.strip()]
+    q = select(Customer.id, Customer.name, Customer.customer_code).where(
+        Customer.tenant_id == tenant_id, Customer.is_deleted == False,  # noqa: E712
+    )
+    if id_list:
+        q = q.where(Customer.id.in_(id_list))
+    elif keyword:
+        like = f"%{keyword}%"
+        q = q.where(or_(Customer.name.ilike(like), Customer.customer_code.ilike(like))).limit(50)
+    else:
+        q = q.order_by(Customer.updated_at.desc()).limit(50)
+    rows = (await db.execute(q)).all()
+    return ok([
+        {"id": r[0], "name": r[1], "customer_code": r[2]}
+        for r in rows
+    ])
+
+
+@router.get("/pickable-contracts")
+async def pickable_contracts(
+    keyword: str | None = Query(None),
+    ids: str | None = Query(None, description="逗号分隔的合同 id，用于只读回显"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """表单/审批回显合同号：仅需登录，不要求 contract:view。"""
+    from app.domains.contract.models import Contract
+
+    id_list = [x.strip() for x in (ids or "").split(",") if x.strip()]
+    q = select(Contract.id, Contract.contract_no, Contract.drawing_no).where(
+        Contract.tenant_id == tenant_id,
+    )
+    if id_list:
+        q = q.where(Contract.id.in_(id_list))
+    elif keyword:
+        like = f"%{keyword}%"
+        q = q.where(or_(
+            Contract.contract_no.ilike(like),
+            Contract.drawing_no.ilike(like),
+            Contract.peer_contract_no.ilike(like),
+        )).limit(50)
+    else:
+        q = q.order_by(Contract.updated_at.desc()).limit(50)
+    rows = (await db.execute(q)).all()
+    return ok([
+        {"id": r[0], "contract_no": r[1], "drawing_no": r[2]}
+        for r in rows
+    ])
 
 
 # ==================== 模板序列化 ====================
@@ -491,6 +665,26 @@ async def update_form_instance(
 ):
     inst = await service.update_instance(db, tenant_id, instance_id, body, user)
     return ok({"id": inst.id, "status": inst.status})
+
+
+@router.post("/form-instances/{instance_id}/submit")
+async def submit_form_instance(
+    instance_id: str,
+    body: schemas.FormInstanceSubmit | None = None,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_permissions("form_data:edit")),
+):
+    """草稿提交审批（与新建时点「提交」等价）。"""
+    inst = await service.submit_instance(
+        db, tenant_id, instance_id, body or schemas.FormInstanceSubmit(), user,
+    )
+    return ok({
+        "id": inst.id,
+        "status": inst.status,
+        "business_no": inst.business_no,
+        "process_instance_id": inst.process_instance_id,
+    })
 
 
 @router.delete("/form-instances/{instance_id}")

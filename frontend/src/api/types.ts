@@ -200,6 +200,7 @@ export interface Role {
   is_system: boolean
   data_scope?: string  // self / dept / all
   permissions: string[]
+  member_count?: number
 }
 
 export interface PermissionItem {

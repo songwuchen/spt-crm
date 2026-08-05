@@ -82,11 +82,20 @@ export function computeFieldStates(
     }
   }
 
+  // 被隐藏的字段一律非必填，避免静态 required + 显隐规则不同步时误拦
+  for (const st of Object.values(states)) {
+    if (!st.visible) st.required = false
+  }
+
   for (const rule of rules) {
     if (rule.enabled === false || rule.type !== 'required') continue
     const want = (rule.action as { required?: boolean }).required !== false
     const match = evaluateCondition(rule.condition, values, subMap)
-    for (const fieldId of targetsOf(rule)) if (states[fieldId]) states[fieldId].required = match ? want : !want
+    for (const fieldId of targetsOf(rule)) {
+      if (!states[fieldId]) continue
+      if (!states[fieldId].visible) states[fieldId].required = false
+      else states[fieldId].required = match ? want : !want
+    }
   }
 
   for (const rule of rules) {

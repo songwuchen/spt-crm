@@ -13,7 +13,7 @@ import { DRAWING_FORM_LAYOUT, applyDrawingFormLayout } from '@/constants/drawing
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
 
-const { Title } = Typography
+const { Title, Text } = Typography
 
 function buildInitialValues(
   fields: FieldDefinition[],
@@ -256,6 +256,9 @@ export default function FormFillPage({
           <Button onClick={() => submit(true)} loading={submitting}>存草稿</Button>
           <Button type="primary" onClick={() => submit(false)} loading={submitting}>提交</Button>
         </Space>
+        <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+          「提交」会发起审批；「存草稿」仅保存，可稍后在列表中打开草稿再点「提交审批」。
+        </Text>
       </div>
     </Card>
   )
