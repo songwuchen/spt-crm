@@ -50,7 +50,8 @@ export async function getDeptNameMap(): Promise<Record<string, string>> {
 export default function DeptField({
   value, onChange, multi, readonly, placeholder, scopeCode,
 }: {
-  value: unknown
+  /** Form.Item 会注入；单独使用时可省略 */
+  value?: unknown
   onChange?: (v: unknown) => void
   multi?: boolean
   readonly?: boolean

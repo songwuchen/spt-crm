@@ -186,7 +186,8 @@ export function shouldFilterByDeptFields(
 export default function PersonField({
   value, onChange, multi, readonly, placeholder, pickableScope, deptIds,
 }: {
-  value: unknown
+  /** Form.Item 会注入；单独使用时可省略 */
+  value?: unknown
   onChange?: (v: unknown) => void
   multi?: boolean
   readonly?: boolean
