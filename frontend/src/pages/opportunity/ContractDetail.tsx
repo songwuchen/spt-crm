@@ -36,6 +36,7 @@ import DetailSkeleton from '@/components/DetailSkeleton'
 import { useUserSelect, useCustomerSelect } from '@/hooks/useSelectOptions'
 import { customerApi } from '@/api/customer'
 import dayjs from 'dayjs'
+import { formatFormDate, isValidFormDate } from '@/utils/formDate'
 
 async function loadContractDetailColumns(): Promise<{
   lineCols: FieldDefinition[]
@@ -151,15 +152,37 @@ export default function ContractDetail() {
     setEditSaving(true)
     try {
       const v = await editForm.validateFields()
+      const nativeDates: { name: string; label: string; value: unknown }[] = [
+        { name: 'card_date', label: '下卡日期', value: v.card_date },
+        { name: 'order_date', label: '订货日期', value: v.order_date },
+        { name: 'delivery_date', label: '合同交货期', value: v.delivery_date },
+        { name: 'end_date', label: '到期日期', value: v.end_date },
+      ]
+      const badNative = nativeDates.filter((d) => !isValidFormDate(d.value))
+      if (badNative.length) {
+        editForm.setFields(badNative.map((d) => ({
+          name: d.name,
+          errors: [`请选择或输入有效的${d.label}`],
+        })))
+        message.warning(`请修正日期：${badNative.map((d) => d.label).join('、')}`)
+        return
+      }
       const regRaw = { ...(v.registration_json || {}) } as Record<string, unknown>
       delete regRaw.number_lookup
       delete regRaw.number_attr
       for (const [k, val] of Object.entries(regRaw)) {
         if (val && typeof val === 'object' && dayjs.isDayjs(val)) {
+          if (!val.isValid()) {
+            message.warning('登记信息中存在无效日期，请重新选择')
+            return
+          }
           regRaw[k] = val.format('YYYY-MM-DD')
         }
       }
-      const fmt = (d: unknown) => (d && dayjs.isDayjs(d) ? d.format('YYYY-MM-DD') : d ?? null)
+      const toDateOrNull = (d: unknown) => {
+        const s = formatFormDate(d)
+        return s === undefined ? null : s
+      }
       const payload: Record<string, unknown> = {
         payment_terms_json: editPay,
         registration_json: regRaw,
@@ -173,10 +196,10 @@ export default function ContractDetail() {
         assignee_name: v.assignee_name || null,
         department_id: v.department_id || null,
         department_name: v.department_name || null,
-        end_date: fmt(v.end_date),
-        delivery_date: fmt(v.delivery_date),
-        order_date: fmt(v.order_date),
-        card_date: fmt(v.card_date),
+        end_date: toDateOrNull(v.end_date),
+        delivery_date: toDateOrNull(v.delivery_date),
+        order_date: toDateOrNull(v.order_date),
+        card_date: toDateOrNull(v.card_date),
       }
       if (v.amount_total != null) payload.amount_total = v.amount_total
       await contractApi.update(cid!, payload)
@@ -186,7 +209,7 @@ export default function ContractDetail() {
       fetchContract()
     } catch (e: unknown) {
       if (e && typeof e === 'object' && 'errorFields' in e) return
-      message.error('保存失败')
+      // 业务错误已由 api client 拦截器提示
     } finally {
       setEditSaving(false)
     }

@@ -99,12 +99,13 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
     sections: [
       {
         title: '方案类型',
-        fieldIds: ['scheme_type', 'related_project'],
+        fieldIds: ['scheme_type', 'related_project', 'related_customer'],
       },
       {
         title: '共用基本信息',
         fieldIds: [
           'apply_datetime', 'department', 'applicant', 'order_person',
+          'apply_or_change',
           'product_model', 'design_dispatch', 'transfer_packaging_users',
           'design_assignees', 'order_date', 'images',
         ],
@@ -120,9 +121,9 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
       {
         title: '无合同号 · 投标/安装图',
         fieldIds: [
-          'project_no', 'is_new_project', 'sales_person', 'customer_name', 'matter',
+          'customer_name', 'matter',
           'dept_code', 'is_xiaomeng', 'design_card_no', 'drawing_issue_type', 'drawing_types',
-          'pickup_purpose', 'apply_or_change', 'apply_reason_star', 'biz_feedback',
+          'pickup_purpose', 'apply_reason_star', 'biz_feedback',
           'lose_bid_reason', 'card_date', 'pre_designers', 'require_draw_date',
           'pre_designer_text', 'scheme_detail', 'install_env', 'install_position',
           'foundation_drawing', 'install_method', 'change_scheme', 'scheme_material',
@@ -135,6 +136,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
     spans: {
       scheme_type: 24,
       related_project: 24,
+      related_customer: 24,
       apply_reason: 24, paper_print_tip: 24, attachments: 24, images: 24,
       scheme_detail: 24, install_env: 24, scheme_material: 24, non_scheme_material: 24,
       change_scheme: 24, apply_or_change: 24, apply_reason_star: 24, remark: 24, attention: 24,
@@ -146,7 +148,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
 const SHORT_TYPES = new Set([
   'text', 'select', 'radio', 'person', 'person_multi',
   'department', 'department_multi', 'date', 'datetime', 'number',
-  'amount', 'multi_select', 'switch', 'formula', 'auto_number', 'project', 'contract',
+  'amount', 'multi_select', 'switch', 'formula', 'auto_number', 'project', 'contract', 'customer',
 ])
 
 function defaultSpan(field: FieldDefinition): number {

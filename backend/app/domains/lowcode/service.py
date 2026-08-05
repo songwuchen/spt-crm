@@ -260,6 +260,62 @@ async def sync_builtin_form_fields(
     current_rules = (published.rule_definitions if published else None) or []
     # 合并：保留租户在设计器里配的阶段/必填/权限/标签，避免 ensure 覆盖页面配置
     want = _merge_builtin_field_defs(want, current)
+    if key == "scheme_management":
+        # 保证关联客户 + 公司名称回填语义不被旧租户版本带偏
+        has_related_customer = any(
+            isinstance(fd, dict) and fd.get("id") == "related_customer" for fd in want
+        )
+        if not has_related_customer:
+            want.insert(2, {
+                "id": "related_customer",
+                "type": "customer",
+                "label": "关联客户",
+                "required": False,
+                "description": "从客户管理中选择；可不选商机只选客户。",
+                "available_on_create": True,
+                "fill_stage": "initiator",
+            })
+        for fd in want:
+            if not isinstance(fd, dict):
+                continue
+            if fd.get("id") == "customer_name":
+                fd["type"] = "text"
+                fd["label"] = fd.get("label") or "公司名称"
+                fd["description"] = "由关联商机 / 关联客户自动回填。"
+                props = dict(fd.get("props") or {})
+                props["read_only"] = True
+                props.pop("from_project_field", None)
+                fd["props"] = props
+            if fd.get("id") == "related_customer":
+                fd["type"] = "customer"
+                fd["label"] = fd.get("label") or "关联客户"
+            if fd.get("id") == "apply_or_change":
+                fd["type"] = "textarea"
+                fd["label"] = "申请事由/修改事项(如表述不完，请填至备注)"
+                fd["description"] = ""
+                fd["available_on_create"] = True
+                fd["fill_stage"] = "initiator"
+        # 确保下图类型四选项完整（避免旧租户版本被裁过选项后合并不回来）
+        for fd in want:
+            if isinstance(fd, dict) and fd.get("id") == "drawing_issue_type":
+                fd["options"] = [
+                    {"label": "出方案图", "value": "出方案图"},
+                    {"label": "出测绘图", "value": "出测绘图"},
+                    {"label": "修改方案", "value": "修改方案"},
+                    {"label": "领图", "value": "领图"},
+                ]
+                break
+        want_rules = [
+            r for r in want_rules
+            if not (
+                isinstance(r, dict)
+                and r.get("type") == "visibility"
+                and (
+                    r.get("target_field_id") == "apply_or_change"
+                    or "apply_or_change" in (r.get("target_field_ids") or [])
+                )
+            )
+        ]
     same_fields = _field_defs_fingerprint(current) == _field_defs_fingerprint(want)
     same_rules = _rules_fingerprint(current_rules) == _rules_fingerprint(want_rules)
     if same_fields and same_rules:

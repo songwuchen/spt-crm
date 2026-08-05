@@ -12,6 +12,7 @@ export type FieldType =
   | 'section' | 'separator'
   | 'project'
   | 'contract'
+  | 'customer'
 
 export interface OptionItem {
   label: string

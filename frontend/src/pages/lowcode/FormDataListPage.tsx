@@ -19,6 +19,7 @@ import { getPersonLabelMap } from '@/components/lowcode/fields/PersonField'
 import { getDeptNameMap } from '@/components/lowcode/fields/DeptField'
 import { getProjectLabelMap } from '@/components/lowcode/fields/ProjectField'
 import { getContractLabelMap } from '@/components/lowcode/fields/ContractField'
+import { getCustomerLabelMap } from '@/components/lowcode/fields/CustomerField'
 
 const { Title, Text } = Typography
 
@@ -41,7 +42,7 @@ const LIST_EXCLUDE_TYPES = new Set([
 /** 列表优先展示的类型（同优先级按 schema 顺序） */
 const LIST_PRIORITY = new Set([
   'auto_number', 'text', 'number', 'amount', 'date', 'datetime',
-  'select', 'radio', 'checkbox', 'switch', 'person', 'department', 'project', 'contract',
+  'select', 'radio', 'checkbox', 'switch', 'person', 'department', 'project', 'contract', 'customer',
 ])
 
 function pickListColumns(fields: FieldDefinition[], max = 8): FieldDefinition[] {
@@ -71,6 +72,7 @@ type NameMaps = {
   depts: Record<string, string>
   projects: Record<string, string>
   contracts: Record<string, string>
+  customers: Record<string, string>
 }
 
 function collectIds(v: unknown): string[] {
@@ -124,6 +126,11 @@ function cellText(field: FieldDefinition, v: unknown, maps?: NameMaps): string {
     if (!ids.length) return '—'
     return ids.map((id) => maps?.contracts[id] || id).join('，')
   }
+  if (field.type === 'customer') {
+    const ids = collectIds(v)
+    if (!ids.length) return '—'
+    return ids.map((id) => maps?.customers[id] || id).join('，')
+  }
   if (Array.isArray(v)) return v.map(labelOf).join('，')
   return String(v)
 }
@@ -167,7 +174,9 @@ export default function FormDataListPage({
   const [viewRec, setViewRec] = useState<ViewRec | null>(null)
   const [wfDetail, setWfDetail] = useState<WfInstanceDetail | null>(null)
   const [wfCommenting, setWfCommenting] = useState(false)
-  const [nameMaps, setNameMaps] = useState<NameMaps>({ users: {}, depts: {}, projects: {}, contracts: {} })
+  const [nameMaps, setNameMaps] = useState<NameMaps>({
+    users: {}, depts: {}, projects: {}, contracts: {}, customers: {},
+  })
   const isModule = Boolean(propId)
   const fillPath = fillPathProp
     || (isModule ? `${location.pathname.replace(/\/$/, '')}/fill` : `/lowcode/forms/${id}/fill`)
@@ -198,12 +207,13 @@ export default function FormDataListPage({
   }, [id])
   useEffect(() => { load() }, [load])
 
-  // 列表里 person/department/project/contract 存的是 id，需解析成显示名
+  // 列表里 person/department/project/contract/customer 存的是 id，需解析成显示名
   useEffect(() => {
     if (!items.length || !colFields.length) return
     const personIds: string[] = []
     const projectIds: string[] = []
     const contractIds: string[] = []
+    const customerIds: string[] = []
     const needDept = colFields.some((f) => f.type === 'department' || f.type === 'department_multi')
     for (const f of colFields) {
       if (f.type === 'person' || f.type === 'person_multi') {
@@ -215,17 +225,21 @@ export default function FormDataListPage({
       if (f.type === 'contract') {
         for (const row of items) contractIds.push(...collectIds(row.form_data?.[f.id]))
       }
+      if (f.type === 'customer') {
+        for (const row of items) customerIds.push(...collectIds(row.form_data?.[f.id]))
+      }
     }
     let alive = true
     ;(async () => {
-      const [users, depts, projects, contracts] = await Promise.all([
+      const [users, depts, projects, contracts, customers] = await Promise.all([
         personIds.length ? getPersonLabelMap(personIds) : Promise.resolve({}),
         needDept ? getDeptNameMap() : Promise.resolve({}),
         projectIds.length ? getProjectLabelMap(projectIds) : Promise.resolve({}),
         contractIds.length ? getContractLabelMap(contractIds) : Promise.resolve({}),
+        customerIds.length ? getCustomerLabelMap(customerIds) : Promise.resolve({}),
       ])
       if (!alive) return
-      setNameMaps({ users, depts, projects, contracts })
+      setNameMaps({ users, depts, projects, contracts, customers })
     })()
     return () => { alive = false }
   }, [items, colFields])

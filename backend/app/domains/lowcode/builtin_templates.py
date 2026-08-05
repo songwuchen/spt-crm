@@ -196,6 +196,38 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
             {"id": "remark", "type": "textarea", "label": "备注"},
         ],
     },
+    {
+        "key": "application_field",
+        "name": "应用领域",
+        "category": "合同",
+        "icon": "AppstoreOutlined",
+        "description": (
+            "简道云数据中心「应用领域（基础表）」"
+            "(app=56ca77ce… entry=61cc1607…)。"
+            "合同登记「应用领域」下拉从此表取选项。"
+        ),
+        "sync_fields": True,
+        "field_definitions": [
+            {"id": "name", "type": "text", "label": "应用领域", "required": True},
+            {"id": "remark", "type": "textarea", "label": "备注"},
+        ],
+    },
+    {
+        "key": "application_material",
+        "name": "应用物料",
+        "category": "合同",
+        "icon": "InboxOutlined",
+        "description": (
+            "简道云数据中心「物料表（基础表）」"
+            "(app=56ca77ce… entry=5f1fdad6…)。"
+            "合同登记「应用物料」下拉从此表取选项。"
+        ),
+        "sync_fields": True,
+        "field_definitions": [
+            {"id": "name", "type": "text", "label": "物料名称", "required": True},
+            {"id": "remark", "type": "textarea", "label": "备注"},
+        ],
+    },
 ]
 
 

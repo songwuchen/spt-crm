@@ -38,13 +38,27 @@ RELATED_PROJECT = {
     "description": "可选。关联一条商机，便于从方案回溯项目。",
 }
 
+# 关联客户（与合同登记一致）：存客户 id；公司名称由回填得到
+RELATED_CUSTOMER = {
+    "id": "related_customer",
+    "type": "customer",
+    "label": "关联客户",
+    "required": False,
+    "description": "从客户管理中选择；可不选商机只选客户。",
+    "available_on_create": True,
+    "fill_stage": "initiator",
+}
 
-# 方案管理不需要：订货人/设计人文本桩、是否解密（及仅依赖它的备注）
+
+# 方案管理不需要：订货人/设计人文本桩、是否解密、项目号/是否新项目/业务员
 DROP_FIELD_IDS = frozenset({
     "order_person_text",
     "designer_text",
     "need_decrypt",
     "need_decrypt_note",
+    "project_no",
+    "is_new_project",
+    "sales_person",
 })
 
 
@@ -116,7 +130,11 @@ def build() -> dict:
     req_only = set(req_fields) - shared
     ins_only = set(ins_fields) - shared
 
-    fields: list[dict] = [copy.deepcopy(SCHEME_TYPE), copy.deepcopy(RELATED_PROJECT)]
+    fields: list[dict] = [
+        copy.deepcopy(SCHEME_TYPE),
+        copy.deepcopy(RELATED_PROJECT),
+        copy.deepcopy(RELATED_CUSTOMER),
+    ]
     # 共享字段：领用顺序优先，再补安装图独有顺序里未出现的共享项（已在 shared 一次加入）
     seen: set[str] = set()
     for f in req["field_definitions"]:
@@ -148,6 +166,9 @@ def build() -> dict:
             "action": {"visible": True},
         })
     for fid in sorted(ins_only):
+        if fid == "apply_or_change":
+            # 申请事由/修改事项：始终展示，不按 scheme_type 显隐
+            continue
         rules.append({
             "id": f"sm_vis_ins_only_{fid}",
             "type": "visibility",
@@ -180,6 +201,8 @@ def build() -> dict:
 
     all_vis_targets = set(req_vis) | set(ins_vis)
     for tid in sorted(all_vis_targets):
+        if tid == "apply_or_change":
+            continue
         parts = []
         for w in req_vis.get(tid, []):
             parts.append(w["condition"])
@@ -230,6 +253,19 @@ def build() -> dict:
             f.pop("options", None)
         if f.get("id") == "offices_multi":
             f["type"] = "department_multi"
+        if f.get("id") == "customer_name":
+            # 公司名称：文本回填，不作为客户选择器
+            f["type"] = "text"
+            f["label"] = "公司名称"
+            f["description"] = "由关联商机 / 关联客户自动回填。"
+            f["props"] = {**(f.get("props") or {}), "read_only": True}
+            f.pop("options", None)
+        if f.get("id") == "apply_or_change":
+            f["type"] = "textarea"
+            f["label"] = "申请事由/修改事项(如表述不完，请填至备注)"
+            f["description"] = ""
+            f["available_on_create"] = True
+            f["fill_stage"] = "initiator"
     fields = [f for f in fields if f.get("id") not in DROP_FIELD_IDS]
 
     def _cond_refs_drop(cond: dict | None) -> bool:
@@ -249,7 +285,18 @@ def build() -> dict:
             return False
         return True
 
-    rules = [r for r in rules if _rule_keep(r)]
+    cleaned_rules = [r for r in rules if _rule_keep(r)]
+    # 申请事由/修改事项：始终显示（不限方案类型 / 是否小萌）
+    rules = [
+        r for r in cleaned_rules
+        if not (
+            r.get("type") == "visibility"
+            and (
+                r.get("target_field_id") == "apply_or_change"
+                or "apply_or_change" in (r.get("target_field_ids") or [])
+            )
+        )
+    ]
 
     return {
         "name": "方案管理",
@@ -260,8 +307,10 @@ def build() -> dict:
         "notes": [
             "合成自 drawing_requisition + install_drawing_notice；独立 code=scheme_management。",
             "scheme_type=requisition|install 分流字段与审批。",
-            "related_project 可选关联商机（非必填）。",
-            "申请人默认当前用户；合同号 type=contract 引用合同管理；不含 order_person_text / designer_text / need_decrypt。",
+            "related_project / related_customer 可选；公司名称文本由二者回填。",
+            "下图类型含 出方案图 / 出测绘图 / 修改方案 / 领图。",
+            "申请人默认当前用户；合同号 type=contract 引用合同管理；"
+            "不含 order_person_text / designer_text / need_decrypt / project_no / is_new_project / sales_person。",
         ],
     }
 

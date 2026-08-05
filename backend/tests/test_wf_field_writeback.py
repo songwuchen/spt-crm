@@ -97,8 +97,10 @@ def test_contract_version_default_has_ops_field_perms():
                for p in by_id["approval_qc"]["field_perms"])
     assert any(p["field"] == "fill_code" for p in by_id["approval_warehouse"]["field_perms"])
     fin_fp = by_id["approval_finance"]["field_perms"]
-    assert any(p["field"] == "contract_type" and p["access"] == "editable" for p in fin_fp)
-    assert any(p["field"] == "accept_method" and p["access"] == "editable" for p in fin_fp)
+    assert any(p["field"] == "contract_type" and p["access"] == "required" for p in fin_fp)
+    assert any(p["field"] == "accept_method" and p["access"] == "required" for p in fin_fp)
+    assert any(p["field"] == "accept_materials" and p["access"] == "editable" for p in fin_fp)
+    assert any(p["field"] == "accept_date" and p["access"] == "editable" for p in fin_fp)
 
 
 def test_next_targets_always_cc_does_not_steal_else():

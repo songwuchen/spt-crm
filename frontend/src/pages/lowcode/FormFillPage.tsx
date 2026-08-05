@@ -10,6 +10,8 @@ import FormRenderer, { validateRequired, deriveRolePerms } from '@/components/lo
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { DRAWING_FORM_LAYOUT, applyDrawingFormLayout } from '@/constants/drawingFormLayout'
+import { projectApi } from '@/api/project'
+import { customerApi } from '@/api/customer'
 
 const { Title } = Typography
 
@@ -126,6 +128,74 @@ export default function FormFillPage({
     })
   }, [currentUser?.id, fields])
 
+  // 关联商机 / 关联客户 → 回填公司名称（对齐合同登记：选商机带客户，选客户回填名称）
+  const relatedProjectId = value.related_project == null || value.related_project === ''
+    ? ''
+    : String(value.related_project)
+  const relatedCustomerId = value.related_customer == null || value.related_customer === ''
+    ? ''
+    : String(value.related_customer)
+
+  useEffect(() => {
+    if (!fields.length || !relatedProjectId) return
+    const hasCustomer = fields.some((f) => f.id === 'related_customer')
+    const hasName = fields.some((f) => f.id === 'customer_name')
+    if (!hasCustomer && !hasName) return
+
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await projectApi.get(relatedProjectId)
+        const cid = r.data?.customer_id
+        let cname = (r.data?.customer_name || '').trim()
+        if (cid && !cname) {
+          try {
+            const cr = await customerApi.get(cid)
+            cname = (cr.data?.name || '').trim()
+          } catch { /* ignore */ }
+        }
+        if (!alive) return
+        setValue((prev) => {
+          const next = { ...prev }
+          let changed = false
+          if (hasCustomer && cid && next.related_customer !== cid) {
+            next.related_customer = cid
+            changed = true
+          }
+          if (hasName && cname && next.customer_name !== cname) {
+            next.customer_name = cname
+            changed = true
+          }
+          return changed ? next : prev
+        })
+      } catch {
+        /* 带出失败不阻断填报 */
+      }
+    })()
+    return () => { alive = false }
+  }, [relatedProjectId, fields])
+
+  useEffect(() => {
+    if (!fields.length || !relatedCustomerId) return
+    if (!fields.some((f) => f.id === 'customer_name')) return
+
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await customerApi.get(relatedCustomerId)
+        const cname = (r.data?.name || '').trim()
+        if (!alive || !cname) return
+        setValue((prev) => {
+          if (prev.customer_name === cname) return prev
+          return { ...prev, customer_name: cname }
+        })
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => { alive = false }
+  }, [relatedCustomerId, fields])
+
   useEffect(() => {
     if (!id || loading || !fields.some((f) => f.type === 'auto_number')) return
     if (peekTimer.current) clearTimeout(peekTimer.current)
@@ -179,7 +249,7 @@ export default function FormFillPage({
           rules={rules}
           mode="edit"
           value={value}
-          onChange={setValue}
+          onChange={(next) => setValue((prev) => ({ ...prev, ...next }))}
           serialPreviews={serialPreviews}
         />
         <Space style={{ marginTop: 16 }}>

@@ -254,6 +254,25 @@ async def drawing_map_lookups(
     return ok(items)
 
 
+@router.get("/api/v1/contracts/base-lookups")
+async def base_form_lookups(
+    type: str = Query(..., description="application_field | application_material"),
+    keyword: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """合同登记：应用领域 / 应用物料基础表选项。"""
+    perms = set(current_user.get("permissions") or [])
+    if not ({"contract:create", "contract:edit", "contract:view"} & perms):
+        raise BusinessException(code=FORBIDDEN, message="缺少权限: contract:create")
+    items = await service.list_base_form_lookups(
+        db, tenant_id, current_user, form_code=type, keyword=keyword, limit=limit,
+    )
+    return ok(items)
+
+
 @router.post("/api/v1/contracts/from_quote")
 async def create_from_quote(
     body: ContractFromQuote,

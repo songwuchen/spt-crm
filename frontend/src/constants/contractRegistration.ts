@@ -68,9 +68,16 @@ export interface RegFieldDef {
    * 条件必填兜底；已编目字段以 SYSTEM_RULES required 为准。
    */
   requiredWhen?: RegShowWhen
+  /**
+   * 是否在创建/编辑填报页展示；false = 仅审批节点填写（对齐 catalog available_on_create）。
+   * 缺省 true。策略已加载时以 catalog 为准。
+   */
+  availableOnCreate?: boolean
   /** 只读展示（如系统自动生成的图纸编号） */
   readOnly?: boolean
   placeholder?: string
+  /** 选项来自低代码基础表（ensureBuiltin code），异步 lookup */
+  lookupFormCode?: 'application_field' | 'application_material'
 }
 
 export interface RegSection {
@@ -134,7 +141,9 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
     fields: [
       { key: 'order_date', label: '订货日期', source: 'native', widget: 'date', required: true },
       {
-        key: 'contract_type', label: '合同类型', source: 'reg', widget: 'radio', required: true,
+        // 简道云：财务审核节点填写（创建/编辑填报页不展示）
+        key: 'contract_type', label: '合同类型', source: 'reg', widget: 'radio',
+        availableOnCreate: false,
         options: [
           { value: '正式', label: '正式' },
           { value: '非正式', label: '非正式' },
@@ -287,8 +296,8 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
           { value: '出口', label: '出口' },
         ],
       },
-      { key: 'application_field', label: '应用领域', source: 'reg', widget: 'select' },
-      { key: 'application_material', label: '应用物料', source: 'reg', widget: 'select' },
+      { key: 'application_field', label: '应用领域', source: 'reg', widget: 'select', lookupFormCode: 'application_field' },
+      { key: 'application_material', label: '应用物料', source: 'reg', widget: 'select', lookupFormCode: 'application_material' },
       { key: 'has_intelligence', label: '是否含智能化', source: 'reg', widget: 'radio', options: YES_NO, required: true },
       {
         key: 'smart_points', label: '智能点', source: 'reg', widget: 'checkbox',
@@ -334,7 +343,9 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
     title: '验收',
     fields: [
       {
-        key: 'accept_method', label: '验收方式', source: 'reg', widget: 'radio', required: true,
+        // 简道云：财务审核节点填写（创建/编辑填报页不展示）
+        key: 'accept_method', label: '验收方式', source: 'reg', widget: 'radio',
+        availableOnCreate: false,
         options: [
           { value: '货到签收', label: '货到签收' },
           { value: '指导安装不含验收', label: '指导安装不含验收' },
@@ -343,8 +354,14 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
           { value: '安装调试', label: '安装调试' },
         ],
       },
-      { key: 'accept_materials', label: '验收所需资料', source: 'reg', widget: 'text' },
-      { key: 'accept_date', label: '验收日期', source: 'reg', widget: 'date' },
+      {
+        key: 'accept_materials', label: '验收所需资料', source: 'reg', widget: 'text',
+        availableOnCreate: false,
+      },
+      {
+        key: 'accept_date', label: '验收日期', source: 'reg', widget: 'date',
+        availableOnCreate: false,
+      },
     ],
     afterSlot: 'accept_files',
   },

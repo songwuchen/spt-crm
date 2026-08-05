@@ -21,6 +21,8 @@ from typing import Any
 OVERRIDABLE_KEYS = {
     "label", "placeholder", "description", "required", "span",
     "visible_roles", "unmask_roles", "edit_roles", "props",
+    # 填写阶段：发起可见 vs 仅审批填写（对齐简道云 optAuth）
+    "available_on_create", "fill_stage", "form_editable",
     # 明细子表列：设计器可改列结构（合同明细/收款计划与通用 detail_table 共用）
     "detail_table_columns",
 }
@@ -32,6 +34,7 @@ def _f(fid: str, label: str, ftype: str = "text", *, system_required: bool = Fal
        default_required: bool = False, options_source: str | None = None,
        companions: tuple[str, ...] = (), form_editable: bool = True,
        available_on_create: bool = True,
+       fill_stage: str | None = None,
        json_storage: str | None = None,
        entity_storage: str | None = None,
        detail_table_columns: list[dict[str, Any]] | None = None,
@@ -56,6 +59,10 @@ def _f(fid: str, label: str, ftype: str = "text", *, system_required: bool = Fal
         "form_editable": form_editable,
         "available_on_create": available_on_create,
     }
+    if fill_stage:
+        fd["fill_stage"] = fill_stage
+    elif available_on_create is False:
+        fd["fill_stage"] = "approver"
     if companions:
         fd["companions"] = list(companions)
     if options_source:
@@ -257,7 +264,7 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
            detail_table_columns=_CONTRACT_LINE_COLUMNS),
         # ---- 合同产品信息（registration_json）----
         _f("contract_type", "合同类型", "radio", json_storage="registration_json",
-           default_required=True,
+           available_on_create=False, default_required=False, fill_stage="approver",
            options=[{"value": "正式", "label": "正式"}, {"value": "非正式", "label": "非正式"}]),
         _f("project_name", "项目名称", json_storage="registration_json"),
         _f("tax_included", "是否含税", "radio", json_storage="registration_json",
@@ -358,16 +365,18 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         _f("contract_address", "合同约定地址", json_storage="registration_json"),
         _f("ship_address", "发货地址", json_storage="registration_json"),
         _f("ship_status", "发货状态", json_storage="registration_json"),
-        # ---- 验收 ----
+        # ---- 验收（简道云：财务审核节点填写，创建不填）----
         _f("accept_method", "验收方式", "radio", json_storage="registration_json",
-           default_required=True,
+           available_on_create=False, default_required=False, fill_stage="approver",
            options=[{"value": "货到签收", "label": "货到签收"},
                     {"value": "指导安装不含验收", "label": "指导安装不含验收"},
                     {"value": "货到验收", "label": "货到验收"},
                     {"value": "指导安装含验收", "label": "指导安装含验收"},
                     {"value": "安装调试", "label": "安装调试"}]),
-        _f("accept_materials", "验收所需资料", json_storage="registration_json"),
-        _f("accept_date", "验收日期", "date", json_storage="registration_json"),
+        _f("accept_materials", "验收所需资料", json_storage="registration_json",
+           available_on_create=False, default_required=False, fill_stage="approver"),
+        _f("accept_date", "验收日期", "date", json_storage="registration_json",
+           available_on_create=False, default_required=False, fill_stage="approver"),
         _f("signed_date", "签订日期", "date", form_editable=False),
     ],
     # 报价的敏感字段(margin_rate/discount_total/cost_est)在 quote_versions / quote_lines /

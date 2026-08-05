@@ -16,6 +16,7 @@ import PersonField from './fields/PersonField'
 import DeptField from './fields/DeptField'
 import ProjectField from './fields/ProjectField'
 import ContractField from './fields/ContractField'
+import CustomerField from './fields/CustomerField'
 import FileField from './fields/FileField'
 import AddressField from './fields/AddressField'
 import CascadeField, { type CascadeOption } from './fields/CascadeField'
@@ -32,13 +33,13 @@ const SUPPORTED = new Set([
   'select', 'multi_select', 'radio', 'checkbox', 'switch',
   'formula', 'auto_number', 'detail_table',
   'person', 'person_multi', 'department', 'department_multi', 'file', 'image',
-  'address', 'cascade', 'rich_text', 'signature', 'project', 'contract',
+  'address', 'cascade', 'rich_text', 'signature', 'project', 'contract', 'customer',
 ])
 
 // 这些类型自行渲染只读态(名称/URL 需异步解析或富媒体展示),不走通用 ReadonlyValue。
 const SELF_RENDER_READONLY = new Set([
   'detail_table', 'person', 'person_multi', 'department', 'department_multi', 'file', 'image',
-  'address', 'cascade', 'rich_text', 'signature', 'project', 'contract',
+  'address', 'cascade', 'rich_text', 'signature', 'project', 'contract', 'customer',
 ])
 
 const GROUP_TYPES = new Set(['tab_group', 'collapse_section'])
@@ -152,6 +153,8 @@ function FieldItem({
   serialPreview?: string
 }) {
   const readonly = mode === 'readonly' || state?.readonly
+    || !!(field.props as { read_only?: boolean } | undefined)?.read_only
+    || !!field.readonly
   const required = state?.required
   // 脱敏字段一律不渲染真实控件：后端已把值换成 "***"，但若值恰好没被裁到（如设计器预览），
   // 这里也不能把明文渲染出去。
@@ -213,6 +216,8 @@ function FieldWidget({
       return <ProjectField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
     case 'contract':
       return <ContractField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
+    case 'customer':
+      return <CustomerField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
     case 'file':
       return <FileField value={value} onChange={onChange} readonly={readonly} />
     case 'image':

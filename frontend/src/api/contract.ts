@@ -15,6 +15,13 @@ export const contractApi = {
       department_id?: string | null
       label: string
     }>>>('/api/v1/contracts/drawing-map-lookups', { params }),
+  /** 应用领域 / 应用物料基础表选项 */
+  baseLookups: (params: { type: 'application_field' | 'application_material'; keyword?: string; limit?: number }) =>
+    client.get<unknown, ApiResponse<Array<{
+      id: string
+      name: string
+      label: string
+    }>>>('/api/v1/contracts/base-lookups', { params }),
   create: (projectId: string | null | undefined, data: Record<string, unknown>) =>
     projectId
       ? client.post<unknown, ApiResponse<{ contract: ContractItem; version: ContractVersion }>>(

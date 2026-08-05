@@ -117,6 +117,52 @@ async def list_drawing_map_lookups(
     return out
 
 
+_BASE_LOOKUP_FORMS = {
+    "application_field": ("application_field", "name"),
+    "application_material": ("application_material", "name"),
+}
+
+
+async def list_base_form_lookups(
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict,
+    form_code: str,
+    keyword: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    """合同登记等：从应用领域/应用物料基础表取选项（名称）。"""
+    meta = _BASE_LOOKUP_FORMS.get(form_code)
+    if not meta:
+        raise BusinessException(code=BUSINESS_ERROR, message=f"不支持的基础表: {form_code}")
+    builtin_key, name_field = meta
+    from app.domains.lowcode import service as lc_svc
+    tpl = await lc_svc.ensure_builtin_form(db, tenant_id, builtin_key, user)
+    # 基础表可能上百条；多取几页再本地过滤
+    page_size = min(max(limit, 1), 200)
+    items, _ = await lc_svc.list_instances(
+        db, tenant_id, tpl.id, 1, page_size,
+        keyword=keyword or None, status=None, owner_ids=None,
+    )
+    out: list[dict] = []
+    seen: set[str] = set()
+    q = (keyword or "").strip().lower()
+    for inst in items:
+        if inst.status == "draft":
+            continue
+        fd = inst.form_data if isinstance(inst.form_data, dict) else {}
+        name = str(fd.get(name_field) or "").strip()
+        if not name or name in seen:
+            continue
+        if q and q not in name.lower():
+            continue
+        seen.add(name)
+        out.append({"id": inst.id, "name": name, "label": name})
+        if len(out) >= limit:
+            break
+    return out
+
+
 # ==================== Contract ====================
 
 async def list_contracts_by_project(db: AsyncSession, tenant_id: str, project_id: str,

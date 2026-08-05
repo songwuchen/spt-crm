@@ -47,6 +47,14 @@ export const menuGroups: MenuGroup[] = [
     ],
   },
   {
+    key: 'group:master-data',
+    titleKey: 'nav.groupMasterData',
+    items: [
+      { key: '/application-fields', icon: 'category', labelKey: 'nav.applicationFields', permission: 'form_data:view' },
+      { key: '/application-materials', icon: 'inventory_2', labelKey: 'nav.applicationMaterials', permission: 'form_data:view' },
+    ],
+  },
+  {
     key: 'group:finance',
     titleKey: 'nav.groupFinance',
     items: [

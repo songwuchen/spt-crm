@@ -112,6 +112,7 @@ const MAP: Record<string, IconComp> = {
   checklist: UnorderedListOutlined, table_rows: TableOutlined, view_kanban: ProjectOutlined,
   confirmation_number: TagOutlined, sell: TagOutlined,
   inventory_2: InboxOutlined, inbox: InboxOutlined, search_off: SearchOutlined,
+  category: AppstoreOutlined,
   shopping_cart: ShoppingCartOutlined, request_quote: DollarOutlined,
   payments: PayCircleOutlined, paid: PayCircleOutlined,
   account_balance_wallet: WalletOutlined, savings: MoneyCollectOutlined,

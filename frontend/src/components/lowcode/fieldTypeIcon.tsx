@@ -10,7 +10,7 @@ import {
   TableOutlined, FunctionOutlined, FieldNumberOutlined, LinkOutlined,
   EnvironmentOutlined, AimOutlined, HighlightOutlined, FileTextOutlined,
   DatabaseOutlined, DeploymentUnitOutlined, BlockOutlined, BorderOuterOutlined,
-  MinusOutlined, ProjectOutlined, FileProtectOutlined,
+  MinusOutlined, ProjectOutlined, FileProtectOutlined, BankOutlined,
 } from '@ant-design/icons'
 import type { FieldType } from '@/types/lowcode'
 
@@ -56,6 +56,7 @@ export const FIELD_TYPE_ICON: Record<FieldType, IconComp> = {
   relation: DeploymentUnitOutlined,
   project: ProjectOutlined,
   contract: FileProtectOutlined,
+  customer: BankOutlined,
   section: MinusOutlined,
   separator: MinusOutlined,
 }
@@ -91,7 +92,7 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   // 设计器控件面板暂未开放这 5 类(PALETTE 里没有),但表单 JSON / 后端模板可能带过来,
   // 缺了就会在画布和属性面板显示 sub_table_data 这种英文原名。
   related_doc: '关联文档', location: '定位', select_data: '数据联动',
-  relation: '关联记录', sub_table_data: '子表数据', project: '关联商机', contract: '关联合同',
+  relation: '关联记录', sub_table_data: '子表数据', project: '关联商机', contract: '关联合同', customer: '关联客户',
   section: '分区标题', separator: '分隔线',
 }
 

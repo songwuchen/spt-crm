@@ -621,10 +621,12 @@ def _contract_version_flow_graph() -> tuple[list[dict], list[dict]]:
         {"id": "start", "type": "start", "name": "发起"},
         _user_approval_node(
             "approval_finance", "财务审核", u["finance"],
-            # 对齐简道云 optAuth=3：财务可改合同类型、验收方式
+            # 对齐简道云 optAuth=3：财务填写合同类型、验收相关字段
             field_perms=_fp(
-                ("contract_type", "editable"),
-                ("accept_method", "editable"),
+                ("contract_type", "required"),
+                ("accept_method", "required"),
+                ("accept_materials", "editable"),
+                ("accept_date", "editable"),
             ),
         ),
         # —— 标准交付分支 ——
@@ -1269,8 +1271,15 @@ def _flow_is_jdy_contract_reg(nodes: list | None, routes: list | None = None) ->
         if n.get("id") == "approval_finance":
             rule = n.get("approver_rule") or {}
             named_finance = rule.get("type") == "specified_user"
-            fin_fields = {p.get("field") for p in fps if isinstance(p, dict)}
-            finance_fp_ok = {"contract_type", "accept_method"} <= fin_fields
+            fin_fields = {
+                (p.get("field"), p.get("access"))
+                for p in fps if isinstance(p, dict)
+            }
+            # 合同类型/验收方式：财务审核必填（审批字段，创建不填）
+            finance_fp_ok = (
+                ("contract_type", "required") in fin_fields
+                and ("accept_method", "required") in fin_fields
+            )
     fin_end_dual = False
     for r in routes or []:
         if r.get("source") == "approval_finance" and r.get("target") == "end":

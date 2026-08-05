@@ -23,6 +23,7 @@ import ContractAttachmentSlots, { flushPendingAttachments, type PendingAttachmen
 import { PaymentTermsEditor, LineItemsEditor, ContractSubtableTitle } from '@/components/ContractTerms'
 import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contractDetailTables'
 import dayjs from 'dayjs'
+import { formatFormDate, isValidFormDate } from '@/utils/formDate'
 
 
 export default function ContractList() {
@@ -143,6 +144,23 @@ export default function ContractList() {
       return
     }
     const contractNo = String(v.contract_no || '').trim()
+    // 拦截 DatePicker 手输产生的 invalid dayjs，避免打成 "Invalid Date" 触发后端 422
+    const nativeDates: { name: string; label: string; value: unknown }[] = [
+      { name: 'card_date', label: '下卡日期', value: v.card_date },
+      { name: 'order_date', label: '订货日期', value: v.order_date },
+      { name: 'delivery_date', label: '合同交货期', value: v.delivery_date },
+      { name: 'end_date', label: '到期日期', value: v.end_date },
+    ]
+    const badNative = nativeDates.filter((d) => !isValidFormDate(d.value))
+    if (badNative.length) {
+      createForm.setFields(badNative.map((d) => ({
+        name: d.name,
+        errors: [`请选择或输入有效的${d.label}`],
+      })))
+      message.warning(`请修正日期：${badNative.map((d) => d.label).join('、')}`)
+      createForm.scrollToField(badNative[0].name, { behavior: 'smooth', block: 'center' })
+      return
+    }
     setCreating(true)
     try {
       const regRaw = { ...(v.registration_json || {}) } as Record<string, unknown>
@@ -150,20 +168,27 @@ export default function ContractList() {
       delete regRaw.number_attr
       for (const [k, val] of Object.entries(regRaw)) {
         if (val && typeof val === 'object' && dayjs.isDayjs(val)) {
+          if (!val.isValid()) {
+            message.warning('登记信息中存在无效日期，请重新选择')
+            return
+          }
           regRaw[k] = val.format('YYYY-MM-DD')
         }
       }
-      const fmt = (d: unknown) => (d && dayjs.isDayjs(d) ? d.format('YYYY-MM-DD') : undefined)
+      const endDate = formatFormDate(v.end_date)
+      const deliveryDate = formatFormDate(v.delivery_date)
+      const orderDate = formatFormDate(v.order_date)
+      const cardDate = formatFormDate(v.card_date)
       const lines = createLines.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
       const pays = createPay.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
       const res = await contractApi.create(v.project_id || null, {
         title: v.title || 'V1',
         ...(v.project_id ? { project_id: v.project_id } : {}),
         ...(v.amount_total != null ? { amount_total: v.amount_total } : {}),
-        ...(fmt(v.end_date) ? { end_date: fmt(v.end_date) } : {}),
-        ...(fmt(v.delivery_date) ? { delivery_date: fmt(v.delivery_date) } : {}),
-        ...(fmt(v.order_date) ? { order_date: fmt(v.order_date) } : {}),
-        ...(fmt(v.card_date) ? { card_date: fmt(v.card_date) } : {}),
+        ...(endDate ? { end_date: endDate } : {}),
+        ...(deliveryDate ? { delivery_date: deliveryDate } : {}),
+        ...(orderDate ? { order_date: orderDate } : {}),
+        ...(cardDate ? { card_date: cardDate } : {}),
         contract_no: contractNo,
         // 图纸编号由后端按编号属性规则自动生成，不传 drawing_no
         ...(v.peer_contract_no ? { peer_contract_no: v.peer_contract_no } : {}),
@@ -195,7 +220,9 @@ export default function ContractList() {
       setPendingAtts({})
       if (cid) navigate(`/contracts/${cid}`)
       else fetchData()
-    } catch { message.error('创建失败') } finally { setCreating(false) }
+    } catch {
+      // 业务错误（如合同号已存在）已由 api client 拦截器提示，不再盖「创建失败」
+    } finally { setCreating(false) }
   }
 
   const fetchData = async (page = pageNo, kw = keyword, st = filterStatus) => {

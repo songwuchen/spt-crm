@@ -45,6 +45,8 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
                 {"value": "安装调试", "label": "安装调试"},
             ],
         },
+        {"id": "accept_materials", "label": "验收所需资料", "type": "text"},
+        {"id": "accept_date", "label": "验收日期", "type": "date"},
         {"id": "contract_id", "label": "合同ID", "type": "text"},
     ],
     "contract_review": [

@@ -17,8 +17,10 @@ import {
 import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { PolicyItem, useFieldPolicy } from '@/components/lowcode/FieldPolicy'
 import { contractReviewApi, type ContractReview } from '@/api/contractReview'
+import { contractApi } from '@/api/contract'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import DepartmentSelect from '@/components/DepartmentSelect'
+import { formDateRule } from '@/utils/formDate'
 
 const DATE_KEYS = new Set([
   'delivery_date', 'order_date', 'card_date', 'end_date', 'note_date', 'accept_date',
@@ -184,6 +186,62 @@ function ReviewSnPicker({
   )
 }
 
+/** 应用领域 / 应用物料：从低代码基础表异步取选项 */
+function BaseFormLookupSelect({
+  formCode,
+  value,
+  onChange,
+  placeholder = '请选择',
+}: {
+  formCode: 'application_field' | 'application_material'
+  value?: string
+  onChange?: (v: string | undefined) => void
+  placeholder?: string
+}) {
+  const [options, setOptions] = useState<{ label: string; value: string }[]>([])
+  const [loading, setLoading] = useState(false)
+  const load = async (kw?: string) => {
+    setLoading(true)
+    try {
+      const r = await contractApi.baseLookups({
+        type: formCode,
+        keyword: kw || undefined,
+        limit: 200,
+      })
+      const items = r.data || []
+      setOptions(items.map((it) => ({ value: it.name, label: it.label || it.name })))
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formCode])
+  // 编辑回显：已有值但不在选项中时注入
+  useEffect(() => {
+    const v = (value || '').trim()
+    if (!v) return
+    setOptions((prev) => (prev.some((o) => o.value === v) ? prev : [{ value: v, label: v }, ...prev]))
+  }, [value])
+  return (
+    <Select
+      allowClear
+      showSearch
+      filterOption={false}
+      placeholder={placeholder}
+      value={value || undefined}
+      loading={loading}
+      options={options}
+      onSearch={(kw) => void load(kw)}
+      onDropdownVisibleChange={(open) => { if (open && options.length === 0) void load() }}
+      onChange={(v) => onChange?.((v as string | undefined) || undefined)}
+    />
+  )
+}
+
 function FieldControl({
   field,
   form,
@@ -208,6 +266,17 @@ function FieldControl({
         form={form}
         value={value as string | undefined}
         onChange={onChange as ((v: string) => void) | undefined}
+      />
+    )
+  }
+
+  if (field.lookupFormCode) {
+    return (
+      <BaseFormLookupSelect
+        formCode={field.lookupFormCode}
+        value={value as string | undefined}
+        onChange={onChange as ((v: string | undefined) => void) | undefined}
+        placeholder={field.placeholder || '请选择'}
       />
     )
   }
@@ -305,6 +374,7 @@ function FieldControl({
     return <AutoComplete {...control} allowClear options={[]} placeholder="请输入或选择" filterOption />
   }
   if (widget === 'date' || DATE_KEYS.has(field.key)) {
+    // 允许手输，但由 formDateRule 拦截 invalid dayjs，避免提交 "Invalid Date"
     return <DatePicker {...control} className="w-full" />
   }
   if (widget === 'money' || widget === 'number') {
@@ -332,6 +402,7 @@ function FieldControl({
 
 function FieldGrid({
   fields,
+  mode: _mode,
   regOnly,
   form,
 }: {
@@ -342,7 +413,11 @@ function FieldGrid({
 }) {
   const policy = useFieldPolicy()
   const catalogById = new Map(
-    (policy.nativeFields || []).map((fd) => [fd.id, fd as { id: string; json_storage?: string }]),
+    (policy.nativeFields || []).map((fd) => [fd.id, fd as {
+      id: string
+      json_storage?: string
+      available_on_create?: boolean
+    }]),
   )
 
   // shouldUpdate 保证嵌套 registration_json 变更时重算；策略显隐由 PolicyItem 负责
@@ -356,6 +431,12 @@ function FieldGrid({
         }
         const visible = fields.filter((f) => {
           if (regOnly && f.source === 'native') return false
+          // 仅审批填写：创建/编辑填报页不展示（对齐 FormRenderer available_on_create）
+          const cat = catalogById.get(f.key)
+          const approverOnly = cat
+            ? cat.available_on_create === false
+            : f.availableOnCreate === false
+          if (approverOnly) return false
           const inCatalog = catalogById.has(f.key)
           const state = policy.states[f.key]
           // 已进字段策略：显隐交给 PolicyItem / states（与自定义字段同一套规则引擎）
@@ -378,16 +459,22 @@ function FieldGrid({
                 || (f.requiredWhen ? isVisible({ ...f, showWhen: f.requiredWhen }, values) : false)
               const policyRequired = policyOwns ? !!state?.required : false
               const needRequired = localRequired || policyRequired
-              const itemProps = {
-                label: f.label,
-                className: 'mb-3',
-                style: spanFull ? { gridColumn: '1 / -1' } : undefined,
-                rules: needRequired ? [{
+              const isDate = f.widget === 'date' || DATE_KEYS.has(f.key)
+              const rules: object[] = []
+              if (needRequired) {
+                rules.push({
                   required: true,
                   message: `请填写${f.label}`,
                   type: f.widget === 'checkbox' ? 'array' : undefined,
                   ...(f.widget === 'checkbox' ? { min: 1 } : {}),
-                } as object] : undefined,
+                })
+              }
+              if (isDate) rules.push(formDateRule)
+              const itemProps = {
+                label: f.label,
+                className: 'mb-3',
+                style: spanFull ? { gridColumn: '1 / -1' } : undefined,
+                rules: rules.length ? rules : undefined,
               }
               const cat = catalogById.get(f.key)
               const namePath = (f.source === 'reg' || cat?.json_storage)
@@ -428,18 +515,24 @@ export default function ContractRegistrationFields({
       {/* companion 显示名：选人/选部门时同步写入，提交落库但不单独展示 */}
       <Form.Item name="assignee_name" hidden><Input /></Form.Item>
       <Form.Item name="department_name" hidden><Input /></Form.Item>
-      {CONTRACT_REGISTRATION_SECTIONS.map((sec) => (
-        <div key={sec.key}>
-          <ContractSectionTitle title={sec.title} />
-          <FieldGrid fields={sec.fields} mode={mode} regOnly={regOnly} form={form} />
-          {sec.afterSlot && slots?.[sec.afterSlot] ? (
-            <div className="my-4">{slots[sec.afterSlot]}</div>
-          ) : null}
-          {sec.fieldsAfterSlot?.length ? (
-            <FieldGrid fields={sec.fieldsAfterSlot} mode={mode} regOnly={regOnly} form={form} />
-          ) : null}
-        </div>
-      ))}
+      {CONTRACT_REGISTRATION_SECTIONS.map((sec) => {
+        // 整区字段均为「仅审批填写」时，创建/编辑填报页不渲染该分区（含附件槽）
+        if (sec.fields.length > 0 && sec.fields.every((f) => f.availableOnCreate === false)) {
+          return null
+        }
+        return (
+          <div key={sec.key}>
+            <ContractSectionTitle title={sec.title} />
+            <FieldGrid fields={sec.fields} mode={mode} regOnly={regOnly} form={form} />
+            {sec.afterSlot && slots?.[sec.afterSlot] ? (
+              <div className="my-4">{slots[sec.afterSlot]}</div>
+            ) : null}
+            {sec.fieldsAfterSlot?.length ? (
+              <FieldGrid fields={sec.fieldsAfterSlot} mode={mode} regOnly={regOnly} form={form} />
+            ) : null}
+          </div>
+        )
+      })}
       <div className="text-[12px] text-slate-400">
         标 <span className="text-rose-500">*</span> 为必填。附件可直接在对应分区选择/上传。
       </div>
