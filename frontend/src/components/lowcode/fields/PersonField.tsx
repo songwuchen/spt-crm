@@ -82,7 +82,9 @@ async function hydrateMissing(raws: string[], opts: UserOpt[]): Promise<UserOpt[
   for (const raw of raws) {
     if (next.some((o) => o.value === raw || o.username === raw)) continue
     try {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(raw)
+      // 标准 UUID；兼容旧版宽松匹配
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)
+        || /^[0-9a-f]{8}-[0-9a-f-]{20,}$/i.test(raw)
       let found = await fetchPickable(isUuid ? { ids: raw } : { usernames: raw })
       if (!found.some((o) => o.value === raw || o.username === raw)) {
         found = await fetchPickable({ keyword: raw })
@@ -207,10 +209,12 @@ export default function PersonField({
     setLoading(true)
     ;(async () => {
       try {
-        let next = await loadBaseUsers(pickableScope, deptIds)
+        // 只读：不按科室收窄，始终按 id/username 回显姓名（历史单据可能跨科室）
+        const loadDepts = readonly ? undefined : deptIds
+        let next = await loadBaseUsers(pickableScope, loadDepts)
         if (!alive) return
-        // 有科室过滤时：不把范围外已选人 hydrate 回来，避免「能看见但提交被拒」
-        if (deptIds?.length) {
+        if (!readonly && deptIds?.length) {
+          // 编辑：有科室过滤时，清掉范围外已选，避免「能看见但提交被拒」
           const allowed = new Set(next.map((o) => o.value))
           const inScope = raws.filter((r) => allowed.has(r) || next.some((o) => o.username === r))
           if (inScope.length !== raws.length && onChange) {
@@ -228,7 +232,7 @@ export default function PersonField({
     })()
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 随范围/科室/当前值重载
-  }, [value, multi, scopeKeyStr])
+  }, [value, multi, scopeKeyStr, readonly])
 
   const raws = useMemo(() => asRawList(value, multi), [value, multi])
   const selectOpts = useMemo(() => dualOptions(opts, raws), [opts, raws])

@@ -211,7 +211,7 @@ function FieldWidget({
     case 'person':
     case 'person_multi': {
       const scope = (field.props as { pickable_scope?: PickableScope } | undefined)?.pickable_scope
-      const useDeptFilter = shouldFilterByDeptFields(scope, field.id)
+      const useDeptFilter = !readonly && shouldFilterByDeptFields(scope, field.id)
       return (
         <PersonField
           value={value}
