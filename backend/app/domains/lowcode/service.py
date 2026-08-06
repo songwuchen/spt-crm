@@ -295,6 +295,12 @@ async def sync_builtin_form_fields(
                 fd["description"] = ""
                 fd["available_on_create"] = True
                 fd["fill_stage"] = "initiator"
+            if fd.get("id") in ("scheme_detail", "install_env", "scheme_material"):
+                props = dict(fd.get("props") or {})
+                props["ensure_min_rows"] = 1
+                fd["props"] = props
+            if fd.get("id") == "transfer_packaging_users":
+                fd["type"] = "person_multi"
         # 确保下图类型四选项完整（避免旧租户版本被裁过选项后合并不回来）
         for fd in want:
             if isinstance(fd, dict) and fd.get("id") == "drawing_issue_type":
@@ -346,9 +352,10 @@ async def sync_builtin_form_fields(
         for fd in want:
             if isinstance(fd, dict) and fd.get("id") in cond_required_ids:
                 fd["required"] = False
-        # 附件类：只做显隐，强制非必填（对齐业务预期，避免规则「显示」与提交「必填」打架）
+        # 附件类 + 备注：只做显隐，强制非必填（对齐业务预期，避免规则「显示」与提交「必填」打架）
         attach_optional = {
             "attachment_name", "attachment_names", "attachments", "attachments_no_image", "images",
+            "remark",
         }
         for fd in want:
             if isinstance(fd, dict) and fd.get("id") in attach_optional:
@@ -496,6 +503,10 @@ async def ensure_builtin_form(
                 await db.refresh(existing)
         existing = await sync_builtin_form_fields(db, tenant_id, key, existing, user)
         await _ensure_builtin_form_flow(db, tenant_id, key, existing.id)
+        if key == "department_code_base":
+            from app.domains.lowcode.dept_code import seed_department_codes_if_empty
+            await seed_department_codes_if_empty(db, tenant_id, existing.id, user)
+            await db.commit()
         return existing
 
     tpl = FormTemplate(
@@ -516,6 +527,10 @@ async def ensure_builtin_form(
     await publish(db, tenant_id, tpl.id, user.get("sub") or "")
     await db.refresh(tpl)
     await _ensure_builtin_form_flow(db, tenant_id, key, tpl.id)
+    if key == "department_code_base":
+        from app.domains.lowcode.dept_code import seed_department_codes_if_empty
+        await seed_department_codes_if_empty(db, tenant_id, tpl.id, user)
+        await db.commit()
     return tpl
 
 
@@ -874,6 +889,8 @@ async def create_instance(
     # 字段级权限：丢弃用户对不可编辑/隐藏字段的写入（后端权威边界）
     raw = sanitize_write(data.form_data, None, field_defs, user.get("roles"))
     form_data = compute_formula_fields(dict(raw or {}), field_defs, user_name)
+    from app.domains.lowcode.dept_code import fill_dept_code_in_form_data
+    form_data = await fill_dept_code_in_form_data(db, tenant_id, form_data, field_defs, user)
 
     if not data.as_draft:
         err = validate_required(field_defs, form_data, published.rule_definitions or [],
@@ -1049,12 +1066,16 @@ async def update_instance(
     if data.remark is not None:
         inst.remark = data.remark
     if data.form_data is not None:
+        from app.domains.lowcode.edit_lock import assert_form_instance_editable
+        await assert_form_instance_editable(db, tenant_id, inst.id, inst.status)
         version = await db.get(FormTemplateVersion, inst.template_version_id)
         field_defs = (version.field_definitions if version else inst.field_definitions) or []
         user_name = user.get("real_name") or user.get("username") or ""
         # 字段级权限：不可编辑字段保留原值，忽略用户改动（后端权威边界）
         raw = sanitize_write(data.form_data, inst.form_data, field_defs, user.get("roles"))
         form_data = compute_formula_fields(dict(raw), field_defs, user_name)
+        from app.domains.lowcode.dept_code import fill_dept_code_in_form_data
+        form_data = await fill_dept_code_in_form_data(db, tenant_id, form_data, field_defs, user)
         if inst.status != "draft":
             err = validate_required(field_defs, form_data,
                                     (version.rule_definitions if version else []) or [],
@@ -1083,8 +1104,8 @@ async def submit_instance(
     )).scalar_one_or_none()
     if not inst:
         raise BusinessException(code=NOT_FOUND, message="表单数据不存在")
-    if inst.status != "draft":
-        raise BusinessException(code=VALIDATION_ERROR, message="仅草稿可提交审批")
+    if inst.status not in ("draft", "rejected"):
+        raise BusinessException(code=VALIDATION_ERROR, message="仅草稿或已驳回可提交审批")
 
     # 提交时按最新已发布版本校验并定稿，与设计器当前规则对齐
     published = await _get_published_version(db, tenant_id, inst.template_id)
@@ -1096,6 +1117,8 @@ async def submit_instance(
     raw_in = data.form_data if data.form_data is not None else (inst.form_data or {})
     raw = sanitize_write(raw_in, inst.form_data, field_defs, user.get("roles"))
     form_data = compute_formula_fields(dict(raw or {}), field_defs, user_name)
+    from app.domains.lowcode.dept_code import fill_dept_code_in_form_data
+    form_data = await fill_dept_code_in_form_data(db, tenant_id, form_data, field_defs, user)
 
     err = validate_required(field_defs, form_data, rule_defs,
                             role_field_permissions(field_defs, user.get("roles")))

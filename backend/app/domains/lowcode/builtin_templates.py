@@ -144,6 +144,24 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "sync_fields": True,
     },
     {
+        "key": "invoice_application",
+        "name": "开票申请",
+        "category": "合同",
+        "icon": "FileTextOutlined",
+        "description": "对齐简道云数据中心「开票申请」。字段见 docs/product/_jdy_invoice_application_forms.md。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "payment_registration",
+        "name": "收款登记",
+        "category": "合同",
+        "icon": "AccountBookOutlined",
+        "description": "对齐简道云数据中心「收款登记」。字段见 docs/product/_jdy_payment_registration_forms.md。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
         "key": "contract_drawing_map",
         "name": "合同图纸对应表",
         "category": "图纸",
@@ -228,6 +246,38 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
             {"id": "remark", "type": "textarea", "label": "备注"},
         ],
     },
+    {
+        "key": "material_name",
+        "name": "物料名称",
+        "category": "合同",
+        "icon": "TagsOutlined",
+        "description": (
+            "简道云通用流程「物料名称」"
+            "(app=5e6c73fe… entry=6470532c…)。"
+            "图纸/方案等物料选项源；与「应用物料」不是同一张表。"
+            "详见 docs/product/_jdy_material_name_forms.md。"
+        ),
+        "sync_fields": True,
+        "field_definitions": [
+            {"id": "name", "type": "text", "label": "物料名称", "required": True},
+            {"id": "remark", "type": "textarea", "label": "备注"},
+        ],
+    },
+    {
+        "key": "department_code_base",
+        "name": "部门编号基础表",
+        "category": "图纸",
+        "icon": "ApartmentOutlined",
+        "description": (
+            "简道云通用流程「部门编号基础表」(entry=652a5357…)。"
+            "方案管理/安装图选部门后自动回填「部门编号」；新设计卡号按「部门编号-yyyyMMdd+两位日序」生成。"
+        ),
+        "sync_fields": True,
+        "field_definitions": [
+            {"id": "department", "type": "department", "label": "部门", "required": True},
+            {"id": "dept_code", "type": "text", "label": "编号", "required": True},
+        ],
+    },
 ]
 
 
@@ -244,7 +294,13 @@ def _apply_drawing_jdy_fields() -> None:
         from app.domains.lowcode._prod_card_jdy_generated import PROD_CARD_JDY
     except Exception:
         PROD_CARD_JDY = {}
-    packs = {**DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY}
+    try:
+        from app.domains.lowcode._invoice_payment_jdy_generated import INVOICE_PAYMENT_JDY
+    except Exception:
+        INVOICE_PAYMENT_JDY = {}
+    packs = {
+        **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY, **INVOICE_PAYMENT_JDY,
+    }
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])
         if not pack:
@@ -258,9 +314,25 @@ def _apply_drawing_jdy_fields() -> None:
                     for c in clean["detail_table_columns"]
                 ]
             defs.append(clean)
+        # 新设计卡号：对齐简道云「部门编号-yyyyMMdd+两位日序（按部门编号分序列）」
+        if t["key"] in ("scheme_management", "install_drawing_notice"):
+            from app.domains.lowcode.dept_code import apply_design_card_serial_rules
+            apply_design_card_serial_rules(defs)
+            from app.domains.lowcode.base_lookups import patch_scheme_material_columns
+            patch_scheme_material_columns(defs)
+            from app.domains.lowcode.biz_score import apply_biz_score_field_defs
+            apply_biz_score_field_defs(defs)
+        # 永久删除：前期沟通的设计员（文本）；保留选人 pre_designers
+        drop_ids = {"pre_designer_text"}
+        defs = [f for f in defs if f.get("id") not in drop_ids]
+        rules = [
+            r for r in (pack.get("rule_definitions") or [])
+            if r.get("target_field_id") not in drop_ids
+            and not (set(r.get("target_field_ids") or []) & drop_ids)
+        ]
         t["field_definitions"] = defs
         t["name"] = pack.get("name") or t["name"]
-        t["rule_definitions"] = pack.get("rule_definitions") or []
+        t["rule_definitions"] = rules
 
 
 _apply_drawing_jdy_fields()

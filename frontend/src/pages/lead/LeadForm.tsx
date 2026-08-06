@@ -47,12 +47,24 @@ export default function LeadForm() {
 
   useEffect(() => {
     if (id) {
-      leadApi.get(id).then((res) => {
+      leadApi.get(id).then(async (res) => {
         const d = res.data as any
         if (d.status === 'qualified' || d.status === 'discarded') {
           message.warning(d.status === 'qualified' ? '已转化的线索不可编辑' : '已废弃的线索不可编辑')
           navigate(`/leads/${id}`, { replace: true })
           return
+        }
+        // 审核中（有 running 流程）不可编辑；驳回/撤回后可改
+        if (d.review_status === 'pending') {
+          try {
+            const { workflowApi } = await import('@/api/lowcodeWorkflow')
+            const wf = await workflowApi.byBiz({ biz_type: 'lead', biz_id: id! })
+            if (wf.data?.status === 'running') {
+              message.warning('审核中的线索不可编辑，驳回后可由发起人修改再提交')
+              navigate(`/leads/${id}`, { replace: true })
+              return
+            }
+          } catch { /* 无流程则允许编辑（如撤回后） */ }
         }
         form.setFieldsValue({
           ...d,

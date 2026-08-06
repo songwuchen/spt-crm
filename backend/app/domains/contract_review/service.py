@@ -163,6 +163,9 @@ async def update_review(
     dump = data.model_dump(exclude_unset=True)
     if "status" in dump and dump["status"] not in ALLOWED_STATUS:
         raise BusinessException(code=VALIDATION_ERROR, message="无效状态")
+    from app.domains.lowcode.edit_lock import assert_content_update_allowed
+    await assert_content_update_allowed(
+        db, tenant_id, "contract_review", row.id, row.status, dump)
     await _resolve_names_into_dump(db, tenant_id, dump)
     for field, val in dump.items():
         setattr(row, field, val)

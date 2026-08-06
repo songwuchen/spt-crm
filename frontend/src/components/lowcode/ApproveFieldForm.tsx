@@ -1,6 +1,6 @@
 /** 审批节点可填业务字段表单（对齐简道云 optAuth）。 */
 import { useEffect, useMemo, useState } from 'react'
-import { DatePicker, Input, Radio, Space, Typography } from 'antd'
+import { DatePicker, Input, InputNumber, Radio, Space, Typography } from 'antd'
 import dayjs from 'dayjs'
 import type {
   FieldDefinition, FieldPermission, FormRule, WfCurrentTask, WfFieldPerm,
@@ -323,6 +323,30 @@ export default function ApproveFieldForm({
                   )}
                 />
                 {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
+              </div>
+            )
+          }
+          if (t === 'number' || t === 'amount') {
+            const min = typeof fieldProps.min === 'number' ? fieldProps.min
+              : (fieldProps.min != null ? Number(fieldProps.min) : undefined)
+            const max = typeof fieldProps.max === 'number' ? fieldProps.max
+              : (fieldProps.max != null ? Number(fieldProps.max) : undefined)
+            const precision = typeof fieldProps.precision === 'number' ? fieldProps.precision : undefined
+            const numVal = val === '' || val == null ? null : Number(val)
+            return (
+              <div key={p.field} className={err ? 'approve-field-error' : undefined}>
+                <FieldLabel label={label} required={required} error={err} />
+                <InputNumber
+                  style={{ width: '100%', marginTop: 4 }}
+                  status={status}
+                  min={Number.isFinite(min as number) ? (min as number) : undefined}
+                  max={Number.isFinite(max as number) ? (max as number) : undefined}
+                  precision={precision}
+                  value={Number.isFinite(numVal as number) ? (numVal as number) : null}
+                  placeholder={required ? `请填写${label}` : undefined}
+                  onChange={(v) => setField(p.field, v)}
+                />
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请填写{label}</Text>}
               </div>
             )
           }

@@ -21,6 +21,19 @@ function buildInitialValues(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const f of fields) {
+    // 明细子表不预置空行，由用户点「添加一行」
+    if (f.type === 'detail_table') {
+      if (Array.isArray(f.default_value) && f.default_value.length) {
+        const meaningful = f.default_value.filter((row) => {
+          if (!row || typeof row !== 'object') return false
+          return Object.values(row as Record<string, unknown>).some(
+            (v) => v != null && v !== '' && !(Array.isArray(v) && v.length === 0),
+          )
+        })
+        if (meaningful.length) out[f.id] = meaningful
+      }
+      continue
+    }
     if (f.default_value !== undefined && f.default_value !== null && f.default_value !== '') {
       out[f.id] = f.default_value
       continue
@@ -195,6 +208,38 @@ export default function FormFillPage({
     })()
     return () => { alive = false }
   }, [relatedCustomerId, fields])
+
+  // 选部门 → 回填部门编号（对齐简道云「部门编号基础表」）
+  const departmentId = value.department == null || value.department === ''
+    ? ''
+    : (typeof value.department === 'object' && value.department !== null && 'id' in (value.department as object)
+      ? String((value.department as { id?: string }).id || '')
+      : String(value.department))
+
+  useEffect(() => {
+    if (!fields.length || !departmentId) return
+    if (!fields.some((f) => f.id === 'dept_code')) return
+
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await lowcodeApi.lookupDeptCode(departmentId)
+        const code = (r.data?.dept_code || '').trim()
+        if (!alive) return
+        setValue((prev) => {
+          if (!code) {
+            // 清部门或无匹配时不强制清空用户已手填编号
+            return prev
+          }
+          if (prev.dept_code === code) return prev
+          return { ...prev, dept_code: code }
+        })
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => { alive = false }
+  }, [departmentId, fields])
 
   useEffect(() => {
     if (!id || loading || !fields.some((f) => f.type === 'auto_number')) return

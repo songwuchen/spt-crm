@@ -182,6 +182,7 @@ export default function FormDataListPage({
   const [pageNo, setPageNo] = useState(1)
   const [loading, setLoading] = useState(false)
   const [viewRec, setViewRec] = useState<ViewRec | null>(null)
+  const [serialPreviews, setSerialPreviews] = useState<Record<string, string>>({})
   const [wfDetail, setWfDetail] = useState<WfInstanceDetail | null>(null)
   const [wfCommenting, setWfCommenting] = useState(false)
   const [nameMaps, setNameMaps] = useState<NameMaps>({
@@ -287,7 +288,46 @@ export default function FormDataListPage({
   const closeView = () => {
     setViewRec(null)
     setWfDetail(null)
+    setSerialPreviews({})
   }
+
+  // 编辑弹窗：选部门 → 回填部门编号
+  useEffect(() => {
+    if (!viewRec || viewRec.readonly) return
+    if (!viewRec.fields.some((f) => f.id === 'dept_code')) return
+    const raw = viewRec.value?.department
+    const deptId = raw == null || raw === ''
+      ? ''
+      : (typeof raw === 'object' && raw !== null && 'id' in (raw as object)
+        ? String((raw as { id?: string }).id || '')
+        : String(raw))
+    if (!deptId) return
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await lowcodeApi.lookupDeptCode(deptId)
+        const code = (r.data?.dept_code || '').trim()
+        if (!alive || !code) return
+        setViewRec((s) => {
+          if (!s || s.value?.dept_code === code) return s
+          return { ...s, value: { ...s.value, dept_code: code } }
+        })
+      } catch { /* ignore */ }
+    })()
+    return () => { alive = false }
+  }, [viewRec?.readonly, viewRec?.value?.department, viewRec?.fields])
+
+  // 编辑弹窗：流水号预览
+  useEffect(() => {
+    if (!viewRec || viewRec.readonly || !id) return
+    if (!viewRec.fields.some((f) => f.type === 'auto_number')) return
+    const t = setTimeout(() => {
+      lowcodeApi.peekSerials(id, viewRec.value || {}).then((res) => {
+        setSerialPreviews(res.data || {})
+      }).catch(() => { /* ignore */ })
+    }, 200)
+    return () => clearTimeout(t)
+  }, [id, viewRec?.readonly, viewRec?.value, viewRec?.fields])
 
   const saveEdit = async () => {
     if (!viewRec) return
@@ -374,8 +414,10 @@ export default function FormDataListPage({
       render: (_: unknown, r: FormInstance) => (
         <Space size="small">
           <Button size="small" type="link" onClick={() => openView(r.id, true)}>查看</Button>
-          <Button size="small" type="link" onClick={() => openView(r.id, false)}>编辑</Button>
-          {r.status === 'draft' && (
+          {(r.status === 'draft' || r.status === 'rejected') && (
+            <Button size="small" type="link" onClick={() => openView(r.id, false)}>编辑</Button>
+          )}
+          {(r.status === 'draft' || r.status === 'rejected') && (
             <Button size="small" type="link" onClick={() => openView(r.id, false)}>提交审批</Button>
           )}
           <Popconfirm title="确认删除该记录?" onConfirm={() => del(r.id)}>
@@ -423,16 +465,13 @@ export default function FormDataListPage({
         title={viewRec?.readonly ? '查看记录' : '编辑记录'} open={!!viewRec} width={modalWidth}
         onCancel={closeView}
         footer={viewRec?.readonly ? null : (
-          viewRec?.status === 'draft'
+          (viewRec?.status === 'draft' || viewRec?.status === 'rejected')
             ? [
                 <Button key="c" onClick={closeView}>取消</Button>,
                 <Button key="s" onClick={saveEdit}>存草稿</Button>,
                 <Button key="sub" type="primary" onClick={submitDraft}>提交审批</Button>,
               ]
-            : [
-                <Button key="c" onClick={closeView}>取消</Button>,
-                <Button key="s" type="primary" onClick={saveEdit}>保存</Button>,
-              ]
+            : null
         )}
         destroyOnClose
         styles={{ body: { paddingTop: 12 } }}
@@ -446,6 +485,7 @@ export default function FormDataListPage({
                 mode={viewRec.readonly ? 'readonly' : 'edit'}
                 value={viewRec.value}
                 onChange={(v) => setViewRec((s) => (s ? { ...s, value: v } : s))}
+                serialPreviews={serialPreviews}
               />
             </div>
             {showFlowPane && (

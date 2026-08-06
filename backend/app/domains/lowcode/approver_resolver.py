@@ -158,12 +158,43 @@ class ApproverResolver:
         return out
 
     async def _r_dept_head(self, _rule: dict, ctx: ApprovalContext) -> list[str]:
-        out = []
-        for dept_id in await self._user_dept_ids(ctx.initiator_id):
+        """部门主管。
+
+        优先取表单「部门 / 所在部门」字段（方案/图纸等业务单以表单部门为准）；
+        表单未填时再回落到发起人所属部门。避免管理员代提时 initiator 无部门 → 空审批人
+        → empty_strategy=auto_approve 静默跳过「部门审批」。
+        """
+        await self._load_depts()
+        dept_ids = self._form_department_ids(ctx.form_data)
+        if not dept_ids:
+            dept_ids = await self._user_dept_ids(ctx.initiator_id)
+        out: list[str] = []
+        seen: set[str] = set()
+        for dept_id in dept_ids:
             leader = self._dept_leader(dept_id)
-            if leader:
+            if leader and leader not in seen:
+                seen.add(leader)
                 out.append(leader)
         return out
+
+    def _form_department_ids(self, form_data: dict[str, Any] | None) -> list[str]:
+        """从表单数据提取部门 id（department / department_multi 等）。"""
+        if not isinstance(form_data, dict):
+            return []
+        # 只用主部门字段，不用「科室」等审批指派字段
+        for key in ("department", "department_multi", "dept"):
+            if key not in form_data:
+                continue
+            out: list[str] = []
+            seen: set[str] = set()
+            for raw in self._as_list(form_data.get(key)):
+                s = str(raw).strip()
+                if s and s not in seen:
+                    seen.add(s)
+                    out.append(s)
+            if out:
+                return out
+        return []
 
     # 简道云/旧前端曾写 department_leader，与 dept_head 同义
     async def _r_department_leader(self, rule: dict, ctx: ApprovalContext) -> list[str]:

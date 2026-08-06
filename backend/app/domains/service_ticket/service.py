@@ -184,6 +184,9 @@ async def update_ticket(db: AsyncSession, tenant_id: str, ticket_id: str, data: 
     old_assignee = ticket.assigned_to_id
     old_status = ticket.status
     _dump = data.model_dump(exclude_unset=True)
+    from app.domains.lowcode.edit_lock import assert_content_update_allowed
+    await assert_content_update_allowed(
+        db, tenant_id, "service_ticket", ticket.id, old_status, _dump)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,

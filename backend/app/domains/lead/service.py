@@ -346,6 +346,8 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
         raise BusinessException(code=LEAD_ALREADY_QUALIFIED, message="已转化的线索不可编辑")
     if lead.status == "discarded":
         raise BusinessException(code=LEAD_ALREADY_DISCARDED, message="已废弃的线索不可编辑")
+    from app.domains.lowcode.edit_lock import assert_lead_editable
+    await assert_lead_editable(db, tenant_id, lead.id, getattr(lead, "review_status", None))
     payload = data.model_dump(exclude_unset=True)
     products_given = "products" in payload
     payload.pop("products", None)  # 产品明细单独处理

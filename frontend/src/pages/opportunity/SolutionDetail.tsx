@@ -46,6 +46,8 @@ export default function SolutionDetail() {
   const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const { hasPermission } = usePermission()
   const canEdit = hasPermission('solution:edit')
+    && (solution?.status === 'draft' || solution?.status === 'rejected')
+    && approvalFlow?.status !== 'pending'
 
   useEffect(() => {
     lowcodeApi.entityFields('solution')
@@ -226,8 +228,8 @@ export default function SolutionDetail() {
             />
           </div>
           <Space>
-            {!editing && <Button icon={<EditOutlined />} onClick={startEdit}>编辑</Button>}
-            {editing && (
+            {canEdit && !editing && <Button icon={<EditOutlined />} onClick={startEdit}>编辑</Button>}
+            {canEdit && editing && (
               <>
                 <Button icon={<SaveOutlined />} type="primary" onClick={saveEdit}>保存</Button>
                 <Button icon={<CloseOutlined />} onClick={cancelEdit}>取消</Button>

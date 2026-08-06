@@ -138,6 +138,7 @@ export default function ContractReviewDetail() {
   const rj = row.review_json || {}
   const contacts = Array.isArray(rj.contacts) ? rj.contacts as Record<string, unknown>[] : []
   const canSubmit = hasPermission('contract_review:edit') && (row.status === 'draft' || row.status === 'rejected')
+  const canEdit = canSubmit
 
   const main = (
     <div className="min-w-0 flex-1">
@@ -158,7 +159,7 @@ export default function ContractReviewDetail() {
               提交审批
             </Button>
           )}
-          {hasPermission('contract_review:edit') && (
+          {canEdit && (
             <Button icon={<EditOutlined />}
               onClick={() => navigate(`/contract-reviews/${id}/edit`)}>编辑</Button>
           )}

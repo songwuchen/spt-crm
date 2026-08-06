@@ -54,6 +54,24 @@ export const lowcodeApi = {
       { form_data },
     ),
 
+  /** 按部门 id 查部门编号基础表 */
+  lookupDeptCode: (departmentId: string) =>
+    client.get<unknown, ApiResponse<{ department_id: string; dept_code: string | null }>>(
+      '/api/v1/lc/department-code',
+      { params: { department_id: departmentId } },
+    ),
+
+  /** 基础资料表选项（物料名称 / 应用领域 / 应用物料） */
+  baseLookups: (params: {
+    type: 'application_field' | 'application_material' | 'material_name'
+    keyword?: string
+    limit?: number
+  }) =>
+    client.get<unknown, ApiResponse<Array<{ id: string; name: string; label: string }>>>(
+      '/api/v1/lc/base-lookups',
+      { params },
+    ),
+
   // ---- 实体扩展字段(统一自定义字段) ----
   entityFields: (entityType: string) =>
     client.get<unknown, ApiResponse<{ field_definitions: FieldDefinition[]; rule_definitions: FormRule[] }>>(`/api/v1/lc/entity-fields/${entityType}`),

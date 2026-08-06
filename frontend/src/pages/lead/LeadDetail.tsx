@@ -79,6 +79,7 @@ export default function LeadDetail() {
   const [followUpSignal, setFollowUpSignal] = useState(0)
   // 当前用户对该线索的待审批任务（有则可在本页直接情报裁定）
   const [myTask, setMyTask] = useState<WfTodoItem | null>(null)
+  const [reviewInFlight, setReviewInFlight] = useState(false)
   const customerTypeDict = useDataDict('customer_type')
   const industryDict = useDataDict('industry')
 
@@ -102,7 +103,14 @@ export default function LeadDetail() {
     } catch { setMyTask(null) }
   }
 
-  useEffect(() => { if (id) { fetchLead(); fetchMyApproval() } }, [id])
+  const fetchReviewLock = async () => {
+    try {
+      const wf = await workflowApi.byBiz({ biz_type: 'lead', biz_id: id! })
+      setReviewInFlight(wf.data?.status === 'running')
+    } catch { setReviewInFlight(false) }
+  }
+
+  useEffect(() => { if (id) { fetchLead(); fetchMyApproval(); fetchReviewLock() } }, [id])
 
   // 「开始跟进」：跳到动态页并打开跟进记录编辑（自动带入线索信息）
   const handleStartFollowUp = () => {
@@ -179,6 +187,7 @@ export default function LeadDetail() {
 
   const canOperate = lead.status !== 'qualified' && lead.status !== 'discarded'
   const reviewStatus = lead.review_status || 'approved'
+  const canEditLead = canOperate && !reviewInFlight
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
   const s = statusConfig[lead.status] || statusConfig.new
@@ -231,7 +240,9 @@ export default function LeadDetail() {
           <Space>
             {canOperate && (
               <>
-                <Button icon={<EditOutlined />} onClick={() => navigate(`/leads/${id}/edit`)}>编辑</Button>
+                {canEditLead && (
+                  <Button icon={<EditOutlined />} onClick={() => navigate(`/leads/${id}/edit`)}>编辑</Button>
+                )}
                 {reviewStatus === 'rejected' && (
                   <Button type="primary" onClick={handleResubmit}>
                     <Icon name="restart_alt" className="text-sm mr-1" />

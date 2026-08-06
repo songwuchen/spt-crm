@@ -117,12 +117,6 @@ async def list_drawing_map_lookups(
     return out
 
 
-_BASE_LOOKUP_FORMS = {
-    "application_field": ("application_field", "name"),
-    "application_material": ("application_material", "name"),
-}
-
-
 async def list_base_form_lookups(
     db: AsyncSession,
     tenant_id: str,
@@ -131,36 +125,9 @@ async def list_base_form_lookups(
     keyword: str | None = None,
     limit: int = 100,
 ) -> list[dict]:
-    """合同登记等：从应用领域/应用物料基础表取选项（名称）。"""
-    meta = _BASE_LOOKUP_FORMS.get(form_code)
-    if not meta:
-        raise BusinessException(code=BUSINESS_ERROR, message=f"不支持的基础表: {form_code}")
-    builtin_key, name_field = meta
-    from app.domains.lowcode import service as lc_svc
-    tpl = await lc_svc.ensure_builtin_form(db, tenant_id, builtin_key, user)
-    # 基础表可能上百条；多取几页再本地过滤
-    page_size = min(max(limit, 1), 200)
-    items, _ = await lc_svc.list_instances(
-        db, tenant_id, tpl.id, 1, page_size,
-        keyword=keyword or None, status=None, owner_ids=None,
-    )
-    out: list[dict] = []
-    seen: set[str] = set()
-    q = (keyword or "").strip().lower()
-    for inst in items:
-        if inst.status == "draft":
-            continue
-        fd = inst.form_data if isinstance(inst.form_data, dict) else {}
-        name = str(fd.get(name_field) or "").strip()
-        if not name or name in seen:
-            continue
-        if q and q not in name.lower():
-            continue
-        seen.add(name)
-        out.append({"id": inst.id, "name": name, "label": name})
-        if len(out) >= limit:
-            break
-    return out
+    """合同登记等：从应用领域/应用物料/物料名称基础表取选项（名称）。"""
+    from app.domains.lowcode.base_lookups import list_base_form_lookups as _list
+    return await _list(db, tenant_id, user, form_code, keyword=keyword, limit=limit)
 
 
 # ==================== Contract ====================
@@ -287,6 +254,8 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
 
 async def update_contract(db: AsyncSession, tenant_id: str, contract_id: str, data: ContractUpdate, user: dict) -> Contract:
     contract = await get_contract(db, tenant_id, contract_id, user)
+    from app.domains.lowcode.edit_lock import assert_contract_record_editable
+    await assert_contract_record_editable(db, tenant_id, contract)
     payload = data.model_dump(exclude_unset=True)
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
@@ -615,7 +584,11 @@ async def submit_version_for_approval(
 async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data: ContractVersionUpdate, user: dict) -> ContractVersion:
     version = await get_version(db, tenant_id, version_id, user)
     old_status = version.status if hasattr(version, 'status') else None
-    for field, val in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    from app.domains.lowcode.edit_lock import assert_content_update_allowed
+    await assert_content_update_allowed(
+        db, tenant_id, "contract_version", version.id, old_status, payload)
+    for field, val in payload.items():
         setattr(version, field, val)
     await db.commit()
     await db.refresh(version)

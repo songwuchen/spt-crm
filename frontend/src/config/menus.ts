@@ -50,6 +50,8 @@ export const menuGroups: MenuGroup[] = [
       { key: '/contracts', icon: 'contract', labelKey: 'nav.contracts', permission: 'contract:view' },
       { key: '/contract-reviews', icon: 'fact_check', labelKey: 'nav.contractReviews', permission: 'contract_review:view' },
       { key: '/prod-card-supplements', icon: 'assignment', labelKey: 'nav.prodCardSupplements', permission: 'form_data:view' },
+      { key: '/invoice-applications', icon: 'receipt_long', labelKey: 'nav.invoiceApplications', permission: 'form_data:view' },
+      { key: '/payment-registrations', icon: 'payments', labelKey: 'nav.paymentRegistrations', permission: 'form_data:view' },
       { key: '/change-requests', icon: 'swap_horiz', labelKey: 'nav.changeRequests', permission: 'change:view' },
       { key: '/milestones', icon: 'flag_circle', labelKey: 'nav.milestones', permission: 'delivery:view' },
     ],
@@ -60,6 +62,8 @@ export const menuGroups: MenuGroup[] = [
     items: [
       { key: '/application-fields', icon: 'category', labelKey: 'nav.applicationFields', permission: 'form_data:view' },
       { key: '/application-materials', icon: 'inventory_2', labelKey: 'nav.applicationMaterials', permission: 'form_data:view' },
+      { key: '/material-names', icon: 'label', labelKey: 'nav.materialNames', permission: 'form_data:view' },
+      { key: '/department-codes', icon: 'apartment', labelKey: 'nav.departmentCodes', permission: 'form_data:view' },
     ],
   },
   {

@@ -50,11 +50,12 @@ RELATED_CUSTOMER = {
 }
 
 
-# 方案管理不需要：订货人/设计人文本桩、是否解密、项目号/是否新项目/业务员、
+# 方案管理不需要：订货人/设计人文本桩、前期沟通设计员文本、是否解密、项目号/是否新项目/业务员、
 # 以及「修改方案 / 非出方案图物料特性」明细（下图类型选项仍保留）
 DROP_FIELD_IDS = frozenset({
     "order_person_text",
     "designer_text",
+    "pre_designer_text",  # 保留选人 pre_designers，去掉文本桩
     "need_decrypt",
     "need_decrypt_note",
     "project_no",
@@ -62,6 +63,12 @@ DROP_FIELD_IDS = frozenset({
     "sales_person",
     "change_scheme",
     "non_scheme_material",
+})
+
+# 这些字段只用「scheme_type 显隐」，不套简道云原条件（否则后写规则会盖掉类型显隐）
+# 前期沟通设计人员：选人始终随「无合同号」显示，不按「是否小萌」再藏
+SKIP_JDY_VIS_FIELD_IDS = frozenset({
+    "pre_designers",
 })
 
 
@@ -198,6 +205,9 @@ def build() -> dict:
 
     req_vis, req_other = collect_vis(req.get("rule_definitions") or [], "requisition", "sm_req_")
     ins_vis, ins_other = collect_vis(ins.get("rule_definitions") or [], "install", "sm_ins_")
+    for skip_id in SKIP_JDY_VIS_FIELD_IDS:
+        req_vis.pop(skip_id, None)
+        ins_vis.pop(skip_id, None)
 
     rules.extend(req_other)
     rules.extend(ins_other)
@@ -243,7 +253,10 @@ def build() -> dict:
 
     by_id = {f["id"]: f for f in fields}
     # 这些字段只做类型显隐，不自动抬成条件必填（业务上常选填；避免「规则只有显示、提交却拦必填」）
-    OPTIONAL_EXCLUSIVE = {"attachment_name", "attachment_names", "attachments", "attachments_no_image", "images"}
+    OPTIONAL_EXCLUSIVE = {
+        "attachment_name", "attachment_names", "attachments", "attachments_no_image", "images",
+        "remark",  # 备注：表单上未设必填，勿因安装图源 required 抬成条件必填
+    }
     for fid in sorted(req_only):
         f = by_id.get(fid)
         if not f or not f.get("required"):
@@ -333,6 +346,13 @@ def build() -> dict:
             f["available_on_create"] = True
             f["fill_stage"] = "initiator"
     fields = [f for f in fields if f.get("id") not in DROP_FIELD_IDS]
+    for f in fields:
+        # 对齐 JDY usergroup：转新乡、工艺包装须多选
+        if f.get("id") == "transfer_packaging_users":
+            f["type"] = "person_multi"
+        # 下图类型=出方案图 时三张明细默认带 1 行空行，方便直接填
+        if f.get("id") in ("scheme_detail", "install_env", "scheme_material"):
+            f["props"] = {**(f.get("props") or {}), "ensure_min_rows": 1}
 
     def _cond_refs_drop(cond: dict | None) -> bool:
         if not isinstance(cond, dict):

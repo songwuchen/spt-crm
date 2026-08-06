@@ -1,7 +1,7 @@
 // 动态表单渲染器 —— 按 FieldDefinition schema 渲染填报/只读表单。
 // 移植/重写自 spt-lowcode FormRenderer,聚焦核心自足字段类型;人员/部门/附件等高级类型
 // 暂以占位呈现(后续切片接入)。规则引擎(显隐/只读/必填)复用 RuleEngine。
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   Row, Col, Input, InputNumber, DatePicker, Select, Radio, Checkbox, Switch,
   Button, Table, Typography, Tag, Empty,
@@ -24,6 +24,7 @@ import AddressField from './fields/AddressField'
 import CascadeField, { type CascadeOption } from './fields/CascadeField'
 import RichTextField from './fields/RichTextField'
 import SignatureField from './fields/SignatureField'
+import BaseFormLookupField, { parseFormOptionsSource } from './fields/BaseFormLookupField'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
 
 const { TextArea } = Input
@@ -203,6 +204,21 @@ function FieldWidget({
     )
   }
 
+  // 本库基础资料选项（如物料名称）：options_source = form:material_name:name
+  const lookupCode = parseFormOptionsSource(field.options_source)
+  if (lookupCode && (field.type === 'multi_select' || field.type === 'checkbox' || field.type === 'select')) {
+    return (
+      <BaseFormLookupField
+        formCode={lookupCode}
+        value={value}
+        onChange={onChange}
+        multiple={field.type === 'multi_select' || field.type === 'checkbox'}
+        readonly={readonly}
+        placeholder={ph || '请选择'}
+      />
+    )
+  }
+
   if (readonly && !SELF_RENDER_READONLY.has(field.type)) {
     return <ReadonlyValue field={field} value={value} />
   }
@@ -366,6 +382,13 @@ function ReadonlyValue({ field, value }: { field: FieldDefinition; value: unknow
 
 // ===== 明细子表 =====
 
+function isBlankDetailRow(row: unknown): boolean {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return true
+  return Object.values(row as Record<string, unknown>).every(
+    (v) => v == null || v === '' || (Array.isArray(v) && v.length === 0),
+  )
+}
+
 function DetailTable({
   field, readonly, value, onChange,
 }: {
@@ -376,6 +399,24 @@ function DetailTable({
 }) {
   const rows = Array.isArray(value) ? value : []
   const cols = field.detail_table_columns || []
+  const ensureMin = Math.max(0, Number(field.props?.ensure_min_rows ?? 0) || 0)
+  // 挂载时：配置了 ensure_min_rows 则补空行；否则清掉误灌的「默认空行」
+  const didMountInit = useRef(false)
+  useEffect(() => {
+    if (didMountInit.current || readonly) return
+    didMountInit.current = true
+    const cur = Array.isArray(value) ? value : []
+    if (ensureMin > 0) {
+      if (cur.length < ensureMin) {
+        const next = [...cur]
+        while (next.length < ensureMin) next.push({})
+        onChange(next)
+      }
+      return
+    }
+    if (cur.length === 1 && isBlankDetailRow(cur[0])) onChange([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只处理初次挂载（显隐切换会重挂）
+  }, [])
 
   const setCell = (rowIdx: number, colId: string, v: unknown) => {
     const next = rows.map((r, i) => (i === rowIdx ? { ...r, [colId]: v } : r))

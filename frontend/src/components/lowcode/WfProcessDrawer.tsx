@@ -395,6 +395,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     icon={<CloseCircleOutlined />}
                     loading={busy}
                     onClick={() => act('reject')}
+                    title="驳回后发起人可修改并重新提交"
                   >
                     驳回
                   </Button>

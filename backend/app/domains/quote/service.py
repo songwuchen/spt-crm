@@ -122,6 +122,20 @@ async def create_quote(db: AsyncSession, tenant_id: str, project_id: str, data: 
 
 async def update_quote(db: AsyncSession, tenant_id: str, quote_id: str, data: QuoteUpdate, user: dict) -> Quote:
     quote = await get_quote(db, tenant_id, quote_id, user)
+    # 主表编辑看当前版本审批态
+    cur_ver = (await db.execute(
+        select(QuoteVersion).where(
+            QuoteVersion.tenant_id == tenant_id,
+            QuoteVersion.quote_id == quote_id,
+            QuoteVersion.version_no == quote.current_version_no,
+        )
+    )).scalar_one_or_none()
+    from app.domains.lowcode.edit_lock import assert_biz_editable
+    await assert_biz_editable(
+        db, tenant_id, "quote_version",
+        cur_ver.id if cur_ver else None,
+        cur_ver.status if cur_ver else "draft",
+    )
     dump = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
     from app.domains.lowcode.field_permission import (
@@ -280,7 +294,11 @@ async def get_versions_by_quote(db: AsyncSession, tenant_id: str, quote_id: str,
 async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data: QuoteVersionUpdate, user: dict) -> QuoteVersion:
     version = await get_version(db, tenant_id, version_id, user)
     old_status = version.status if hasattr(version, 'status') else None
-    for field, val in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    from app.domains.lowcode.edit_lock import assert_content_update_allowed
+    await assert_content_update_allowed(
+        db, tenant_id, "quote_version", version.id, old_status, payload)
+    for field, val in payload.items():
         setattr(version, field, val)
 
     await _recalc_totals(db, tenant_id, version_id)
@@ -359,7 +377,10 @@ async def update_line(db: AsyncSession, tenant_id: str, line_id: str, data: Quot
     )).scalar_one_or_none()
     if not line:
         raise BusinessException(code=NOT_FOUND, message="行项目不存在")
-    await get_version(db, tenant_id, line.quote_version_id, user)  # 数据范围校验
+    version = await get_version(db, tenant_id, line.quote_version_id, user)  # 数据范围校验
+    from app.domains.lowcode.edit_lock import assert_biz_editable
+    await assert_biz_editable(
+        db, tenant_id, "quote_version", version.id, getattr(version, "status", None))
 
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(line, field, val)

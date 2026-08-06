@@ -20,7 +20,7 @@ SOFT_NOISE_KEYS = (
     "count辅助", "240829", "240912", "240416", "0816", "260601", "20230112",
 )
 # Always drop even if they appear in show-rules (cancelled / disabled junk).
-HARD_DROP_KEYS = ("取消", "停用", "不用显示", "22/11/28", "230320")
+HARD_DROP_KEYS = ("取消", "停用", "不用显示", "22/11/28", "230320", "前期沟通的设计员（文本）")
 SYS_IDS = {"creator", "createTime", "updateTime", "appId", "entryId", "_id"}
 SKIP_TYPES = {"separator", "button", "pagebreak", "hint", "flowstate", "sn", "aggregation"}
 # Separator we promote to a text hint field (show-rule target).
@@ -370,6 +370,9 @@ def build_fields(
             lab = lab.rstrip("：").rstrip(":")
         slug = slug_for(lab, used)
         typ = map_type(typ0)
+        # 对齐 JDY usergroup：转新乡等字段必须多选（历史生成曾被误写成 person）
+        if slug == "transfer_packaging_users" or typ0 == "usergroup":
+            typ = "person_multi"
         fd: dict = {"id": slug, "type": typ, "label": lab}
         if name in required_widgets or f.get("required"):
             fd["required"] = True

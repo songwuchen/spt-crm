@@ -61,7 +61,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
       {
         title: '安装图通知单及设计卡',
         fieldIds: [
-          'card_date', 'pre_designers', 'require_draw_date', 'product_model', 'pre_designer_text',
+          'card_date', 'pre_designers', 'require_draw_date', 'product_model',
         ],
       },
       {
@@ -80,7 +80,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
         ],
       },
       {
-        title: '评价打分',
+        title: '评价打分（审批填写）',
         fieldIds: [
           'score_attitude', 'score_progress', 'score_skill', 'score_total',
           'score_date', 'remark', 'attention',
@@ -125,10 +125,15 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
           'dept_code', 'is_xiaomeng', 'design_card_no', 'drawing_issue_type', 'drawing_types',
           'pickup_purpose', 'apply_reason_star', 'biz_feedback',
           'lose_bid_reason', 'card_date', 'pre_designers', 'require_draw_date',
-          'pre_designer_text', 'scheme_detail', 'install_env', 'install_position',
+          'scheme_detail', 'install_env', 'install_position',
           'foundation_drawing', 'install_method', 'scheme_material',
           'attention', 'attachment_names', 'attachments_no_image',
           'need_submit_drawing', 'offices_multi', 'transfer_sw_lwt',
+        ],
+      },
+      {
+        title: '评价打分（审批填写）',
+        fieldIds: [
           'score_attitude', 'score_progress', 'score_skill', 'score_total', 'score_date', 'remark',
         ],
       },

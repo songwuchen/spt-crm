@@ -28,7 +28,7 @@ export function normalizeConfig(value: unknown): { columns: string[]; rows: Conf
     // Common wrapper shapes: {items:[...]}, {rows:[...]}, {list:[...]}, ...
     const wrapped = ['items', 'rows', 'list', 'data', 'lines', 'configs'].map((k) => obj[k]).find(Array.isArray)
     if (wrapped) arr = wrapped as unknown[]
-    else arr = [obj] // plain key/value object -> single row
+    else if (Object.keys(obj).length > 0) arr = [obj] // 仅非空对象才当作一行
   }
 
   const columns: string[] = []
@@ -45,7 +45,7 @@ export function normalizeConfig(value: unknown): { columns: string[]; rows: Conf
     const r: ConfigRow = {}
     columns.forEach((c) => { r[c] = cellToString(o[c]) })
     return r
-  })
+  }).filter((r) => columns.some((c) => cellToString(r[c]).trim()))
 
   return { columns, rows }
 }

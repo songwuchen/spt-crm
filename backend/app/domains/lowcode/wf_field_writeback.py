@@ -205,6 +205,12 @@ async def apply_field_updates(
         if fi and fi.tenant_id == tenant_id:
             data = dict(fi.form_data or {})
             data.update(updates)
+            # 回写后重算公式（如总分 = 三项分数之和）
+            try:
+                from app.domains.lowcode.formula_engine import compute_formula_fields
+                data = compute_formula_fields(data, fi.field_definitions or [], "")
+            except Exception:
+                pass
             fi.form_data = data
             flag_modified(fi, "form_data")
             await db.flush()

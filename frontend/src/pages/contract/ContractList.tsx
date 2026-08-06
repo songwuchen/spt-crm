@@ -123,14 +123,14 @@ export default function ContractList() {
     searchProjects()
     setCreateOpen(true)
   }
-  const handleCreate = async () => {
+  const handleCreate = async (andSubmit: boolean) => {
     let v
     try {
       v = await createForm.validateFields()
     } catch (err: unknown) {
       const fields = (err as { errorFields?: { name: (string | number)[]; errors: string[] }[] })?.errorFields || []
       const first = fields[0]?.errors?.[0]
-      message.warning(first || '请完善必填项后再提交')
+      message.warning(first || (andSubmit ? '请完善必填项后再提交' : '请完善必填项后再存草稿'))
       // 滚到第一个报错项（Modal body 可滚动）
       const name = fields[0]?.name
       if (name?.length) {
@@ -205,8 +205,8 @@ export default function ContractList() {
         ...(v.content && !lines.length ? { key_clauses_json: [{ item: '合同内容', content: v.content }] } : {}),
         custom_fields_json: customFields,
       }) as any
-      message.success('合同登记已创建')
-      const cid = res?.data?.contract?.id
+      const cid = res?.data?.contract?.id as string | undefined
+      const vid = res?.data?.version?.id as string | undefined
       if (cid) {
         const pendingCount = Object.values(pendingAtts).reduce((n, arr) => n + (arr?.length || 0), 0)
         if (pendingCount > 0) {
@@ -214,6 +214,27 @@ export default function ContractList() {
           if (fail) message.warning(`附件上传完成：成功 ${ok}，失败 ${fail}`)
           else if (ok) message.success(`已上传 ${ok} 个附件`)
         }
+      }
+      if (andSubmit) {
+        if (!vid) {
+          message.error('未获取到合同版本，无法提交审批')
+          if (cid) navigate(`/contracts/${cid}`)
+          return
+        }
+        try {
+          await contractApi.submitVersion(vid)
+          message.success('已提交审批，请在「审批中心」处理待办')
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          message.warning(msg || '合同已保存，但提交审批失败，请到详情页重新提交')
+          if (cid) navigate(`/contracts/${cid}`)
+          setCreateOpen(false)
+          setCustomFields({})
+          setPendingAtts({})
+          return
+        }
+      } else {
+        message.success('已存为草稿')
       }
       setCreateOpen(false)
       setCustomFields({})
@@ -316,9 +337,19 @@ export default function ContractList() {
         />
       </div>
 
-      <Modal title="新增合同登记" open={createOpen} onOk={handleCreate} confirmLoading={creating}
-        onCancel={() => setCreateOpen(false)} okText="创建并完善" width={920} destroyOnClose
-        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
+      <Modal
+        title="新增合同登记"
+        open={createOpen}
+        onCancel={() => setCreateOpen(false)}
+        width={920}
+        destroyOnClose
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+        footer={[
+          <Button key="cancel" onClick={() => setCreateOpen(false)}>取消</Button>,
+          <Button key="draft" loading={creating} onClick={() => void handleCreate(false)}>存草稿</Button>,
+          <Button key="submit" type="primary" loading={creating} onClick={() => void handleCreate(true)}>提交</Button>,
+        ]}
+      >
        <FieldPolicyProvider entityType="contract" form={createForm} customFieldValues={customFields}>
         <Form form={createForm} layout="vertical" className="mt-3" scrollToFirstError>
           <Form.Item name="project_id" label="关联商机">
@@ -384,7 +415,9 @@ export default function ContractList() {
           />
           <CustomFieldsPanel ref={customFieldsRef} entityType="contract"
             value={customFields} onChange={setCustomFields} />
-          <div className="text-[12px] text-slate-400">合同编号将自动生成；表单内选择的附件会在创建成功后自动上传。</div>
+          <div className="text-[12px] text-slate-400">
+            「提交」会直接发起审批；「存草稿」仅保存，可稍后在详情页再提交审批。合同编号将自动生成。
+          </div>
         </Form>
        </FieldPolicyProvider>
       </Modal>

@@ -193,7 +193,7 @@ function BaseFormLookupSelect({
   onChange,
   placeholder = '请选择',
 }: {
-  formCode: 'application_field' | 'application_material'
+  formCode: 'application_field' | 'application_material' | 'material_name'
   value?: string
   onChange?: (v: string | undefined) => void
   placeholder?: string

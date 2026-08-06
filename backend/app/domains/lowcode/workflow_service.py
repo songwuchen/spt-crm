@@ -182,6 +182,8 @@ async def get_design(db, tenant_id, def_id) -> WfProcessDefinitionVersion | None
         "SYS_INSTALL_DRAWING_NOTICE",
         "SYS_SCHEME_MANAGEMENT",
         "SYS_PROD_CARD_SUPPLEMENT",
+        "SYS_INVOICE_APPLICATION",
+        "SYS_PAYMENT_REGISTRATION",
     ):
         form_code = next(
             (s["form_code"] for s in FORM_DEFAULT_SPECS if s["code"] == d.code),
@@ -341,10 +343,30 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "multi_mode": "or_sign",
         "empty_strategy": "auto_approve",
     },
+    {
+        "form_code": "invoice_application",
+        "code": "SYS_INVOICE_APPLICATION",
+        "name": "开票申请",
+        "approver_rule": {
+            "type": "specified_role", "value": "finance_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "form_code": "payment_registration",
+        "code": "SYS_PAYMENT_REGISTRATION",
+        "name": "收款登记",
+        "approver_rule": {
+            "type": "specified_role", "value": "finance_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
 ]
 
 DRAWING_FORM_FLOW_DESC = (
-    "对齐简道云表单流程拓扑（图纸/方案/生产卡；具名审批人/角色在 CRM 无对应用户时 "
+    "对齐简道云表单流程拓扑（图纸/方案/生产卡/开票/收款；具名审批人/角色在 CRM 无对应用户时 "
     "empty_strategy=auto_approve；详见 docs/product/_jdy_*_forms.md）"
 )
 
@@ -366,13 +388,22 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         packs.update(PROD_CARD_JDY)
     except Exception:
         pass
+    try:
+        from app.domains.lowcode._invoice_payment_jdy_generated import INVOICE_PAYMENT_JDY
+        packs.update(INVOICE_PAYMENT_JDY)
+    except Exception:
+        pass
     pack = packs.get(form_code)
     if not pack:
         return None
-    nodes = pack.get("flow_nodes") or []
-    routes = pack.get("flow_routes") or []
+    import copy
+    nodes = copy.deepcopy(pack.get("flow_nodes") or [])
+    routes = copy.deepcopy(pack.get("flow_routes") or [])
     if not nodes:
         return None
+    if form_code in ("scheme_management", "install_drawing_notice"):
+        from app.domains.lowcode.biz_score import apply_biz_score_flow_nodes
+        apply_biz_score_flow_nodes(nodes)
     return nodes, routes
 
 
@@ -389,6 +420,12 @@ def _flow_has_node_field_perms(nodes: list | None) -> bool:
     )
 
 
+def _flow_missing_biz_score_perms(nodes: list | None) -> bool:
+    """方案/安装图「业务打分」未挂三项分数 → 需升级系统兜底流。"""
+    from app.domains.lowcode.biz_score import flow_missing_biz_score_perms
+    return flow_missing_biz_score_perms(nodes)
+
+
 def _flow_is_jdy_prod_card(nodes: list | None) -> bool:
     """已对齐简道云生产卡/补充（含 V43「业务员确认」；非旧「财务报价」简图）。"""
     names = {n.get("name") for n in (nodes or [])}
@@ -403,11 +440,27 @@ def _flow_is_jdy_prod_card(nodes: list | None) -> bool:
     )
 
 
+def _flow_is_jdy_invoice(nodes: list | None) -> bool:
+    """已对齐简道云开票申请：开票 → 发起人接收。"""
+    names = {n.get("name") for n in (nodes or [])}
+    return "开票" in names and "发起人接收" in names
+
+
+def _flow_is_jdy_payment(nodes: list | None) -> bool:
+    """已对齐简道云收款登记：按部门分支的多路内勤处理。"""
+    names = {n.get("name") for n in (nodes or [])}
+    return "内勤处理" in names and "采购" in names and len(nodes or []) >= 15
+
+
 def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
     if form_code in ("drawing_requisition", "install_drawing_notice", "scheme_management"):
         return _flow_is_jdy_drawing(nodes)
     if form_code == "prod_card_supplement":
         return _flow_is_jdy_prod_card(nodes)
+    if form_code == "invoice_application":
+        return _flow_is_jdy_invoice(nodes)
+    if form_code == "payment_registration":
+        return _flow_is_jdy_payment(nodes)
     return False
 
 
@@ -433,6 +486,24 @@ def _drawing_flow_has_cc_end_bug(nodes: list | None, routes: list | None) -> boo
         if r.get("target") == "end" and r.get("source") in cc_ids:
             return True
         if r.get("target") in cc_ids and not r.get("always"):
+            return True
+    return False
+
+
+def _flow_missing_exclusive_groups(routes: list | None) -> bool:
+    """同源多出边未标 exclusive_group 时，画布像一条直线、引擎也可能不按 if/else 选路。"""
+    by_src: dict[str, list] = {}
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        src = str(r.get("source") or "")
+        if not src:
+            continue
+        by_src.setdefault(src, []).append(r)
+    for outs in by_src.values():
+        if len(outs) < 2:
+            continue
+        if any(not o.get("exclusive_group") for o in outs):
             return True
     return False
 
@@ -1096,6 +1167,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         "SYS_INSTALL_DRAWING_NOTICE",
         "SYS_SCHEME_MANAGEMENT",
         "SYS_PROD_CARD_SUPPLEMENT",
+        "SYS_INVOICE_APPLICATION",
+        "SYS_PAYMENT_REGISTRATION",
     ):
         return
     graph = _drawing_flow_graph(form_code)
@@ -1113,7 +1186,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         routes_have_jdy_dept_ids(version.route_definitions)
         or routes_have_jdy_person_ids(version.route_definitions)
     )
-    aligned = (
+    topology_ok = (
         _flow_is_jdy_form_graph(form_code, version.node_definitions)
         and not _drawing_flow_has_cc_end_bug(
             version.node_definitions, version.route_definitions,
@@ -1123,7 +1196,34 @@ async def _upgrade_drawing_form_flow_if_needed(
             _flow_has_node_field_perms(new_nodes)
             and not _flow_has_node_field_perms(version.node_definitions)
         )
+        and not (
+            form_code in ("scheme_management", "install_drawing_notice")
+            and _flow_missing_biz_score_perms(version.node_definitions)
+        )
     )
+    # 仅缺互斥组：在现有 CRM 条件上补 exclusive_group，避免用生成图覆盖已 remap 的部门/人员
+    if topology_ok and _flow_missing_exclusive_groups(version.route_definitions):
+        patched = [dict(r) if isinstance(r, dict) else r for r in (version.route_definitions or [])]
+        by_src: dict[str, list] = {}
+        for r in patched:
+            if not isinstance(r, dict) or r.get("always"):
+                continue
+            src = str(r.get("source") or "")
+            if src:
+                by_src.setdefault(src, []).append(r)
+        for src, outs in by_src.items():
+            if len(outs) < 2:
+                continue
+            gid = f"ex_{src}"
+            for r in outs:
+                r["exclusive_group"] = gid
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            version.node_definitions, patched,
+            DRAWING_FORM_FLOW_DESC, f"补同源互斥组({form_code})",
+        )
+        return
+    aligned = topology_ok and not _flow_missing_exclusive_groups(version.route_definitions)
     if aligned and not need_id_remap:
         # 拓扑已对齐且无 JDY MongoId：仍清掉 CRM 不存在的部门条件（未知部门）
         cleaned, stats = await sanitize_route_ids_for_tenant(
@@ -1171,6 +1271,10 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "方案管理"
     elif form_code == "prod_card_supplement":
         d.name = "生产卡/补充流程"
+    elif form_code == "invoice_application":
+        d.name = "开票申请"
+    elif form_code == "payment_registration":
+        d.name = "收款登记"
     await _publish_system_default_upgrade(
         db, tenant_id, d, version, new_nodes, new_routes,
         DRAWING_FORM_FLOW_DESC, f"简道云表单流({form_code})",

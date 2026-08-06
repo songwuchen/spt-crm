@@ -98,6 +98,9 @@ async def update_solution(db: AsyncSession, tenant_id: str, solution_id: str, da
     solution = await get_solution(db, tenant_id, solution_id, user)
     old_status = solution.status
     payload = data.model_dump(exclude_unset=True)
+    from app.domains.lowcode.edit_lock import assert_content_update_allowed
+    await assert_content_update_allowed(
+        db, tenant_id, "solution", solution.id, old_status, payload)
     if "custom_fields_json" in payload:
         from app.domains.lowcode.field_permission import sanitize_entity_write, validate_entity_custom_fields
         cfj = await sanitize_entity_write(
@@ -210,6 +213,9 @@ async def get_version(db: AsyncSession, tenant_id: str, version_id: str, user: d
 
 async def update_version(db: AsyncSession, tenant_id: str, version_id: str, data: SolutionVersionUpdate, user: dict) -> SolutionVersion:
     version = await get_version(db, tenant_id, version_id, user)
+    parent = await get_solution(db, tenant_id, version.solution_id, user)
+    from app.domains.lowcode.edit_lock import assert_biz_editable
+    await assert_biz_editable(db, tenant_id, "solution", parent.id, parent.status)
     for field, val in data.model_dump(exclude_unset=True).items():
         setattr(version, field, val)
     await db.commit()

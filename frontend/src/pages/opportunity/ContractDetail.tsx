@@ -522,6 +522,10 @@ export default function ContractDetail() {
     && (verStatus === 'draft' || verStatus === 'rejected')
     && wfInstance?.status !== 'running'
     && approvalFlow?.status !== 'pending'
+  // 提交后不可改；仅草稿/驳回（且无进行中流程）可编辑
+  const canEdit = canSubmitApproval
+    && contract.status !== 'signed'
+    && contract.status !== 'terminated'
   const canSign = contract.status === 'draft'
   const stepCurrent = (() => {
     if (contract.status === 'signed' || contract.status === 'terminated') return 3
@@ -580,7 +584,7 @@ export default function ContractDetail() {
         </div>
         <Space>
           <AiAnalysisButton bizType="contract" bizId={cid!} />
-          {contract.status !== 'terminated' && (
+          {canEdit && (
             <Button icon={<EditOutlined />} onClick={openEditModal}>编辑登记信息</Button>
           )}
           {canSubmitApproval && (
@@ -870,14 +874,14 @@ export default function ContractDetail() {
                 <div className="mb-4">
                   <div className="flex items-center gap-3 mb-2">
                     <ContractSubtableTitle fieldId={LINE_ITEMS_FIELD_ID} fallback="合同明细" className="flex-1 mb-0" />
-                    {contract.status !== 'terminated' && (
+                    {canEdit && (
                       <Button type="primary" size="small" loading={linesSaving} onClick={saveDetailLines}>保存明细</Button>
                     )}
                   </div>
-                  {contract.status === 'terminated' ? (
-                    <ClauseTermsView value={currentVersion?.key_clauses_json} />
-                  ) : (
+                  {canEdit ? (
                     <LineItemsEditor value={detailLines} onChange={setDetailLines} />
+                  ) : (
+                    <ClauseTermsView value={currentVersion?.key_clauses_json} />
                   )}
                 </div>
               )}
@@ -890,17 +894,17 @@ export default function ContractDetail() {
                         <Button size="small" icon={<Icon name="savings" style={{ fontSize: 16 }} />}
                           onClick={openGenModal}>生成回款计划</Button>
                       )}
-                      {contract.status !== 'terminated' && (
+                      {canEdit && (
                         <Button type="primary" size="small" loading={paySaving} onClick={saveDetailPay}>保存收款计划</Button>
                       )}
                     </Space>
                   </div>
-                  {contract.status === 'terminated' ? (
+                  {canEdit ? (
+                    <PaymentTermsEditor value={detailPay} onChange={setDetailPay} />
+                  ) : (
                     contract.payment_terms_json
                       ? <PaymentTermsView value={contract.payment_terms_json} />
                       : <div className="text-sm text-slate-400">暂无收款计划</div>
-                  ) : (
-                    <PaymentTermsEditor value={detailPay} onChange={setDetailPay} />
                   )}
                 </div>
               )}

@@ -259,6 +259,12 @@ export default function PersonField({
     emptyHint = '无可选人员（请到「系统管理 → 可选范围」勾选成员）'
   }
 
+  const selectValue = multi
+    ? (Array.isArray(value)
+      ? value
+      : (value != null && value !== '' ? [String(value)] : []))
+    : ((value as string | undefined) ?? undefined)
+
   return (
     <Select
       style={{ width: '100%' }}
@@ -267,7 +273,7 @@ export default function PersonField({
       allowClear
       loading={loading}
       placeholder={placeholder || '选择人员'}
-      value={(value as string | string[]) ?? (multi ? [] : undefined)}
+      value={selectValue}
       options={selectOpts}
       optionFilterProp="label"
       notFoundContent={loading ? <Spin size="small" /> : emptyHint}

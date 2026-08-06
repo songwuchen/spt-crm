@@ -72,6 +72,11 @@ export default function ContractReviewForm() {
     setLoading(true)
     contractReviewApi.get(id!).then((res) => {
       const d = res.data
+      if (d.status !== 'draft' && d.status !== 'rejected') {
+        message.warning('审批中或已提交的单据不可编辑，驳回后可由发起人修改再提交')
+        navigate(`/contract-reviews/${id}`, { replace: true })
+        return
+      }
       setReviewId(d.id)
       const rj = d.review_json || {}
       const contactList = Array.isArray(rj.contacts) ? rj.contacts as ContactRow[] : []
@@ -126,19 +131,31 @@ export default function ContractReviewForm() {
     return payload
   }
 
-  const onFinish = async (values: Record<string, unknown>) => {
+  const onFinish = async (values: Record<string, unknown>, andSubmit: boolean) => {
     setSaving(true)
     try {
       const payload = buildPayload(values)
+      let rid = isEdit ? id! : ''
       if (isEdit) {
         await contractReviewApi.update(id!, payload)
-        message.success('已保存')
-        navigate(`/contract-reviews/${id}`)
       } else {
         const res = await contractReviewApi.create(payload)
-        message.success('已创建')
-        navigate(`/contract-reviews/${res.data.id}`)
+        rid = res.data.id
       }
+      if (andSubmit) {
+        try {
+          await contractReviewApi.submit(rid)
+          message.success('已提交审批，请在「审批中心」处理待办')
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          message.warning(msg || '已保存，但提交审批失败，请到详情页重新提交')
+          navigate(`/contract-reviews/${rid}`)
+          return
+        }
+      } else {
+        message.success('已存为草稿')
+      }
+      navigate(`/contract-reviews/${rid}`)
     } catch {
       message.error('保存失败')
     } finally {
@@ -147,14 +164,14 @@ export default function ContractReviewForm() {
   }
 
   /** 与合同管理新建一致：校验失败时提示并滚到第一个必填项 */
-  const handleSave = async () => {
+  const handleSave = async (andSubmit: boolean) => {
     let values: Record<string, unknown>
     try {
       values = await form.validateFields()
     } catch (err: unknown) {
       const fields = (err as { errorFields?: { name: (string | number)[]; errors: string[] }[] })?.errorFields || []
       const first = fields[0]?.errors?.[0]
-      message.warning(first || '请完善必填项后再提交')
+      message.warning(first || (andSubmit ? '请完善必填项后再提交' : '请完善必填项后再存草稿'))
       const name = fields[0]?.name
       if (name?.length) {
         form.scrollToField(name, { behavior: 'smooth', block: 'center' })
@@ -166,7 +183,7 @@ export default function ContractReviewForm() {
       message.warning(cfErr)
       return
     }
-    await onFinish(values)
+    await onFinish(values, andSubmit)
   }
 
   if (loading) return <div className="p-8 text-slate-400">加载中…</div>
@@ -177,7 +194,8 @@ export default function ContractReviewForm() {
         <h2 className="text-xl font-semibold m-0">{isEdit ? '编辑合同评审' : '新建合同评审'}</h2>
         <Space>
           <Button onClick={() => navigate(isEdit ? `/contract-reviews/${id}` : '/contract-reviews')}>取消</Button>
-          <Button type="primary" loading={saving} onClick={handleSave}>保存</Button>
+          <Button loading={saving} onClick={() => void handleSave(false)}>存草稿</Button>
+          <Button type="primary" loading={saving} onClick={() => void handleSave(true)}>提交</Button>
         </Space>
       </div>
 
@@ -186,7 +204,6 @@ export default function ContractReviewForm() {
           <Form
             form={form}
             layout="vertical"
-            onFinish={onFinish}
             scrollToFirstError={{ behavior: 'smooth', block: 'center' }}
             initialValues={{ review_json: {} }}
           >
@@ -334,7 +351,11 @@ export default function ContractReviewForm() {
 
       <div className="flex justify-end gap-2 mt-2 mb-6">
         <Button onClick={() => navigate(isEdit ? `/contract-reviews/${id}` : '/contract-reviews')}>取消</Button>
-        <Button type="primary" loading={saving} onClick={handleSave}>保存</Button>
+        <Button loading={saving} onClick={() => void handleSave(false)}>存草稿</Button>
+        <Button type="primary" loading={saving} onClick={() => void handleSave(true)}>提交</Button>
+      </div>
+      <div className="text-center text-[12px] text-slate-400 mb-4">
+        「提交」会直接发起审批；「存草稿」仅保存，可稍后在详情页再提交审批。
       </div>
     </div>
   )

@@ -30,10 +30,16 @@ export const approvalBizTypeLabels: Record<string, string> = {
   install_drawing_notice: '安装图通知',
   prod_card_supplement: '生产卡',
   '生产卡/补充流程': '生产卡',
+  invoice_application: '开票申请',
+  '开票申请': '开票申请',
+  payment_registration: '收款登记',
+  '收款登记': '收款登记',
   scheme_management: '方案管理',
+  department_code_base: '部门编号',
   '合同图纸（资料）领用申请': '图纸领用',
   '安装图设计通知': '安装图通知',
   '方案管理': '方案管理',
+  '部门编号基础表': '部门编号',
 }
 
 // --- Service Ticket ---

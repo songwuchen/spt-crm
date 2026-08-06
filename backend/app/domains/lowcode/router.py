@@ -159,6 +159,38 @@ async def department_labels(
     return ok(out)
 
 
+@router.get("/department-code")
+async def lookup_department_code(
+    department_id: str = Query(..., description="CRM 部门 id"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """按部门 id 查「部门编号基础表」编号，供方案/安装图表单回填。"""
+    from app.domains.lowcode.dept_code import resolve_dept_code
+
+    code = await resolve_dept_code(db, tenant_id, department_id, user)
+    return ok({"department_id": department_id, "dept_code": code})
+
+
+@router.get("/base-lookups")
+async def base_form_lookups(
+    type: str = Query(..., description="application_field | application_material | material_name"),
+    keyword: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """基础资料选项（本库物料名称 / 应用领域 / 应用物料）。"""
+    from app.domains.lowcode.base_lookups import list_base_form_lookups
+
+    items = await list_base_form_lookups(
+        db, tenant_id, user, form_code=type, keyword=keyword, limit=limit,
+    )
+    return ok(items)
+
+
 @router.get("/pickable-departments")
 async def pickable_departments(
     scope_code: str | None = Query(None, description="可选范围编码（department 类型）"),

@@ -181,6 +181,10 @@ export default function QuoteDetail() {
 
   const openVersionEdit = () => {
     if (!currentVersion) return
+    if (currentVersion.status !== 'draft' && currentVersion.status !== 'rejected') {
+      message.warning('审批中或已提交的单据不可编辑，驳回后可由发起人修改再提交')
+      return
+    }
     versionForm.setFieldsValue({
       title: currentVersion.title,
       // 后端以小数存储税率(0.13)，界面按百分比(13)编辑
@@ -414,6 +418,9 @@ export default function QuoteDetail() {
     }
   }
 
+  const canEditVersion = !!currentVersion
+    && (currentVersion.status === 'draft' || currentVersion.status === 'rejected')
+
   const lineColumns: ColumnsType<QuoteLine> = [
     { title: '#', dataIndex: 'line_no', width: 50 },
     { title: '类型', dataIndex: 'item_type', width: 80,
@@ -433,6 +440,7 @@ export default function QuoteDetail() {
     { title: '交期(天)', dataIndex: 'leadtime_days', width: 80 },
     { title: '', key: 'actions', width: 100,
       render: (_, r) => (
+        canEditVersion ? (
         <Space size={4}>
           <a className="text-primary text-sm font-bold" onClick={() => {
             setEditingLine(r); form.setFieldsValue(r); setLineModal(true)
@@ -444,6 +452,7 @@ export default function QuoteDetail() {
             })
           }}>删除</a>
         </Space>
+        ) : null
       ),
     },
   ]
@@ -511,7 +520,9 @@ export default function QuoteDetail() {
             />
           </div>
           <Space>
-            <Button icon={<EditOutlined />} onClick={openVersionEdit} size="small" disabled={!currentVersion}>编辑信息</Button>
+            {canEditVersion && (
+              <Button icon={<EditOutlined />} onClick={openVersionEdit} size="small" disabled={!currentVersion}>编辑信息</Button>
+            )}
             <Button icon={<CameraOutlined />} onClick={() => { snapshotForm.resetFields(); setSnapshotCreateModal(true) }} size="small">保存快照</Button>
             <Button icon={<CopyOutlined />} onClick={handleNewVersion}>创建新版本</Button>
           </Space>
@@ -553,9 +564,11 @@ export default function QuoteDetail() {
               <div className="flex items-center justify-between p-4 border-b border-slate-100">
                 <h3 className="text-sm font-bold text-slate-900">行项目</h3>
                 <Space size="small">
-                  <Button size="small" icon={<UploadOutlined />} disabled={!selectedVersionId}
+                  <Button size="small" icon={<UploadOutlined />} disabled={!selectedVersionId || !canEditVersion}
                     onClick={() => setLineImportModal(true)}>导入</Button>
-                  <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => {
+                  <Button type="primary" size="small" icon={<PlusOutlined />}
+                    disabled={!canEditVersion}
+                    onClick={() => {
                     setEditingLine(null); form.resetFields(); setLineModal(true)
                   }}>添加行</Button>
                 </Space>

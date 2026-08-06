@@ -77,7 +77,7 @@ export interface RegFieldDef {
   readOnly?: boolean
   placeholder?: string
   /** 选项来自低代码基础表（ensureBuiltin code），异步 lookup */
-  lookupFormCode?: 'application_field' | 'application_material'
+  lookupFormCode?: 'application_field' | 'application_material' | 'material_name'
 }
 
 export interface RegSection {
