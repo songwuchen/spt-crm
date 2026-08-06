@@ -409,9 +409,6 @@ export default function FormDesignerPage() {
                     contract_files: (
                       <div className="text-sm text-slate-400 py-2">附件槽位（业务页上传）</div>
                     ),
-                    addr_mismatch_files: (
-                      <div className="text-sm text-slate-400 py-2">地址不符附件（业务页上传）</div>
-                    ),
                     accept_files: (
                       <div className="text-sm text-slate-400 py-2">验收资料（业务页上传）</div>
                     ),

@@ -88,7 +88,7 @@ const MAP: Record<string, IconComp> = {
   person: UserOutlined, person_add: UserAddOutlined, group: TeamOutlined, groups: TeamOutlined,
   assignment_ind: IdcardOutlined, contacts: ContactsOutlined,
   contact_phone: PhoneOutlined, call: PhoneOutlined,
-  account_tree: ApartmentOutlined, hub: DeploymentUnitOutlined,
+  account_tree: ApartmentOutlined, apartment: ApartmentOutlined, hub: DeploymentUnitOutlined,
   admin_panel_settings: SafetyOutlined, verified: SafetyCertificateOutlined,
   // verified_user 与 shield 是 RoleList 同一个三元的两个分支,必须用不同图标,否则内置/自定义角色看不出区别
   verified_user: SafetyCertificateOutlined, shield: SafetyOutlined,
@@ -110,7 +110,7 @@ const MAP: Record<string, IconComp> = {
   fact_check: FileDoneOutlined, difference: DiffOutlined, dynamic_form: FormOutlined,
   folder: FolderOutlined, menu_book: ReadOutlined, receipt_long: AccountBookOutlined,
   checklist: UnorderedListOutlined, table_rows: TableOutlined, view_kanban: ProjectOutlined,
-  confirmation_number: TagOutlined, sell: TagOutlined,
+  confirmation_number: TagOutlined, sell: TagOutlined, label: TagOutlined,
   inventory_2: InboxOutlined, inbox: InboxOutlined, search_off: SearchOutlined,
   category: AppstoreOutlined,
   shopping_cart: ShoppingCartOutlined, request_quote: DollarOutlined,

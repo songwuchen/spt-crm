@@ -25,7 +25,6 @@ export type RegAfterSlot =
   | 'line_items'
   | 'payment_terms'
   | 'contract_files'      // 附件/图片/验收单（其他信息后）
-  | 'addr_mismatch_files' // 地址不符时上传
   | 'accept_files'        // 验收资料上传
 
 /** 简道云附件槽 → CRM AttachmentLink.biz_type（biz_id=合同 id） */
@@ -33,7 +32,6 @@ export const CONTRACT_ATTACHMENT_SLOTS = [
   { key: 'contract_files', bizType: 'contract_agreement', title: '附件（合同、协议）', accept: undefined as string | undefined },
   { key: 'contract_files', bizType: 'contract_image', title: '图片（合同、协议）', accept: 'image/*' },
   { key: 'contract_files', bizType: 'contract_acceptance', title: '验收单', accept: undefined as string | undefined },
-  { key: 'addr_mismatch_files', bizType: 'contract_addr_mismatch', title: '地址不符时上传附件', accept: undefined as string | undefined },
   { key: 'accept_files', bizType: 'contract_accept_docs', title: '验收资料上传', accept: undefined as string | undefined },
 ] as const
 
@@ -336,7 +334,6 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
       { key: 'ship_address', label: '发货地址', source: 'reg', widget: 'text' },
       { key: 'ship_status', label: '发货状态', source: 'reg', widget: 'text' },
     ],
-    afterSlot: 'addr_mismatch_files',
   },
   {
     key: 'accept',

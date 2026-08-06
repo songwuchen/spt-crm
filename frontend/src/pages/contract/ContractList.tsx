@@ -397,13 +397,6 @@ export default function ContractList() {
                   onPendingChange={setPendingAtts}
                 />
               ),
-              addr_mismatch_files: (
-                <ContractAttachmentSlots
-                  slot="addr_mismatch_files"
-                  pending={pendingAtts}
-                  onPendingChange={setPendingAtts}
-                />
-              ),
               accept_files: (
                 <ContractAttachmentSlots
                   slot="accept_files"

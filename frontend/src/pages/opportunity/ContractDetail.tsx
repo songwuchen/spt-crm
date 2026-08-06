@@ -671,7 +671,6 @@ export default function ContractDetail() {
                 </div>
               ),
               contract_files: <ContractAttachmentSlots slot="contract_files" contractId={cid} />,
-              addr_mismatch_files: <ContractAttachmentSlots slot="addr_mismatch_files" contractId={cid} />,
               accept_files: <ContractAttachmentSlots slot="accept_files" contractId={cid} />,
             }}
           />
@@ -913,11 +912,6 @@ export default function ContractDetail() {
                   <ContractAttachmentSlots slot="contract_files" contractId={cid} />
                 </div>
               )}
-              {sec.afterSlot === 'addr_mismatch_files' && (
-                <div className="mb-4">
-                  <ContractAttachmentSlots slot="addr_mismatch_files" contractId={cid} />
-                </div>
-              )}
               {sec.afterSlot === 'accept_files' && (
                 <div className="mb-4">
                   <ContractAttachmentSlots slot="accept_files" contractId={cid} />
@@ -993,7 +987,6 @@ export default function ContractDetail() {
             children: (
               <div className="pb-6 space-y-4">
                 <ContractAttachmentSlots slot="contract_files" contractId={cid!} />
-                <ContractAttachmentSlots slot="addr_mismatch_files" contractId={cid!} />
                 <ContractAttachmentSlots slot="accept_files" contractId={cid!} />
                 <AttachmentPanel bizType="contract" bizId={cid!} title="其它附件（历史）" compact />
               </div>

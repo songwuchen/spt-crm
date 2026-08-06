@@ -121,11 +121,6 @@ export default function ContractRegistrationReadonly({
               <ContractAttachmentSlots slot="contract_files" contractId={contract.id} />
             </div>
           )}
-          {sec.afterSlot === 'addr_mismatch_files' && (
-            <div className="mb-3">
-              <ContractAttachmentSlots slot="addr_mismatch_files" contractId={contract.id} />
-            </div>
-          )}
           {sec.afterSlot === 'accept_files' && (
             <div className="mb-3">
               <ContractAttachmentSlots slot="accept_files" contractId={contract.id} />
