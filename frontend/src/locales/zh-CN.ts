@@ -83,6 +83,7 @@ const zhCN = {
     groupFinance: '财务回款',
     groupProductService: '产品售后',
     groupDrawings: '图纸',
+    groupInbox: '审批通知',
     groupOps: '运营协同',
     groupLowcode: '扩展平台',
     lowcodeForms: '表单中心',

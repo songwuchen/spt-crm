@@ -84,6 +84,21 @@ client.interceptors.response.use(
         clearAuthAndRedirect()
       }
 
+      // 登录多租户冲突：把可选租户交给登录页，不在此弹通用 toast
+      if (
+        data.code === 40100
+        && data.data?.need_tenant
+        && response.config.url?.includes('/auth/login')
+      ) {
+        const err = new Error(data.message) as Error & {
+          needTenant: true
+          tenants: Array<{ code: string; name: string; id?: string }>
+        }
+        err.needTenant = true
+        err.tenants = data.data.tenants || []
+        return Promise.reject(err)
+      }
+
       // Pass through gate_check_failed with data for custom handling
       if (data.code === 42201) {
         const err = new Error(data.message) as Error & { gateData: unknown }
@@ -139,6 +154,21 @@ client.interceptors.response.use(
 
     if ((code === 40100 || error.response?.status === 401) && !error.config?.url?.includes('/auth/login')) {
       clearAuthAndRedirect()
+    }
+
+    // 登录多租户冲突（HTTP 401 + business code）
+    if (
+      code === 40100
+      && data?.data?.need_tenant
+      && error.config?.url?.includes('/auth/login')
+    ) {
+      const err = new Error(data.message) as Error & {
+        needTenant: true
+        tenants: Array<{ code: string; name: string; id?: string }>
+      }
+      err.needTenant = true
+      err.tenants = data.data.tenants || []
+      return Promise.reject(err)
     }
 
     if (code === 42201) {

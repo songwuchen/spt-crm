@@ -86,21 +86,65 @@ async def authenticate(
         User.is_active == True,
     )
     if tenant_code:
-        from app.domains.tenant.models import PlatformTenant
-        tenant = (await db.execute(
-            select(PlatformTenant).where(PlatformTenant.code == tenant_code)
-        )).scalar_one_or_none()
-        if not tenant:
+        tenant_id = await _resolve_tenant_id_by_code(db, tenant_code.strip())
+        if not tenant_id:
             raise BusinessException(code=UNAUTHORIZED, message="用户名或密码错误")
-        query = query.where(User.tenant_id == tenant.id)
+        query = query.where(User.tenant_id == tenant_id)
 
     candidates = (await db.execute(query)).scalars().all()
     matched = [u for u in candidates if verify_password(password, u.password_hash)]
     if not matched:
         raise BusinessException(code=UNAUTHORIZED, message="用户名或密码错误")
     if len(matched) > 1:
-        raise BusinessException(code=UNAUTHORIZED, message="该账号存在于多个租户，请提供租户标识后重新登录")
+        tenants = await _tenant_options_for_users(db, matched)
+        raise BusinessException(
+            code=UNAUTHORIZED,
+            message="该账号存在于多个租户，请选择租户后重新登录",
+            detail={"need_tenant": True, "tenants": tenants},
+        )
     return matched[0]
+
+
+# 本地/演示主租户：历史数据常有用户，却未写入 platform_tenants，导致无法用 tenant_code 消歧
+DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
+DEFAULT_TENANT_CODE = "default"
+
+
+async def _resolve_tenant_id_by_code(db: AsyncSession, tenant_code: str) -> str | None:
+    from app.domains.tenant.models import PlatformTenant
+
+    if tenant_code == DEFAULT_TENANT_CODE:
+        return DEFAULT_TENANT_ID
+    tenant = (await db.execute(
+        select(PlatformTenant).where(PlatformTenant.code == tenant_code)
+    )).scalar_one_or_none()
+    return tenant.id if tenant else None
+
+
+async def _tenant_options_for_users(db: AsyncSession, users: list[User]) -> list[dict]:
+    """为多租户登录冲突构造前端可选列表。"""
+    from app.domains.tenant.models import PlatformTenant
+
+    tenant_ids = list(dict.fromkeys(u.tenant_id for u in users))
+    rows = (await db.execute(
+        select(PlatformTenant).where(PlatformTenant.id.in_(tenant_ids))
+    )).scalars().all()
+    by_id = {t.id: t for t in rows}
+    out: list[dict] = []
+    # 主租户优先，登录页默认选中更符合本地常用场景
+    ordered = sorted(
+        tenant_ids,
+        key=lambda tid: (0 if tid == DEFAULT_TENANT_ID else 1, tid),
+    )
+    for tid in ordered:
+        t = by_id.get(tid)
+        if t:
+            out.append({"code": t.code, "name": t.name, "id": t.id})
+        elif tid == DEFAULT_TENANT_ID:
+            out.append({"code": DEFAULT_TENANT_CODE, "name": "默认租户", "id": tid})
+        else:
+            out.append({"code": tid[:8], "name": f"租户({tid[:8]})", "id": tid})
+    return out
 
 
 async def invalidate_user_auth_cache(user_id: str, tenant_id: str) -> None:

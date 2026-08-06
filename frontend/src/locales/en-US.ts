@@ -67,6 +67,7 @@ const enUS = {
     groupFinance: 'Finance',
     groupProductService: 'Products & Service',
     groupDrawings: 'Drawings',
+    groupInbox: 'Approvals & Alerts',
     groupOps: 'Operations',
     groupLowcode: 'Platform',
     lowcodeForms: 'Forms',

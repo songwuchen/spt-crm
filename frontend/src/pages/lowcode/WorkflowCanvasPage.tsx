@@ -57,9 +57,12 @@ function condLabel(cond: WfRoute['condition']): string | undefined {
   return n === 1 ? '条件' : `条件×${n}`
 }
 
-/** 画布连线文案：条件 / else / 旁路 */
+/** 画布连线文案：条件 / else / 旁路（旁路可带条件） */
 function routeEdgeLabel(route: WfRoute, all: WfRoute[]): string | undefined {
-  if (route.always) return '旁路'
+  if (route.always) {
+    if (route.condition) return '旁路·条件'
+    return '旁路'
+  }
   if (route.condition) return condLabel(route.condition)
   const siblings = all.filter((r) => r.source === route.source && !r.always && r.id !== route.id)
   if (route.exclusive_group || siblings.some((s) => !!s.condition || !!s.exclusive_group)) {
@@ -667,7 +670,7 @@ function EdgeConfig({ route, formFields, sourceExclusive, onCond, onExclusive, o
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="small">
       <Text type="secondary" style={{ fontSize: 12 }}>
-        连线条件（互斥组内=if/else 只走一条；未互斥则可多条件并行）
+        连线条件（互斥组内=if/else 只走一条；未互斥则可多条件并行；旁路抄送可另附条件，命中才通知）
       </Text>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <Text style={{ fontSize: 12 }}>同源出边互斥 (if/else)</Text>
@@ -679,17 +682,21 @@ function EdgeConfig({ route, formFields, sourceExclusive, onCond, onExclusive, o
         <Text style={{ fontSize: 12 }}>旁路抄送 (always)</Text>
         <Switch size="small" checked={!!route.always} onChange={onAlways} />
       </div>
+      {route.always && (
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          旁路不占用主链互斥名额；若设置条件，仅条件成立时才抄送
+        </Text>
+      )}
       {!route.always && sourceExclusive && !hasCond && (
         <Text type="secondary" style={{ fontSize: 12 }}>当前为 else 分支（无条件，互斥组内兜底）</Text>
       )}
       <Select size="small" style={{ width: '100%' }} value={hasCond ? 'cond' : 'none'}
-        disabled={!!route.always}
         options={[
-          { label: sourceExclusive ? 'else（无条件）' : '默认(无条件)', value: 'none' },
-          { label: '设置条件', value: 'cond' },
+          { label: route.always ? '无条件（始终旁路）' : (sourceExclusive ? 'else（无条件）' : '默认(无条件)'), value: 'none' },
+          { label: route.always ? '设置旁路条件' : '设置条件', value: 'cond' },
         ]}
         onChange={(v) => onCond(v === 'none' ? null : { rel: 'and', cond: [{ field: defaultField, operator: 'eq', value: '' }] })} />
-      {hasCond && !route.always && (
+      {hasCond && (
         <>
           <Space size={6} wrap>
             <Text style={{ fontSize: 12 }}>满足</Text>

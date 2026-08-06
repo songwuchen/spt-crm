@@ -126,14 +126,16 @@ function dualOptions(opts: UserOpt[], raws: string[]): UserOpt[] {
       seen.add(o.value)
     }
   }
-  for (const raw of raws) {
+    for (const raw of raws) {
     if (seen.has(raw)) continue
     const hit = opts.find((o) => o.username === raw || o.value === raw)
     if (hit) {
       out.unshift({ label: hit.label, value: raw, username: hit.username || raw })
       seen.add(raw)
     } else {
-      out.unshift({ label: raw, value: raw })
+      const isMongo = /^[0-9a-f]{24}$/i.test(raw)
+      const label = isMongo ? `未知人员(${raw.slice(0, 8)}…)` : raw
+      out.unshift({ label, value: raw })
       seen.add(raw)
     }
   }

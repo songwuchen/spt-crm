@@ -41,8 +41,27 @@ JDY_DEPT_NAMES: dict[str, str] = {
     "62c724bf70e58912be606334": "分布筛推广中心",
 }
 
-# 仅对这些字段做部门 id 替换（人员字段另案处理）
+# 仅对这些字段做部门 id 替换（人员字段另见 PERSON_COND_FIELDS）
 DEPT_COND_FIELDS = frozenset({"department", "offices", "offices_multi", "department_multi"})
+
+# 流程条件里的人员字段（简道云 member MongoId → CRM users.id）
+PERSON_COND_FIELDS = frozenset({
+    "transfer_packaging_users", "design_assignees", "transfer_sw_lwt",
+    "order_person", "applicant", "designer", "submitter",
+})
+
+# 方案/图纸流条件中出现过的 JDY 成员 id → 姓名（离线兜底）
+JDY_PERSON_NAMES: dict[str, str] = {
+    "56ca5bacf83c32e4699dd0bb": "樊磊",
+    "56ca5bacf83c32e4699dd0bd": "丰芊",
+    "56ca5bacf83c32e4699dd0c5": "刘松潮",
+    "56ca5bacf83c32e4699dd0c7": "李兴玉",
+    "56ca5bacf83c32e4699dd0c9": "吕芹",
+    "56ca5bacf83c32e4699dd0e1": "周彦立",
+    "57f618b6812fa23e8ffe45cc": "崔艳丽",
+    "5912cb73c872010b38db842e": "荆焕民",
+    "66b986a3daac8bf32617e233": "李海春",
+}
 
 
 def is_jdy_mongo_id(value: Any) -> bool:
@@ -199,6 +218,11 @@ def _clean_dept_cond_node(
     if field not in fields:
         return node
 
+    # 空值判断不依赖 value，切勿当成「无效部门 id」删掉
+    op = str(node.get("operator") or node.get("method") or "")
+    if op in ("is_empty", "is_not_empty", "empty", "not_empty"):
+        return node
+
     val = node.get("value")
     if isinstance(val, list):
         kept_vals = []
@@ -274,3 +298,164 @@ async def clean_unknown_dept_routes_for_tenant(
     ).scalars().all()
     valid = {str(i) for i in rows}
     return clean_unknown_dept_ids_in_routes(routes, valid)
+
+
+async def build_jdy_to_crm_user_map(db: AsyncSession, tenant_id: str) -> dict[str, str]:
+    """JDY 成员 MongoId → 本租户 CRM user.id（按真实姓名精确匹配，重名取先到的）。"""
+    from app.domains.auth.models import User
+
+    rows = (
+        await db.execute(
+            select(User.id, User.real_name).where(
+                User.tenant_id == tenant_id, User.is_active == True,  # noqa: E712
+            )
+        )
+    ).all()
+    by_name: dict[str, str] = {}
+    for uid, name in rows:
+        if name and name not in by_name:
+            by_name[name] = uid
+    out: dict[str, str] = {}
+    for jid, jname in JDY_PERSON_NAMES.items():
+        cid = by_name.get(jname)
+        if cid:
+            out[jid] = cid
+    return out
+
+
+def routes_have_jdy_person_ids(
+    routes: list | None, fields: frozenset[str] = PERSON_COND_FIELDS,
+) -> bool:
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        for leaf in _iter_cond_leaves(r.get("condition")):
+            if str(leaf.get("field") or "") not in fields:
+                continue
+            val = leaf.get("value")
+            vals = val if isinstance(val, list) else ([val] if val is not None else [])
+            if any(is_jdy_mongo_id(v) for v in vals):
+                return True
+    return False
+
+
+def remap_jdy_person_ids_in_routes(
+    routes: list | None,
+    id_map: dict[str, str],
+    fields: frozenset[str] = PERSON_COND_FIELDS,
+) -> tuple[list, dict[str, int]]:
+    if not routes:
+        return [], {"replaced": 0, "leaves": 0}
+    raw = json.loads(json.dumps(routes, ensure_ascii=False))
+    replaced = 0
+    leaves = 0
+    for r in raw:
+        if not isinstance(r, dict):
+            continue
+        for leaf in _iter_cond_leaves(r.get("condition")):
+            if str(leaf.get("field") or "") not in fields:
+                continue
+            leaves += 1
+            before = json.dumps(leaf.get("value"), ensure_ascii=False, sort_keys=True)
+            leaf["value"] = remap_dept_ids_in_value(leaf.get("value"), id_map)
+            after = json.dumps(leaf.get("value"), ensure_ascii=False, sort_keys=True)
+            if before != after:
+                replaced += 1
+    return raw, {"replaced": replaced, "leaves": leaves}
+
+
+async def remap_person_routes_for_tenant(
+    db: AsyncSession, tenant_id: str, routes: list | None,
+) -> tuple[list, dict[str, int]]:
+    id_map = await build_jdy_to_crm_user_map(db, tenant_id)
+    if not id_map:
+        return list(routes or []), {"replaced": 0, "leaves": 0, "map_size": 0}
+    new_routes, stats = remap_jdy_person_ids_in_routes(routes, id_map)
+    stats["map_size"] = len(id_map)
+    return new_routes, stats
+
+
+def clean_unknown_person_ids_in_routes(
+    routes: list | None,
+    fields: frozenset[str] = PERSON_COND_FIELDS,
+) -> tuple[list, dict[str, Any]]:
+    """去掉人员条件里仍残留的简道云 MongoId（映射不上的已离职/未知成员）。"""
+    if not routes:
+        return [], {"routes_touched": 0, "values_removed": 0, "removed_ids": []}
+    raw = json.loads(json.dumps(routes, ensure_ascii=False))
+    removed: list[str] = []
+    routes_touched = 0
+
+    def clean_node(node: dict) -> dict | None:
+        if "cond" in node and isinstance(node.get("cond"), list):
+            kept: list[dict] = []
+            for child in node["cond"]:
+                if not isinstance(child, dict):
+                    continue
+                c = clean_node(child)
+                if c is not None:
+                    kept.append(c)
+            if not kept:
+                return None
+            out = dict(node)
+            out["cond"] = kept
+            return out
+        field = str(node.get("field") or "")
+        if field not in fields:
+            return node
+        val = node.get("value")
+        if isinstance(val, list):
+            kept_vals = []
+            for v in val:
+                s = str(v) if v is not None else ""
+                if is_jdy_mongo_id(s):
+                    removed.append(s)
+                elif s:
+                    kept_vals.append(v)
+            if not kept_vals:
+                return None
+            out = dict(node)
+            out["value"] = kept_vals
+            return out
+        if val is None or val == "":
+            return None
+        s = str(val)
+        if is_jdy_mongo_id(s):
+            removed.append(s)
+            return None
+        return node
+
+    for r in raw:
+        if not isinstance(r, dict):
+            continue
+        cond = r.get("condition")
+        if not isinstance(cond, dict):
+            continue
+        before = json.dumps(cond, ensure_ascii=False, sort_keys=True)
+        cleaned = clean_node(cond)
+        after = json.dumps(cleaned, ensure_ascii=False, sort_keys=True) if cleaned else "null"
+        if before != after:
+            routes_touched += 1
+            r["condition"] = cleaned
+    uniq = list(dict.fromkeys(removed))
+    return raw, {
+        "routes_touched": routes_touched,
+        "values_removed": len(removed),
+        "removed_ids": uniq,
+    }
+
+
+async def sanitize_route_ids_for_tenant(
+    db: AsyncSession, tenant_id: str, routes: list | None,
+) -> tuple[list, dict[str, Any]]:
+    """部门/人员：JDY id→CRM，并清掉无法映射的残留 MongoId。"""
+    routes, dept_remap = await remap_routes_for_tenant(db, tenant_id, routes)
+    routes, person_remap = await remap_person_routes_for_tenant(db, tenant_id, routes)
+    routes, dept_clean = await clean_unknown_dept_routes_for_tenant(db, tenant_id, routes)
+    routes, person_clean = clean_unknown_person_ids_in_routes(routes)
+    return routes, {
+        "dept_remap": dept_remap,
+        "person_remap": person_remap,
+        "dept_clean": dept_clean,
+        "person_clean": person_clean,
+    }

@@ -16,6 +16,8 @@ export interface LoginRequest {
   username: string
   password: string
   totp_code?: string
+  /** 同账号跨租户时消歧 */
+  tenant_code?: string
 }
 
 export interface TokenResponse {

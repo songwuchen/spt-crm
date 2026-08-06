@@ -52,6 +52,89 @@ def _filter_active_depts(depts: list[dict]) -> list[dict]:
     return [d for d in depts if not _is_resigned_dept(d.get("name", ""))]
 
 
+def _topo_sort_dingtalk_depts(dt_depts: list[dict]) -> list[dict]:
+    """父部门排在子部门之前。
+
+    旧实现按 parentid 数值排序：当「子部门的 parentid」小于「父部门的 parentid」时，
+    子部门会先入队，本地 parent 尚未建立 → parent_id=None，整棵子树被甩到顶层
+    （例如技术总工下的研发中心/设计室跑到组织树外面）。
+    """
+    by_id: dict[int, dict] = {}
+    for d in dt_depts:
+        try:
+            by_id[int(d["id"])] = d
+        except (KeyError, TypeError, ValueError):
+            continue
+    children: dict[int, list[dict]] = {}
+    roots: list[dict] = []
+    for d in by_id.values():
+        try:
+            pid = int(d.get("parentid") or 0)
+        except (TypeError, ValueError):
+            pid = 0
+        if pid in by_id:
+            children.setdefault(pid, []).append(d)
+        else:
+            roots.append(d)
+
+    def order_key(d: dict) -> tuple:
+        try:
+            return (-int(d.get("order") or 0), int(d["id"]))
+        except (TypeError, ValueError):
+            return (0, 0)
+
+    out: list[dict] = []
+
+    def walk(nodes: list[dict]) -> None:
+        for n in sorted(nodes, key=order_key):
+            out.append(n)
+            try:
+                nid = int(n["id"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            walk(children.get(nid, []))
+
+    walk(roots)
+    seen = {int(d["id"]) for d in out if d.get("id") is not None}
+    for d in dt_depts:
+        try:
+            did = int(d["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if did not in seen:
+            out.append(d)
+    return out
+
+
+def _dept_path(name: str, parent: Optional["Department"]) -> str:
+    if parent and parent.path:
+        return parent.path.rstrip("/") + "/" + name + "/"
+    return f"/{name}/"
+
+
+def _rebuild_department_paths(existing: list["Department"]) -> int:
+    """按 parent_id 重算全部 path（父节点挪动后子树 path 也要对齐）。"""
+    by_id = {d.id: d for d in existing}
+    changed = 0
+
+    def compute(d: Department, stack: set[str]) -> str:
+        if d.id in stack:
+            return f"/{d.name}/"
+        if not d.parent_id or d.parent_id not in by_id:
+            return f"/{d.name}/"
+        stack.add(d.id)
+        parent_path = compute(by_id[d.parent_id], stack)
+        stack.discard(d.id)
+        return parent_path.rstrip("/") + "/" + d.name + "/"
+
+    for d in existing:
+        new_path = compute(d, set())
+        if d.path != new_path:
+            d.path = new_path
+            changed += 1
+    return changed
+
+
 # ─────────────── OAuth2 SSO (一键登录) ───────────────
 
 async def exchange_oauth_code(
@@ -219,17 +302,18 @@ async def sync_departments(
     """
     Sync DingTalk department tree into local Department table.
 
-    Matching strategy: dept name + parent name combo.
-    Creates new depts for unmatched ones; updates sort_order.
+    Matching strategy: same name + same parent first; else unclaimed same-name
+    (and re-parent to DingTalk parent). Always refresh parent_id / path / sort_order.
+    Creates new depts for unmatched ones.
     If sync_leaders=True also fetches dept detail to set leader_id.
 
     Returns: { created, updated, total, dt_to_local: {dt_dept_id: local_dept_id} }
     """
     if progress_cb:
         await progress_cb("拉取部门列表", 0, 0)
-    dt_depts = _filter_active_depts(await fetch_all_departments(token))
-    # Sort: root (parentid=1 or 0) first, then by parentid asc
-    dt_depts.sort(key=lambda d: (d.get("parentid", 0) not in (0, 1), d.get("parentid", 0), d.get("order", 0)))
+    dt_depts = _topo_sort_dingtalk_depts(
+        _filter_active_depts(await fetch_all_departments(token))
+    )
 
     # Load existing local depts
     existing = (await db.execute(
@@ -242,45 +326,67 @@ async def sync_departments(
 
     # dt_dept_id (int) -> local dept id (str)
     dt_to_local: dict[int, str] = {}
+    claimed_local: set[str] = set()
 
     created = updated = 0
 
     for dt in dt_depts:
-        dt_id: int = dt["id"]
-        dt_name: str = dt["name"]
-        dt_parentid: int = dt.get("parentid", 0)
-        dt_order: int = dt.get("order", 0)
+        try:
+            dt_id = int(dt["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        dt_name: str = dt.get("name") or ""
+        if not dt_name:
+            continue
+        try:
+            dt_parentid = int(dt.get("parentid") or 0)
+        except (TypeError, ValueError):
+            dt_parentid = 0
+        try:
+            dt_order = int(dt.get("order") or 0)
+        except (TypeError, ValueError):
+            dt_order = 0
 
-        # Find local parent
+        # Find local parent（钉钉根 parentid=1/0 且不在列表中 → 本地顶层）
         local_parent_id: Optional[str] = dt_to_local.get(dt_parentid)
+        parent_obj = next((d for d in existing if d.id == local_parent_id), None) if local_parent_id else None
 
-        # Try to match by name (prefer same parent)
+        # Try to match by name (prefer same parent, skip already claimed)
         matched: Optional[Department] = None
         candidates = name_to_local.get(dt_name, [])
         for c in candidates:
+            if c.id in claimed_local:
+                continue
             if c.parent_id == local_parent_id:
                 matched = c
                 break
-        if not matched and candidates:
-            matched = candidates[0]  # fallback: first by same name
+        if not matched:
+            for c in candidates:
+                if c.id not in claimed_local:
+                    matched = c
+                    break
 
         if matched:
-            # Update sort_order if changed
+            changed = False
+            if matched.parent_id != local_parent_id:
+                matched.parent_id = local_parent_id
+                changed = True
+            new_path = _dept_path(matched.name, parent_obj)
+            if matched.path != new_path:
+                matched.path = new_path
+                changed = True
             if matched.sort_order != dt_order:
                 matched.sort_order = dt_order
+                changed = True
+            if changed:
                 updated += 1
             dt_to_local[dt_id] = matched.id
+            claimed_local.add(matched.id)
         else:
-            # Compute path
-            parent_path = "/"
-            if local_parent_id:
-                parent_dept = next((d for d in existing if d.id == local_parent_id), None)
-                if parent_dept:
-                    parent_path = parent_dept.path.rstrip("/") + "/" if parent_dept.path else "/"
             dept = Department(
                 id=generate_uuid(), tenant_id=tenant_id,
                 name=dt_name, parent_id=local_parent_id,
-                path=parent_path + dt_name + "/",
+                path=_dept_path(dt_name, parent_obj),
                 sort_order=dt_order,
             )
             db.add(dept)
@@ -288,7 +394,13 @@ async def sync_departments(
             existing.append(dept)
             name_to_local.setdefault(dt_name, []).append(dept)
             dt_to_local[dt_id] = dept.id
+            claimed_local.add(dept.id)
             created += 1
+
+    # 祖先被挪动后，整棵子树 path 再扫一遍
+    path_fixed = _rebuild_department_paths(existing)
+    if path_fixed:
+        updated += path_fixed
 
     await db.commit()
 
@@ -300,10 +412,10 @@ async def sync_departments(
         async def _fetch(dt: dict) -> tuple[int, dict]:
             async with sem:
                 try:
-                    return dt["id"], await fetch_dept_detail(token, dt["id"])
+                    return int(dt["id"]), await fetch_dept_detail(token, int(dt["id"]))
                 except Exception as e:
-                    logger.warning(f"获取部门 {dt['id']} 主管失败: {e}")
-                    return dt["id"], {}
+                    logger.warning(f"获取部门 {dt.get('id')} 主管失败: {e}")
+                    return int(dt.get("id") or 0), {}
 
         total = len(dt_depts)
         done = 0
@@ -382,12 +494,35 @@ async def sync_users(
         existing_depts = (await db.execute(
             select(Department).where(Department.tenant_id == tenant_id)
         )).scalars().all()
-        name_to_local = {d.name: d.id for d in existing_depts}
+        # 与部门同步同一套：按钉钉父子拓扑 + 同名优先同父匹配，避免重名部门挂错
+        name_to_local: dict[str, list[Department]] = {}
+        for d in existing_depts:
+            name_to_local.setdefault(d.name, []).append(d)
         dt_to_local_dept = {}
-        for dd in dt_depts:
-            local_id = name_to_local.get(dd["name"])
-            if local_id:
-                dt_to_local_dept[dd["id"]] = local_id
+        claimed: set[str] = set()
+        for dd in _topo_sort_dingtalk_depts(dt_depts):
+            try:
+                did = int(dd["id"])
+                pid = int(dd.get("parentid") or 0)
+            except (KeyError, TypeError, ValueError):
+                continue
+            local_parent = dt_to_local_dept.get(pid)
+            name = dd.get("name") or ""
+            matched = None
+            for c in name_to_local.get(name, []):
+                if c.id in claimed:
+                    continue
+                if c.parent_id == local_parent:
+                    matched = c
+                    break
+            if not matched:
+                for c in name_to_local.get(name, []):
+                    if c.id not in claimed:
+                        matched = c
+                        break
+            if matched:
+                dt_to_local_dept[did] = matched.id
+                claimed.add(matched.id)
 
     # Parallel fetch of users per department with bounded concurrency.
     # Serial fetch of 100+ depts took ~4 min in prod; gather drops this to ~20s.

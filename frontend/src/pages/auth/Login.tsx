@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Form, Input, Button, Card, message, Divider } from 'antd'
-import { UserOutlined, LockOutlined, SafetyOutlined } from '@ant-design/icons'
+import { Form, Input, Button, Card, message, Divider, Select } from 'antd'
+import { UserOutlined, LockOutlined, SafetyOutlined, BankOutlined } from '@ant-design/icons'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -10,6 +10,8 @@ import { isDingTalkContainer, getDingTalkAuthCode } from '@/utils/dingtalk'
 
 // DingTalk brand color
 const DT_COLOR = '#1A7AF8'
+
+type TenantOpt = { code: string; name: string; id?: string }
 
 function DingTalkIcon() {
   return (
@@ -29,6 +31,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [dtConfig, setDtConfig] = useState<{ login_enabled: boolean; app_key: string; corp_id: string } | null>(null)
   const [dtLoading, setDtLoading] = useState(false)
+  const [tenantOptions, setTenantOptions] = useState<TenantOpt[]>([])
 
   // 登录成功后回跳的目标（钉钉待办深链等经 ?redirect= 传入），默认首页
   const redirectTo = searchParams.get('redirect') || '/'
@@ -106,7 +109,12 @@ export default function Login() {
     window.location.href = url
   }
 
-  const onFinish = async (values: { username: string; password: string; totp_code?: string }) => {
+  const onFinish = async (values: {
+    username: string
+    password: string
+    totp_code?: string
+    tenant_code?: string
+  }) => {
     setLoading(true)
     try {
       const res = await authApi.login(values)
@@ -118,9 +126,17 @@ export default function Login() {
       setAuth(res.data.access_token, res.data.refresh_token)
       message.success('登录成功')
       navigate(redirectTo, { replace: true })
-    } catch {
-      // 错误提示由 client.ts 响应拦截器统一弹出（如"用户名或密码错误"），
-      // 此处不再二次弹出，避免叠加 axios 的英文 "Request failed with status code 401"。
+    } catch (e: unknown) {
+      const err = e as Error & { needTenant?: boolean; tenants?: TenantOpt[] }
+      if (err?.needTenant && err.tenants?.length) {
+        setTenantOptions(err.tenants)
+        // 默认选主租户（default）便于本地常用场景
+        const prefer = err.tenants.find((x) => x.code === 'default') || err.tenants[0]
+        form.setFieldValue('tenant_code', prefer?.code)
+        message.warning('该账号属于多个租户，请选择后再登录')
+        return
+      }
+      // 其它错误由 client 拦截器统一提示
     } finally {
       setLoading(false)
     }
@@ -144,6 +160,7 @@ export default function Login() {
   }
 
   const showDingTalk = dtConfig?.login_enabled && dtConfig?.app_key
+  const needTenant = tenantOptions.length > 0
 
   return (
     <div className="h-screen flex items-center justify-center bg-gray-50">
@@ -178,6 +195,21 @@ export default function Login() {
           <Form.Item name="password" rules={[{ required: true, message: t('auth.password') }]}>
             <Input.Password prefix={<LockOutlined />} placeholder={t('auth.password')} disabled={needTotp} />
           </Form.Item>
+          {needTenant && (
+            <Form.Item
+              name="tenant_code"
+              rules={[{ required: true, message: '请选择租户' }]}
+            >
+              <Select
+                placeholder="请选择租户"
+                suffixIcon={<BankOutlined />}
+                options={tenantOptions.map((x) => ({
+                  value: x.code,
+                  label: x.name,
+                }))}
+              />
+            </Form.Item>
+          )}
           {needTotp && (
             <Form.Item name="totp_code" rules={[{ required: true, message: '请输入验证码' }]}>
               <Input prefix={<SafetyOutlined />} placeholder="6位验证码" maxLength={6} autoFocus />
