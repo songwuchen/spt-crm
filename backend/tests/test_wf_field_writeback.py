@@ -133,3 +133,73 @@ def test_next_targets_always_cc_does_not_steal_else():
     assert "cc_owner" in t2
     assert "cc_install" not in t2
     assert "approval_region" not in t2
+
+
+def test_next_targets_exclusive_group_if_else():
+    """互斥组：重叠条件只走第一条；都不命中走 else；并行边仍可同时命中。"""
+    from types import SimpleNamespace
+
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    routes = [
+        {
+            "id": "r1", "source": "start", "target": "design",
+            "exclusive_group": "ex_start",
+            "condition": {
+                "rel": "and",
+                "cond": [
+                    {"field": "scheme_type", "operator": "eq", "value": "requisition"},
+                    {"field": "department", "operator": "in", "value": ["d1"]},
+                ],
+            },
+        },
+        {
+            # 故意与上面重叠：仅 scheme_type=requisition —— 无互斥时会双进
+            "id": "r2", "source": "start", "target": "dept",
+            "exclusive_group": "ex_start",
+            "condition": {"field": "scheme_type", "operator": "eq", "value": "requisition"},
+        },
+        {
+            "id": "r3", "source": "start", "target": "else_node",
+            "exclusive_group": "ex_start",
+            # else
+        },
+        {
+            # 另一组并行条件边（无 exclusive_group）
+            "id": "r4", "source": "start", "target": "para_a",
+            "condition": {"field": "flag_a", "operator": "eq", "value": "1"},
+        },
+        {
+            "id": "r5", "source": "start", "target": "para_b",
+            "condition": {"field": "flag_b", "operator": "eq", "value": "1"},
+        },
+        {
+            "id": "r_cc", "source": "start", "target": "cc1", "always": True,
+        },
+    ]
+    version = SimpleNamespace(route_definitions=routes, node_definitions=[])
+    eng = WorkflowEngine(db=None, tenant_id="t")
+
+    # 领用+研究院：互斥组只进 design（不进 dept），并行 flag 未开，旁路 cc
+    t1 = eng._next_targets(version, "start", {
+        "scheme_type": "requisition", "department": "d1",
+    })
+    assert t1 == ["cc1", "design"]
+
+    # 领用+其他部门：r1 不中、r2 中 → dept
+    t2 = eng._next_targets(version, "start", {
+        "scheme_type": "requisition", "department": "d9",
+    })
+    assert "dept" in t2 and "design" not in t2 and "else_node" not in t2
+
+    # 都不中：走 else
+    t3 = eng._next_targets(version, "start", {"scheme_type": "other"})
+    assert "else_node" in t3 and "design" not in t3 and "dept" not in t3
+
+    # 并行：两条无组条件可同时命中
+    t4 = eng._next_targets(version, "start", {
+        "scheme_type": "other", "flag_a": "1", "flag_b": "1",
+    })
+    assert "para_a" in t4 and "para_b" in t4
+    assert "else_node" in t4  # 互斥组未命中条件 → else
+    assert "cc1" in t4

@@ -254,6 +254,13 @@ export interface WfRoute {
   id: string
   source: string
   target: string
+  /** 抄送旁路：与主链并行，不参与 if/else 抢占 */
+  always?: boolean
+  /**
+   * 互斥组 id（简道云 if/else）。同 source + 同 exclusive_group 的出边只走一条；
+   * 未设置时多条条件边可并行命中。
+   */
+  exclusive_group?: string | null
   condition?: { rel: 'and' | 'or'; cond: { field: string; operator: string; value?: unknown }[] } | null
 }
 

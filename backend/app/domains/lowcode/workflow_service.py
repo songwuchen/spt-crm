@@ -120,10 +120,16 @@ async def _published_version(db, tenant_id, def_id) -> WfProcessDefinitionVersio
 
 async def save_design(db, tenant_id, def_id, data: ws.WfSaveDesign, user_id) -> WfProcessDefinitionVersion:
     await get_definition(db, tenant_id, def_id)
+    from app.domains.lowcode.jdy_id_remap import (
+        remap_routes_for_tenant, clean_unknown_dept_routes_for_tenant,
+    )
+    routes = data.route_definitions or []
+    routes, _ = await remap_routes_for_tenant(db, tenant_id, routes)
+    routes, _ = await clean_unknown_dept_routes_for_tenant(db, tenant_id, routes)
     draft = await _draft_version(db, tenant_id, def_id)
     if draft:
         draft.node_definitions = data.node_definitions
-        draft.route_definitions = data.route_definitions
+        draft.route_definitions = routes
         draft.approver_rules = data.approver_rules
         await db.commit()
         await db.refresh(draft)
@@ -132,7 +138,7 @@ async def save_design(db, tenant_id, def_id, data: ws.WfSaveDesign, user_id) -> 
     v = WfProcessDefinitionVersion(
         id=generate_uuid(), tenant_id=tenant_id, process_definition_id=def_id,
         version_number=(latest.version_number + 1) if latest else 1,
-        node_definitions=data.node_definitions, route_definitions=data.route_definitions,
+        node_definitions=data.node_definitions, route_definitions=routes,
         approver_rules=data.approver_rules, status="draft",
     )
     db.add(v)
@@ -152,6 +158,12 @@ async def publish(db, tenant_id, def_id, user_id) -> WfProcessDefinitionVersion:
         raise BusinessException(code=BUSINESS_ERROR, message="流程必须包含开始与结束节点")
     if "approval" not in types:
         raise BusinessException(code=BUSINESS_ERROR, message="流程至少包含一个审批节点")
+    # 发布前再清一次：CRM 不存在的部门 id 会在设计器显示「未知部门」
+    from app.domains.lowcode.jdy_id_remap import clean_unknown_dept_routes_for_tenant
+    cleaned, _ = await clean_unknown_dept_routes_for_tenant(
+        db, tenant_id, latest.route_definitions,
+    )
+    latest.route_definitions = cleaned
     old = await _published_version(db, tenant_id, def_id)
     if old:
         old.status = "deprecated"
@@ -1005,6 +1017,8 @@ async def ensure_default_form_definition(
     if jdy_graph:
         nodes, routes = jdy_graph
         description = DRAWING_FORM_FLOW_DESC
+        from app.domains.lowcode.jdy_id_remap import remap_routes_for_tenant
+        routes, _ = await remap_routes_for_tenant(db, tenant_id, routes)
     else:
         nodes, routes = _default_flow_graph(name, rule, multi_mode, empty_strategy)
         description = "系统默认流程（表单提交后自动发起，可在流程管理中编辑）"
@@ -1095,7 +1109,12 @@ async def _upgrade_drawing_form_flow_if_needed(
     if not version:
         return
     new_nodes, new_routes = graph
-    if (
+    from app.domains.lowcode.jdy_id_remap import (
+        routes_have_jdy_dept_ids, remap_routes_for_tenant,
+        clean_unknown_dept_routes_for_tenant,
+    )
+    need_dept_remap = routes_have_jdy_dept_ids(version.route_definitions)
+    aligned = (
         _flow_is_jdy_form_graph(form_code, version.node_definitions)
         and not _drawing_flow_has_cc_end_bug(
             version.node_definitions, version.route_definitions,
@@ -1105,8 +1124,38 @@ async def _upgrade_drawing_form_flow_if_needed(
             _flow_has_node_field_perms(new_nodes)
             and not _flow_has_node_field_perms(version.node_definitions)
         )
-    ):
+    )
+    if aligned and not need_dept_remap:
+        # 拓扑已对齐且无 JDY MongoId：仍清掉 CRM 不存在的部门条件（未知部门）
+        cleaned, cstats = await clean_unknown_dept_routes_for_tenant(
+            db, tenant_id, version.route_definitions,
+        )
+        if cstats.get("values_removed", 0) > 0:
+            await _publish_system_default_upgrade(
+                db, tenant_id, d, version,
+                version.node_definitions, cleaned,
+                DRAWING_FORM_FLOW_DESC, f"清除未知部门条件({form_code})",
+            )
         return
+    # 拓扑已对齐、仅部门条件仍是简道云 MongoId：只改 routes，不覆盖画布节点
+    if aligned and need_dept_remap:
+        remapped, stats = await remap_routes_for_tenant(
+            db, tenant_id, version.route_definitions,
+        )
+        cleaned, cstats = await clean_unknown_dept_routes_for_tenant(
+            db, tenant_id, remapped,
+        )
+        if stats.get("replaced", 0) <= 0 and cstats.get("values_removed", 0) <= 0:
+            return
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            version.node_definitions, cleaned,
+            DRAWING_FORM_FLOW_DESC, f"简道云部门ID→CRM({form_code})",
+        )
+        return
+    # 生成图里仍是 JDY 部门 MongoId，发布前换成 CRM UUID，并去掉无法映射的残留
+    new_routes, _ = await remap_routes_for_tenant(db, tenant_id, new_routes)
+    new_routes, _ = await clean_unknown_dept_routes_for_tenant(db, tenant_id, new_routes)
     if form_code == "drawing_requisition":
         d.name = "合同图纸（资料）领用申请"
     elif form_code == "install_drawing_notice":

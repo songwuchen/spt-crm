@@ -4,6 +4,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   Button, Space, Tag, Modal, message, Popconfirm, Typography,
 } from 'antd'
+import dayjs from 'dayjs'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { ArrowLeftOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
@@ -87,10 +88,19 @@ function collectIds(v: unknown): string[] {
   return [String(v)]
 }
 
+function formatCellDateTime(v: unknown, withTime: boolean): string {
+  const d = dayjs(String(v))
+  if (!d.isValid()) return String(v)
+  // ISO(含 Z/+00:00) 会按浏览器本地时区展示，避免列表里露出 2026-08-06T03:xx
+  return d.format(withTime ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD')
+}
+
 function cellText(field: FieldDefinition, v: unknown, maps?: NameMaps): string {
   if (v == null || v === '') return '—'
   const opts = field.options || []
   const labelOf = (x: unknown) => opts.find((o) => o.value === x)?.label ?? String(x)
+  if (field.type === 'date') return formatCellDateTime(v, false)
+  if (field.type === 'datetime') return formatCellDateTime(v, true)
   if (field.type === 'select' || field.type === 'radio') return labelOf(v)
   if (field.type === 'checkbox' || field.type === 'multi_select') {
     if (Array.isArray(v)) return v.map(labelOf).join('，') || '—'
@@ -346,7 +356,9 @@ export default function FormDataListPage({
     ] : []),
     ...colFields.map((f) => ({
       title: f.label, key: f.id, ellipsis: true,
-      width: (f.type === 'person' || f.type === 'department') ? 120 : 140,
+      width: f.type === 'datetime' ? 160
+        : (f.type === 'person' || f.type === 'department') ? 120
+          : 140,
       render: (_: unknown, r: FormInstance) => cellText(f, r.form_data?.[f.id], nameMaps),
     })),
     {
@@ -355,7 +367,7 @@ export default function FormDataListPage({
     },
     {
       title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 170, fixed: 'right' as const,
-      render: (v: string) => (v ? v.slice(0, 19).replace('T', ' ') : '—'),
+      render: (v: string) => (v ? formatCellDateTime(v, true) : '—'),
     },
     {
       title: '操作', key: 'op', width: 220, fixed: 'right' as const,

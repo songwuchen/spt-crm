@@ -189,6 +189,8 @@ export interface Department {
   path: string
   sort_order: number
   leader_id?: string
+  /** 钉钉同步写入的部门主管姓名（只读展示） */
+  leader_name?: string | null
   children: Department[]
 }
 

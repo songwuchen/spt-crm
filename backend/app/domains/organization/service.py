@@ -26,6 +26,19 @@ async def get_department_tree(db: AsyncSession, tenant_id: str):
     )
     all_depts = result.scalars().all()
 
+    leader_ids = {d.leader_id for d in all_depts if d.leader_id}
+    leader_names: dict[str, str] = {}
+    if leader_ids:
+        users = (
+            await db.execute(
+                select(User.id, User.real_name).where(
+                    User.tenant_id == tenant_id,
+                    User.id.in_(leader_ids),
+                )
+            )
+        ).all()
+        leader_names = {uid: name for uid, name in users}
+
     dept_map = {d.id: d for d in all_depts}
     roots = []
     for d in all_depts:
@@ -40,6 +53,7 @@ async def get_department_tree(db: AsyncSession, tenant_id: str):
         return {
             "id": d.id, "name": d.name, "parent_id": d.parent_id,
             "path": d.path, "sort_order": d.sort_order, "leader_id": d.leader_id,
+            "leader_name": leader_names.get(d.leader_id) if d.leader_id else None,
             "children": [to_dict(c) for c in d._children],
         }
 

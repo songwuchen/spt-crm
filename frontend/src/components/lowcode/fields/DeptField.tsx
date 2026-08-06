@@ -73,16 +73,63 @@ export default function DeptField({
     return () => { alive = false }
   }, [scopeCode])
 
+  const selectedIds = (multi
+    ? (Array.isArray(value) ? value : [])
+    : (value != null && value !== '' ? [value] : [])
+  ).map(String).filter(Boolean)
+
+  // 树外 id（常为简道云历史部门 MongoId）：拉名称回显，避免「未知部门(56ca…)」
+  useEffect(() => {
+    const missing = selectedIds.filter((id) => !names[id])
+    if (!missing.length) return
+    let alive = true
+    client.get<unknown, ApiResponse<Record<string, string>>>('/api/v1/lc/department-labels', {
+      params: { ids: missing.join(',') },
+    }).then((res) => {
+      if (!alive || !res.data) return
+      setNames((prev) => {
+        const next = { ...prev }
+        let changed = false
+        for (const [k, v] of Object.entries(res.data || {})) {
+          if (v && next[k] !== v) { next[k] = v; changed = true }
+        }
+        return changed ? next : prev
+      })
+    }).catch(() => { /* ignore */ })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds.join('|')])
+
+  const treeIdSet = new Set<string>()
+  ;(function collect(nodes: TreeNode[]) {
+    for (const n of nodes) {
+      treeIdSet.add(n.value)
+      if (n.children?.length) collect(n.children)
+    }
+  })(tree)
+
+  // 树中不存在的历史/外部 id：挂到树顶，标题优先用已解析名称
+  const orphanNodes: TreeNode[] = selectedIds
+    .filter((id) => !treeIdSet.has(id))
+    .map((id) => ({
+      title: names[id] || (id.length > 12 ? `未知部门(${id.slice(0, 8)}…)` : `未知部门(${id})`),
+      value: id,
+    }))
+  const treeData = orphanNodes.length ? [...orphanNodes, ...tree] : tree
+
   if (readonly) {
-    const ids = multi ? (Array.isArray(value) ? value : []) : value ? [value] : []
-    if (!ids.length) return <div style={{ paddingTop: 4 }}>—</div>
-    return <div style={{ paddingTop: 4 }}>{(ids as string[]).map((id) => names[id] || id).join('，')}</div>
+    if (!selectedIds.length) return <div style={{ paddingTop: 4 }}>—</div>
+    return (
+      <div style={{ paddingTop: 4 }}>
+        {selectedIds.map((id) => names[id] || (id.length > 12 ? `未知部门(${id.slice(0, 8)}…)` : id)).join('，')}
+      </div>
+    )
   }
 
   return (
     <TreeSelect
       style={{ width: '100%' }}
-      treeData={tree}
+      treeData={treeData}
       loading={loading}
       allowClear showSearch treeNodeFilterProp="title"
       multiple={!!multi}

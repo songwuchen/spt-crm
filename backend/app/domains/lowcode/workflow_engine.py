@@ -200,21 +200,50 @@ class WorkflowEngine:
     def _next_targets(self, version: WfProcessDefinitionVersion, node_id: str, form_data: dict) -> list[str]:
         """按连线条件选下一节点。
 
-        - 普通边：命中条件的优先；都不命中则走无条件(else)边
-        - ``always: true`` 边：对齐简道云抄送旁路，与条件/else 并行，互不抢占
-          （有条件时仍需条件为真；无条件则恒发）
+        - ``always: true``：抄送旁路，与主链并行、互不抢占（有条件时仍需为真）
+        - ``exclusive_group``：同组内按连线顺序互斥（简道云 if/else）——命中第一条
+          有条件边，否则走组内无条件边(else)；不同组彼此独立
+        - 无 ``exclusive_group`` 的普通边：仍可多条条件同时命中（并行）；
+          若这些并行边中无一条件命中，则走其中无条件边
         旁路边排在前面，避免 end 先激活导致同批抄送被跳过。
         """
         routes = self._outgoing(version, node_id)
         always_routes = [r for r in routes if r.get("always")]
-        exclusive = [r for r in routes if not r.get("always")]
-        matched = [
-            r["target"] for r in exclusive
+        normal = [r for r in routes if not r.get("always")]
+
+        exclusive_groups: dict[str, list] = {}
+        parallel_edges: list = []
+        for r in normal:
+            gid = r.get("exclusive_group")
+            if gid:
+                exclusive_groups.setdefault(str(gid), []).append(r)
+            else:
+                parallel_edges.append(r)
+
+        core: list[str] = []
+        for edges in exclusive_groups.values():
+            hit: str | None = None
+            for r in edges:
+                cond = r.get("condition")
+                if cond and evaluate_condition(cond, form_data):
+                    hit = r["target"]
+                    break
+            if hit:
+                core.append(hit)
+            else:
+                for r in edges:
+                    if not r.get("condition"):
+                        core.append(r["target"])
+
+        matched_para = [
+            r["target"] for r in parallel_edges
             if r.get("condition") and evaluate_condition(r["condition"], form_data)
         ]
-        core = matched if matched else [
-            r["target"] for r in exclusive if not r.get("condition")
-        ]
+        if matched_para:
+            core.extend(matched_para)
+        else:
+            core.extend(r["target"] for r in parallel_edges if not r.get("condition"))
+
         always_targets: list[str] = []
         for r in always_routes:
             cond = r.get("condition")

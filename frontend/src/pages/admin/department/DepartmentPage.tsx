@@ -3,12 +3,52 @@ import { Tree, Button, Modal, Form, Input, InputNumber, message, Table, Switch, 
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { departmentApi, deptRoleRuleApi } from '@/api/department'
 import type { DeptRoleRule } from '@/api/department'
-import { roleApi } from '@/api/user'
+import { roleApi, userApi } from '@/api/user'
 import type { Department, Role } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 
 import Icon from '@/components/Icon'
+
+function collectLeaderIds(departments: Department[], out: Set<string> = new Set()): Set<string> {
+  for (const d of departments) {
+    if (d.leader_id && !d.leader_name) out.add(d.leader_id)
+    if (d.children?.length) collectLeaderIds(d.children, out)
+  }
+  return out
+}
+
+function patchLeaderNames(departments: Department[], names: Map<string, string>): Department[] {
+  return departments.map((d) => ({
+    ...d,
+    leader_name: d.leader_name || (d.leader_id ? names.get(d.leader_id) : undefined) || null,
+    children: d.children?.length ? patchLeaderNames(d.children, names) : [],
+  }))
+}
+
+/** 后端未返回 leader_name 时，用 leader_id 补全姓名（兼容未重启的本地 API） */
+async function enrichLeaderNames(departments: Department[]): Promise<Department[]> {
+  const missing = [...collectLeaderIds(departments)]
+  if (!missing.length) return departments
+  const names = new Map<string, string>()
+  const chunkSize = 20
+  for (let i = 0; i < missing.length; i += chunkSize) {
+    const chunk = missing.slice(i, i + chunkSize)
+    await Promise.all(
+      chunk.map(async (id) => {
+        try {
+          const r = await userApi.get(id)
+          if (r.data?.real_name) names.set(id, r.data.real_name)
+        } catch {
+          /* 无权限或用户已删则跳过 */
+        }
+      }),
+    )
+  }
+  if (!names.size) return departments
+  return patchLeaderNames(departments, names)
+}
+
 // 命中的关键词高亮显示，便于在大组织树里一眼定位。
 // 用 localeCompare 逐位比对而不是在 toLowerCase() 后的串上取下标——'İ'.toLowerCase()
 // 长度会变，拿小写串的下标去切原串会整体错位。
@@ -36,7 +76,12 @@ function toTreeData(departments: Department[], kw = ''): any[] {
   return departments.map((d) => ({
     key: d.id,
     title: (
-      <span className="text-sm font-medium text-slate-700">{highlight(d.name, kw)}</span>
+      <span className="inline-flex items-center gap-2 min-w-0">
+        <span className="text-sm font-medium text-slate-700 truncate">{highlight(d.name, kw)}</span>
+        {d.leader_name ? (
+          <span className="shrink-0 text-[11px] text-slate-400 font-normal">{d.leader_name}</span>
+        ) : null}
+      </span>
     ),
     data: d,
     children: d.children?.length ? toTreeData(d.children, kw) : [],
@@ -75,7 +120,22 @@ export default function DepartmentPage() {
 
   const fetchTree = async () => {
     const res = await departmentApi.tree()
-    setTree(res.data)
+    const enriched = await enrichLeaderNames(res.data || [])
+    setTree(enriched)
+    setSelectedDept((prev) => {
+      if (!prev) return prev
+      const find = (nodes: Department[]): Department | null => {
+        for (const n of nodes) {
+          if (n.id === prev.id) return n
+          if (n.children?.length) {
+            const hit = find(n.children)
+            if (hit) return hit
+          }
+        }
+        return null
+      }
+      return find(enriched) || prev
+    })
   }
 
   const kw = search.trim().toLowerCase()
@@ -215,12 +275,19 @@ export default function DepartmentPage() {
                     <div className="text-sm font-semibold text-slate-700">{selectedDept.name}</div>
                   </div>
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">部门负责人</div>
+                    <div className="text-sm font-semibold text-slate-700">
+                      {selectedDept.leader_name || <span className="text-slate-400 font-normal">未设置</span>}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">由钉钉组织同步写入，不可在此编辑</div>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                     <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">排序权重</div>
                     <div className="text-sm font-semibold text-slate-700">{selectedDept.sort_order}</div>
                   </div>
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 col-span-2">
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                     <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">物化路径</div>
-                    <div className="text-sm font-mono text-slate-500">{selectedDept.path}</div>
+                    <div className="text-sm font-mono text-slate-500 truncate" title={selectedDept.path}>{selectedDept.path}</div>
                   </div>
                 </div>
 

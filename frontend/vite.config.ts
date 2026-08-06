@@ -42,29 +42,29 @@ export default defineConfig({
     port: 5175,
     proxy: {
       // 后端地址可用 VITE_API_PROXY 覆盖（如指向远端环境联调）
-      // 默认 8003：本机 8002 常被旧进程占死且不加载最新合同逻辑
+      // 默认 8005：本机 8004 常被旧进程占死且不带最新部门 leader_name
       '/api': {
-        target: process.env.VITE_API_PROXY || 'http://localhost:8004',
+        target: process.env.VITE_API_PROXY || 'http://localhost:8005',
         changeOrigin: true,
         secure: false,
       },
       '/docs': {
-        target: process.env.VITE_API_PROXY || 'http://localhost:8004',
+        target: process.env.VITE_API_PROXY || 'http://localhost:8005',
         changeOrigin: true,
         secure: false,
       },
       '/redoc': {
-        target: process.env.VITE_API_PROXY || 'http://localhost:8004',
+        target: process.env.VITE_API_PROXY || 'http://localhost:8005',
         changeOrigin: true,
         secure: false,
       },
       '/openapi.json': {
-        target: process.env.VITE_API_PROXY || 'http://localhost:8004',
+        target: process.env.VITE_API_PROXY || 'http://localhost:8005',
         changeOrigin: true,
         secure: false,
       },
       '/ws': {
-        target: process.env.VITE_WS_PROXY || 'ws://localhost:8004',
+        target: process.env.VITE_WS_PROXY || 'ws://localhost:8005',
         ws: true,
       },
     },

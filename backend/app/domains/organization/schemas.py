@@ -24,6 +24,7 @@ class DepartmentOut(BaseModel):
     path: str
     sort_order: int
     leader_id: Optional[str] = None
+    leader_name: Optional[str] = None
     children: List["DepartmentOut"] = []
 
     model_config = {"from_attributes": True}

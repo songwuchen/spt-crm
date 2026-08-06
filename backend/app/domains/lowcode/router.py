@@ -129,6 +129,36 @@ async def pickable_users(
     return ok(out)
 
 
+@router.get("/department-labels")
+async def department_labels(
+    ids: str = Query(..., description="逗号分隔的部门 id（CRM UUID 或简道云 MongoId）"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """回显部门名称：先查 CRM，再兜底简道云 id→名称（流程条件历史值）。"""
+    from app.domains.organization.models import Department
+    from app.domains.lowcode.jdy_id_remap import jdy_dept_id_to_name
+
+    raw = [x.strip() for x in (ids or "").split(",") if x.strip()]
+    if not raw:
+        return ok({})
+    rows = (
+        await db.execute(
+            select(Department.id, Department.name).where(
+                Department.tenant_id == tenant_id,
+                Department.id.in_(raw),
+            )
+        )
+    ).all()
+    out = {str(i): (n or str(i)) for i, n in rows}
+    jdy_names = jdy_dept_id_to_name()
+    for i in raw:
+        if i not in out and i in jdy_names:
+            out[i] = jdy_names[i]
+    return ok(out)
+
+
 @router.get("/pickable-departments")
 async def pickable_departments(
     scope_code: str | None = Query(None, description="可选范围编码（department 类型）"),

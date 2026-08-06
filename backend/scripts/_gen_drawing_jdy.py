@@ -529,8 +529,19 @@ def charger_rule(chargers: dict | None, widget_slug: dict[str, str]) -> dict:
         slug = widget_slug.get(w, w)
         return {"type": "form_field_person", "value": slug}
     dm = c.get("deptManager") or {}
-    if dm.get("deptWidgets") or dm.get("creator") or dm.get("charger"):
-        # CRM ApproverType 为 dept_head（非 department_leader）
+    # 简道云「部门主管」挂在表单部门控件上 → CRM form_field_dept（取该字段所选部门的负责人）
+    # 勿写成 dept_head（那是发起人所属部门负责人，且 exclude_initiator 易空审跳过）
+    dept_widgets = dm.get("deptWidgets") or {}
+    if isinstance(dept_widgets, dict) and dept_widgets:
+        w = next(iter(dept_widgets.keys()))
+        slug = widget_slug.get(w, w)
+        # 常见 widget → 业务字段 id
+        if slug.startswith("_widget_") and "department" in widget_slug.values():
+            slug = "department"
+        elif slug.startswith("_widget_"):
+            slug = widget_slug.get(w) or "department"
+        return {"type": "form_field_dept", "value": slug}
+    if dm.get("creator") or dm.get("charger"):
         return {"type": "dept_head", "exclude_initiator": True}
     roles = c.get("roles") or []
     if roles and isinstance(roles[0], dict) and roles[0].get("name"):
@@ -689,6 +700,20 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
     for r in routes:
         if r.get("target") in cc_ids and not r.get("always"):
             r["always"] = True
+
+    # 简道云同源多出边视为 if/else 互斥组（抄送 always 边不参与）
+    by_src: dict[str, list] = {}
+    for r in routes:
+        if r.get("always"):
+            continue
+        by_src.setdefault(r["source"], []).append(r)
+    for src, outs in by_src.items():
+        if len(outs) < 2:
+            continue
+        gid = f"ex_{src}"
+        for r in outs:
+            r["exclusive_group"] = gid
+        notes.append(f"节点「{src}」{len(outs)} 条出边已标互斥组 {gid}")
 
     sources = {r["source"] for r in routes}
     for n in nodes:

@@ -19,6 +19,7 @@ import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
 import type { WfNode, WfRoute, WfDesign, ApproverType, FieldDefinition, WfFieldPerm } from '@/types/lowcode'
 import PersonField from '@/components/lowcode/fields/PersonField'
+import DeptField from '@/components/lowcode/fields/DeptField'
 import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 
 const { Title, Text } = Typography
@@ -56,6 +57,17 @@ function condLabel(cond: WfRoute['condition']): string | undefined {
   return n === 1 ? '条件' : `条件×${n}`
 }
 
+/** 画布连线文案：条件 / else / 旁路 */
+function routeEdgeLabel(route: WfRoute, all: WfRoute[]): string | undefined {
+  if (route.always) return '旁路'
+  if (route.condition) return condLabel(route.condition)
+  const siblings = all.filter((r) => r.source === route.source && !r.always && r.id !== route.id)
+  if (route.exclusive_group || siblings.some((s) => !!s.condition || !!s.exclusive_group)) {
+    return 'else'
+  }
+  return undefined
+}
+
 function valueToInput(v: unknown): string {
   if (Array.isArray(v)) return v.map(String).join(',')
   if (v == null) return ''
@@ -67,6 +79,109 @@ function parseCondValue(operator: string, raw: string): unknown {
     return raw.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
   }
   return raw
+}
+
+function asMultiList(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map(String).filter((x) => x !== '')
+  if (v == null || v === '') return []
+  return String(v).split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+}
+
+function asSingle(v: unknown): string | undefined {
+  if (Array.isArray(v)) return v.length ? String(v[0]) : undefined
+  if (v == null || v === '') return undefined
+  return String(v)
+}
+
+/** 连线条件值：按字段类型用选择器，避免部门/选项只显示原始 id/code */
+function CondValueInput({
+  field, operator, value, onChange,
+}: {
+  field?: FieldDefinition
+  operator: string
+  value: unknown
+  onChange: (v: unknown) => void
+}) {
+  const multi = operator === 'in' || operator === 'not_in'
+  const t = field?.type
+
+  if (t === 'department' || t === 'department_multi') {
+    return (
+      <DeptField
+        multi={multi}
+        value={multi ? asMultiList(value) : asSingle(value)}
+        onChange={(nv) => onChange(multi ? (Array.isArray(nv) ? nv : []) : nv)}
+        placeholder={multi ? '选择部门（可多选）' : '选择部门'}
+      />
+    )
+  }
+
+  if (t === 'person' || t === 'person_multi') {
+    return (
+      <PersonField
+        multi={multi}
+        value={multi ? asMultiList(value) : asSingle(value)}
+        onChange={(nv) => onChange(multi ? (Array.isArray(nv) ? nv : []) : nv)}
+        placeholder={multi ? '选择人员（可多选）' : '选择人员'}
+      />
+    )
+  }
+
+  if (t === 'select' || t === 'radio' || t === 'multi_select' || t === 'checkbox') {
+    const opts = (field?.options || []).map((o) => ({ label: o.label, value: String(o.value) }))
+    return (
+      <Select
+        size="small"
+        style={{ width: '100%' }}
+        mode={multi ? 'multiple' : undefined}
+        allowClear
+        showSearch
+        optionFilterProp="label"
+        options={opts}
+        value={multi ? asMultiList(value) : asSingle(value)}
+        onChange={(v) => onChange(v ?? (multi ? [] : undefined))}
+        placeholder={multi ? '选择选项（可多选）' : '选择选项'}
+      />
+    )
+  }
+
+  if (t === 'switch') {
+    return (
+      <Select
+        size="small"
+        style={{ width: '100%' }}
+        allowClear
+        options={[
+          { label: '是 / 开', value: 'true' },
+          { label: '否 / 关', value: 'false' },
+        ]}
+        value={value == null || value === '' ? undefined : String(value)}
+        onChange={(v) => onChange(v === 'true' ? true : v === 'false' ? false : v)}
+        placeholder="选择"
+      />
+    )
+  }
+
+  if ((t === 'number' || t === 'amount') && !multi) {
+    return (
+      <InputNumber
+        size="small"
+        style={{ width: '100%' }}
+        value={value == null || value === '' ? null : Number(value)}
+        onChange={(v) => onChange(v)}
+        placeholder="数值"
+      />
+    )
+  }
+
+  return (
+    <Input
+      size="small"
+      placeholder={multi ? '多个值用逗号分隔' : '值'}
+      value={valueToInput(value)}
+      onChange={(e) => onChange(parseCondValue(operator, e.target.value))}
+    />
+  )
 }
 const genId = (p: string) => p + Math.random().toString(36).slice(2, 7)
 
@@ -163,7 +278,12 @@ function DesignerInner() {
         const needLayout = nodes.some((n) => !n.position)
         const pos = needLayout ? autoLayout(nodes, routes) : {}
         setNodes(nodes.map((n) => ({ id: n.id, type: 'wf', position: n.position || pos[n.id] || { x: 100, y: 100 }, data: { node: n } })))
-        setEdges(routes.map((r) => ({ id: r.id, source: r.source, target: r.target, label: condLabel(r.condition), data: { route: r }, animated: !!r.condition })))
+        setEdges(routes.map((r) => ({
+          id: r.id, source: r.source, target: r.target,
+          label: routeEdgeLabel(r, routes),
+          data: { route: r },
+          animated: !!r.condition || !!r.always,
+        })))
       } finally { setLoading(false) }
     })()
   }, [id])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -196,9 +316,51 @@ function DesignerInner() {
     }))
   }
   const patchEdgeCond = (eid: string, cond: WfRoute['condition']) => {
-    setEdges((eds) => eds.map((e) => e.id === eid
-      ? { ...e, label: condLabel(cond), animated: !!cond, data: { route: { ...(e.data as { route: WfRoute }).route, condition: cond } } }
-      : e))
+    setEdges((eds) => {
+      const next = eds.map((e) => {
+        if (e.id !== eid) return e
+        const route = { ...(e.data as { route: WfRoute }).route, condition: cond }
+        return { ...e, animated: !!cond || !!route.always, data: { route } }
+      })
+      const routes = next.map((e) => (e.data as { route: WfRoute }).route)
+      return next.map((e) => ({
+        ...e,
+        label: routeEdgeLabel((e.data as { route: WfRoute }).route, routes),
+      }))
+    })
+  }
+
+  const patchEdgeRoute = (eid: string, patch: Partial<WfRoute>) => {
+    setEdges((eds) => {
+      const next = eds.map((e) => {
+        if (e.id !== eid) return e
+        const route = { ...(e.data as { route: WfRoute }).route, ...patch }
+        return { ...e, animated: !!route.condition || !!route.always, data: { route } }
+      })
+      const routes = next.map((e) => (e.data as { route: WfRoute }).route)
+      return next.map((e) => ({
+        ...e,
+        label: routeEdgeLabel((e.data as { route: WfRoute }).route, routes),
+      }))
+    })
+  }
+
+  /** 同源非旁路边统一设/清互斥组 */
+  const setSourceExclusive = (source: string, enabled: boolean) => {
+    const gid = enabled ? `ex_${source}` : null
+    setEdges((eds) => {
+      const next = eds.map((e) => {
+        const route = (e.data as { route: WfRoute }).route
+        if (route.source !== source || route.always) return e
+        const updated = { ...route, exclusive_group: gid }
+        return { ...e, data: { route: updated } }
+      })
+      const routes = next.map((e) => (e.data as { route: WfRoute }).route)
+      return next.map((e) => ({
+        ...e,
+        label: routeEdgeLabel((e.data as { route: WfRoute }).route, routes),
+      }))
+    })
   }
   const delSelected = () => {
     if (selNode && !['start', 'end'].includes(selNode)) { setNodes((n) => n.filter((x) => x.id !== selNode)); setEdges((e) => e.filter((x) => x.source !== selNode && x.target !== selNode)); setSelNode(null) }
@@ -281,8 +443,24 @@ function DesignerInner() {
               onPatch={(p) => patchNode(selectedNode.id, p)}
               onDelete={delSelected} />
           ) : selectedEdge ? (
-            <EdgeConfig route={(selectedEdge.data as { route: WfRoute }).route} formFields={formFields}
-              onCond={(c) => patchEdgeCond(selectedEdge.id, c)} onDelete={delSelected} />
+            <EdgeConfig
+              route={(selectedEdge.data as { route: WfRoute }).route}
+              formFields={formFields}
+              sourceExclusive={
+                !!(selectedEdge.data as { route: WfRoute }).route.exclusive_group
+                || rfEdges.some((e) => {
+                  const r = (e.data as { route: WfRoute }).route
+                  return r.source === (selectedEdge.data as { route: WfRoute }).route.source
+                    && !r.always && !!r.exclusive_group
+                })
+              }
+              onCond={(c) => patchEdgeCond(selectedEdge.id, c)}
+              onExclusive={(on) => setSourceExclusive(
+                (selectedEdge.data as { route: WfRoute }).route.source, on,
+              )}
+              onAlways={(on) => patchEdgeRoute(selectedEdge.id, { always: on || undefined })}
+              onDelete={delSelected}
+            />
           ) : (
             <Empty description="点节点或连线编辑;拖动锚点连线" image={Empty.PRESENTED_IMAGE_SIMPLE} />
           )}
@@ -452,8 +630,14 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
   )
 }
 
-function EdgeConfig({ route, formFields, onCond, onDelete }: {
-  route: WfRoute; formFields: FieldDefinition[]; onCond: (c: WfRoute['condition']) => void; onDelete: () => void
+function EdgeConfig({ route, formFields, sourceExclusive, onCond, onExclusive, onAlways, onDelete }: {
+  route: WfRoute
+  formFields: FieldDefinition[]
+  sourceExclusive: boolean
+  onCond: (c: WfRoute['condition']) => void
+  onExclusive: (on: boolean) => void
+  onAlways: (on: boolean) => void
+  onDelete: () => void
 }) {
   const fieldOpts = formFields
     .filter((f) => f.type !== 'detail_table')
@@ -482,11 +666,30 @@ function EdgeConfig({ route, formFields, onCond, onDelete }: {
   }
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="small">
-      <Text type="secondary" style={{ fontSize: 12 }}>连线条件(满足才走此分支;无条件=默认分支)</Text>
+      <Text type="secondary" style={{ fontSize: 12 }}>
+        连线条件（互斥组内=if/else 只走一条；未互斥则可多条件并行）
+      </Text>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <Text style={{ fontSize: 12 }}>同源出边互斥 (if/else)</Text>
+        <Switch size="small" checked={sourceExclusive && !route.always}
+          disabled={!!route.always}
+          onChange={onExclusive} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <Text style={{ fontSize: 12 }}>旁路抄送 (always)</Text>
+        <Switch size="small" checked={!!route.always} onChange={onAlways} />
+      </div>
+      {!route.always && sourceExclusive && !hasCond && (
+        <Text type="secondary" style={{ fontSize: 12 }}>当前为 else 分支（无条件，互斥组内兜底）</Text>
+      )}
       <Select size="small" style={{ width: '100%' }} value={hasCond ? 'cond' : 'none'}
-        options={[{ label: '默认(无条件)', value: 'none' }, { label: '设置条件', value: 'cond' }]}
+        disabled={!!route.always}
+        options={[
+          { label: sourceExclusive ? 'else（无条件）' : '默认(无条件)', value: 'none' },
+          { label: '设置条件', value: 'cond' },
+        ]}
         onChange={(v) => onCond(v === 'none' ? null : { rel: 'and', cond: [{ field: defaultField, operator: 'eq', value: '' }] })} />
-      {hasCond && (
+      {hasCond && !route.always && (
         <>
           <Space size={6} wrap>
             <Text style={{ fontSize: 12 }}>满足</Text>
@@ -497,20 +700,21 @@ function EdgeConfig({ route, formFields, onCond, onDelete }: {
           </Space>
           {conds.map((c, ci) => {
             const noVal = c.operator === 'is_empty' || c.operator === 'is_not_empty'
+            const fd = formFields.find((f) => f.id === c.field)
             return (
               <div key={ci} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 8, background: '#fafafa', borderRadius: 6 }}>
                 <Select size="small" style={{ width: '100%' }} placeholder="字段" value={c.field || undefined}
                   options={fieldOpts}
-                  onChange={(v) => setConds(conds.map((x, k) => (k === ci ? { ...x, field: v } : x)))} />
+                  onChange={(v) => setConds(conds.map((x, k) => (k === ci ? { ...x, field: v, value: undefined } : x)))} />
                 <Select size="small" style={{ width: '100%' }} value={c.operator || 'eq'} options={OPERATORS}
                   onChange={(v) => setConds(conds.map((x, k) => (k === ci ? { ...x, operator: v } : x)))} />
                 {!noVal && (
-                  <Input size="small"
-                    placeholder={c.operator === 'in' || c.operator === 'not_in' ? '多个值用逗号分隔' : '值'}
-                    value={valueToInput(c.value)}
-                    onChange={(e) => setConds(conds.map((x, k) => (
-                      k === ci ? { ...x, value: parseCondValue(c.operator, e.target.value) } : x
-                    )))} />
+                  <CondValueInput
+                    field={fd}
+                    operator={c.operator || 'eq'}
+                    value={c.value}
+                    onChange={(nv) => setConds(conds.map((x, k) => (k === ci ? { ...x, value: nv } : x)))}
+                  />
                 )}
                 <Button size="small" type="text" danger icon={<DeleteOutlined />} disabled={conds.length <= 1}
                   onClick={() => setConds(conds.filter((_, k) => k !== ci))} style={{ alignSelf: 'flex-end' }}>
