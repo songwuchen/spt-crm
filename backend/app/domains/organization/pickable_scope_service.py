@@ -31,6 +31,14 @@ PRESET_SCOPES = [
         "is_system": True,
         "rules": {"role_codes": [], "user_ids": [], "dept_ids": [], "include_children": True},
     },
+    {
+        "code": "fa-zxxgy",
+        "name": "方案管理-转新乡、工艺包装",
+        "kind": "person",
+        "description": "方案管理「转新乡、工艺包装」人选范围；在此直接勾选成员。",
+        "is_system": True,
+        "rules": {"role_codes": [], "user_ids": [], "dept_ids": [], "include_children": True},
+    },
 ]
 
 

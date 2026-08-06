@@ -395,6 +395,27 @@ _FIELD_TENANT_OVERRIDE_KEYS = (
 )
 
 
+def _merge_field_props(want_props: dict | None, cur_props: dict | None) -> dict | None:
+    """合并 props：builtin 有的键优先；租户已配的 pickable_scope 在 builtin 未声明时保留。
+
+    避免 ensure/sync 用无范围的 builtin 字段把「转新乡、工艺包装」等已配范围冲掉，
+    导致审批选人又变成全员。
+    """
+    w = dict(want_props or {}) if isinstance(want_props, dict) else {}
+    c = dict(cur_props or {}) if isinstance(cur_props, dict) else {}
+    if not w and not c:
+        return None
+    out = dict(c)
+    out.update(w)
+    want_scope = w.get("pickable_scope") if isinstance(w.get("pickable_scope"), dict) else None
+    cur_scope = c.get("pickable_scope") if isinstance(c.get("pickable_scope"), dict) else None
+    if cur_scope and not (want_scope and want_scope.get("scope_code")):
+        out["pickable_scope"] = cur_scope
+    elif want_scope:
+        out["pickable_scope"] = want_scope
+    return out or None
+
+
 def _merge_builtin_field_defs(want: list, current: list) -> list:
     """builtin 结构为准，租户阶段/必填/权限/文案覆盖同 id 字段。"""
     cur_by_id = {
@@ -416,6 +437,14 @@ def _merge_builtin_field_defs(want: list, current: list) -> list:
         for k in _FIELD_TENANT_OVERRIDE_KEYS:
             if k in c:
                 merged[k] = c[k]
+        merged_props = _merge_field_props(
+            f.get("props") if isinstance(f.get("props"), dict) else None,
+            c.get("props") if isinstance(c.get("props"), dict) else None,
+        )
+        if merged_props is not None:
+            merged["props"] = merged_props
+        elif "props" in merged and not merged.get("props"):
+            merged.pop("props", None)
         # 明细列：按列 id 保留必填等
         want_cols = merged.get("detail_table_columns") or []
         cur_cols = {
