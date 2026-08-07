@@ -1,9 +1,11 @@
 // 扩展平台 → 表单数据列表: 某模板的填报记录(看/改/删 + 去填报)。
-import { useEffect, useState, useCallback } from 'react'
+// 支持通用「明细展开」：主表字段 rowSpan 合并 + 明细子列分组表头（对齐简道云列表）。
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   Button, Space, Tag, Modal, message, Popconfirm, Typography,
 } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { ArrowLeftOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons'
@@ -15,7 +17,9 @@ import FormRenderer, { validateRequired, deriveRolePerms } from '@/components/lo
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { DRAWING_FORM_LAYOUT, applyDrawingFormLayout } from '@/constants/drawingFormLayout'
+import {
+  DRAWING_FORM_LAYOUT, applyDrawingFormLayout, resolveListExpandDetail,
+} from '@/constants/drawingFormLayout'
 import { getPersonLabelMap } from '@/components/lowcode/fields/PersonField'
 import { getDeptNameMap } from '@/components/lowcode/fields/DeptField'
 import { getProjectLabelMap } from '@/components/lowcode/fields/ProjectField'
@@ -46,8 +50,13 @@ const LIST_PRIORITY = new Set([
   'select', 'radio', 'checkbox', 'switch', 'person', 'department', 'project', 'contract', 'customer',
 ])
 
-function pickListColumns(fields: FieldDefinition[], max = 8): FieldDefinition[] {
+function pickListColumns(
+  fields: FieldDefinition[],
+  max = 8,
+  excludeIds?: Set<string>,
+): FieldDefinition[] {
   const listable = fields.filter((f) => {
+    if (excludeIds?.has(f.id)) return false
     if (LIST_EXCLUDE_TYPES.has(f.type)) return false
     // 人员/部门旁常有「xxx（文本）」伴随字段，列表里优先显示解析后的人员列，跳过空文本桩
     if (/_text$|（文本）|\(文本\)$/.test(f.id) || /文本/.test(f.label || '')) return false
@@ -66,6 +75,66 @@ function pickListColumns(fields: FieldDefinition[], max = 8): FieldDefinition[] 
     ...rest,
   ]
   return sorted.slice(0, max)
+}
+
+/** 明细表在列表中展示的子列（跳过已取消/重类型） */
+const DETAIL_LIST_TYPES = new Set([
+  'text', 'number', 'amount', 'select', 'radio', 'date', 'datetime', 'checkbox', 'multi_select',
+])
+
+function pickDetailListColumns(detailField: FieldDefinition, max = 6): FieldDefinition[] {
+  const cols = detailField.detail_table_columns || []
+  return cols.filter((c) => {
+    if (!DETAIL_LIST_TYPES.has(c.type)) return false
+    if (/取消/.test(c.label || '')) return false
+    if (c.available_on_create === false && c.fill_stage === 'approver') return false
+    return true
+  }).slice(0, max)
+}
+
+/** 主记录 × 明细行展开；无明细时仍占 1 行（明细列显示 —） */
+type DetailFlatRow = {
+  key: string
+  record: FormInstance
+  detailIndex: number
+  detailRow: Record<string, unknown> | null
+  /** 主字段单元格 rowSpan；非首行明细为 0 */
+  rowSpan: number
+}
+
+function flattenInstancesByDetail(
+  items: FormInstance[],
+  detailFieldId: string,
+): DetailFlatRow[] {
+  const out: DetailFlatRow[] = []
+  for (const rec of items) {
+    const raw = rec.form_data?.[detailFieldId]
+    const details = Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
+    const n = Math.max(details.length, 1)
+    for (let i = 0; i < n; i++) {
+      out.push({
+        key: `${rec.id}:${i}`,
+        record: rec,
+        detailIndex: i,
+        detailRow: details[i] ?? null,
+        rowSpan: i === 0 ? n : 0,
+      })
+    }
+  }
+  return out
+}
+
+/** 列表「单号」：business_no → 流水/编号类字段 */
+function recordListNo(r: FormInstance, fields: FieldDefinition[]): string {
+  if (r.business_no) return r.business_no
+  const preferred = fields.find((f) => f.type === 'auto_number')
+    || fields.find((f) => /(?:^|_)(?:serial_no|payment_no|sn)$/.test(f.id))
+    || fields.find((f) => /号$/.test(f.label || '') && (f.type === 'text' || f.type === 'auto_number'))
+  if (preferred) {
+    const v = r.form_data?.[preferred.id]
+    if (v != null && v !== '') return String(v)
+  }
+  return '—'
 }
 
 type NameMaps = {
@@ -175,6 +244,7 @@ export default function FormDataListPage({
   const location = useLocation()
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const [name, setName] = useState('')
+  const [schemaFields, setSchemaFields] = useState<FieldDefinition[]>([])
   const [colFields, setColFields] = useState<FieldDefinition[]>([])
   const [rules, setRules] = useState<FormRule[]>([])
   const [items, setItems] = useState<FormInstance[]>([])
@@ -192,6 +262,18 @@ export default function FormDataListPage({
   const fillPath = fillPathProp
     || (isModule ? `${location.pathname.replace(/\/$/, '')}/fill` : `/lowcode/forms/${id}/fill`)
   const drawingLayout = templateCode ? DRAWING_FORM_LAYOUT[templateCode] : undefined
+  const expandDetail = useMemo(
+    () => resolveListExpandDetail(schemaFields, templateCode),
+    [schemaFields, templateCode],
+  )
+  const detailCols = useMemo(
+    () => (expandDetail ? pickDetailListColumns(expandDetail) : []),
+    [expandDetail],
+  )
+  const flatRows = useMemo(
+    () => (expandDetail ? flattenInstancesByDetail(items, expandDetail.id) : null),
+    [expandDetail, items],
+  )
 
   const load = useCallback(async () => {
     if (!id) return
@@ -211,11 +293,14 @@ export default function FormDataListPage({
       try {
         const ver = await lowcodeApi.publishedVersion(id)
         const fs = (ver.data.field_definitions as FieldDefinition[]) || []
-        setColFields(pickListColumns(fs))
+        setSchemaFields(fs)
+        const expand = resolveListExpandDetail(fs, templateCode)
+        const exclude = expand ? new Set([expand.id]) : undefined
+        setColFields(pickListColumns(fs, expand ? 6 : 8, exclude))
         setRules((ver.data.rule_definitions as FormRule[]) || [])
       } catch { /* 未发布 */ }
     })()
-  }, [id])
+  }, [id, templateCode])
   useEffect(() => { load() }, [load])
 
   // 列表里 person/department/project/contract/customer 存的是 id，需解析成显示名
@@ -225,10 +310,24 @@ export default function FormDataListPage({
     const projectIds: string[] = []
     const contractIds: string[] = []
     const customerIds: string[] = []
-    const needDept = colFields.some((f) => f.type === 'department' || f.type === 'department_multi')
-    for (const f of colFields) {
+    const mapFields = [...colFields, ...detailCols]
+    const needDept = mapFields.some((f) => f.type === 'department' || f.type === 'department_multi')
+    for (const f of mapFields) {
       if (f.type === 'person' || f.type === 'person_multi') {
-        for (const row of items) personIds.push(...collectIds(row.form_data?.[f.id]))
+        for (const row of items) {
+          if (expandDetail && f.id !== expandDetail.id) {
+            // 明细子列里的人员：从各明细行取
+            const details = Array.isArray(row.form_data?.[expandDetail.id])
+              ? (row.form_data![expandDetail.id] as Record<string, unknown>[])
+              : []
+            const inDetail = detailCols.some((d) => d.id === f.id)
+            if (inDetail) {
+              for (const d of details) personIds.push(...collectIds(d?.[f.id]))
+              continue
+            }
+          }
+          personIds.push(...collectIds(row.form_data?.[f.id]))
+        }
       }
       if (f.type === 'project') {
         for (const row of items) projectIds.push(...collectIds(row.form_data?.[f.id]))
@@ -253,7 +352,7 @@ export default function FormDataListPage({
       setNameMaps({ users, depts, projects, contracts, customers })
     })()
     return () => { alive = false }
-  }, [items, colFields])
+  }, [items, colFields, detailCols, expandDetail])
 
   const loadWorkflow = async (recId: string, processInstanceId?: string | null) => {
     try {
@@ -388,45 +487,112 @@ export default function FormDataListPage({
     load()
   }
 
-  const columns = [
-    // 侧栏业务模块不展示空的「单号/标题」（本类表单以图纸编号等业务字段为主）
-    ...(!isModule ? [
-      { title: '单号', dataIndex: 'business_no', key: 'business_no', render: (v: string) => v || '—' },
-      { title: '标题', dataIndex: 'title', key: 'title', render: (v: string) => v || '—' },
-    ] : []),
-    ...colFields.map((f) => ({
-      title: f.label, key: f.id, ellipsis: true,
-      width: f.type === 'datetime' ? 160
-        : (f.type === 'person' || f.type === 'department') ? 120
-          : 140,
-      render: (_: unknown, r: FormInstance) => cellText(f, r.form_data?.[f.id], nameMaps),
-    })),
-    {
-      title: '状态', dataIndex: 'status', key: 'status', width: 90, fixed: 'right' as const,
-      render: (s: string) => { const t = STATUS_TAG[s] || { color: 'default', text: s }; return <Tag color={t.color}>{t.text}</Tag> },
-    },
-    {
-      title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 170, fixed: 'right' as const,
-      render: (v: string) => (v ? formatCellDateTime(v, true) : '—'),
-    },
-    {
-      title: '操作', key: 'op', width: 220, fixed: 'right' as const,
-      render: (_: unknown, r: FormInstance) => (
-        <Space size="small">
-          <Button size="small" type="link" onClick={() => openView(r.id, true)}>查看</Button>
-          {(r.status === 'draft' || r.status === 'rejected') && (
-            <Button size="small" type="link" onClick={() => openView(r.id, false)}>编辑</Button>
-          )}
-          {(r.status === 'draft' || r.status === 'rejected') && (
-            <Button size="small" type="link" onClick={() => openView(r.id, false)}>提交审批</Button>
-          )}
-          <Popconfirm title="确认删除该记录?" onConfirm={() => del(r.id)}>
-            <Button size="small" type="link" danger>删除</Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ]
+  const renderOps = (r: FormInstance) => (
+    <Space size="small">
+      <Button size="small" type="link" onClick={() => openView(r.id, true)}>查看</Button>
+      {(r.status === 'draft' || r.status === 'rejected') && (
+        <Button size="small" type="link" onClick={() => openView(r.id, false)}>编辑</Button>
+      )}
+      {(r.status === 'draft' || r.status === 'rejected') && (
+        <Button size="small" type="link" onClick={() => openView(r.id, false)}>提交审批</Button>
+      )}
+      <Popconfirm title="确认删除该记录?" onConfirm={() => del(r.id)}>
+        <Button size="small" type="link" danger>删除</Button>
+      </Popconfirm>
+    </Space>
+  )
+
+  const columns: ColumnsType<FormInstance | DetailFlatRow> = expandDetail && flatRows
+    ? [
+        {
+          title: '标题', key: 'title', width: 160, ellipsis: true,
+          onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
+          render: (_: unknown, row) => (row as DetailFlatRow).record.title || '—',
+        },
+        {
+          title: '单号', key: 'business_no', width: 140, ellipsis: true,
+          onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
+          render: (_: unknown, row) =>
+            recordListNo((row as DetailFlatRow).record, schemaFields),
+        },
+        ...colFields.map((f) => ({
+          title: f.label,
+          key: f.id,
+          ellipsis: true as const,
+          width: f.type === 'datetime' ? 130
+            : (f.type === 'person' || f.type === 'department') ? 120
+              : 140,
+          onCell: (row: FormInstance | DetailFlatRow) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
+          render: (_: unknown, row: FormInstance | DetailFlatRow) =>
+            cellText(f, (row as DetailFlatRow).record.form_data?.[f.id], nameMaps),
+        })),
+        {
+          title: expandDetail.label || '明细',
+          key: `__detail_${expandDetail.id}`,
+          children: detailCols.map((c) => ({
+            title: c.label,
+            key: `${expandDetail.id}.${c.id}`,
+            ellipsis: true as const,
+            width: c.type === 'number' || c.type === 'amount' ? 110
+              : c.type === 'datetime' || c.type === 'date' ? 120
+                : 130,
+            render: (_: unknown, row: FormInstance | DetailFlatRow) => {
+              const dr = (row as DetailFlatRow).detailRow
+              return cellText(c, dr?.[c.id], nameMaps)
+            },
+          })),
+        },
+        {
+          title: '状态', key: 'status', width: 90, fixed: 'right' as const,
+          onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
+          render: (_: unknown, row) => {
+            const s = (row as DetailFlatRow).record.status || ''
+            const t = STATUS_TAG[s] || { color: 'default', text: s }
+            return <Tag color={t.color}>{t.text}</Tag>
+          },
+        },
+        {
+          title: '操作', key: 'op', width: 200, fixed: 'right' as const,
+          onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
+          render: (_: unknown, row) => renderOps((row as DetailFlatRow).record),
+        },
+      ]
+    : [
+        // 侧栏业务模块不展示空的「单号/标题」（本类表单以图纸编号等业务字段为主）
+        ...(!isModule ? [
+          {
+            title: '单号', dataIndex: 'business_no', key: 'business_no',
+            render: (v: string) => v || '—',
+          },
+          {
+            title: '标题', dataIndex: 'title', key: 'title',
+            render: (v: string) => v || '—',
+          },
+        ] : []),
+        ...colFields.map((f) => ({
+          title: f.label, key: f.id, ellipsis: true as const,
+          width: f.type === 'datetime' ? 160
+            : (f.type === 'person' || f.type === 'department') ? 120
+              : 140,
+          render: (_: unknown, r: FormInstance | DetailFlatRow) =>
+            cellText(f, (r as FormInstance).form_data?.[f.id], nameMaps),
+        })),
+        {
+          title: '状态', dataIndex: 'status', key: 'status', width: 90, fixed: 'right' as const,
+          render: (s: string) => {
+            const t = STATUS_TAG[s] || { color: 'default', text: s }
+            return <Tag color={t.color}>{t.text}</Tag>
+          },
+        },
+        {
+          title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 170, fixed: 'right' as const,
+          render: (v: string) => (v ? formatCellDateTime(v, true) : '—'),
+        },
+        {
+          title: '操作', key: 'op', width: 220, fixed: 'right' as const,
+          render: (_: unknown, r: FormInstance | DetailFlatRow) => renderOps(r as FormInstance),
+        },
+      ]
 
   const showFlowPane = !!wfDetail || (
     !!viewRec && ['submitted', 'running', 'completed', 'rejected'].includes(viewRec.status || '')
@@ -456,9 +622,24 @@ export default function FormDataListPage({
         </Space>
       </div>
       <FillHeightTable
-          rowKey="id" loading={loading} columns={columns} dataSource={items}
-          scroll={{ x: Math.max(1100, 140 * colFields.length + 440) }}
-          pagination={{ current: pageNo, total, pageSize: 20, onChange: setPageNo, showSizeChanger: false }}
+          rowKey={expandDetail ? 'key' : 'id'}
+          loading={loading}
+          columns={columns}
+          dataSource={(flatRows || items) as (FormInstance | DetailFlatRow)[]}
+          scroll={{
+            x: Math.max(
+              1100,
+              140 * colFields.length + (expandDetail ? 120 * detailCols.length + 200 : 0) + 440,
+            ),
+          }}
+          pagination={{
+            current: pageNo,
+            total,
+            pageSize: 20,
+            onChange: setPageNo,
+            showSizeChanger: false,
+            showTotal: (t) => `共 ${t} 条`,
+          }}
         />
 
       <Modal

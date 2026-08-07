@@ -1,4 +1,4 @@
-// 合同图纸领用 / 安装图设计通知：分区布局 + 栅格 span（对齐简道云观感）
+// 图纸 / 方案 / 生产卡 / 开票 / 收款：分区布局 + 栅格 span（对齐简道云 lineWidth，×2 为 antd Col span）
 import type { FieldDefinition } from '@/types/lowcode'
 
 export type DrawingSection = { title: string; fieldIds: string[] }
@@ -8,6 +8,11 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
   /** fieldId -> antd Col span (default 12 for short, 24 for long) */
   spans?: Record<string, number>
   contentMaxWidth?: number
+  /**
+   * 列表展开的明细表字段 id（简道云式主表 rowSpan + 明细多列）。
+   * 也可用字段 props.list_expand=true 声明；二者任一即可。
+   */
+  listExpandDetail?: string
 }> = {
   drawing_requisition: {
     contentMaxWidth: 1080,
@@ -128,7 +133,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
           'scheme_detail', 'install_env', 'install_position',
           'foundation_drawing', 'install_method', 'scheme_material',
           'attention', 'attachment_names', 'attachments_no_image',
-          'need_submit_drawing', 'offices_multi', 'transfer_sw_lwt',
+          'offices_multi', 'transfer_sw_lwt',
         ],
       },
       {
@@ -148,6 +153,162 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
       attachments_no_image: 24,
     },
   },
+  // 生产卡/补充流程：分区对齐 JDY 分隔条；span = lineWidth×2
+  prod_card_supplement: {
+    contentMaxWidth: 1100,
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'card_date', 'department', 'submitter', 'is_supplement',
+          'involve_outsource', 'is_finance_only', 'is_shipped', 'involve_amount_change',
+          'is_unit_change', 'is_robot', 'f_240503', 'increase_cost',
+          'need_research_drawing', 'product_type', 'is_turnkey', 'responsible_party',
+        ],
+      },
+      {
+        title: '补充 / 合同信息',
+        fieldIds: [
+          'drawing_no_query', 'no_sales_person', 'no_drawing_no',
+          'contract_no_select', 'paint_req_supplement',
+          'yes_contract_no', 'yes_sales_person', 'yes_customer_name',
+          'customer_sales_select', 'description', 'region_manager',
+        ],
+      },
+      {
+        title: '车间填写',
+        fieldIds: ['std_room_fill', 'elec_workshop_fill'],
+      },
+      {
+        title: '技术协议与附件',
+        fieldIds: [
+          'need_dispatch', 'need_elec_workshop', 'has_tech_agreement', 'tech_agreement_std',
+          'attachments', 'images', 'confirm_agreement',
+        ],
+      },
+      {
+        title: '设计指派填写',
+        fieldIds: [
+          'design_dispatch', 'transfer_packaging_users', 'design_assignees', 'offices',
+          'order_datetime', 'order_type', 'field',
+          'has_install_project', 'f_251128', 'install_project_no', 'f_0414',
+        ],
+      },
+      {
+        title: '生产卡通知单上的内容',
+        fieldIds: [
+          'prod_card_line_items', 'packaging_req', 'project_name', 'paint_req',
+          'tech_params', 'no_warranty_period', 'special_reminder',
+          'remark_prod_card', 'special_reminder_multi',
+        ],
+      },
+      {
+        title: '合同技术协议评审',
+        fieldIds: [
+          'has_contract_tech_review', 'select_contract_tech_review', 'contract_tech_review_sn',
+        ],
+      },
+    ],
+    spans: {
+      card_date: 6, department: 6, submitter: 6, is_supplement: 6,
+      involve_outsource: 6, is_finance_only: 6, is_shipped: 6, involve_amount_change: 6,
+      is_unit_change: 6, is_robot: 6, f_240503: 6, increase_cost: 6,
+      need_research_drawing: 6, product_type: 6, is_turnkey: 6, responsible_party: 6,
+      drawing_no_query: 24, no_sales_person: 6, no_drawing_no: 6,
+      contract_no_select: 24, paint_req_supplement: 24,
+      yes_contract_no: 6, yes_sales_person: 6, yes_customer_name: 6,
+      customer_sales_select: 12, description: 24, region_manager: 12,
+      std_room_fill: 24, elec_workshop_fill: 24,
+      need_dispatch: 24, need_elec_workshop: 6, has_tech_agreement: 6, tech_agreement_std: 12,
+      attachments: 12, images: 12, confirm_agreement: 24,
+      design_dispatch: 12, transfer_packaging_users: 12, design_assignees: 12, offices: 12,
+      order_datetime: 8, order_type: 8, field: 8,
+      has_install_project: 6, f_251128: 24, install_project_no: 24, f_0414: 24,
+      prod_card_line_items: 24,
+      packaging_req: 8, project_name: 8, paint_req: 8,
+      tech_params: 8, no_warranty_period: 6, special_reminder: 12,
+      remark_prod_card: 8, special_reminder_multi: 8,
+      has_contract_tech_review: 12, select_contract_tech_review: 12, contract_tech_review_sn: 12,
+    },
+  },
+  // 开票申请
+  invoice_application: {
+    contentMaxWidth: 1080,
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'apply_date', 'department', 'drawing_no_select',
+          'drawing_no', 'customer_name', 'dept_contract_no', 'customer_no',
+          'sales_person', 'contract_data',
+        ],
+      },
+      {
+        title: '合同明细与合计',
+        fieldIds: [
+          'contract_lines_new', 'contract_lines_change',
+          'total_amount', 'total_amount_adjusted', 'customer_code',
+        ],
+      },
+      {
+        title: '开票与附件',
+        fieldIds: [
+          'invoice_datetime', 'invoice_special_req', 'invoice_no', 'remark',
+          'invoice_email', 'attachments', 'images',
+        ],
+      },
+    ],
+    spans: {
+      serial_no: 6, apply_date: 6, department: 6, drawing_no_select: 6,
+      drawing_no: 6, customer_name: 12, dept_contract_no: 6, customer_no: 6,
+      sales_person: 6, contract_data: 24,
+      contract_lines_new: 24, contract_lines_change: 24,
+      total_amount: 8, total_amount_adjusted: 8, customer_code: 8,
+      invoice_datetime: 6, invoice_special_req: 18, invoice_no: 6, remark: 18,
+      invoice_email: 8, attachments: 8, images: 8,
+    },
+  },
+  // 收款登记（内勤填写对齐 JDY separator）
+  payment_registration: {
+    contentMaxWidth: 1080,
+    listExpandDetail: 'payment_details',
+    sections: [
+      {
+        title: '来款信息',
+        fieldIds: [
+          'payment_no', 'payment_date', 'customer_name', 'department',
+          'payment_details', 'payment_total',
+        ],
+      },
+      {
+        title: '内勤填写',
+        fieldIds: [
+          'sales_person', 'payment_allocation', 'alloc_total',
+          'discount_docs', 'penalty_docs', 'images', 'remark_2',
+        ],
+      },
+    ],
+    spans: {
+      payment_no: 6, payment_date: 6, customer_name: 6, department: 6,
+      payment_details: 24, payment_total: 12,
+      sales_person: 12, payment_allocation: 24, alloc_total: 6,
+      discount_docs: 6, penalty_docs: 6, images: 6, remark_2: 24,
+    },
+  },
+}
+
+/** 解析列表应展开的明细表：字段 props.list_expand 优先，其次布局 listExpandDetail */
+export function resolveListExpandDetail(
+  fields: FieldDefinition[],
+  templateCode?: string,
+): FieldDefinition | undefined {
+  const byProp = fields.find(
+    (f) => f.type === 'detail_table' && !!(f.props as { list_expand?: boolean } | undefined)?.list_expand,
+  )
+  if (byProp) return byProp
+  const id = templateCode ? DRAWING_FORM_LAYOUT[templateCode]?.listExpandDetail : undefined
+  if (!id) return undefined
+  return fields.find((f) => f.id === id && f.type === 'detail_table')
 }
 
 const SHORT_TYPES = new Set([

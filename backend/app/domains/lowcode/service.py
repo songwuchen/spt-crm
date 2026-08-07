@@ -311,12 +311,12 @@ async def sync_builtin_form_fields(
                     {"label": "领图", "value": "领图"},
                 ]
                 break
-        # 明细表已从方案管理去掉（选项仍保留）
+        # 方案管理已去掉的字段（明细 + 是否上交图纸）
         want = [
             fd for fd in want
             if not (
                 isinstance(fd, dict)
-                and fd.get("id") in ("change_scheme", "non_scheme_material")
+                and fd.get("id") in ("change_scheme", "non_scheme_material", "need_submit_drawing")
             )
         ]
         want_rules = [
@@ -332,9 +332,11 @@ async def sync_builtin_form_fields(
                         )
                     )
                     or (
-                        r.get("target_field_id") in ("change_scheme", "non_scheme_material")
+                        r.get("target_field_id") in (
+                            "change_scheme", "non_scheme_material", "need_submit_drawing",
+                        )
                         or bool(set(r.get("target_field_ids") or []) & {
-                            "change_scheme", "non_scheme_material",
+                            "change_scheme", "non_scheme_material", "need_submit_drawing",
                         })
                     )
                 )

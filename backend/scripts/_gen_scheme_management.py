@@ -51,7 +51,7 @@ RELATED_CUSTOMER = {
 
 
 # 方案管理不需要：订货人/设计人文本桩、前期沟通设计员文本、是否解密、项目号/是否新项目/业务员、
-# 以及「修改方案 / 非出方案图物料特性」明细（下图类型选项仍保留）
+# 「修改方案 / 非出方案图物料特性」明细、是否上交图纸（下图类型选项仍保留）
 DROP_FIELD_IDS = frozenset({
     "order_person_text",
     "designer_text",
@@ -63,6 +63,7 @@ DROP_FIELD_IDS = frozenset({
     "sales_person",
     "change_scheme",
     "non_scheme_material",
+    "need_submit_drawing",
 })
 
 # 这些字段只用「scheme_type 显隐」，不套简道云原条件（否则后写规则会盖掉类型显隐）
