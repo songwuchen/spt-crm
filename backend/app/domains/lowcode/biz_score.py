@@ -102,3 +102,120 @@ def flow_missing_biz_score_perms(nodes: list | None) -> bool:
             return True
     # 方案流应有「业务打分」；若节点都没有则不算 missing（避免误伤无关流）
     return False if saw_target else False
+
+
+def flow_missing_chief_gm_perm(nodes: list | None) -> bool:
+    """方案管理「总工审批」缺少 need_gm_approval 必填权限 → 需升级。"""
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if n.get("name") != "总工审批":
+            continue
+        fps = {
+            p.get("field")
+            for p in (n.get("field_perms") or [])
+            if isinstance(p, dict) and p.get("access") == "required"
+        }
+        if "need_gm_approval" not in fps:
+            return True
+    return False
+
+
+def apply_chief_gm_flow_nodes(nodes: list[dict[str, Any]] | None) -> None:
+    """给所有「总工审批」节点挂上 need_gm_approval=required。"""
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if n.get("name") != "总工审批":
+            continue
+        perms = [
+            p for p in (n.get("field_perms") or [])
+            if isinstance(p, dict) and p.get("field")
+        ]
+        by_f = {str(p["field"]): str(p.get("access") or "editable") for p in perms}
+        by_f["need_gm_approval"] = "required"
+        n["field_perms"] = [{"field": k, "access": v} for k, v in by_f.items()]
+
+
+def flow_missing_install_gm_branch(nodes: list | None, routes: list | None) -> bool:
+    """无合同号总工未按 need_gm_approval 分支到总经理审批。"""
+    has_node = any(
+        isinstance(n, dict) and n.get("id") == "ins_n_gm"
+        for n in (nodes or [])
+    )
+    has_route = any(
+        isinstance(r, dict)
+        and r.get("source") == "ins_n7"
+        and r.get("target") == "ins_n_gm"
+        and "need_gm_approval" in str(r.get("condition") or "")
+        for r in (routes or [])
+    )
+    return not (has_node and has_route)
+
+
+def apply_install_gm_branch(nodes: list[dict[str, Any]], routes: list[dict[str, Any]]) -> None:
+    """就地补无合同号 need_gm → 总经理审批 分支（保留已 remap 的审批人）。"""
+    import copy
+
+    req_gm = next((n for n in nodes if isinstance(n, dict) and n.get("id") == "req_n18"), None)
+    if not any(isinstance(n, dict) and n.get("id") == "ins_n_gm" for n in nodes):
+        gm_rule = copy.deepcopy((req_gm or {}).get("approver_rule")) or {
+            "type": "specified_user",
+            "value": "02336214315748",
+        }
+        # 若现网抄送总经理已 remap，优先复用其审批人作为总经理审批人
+        cc = next((n for n in nodes if isinstance(n, dict) and n.get("id") == "ins_n12"), None)
+        if isinstance(cc, dict) and isinstance(cc.get("approver_rule"), dict):
+            gm_rule = copy.deepcopy(cc["approver_rule"])
+        nodes.append({
+            "id": "ins_n_gm",
+            "type": "approval",
+            "name": "总经理审批",
+            "approver_rule": gm_rule,
+            "multi_mode": (req_gm or {}).get("multi_mode") or "or_sign",
+            "empty_strategy": (req_gm or {}).get("empty_strategy") or "auto_approve",
+            "field_perms": [],
+        })
+
+    kept = [r for r in routes if not (isinstance(r, dict) and r.get("source") == "ins_n7")]
+    # 保留原 is_xiaomeng→周经理 边的其它元数据（若有）
+    kept.extend([
+        {
+            "id": "ins_r_n7_gm",
+            "source": "ins_n7",
+            "target": "ins_n_gm",
+            "exclusive_group": "ex_n7",
+            "condition": {"field": "need_gm_approval", "operator": "eq", "value": "是"},
+        },
+        {
+            "id": "ins_r_n7_zhou",
+            "source": "ins_n7",
+            "target": "ins_n9",
+            "exclusive_group": "ex_n7",
+            "condition": {"field": "is_xiaomeng", "operator": "eq", "value": "是"},
+        },
+        {
+            "id": "ins_r_n7_design",
+            "source": "ins_n7",
+            "target": "ins_n5",
+            "exclusive_group": "ex_n7",
+        },
+        {
+            "id": "ins_r_n7_cc_gm",
+            "source": "ins_n7",
+            "target": "ins_n12",
+            "always": True,
+            "condition": {"field": "need_gm_approval", "operator": "eq", "value": "否"},
+        },
+    ])
+    if not any(
+        isinstance(r, dict) and r.get("source") == "ins_n_gm" and r.get("target") == "ins_n5"
+        for r in kept
+    ):
+        kept.append({
+            "id": "ins_r_gm_design",
+            "source": "ins_n_gm",
+            "target": "ins_n5",
+            "condition": None,
+        })
+    routes[:] = kept

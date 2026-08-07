@@ -16,6 +16,7 @@ import type { FieldDefinition, FormRule, FormInstance, WfInstanceDetail } from '
 import FormRenderer, { validateRequired, deriveRolePerms } from '@/components/lowcode/FormRenderer'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
+import { fieldShowsTime } from '@/components/lowcode/dateField'
 import { useAuthStore } from '@/stores/useAuthStore'
 import {
   DRAWING_FORM_LAYOUT, applyDrawingFormLayout, resolveListExpandDetail,
@@ -168,8 +169,9 @@ function cellText(field: FieldDefinition, v: unknown, maps?: NameMaps): string {
   if (v == null || v === '') return '—'
   const opts = field.options || []
   const labelOf = (x: unknown) => opts.find((o) => o.value === x)?.label ?? String(x)
-  if (field.type === 'date') return formatCellDateTime(v, false)
-  if (field.type === 'datetime') return formatCellDateTime(v, true)
+  if (field.type === 'date' || field.type === 'datetime') {
+    return formatCellDateTime(v, fieldShowsTime(field))
+  }
   if (field.type === 'select' || field.type === 'radio') return labelOf(v)
   if (field.type === 'checkbox' || field.type === 'multi_select') {
     if (Array.isArray(v)) return v.map(labelOf).join('，') || '—'
@@ -437,7 +439,7 @@ export default function FormDataListPage({
       displayFields, viewRec.value, viewRec.rules,
       deriveRolePerms(displayFields, userRoles),
     )
-    const e = validateRequired(displayFields, states, viewRec.value)
+    const e = validateRequired(displayFields, states, viewRec.value, viewRec.rules)
     if (e) { message.error(e); return }
     await lowcodeApi.updateInstance(viewRec.id, { form_data: viewRec.value })
     message.success('已保存')
@@ -454,7 +456,7 @@ export default function FormDataListPage({
       displayFields, viewRec.value, viewRec.rules,
       deriveRolePerms(displayFields, userRoles),
     )
-    const e = validateRequired(displayFields, states, viewRec.value)
+    const e = validateRequired(displayFields, states, viewRec.value, viewRec.rules)
     if (e) { message.error(e); return }
     try {
       await lowcodeApi.submitInstance(viewRec.id, { form_data: viewRec.value })

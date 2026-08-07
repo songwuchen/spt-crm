@@ -404,6 +404,9 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     if form_code in ("scheme_management", "install_drawing_notice"):
         from app.domains.lowcode.biz_score import apply_biz_score_flow_nodes
         apply_biz_score_flow_nodes(nodes)
+    if form_code == "scheme_management":
+        from app.domains.lowcode.biz_score import apply_chief_gm_flow_nodes
+        apply_chief_gm_flow_nodes(nodes)
     return nodes, routes
 
 
@@ -424,6 +427,18 @@ def _flow_missing_biz_score_perms(nodes: list | None) -> bool:
     """方案/安装图「业务打分」未挂三项分数 → 需升级系统兜底流。"""
     from app.domains.lowcode.biz_score import flow_missing_biz_score_perms
     return flow_missing_biz_score_perms(nodes)
+
+
+def _flow_missing_chief_gm_perm(nodes: list | None) -> bool:
+    """方案管理「总工审批」未挂 need_gm_approval 必填 → 需升级。"""
+    from app.domains.lowcode.biz_score import flow_missing_chief_gm_perm
+    return flow_missing_chief_gm_perm(nodes)
+
+
+def _flow_missing_install_gm_branch(nodes: list | None, routes: list | None) -> bool:
+    """方案管理无合同号总工未按 need_gm 走总经理审批 → 需升级。"""
+    from app.domains.lowcode.biz_score import flow_missing_install_gm_branch
+    return flow_missing_install_gm_branch(nodes, routes)
 
 
 def _flow_is_jdy_prod_card(nodes: list | None) -> bool:
@@ -1201,6 +1216,39 @@ async def _upgrade_drawing_form_flow_if_needed(
             and _flow_missing_biz_score_perms(version.node_definitions)
         )
     )
+    # 仅缺总工「是否需要总经理审批」：就地补 field_perms，避免整图覆盖已 remap 的审批人
+    if (
+        topology_ok
+        and form_code == "scheme_management"
+        and _flow_missing_chief_gm_perm(version.node_definitions)
+    ):
+        import copy
+        from app.domains.lowcode.biz_score import apply_chief_gm_flow_nodes
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_chief_gm_flow_nodes(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"总工审批补 need_gm_approval({form_code})",
+        )
+        return
+    # 仅缺无合同号 need_gm→总经理审批 分支：就地补节点/路由
+    if (
+        topology_ok
+        and form_code == "scheme_management"
+        and _flow_missing_install_gm_branch(version.node_definitions, version.route_definitions)
+    ):
+        import copy
+        from app.domains.lowcode.biz_score import apply_install_gm_branch
+        patched_nodes = copy.deepcopy(version.node_definitions or [])
+        patched_routes = copy.deepcopy(version.route_definitions or [])
+        apply_install_gm_branch(patched_nodes, patched_routes)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched_nodes, patched_routes,
+            DRAWING_FORM_FLOW_DESC, f"无合同号总工按 need_gm 走总经理审批({form_code})",
+        )
+        return
     # 仅缺互斥组：在现有 CRM 条件上补 exclusive_group，避免用生成图覆盖已 remap 的部门/人员
     if topology_ok and _flow_missing_exclusive_groups(version.route_definitions):
         patched = [dict(r) if isinstance(r, dict) else r for r in (version.route_definitions or [])]

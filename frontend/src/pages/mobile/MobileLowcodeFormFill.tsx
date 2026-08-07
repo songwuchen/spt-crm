@@ -36,7 +36,7 @@ export default function MobileLowcodeFormFill() {
 
   const submit = async () => {
     const states = computeFieldStates(fields, value, rules, deriveRolePerms(fields, userRoles))
-    const e = validateRequired(fields, states, value)
+    const e = validateRequired(fields, states, value, rules)
     if (e) { message.error(e); return }
     setSubmitting(true)
     try {

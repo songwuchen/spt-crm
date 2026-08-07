@@ -9,7 +9,8 @@ import {
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { FieldDefinition, FormRule, FieldState, FieldPermission } from '@/types/lowcode'
-import { computeFieldStates } from './RuleEngine'
+import { computeFieldStates, isDetailColVisibleInRow } from './RuleEngine'
+import { dateFieldDisplayFormat, dateFieldFormat, fieldShowsTime } from './dateField'
 import { MASK_VALUE } from '@/utils/mask'
 import { useAuthStore } from '@/stores/useAuthStore'
 import PersonField, {
@@ -133,9 +134,11 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
               state={st}
               mode={mode}
               value={value[field.id]}
-              allValues={value}
+              allValues={ruleValues}
               onChange={(v) => setField(field.id, v)}
               serialPreview={serialPreviews?.[field.id]}
+              rules={rules}
+              fields={fields}
             />
           </Col>
         )
@@ -145,7 +148,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
 }
 
 function FieldItem({
-  field, state, mode, value, allValues, onChange, serialPreview,
+  field, state, mode, value, allValues, onChange, serialPreview, rules = [], fields = [],
 }: {
   field: FieldDefinition
   state?: FieldState
@@ -154,6 +157,8 @@ function FieldItem({
   allValues: Record<string, unknown>
   onChange: (v: unknown) => void
   serialPreview?: string
+  rules?: FormRule[]
+  fields?: FieldDefinition[]
 }) {
   const readonly = mode === 'readonly' || state?.readonly
     || !!(field.props as { read_only?: boolean } | undefined)?.read_only
@@ -175,13 +180,24 @@ function FieldItem({
       </div>
       {masked
         ? <Text type="secondary" title="您所在角色无权查看该字段的明文">{MASK_VALUE}</Text>
-        : <FieldWidget field={field} readonly={!!readonly} value={value} allValues={allValues} onChange={onChange} serialPreview={serialPreview} />}
+        : (
+          <FieldWidget
+            field={field}
+            readonly={!!readonly}
+            value={value}
+            allValues={allValues}
+            onChange={onChange}
+            serialPreview={serialPreview}
+            rules={rules}
+            fields={fields}
+          />
+        )}
     </div>
   )
 }
 
 function FieldWidget({
-  field, readonly, value, allValues, onChange, serialPreview,
+  field, readonly, value, allValues, onChange, serialPreview, rules = [], fields = [],
 }: {
   field: FieldDefinition
   readonly: boolean
@@ -189,6 +205,8 @@ function FieldWidget({
   allValues: Record<string, unknown>
   onChange: (v: unknown) => void
   serialPreview?: string
+  rules?: FormRule[]
+  fields?: FieldDefinition[]
 }) {
   const opts = field.options || []
   const ph = field.placeholder
@@ -301,21 +319,18 @@ function FieldWidget({
         />
       )
     case 'date':
+    case 'datetime': {
+      const withTime = fieldShowsTime(field)
+      const fmt = dateFieldFormat(field)
       return (
         <DatePicker
           style={{ width: '100%' }}
+          showTime={withTime}
           value={value ? dayjs(value as string) : null}
-          onChange={(d) => onChange(d ? d.format('YYYY-MM-DD') : null)}
+          onChange={(d) => onChange(d ? d.format(fmt) : null)}
         />
       )
-    case 'datetime':
-      return (
-        <DatePicker
-          style={{ width: '100%' }} showTime
-          value={value ? dayjs(value as string) : null}
-          onChange={(d) => onChange(d ? d.format('YYYY-MM-DD HH:mm:ss') : null)}
-        />
-      )
+    }
     case 'select':
       return (
         <Select
@@ -361,7 +376,17 @@ function FieldWidget({
       )
     }
     case 'detail_table':
-      return <DetailTable field={field} readonly={readonly} value={value as Record<string, unknown>[]} onChange={onChange} />
+      return (
+        <DetailTable
+          field={field}
+          readonly={readonly}
+          value={value as Record<string, unknown>[]}
+          onChange={onChange}
+          formValues={allValues}
+          rules={rules}
+          fields={fields}
+        />
+      )
     default:
       return <Input value={value as string} onChange={(e) => onChange(e.target.value)} />
   }
@@ -373,6 +398,10 @@ function ReadonlyValue({ field, value }: { field: FieldDefinition; value: unknow
   let display: React.ReactNode = ''
   if (value == null || value === '') display = <Text type="secondary">—</Text>
   else if (field.type === 'switch') display = value ? '是' : '否'
+  else if (field.type === 'date' || field.type === 'datetime') {
+    const d = dayjs(String(value))
+    display = d.isValid() ? d.format(dateFieldDisplayFormat(field)) : String(value)
+  }
   else if (Array.isArray(value)) display = value.map(labelOf).join('，')
   else if (field.type === 'select' || field.type === 'radio') display = labelOf(value)
   else if (field.type === 'amount') display = `¥${Number(value).toFixed(2)}`
@@ -390,15 +419,18 @@ function isBlankDetailRow(row: unknown): boolean {
 }
 
 function DetailTable({
-  field, readonly, value, onChange,
+  field, readonly, value, onChange, formValues = {}, rules = [], fields = [],
 }: {
   field: FieldDefinition
   readonly: boolean
   value: Record<string, unknown>[] | undefined
   onChange: (v: unknown) => void
+  formValues?: Record<string, unknown>
+  rules?: FormRule[]
+  fields?: FieldDefinition[]
 }) {
   const rows = Array.isArray(value) ? value : []
-  const cols = field.detail_table_columns || []
+  const allCols = field.detail_table_columns || []
   const ensureMin = Math.max(0, Number(field.props?.ensure_min_rows ?? 0) || 0)
   // 挂载时：配置了 ensure_min_rows 则补空行；否则清掉误灌的「默认空行」
   const didMountInit = useRef(false)
@@ -419,11 +451,34 @@ function DetailTable({
   }, [])
 
   const setCell = (rowIdx: number, colId: string, v: unknown) => {
-    const next = rows.map((r, i) => (i === rowIdx ? { ...r, [colId]: v } : r))
+    const next = rows.map((r, i) => {
+      if (i !== rowIdx) return r
+      const row = { ...r, [colId]: v }
+      // 筛分效率是否有要求改为否时，清空其后条件字段，避免隐藏值残留
+      if (
+        (colId === 'need_screening_eff_star' || colId === 'need_screening_eff' || colId === 'need_screening_eff_2')
+        && v !== '是'
+      ) {
+        for (const k of [
+          'particle_dist_star', 'particle_dist', 'particle_dist_2',
+          'screening_eff_star', 'screening_eff', 'screening_eff_2',
+          'moisture_star', 'moisture', 'moisture_2',
+          'particle_composition', 'particle_composition_2',
+        ]) {
+          if (k in row) delete row[k]
+        }
+      }
+      return row
+    })
     onChange(next)
   }
   const addRow = () => onChange([...rows, {}])
   const delRow = (idx: number) => onChange(rows.filter((_, i) => i !== idx))
+
+  const evalRows = rows.length ? rows : [{}]
+  const cols = allCols.filter((c) => evalRows.some((row) => isDetailColVisibleInRow(
+    c.id, field.id, row, formValues, fields.length ? fields : [field], rules,
+  )))
 
   const columns = [
     ...cols.map((c) => ({
@@ -431,13 +486,20 @@ function DetailTable({
       dataIndex: c.id,
       key: c.id,
       minWidth: 140,
-      render: (_: unknown, _row: Record<string, unknown>, idx: number) => (
-        <FieldWidget
-          field={c} readonly={readonly}
-          value={rows[idx]?.[c.id]} allValues={rows[idx] || {}}
-          onChange={(v) => setCell(idx, c.id, v)}
-        />
-      ),
+      render: (_: unknown, _row: Record<string, unknown>, idx: number) => {
+        const row = rows[idx] || {}
+        const visible = isDetailColVisibleInRow(
+          c.id, field.id, row, formValues, fields.length ? fields : [field], rules,
+        )
+        if (!visible) return null
+        return (
+          <FieldWidget
+            field={c} readonly={readonly}
+            value={row[c.id]} allValues={row}
+            onChange={(v) => setCell(idx, c.id, v)}
+          />
+        )
+      },
     })),
     ...(readonly ? [] : [{
       title: '操作', key: '__op', width: 70,
@@ -469,6 +531,7 @@ export function validateRequired(
   fields: FieldDefinition[],
   states: Record<string, FieldState>,
   values: Record<string, unknown>,
+  rules: FormRule[] = [],
 ): string | null {
   const empty = (v: unknown) => v == null || v === '' || (Array.isArray(v) && v.length === 0)
   for (const f of fields) {
@@ -484,11 +547,18 @@ export function validateRequired(
     if (req && empty(values[f.id])) return `「${f.label}」为必填项`
     if (f.type === 'detail_table') {
       const rows = values[f.id]
-      const reqCols = (f.detail_table_columns || []).filter((c) => c.required)
-      if (Array.isArray(rows) && reqCols.length) {
-        for (let i = 0; i < rows.length; i++) {
-          for (const c of reqCols) {
-            if (empty((rows[i] as Record<string, unknown>)?.[c.id])) return `「${f.label}」第 ${i + 1} 行「${c.label}」为必填项`
+      if (!Array.isArray(rows) || !rows.length) continue
+      for (let i = 0; i < rows.length; i++) {
+        const row = (rows[i] && typeof rows[i] === 'object')
+          ? (rows[i] as Record<string, unknown>)
+          : {}
+        const rowStates = computeFieldStates(fields, { ...values, [f.id]: [row] }, rules)
+        for (const c of f.detail_table_columns || []) {
+          const cst = rowStates[c.id]
+          if (cst && !cst.visible) continue
+          const colReq = cst ? cst.required : !!c.required
+          if (colReq && empty(row[c.id])) {
+            return `「${f.label}」第 ${i + 1} 行「${c.label}」为必填项`
           }
         }
       }

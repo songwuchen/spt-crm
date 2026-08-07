@@ -108,6 +108,30 @@ export function computeFieldStates(
   return states
 }
 
+/** 按给定 values 判断字段/明细列当前是否可见（供明细表按行显隐）。 */
+export function isFieldVisibleByRules(
+  fieldId: string,
+  fields: FieldDefinition[],
+  values: Record<string, unknown>,
+  rules: FormRule[],
+): boolean {
+  const st = computeFieldStates(fields, values, rules)[fieldId]
+  return !st || st.visible !== false
+}
+
+/** 明细列在某一行是否可见：把子表收成仅含该行再求值。 */
+export function isDetailColVisibleInRow(
+  colId: string,
+  detailFieldId: string,
+  row: Record<string, unknown>,
+  formValues: Record<string, unknown>,
+  fields: FieldDefinition[],
+  rules: FormRule[],
+): boolean {
+  const scoped = { ...formValues, [detailFieldId]: [row] }
+  return isFieldVisibleByRules(colId, fields, scoped, rules)
+}
+
 const EMPTY_HIDDEN: ReadonlySet<string> = new Set()
 
 function evaluateCondition(condition: RuleCondition, values: Record<string, unknown>, subMap: Record<string, string>, hidden: ReadonlySet<string> = EMPTY_HIDDEN): boolean {

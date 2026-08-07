@@ -26,6 +26,15 @@ SKIP_TYPES = {"separator", "button", "pagebreak", "hint", "flowstate", "sn", "ag
 # Separator we promote to a text hint field (show-rule target).
 PAPER_TIP_MARKERS = ("打印纸质图提醒",)
 
+# 简道云多为 datetime，业务上只需选到「日」
+DATE_ONLY_FIELD_IDS = frozenset({
+    "apply_datetime",
+    "order_date",
+    "card_date",
+    "require_draw_date",
+    "score_date",
+})
+
 FORM_LINKAGE_KEY = {
     "drawing_requisition": "requisition",
     "install_drawing_notice": "install_notice",
@@ -397,6 +406,10 @@ def build_fields(
         if name:
             fd["jdy_widget"] = name
         apply_pickable_scope(fd, limit=limits.get(name) or jdy_widget_limit(f))
+        # 业务日期字段：CRM 统一为仅日期（不含时分）
+        if slug in DATE_ONLY_FIELD_IDS:
+            fd["type"] = "date"
+            fd["props"] = {**(fd.get("props") or {}), "show_time": False, "date_only": True}
         out.append(fd)
     return out
 
@@ -459,6 +472,31 @@ def or_merge(conds: list[dict]) -> dict:
     return {"rel": "or", "cond": conds}
 
 
+def _prefer_screening_star_trigger(cond: dict) -> dict:
+    """子表显隐：把 need_screening_eff 文本桩改成用户填写的 need_screening_eff_star 单选。"""
+    import copy
+    c = copy.deepcopy(cond)
+
+    def walk(node: dict | list | None) -> None:
+        if isinstance(node, list):
+            for x in node:
+                if isinstance(x, dict):
+                    walk(x)
+            return
+        if not isinstance(node, dict):
+            return
+        if node.get("field") == "need_screening_eff":
+            node["field"] = "need_screening_eff_star"
+        if node.get("field") == "need_screening_eff_2":
+            pass
+        for x in node.get("cond") or []:
+            if isinstance(x, dict):
+                walk(x)
+
+    walk(c)
+    return c
+
+
 def build_rule_definitions(linkage: dict, fields: list[dict]) -> list[dict]:
     widget_slug = widget_slug_map(fields)
     req_slugs = required_slug_set(fields)
@@ -480,6 +518,8 @@ def build_rule_definitions(linkage: dict, fields: list[dict]) -> list[dict]:
         cond = map_show_condition(rule.get("rel"), rule.get("conditions") or [], widget_slug)
         if not cond:
             continue
+        # 简道云触发器常是文本桩 need_screening_eff；CRM 界面填写的是单选 _star
+        cond = _prefer_screening_star_trigger(cond)
         for sf in rule.get("show_fields") or []:
             wid = (sf or {}).get("widget")
             slug = widget_slug.get(wid) if wid else None

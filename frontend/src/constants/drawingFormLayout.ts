@@ -133,7 +133,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
           'scheme_detail', 'install_env', 'install_position',
           'foundation_drawing', 'install_method', 'scheme_material',
           'attention', 'attachment_names', 'attachments_no_image',
-          'offices_multi', 'transfer_sw_lwt',
+          'offices_multi', 'transfer_sw_lwt', 'need_gm_approval',
         ],
       },
       {

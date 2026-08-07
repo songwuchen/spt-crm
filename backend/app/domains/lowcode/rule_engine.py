@@ -336,11 +336,23 @@ def validate_required_with_rules(
             return f"「{f.get('label')}」为必填项"
         if f.get("type") == "detail_table":
             rows = values.get(f.get("id"))
-            req_cols = [c for c in (f.get("detail_table_columns") or []) if c.get("required")]
-            if isinstance(rows, (list, tuple)) and req_cols:
-                for i, row in enumerate(rows):
-                    for c in req_cols:
-                        cell = row.get(c.get("id")) if isinstance(row, Mapping) else None
-                        if _is_empty(cell):
-                            return f"「{f.get('label')}」第 {i + 1} 行「{c.get('label')}」为必填项"
+            if not isinstance(rows, (list, tuple)) or not rows:
+                continue
+            parent_id = f.get("id")
+            for i, row in enumerate(rows):
+                row_map = row if isinstance(row, Mapping) else {}
+                row_states = compute_field_states(
+                    fields,
+                    {**dict(values), parent_id: [dict(row_map)]},
+                    rules,
+                    permissions,
+                )
+                for c in f.get("detail_table_columns") or []:
+                    cid = c.get("id")
+                    cst = row_states.get(cid) or {}
+                    if cst and not cst.get("visible", True):
+                        continue
+                    col_req = cst.get("required") if cst else bool(c.get("required"))
+                    if col_req and _is_empty(row_map.get(cid)):
+                        return f"「{f.get('label')}」第 {i + 1} 行「{c.get('label')}」为必填项"
     return None

@@ -301,6 +301,15 @@ async def sync_builtin_form_fields(
                 fd["props"] = props
             if fd.get("id") == "transfer_packaging_users":
                 fd["type"] = "person_multi"
+            if fd.get("id") in (
+                "apply_datetime", "order_date", "card_date",
+                "require_draw_date", "score_date",
+            ):
+                fd["type"] = "date"
+                props = dict(fd.get("props") or {})
+                props["show_time"] = False
+                props["date_only"] = True
+                fd["props"] = props
         # 确保下图类型四选项完整（避免旧租户版本被裁过选项后合并不回来）
         for fd in want:
             if isinstance(fd, dict) and fd.get("id") == "drawing_issue_type":
@@ -329,6 +338,8 @@ async def sync_builtin_form_fields(
                         and (
                             r.get("target_field_id") == "apply_or_change"
                             or "apply_or_change" in (r.get("target_field_ids") or [])
+                            or r.get("target_field_id") == "need_gm_approval"
+                            or "need_gm_approval" in (r.get("target_field_ids") or [])
                         )
                     )
                     or (

@@ -24,6 +24,7 @@ import type { Role } from '@/api/types'
 import type { FieldDefinition, FieldType, FormRule } from '@/types/lowcode'
 import type { CascadeOption } from '@/components/lowcode/fields/CascadeField'
 import FormRenderer from '@/components/lowcode/FormRenderer'
+import { fieldShowsTime } from '@/components/lowcode/dateField'
 import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
 import ContractRegistrationFields from '@/components/ContractRegistrationFields'
 import { LineItemsEditor, PaymentTermsEditor, ContractSubtableTitle } from '@/components/ContractTerms'
@@ -677,6 +678,47 @@ function FieldProps({ field, roleOptions, personScopeOptions, deptScopeOptions, 
       </div>
       <div><Text type="secondary" style={{ fontSize: 12 }}>提示文本</Text>
         <Input size="small" value={field.placeholder || ''} onChange={(e) => onPatch({ placeholder: e.target.value })} /></div>
+
+      {(field.type === 'date' || field.type === 'datetime') && !field.native && (
+        <div>
+          <Text type="secondary" style={{ fontSize: 12 }}>时间精度</Text>
+          <Select
+            size="small"
+            style={{ width: '100%', marginTop: 4 }}
+            value={fieldShowsTime(field) ? 'datetime' : 'date'}
+            options={[
+              { value: 'date', label: '仅日期（不含时分）' },
+              { value: 'datetime', label: '日期 + 时间' },
+            ]}
+            onChange={(v) => {
+              if (v === 'date') {
+                onPatch({
+                  type: 'date',
+                  props: { ...field.props, show_time: false, date_only: true },
+                })
+              } else {
+                const nextProps = { ...(field.props || {}) }
+                delete nextProps.show_time
+                delete nextProps.date_only
+                onPatch({ type: 'datetime', props: nextProps })
+              }
+            }}
+          />
+        </div>
+      )}
+      {(field.type === 'date' || field.type === 'datetime') && field.native && (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <Text style={{ fontSize: 12 }}>仅选择日期（不含时分）</Text>
+          <Switch
+            size="small"
+            checked={!fieldShowsTime(field)}
+            onChange={(onlyDate) => {
+              if (onlyDate) setProp('show_time', false)
+              else setProp('show_time', true)
+            }}
+          />
+        </div>
+      )}
 
       {CHOICE_TYPES.has(field.type) && (
         <div>

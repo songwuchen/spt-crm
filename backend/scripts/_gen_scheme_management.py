@@ -66,6 +66,15 @@ DROP_FIELD_IDS = frozenset({
     "need_submit_drawing",
 })
 
+# 业务上只需选到「日」的字段（简道云多为 datetime，CRM 统一为 date）
+DATE_ONLY_FIELD_IDS = frozenset({
+    "apply_datetime",
+    "order_date",
+    "card_date",
+    "require_draw_date",
+    "score_date",
+})
+
 # 这些字段只用「scheme_type 显隐」，不套简道云原条件（否则后写规则会盖掉类型显隐）
 # 前期沟通设计人员：选人始终随「无合同号」显示，不按「是否小萌」再藏
 SKIP_JDY_VIS_FIELD_IDS = frozenset({
@@ -167,29 +176,10 @@ def build() -> dict:
             fields.append(copy.deepcopy(f))
 
     rules: list[dict] = []
-    # 独有字段：按类型显隐
-    for fid in sorted(req_only):
-        rules.append({
-            "id": f"sm_vis_req_only_{fid}",
-            "type": "visibility",
-            "target_field_id": fid,
-            "condition": {"field": "scheme_type", "operator": "eq", "value": "requisition"},
-            "action": {"visible": True},
-        })
-    for fid in sorted(ins_only):
-        if fid == "apply_or_change":
-            # 申请事由/修改事项：始终展示，不按 scheme_type 显隐
-            continue
-        rules.append({
-            "id": f"sm_vis_ins_only_{fid}",
-            "type": "visibility",
-            "target_field_id": fid,
-            "condition": {"field": "scheme_type", "operator": "eq", "value": "install"},
-            "action": {"visible": True},
-        })
-
     # 原规则外包 scheme_type；同 target 多条 visibility 后写会覆盖，
     # 对共享字段的 visibility 合并为 OR。
+    # 独有字段：若已有简道云显隐，只保留合并后的条件，不再加「仅 scheme_type」宽规则
+    # （否则审批页 last-wins / 或双规则会把下图类型明细等一直打开）。
     def collect_vis(side_rules: list, scheme: str, prefix: str) -> tuple[dict[str, list], list[dict]]:
         by_target: dict[str, list] = {}
         other: list[dict] = []
@@ -209,6 +199,34 @@ def build() -> dict:
     for skip_id in SKIP_JDY_VIS_FIELD_IDS:
         req_vis.pop(skip_id, None)
         ins_vis.pop(skip_id, None)
+
+    # 独有字段：按类型显隐（无 JDY 条件时）
+    for fid in sorted(req_only):
+        if fid in req_vis:
+            continue
+        if fid == "need_gm_approval":
+            # 审批节点填写：有/无合同号总工都要用，不按 scheme_type 隐藏
+            continue
+        rules.append({
+            "id": f"sm_vis_req_only_{fid}",
+            "type": "visibility",
+            "target_field_id": fid,
+            "condition": {"field": "scheme_type", "operator": "eq", "value": "requisition"},
+            "action": {"visible": True},
+        })
+    for fid in sorted(ins_only):
+        if fid == "apply_or_change":
+            # 申请事由/修改事项：始终展示，不按 scheme_type 显隐
+            continue
+        if fid in ins_vis:
+            continue
+        rules.append({
+            "id": f"sm_vis_ins_only_{fid}",
+            "type": "visibility",
+            "target_field_id": fid,
+            "condition": {"field": "scheme_type", "operator": "eq", "value": "install"},
+            "action": {"visible": True},
+        })
 
     rules.extend(req_other)
     rules.extend(ins_other)
@@ -354,6 +372,13 @@ def build() -> dict:
         # 下图类型=出方案图 时三张明细默认带 1 行空行，方便直接填
         if f.get("id") in ("scheme_detail", "install_env", "scheme_material"):
             f["props"] = {**(f.get("props") or {}), "ensure_min_rows": 1}
+        # 日期字段：只选日期，不要时分
+        if f.get("id") in DATE_ONLY_FIELD_IDS and f.get("type") in ("date", "datetime", None):
+            f["type"] = "date"
+            props = dict(f.get("props") or {})
+            props["show_time"] = False
+            props["date_only"] = True
+            f["props"] = props
 
     def _cond_refs_drop(cond: dict | None) -> bool:
         if not isinstance(cond, dict):
@@ -374,6 +399,7 @@ def build() -> dict:
 
     cleaned_rules = [r for r in rules if _rule_keep(r)]
     # 申请事由/修改事项：始终显示（不限方案类型 / 是否小萌）
+    # 是否需要总经理审批：有/无合同号总工审批都要用，去掉仅 requisition 显隐
     rules = [
         r for r in cleaned_rules
         if not (
@@ -381,9 +407,83 @@ def build() -> dict:
             and (
                 r.get("target_field_id") == "apply_or_change"
                 or "apply_or_change" in (r.get("target_field_ids") or [])
+                or r.get("target_field_id") == "need_gm_approval"
+                or "need_gm_approval" in (r.get("target_field_ids") or [])
             )
         )
     ]
+
+    # 物料特性子表：显隐条件改绑用户实际填写的单选 need_screening_eff_star
+    # （简道云触发器是文本桩 need_screening_eff，CRM 界面只露出 _star 单选）
+    def _rewrite_screening_trigger(node: dict | list | None) -> None:
+        if isinstance(node, list):
+            for x in node:
+                _rewrite_screening_trigger(x if isinstance(x, (dict, list)) else None)
+            return
+        if not isinstance(node, dict):
+            return
+        if node.get("field") == "need_screening_eff":
+            node["field"] = "need_screening_eff_star"
+        if node.get("field") == "need_screening_eff_2":
+            # non_scheme 已删；保留无害
+            pass
+        for x in node.get("cond") or []:
+            if isinstance(x, dict):
+                _rewrite_screening_trigger(x)
+
+    for r in rules:
+        if isinstance(r, dict) and isinstance(r.get("condition"), dict):
+            _rewrite_screening_trigger(r["condition"])
+
+    # 粒度组成：随「筛分效率是否有要求=是」显示（简道云出方案图表未列，业务要求与其它后续字段一致）
+    screening_yes = {
+        "rel": "and",
+        "cond": [
+            {"field": "scheme_type", "operator": "eq", "value": "install"},
+            {"field": "need_screening_eff_star", "operator": "eq", "value": "是"},
+        ],
+    }
+    if not any(
+        isinstance(r, dict)
+        and r.get("type") == "visibility"
+        and r.get("target_field_id") == "particle_composition"
+        for r in rules
+    ):
+        rules.append({
+            "id": "sm_vis_particle_composition_screening",
+            "type": "visibility",
+            "target_field_id": "particle_composition",
+            "condition": screening_yes,
+            "action": {"visible": True},
+        })
+
+    # 物料特性：条件展示列去掉静态 required，改走条件必填（避免选「否」仍被拦）
+    for f in fields:
+        if f.get("id") != "scheme_material":
+            continue
+        for col in f.get("detail_table_columns") or []:
+            if col.get("id") in (
+                "particle_dist_star", "screening_eff_star", "moisture_star",
+                "particle_dist", "screening_eff", "moisture", "particle_composition",
+            ):
+                col["required"] = False
+
+    # 总工审批：有/无合同号均必填「是否需要总经理审批」
+    for n in flow_nodes:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if n.get("name") != "总工审批":
+            continue
+        perms = [
+            p for p in (n.get("field_perms") or [])
+            if isinstance(p, dict) and p.get("field")
+        ]
+        by_f = {str(p["field"]): str(p.get("access") or "editable") for p in perms}
+        by_f["need_gm_approval"] = "required"
+        n["field_perms"] = [{"field": k, "access": v} for k, v in by_f.items()]
+
+    # 无合同号总工：need_gm=是 → 总经理审批 → 设计指派；保留小萌→周经理；抄送仅在不需总经理审批时
+    _patch_install_need_gm_flow(flow_nodes, flow_routes)
 
     return {
         "name": "方案管理",
@@ -397,10 +497,74 @@ def build() -> dict:
             "related_project / related_customer 可选；公司名称文本由二者回填。",
             "下图类型含 出方案图 / 出测绘图 / 修改方案 / 领图（选项保留）。",
             "不含 change_scheme / non_scheme_material 明细表。",
+            "总工审批（有/无合同号）必填 need_gm_approval；无合同号按 need_gm 走总经理审批。",
             "申请人默认当前用户；合同号 type=contract 引用合同管理；"
             "不含 order_person_text / designer_text / need_decrypt / project_no / is_new_project / sales_person。",
         ],
     }
+
+
+def _patch_install_need_gm_flow(flow_nodes: list, flow_routes: list) -> None:
+    """无合同号：总工按 need_gm_approval 分支到总经理审批。"""
+    req_gm = next((n for n in flow_nodes if isinstance(n, dict) and n.get("id") == "req_n18"), None)
+    if not any(isinstance(n, dict) and n.get("id") == "ins_n_gm" for n in flow_nodes):
+        gm_rule = copy.deepcopy((req_gm or {}).get("approver_rule")) or {
+            "type": "specified_user",
+            "value": "02336214315748",
+        }
+        flow_nodes.append({
+            "id": "ins_n_gm",
+            "type": "approval",
+            "name": "总经理审批",
+            "approver_rule": gm_rule,
+            "multi_mode": (req_gm or {}).get("multi_mode") or "or_sign",
+            "empty_strategy": (req_gm or {}).get("empty_strategy") or "auto_approve",
+            "field_perms": [],
+        })
+
+    kept = [r for r in flow_routes if not (isinstance(r, dict) and r.get("source") == "ins_n7")]
+    kept.extend([
+        {
+            "id": "ins_r_n7_gm",
+            "source": "ins_n7",
+            "target": "ins_n_gm",
+            "exclusive_group": "ex_n7",
+            "condition": {"field": "need_gm_approval", "operator": "eq", "value": "是"},
+        },
+        {
+            "id": "ins_r_n7_zhou",
+            "source": "ins_n7",
+            "target": "ins_n9",
+            "exclusive_group": "ex_n7",
+            "condition": {"field": "is_xiaomeng", "operator": "eq", "value": "是"},
+        },
+        {
+            "id": "ins_r_n7_design",
+            "source": "ins_n7",
+            "target": "ins_n5",
+            "exclusive_group": "ex_n7",
+            # else：不需总经理且非小萌
+        },
+        {
+            "id": "ins_r_n7_cc_gm",
+            "source": "ins_n7",
+            "target": "ins_n12",
+            "always": True,
+            "condition": {"field": "need_gm_approval", "operator": "eq", "value": "否"},
+        },
+    ])
+    # 总经理审批后进入设计指派
+    if not any(
+        isinstance(r, dict) and r.get("source") == "ins_n_gm" and r.get("target") == "ins_n5"
+        for r in kept
+    ):
+        kept.append({
+            "id": "ins_r_gm_design",
+            "source": "ins_n_gm",
+            "target": "ins_n5",
+            "condition": None,
+        })
+    flow_routes[:] = kept
 
 
 def main() -> None:

@@ -72,8 +72,8 @@ const EntityCustomFields = forwardRef<EntityCustomFieldsRef, Props>(function Ent
   )
 
   useImperativeHandle(ref, () => ({
-    validate: () => (readOnly ? null : validateRequired(fields, states, val || {})),
-  }), [readOnly, fields, states, val])
+    validate: () => (readOnly ? null : validateRequired(fields, states, val || {}, rules)),
+  }), [readOnly, fields, states, val, rules])
 
   // 无扩展字段时不渲染(避免在业务表单里留空块)
   if (!loaded || fields.length === 0) return null

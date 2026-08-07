@@ -259,7 +259,7 @@ export default function FormFillPage({
   const submit = async (asDraft: boolean) => {
     if (!asDraft) {
       const states = computeFieldStates(displayFields, value, rules, deriveRolePerms(displayFields, userRoles))
-      const e = validateRequired(displayFields, states, value)
+      const e = validateRequired(displayFields, states, value, rules)
       if (e) { message.error(e); return }
     }
     setSubmitting(true)

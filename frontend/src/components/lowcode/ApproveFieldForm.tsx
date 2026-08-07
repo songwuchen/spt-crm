@@ -11,6 +11,7 @@ import PersonField, {
 import DeptField from '@/components/lowcode/fields/DeptField'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
+import { dateFieldFormat, fieldShowsTime } from '@/components/lowcode/dateField'
 
 const { Text } = Typography
 
@@ -96,6 +97,7 @@ export function missingRequiredFields(
   return perms
     .filter((p) => {
       const st = states[p.field]
+      // 被显隐规则藏掉的字段不校验（如设计单分派=总部单时「转新乡」）
       if (st && !st.visible) return false
       const req = st ? st.required : p.access === 'required'
       return req && isEmpty(values[p.field])
@@ -183,7 +185,8 @@ export default function ApproveFieldForm({
       <Space direction="vertical" style={{ width: '100%' }} size="small">
         {perms.map((p) => {
           const st = fieldStates?.[p.field]
-          if (st && !st.visible) return null
+          // 节点可填字段仍走显隐（设计单分派→转新乡/设计指派）；无规则时默认可见
+          if (fieldStates && st && !st.visible) return null
 
           const formFd = formFields.find((f) => f.id === p.field)
           const meta = metaById[p.field] || { id: p.field, label: p.field, type: 'text' as const }
@@ -308,19 +311,19 @@ export default function ApproveFieldForm({
           }
           if (t === 'date' || t === 'datetime') {
             const parsed = val ? dayjs(val as string) : null
+            const metaField = { type: t, props: fieldProps } as FieldDefinition
+            const withTime = fieldShowsTime(metaField)
+            const fmt = dateFieldFormat(metaField)
             return (
               <div key={p.field} className={err ? 'approve-field-error' : undefined}>
                 <FieldLabel label={label} required={required} error={err} />
                 <DatePicker
                   style={{ width: '100%', marginTop: 4 }}
                   status={status}
-                  showTime={t === 'datetime'}
+                  showTime={withTime}
                   value={parsed?.isValid() ? parsed : null}
                   placeholder={required ? `请选择${label}` : undefined}
-                  onChange={(d) => setField(
-                    p.field,
-                    d ? d.format(t === 'datetime' ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD') : null,
-                  )}
+                  onChange={(d) => setField(p.field, d ? d.format(fmt) : null)}
                 />
                 {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
               </div>

@@ -1,4 +1,4 @@
-"""Ensure scheme_management builtin fields are synced for every template copy."""
+"""Ensure scheme_management fields + flow (总工 need_gm_approval) for every template."""
 import asyncio
 import os
 import sys
@@ -9,6 +9,8 @@ from sqlalchemy import select
 from app.database import async_session_factory
 from app.domains.lowcode import service as lc
 from app.domains.lowcode.models import FormTemplate, FormTemplateVersion
+from app.domains.lowcode.workflow_models import WfProcessDefinition, WfProcessDefinitionVersion
+from app.domains.lowcode.biz_score import flow_missing_chief_gm_perm
 
 
 async def main():
@@ -29,16 +31,34 @@ async def main():
                 FormTemplateVersion.template_id == out.id,
                 FormTemplateVersion.status == "published",
             ).order_by(FormTemplateVersion.version_number.desc()).limit(1))).scalar_one()
-            by_id = {f.get("id"): f for f in (pub.field_definitions or []) if isinstance(f, dict)}
-            ac = by_id.get("apply_or_change") or {}
-            vis = [
+            gm_vis = [
                 r.get("id") for r in (pub.rule_definitions or [])
-                if r.get("target_field_id") == "apply_or_change"
-                or "apply_or_change" in (r.get("target_field_ids") or [])
+                if r.get("type") == "visibility"
+                and (
+                    r.get("target_field_id") == "need_gm_approval"
+                    or "need_gm_approval" in (r.get("target_field_ids") or [])
+                )
             ]
+            f = next((x for x in pub.field_definitions if x.get("id") == "need_gm_approval"), {})
+            d = (await db.execute(select(WfProcessDefinition).where(
+                WfProcessDefinition.tenant_id == tpl.tenant_id,
+                WfProcessDefinition.form_template_id == out.id,
+                WfProcessDefinition.is_deleted == False,  # noqa: E712
+            ).limit(1))).scalar_one_or_none()
+            flow_info = "no-flow"
+            if d:
+                v = (await db.execute(select(WfProcessDefinitionVersion).where(
+                    WfProcessDefinitionVersion.process_definition_id == d.id,
+                    WfProcessDefinitionVersion.status == "published",
+                ).order_by(WfProcessDefinitionVersion.version_number.desc()).limit(1))).scalar_one()
+                chiefs = []
+                for n in v.node_definitions or []:
+                    if n.get("name") == "总工审批":
+                        chiefs.append((n.get("id"), n.get("field_perms")))
+                flow_info = f"flow_ver={v.version_number} missing={flow_missing_chief_gm_perm(v.node_definitions)} chiefs={chiefs}"
             print(
-                f"tenant={tpl.tenant_id[:8]} tpl={out.id[:8]} ver={pub.version_number} "
-                f"apply_or_change={ac.get('type')!r}/{ac.get('label')!r} vis={vis}"
+                f"tenant={tpl.tenant_id[:8]} tpl={out.id[:8]} form_ver={pub.version_number} "
+                f"need_gm={f.get('fill_stage')}/{f.get('available_on_create')} gm_vis={gm_vis} {flow_info}"
             )
         await db.commit()
 
