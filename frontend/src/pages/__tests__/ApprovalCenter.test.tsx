@@ -156,10 +156,22 @@ describe('ApprovalCenter', { timeout: 15000 }, () => {
     })
   })
 
-  it('fetches pending and all flows on mount', async () => {
+  it('fetches unified pending on mount without loading all flows', async () => {
     render(<ApprovalCenter />)
     await waitFor(() => {
       expect(fetchUnifiedPending).toHaveBeenCalled()
+    })
+    expect(approvalApi.list).not.toHaveBeenCalled()
+  })
+
+  it('loads all flows when switching to 所有审批 tab', async () => {
+    const user = userEvent.setup()
+    render(<ApprovalCenter />)
+    await waitFor(() => {
+      expect(fetchUnifiedPending).toHaveBeenCalled()
+    })
+    await user.click(screen.getByRole('tab', { name: /所有审批/ }))
+    await waitFor(() => {
       expect(approvalApi.list).toHaveBeenCalled()
     })
   })
