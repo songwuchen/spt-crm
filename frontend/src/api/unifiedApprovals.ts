@@ -12,8 +12,8 @@ import { workflowApi } from './lowcodeWorkflow'
 
 export type ApprovalEngine = 'legacy' | 'wf'
 
-/** 单页最多取多少条待办。两套引擎的分页上限都是 100。 */
-const PAGE_SIZE = 100
+/** 单页条数：过大时 WF enrich / 旧引擎 list 会明显拖慢审批中心首屏 */
+const PAGE_SIZE = 40
 
 export interface UnifiedPendingItem {
   /** React key / 去重用，跨引擎唯一 */
@@ -133,17 +133,20 @@ export interface UnifiedMineItem {
   createdAt?: string
 }
 
-/** 我发起的：旧引擎 + 新工作流。 */
+/** 我发起的：旧引擎按发起人过滤 + 新工作流 mine。 */
 export async function fetchUnifiedMine(userId?: string): Promise<UnifiedMineItem[]> {
   const [legacy, wf] = await Promise.allSettled([
-    approvalApi.list(),
+    approvalApi.list({
+      pageNo: 1,
+      pageSize: PAGE_SIZE,
+      ...(userId ? { submitted_by_id: userId } : {}),
+    }),
     workflowApi.mine({ pageNo: 1, pageSize: PAGE_SIZE }),
   ])
   const out: UnifiedMineItem[] = []
 
   if (legacy.status === 'fulfilled') {
     for (const f of legacy.value.data?.items || []) {
-      if (userId && f.submitted_by_id !== userId) continue
       out.push({
         key: `legacy:${f.id}`,
         engine: 'legacy',
@@ -166,7 +169,6 @@ export async function fetchUnifiedMine(userId?: string): Promise<UnifiedMineItem
         instanceId: it.id,
         title: it.title || it.business_no || it.process_name || '审批',
         status: it.status,
-        // 表单绑定流无 biz_type，用流程定义名作类型展示（与待办列表一致）
         bizType: it.biz_type || it.process_name || null,
         bizId: it.biz_id,
         subtitle: it.current_node_name ? `当前：${it.current_node_name}` : undefined,
@@ -191,11 +193,11 @@ export interface UnifiedDoneItem {
   actionAt?: string
 }
 
-/** 我已办：新工作流为主；旧引擎从相关流程里筛本人已处理任务。 */
-export async function fetchUnifiedDone(userId?: string): Promise<UnifiedDoneItem[]> {
+/** 我已办：新工作流 done + 旧引擎 my/done。 */
+export async function fetchUnifiedDone(_userId?: string): Promise<UnifiedDoneItem[]> {
   const [wf, legacy] = await Promise.allSettled([
     workflowApi.done({ pageNo: 1, pageSize: PAGE_SIZE }),
-    approvalApi.list(),
+    approvalApi.myDone({ pageSize: PAGE_SIZE }),
   ])
   const out: UnifiedDoneItem[] = []
 
@@ -218,23 +220,20 @@ export async function fetchUnifiedDone(userId?: string): Promise<UnifiedDoneItem
     }
   }
 
-  if (legacy.status === 'fulfilled' && userId) {
-    for (const f of legacy.value.data?.items || []) {
-      for (const t of f.tasks || []) {
-        if (t.assignee_id !== userId) continue
-        if (!['approved', 'rejected', 'transferred'].includes(t.status)) continue
-        out.push({
-          key: `legacy:${t.id}`,
-          engine: 'legacy',
-          taskId: t.id,
-          instanceId: f.id,
-          title: f.title || f.biz_type || '审批',
-          status: t.status,
-          bizType: f.biz_type,
-          subtitle: `节点 ${t.node_order}/${f.total_nodes}`,
-          actionAt: t.decided_at || t.created_at,
-        })
-      }
+  if (legacy.status === 'fulfilled') {
+    for (const it of legacy.value.data || []) {
+      const f = it.flow
+      out.push({
+        key: `legacy:${it.id}`,
+        engine: 'legacy',
+        taskId: it.id,
+        instanceId: it.flow_id || f?.id || '',
+        title: f?.title || f?.biz_type || '审批',
+        status: it.status,
+        bizType: f?.biz_type,
+        subtitle: f?.total_nodes ? `节点 ${it.node_order}/${f.total_nodes}` : undefined,
+        actionAt: it.decided_at || it.created_at,
+      })
     }
   }
 

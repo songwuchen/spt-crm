@@ -31,12 +31,17 @@ def _can_see_all_flows(user: dict) -> bool:
     return "*" in perms or "approval:manage" in perms
 
 
-async def list_flows(db: AsyncSession, tenant_id: str, biz_type: str | None = None, biz_id: str | None = None, status: str | None = None, page: int = 1, page_size: int = 50, user: dict | None = None):
+async def list_flows(db: AsyncSession, tenant_id: str, biz_type: str | None = None, biz_id: str | None = None, status: str | None = None, page: int = 1, page_size: int = 50, user: dict | None = None, submitted_by_id: str | None = None):
     q = select(ApprovalFlow).where(ApprovalFlow.tenant_id == tenant_id)
     # 「所有审批」tab 过去对任何持 approval:view 的人开放全租户审批流（含标题里的客户名/项目名
     # 和详情里的 biz_detail）。approval:view 属于全员基础权限，等于全公司审批对所有人可见。
     if user is not None and not _can_see_all_flows(user):
         q = q.where(_involved_clause(user))
+    if submitted_by_id:
+        # 非管理员只能查自己发起的，避免借参数窥探他人
+        if user is not None and not _can_see_all_flows(user) and submitted_by_id != user.get("sub"):
+            submitted_by_id = user.get("sub")
+        q = q.where(ApprovalFlow.submitted_by_id == submitted_by_id)
     if biz_type:
         q = q.where(ApprovalFlow.biz_type == biz_type)
     if biz_id:
@@ -492,9 +497,8 @@ async def submit_approval(db: AsyncSession, tenant_id: str, data: ApprovalSubmit
         summary=f"提交审批: {data.title or data.biz_type}"
     )
 
-    # Notifications
+    # Notifications（站内同步；群消息/钉钉待办后台发，避免拖慢提交）
     if mode == "sequential":
-        # Notify first approver only
         await send_notification(
             db, tenant_id, data.assignee_ids[0],
             type="approval_pending",
@@ -503,11 +507,7 @@ async def submit_approval(db: AsyncSession, tenant_id: str, data: ApprovalSubmit
             biz_type="approval_flow", biz_id=flow.id,
             sender_name=flow.submitted_by_name,
         )
-        await _dispatch_msg_safe(db, tenant_id,
-            "审批待处理通知",
-            f"**审批人**: {names[0] or data.assignee_ids[0]}\n\n**业务类型**: {data.biz_type}\n\n**审批对象**: {data.title or data.biz_type}\n\n请尽快登录系统处理审批。")
     else:
-        # parallel / any_one: notify all approvers
         for i, aid in enumerate(data.assignee_ids):
             await send_notification(
                 db, tenant_id, aid,
@@ -517,14 +517,45 @@ async def submit_approval(db: AsyncSession, tenant_id: str, data: ApprovalSubmit
                 biz_type="approval_flow", biz_id=flow.id,
                 sender_name=flow.submitted_by_name,
             )
-        await _dispatch_msg_safe(db, tenant_id,
-            "审批待处理通知",
-            f"**审批模式**: {mode}\n\n**业务类型**: {data.biz_type}\n\n**审批对象**: {data.title or data.biz_type}\n\n请相关审批人尽快处理。")
 
-    # 钉钉个人待办：给当前待处理审批人逐个下发
-    for t in await get_flow_tasks(db, tenant_id, flow.id):
-        if t.status == "pending":
-            await _create_todo_for_task(db, tenant_id, flow, t)
+    import asyncio
+    flow_id = flow.id
+    title_for_msg = data.title or data.biz_type
+    mode_for_msg = mode
+    biz_for_msg = data.biz_type
+    names0 = names[0] if names else (data.assignee_ids[0] if data.assignee_ids else "")
+
+    async def _bg_external():
+        from app.database import async_session_factory
+        try:
+            async with async_session_factory() as s:
+                if mode_for_msg == "sequential":
+                    await _dispatch_msg_safe(
+                        s, tenant_id, "审批待处理通知",
+                        f"**审批人**: {names0}\n\n**业务类型**: {biz_for_msg}\n\n"
+                        f"**审批对象**: {title_for_msg}\n\n请尽快登录系统处理审批。",
+                    )
+                else:
+                    await _dispatch_msg_safe(
+                        s, tenant_id, "审批待处理通知",
+                        f"**审批模式**: {mode_for_msg}\n\n**业务类型**: {biz_for_msg}\n\n"
+                        f"**审批对象**: {title_for_msg}\n\n请相关审批人尽快处理。",
+                    )
+                fl = (await s.execute(
+                    select(ApprovalFlow).where(ApprovalFlow.id == flow_id, ApprovalFlow.tenant_id == tenant_id)
+                )).scalar_one_or_none()
+                if not fl:
+                    return
+                for t in await get_flow_tasks(s, tenant_id, flow_id):
+                    if t.status == "pending":
+                        await _create_todo_for_task(s, tenant_id, fl, t)
+        except Exception as e:
+            logger.warning("background approval notify failed: %s", e)
+
+    try:
+        asyncio.get_running_loop().create_task(_bg_external())
+    except RuntimeError:
+        await _bg_external()
 
     return flow
 
@@ -1354,7 +1385,7 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
     return detail
 
 
-async def list_my_pending(db: AsyncSession, tenant_id: str, user_id: str):
+async def list_my_pending(db: AsyncSession, tenant_id: str, user_id: str, limit: int = 100):
     """List pending approval tasks assigned to a user."""
     result = await db.execute(
         select(ApprovalTask, ApprovalFlow).join(
@@ -1364,7 +1395,21 @@ async def list_my_pending(db: AsyncSession, tenant_id: str, user_id: str):
             ApprovalTask.assignee_id == user_id,
             ApprovalTask.status == "pending",
             ApprovalFlow.status == "pending",
-        ).order_by(ApprovalTask.created_at.desc())
+        ).order_by(ApprovalTask.created_at.desc()).limit(limit)
+    )
+    return result.all()
+
+
+async def list_my_done_tasks(db: AsyncSession, tenant_id: str, user_id: str, limit: int = 50):
+    """我已处理过的旧引擎任务（通过/驳回/转交），供统一已办聚合。"""
+    result = await db.execute(
+        select(ApprovalTask, ApprovalFlow).join(
+            ApprovalFlow, ApprovalTask.flow_id == ApprovalFlow.id
+        ).where(
+            ApprovalTask.tenant_id == tenant_id,
+            ApprovalTask.assignee_id == user_id,
+            ApprovalTask.status.in_(("approved", "rejected", "transferred")),
+        ).order_by(ApprovalTask.decided_at.desc(), ApprovalTask.created_at.desc()).limit(limit)
     )
     return result.all()
 

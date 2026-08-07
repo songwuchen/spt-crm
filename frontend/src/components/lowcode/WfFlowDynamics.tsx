@@ -1,4 +1,4 @@
-// 流程动态侧栏（对齐简道云 / 审批中心右侧）
+// 流程动态侧栏（对齐简道云 / 审批中心右侧；移动端同组件、page 布局）
 import { useState } from 'react'
 import { Button, Input, Tag, Tabs, Typography, message } from 'antd'
 import type { WfFlowStep, WfInstanceDetail } from '@/types/lowcode'
@@ -33,7 +33,7 @@ function stepTagColor(step: WfFlowStep) {
 }
 
 export default function WfFlowDynamics({
-  steps, comments, tab, onTabChange, onSubmitComment, commenting,
+  steps, comments, tab, onTabChange, onSubmitComment, commenting, variant = 'drawer',
 }: {
   steps: WfFlowStep[]
   comments: WfInstanceDetail['comments']
@@ -41,11 +41,14 @@ export default function WfFlowDynamics({
   onTabChange?: (key: string) => void
   onSubmitComment?: (content: string) => Promise<void>
   commenting?: boolean
+  /** drawer=PC 右侧栏；page=移动端整页嵌入 */
+  variant?: 'drawer' | 'page'
 }) {
   const [innerTab, setInnerTab] = useState('flow')
   const [draft, setDraft] = useState('')
   const active = tab ?? innerTab
   const setActive = onTabChange ?? setInnerTab
+  const isPage = variant === 'page'
 
   const send = async () => {
     const text = draft.trim()
@@ -59,7 +62,10 @@ export default function WfFlowDynamics({
   }
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 border-l border-slate-200">
+    <div className={isPage
+      ? 'flex flex-col bg-white rounded-xl border border-slate-100 overflow-hidden'
+      : 'h-full flex flex-col bg-slate-50 border-l border-slate-200'}
+    >
       <Tabs
         size="small"
         activeKey={active}
@@ -71,7 +77,7 @@ export default function WfFlowDynamics({
         ]}
       />
       {active === 'flow' ? (
-        <div className="flex-1 overflow-y-auto px-3 pb-4">
+        <div className={isPage ? 'px-3 pb-4' : 'flex-1 overflow-y-auto px-3 pb-4'}>
           <div className="relative pl-4">
             <div className="absolute left-[7px] top-2 bottom-2 w-px bg-slate-200" />
             {(steps || []).length === 0 && (
@@ -115,8 +121,8 @@ export default function WfFlowDynamics({
           </div>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 flex flex-col">
-          <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-3">
+        <div className={isPage ? 'flex flex-col' : 'flex-1 min-h-0 flex flex-col'}>
+          <div className={isPage ? 'px-3 pb-2 space-y-3' : 'flex-1 overflow-y-auto px-3 pb-2 space-y-3'}>
             {(comments || []).length === 0 && (
               <Text type="secondary" className="text-sm">暂无评论，可在下方发表讨论</Text>
             )}

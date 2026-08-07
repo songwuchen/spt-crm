@@ -61,6 +61,8 @@ interface Props {
   ruleContext?: Record<string, unknown>
   /** 填报页流水号预览（未落库）；有已存值时仍优先展示 value */
   serialPreviews?: Record<string, string>
+  /** 明细子表布局：手机端用 cards */
+  detailLayout?: 'table' | 'cards'
 }
 
 // 由字段的 visible_roles/edit_roles + 当前用户角色，推导出规则引擎可用的 FieldPermission[]。
@@ -88,7 +90,7 @@ export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]):
   return out
 }
 
-export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews }: Props) {
+export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, detailLayout = 'table' }: Props) {
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const rolePerms = useMemo(
     () => (applyFieldPerms ? deriveRolePerms(fields, userRoles) : []),
@@ -139,6 +141,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
               serialPreview={serialPreviews?.[field.id]}
               rules={rules}
               fields={fields}
+              detailLayout={detailLayout}
             />
           </Col>
         )
@@ -148,7 +151,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
 }
 
 function FieldItem({
-  field, state, mode, value, allValues, onChange, serialPreview, rules = [], fields = [],
+  field, state, mode, value, allValues, onChange, serialPreview, rules = [], fields = [], detailLayout = 'table',
 }: {
   field: FieldDefinition
   state?: FieldState
@@ -159,6 +162,7 @@ function FieldItem({
   serialPreview?: string
   rules?: FormRule[]
   fields?: FieldDefinition[]
+  detailLayout?: 'table' | 'cards'
 }) {
   const readonly = mode === 'readonly' || state?.readonly
     || !!(field.props as { read_only?: boolean } | undefined)?.read_only
@@ -190,6 +194,7 @@ function FieldItem({
             serialPreview={serialPreview}
             rules={rules}
             fields={fields}
+            detailLayout={detailLayout}
           />
         )}
     </div>
@@ -197,7 +202,7 @@ function FieldItem({
 }
 
 function FieldWidget({
-  field, readonly, value, allValues, onChange, serialPreview, rules = [], fields = [],
+  field, readonly, value, allValues, onChange, serialPreview, rules = [], fields = [], detailLayout = 'table',
 }: {
   field: FieldDefinition
   readonly: boolean
@@ -207,6 +212,7 @@ function FieldWidget({
   serialPreview?: string
   rules?: FormRule[]
   fields?: FieldDefinition[]
+  detailLayout?: 'table' | 'cards'
 }) {
   const opts = field.options || []
   const ph = field.placeholder
@@ -385,6 +391,7 @@ function FieldWidget({
           formValues={allValues}
           rules={rules}
           fields={fields}
+          layout={detailLayout}
         />
       )
     default:
@@ -419,7 +426,7 @@ function isBlankDetailRow(row: unknown): boolean {
 }
 
 function DetailTable({
-  field, readonly, value, onChange, formValues = {}, rules = [], fields = [],
+  field, readonly, value, onChange, formValues = {}, rules = [], fields = [], layout = 'table',
 }: {
   field: FieldDefinition
   readonly: boolean
@@ -428,6 +435,7 @@ function DetailTable({
   formValues?: Record<string, unknown>
   rules?: FormRule[]
   fields?: FieldDefinition[]
+  layout?: 'table' | 'cards'
 }) {
   const rows = Array.isArray(value) ? value : []
   const allCols = field.detail_table_columns || []
@@ -476,9 +484,59 @@ function DetailTable({
   const delRow = (idx: number) => onChange(rows.filter((_, i) => i !== idx))
 
   const evalRows = rows.length ? rows : [{}]
+  const ruleFields = fields.length ? fields : [field]
   const cols = allCols.filter((c) => evalRows.some((row) => isDetailColVisibleInRow(
-    c.id, field.id, row, formValues, fields.length ? fields : [field], rules,
+    c.id, field.id, row, formValues, ruleFields, rules,
   )))
+
+  if (layout === 'cards') {
+    return (
+      <div className="space-y-3">
+        {rows.map((row, idx) => {
+          const visibleCols = allCols.filter((c) => isDetailColVisibleInRow(
+            c.id, field.id, row, formValues, ruleFields, rules,
+          ))
+          return (
+            <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold text-slate-600">第 {idx + 1} 行</span>
+                {!readonly && (
+                  <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => delRow(idx)}>
+                    删除
+                  </Button>
+                )}
+              </div>
+              <div className="space-y-3">
+                {visibleCols.map((c) => (
+                  <div key={c.id}>
+                    <div className="text-xs text-slate-500 mb-1">
+                      {c.required ? <span style={{ color: '#ff4d4f' }}>*</span> : null}
+                      {c.label}
+                    </div>
+                    <FieldWidget
+                      field={c}
+                      readonly={readonly}
+                      value={row[c.id]}
+                      allValues={row}
+                      onChange={(v) => setCell(idx, c.id, v)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+        {!rows.length && (
+          <div className="text-sm text-slate-400 text-center py-4">暂无明细</div>
+        )}
+        {!readonly && (
+          <Button type="dashed" block icon={<PlusOutlined />} onClick={addRow}>
+            添加一行
+          </Button>
+        )}
+      </div>
+    )
+  }
 
   const columns = [
     ...cols.map((c) => ({
@@ -489,7 +547,7 @@ function DetailTable({
       render: (_: unknown, _row: Record<string, unknown>, idx: number) => {
         const row = rows[idx] || {}
         const visible = isDetailColVisibleInRow(
-          c.id, field.id, row, formValues, fields.length ? fields : [field], rules,
+          c.id, field.id, row, formValues, ruleFields, rules,
         )
         if (!visible) return null
         return (

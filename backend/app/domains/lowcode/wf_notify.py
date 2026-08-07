@@ -87,8 +87,10 @@ async def notify_tasks_created(
             ))).scalars().all()
             if not tasks:
                 return
-            initiator = await _user_name(db, tenant_id, inst.initiator_id)
-            title = inst.title or inst.biz_type or "审批"
+            initiator = await _user_name(db, tenant_id, getattr(inst, "initiator_id", None))
+            title = getattr(inst, "title", None) or getattr(inst, "biz_type", None) or "审批"
+            inst_id = getattr(inst, "id", None)
+
             for t in tasks:
                 try:
                     await send_notification(
@@ -96,7 +98,7 @@ async def notify_tasks_created(
                         type="approval_pending",
                         title=f"您有新的审批待处理: {title}",
                         content=f"{initiator} 提交了审批请求",
-                        biz_type=NOTIFY_BIZ_TYPE, biz_id=inst.id,
+                        biz_type=NOTIFY_BIZ_TYPE, biz_id=inst_id,
                         sender_name=initiator or None,
                     )
                 except Exception as e:
@@ -108,8 +110,8 @@ async def notify_tasks_created(
                         db, tenant_id, t.assignee_id,
                         f"审批待处理: {title}",
                         f"{initiator} 提交了审批，请尽快处理。",
-                        link=f"/approvals?wf={inst.id}&task={t.id}",
-                        mobile_link=f"/m/lowcode/approvals/{inst.id}?task={t.id}",
+                        link=f"/approvals?wf={inst_id}&task={t.id}",
+                        mobile_link=f"/m/lowcode/approvals/{inst_id}?task={t.id}",
                     )
                     todo_id = (res or {}).get("todo_id")
                     if todo_id:

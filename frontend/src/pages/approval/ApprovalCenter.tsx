@@ -93,17 +93,24 @@ export default function ApprovalCenter() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      // 合同/线索等已切到新工作流引擎：待办必须聚合两套引擎，否则审批人在本页看不到
-      const [uRes, fRes] = await Promise.all([
-        fetchUnifiedPending(),
-        approvalApi.list(),
-      ])
+      // 合同/线索等已切到新工作流引擎：待办必须聚合两套引擎
+      // 「所有审批」tab 再按需拉 list，避免首屏多打一次重请求
+      const uRes = await fetchUnifiedPending()
       setPending(uRes.items || [])
-      setAllFlows(fRes.data?.items || [])
     } finally {
       setLoading(false)
     }
   }
+
+  const loadAllFlows = useCallback(async () => {
+    setTabLoading(true)
+    try {
+      const fRes = await approvalApi.list({ pageNo: 1, pageSize: 50 })
+      setAllFlows(fRes.data?.items || [])
+    } finally {
+      setTabLoading(false)
+    }
+  }, [])
 
   const loadMine = useCallback(async () => {
     setTabLoading(true)
@@ -150,6 +157,7 @@ export default function ApprovalCenter() {
     if (key === 'done') loadDone()
     if (key === 'cc') loadCc()
     if (key === 'agents') loadAgents()
+    if (key === 'all') loadAllFlows()
   }
 
   const { openWith: openWfDrawer, node: wfDrawerNode } = useWfProcessDrawer(() => {
@@ -866,6 +874,7 @@ export default function ApprovalCenter() {
               children: (
                 <div>
                   <FillHeightTable rowKey="id" columns={historyColumns} dataSource={allFlows}
+                    loading={tabLoading}
                     pagination={{ pageSize: 15, showSizeChanger: false }} size="small" scroll={{ x: 'max-content' }} />
                 </div>
               ),

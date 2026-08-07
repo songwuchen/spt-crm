@@ -71,7 +71,7 @@ export default function MobileProfile() {
 
   const menuItems = [
     { icon: 'lock', label: needsInitialPassword ? '设置密码' : '修改密码', action: () => setPwdModal(true) },
-    { icon: 'notifications', label: '消息通知', path: '/m' },
+    { icon: 'notifications', label: '消息通知', path: '/m/notifications' },
     { icon: 'task_alt', label: '我的审批', path: '/m/approvals' },
     { icon: 'edit_note', label: '新建跟进', path: '/m/follow-up/new' },
     { icon: 'description', label: '合同列表', path: '/m/contracts' },

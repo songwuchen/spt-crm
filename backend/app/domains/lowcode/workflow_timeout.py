@@ -48,7 +48,7 @@ async def scan_and_fire(db: AsyncSession) -> int:
         fired += 1
         # 超时处置可能推进流程(激活新节点/驳回结束)，其待办通知与钉钉待办由引擎排队，
         # fire_timeout 自身不提交，需在此提交后统一下发。
-        await engine.flush_notifications()
+        await engine.flush_notifications(wait=True)
 
         if notify:
             for uid in {u for u in (notify.get("recipients") or []) if u and u != "system"}:

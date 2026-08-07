@@ -15,7 +15,10 @@
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import select, text as sa_text
@@ -31,6 +34,8 @@ from app.domains.lowcode.workflow_models import (
     WfTaskInstance, WfTaskActionLog, WfProcessComment, WfProcessCc,
 )
 from app.domains.lowcode.models import FormInstance
+
+logger = logging.getLogger("spt_crm.lowcode.workflow_engine")
 
 
 def _now() -> datetime:
@@ -106,24 +111,78 @@ class WorkflowEngine:
         # SLA 超时场景由 reminder_worker 负责给发起人发「因超时…」的通知(它才有超时上下文),
         # 此时抑制引擎自己的流程结束通知,避免发起人收到两条讲同一件事的推送。
         self._suppress_finished_notify = False
+        # 整次 submit/act 复用组织快照，避免每个节点新建 Resolver 重复加载全量部门/用户
+        self._approver_resolver = ApproverResolver(db, tenant_id)
 
     # ---------- 通知(延迟到提交后下发) ----------
 
     def _queue(self, kind: str, *args) -> None:
         self._notify.append((kind, *args))
 
-    async def flush_notifications(self, inst: WfProcessInstance | None = None) -> None:
-        """提交成功后统一下发通知。任何失败只记日志,绝不外抛。
+    @staticmethod
+    def _inst_snap(inst: WfProcessInstance | None) -> SimpleNamespace | None:
+        """后台通知不能依赖请求结束后的 ORM 会话，先拍平常用字段。"""
+        if inst is None:
+            return None
+        return SimpleNamespace(
+            id=inst.id,
+            tenant_id=getattr(inst, "tenant_id", None),
+            initiator_id=inst.initiator_id,
+            title=inst.title,
+            biz_type=inst.biz_type,
+            biz_id=inst.biz_id,
+            status=inst.status,
+            business_no=getattr(inst, "business_no", None),
+        )
 
-        必须在业务事务 commit **之后**调用。引擎内部各动作(submit/act/withdraw)已自行
-        调用;不自行提交的 fire_timeout 由其调用方(reminder_worker)在提交后调用。
+    def _snap_queue_item(self, item: tuple) -> tuple:
+        """把队列里夹带的 ORM 实例换成快照，供后台任务使用。"""
+        kind = item[0]
+        if kind in ("tasks_created", "empty_auto_approved") and len(item) > 2:
+            return (kind, item[1], self._inst_snap(item[2]) if item[2] is not None else None)
+        if kind == "cc_notified" and len(item) > 3:
+            return (kind, item[1], item[2], self._inst_snap(item[3]) if item[3] is not None else None)
+        if kind in ("finished", "withdrawn") and len(item) > 3:
+            return (kind, item[1], item[2], self._inst_snap(item[3]) if item[3] is not None else None)
+        return item
+
+    async def flush_notifications(
+        self, inst: WfProcessInstance | None = None, *, wait: bool = False,
+    ) -> None:
+        """提交成功后统一下发通知。
+
+        默认后台异步（不阻塞提交接口）；timeout worker 等场景传 wait=True 确保发完再退出。
+        必须在业务事务 commit **之后**调用。
         """
         if not self._notify:
             return
-        # 注意：WF_SKIP_EXTERNAL_NOTIFY 只应跳过钉钉/群消息外呼，不能清空本队列——
-        # 否则站内「审批待处理」通知也会一起丢掉（本地联调踩过坑）。
-        # 外呼跳过在 wf_notify.notify_tasks_created / dispatch_todo 内读取该环境变量。
-        pending, self._notify = self._notify, []
+        pending_raw, self._notify = self._notify, []
+        pending = [self._snap_queue_item(it) for it in pending_raw]
+        snap = self._inst_snap(inst)
+        suppress = self._suppress_finished_notify
+        tenant_id = self.tenant_id
+
+        async def _run() -> None:
+            await WorkflowEngine._flush_notifications_now(
+                tenant_id, pending, snap, suppress_finished=suppress,
+            )
+
+        if wait:
+            await _run()
+            return
+        try:
+            asyncio.get_running_loop().create_task(_run())
+        except RuntimeError:
+            await _run()
+
+    @staticmethod
+    async def _flush_notifications_now(
+        tenant_id: str,
+        pending: list[tuple],
+        inst: SimpleNamespace | None,
+        *,
+        suppress_finished: bool = False,
+    ) -> None:
         from app.domains.lowcode import wf_notify
         for item in pending:
             kind = item[0]
@@ -131,33 +190,31 @@ class WorkflowEngine:
                 if kind == "tasks_created":
                     target = item[2] if len(item) > 2 and item[2] is not None else inst
                     if target is not None:
-                        await wf_notify.notify_tasks_created(self.tenant_id, target, item[1])
+                        await wf_notify.notify_tasks_created(tenant_id, target, item[1])
                 elif kind == "todos_done":
-                    await wf_notify.complete_todos(self.tenant_id, item[1])
+                    await wf_notify.complete_todos(tenant_id, item[1])
                 elif kind == "todo_done_explicit":
-                    await wf_notify.complete_todo(self.tenant_id, item[1], item[2])
+                    await wf_notify.complete_todo(tenant_id, item[1], item[2])
                 elif kind == "cc_notified":
                     target = item[3] if len(item) > 3 and item[3] is not None else inst
                     if target is not None:
                         await wf_notify.notify_cc_users(
-                            self.tenant_id, target, item[1], node_name=item[2],
+                            tenant_id, target, item[1], node_name=item[2],
                         )
                 elif kind == "finished":
                     target = item[3] if len(item) > 3 and item[3] is not None else inst
-                    if target is not None and not self._suppress_finished_notify:
-                        await wf_notify.notify_flow_finished(self.tenant_id, target, item[1], item[2])
+                    if target is not None and not suppress_finished:
+                        await wf_notify.notify_flow_finished(tenant_id, target, item[1], item[2])
                 elif kind == "withdrawn":
                     target = item[3] if len(item) > 3 and item[3] is not None else inst
                     if target is not None:
-                        await wf_notify.notify_withdrawn(self.tenant_id, target, item[1], item[2])
+                        await wf_notify.notify_withdrawn(tenant_id, target, item[1], item[2])
                 elif kind == "empty_auto_approved":
                     target = item[2] if len(item) > 2 and item[2] is not None else inst
                     if target is not None:
-                        await wf_notify.notify_empty_auto_approved(self.tenant_id, target, item[1])
+                        await wf_notify.notify_empty_auto_approved(tenant_id, target, item[1])
             except Exception:  # pragma: no cover - 通知永不影响主流程
-                import logging
-                logging.getLogger("spt_crm.lowcode.workflow_engine").warning(
-                    "flush notification failed for %s", kind, exc_info=True)
+                logger.warning("flush notification failed for %s", kind, exc_info=True)
 
     # ---------- 版本图辅助 ----------
 
@@ -345,7 +402,7 @@ class WorkflowEngine:
         if not rule:
             return []
         try:
-            return await ApproverResolver(self.db, self.tenant_id).resolve(rule, ctx)
+            return await self._approver_resolver.resolve(rule, ctx)
         except NoApproverError:
             return []
 

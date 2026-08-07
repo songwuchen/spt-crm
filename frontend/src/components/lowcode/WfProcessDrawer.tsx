@@ -141,7 +141,8 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅随抽屉打开/实例切换重载
   }, [open, instanceId, taskId])
 
-  const effectiveTaskId = taskId || detail?.current_task?.task_id || null
+  // URL/调用方传入的 taskId 仅作加载提示；能否操作以 current_task 为准（已办任务 id 不能误开操作区）
+  const effectiveTaskId = detail?.current_task?.task_id || null
   const canAct = !!effectiveTaskId && detail?.status === 'running'
 
   const act = async (action: string) => {

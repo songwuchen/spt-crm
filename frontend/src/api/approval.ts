@@ -2,7 +2,7 @@ import client from './client'
 import type { ApiResponse, ApprovalFlowItem, ApprovalPendingItem } from './types'
 
 export const approvalApi = {
-  list: (params?: { biz_type?: string; biz_id?: string; status?: string; pageNo?: number; pageSize?: number }) =>
+  list: (params?: { biz_type?: string; biz_id?: string; status?: string; submitted_by_id?: string; pageNo?: number; pageSize?: number }) =>
     client.get<unknown, ApiResponse<{ items: ApprovalFlowItem[]; total: number }>>('/api/v1/approvals', { params }),
   submit: (data: { biz_type: string; biz_id: string; title?: string; assignee_ids: string[]; assignee_names?: string[]; approval_mode?: string }) =>
     client.post<unknown, ApiResponse<ApprovalFlowItem>>('/api/v1/approvals', data),
@@ -12,6 +12,8 @@ export const approvalApi = {
     client.post<unknown, ApiResponse<ApprovalFlowItem>>(`/api/v1/approval_tasks/${taskId}/decide`, data),
   myPending: () =>
     client.get<unknown, ApiResponse<ApprovalPendingItem[]>>('/api/v1/approvals/my/pending'),
+  myDone: (params?: { pageSize?: number }) =>
+    client.get<unknown, ApiResponse<ApprovalPendingItem[]>>('/api/v1/approvals/my/done', { params }),
   withdraw: (flowId: string, data?: { reason?: string }) =>
     client.post<unknown, ApiResponse<ApprovalFlowItem>>(`/api/v1/approvals/${flowId}/withdraw`, data || {}),
   delegate: (taskId: string, data: { target_user_id: string; reason?: string }) =>

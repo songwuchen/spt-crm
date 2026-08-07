@@ -2103,10 +2103,13 @@ async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
 async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None = None) -> list[dict]:
     # 若含代办任务，批量解析委托人姓名用于「代 XX 审批」标注
     principal_ids = {t.assignee_id for t in tasks if viewer_id and t.assignee_id != viewer_id}
-    insts = {}
-    for t in tasks:
-        if t.process_instance_id not in insts:
-            insts[t.process_instance_id] = await db.get(WfProcessInstance, t.process_instance_id)
+    inst_ids = {t.process_instance_id for t in tasks if t.process_instance_id}
+    insts: dict[str, WfProcessInstance] = {}
+    if inst_ids:
+        rows = (await db.execute(
+            select(WfProcessInstance).where(WfProcessInstance.id.in_(inst_ids))
+        )).scalars().all()
+        insts = {i.id: i for i in rows}
     # 发起人姓名: 列表要显示「XX 发起」，与待办的代理人姓名一起批量解析，避免逐条查询
     wanted = set(principal_ids) | {i.initiator_id for i in insts.values() if i and i.initiator_id}
     name_map: dict[str, str] = {}
@@ -2148,33 +2151,7 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
             )).all()
         }
 
-    # 空标题：从表单实例补齐（只读拼装，不在列表路径落库以免拖慢）
-    empty_form_ids = {
-        i.form_instance_id for i in insts.values()
-        if i and not (i.title or "").strip() and i.form_instance_id
-    }
-    form_title_map: dict[str, str] = {}
-    if empty_form_ids:
-        from app.domains.lowcode.models import FormInstance, FormTemplate
-        from app.domains.lowcode.service import derive_form_instance_title
-        fis = (await db.execute(
-            select(FormInstance).where(FormInstance.id.in_(empty_form_ids))
-        )).scalars().all()
-        tpl_ids = {fi.template_id for fi in fis if fi.template_id}
-        tpl_map = {}
-        if tpl_ids:
-            tpl_map = {
-                t.id: t.name for t in (await db.execute(
-                    select(FormTemplate).where(FormTemplate.id.in_(tpl_ids))
-                )).scalars().all()
-            }
-        for fi in fis:
-            form_title_map[fi.id] = derive_form_instance_title(
-                tpl_map.get(fi.template_id),
-                fi.form_data if isinstance(fi.form_data, dict) else {},
-                fi.field_definitions,
-            )
-
+    # 列表路径不再为补标题去读 FormInstance（含大 JSON）；空标题用流程名 / 单号兜底
     out = []
     for t in tasks:
         inst = insts.get(t.process_instance_id)
@@ -2185,10 +2162,8 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
         if inst:
             process_name = def_name_map.get(inst.process_definition_id)
             title = (inst.title or "").strip() or None
-            if not title and inst.form_instance_id:
-                title = form_title_map.get(inst.form_instance_id)
             if not title:
-                title = process_name
+                title = process_name or (inst.business_no or None)
             if inst.biz_type == "contract_version" and inst.biz_id:
                 biz_ref_id = cv_contract_map.get(inst.biz_id)
             elif inst.biz_type == "contract_review":

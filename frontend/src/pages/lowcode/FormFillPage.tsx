@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Button, Space, message, Typography, Result } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
-import dayjs from 'dayjs'
 import { lowcodeApi } from '@/api/lowcode'
 import type { FieldDefinition, FormRule } from '@/types/lowcode'
 import FormRenderer, { validateRequired, deriveRolePerms } from '@/components/lowcode/FormRenderer'
@@ -12,43 +11,9 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { DRAWING_FORM_LAYOUT, applyDrawingFormLayout } from '@/constants/drawingFormLayout'
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
+import { buildLowcodeInitialValues } from '@/utils/lowcodeFormDefaults'
 
 const { Title, Text } = Typography
-
-function buildInitialValues(
-  fields: FieldDefinition[],
-  currentUser?: { id?: string; real_name?: string; username?: string } | null,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const f of fields) {
-    // 明细子表不预置空行，由用户点「添加一行」
-    if (f.type === 'detail_table') {
-      if (Array.isArray(f.default_value) && f.default_value.length) {
-        const meaningful = f.default_value.filter((row) => {
-          if (!row || typeof row !== 'object') return false
-          return Object.values(row as Record<string, unknown>).some(
-            (v) => v != null && v !== '' && !(Array.isArray(v) && v.length === 0),
-          )
-        })
-        if (meaningful.length) out[f.id] = meaningful
-      }
-      continue
-    }
-    if (f.default_value !== undefined && f.default_value !== null && f.default_value !== '') {
-      out[f.id] = f.default_value
-      continue
-    }
-    const props = (f.props || {}) as Record<string, unknown>
-    if (props.default_today && (f.type === 'date' || f.type === 'datetime')) {
-      out[f.id] = dayjs().format(f.type === 'datetime' ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD')
-      continue
-    }
-    if (props.default_current_user && (f.type === 'person' || f.type === 'person_multi') && currentUser?.id) {
-      out[f.id] = f.type === 'person_multi' ? [currentUser.id] : currentUser.id
-    }
-  }
-  return out
-}
 
 /** 影响流水号预览的依赖字段（date/field/format_by/period_scope） */
 function serialDepKey(fields: FieldDefinition[], value: Record<string, unknown>): string {
@@ -116,7 +81,7 @@ export default function FormFillPage({
         setName(tpl.data.name)
         setFields(defs)
         setRules((ver.data.rule_definitions as FormRule[]) || [])
-        setValue(buildInitialValues(defs, useAuthStore.getState().user))
+        setValue(buildLowcodeInitialValues(defs, useAuthStore.getState().user))
       } catch {
         setErr('该表单尚未发布或不存在')
       } finally { setLoading(false) }

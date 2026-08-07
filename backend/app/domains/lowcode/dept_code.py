@@ -65,39 +65,48 @@ async def resolve_dept_code(
     department_id: str | None,
     user: dict | None = None,
 ) -> str | None:
-    """按部门 id 查基础表中的部门编号；无匹配返回 None。"""
+    """按部门 id 查基础表中的部门编号；无匹配返回 None。
+
+    提交路径禁止 ensure_builtin / 全表扫 FormInstance（会拖慢审批提交）。
+    基础表未初始化时返回 None，由管理端或 ensure 接口补种。
+    """
     dept_id = str(department_id or "").strip()
     if not dept_id:
         return None
-    from app.domains.lowcode import service as lc_svc
+    from app.domains.lowcode.models import FormTemplate
 
-    user = user or {"sub": None, "real_name": "system", "username": "system", "roles": []}
-    tpl = await lc_svc.ensure_builtin_form(db, tenant_id, DEPARTMENT_CODE_FORM, user)
-    await seed_department_codes_if_empty(db, tenant_id, tpl.id, user)
-
-    from app.domains.lowcode.models import FormInstance
-
-    rows = (
-        await db.execute(
-            select(FormInstance).where(
-                FormInstance.tenant_id == tenant_id,
-                FormInstance.template_id == tpl.id,
-                FormInstance.is_deleted == False,  # noqa: E712
-            )
+    tpl_id = (await db.execute(
+        select(FormTemplate.id).where(
+            FormTemplate.tenant_id == tenant_id,
+            FormTemplate.code == DEPARTMENT_CODE_FORM,
+            FormTemplate.is_deleted == False,  # noqa: E712
         )
-    ).scalars().all()
-    for inst in rows:
-        if inst.status == "draft":
-            continue
-        fd = inst.form_data if isinstance(inst.form_data, dict) else {}
-        raw_dept = fd.get("department")
-        if isinstance(raw_dept, dict):
-            rid = str(raw_dept.get("id") or "").strip()
-        else:
-            rid = str(raw_dept or "").strip()
-        if rid == dept_id:
-            code = str(fd.get("dept_code") or "").strip()
-            return code or None
+    )).scalar_one_or_none()
+    if not tpl_id:
+        return None
+
+    # PostgreSQL JSONB 定点查询：department 可能是 id 字符串或 {id:...}
+    row = (await db.execute(
+        text(
+            """
+            SELECT form_data->>'dept_code' AS code
+            FROM lc_form_instance
+            WHERE tenant_id = :t
+              AND template_id = :tpl
+              AND is_deleted = false
+              AND status <> 'draft'
+              AND COALESCE(form_data->>'dept_code', '') <> ''
+              AND (
+                form_data->>'department' = :dept
+                OR form_data->'department'->>'id' = :dept
+              )
+            LIMIT 1
+            """
+        ),
+        {"t": tenant_id, "tpl": tpl_id, "dept": dept_id},
+    )).first()
+    if row and row[0]:
+        return str(row[0]).strip() or None
     return None
 
 

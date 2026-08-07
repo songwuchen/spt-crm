@@ -46,11 +46,15 @@ def _task_dict(t) -> dict:
 async def list_flows(
     biz_type: str | None = Query(None), biz_id: str | None = Query(None),
     status: str | None = Query(None),
+    submitted_by_id: str | None = Query(None),
     pageNo: int = Query(1, ge=1), pageSize: int = Query(50, ge=1, le=200),
     tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    items, total = await service.list_flows(db, tenant_id, biz_type=biz_type, biz_id=biz_id, status=status, page=pageNo, page_size=pageSize, user=_user)
+    items, total = await service.list_flows(
+        db, tenant_id, biz_type=biz_type, biz_id=biz_id, status=status,
+        page=pageNo, page_size=pageSize, user=_user, submitted_by_id=submitted_by_id,
+    )
     return ok({"items": [_flow_dict(f) for f in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
@@ -70,6 +74,21 @@ async def my_pending(
     current_user: dict = Depends(get_current_user),
 ):
     rows = await service.list_my_pending(db, tenant_id, current_user["sub"])
+    result = []
+    for task, flow in rows:
+        d = _task_dict(task)
+        d["flow"] = _flow_dict(flow)
+        result.append(d)
+    return ok(result)
+
+
+@router.get("/api/v1/approvals/my/done")
+async def my_done(
+    pageSize: int = Query(50, ge=1, le=100),
+    tenant_id: str = Depends(get_tenant_id), db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    rows = await service.list_my_done_tasks(db, tenant_id, current_user["sub"], limit=pageSize)
     result = []
     for task, flow in rows:
         d = _task_dict(task)
