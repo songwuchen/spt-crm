@@ -161,6 +161,28 @@ function printCss(): string {
     }
     .ops b { font-size: 9.5pt; margin-right: 4pt; }
     .ops .op { margin: 0; }
+    /* 子表明细（设备/原料）：多行扩展，表头+数据行 */
+    table.detail {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    table.detail td {
+      border: 1px solid #000;
+      padding: 2pt 2pt;
+      vertical-align: middle;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      font-size: 9pt;
+      text-align: center;
+    }
+    table.detail td.dh {
+      font-weight: 700;
+      font-size: 8pt;
+      line-height: 1.15;
+    }
+    table.detail td.dl { text-align: left; }
+    td.nest { padding: 0 !important; border: 1px solid #000; }
     /* 对齐简道云：横向 A4 */
     @page { size: A4 landscape; margin: 6mm 8mm; }
     @media print {
@@ -179,10 +201,107 @@ function colgroup12(): string {
   return `<colgroup>${Array.from({ length: 12 }, () => '<col>').join('')}</colgroup>`
 }
 
-function firstDetailRow(rows: unknown): Record<string, unknown> {
-  if (!Array.isArray(rows) || !rows.length) return {}
-  const r = rows[0]
-  return r && typeof r === 'object' ? (r as Record<string, unknown>) : {}
+function detailRows(rows: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(rows) || !rows.length) return []
+  return rows.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
+}
+
+function detailColOptionLabel(
+  fields: FieldDefinition[],
+  tableId: string,
+  colId: string,
+  value: unknown,
+): string {
+  if (value == null || value === '') return ''
+  const table = fields.find((f) => f.id === tableId)
+  const col = table?.detail_table_columns?.find((c) => c.id === colId)
+  const opts = col?.options || []
+  if (Array.isArray(value)) {
+    return value.map((v) => {
+      const o = opts.find((x) => x.value === v)
+      return o?.label || String(v)
+    }).join('、')
+  }
+  const o = opts.find((x) => x.value === value)
+  return o?.label || String(value)
+}
+
+function matCell(
+  fields: FieldDefinition[],
+  tableId: string,
+  row: Record<string, unknown>,
+  starKey: string,
+  plainKey: string,
+): string {
+  const raw = row[starKey] != null && row[starKey] !== '' ? row[starKey] : row[plainKey]
+  const labeled = detailColOptionLabel(fields, tableId, starKey, raw)
+    || detailColOptionLabel(fields, tableId, plainKey, raw)
+  return cell(labeled || raw)
+}
+
+/** 出方案图物料 / 非出方案图物料 → 统一打印行 */
+function materialPrintRows(
+  form: Record<string, unknown>,
+  fields: FieldDefinition[],
+): { tableId: string; rows: Record<string, unknown>[]; cells: string[][] } {
+  const scheme = detailRows(form.scheme_material)
+  if (scheme.length) {
+    return {
+      tableId: 'scheme_material',
+      rows: scheme,
+      cells: scheme.map((r) => {
+        const names = Array.isArray(r.material_names)
+          ? (r.material_names as unknown[]).map(String).join('、')
+          : (r.material_name || r.material_names || '')
+        return [
+          matCell(fields, 'scheme_material', r, 'industry_star', 'industry'),
+          cell(names),
+          matCell(fields, 'scheme_material', r, 'mesh_size_star', 'mesh_size'),
+          matCell(fields, 'scheme_material', r, 'throughput_star', 'throughput'),
+          matCell(fields, 'scheme_material', r, 'feed_size_star', 'feed_size'),
+          matCell(fields, 'scheme_material', r, 'bulk_density_star', 'bulk_density'),
+          matCell(fields, 'scheme_material', r, 'need_screening_eff_star', 'need_screening_eff'),
+          matCell(fields, 'scheme_material', r, 'particle_dist_star', 'particle_dist'),
+          matCell(fields, 'scheme_material', r, 'moisture_star', 'moisture'),
+        ]
+      }),
+    }
+  }
+  const non = detailRows(form.non_scheme_material)
+  return {
+    tableId: 'non_scheme_material',
+    rows: non,
+    cells: non.map((r) => [
+      cell(detailColOptionLabel(fields, 'non_scheme_material', 'industry_2', r.industry_2) || r.industry_2),
+      cell(r.material_name_2),
+      cell(r.mesh_size_2),
+      cell(r.throughput_2),
+      cell(r.feed_size_2),
+      cell(r.bulk_density_2),
+      cell(
+        detailColOptionLabel(fields, 'non_scheme_material', 'need_screening_eff_2', r.need_screening_eff_2)
+        || r.need_screening_eff_2,
+      ),
+      cell(r.particle_dist_2),
+      cell(r.moisture_2),
+    ]),
+  }
+}
+
+function materialDetailTableHtml(
+  form: Record<string, unknown>,
+  fields: FieldDefinition[],
+): string {
+  const { cells } = materialPrintRows(form, fields)
+  const headers = [
+    '行业', '物料名称', '筛孔尺寸', '处理量', '入料粒度',
+    '堆密度', '要求筛分效率', '粒度分布', '水分',
+  ]
+  const head = `<tr>${headers.map((h) => `<td class="dh">${escHtml(h)}</td>`).join('')}</tr>`
+  const body = (cells.length ? cells : [headers.map(() => '')]).map((cols) =>
+    `<tr>${cols.map((c, i) => `<td class="${i === 1 ? 'dl' : ''}">${c}</td>`).join('')}</tr>`,
+  ).join('')
+  return `<table class="detail">${head}${body}</table>`
 }
 
 function approvalOpsHtml(steps?: WfFlowStep[] | null): string {
@@ -338,25 +457,13 @@ function buildInstallHtml(ctx: {
   const attention = form.attention != null ? String(form.attention) : ''
   const installPos = optionLabel(fields, 'install_position', form.install_position)
   const installMethod = optionLabel(fields, 'install_method', form.install_method)
-  const mat = firstDetailRow(form.scheme_material)
-  const env = firstDetailRow(form.install_env)
-  const industry = mat.industry_star || mat.industry || ''
-  const materialName = Array.isArray(mat.material_names)
-    ? (mat.material_names as unknown[]).join('、')
-    : (mat.material_name || mat.material_names || '')
-  const mesh = mat.mesh_size_star || mat.mesh_size || ''
-  const throughput = mat.throughput_star || mat.throughput || ''
-  const feed = mat.feed_size_star || mat.feed_size || ''
-  const density = mat.bulk_density_star || mat.bulk_density || ''
-  const moisture = mat.moisture_star || mat.moisture || ''
-  const needEff = mat.need_screening_eff_star || mat.need_screening_eff || ''
-  const particle = mat.particle_dist_star || mat.particle_dist || ''
-  const processPos = env.process_position || ''
+  const envRows = detailRows(form.install_env)
+  const processPos = envRows.map((r) => r.process_position).filter((v) => v != null && v !== '').join('、')
   const designer = personName(form.design_assignees, labels)
 
-  const schemeRows = Array.isArray(form.scheme_detail) ? form.scheme_detail : []
-  const equipBody = (schemeRows.length ? schemeRows : [{}]).map((row, idx) => {
-    const r = (row && typeof row === 'object' ? row : {}) as Record<string, unknown>
+  // 设备明细：一行一条，表单级字段（新项目/下图类型等）只在首行带出
+  const schemeRows = detailRows(form.scheme_detail)
+  const equipBody = (schemeRows.length ? schemeRows : [{}]).map((r, idx) => {
     const hasRev = r.has_attach_or_rev != null ? String(r.has_attach_or_rev) : ''
     return `<tr>
       <td class="val" colspan="1">${idx + 1}</td>
@@ -406,26 +513,16 @@ function buildInstallHtml(ctx: {
         <td class="val-left" colspan="3">${cell(attention)}</td>
       </tr>
       <tr>
-        ${pair('行业', industry)}
-        ${pair('物料名称', materialName)}
-        ${pair('筛孔尺寸', mesh)}
-        ${pair('处理量', throughput)}
+        <td class="lbl" colspan="12">原料参数</td>
+      </tr>
+      <tr>
+        <td class="nest" colspan="12">${materialDetailTableHtml(form, fields)}</td>
       </tr>
       <tr>
         ${pair('产品型号', form.product_model)}
-        ${pair('入料粒度', feed)}
-        ${pair('堆密度', density)}
         ${pair('工艺位置', processPos)}
-      </tr>
-      <tr>
-        ${pair('要求筛分效率', needEff)}
-        ${pair('粒度分布', particle)}
-        ${pair('水分', moisture)}
         ${pair('安装方式', installMethod)}
-      </tr>
-      <tr>
-        <td class="lbl" colspan="1">安装位置</td>
-        <td class="val" colspan="11">${cell(installPos)}</td>
+        ${pair('安装位置', installPos)}
       </tr>
       <tr>
         <td class="lbl" colspan="1">设计人</td>
