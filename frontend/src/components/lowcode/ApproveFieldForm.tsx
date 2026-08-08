@@ -195,7 +195,11 @@ export default function ApproveFieldForm({
           const required = st ? st.required : p.access === 'required'
           const err = missing.has(p.field)
           // field_meta 已按已发布模板覆盖 type；实例 form_fields 快照可能仍是旧类型（如科室单选）
-          const t = meta.type || formFd?.type || 'text'
+          // 科室字段业务固定多选，避免在途单快照/缓存仍按 department 渲染成单选
+          let t = meta.type || formFd?.type || 'text'
+          if (p.field === 'offices' || p.field === 'offices_multi') {
+            t = 'department_multi'
+          }
           const val = values[p.field]
           const status = err ? 'error' as const : undefined
           const label = meta.label || formFd?.label || p.field
