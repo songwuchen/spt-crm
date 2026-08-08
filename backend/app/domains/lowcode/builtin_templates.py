@@ -334,8 +334,12 @@ def _apply_drawing_jdy_fields() -> None:
             defs.append(clean)
         # 新设计卡号：对齐简道云「部门编号-yyyyMMdd+两位日序（按部门编号分序列）」
         if t["key"] in ("scheme_management", "install_drawing_notice"):
-            from app.domains.lowcode.dept_code import apply_design_card_serial_rules
+            from app.domains.lowcode.dept_code import (
+                apply_design_card_serial_rules, apply_scheme_serial_no_field,
+            )
             apply_design_card_serial_rules(defs)
+            if t["key"] == "scheme_management":
+                apply_scheme_serial_no_field(defs)
             from app.domains.lowcode.base_lookups import patch_scheme_material_columns
             patch_scheme_material_columns(defs)
         # 安装图仍保留业务打分；方案管理已去掉三项分数

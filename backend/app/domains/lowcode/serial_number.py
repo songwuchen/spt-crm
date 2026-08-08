@@ -196,6 +196,17 @@ def _resolve_reset_period(
     return str(rule.get("reset_period") or "none")
 
 
+def _resolve_digits(
+    rule: dict[str, Any], form_data: dict[str, Any], field_defs: list[dict[str, Any]],
+) -> int:
+    mapped = _map_by_field(rule.get("digits_by_field"), form_data, field_defs)
+    raw = mapped if mapped is not None else rule.get("digits", 5)
+    try:
+        return max(2, min(12, int(raw)))
+    except (TypeError, ValueError):
+        return 5
+
+
 def _counter_period_key(
     rule: dict[str, Any], form_data: dict[str, Any], field_defs: list[dict[str, Any]], dt: datetime,
 ) -> str:
@@ -222,10 +233,7 @@ async def _build_serial_parts(
     for rule in rules:
         rtype = rule.get("type")
         if rtype == "counter":
-            try:
-                digits = max(2, min(12, int(rule.get("digits", 5))))
-            except (TypeError, ValueError):
-                digits = 5
+            digits = _resolve_digits(rule, form_data, field_defs)
             try:
                 initial = int(rule.get("initial_value", 1))
             except (TypeError, ValueError):

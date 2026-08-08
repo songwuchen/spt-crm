@@ -4,13 +4,20 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   Button, Space, Tag, Modal, message, Popconfirm, Typography,
+  Input, Select,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import FillHeightTable from '@/components/list/FillHeightTable'
+import ColumnConfigPanel from '@/components/list/ColumnConfigPanel'
+import type { ColumnState, ColMeta } from '@/hooks/useListView'
+import FormInstanceFilterPopover, {
+  type FormFilterDsl,
+} from '@/components/lowcode/FormInstanceFilterPopover'
 import {
   ArrowLeftOutlined, PlusOutlined, DownloadOutlined,
   PrinterOutlined, EditOutlined, DeleteOutlined, SendOutlined,
+  SearchOutlined, ReloadOutlined,
 } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
 import { workflowApi } from '@/api/lowcodeWorkflow'
@@ -40,6 +47,26 @@ const STATUS_TAG: Record<string, { color: string; text: string }> = {
   completed: { color: 'green', text: '已通过' },
   rejected: { color: 'red', text: '已驳回' },
   withdrawn: { color: 'default', text: '已撤回' },
+}
+
+const STATUS_FILTER_OPTIONS = [
+  { value: 'draft', label: '草稿' },
+  { value: 'submitted', label: '已提交' },
+  { value: 'running', label: '审批中' },
+  { value: 'completed', label: '已通过' },
+  { value: 'rejected', label: '已驳回' },
+  { value: 'withdrawn', label: '已撤回' },
+]
+
+const COL_STORAGE_PREFIX = 'spt_formlist_cols_'
+
+function loadColState(storageKey: string): ColumnState {
+  try {
+    const s = localStorage.getItem(storageKey)
+    return s ? JSON.parse(s) : { hidden: [], order: [], shown: [] }
+  } catch {
+    return { hidden: [], order: [], shown: [] }
+  }
 }
 
 /** 列表不宜展开的重字段类型 */
@@ -251,12 +278,18 @@ export default function FormDataListPage({
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const [name, setName] = useState('')
   const [schemaFields, setSchemaFields] = useState<FieldDefinition[]>([])
-  const [colFields, setColFields] = useState<FieldDefinition[]>([])
+  const [allColFields, setAllColFields] = useState<FieldDefinition[]>([])
   const [rules, setRules] = useState<FormRule[]>([])
   const [items, setItems] = useState<FormInstance[]>([])
   const [total, setTotal] = useState(0)
   const [pageNo, setPageNo] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [keywordInput, setKeywordInput] = useState('')
+  const [keyword, setKeyword] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string | undefined>()
+  const [fieldFilters, setFieldFilters] = useState<FormFilterDsl | null>(null)
+  const colStorageKey = COL_STORAGE_PREFIX + (templateCode || id || 'unknown')
+  const [colState, setColStateRaw] = useState<ColumnState>(() => loadColState(colStorageKey))
   const [viewRec, setViewRec] = useState<ViewRec | null>(null)
   const [serialPreviews, setSerialPreviews] = useState<Record<string, string>>({})
   const [wfDetail, setWfDetail] = useState<WfInstanceDetail | null>(null)
@@ -281,15 +314,52 @@ export default function FormDataListPage({
     [expandDetail, items],
   )
 
+  // 切换模板时重载列配置
+  useEffect(() => {
+    setColStateRaw(loadColState(colStorageKey))
+  }, [colStorageKey])
+
+  const setColState = useCallback((cs: ColumnState) => {
+    setColStateRaw(cs)
+    try { localStorage.setItem(colStorageKey, JSON.stringify(cs)) } catch { /* ignore */ }
+  }, [colStorageKey])
+
+  const resetColumns = useCallback(() => {
+    setColState({ hidden: [], order: [], shown: [] })
+  }, [setColState])
+
+  const colFields = useMemo(() => {
+    const hidden = new Set(colState.hidden || [])
+    const byId = new Map(allColFields.map((f) => [f.id, f]))
+    const orderedIds = [
+      ...(colState.order || []).filter((k) => byId.has(k)),
+      ...allColFields.map((f) => f.id).filter((k) => !(colState.order || []).includes(k)),
+    ]
+    return orderedIds.map((k) => byId.get(k)!).filter((f) => f && !hidden.has(f.id))
+  }, [allColFields, colState])
+
+  const colMeta: ColMeta[] = useMemo(
+    () => allColFields.map((f) => ({ key: f.id, title: f.label })),
+    [allColFields],
+  )
+
+  const buildQueryParams = useCallback(() => {
+    const params: Record<string, unknown> = { template_id: id, pageNo, pageSize: 20 }
+    if (keyword) params.keyword = keyword
+    if (statusFilter) params.status = statusFilter
+    if (fieldFilters?.rules?.length) params.filters = JSON.stringify(fieldFilters)
+    return params
+  }, [id, pageNo, keyword, statusFilter, fieldFilters])
+
   const load = useCallback(async () => {
     if (!id) return
     setLoading(true)
     try {
-      const res = await lowcodeApi.listInstances({ template_id: id, pageNo, pageSize: 20 })
+      const res = await lowcodeApi.listInstances(buildQueryParams())
       setItems(res.data.items)
       setTotal(res.data.total)
     } finally { setLoading(false) }
-  }, [id, pageNo])
+  }, [id, buildQueryParams])
 
   useEffect(() => {
     if (!id) return
@@ -302,12 +372,34 @@ export default function FormDataListPage({
         setSchemaFields(fs)
         const expand = resolveListExpandDetail(fs, templateCode)
         const exclude = expand ? new Set([expand.id]) : undefined
-        setColFields(pickListColumns(fs, expand ? 6 : 8, exclude))
+        setAllColFields(pickListColumns(fs, expand ? 6 : 8, exclude))
         setRules((ver.data.rule_definitions as FormRule[]) || [])
       } catch { /* 未发布 */ }
     })()
   }, [id, templateCode])
+
+  // 搜索框防抖 → 同步 keyword；keyword 变化时回到第 1 页
+  useEffect(() => {
+    const t = window.setTimeout(() => setKeyword(keywordInput.trim()), 350)
+    return () => window.clearTimeout(t)
+  }, [keywordInput])
+
+  useEffect(() => { setPageNo(1) }, [keyword])
+
   useEffect(() => { load() }, [load])
+
+  const applyFieldFilters = (dsl: FormFilterDsl | null) => {
+    setFieldFilters(dsl)
+    setPageNo(1)
+  }
+
+  const exportUrl = useMemo(() => {
+    const q = new URLSearchParams({ template_id: id || '' })
+    if (keyword) q.set('keyword', keyword)
+    if (statusFilter) q.set('status', statusFilter)
+    if (fieldFilters?.rules?.length) q.set('filters', JSON.stringify(fieldFilters))
+    return `/api/v1/lc/form-instances/export?${q.toString()}`
+  }, [id, keyword, statusFilter, fieldFilters])
 
   // 列表里 person/department/project/contract/customer 存的是 id，需解析成显示名
   useEffect(() => {
@@ -645,12 +737,53 @@ export default function FormDataListPage({
         </Space>
         <Space>
           <Button icon={<DownloadOutlined />} disabled={total === 0}
-            onClick={() => downloadFile(`/api/v1/lc/form-instances/export?template_id=${encodeURIComponent(id)}`, `${name || '表单数据'}.xlsx`)}>
+            onClick={() => downloadFile(exportUrl, `${name || '表单数据'}.xlsx`)}>
             导出
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => nav(fillPath)}>新增</Button>
         </Space>
       </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 mb-4 shrink-0">
+        <div className="flex gap-2 flex-wrap items-center">
+          <Input
+            allowClear
+            prefix={<SearchOutlined className="text-slate-400" />}
+            placeholder="搜索数据"
+            value={keywordInput}
+            style={{ width: 240 }}
+            onChange={(e) => setKeywordInput(e.target.value)}
+            onPressEnter={() => {
+              const next = keywordInput.trim()
+              setKeyword(next)
+              setPageNo(1)
+            }}
+          />
+          <Select
+            allowClear
+            placeholder="全部状态"
+            style={{ width: 130 }}
+            value={statusFilter}
+            options={STATUS_FILTER_OPTIONS}
+            onChange={(v) => { setStatusFilter(v); setPageNo(1) }}
+          />
+          <FormInstanceFilterPopover
+            fields={schemaFields}
+            value={fieldFilters}
+            onApply={applyFieldFilters}
+          />
+          <Button icon={<ReloadOutlined />} onClick={() => load()}>刷新</Button>
+          {colMeta.length > 0 && (
+            <ColumnConfigPanel
+              allMeta={colMeta}
+              colState={colState}
+              onChange={setColState}
+              onReset={resetColumns}
+            />
+          )}
+        </div>
+      </div>
+
       <FillHeightTable
           rowKey={expandDetail ? 'key' : 'id'}
           loading={loading}

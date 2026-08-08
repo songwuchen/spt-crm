@@ -623,6 +623,7 @@ async def list_form_instances(
     pageSize: int = Query(20, ge=1, le=100),
     keyword: str = Query(None),
     status: str = Query(None),
+    filters: str | None = Query(None, description='JSON: {match,rules:[{field,op,value}]} 或旧版数组'),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("form_data:view")),
@@ -630,7 +631,7 @@ async def list_form_instances(
 ):
     items, total = await service.list_instances(
         db, tenant_id, template_id, pageNo, pageSize,
-        keyword=keyword, status=status, owner_ids=scope,
+        keyword=keyword, status=status, owner_ids=scope, filters=filters,
     )
     return ok({"items": [_inst_list_dict(i) for i in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
@@ -669,6 +670,7 @@ async def export_form_instances(
     template_id: str = Query(...),
     keyword: str = Query(None),
     status: str = Query(None),
+    filters: str | None = Query(None, description='JSON: {match,rules:[{field,op,value}]} 或旧版数组'),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("form_data:view")),
@@ -677,7 +679,7 @@ async def export_form_instances(
     """导出当前筛选下的表单数据为 Excel（列＝表单字段，含业务编号/状态/创建时间）。"""
     tpl, field_defs, rows = await service.export_instances(
         db, tenant_id, template_id, keyword=keyword, status=status, owner_ids=scope,
-        limit=_EXPORT_ROW_CAP,
+        filters=filters, limit=_EXPORT_ROW_CAP,
     )
     # 字段级权限：导出列同样剔除对该用户隐藏的字段
     from app.domains.lowcode.field_permission import field_visible

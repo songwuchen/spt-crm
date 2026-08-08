@@ -32,6 +32,30 @@ DESIGN_CARD_SERIAL_RULES: list[dict[str, Any]] = [
     },
 ]
 
+# 方案管理「流水号」对齐简道云：
+# - 有合同号(领用 requisition)：yyyyMMdd + 2 位日序（每日重置）→ 如 2026080804
+# - 无合同号(安装图 install)：yyyyMMdd + 4 位序号（不重置）→ 如 202608056380
+SCHEME_SERIAL_NO_RULES: list[dict[str, Any]] = [
+    {"type": "date", "format": "yyyyMMdd", "date_field": "apply_datetime"},
+    {
+        "type": "counter",
+        "digits": 2,
+        "digits_by_field": {
+            "field_id": "scheme_type",
+            "map": {"requisition": "2", "install": "4"},
+        },
+        "fixed": True,
+        "initial_value": 1,
+        "reset_period": "daily",
+        "reset_period_by_field": {
+            "field_id": "scheme_type",
+            "map": {"requisition": "daily", "install": "none"},
+        },
+        "period_scope_field": "scheme_type",
+        "date_field": "apply_datetime",
+    },
+]
+
 
 def normalize_dept_name(name: str | None) -> str:
     s = (name or "").strip()
@@ -221,3 +245,31 @@ def apply_design_card_serial_rules(field_defs: list[dict[str, Any]]) -> None:
         fd["props"] = props
         fd.setdefault("available_on_create", True)
         fd.setdefault("fill_stage", "initiator")
+
+
+def apply_scheme_serial_no_field(field_defs: list[dict[str, Any]]) -> None:
+    """确保方案管理有 serial_no（流水号）auto_number，规则按 scheme_type 分流。"""
+    defs = field_defs if isinstance(field_defs, list) else []
+    existing = next((f for f in defs if isinstance(f, dict) and f.get("id") == "serial_no"), None)
+    if existing is None:
+        insert_at = 0
+        for i, f in enumerate(defs):
+            if isinstance(f, dict) and f.get("id") == "scheme_type":
+                insert_at = i + 1
+                break
+        existing = {
+            "id": "serial_no",
+            "type": "auto_number",
+            "label": "流水号",
+            "available_on_create": True,
+            "fill_stage": "initiator",
+            "description": "有合同号：yyyyMMdd+两位日序；无合同号：yyyyMMdd+四位序号（不重置）。",
+        }
+        defs.insert(insert_at, existing)
+    existing["type"] = "auto_number"
+    existing["label"] = existing.get("label") or "流水号"
+    props = dict(existing.get("props") or {}) if isinstance(existing.get("props"), dict) else {}
+    props["serial_rules"] = [dict(r) for r in SCHEME_SERIAL_NO_RULES]
+    existing["props"] = props
+    existing["available_on_create"] = True
+    existing["fill_stage"] = "initiator"

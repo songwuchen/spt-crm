@@ -7,8 +7,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import json
+import re
 
-from sqlalchemy import func, select, or_, cast, String
+from sqlalchemy import func, select, or_, and_, not_, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import BusinessException
@@ -270,6 +271,11 @@ async def sync_builtin_form_fields(
                 fd["available_on_create"] = False
                 fd["fill_stage"] = "approver"
     if key == "scheme_management":
+        from app.domains.lowcode.dept_code import (
+            apply_design_card_serial_rules, apply_scheme_serial_no_field,
+        )
+        apply_design_card_serial_rules(want)
+        apply_scheme_serial_no_field(want)
         # 保证关联客户 + 公司名称回填语义不被旧租户版本带偏
         has_related_customer = any(
             isinstance(fd, dict) and fd.get("id") == "related_customer" for fd in want
@@ -909,6 +915,25 @@ def _extract_amount(form_data: dict, field_defs: list[dict]) -> Decimal | None:
     return None
 
 
+def _pick_business_no(form_data: dict | None, field_defs: list[dict] | None) -> str | None:
+    """业务编号：优先流水号字段，其次其它 auto_number。"""
+    data = form_data or {}
+    for fid in ("serial_no", "design_card_no", "drawing_no", "quote_no", "business_no"):
+        v = data.get(fid)
+        if v is not None and str(v).strip() != "":
+            return str(v).strip()[:64]
+    for fd in field_defs or []:
+        if not isinstance(fd, dict) or fd.get("type") != "auto_number":
+            continue
+        fid = fd.get("id")
+        if not fid:
+            continue
+        v = data.get(fid)
+        if v is not None and str(v).strip() != "":
+            return str(v).strip()[:64]
+    return None
+
+
 # ==================== 实例(填报) ====================
 
 async def create_instance(
@@ -948,6 +973,7 @@ async def create_instance(
         status="draft" if data.as_draft else "submitted",
         initiator_id=user.get("sub"), initiator_dept_id=user.get("dept_id"),
         amount=_extract_amount(form_data, field_defs),
+        business_no=_pick_business_no(form_data, field_defs),
         form_data=form_data, field_definitions=field_defs,
         created_by=user.get("sub"),
     )
@@ -1009,12 +1035,114 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
     return out
 
 
-async def list_instances(
-    db: AsyncSession, tenant_id: str, template_id: str,
-    page_no: int, page_size: int,
+_FIELD_ID_RE = re.compile(r"^[a-zA-Z0-9_]{1,64}$")
+_FILTER_OPS = frozenset({
+    "eq", "ne", "contains", "not_contains",
+    "in", "between", "gt", "gte", "lt", "lte",
+    "before", "after", "is_empty", "is_not_empty",
+})
+_EMPTY_OPS = frozenset({"is_empty", "is_not_empty"})
+_MAX_FILTER_RULES = 10
+
+
+def _parse_filters_payload(filters: list | dict | str | None) -> tuple[str, list]:
+    """解析 filters：支持旧版数组，或 {match, rules}。返回 (match, raw_rules)。"""
+    raw = filters
+    if isinstance(raw, str):
+        if not raw.strip():
+            return "all", []
+        try:
+            raw = json.loads(raw)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return "all", []
+    if isinstance(raw, dict):
+        match = raw.get("match") if raw.get("match") in ("all", "any") else "all"
+        rules = raw.get("rules") if isinstance(raw.get("rules"), list) else []
+        return str(match), rules
+    if isinstance(raw, list):
+        return "all", raw
+    return "all", []
+
+
+def _normalize_instance_filters(filters: list | dict | str | None) -> tuple[str, list[dict]]:
+    """解析 list/export 的 filters：最多 10 条规则。非法项静默丢弃。"""
+    match, rules = _parse_filters_payload(filters)
+    out: list[dict] = []
+    for item in rules[:_MAX_FILTER_RULES]:
+        if not isinstance(item, dict):
+            continue
+        field = item.get("field")
+        op = str(item.get("op") or "contains").strip()
+        value = item.get("value")
+        if not isinstance(field, str) or not _FIELD_ID_RE.match(field):
+            continue
+        if op not in _FILTER_OPS:
+            continue
+        if op not in _EMPTY_OPS:
+            if value is None:
+                continue
+            if isinstance(value, str) and not value.strip():
+                continue
+            if isinstance(value, list) and not value:
+                continue
+        out.append({"field": field, "op": op, "value": value})
+    return match, out
+
+
+def _form_data_filter_clause(rule: dict):
+    """单条规则 → SQL 条件（form_data->>field 文本语义）。"""
+    field = rule["field"]
+    op = rule["op"]
+    value = rule.get("value")
+    txt = FormInstance.form_data.op("->>")(field)
+    empty = or_(txt.is_(None), txt == "", txt == "null", txt == "[]", txt == "{}")
+
+    if op == "is_empty":
+        return empty
+    if op == "is_not_empty":
+        return not_(empty)
+    if op == "eq":
+        return txt == str(value)
+    if op == "ne":
+        return or_(txt.is_(None), txt != str(value))
+    if op == "contains":
+        return txt.ilike(f"%{value}%")
+    if op == "not_contains":
+        return or_(txt.is_(None), not_(txt.ilike(f"%{value}%")))
+    if op == "in":
+        vals = value if isinstance(value, list) else [value]
+        parts = [txt == str(v) for v in vals if v is not None and str(v) != ""]
+        # 人员/对象字段可能以 JSON 文本存储，额外做包含匹配
+        parts += [txt.ilike(f"%{v}%") for v in vals if v is not None and str(v) != ""]
+        return or_(*parts) if parts else False
+    if op == "between":
+        if not isinstance(value, (list, tuple)) or len(value) < 2:
+            return True
+        a, b = value[0], value[1]
+        if a is None or b is None or a == "":
+            return True
+        end = str(b)
+        # 仅日期时扩到当天末，避免漏掉带时间的值
+        if len(end) == 10 and end[4] == "-" and end[7] == "-":
+            end = end + "T23:59:59"
+        return and_(txt >= str(a), txt <= end)
+    if op in ("gt", "after"):
+        return and_(txt.isnot(None), txt > str(value))
+    if op == "gte":
+        return and_(txt.isnot(None), txt >= str(value))
+    if op in ("lt", "before"):
+        return and_(txt.isnot(None), txt < str(value))
+    if op == "lte":
+        return and_(txt.isnot(None), txt <= str(value))
+    return txt.ilike(f"%{value}%")
+
+
+def _instance_list_conds(
+    tenant_id: str, template_id: str,
     keyword: str | None = None, status: str | None = None,
     owner_ids: list[str] | None = None,
-) -> tuple[list[FormInstance], int]:
+    filters: list | dict | str | None = None,
+) -> list:
     conds = [
         FormInstance.tenant_id == tenant_id,
         FormInstance.template_id == template_id,
@@ -1031,6 +1159,24 @@ async def list_instances(
         conds.append(FormInstance.status == status)
     if owner_ids is not None:  # 数据范围: 仅可见发起人
         conds.append(FormInstance.initiator_id.in_(owner_ids or ["__none__"]))
+    match, rules = _normalize_instance_filters(filters)
+    if rules:
+        clauses = [_form_data_filter_clause(r) for r in rules]
+        conds.append(or_(*clauses) if match == "any" else and_(*clauses))
+    return conds
+
+
+async def list_instances(
+    db: AsyncSession, tenant_id: str, template_id: str,
+    page_no: int, page_size: int,
+    keyword: str | None = None, status: str | None = None,
+    owner_ids: list[str] | None = None,
+    filters: list | dict | str | None = None,
+) -> tuple[list[FormInstance], int]:
+    conds = _instance_list_conds(
+        tenant_id, template_id, keyword=keyword, status=status,
+        owner_ids=owner_ids, filters=filters,
+    )
 
     total = (await db.execute(
         select(func.count()).select_from(FormInstance).where(*conds)
@@ -1047,6 +1193,7 @@ async def export_instances(
     db: AsyncSession, tenant_id: str, template_id: str,
     keyword: str | None = None, status: str | None = None,
     owner_ids: list[str] | None = None, limit: int = 10000,
+    filters: list | dict | str | None = None,
 ) -> tuple[FormTemplate | None, list[dict], list[FormInstance]]:
     """导出表单数据: 返回(模板, 列定义 field_defs, 数据行)。
     列定义优先取已发布版本,否则最新版本(草稿态也可导出)。"""
@@ -1061,22 +1208,10 @@ async def export_instances(
         ver = await _get_latest_version(db, tenant_id, template_id)
     field_defs = (ver.field_definitions if ver else []) or []
 
-    conds = [
-        FormInstance.tenant_id == tenant_id,
-        FormInstance.template_id == template_id,
-        FormInstance.is_deleted == False,  # noqa: E712
-    ]
-    if keyword:
-        like = f"%{keyword}%"
-        conds.append(or_(
-            FormInstance.title.ilike(like),
-            FormInstance.business_no.ilike(like),
-            cast(FormInstance.form_data, String).ilike(like),
-        ))
-    if status:
-        conds.append(FormInstance.status == status)
-    if owner_ids is not None:
-        conds.append(FormInstance.initiator_id.in_(owner_ids or ["__none__"]))
+    conds = _instance_list_conds(
+        tenant_id, template_id, keyword=keyword, status=status,
+        owner_ids=owner_ids, filters=filters,
+    )
     rows = (await db.execute(
         select(FormInstance).where(*conds)
         .order_by(FormInstance.created_at.desc())
@@ -1174,6 +1309,9 @@ async def submit_instance(
 
     inst.form_data = form_data
     inst.amount = _extract_amount(form_data, field_defs)
+    biz = _pick_business_no(form_data, field_defs)
+    if biz:
+        inst.business_no = biz
     inst.field_definitions = field_defs
     if published:
         inst.template_version_id = published.id

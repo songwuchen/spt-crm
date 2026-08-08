@@ -109,7 +109,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
       {
         title: '共用基本信息',
         fieldIds: [
-          'apply_datetime', 'department', 'applicant', 'order_person',
+          'serial_no', 'apply_datetime', 'department', 'applicant', 'order_person',
           'apply_or_change',
           'product_model', 'design_dispatch', 'transfer_packaging_users',
           'design_assignees', 'order_date', 'images',
@@ -147,6 +147,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
       scheme_type: 24,
       related_project: 24,
       related_customer: 24,
+      serial_no: 12, apply_datetime: 12,
       apply_reason: 24, paper_print_tip: 24, attachments: 24, images: 24,
       scheme_detail: 24, install_env: 24, scheme_material: 24,
       apply_or_change: 24, apply_reason_star: 24, remark: 24, attention: 24,
