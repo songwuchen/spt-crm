@@ -2600,6 +2600,7 @@ async def get_instance_detail(
     if inst.form_instance_id:
         try:
             from app.domains.lowcode.models import FormInstance, FormTemplateVersion
+            from app.domains.lowcode.service import get_published_version
             fi = await db.get(FormInstance, inst.form_instance_id)
             if fi and not getattr(fi, "is_deleted", False):
                 form_fields = list(fi.field_definitions or [])
@@ -2609,6 +2610,42 @@ async def get_instance_detail(
                     if not form_fields:
                         form_fields = list(ver.field_definitions or [])
                     form_rules = list(ver.rule_definitions or [])
+                # 实例快照 type/props 可能落后：用当前已发布模板覆盖（如科室改多选）
+                try:
+                    pub = await get_published_version(db, tenant_id, fi.template_id)
+                except Exception:
+                    pub = None
+                if pub and pub.field_definitions:
+                    pub_by_id = {
+                        fd["id"]: fd for fd in (pub.field_definitions or [])
+                        if isinstance(fd, dict) and fd.get("id")
+                    }
+                    if not form_fields:
+                        form_fields = list(pub.field_definitions)
+                    else:
+                        merged_ff: list = []
+                        for fd in form_fields:
+                            if not isinstance(fd, dict) or not fd.get("id"):
+                                continue
+                            pfd = pub_by_id.get(fd["id"])
+                            if not isinstance(pfd, dict):
+                                merged_ff.append(fd)
+                                continue
+                            m = dict(fd)
+                            if pfd.get("type"):
+                                m["type"] = pfd["type"]
+                            if pfd.get("label"):
+                                m["label"] = pfd["label"]
+                            pub_props = pfd.get("props") if isinstance(pfd.get("props"), dict) else {}
+                            if pub_props:
+                                props = dict(m.get("props") or {})
+                                if pub_props.get("pickable_scope"):
+                                    props["pickable_scope"] = pub_props["pickable_scope"]
+                                m["props"] = props
+                            merged_ff.append(m)
+                        form_fields = merged_ff
+                    if pub.rule_definitions:
+                        form_rules = list(pub.rule_definitions)
         except Exception:
             form_fields, form_data, form_rules = [], {}, []
 

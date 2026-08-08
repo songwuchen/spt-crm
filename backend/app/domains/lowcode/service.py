@@ -301,6 +301,10 @@ async def sync_builtin_form_fields(
                 fd["props"] = props
             if fd.get("id") == "transfer_packaging_users":
                 fd["type"] = "person_multi"
+            # 科室多选（有合同号 offices / 无合同号 offices_multi）
+            if fd.get("id") in ("offices", "offices_multi"):
+                fd["type"] = "department_multi"
+                fd["label"] = "科室"
             if fd.get("id") in (
                 "apply_datetime", "order_date", "card_date",
                 "require_draw_date",

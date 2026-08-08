@@ -354,8 +354,13 @@ def build() -> dict:
             f["label"] = "合同号"
             f["description"] = "从合同管理中选择合同。"
             f.pop("options", None)
+        # 科室：有/无合同号均多选（研究院安排等节点可多选）
+        if f.get("id") == "offices":
+            f["type"] = "department_multi"
+            f["label"] = "科室"
         if f.get("id") == "offices_multi":
             f["type"] = "department_multi"
+            f["label"] = "科室"
         if f.get("id") == "customer_name":
             # 公司名称：文本回填，不作为客户选择器
             f["type"] = "text"

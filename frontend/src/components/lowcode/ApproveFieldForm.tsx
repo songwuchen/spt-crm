@@ -194,8 +194,8 @@ export default function ApproveFieldForm({
           const meta = metaById[p.field] || { id: p.field, label: p.field, type: 'text' as const }
           const required = st ? st.required : p.access === 'required'
           const err = missing.has(p.field)
-          // 实例 field_meta 可能落后：优先已发布/表单字段类型（如下单日期应为 datetime）
-          const t = formFd?.type || meta.type || 'text'
+          // field_meta 已按已发布模板覆盖 type；实例 form_fields 快照可能仍是旧类型（如科室单选）
+          const t = meta.type || formFd?.type || 'text'
           const val = values[p.field]
           const status = err ? 'error' as const : undefined
           const label = meta.label || formFd?.label || p.field

@@ -349,6 +349,10 @@ def _apply_drawing_jdy_fields() -> None:
                 "score_attitude", "score_progress", "score_skill",
                 "score_total", "score_date",
             }
+            for f in defs:
+                if isinstance(f, dict) and f.get("id") in ("offices", "offices_multi"):
+                    f["type"] = "department_multi"
+                    f["label"] = "科室"
         defs = [f for f in defs if f.get("id") not in drop_ids]
         rules = [
             r for r in (pack.get("rule_definitions") or [])
