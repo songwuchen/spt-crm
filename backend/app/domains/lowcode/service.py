@@ -303,7 +303,7 @@ async def sync_builtin_form_fields(
                 fd["type"] = "person_multi"
             if fd.get("id") in (
                 "apply_datetime", "order_date", "card_date",
-                "require_draw_date", "score_date",
+                "require_draw_date",
             ):
                 fd["type"] = "date"
                 props = dict(fd.get("props") or {})
@@ -320,13 +320,15 @@ async def sync_builtin_form_fields(
                     {"label": "领图", "value": "领图"},
                 ]
                 break
-        # 方案管理已去掉的字段（明细 + 是否上交图纸）
+        # 方案管理已去掉的字段（明细 + 是否上交图纸 + 业务打分）
+        _scheme_drop_ids = {
+            "change_scheme", "non_scheme_material", "need_submit_drawing",
+            "score_attitude", "score_progress", "score_skill",
+            "score_total", "score_date",
+        }
         want = [
             fd for fd in want
-            if not (
-                isinstance(fd, dict)
-                and fd.get("id") in ("change_scheme", "non_scheme_material", "need_submit_drawing")
-            )
+            if not (isinstance(fd, dict) and fd.get("id") in _scheme_drop_ids)
         ]
         want_rules = [
             r for r in want_rules
@@ -343,12 +345,8 @@ async def sync_builtin_form_fields(
                         )
                     )
                     or (
-                        r.get("target_field_id") in (
-                            "change_scheme", "non_scheme_material", "need_submit_drawing",
-                        )
-                        or bool(set(r.get("target_field_ids") or []) & {
-                            "change_scheme", "non_scheme_material", "need_submit_drawing",
-                        })
+                        r.get("target_field_id") in _scheme_drop_ids
+                        or bool(set(r.get("target_field_ids") or []) & _scheme_drop_ids)
                     )
                 )
             )

@@ -416,11 +416,14 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     routes = copy.deepcopy(pack.get("flow_routes") or [])
     if not nodes:
         return None
-    if form_code in ("scheme_management", "install_drawing_notice"):
+    if form_code == "install_drawing_notice":
         from app.domains.lowcode.biz_score import apply_biz_score_flow_nodes
         apply_biz_score_flow_nodes(nodes)
     if form_code == "scheme_management":
-        from app.domains.lowcode.biz_score import apply_chief_gm_flow_nodes
+        from app.domains.lowcode.biz_score import (
+            apply_chief_gm_flow_nodes, strip_biz_score_flow_nodes,
+        )
+        strip_biz_score_flow_nodes(nodes)
         apply_chief_gm_flow_nodes(nodes)
     return nodes, routes
 
@@ -1271,7 +1274,7 @@ async def _upgrade_drawing_form_flow_if_needed(
             and not _flow_has_node_field_perms(version.node_definitions)
         )
         and not (
-            form_code in ("scheme_management", "install_drawing_notice")
+            form_code == "install_drawing_notice"
             and _flow_missing_biz_score_perms(version.node_definitions)
         )
     )
@@ -1290,6 +1293,21 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"财务核价补 need_purchase 必填({form_code})",
         )
         return
+    # 方案管理：剥离业务打分三项（及总分/日期）节点可填权限
+    if topology_ok and form_code == "scheme_management":
+        from app.domains.lowcode.biz_score import (
+            flow_has_biz_score_perms, strip_biz_score_flow_nodes,
+        )
+        if flow_has_biz_score_perms(version.node_definitions):
+            import copy
+            patched = copy.deepcopy(version.node_definitions or [])
+            strip_biz_score_flow_nodes(patched)
+            await _publish_system_default_upgrade(
+                db, tenant_id, d, version,
+                patched, version.route_definitions,
+                DRAWING_FORM_FLOW_DESC, f"方案管理去掉业务打分字段权限({form_code})",
+            )
+            return
     # 仅缺总工「是否需要总经理审批」：就地补 field_perms，避免整图覆盖已 remap 的审批人
     if (
         topology_ok

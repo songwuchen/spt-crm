@@ -214,9 +214,6 @@ def main():
         "offices_multi": [did],
         "order_date": now,
         "attachment_names": "冒烟",
-        "score_attitude": 5,
-        "score_progress": 5,
-        "score_skill": 5,
         "remark": "smoke",
     }
     print("\n=== CREATE install ===")

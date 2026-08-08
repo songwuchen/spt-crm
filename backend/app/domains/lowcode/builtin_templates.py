@@ -338,10 +338,17 @@ def _apply_drawing_jdy_fields() -> None:
             apply_design_card_serial_rules(defs)
             from app.domains.lowcode.base_lookups import patch_scheme_material_columns
             patch_scheme_material_columns(defs)
+        # 安装图仍保留业务打分；方案管理已去掉三项分数
+        if t["key"] == "install_drawing_notice":
             from app.domains.lowcode.biz_score import apply_biz_score_field_defs
             apply_biz_score_field_defs(defs)
-        # 永久删除：前期沟通的设计员（文本）；保留选人 pre_designers
+        # 永久删除：前期沟通的设计员（文本）；方案管理去掉业务打分字段
         drop_ids = {"pre_designer_text"}
+        if t["key"] == "scheme_management":
+            drop_ids |= {
+                "score_attitude", "score_progress", "score_skill",
+                "score_total", "score_date",
+            }
         defs = [f for f in defs if f.get("id") not in drop_ids]
         rules = [
             r for r in (pack.get("rule_definitions") or [])

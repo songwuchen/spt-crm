@@ -64,6 +64,12 @@ DROP_FIELD_IDS = frozenset({
     "change_scheme",
     "non_scheme_material",
     "need_submit_drawing",
+    # 业务打分三项及派生字段：方案管理不再使用
+    "score_attitude",
+    "score_progress",
+    "score_skill",
+    "score_total",
+    "score_date",
 })
 
 # 业务上只需选到「日」的字段（简道云多为 datetime，CRM 统一为 date）
@@ -72,7 +78,6 @@ DATE_ONLY_FIELD_IDS = frozenset({
     "order_date",
     "card_date",
     "require_draw_date",
-    "score_date",
 })
 
 # 这些字段只用「scheme_type 显隐」，不套简道云原条件（否则后写规则会盖掉类型显隐）
@@ -482,6 +487,21 @@ def build() -> dict:
         by_f["need_gm_approval"] = "required"
         n["field_perms"] = [{"field": k, "access": v} for k, v in by_f.items()]
 
+    # 方案管理不再使用业务打分字段：从审批节点 field_perms 剥离
+    score_drop = {
+        "score_attitude", "score_progress", "score_skill", "score_total", "score_date",
+    }
+    for n in flow_nodes:
+        if not isinstance(n, dict):
+            continue
+        perms = n.get("field_perms") or []
+        if not perms:
+            continue
+        n["field_perms"] = [
+            p for p in perms
+            if isinstance(p, dict) and p.get("field") not in score_drop
+        ]
+
     # 无合同号总工：need_gm=是 → 总经理审批 → 设计指派；保留小萌→周经理；抄送仅在不需总经理审批时
     _patch_install_need_gm_flow(flow_nodes, flow_routes)
 
@@ -497,6 +517,7 @@ def build() -> dict:
             "related_project / related_customer 可选；公司名称文本由二者回填。",
             "下图类型含 出方案图 / 出测绘图 / 修改方案 / 领图（选项保留）。",
             "不含 change_scheme / non_scheme_material 明细表。",
+            "不含业务打分：score_attitude / score_progress / score_skill / score_total / score_date。",
             "总工审批（有/无合同号）必填 need_gm_approval；无合同号按 need_gm 走总经理审批。",
             "申请人默认当前用户；合同号 type=contract 引用合同管理；"
             "不含 order_person_text / designer_text / need_decrypt / project_no / is_new_project / sales_person。",

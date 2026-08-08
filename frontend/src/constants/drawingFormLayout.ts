@@ -137,10 +137,8 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
         ],
       },
       {
-        title: '评价打分（审批填写）',
-        fieldIds: [
-          'score_attitude', 'score_progress', 'score_skill', 'score_total', 'score_date', 'remark',
-        ],
+        title: '备注',
+        fieldIds: ['remark'],
       },
     ],
     spans: {

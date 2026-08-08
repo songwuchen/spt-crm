@@ -84,6 +84,41 @@ def apply_biz_score_flow_nodes(nodes: list[dict[str, Any]] | None) -> None:
         n["field_perms"] = _merge_score_perms(n.get("field_perms"))
 
 
+SCORE_DROP_FIELDS = frozenset(
+    SCORE_REQUIRED_FIELDS + SCORE_OPTIONAL_FIELDS + (SCORE_TOTAL_FIELD,),
+)
+
+
+def strip_biz_score_flow_nodes(nodes: list[dict[str, Any]] | None) -> bool:
+    """从节点 field_perms 去掉业务打分字段。返回是否有改动。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        perms = n.get("field_perms") or []
+        if not perms:
+            continue
+        kept = [
+            p for p in perms
+            if isinstance(p, dict) and p.get("field") not in SCORE_DROP_FIELDS
+        ]
+        if len(kept) != len(perms):
+            n["field_perms"] = kept
+            changed = True
+    return changed
+
+
+def flow_has_biz_score_perms(nodes: list | None) -> bool:
+    """节点 field_perms 仍含业务打分字段（方案管理需剥离时用）。"""
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        for p in n.get("field_perms") or []:
+            if isinstance(p, dict) and p.get("field") in SCORE_DROP_FIELDS:
+                return True
+    return False
+
+
 def flow_missing_biz_score_perms(nodes: list | None) -> bool:
     """「业务打分」或「业务反馈」节点缺少三项分数权限 → 需要升级。"""
     saw_target = False
