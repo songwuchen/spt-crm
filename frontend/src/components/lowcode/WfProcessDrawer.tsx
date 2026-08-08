@@ -6,7 +6,7 @@ import {
 } from 'antd'
 import {
   CheckCircleOutlined, CloseCircleOutlined, SwapOutlined,
-  RollbackOutlined, FileTextOutlined,
+  RollbackOutlined, FileTextOutlined, PrinterOutlined,
 } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
@@ -21,6 +21,7 @@ import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
+import { isSchemeManagementForm, printSchemeInstance } from '@/pages/drawing/schemePrint'
 
 const { Text, Title } = Typography
 
@@ -208,6 +209,21 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     || detail?.flow_steps?.find((s) => s.is_current)?.node_name
     || '审批'
   const isLeadIntel = detail?.biz_type === 'lead' && canAct && !!effectiveTaskId && !!detail?.biz_id
+  const canPrintScheme = isSchemeManagementForm(fields, formData, detail?.process_name)
+
+  const handlePrintScheme = async () => {
+    try {
+      await printSchemeInstance({
+        formData: { ...formData, ...fieldUpdates },
+        fieldDefinitions: fields,
+        businessNo: detail?.business_no,
+        flowSteps: detail?.flow_steps,
+      })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '打印失败')
+    }
+  }
 
   return (
     <Drawer
@@ -247,15 +263,26 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     当前节点：{currentNode}
                   </div>
                 </div>
-                {bizPath && (
-                  <Button
-                    size="small"
-                    icon={<FileTextOutlined />}
-                    onClick={() => { onClose(); navigate(bizPath) }}
-                  >
-                    {contract ? '打开合同页' : '查看完整单据'}
-                  </Button>
-                )}
+                <Space size="small" wrap className="shrink-0">
+                  {canPrintScheme && (
+                    <Button
+                      size="small"
+                      icon={<PrinterOutlined />}
+                      onClick={() => { void handlePrintScheme() }}
+                    >
+                      打印
+                    </Button>
+                  )}
+                  {bizPath && (
+                    <Button
+                      size="small"
+                      icon={<FileTextOutlined />}
+                      onClick={() => { onClose(); navigate(bizPath) }}
+                    >
+                      {contract ? '打开合同页' : '查看完整单据'}
+                    </Button>
+                  )}
+                </Space>
               </div>
             </div>
 

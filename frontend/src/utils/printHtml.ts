@@ -6,12 +6,21 @@ export function escHtml(val: unknown): string {
   )
 }
 
+export type PrintHtmlOptions = {
+  /** 排版预览用纸向；与单据 @page 一致。默认纵向 */
+  orientation?: 'portrait' | 'landscape'
+}
+
 /**
  * Chromium 对 width/height=0 的 iframe + srcdoc 打印常出空白页，
  * 且弹窗标题会变成当前业务页（如「方案管理 - SPT-CRM」）。
  * 这里用离屏 A4 尺寸 iframe + document.write，必要时再开新窗口。
  */
-export function printHtml(html: string): void {
+export function printHtml(html: string, opts?: PrintHtmlOptions): void {
+  const landscape = opts?.orientation === 'landscape'
+  // A4：纵向 210×297，横向 297×210
+  const width = landscape ? '297mm' : '210mm'
+  const height = landscape ? '210mm' : '297mm'
   const iframe = document.createElement('iframe')
   iframe.setAttribute('title', 'print-frame')
   // 必须有实际排版尺寸，否则预览空白
@@ -19,8 +28,8 @@ export function printHtml(html: string): void {
     'position:fixed',
     'left:-10000px',
     'top:0',
-    'width:210mm',
-    'height:297mm',
+    `width:${width}`,
+    `height:${height}`,
     'border:0',
     'opacity:0',
     'pointer-events:none',

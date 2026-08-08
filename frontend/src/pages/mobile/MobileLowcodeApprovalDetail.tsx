@@ -15,6 +15,7 @@ import PersonField from '@/components/lowcode/fields/PersonField'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
+import { isSchemeManagementForm, printSchemeInstance } from '@/pages/drawing/schemePrint'
 
 function bizEntityPath(bizType?: string | null, bizId?: string | null, bizRefId?: string | null): string | null {
   if (!bizType || !bizId) return null
@@ -150,6 +151,21 @@ export default function MobileLowcodeApprovalDetail() {
   if (loading) return <div className="flex items-center justify-center h-64"><MobileIcon name="progress_activity" className="animate-spin text-primary" style={{ fontSize: 32 }} /></div>
   if (!detail) return null
   const st = PSTATUS[detail.status] || { cls: 'bg-slate-100 text-slate-500', text: detail.status }
+  const canPrintScheme = isSchemeManagementForm(fields, formData, detail.process_name)
+
+  const handlePrintScheme = async () => {
+    try {
+      await printSchemeInstance({
+        formData: { ...formData, ...fieldUpdates },
+        fieldDefinitions: fields,
+        businessNo: detail.business_no,
+        flowSteps: detail.flow_steps,
+      })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '打印失败')
+    }
+  }
 
   return (
     <div className={canAct ? 'pb-28' : ''}>
@@ -167,14 +183,27 @@ export default function MobileLowcodeApprovalDetail() {
         {detail.current_task?.node_name && (
           <div className="text-sm text-slate-500 mt-2">当前节点：{detail.current_task.node_name}</div>
         )}
-        {bizPath && (
-          <button
-            type="button"
-            onClick={() => nav(bizPath)}
-            className="mt-3 w-full h-10 rounded-lg bg-slate-50 text-primary text-sm font-bold border border-slate-100"
-          >
-            查看完整单据
-          </button>
+        {(canPrintScheme || bizPath) && (
+          <div className="mt-3 flex gap-2">
+            {canPrintScheme && (
+              <button
+                type="button"
+                onClick={() => { void handlePrintScheme() }}
+                className="flex-1 h-10 rounded-lg bg-slate-50 text-primary text-sm font-bold border border-slate-100"
+              >
+                打印
+              </button>
+            )}
+            {bizPath && (
+              <button
+                type="button"
+                onClick={() => nav(bizPath)}
+                className="flex-1 h-10 rounded-lg bg-slate-50 text-primary text-sm font-bold border border-slate-100"
+              >
+                查看完整单据
+              </button>
+            )}
+          </div>
         )}
       </div>
 

@@ -4,7 +4,7 @@
  * - install → 安装图通知单及设计卡
  *
  * 版式要点（对照简道云截图）：
- * - 整页一张表、横向铺满 A4；12 列栅格，标签窄、内容宽
+ * - 横向 A4；整页一张表铺满；12 列栅格，标签窄、内容宽
  * - 字号约 10.5pt，靠压签字/意见区行高塞进一页，而不是缩小字体
  */
 import dayjs from 'dayjs'
@@ -107,11 +107,11 @@ function printCss(): string {
     .sheet { width: 100%; padding: 0; }
     h1 {
       text-align: center;
-      font-size: 16pt;
+      font-size: 14pt;
       font-weight: 700;
       letter-spacing: 0.3em;
-      margin: 0 0 4pt;
-      line-height: 1.2;
+      margin: 0 0 3pt;
+      line-height: 1.15;
     }
     /* 12 列栅格：标签窄、内容宽，横向铺满 */
     table.form {
@@ -141,11 +141,11 @@ function printCss(): string {
     }
     .val { text-align: center; font-size: 10.5pt; }
     .val-left { text-align: left; font-size: 10.5pt; }
-    .sign { height: 22pt; vertical-align: top; }
-    .idea { min-height: 28pt; height: 28pt; vertical-align: top; }
-    .opin { min-height: 22pt; height: 22pt; vertical-align: top; }
-    .final { min-height: 18pt; vertical-align: middle; }
-    .matter { min-height: 18pt; vertical-align: top; }
+    .sign { height: 18pt; vertical-align: top; }
+    .idea { min-height: 22pt; height: 22pt; vertical-align: top; }
+    .opin { min-height: 18pt; height: 18pt; vertical-align: top; }
+    .final { min-height: 16pt; vertical-align: middle; }
+    .matter { min-height: 16pt; vertical-align: top; }
     .chk { margin-right: 10pt; white-space: nowrap; }
     .foot {
       margin-top: 4pt;
@@ -161,7 +161,8 @@ function printCss(): string {
     }
     .ops b { font-size: 9.5pt; margin-right: 4pt; }
     .ops .op { margin: 0; }
-    @page { size: A4 portrait; margin: 8mm 7mm; }
+    /* 对齐简道云：横向 A4 */
+    @page { size: A4 landscape; margin: 6mm 8mm; }
     @media print {
       html, body { width: 100%; }
       .sheet { width: 100%; }
@@ -508,6 +509,19 @@ async function resolveLabels(
   return { users, depts, projects, contracts }
 }
 
+/** 是否方案管理单据（审批详情里据此露出打印） */
+export function isSchemeManagementForm(
+  fields?: FieldDefinition[] | null,
+  formData?: Record<string, unknown> | null,
+  processName?: string | null,
+): boolean {
+  if (fields?.some((f) => f.id === 'scheme_type')) return true
+  const st = formData?.scheme_type
+  if (st != null && st !== '') return true
+  if (processName && /方案管理/.test(processName)) return true
+  return false
+}
+
 export async function printSchemeInstance(opts: {
   formData: Record<string, unknown>
   fieldDefinitions: FieldDefinition[]
@@ -526,5 +540,5 @@ export async function printSchemeInstance(opts: {
       form, fields: opts.fieldDefinitions || [], labels,
       businessNo: opts.businessNo, steps: opts.flowSteps,
     })
-  printHtml(html)
+  printHtml(html, { orientation: 'landscape' })
 }
