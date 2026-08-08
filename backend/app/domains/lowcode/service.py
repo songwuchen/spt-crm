@@ -520,6 +520,10 @@ async def ensure_builtin_form(
             from app.domains.lowcode.dept_code import seed_department_codes_if_empty
             await seed_department_codes_if_empty(db, tenant_id, existing.id, user)
             await db.commit()
+        if key == "quote_management":
+            from app.domains.organization.pickable_scope_service import ensure_preset_scopes
+            await ensure_preset_scopes(db, tenant_id)
+            await db.commit()
         return existing
 
     tpl = FormTemplate(
@@ -543,6 +547,10 @@ async def ensure_builtin_form(
     if key == "department_code_base":
         from app.domains.lowcode.dept_code import seed_department_codes_if_empty
         await seed_department_codes_if_empty(db, tenant_id, tpl.id, user)
+        await db.commit()
+    if key == "quote_management":
+        from app.domains.organization.pickable_scope_service import ensure_preset_scopes
+        await ensure_preset_scopes(db, tenant_id)
         await db.commit()
     return tpl
 

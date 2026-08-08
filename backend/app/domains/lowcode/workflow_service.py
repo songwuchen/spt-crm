@@ -363,6 +363,16 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "multi_mode": "or_sign",
         "empty_strategy": "auto_approve",
     },
+    {
+        "form_code": "quote_management",
+        "code": "SYS_QUOTE_MANAGEMENT",
+        "name": "报价管理",
+        "approver_rule": {
+            "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
 ]
 
 DRAWING_FORM_FLOW_DESC = (
@@ -391,6 +401,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     try:
         from app.domains.lowcode._invoice_payment_jdy_generated import INVOICE_PAYMENT_JDY
         packs.update(INVOICE_PAYMENT_JDY)
+    except Exception:
+        pass
+    try:
+        from app.domains.lowcode._quote_management_generated import QUOTE_MANAGEMENT_JDY
+        packs.update(QUOTE_MANAGEMENT_JDY)
     except Exception:
         pass
     pack = packs.get(form_code)
@@ -467,6 +482,47 @@ def _flow_is_jdy_payment(nodes: list | None) -> bool:
     return "内勤处理" in names and "采购" in names and len(nodes or []) >= 15
 
 
+def _flow_is_jdy_quote(nodes: list | None) -> bool:
+    """已对齐简道云核价管理流程：财务核价 + 部门审批分支。"""
+    names = {n.get("name") for n in (nodes or [])}
+    return "财务核价" in names and "部门审批" in names and len(nodes or []) >= 15
+
+
+def _flow_missing_quote_need_purchase_required(nodes: list | None) -> bool:
+    """报价管理：财务核价节点「是否转采购」须为 required。"""
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("name") != "财务核价":
+            continue
+        for p in n.get("field_perms") or []:
+            if isinstance(p, dict) and p.get("field") == "need_purchase":
+                return p.get("access") != "required"
+        return True
+    return False
+
+
+def apply_quote_finance_need_purchase_required(nodes: list[dict]) -> bool:
+    """就地补：财务核价.need_purchase → required。返回是否有改动。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("name") != "财务核价":
+            continue
+        perms = list(n.get("field_perms") or [])
+        found = False
+        for p in perms:
+            if isinstance(p, dict) and p.get("field") == "need_purchase":
+                if p.get("access") != "required":
+                    p["access"] = "required"
+                    changed = True
+                found = True
+                break
+        if not found:
+            perms.append({"field": "need_purchase", "access": "required"})
+            changed = True
+        n["field_perms"] = perms
+        break
+    return changed
+
+
 def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
     if form_code in ("drawing_requisition", "install_drawing_notice", "scheme_management"):
         return _flow_is_jdy_drawing(nodes)
@@ -476,6 +532,8 @@ def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
         return _flow_is_jdy_invoice(nodes)
     if form_code == "payment_registration":
         return _flow_is_jdy_payment(nodes)
+    if form_code == "quote_management":
+        return _flow_is_jdy_quote(nodes)
     return False
 
 
@@ -1184,6 +1242,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         "SYS_PROD_CARD_SUPPLEMENT",
         "SYS_INVOICE_APPLICATION",
         "SYS_PAYMENT_REGISTRATION",
+        "SYS_QUOTE_MANAGEMENT",
     ):
         return
     graph = _drawing_flow_graph(form_code)
@@ -1216,6 +1275,21 @@ async def _upgrade_drawing_form_flow_if_needed(
             and _flow_missing_biz_score_perms(version.node_definitions)
         )
     )
+    # 报价管理：财务核价「是否转采购」补必填
+    if (
+        topology_ok
+        and form_code == "quote_management"
+        and _flow_missing_quote_need_purchase_required(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_quote_finance_need_purchase_required(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"财务核价补 need_purchase 必填({form_code})",
+        )
+        return
     # 仅缺总工「是否需要总经理审批」：就地补 field_perms，避免整图覆盖已 remap 的审批人
     if (
         topology_ok
@@ -1323,6 +1397,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "开票申请"
     elif form_code == "payment_registration":
         d.name = "收款登记"
+    elif form_code == "quote_management":
+        d.name = "报价管理"
     await _publish_system_default_upgrade(
         db, tenant_id, d, version, new_nodes, new_routes,
         DRAWING_FORM_FLOW_DESC, f"简道云表单流({form_code})",
@@ -2624,6 +2700,31 @@ async def _resolve_current_task_for_viewer(
     nodes = {n.get("id"): n for n in (version.node_definitions if version else [])}
     node = nodes.get(node_def_id or "") or {}
     field_perms = parse_field_perms(node)
+    # 在途单钉死旧 process_version：把最新已发布同名节点的 required 合并进来（如财务核价.need_purchase）
+    try:
+        latest_pub = await _published_version(db, tenant_id, inst.process_definition_id)
+        if latest_pub and (not version or latest_pub.id != version.id):
+            by_id = {
+                n.get("id"): n for n in (latest_pub.node_definitions or [])
+                if isinstance(n, dict) and n.get("id")
+            }
+            by_name = {
+                n.get("name"): n for n in (latest_pub.node_definitions or [])
+                if isinstance(n, dict) and n.get("name")
+            }
+            latest_node = by_id.get(node_def_id or "") or by_name.get(node.get("name") or "")
+            if latest_node:
+                latest_req = {
+                    p["field"] for p in parse_field_perms(latest_node)
+                    if p.get("access") == "required"
+                }
+                if latest_req:
+                    field_perms = [
+                        {**p, "access": "required"} if p.get("field") in latest_req else p
+                        for p in field_perms
+                    ]
+    except Exception:
+        pass
     field_ids = [p["field"] for p in field_perms]
     catalog = {f["id"]: f for f in get_catalog(inst.biz_type or "")}
     # 表单绑定流：用实例/模板字段定义补全控件类型（biz_field_catalog 无表单字段）

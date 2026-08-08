@@ -82,7 +82,7 @@ const enUS = {
     leads: 'Leads',
     opportunities: 'Opportunities',
     solutions: 'Solutions',
-    quotes: 'Quotes',
+    quotes: 'Quote Management',
     contracts: 'Contracts',
     applicationFields: 'Application Fields',
     applicationMaterials: 'Application Materials',

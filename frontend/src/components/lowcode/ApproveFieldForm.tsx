@@ -9,6 +9,8 @@ import PersonField, {
   filterDeptIdsFromValues, shouldFilterByDeptFields, type PickableScope,
 } from '@/components/lowcode/fields/PersonField'
 import DeptField from '@/components/lowcode/fields/DeptField'
+import FileField from '@/components/lowcode/fields/FileField'
+import CustomerField from '@/components/lowcode/fields/CustomerField'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { dateFieldFormat, fieldShowsTime } from '@/components/lowcode/dateField'
@@ -260,6 +262,38 @@ export default function ApproveFieldForm({
                     multi={t === 'department_multi'}
                     placeholder={`请选择${label}`}
                     scopeCode={scopeCode}
+                  />
+                </div>
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
+              </div>
+            )
+          }
+
+          if (t === 'file' || t === 'image') {
+            return (
+              <div key={p.field} className={err ? 'approve-field-error' : undefined}>
+                <FieldLabel label={label} required={required} error={err} />
+                <div style={{ marginTop: 4 }}>
+                  <FileField
+                    value={val}
+                    onChange={(v) => setField(p.field, v)}
+                    image={t === 'image'}
+                  />
+                </div>
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请上传{label}</Text>}
+              </div>
+            )
+          }
+
+          if (t === 'customer') {
+            return (
+              <div key={p.field} className={err ? 'approve-field-error' : undefined}>
+                <FieldLabel label={label} required={required} error={err} />
+                <div style={{ marginTop: 4 }}>
+                  <CustomerField
+                    value={val}
+                    onChange={(v) => setField(p.field, v)}
+                    placeholder={`请选择${label}`}
                   />
                 </div>
                 {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}

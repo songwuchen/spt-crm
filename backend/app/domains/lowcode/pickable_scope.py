@@ -16,6 +16,11 @@ JDY_ROLE_TO_SCOPE_CODE: dict[str, str] = {
     "63815e3a7fb607000acc9195": "room_leaders",
 }
 
+# 简道云部门 limit.departs → 预置可选范围（核价管理「采购」= 计划采购部）
+JDY_DEPT_TO_SCOPE_CODE: dict[str, str] = {
+    "56ca5b8af97e80434fc06129": "quote_purchasers",
+}
+
 
 def pickable_scope_from_jdy_limit(limit: dict | None) -> dict | None:
     """从 JDY widget.limit 生成 props.pickable_scope（优先 scope_code）。"""
@@ -38,6 +43,10 @@ def pickable_scope_from_jdy_limit(limit: dict | None) -> dict | None:
         return out
     if role_codes:
         return {"role_codes": role_codes}
+    for did in limit.get("departs") or []:
+        sc = JDY_DEPT_TO_SCOPE_CODE.get(str(did))
+        if sc:
+            return {"scope_code": sc}
     return None
 
 

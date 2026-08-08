@@ -162,6 +162,19 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "sync_fields": True,
     },
     {
+        "key": "quote_management",
+        "name": "报价管理",
+        "category": "合同",
+        "icon": "AuditOutlined",
+        "description": (
+            "对齐简道云通用流程「核价管理流程」(app=5e6c73fe… entry=5e6c740e…)。"
+            "产品名报价管理；流水号 HJ+yyyyMMdd+三位日序。"
+            "详见 docs/product/_jdy_quote_management_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
         "key": "contract_drawing_map",
         "name": "合同图纸对应表",
         "category": "图纸",
@@ -298,8 +311,13 @@ def _apply_drawing_jdy_fields() -> None:
         from app.domains.lowcode._invoice_payment_jdy_generated import INVOICE_PAYMENT_JDY
     except Exception:
         INVOICE_PAYMENT_JDY = {}
+    try:
+        from app.domains.lowcode._quote_management_generated import QUOTE_MANAGEMENT_JDY
+    except Exception:
+        QUOTE_MANAGEMENT_JDY = {}
     packs = {
-        **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY, **INVOICE_PAYMENT_JDY,
+        **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY,
+        **INVOICE_PAYMENT_JDY, **QUOTE_MANAGEMENT_JDY,
     }
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])
@@ -352,3 +370,4 @@ def list_builtin() -> list[dict[str, Any]]:
 
 def get_builtin(key: str) -> dict[str, Any] | None:
     return next((t for t in BUILTIN_TEMPLATES if t["key"] == key), None)
+

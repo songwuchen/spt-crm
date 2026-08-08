@@ -107,14 +107,47 @@ async function hydrateMissing(raws: string[], opts: UserOpt[]): Promise<UserOpt[
   return next
 }
 
+/** 从 id / username / {id,name} / 数组中抽出人员主键（优先 id）。 */
+function personRawOf(v: unknown): string | null {
+  if (v == null || v === '') return null
+  if (typeof v === 'object' && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>
+    const id = String(o.id || o.value || o.username || '').trim()
+    return id || null
+  }
+  const s = String(v).trim()
+  return s && s !== '[object Object]' ? s : null
+}
+
+/** 若值为 {id,name}，顺带回显名，避免 hydrate 前闪 [object Object]。 */
+function personNameHint(v: unknown): string | undefined {
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return undefined
+  const o = v as Record<string, unknown>
+  const name = String(o.name || o.label || o.real_name || '').trim()
+  return name || undefined
+}
+
 function asRawList(value: unknown, multi?: boolean): string[] {
   if (multi) {
-    if (Array.isArray(value)) return value.map(String).filter(Boolean)
-    if (value == null || value === '') return []
-    return [String(value)]
+    if (Array.isArray(value)) return value.map(personRawOf).filter((x): x is string => !!x)
+    const one = personRawOf(value)
+    return one ? [one] : []
   }
-  if (value == null || value === '') return []
-  return [String(value)]
+  const one = personRawOf(value)
+  return one ? [one] : []
+}
+
+function nameHintsFromValue(value: unknown, multi?: boolean): Record<string, string> {
+  const out: Record<string, string> = {}
+  const list = multi
+    ? (Array.isArray(value) ? value : (value != null && value !== '' ? [value] : []))
+    : (value != null && value !== '' ? [value] : [])
+  for (const item of list) {
+    const id = personRawOf(item)
+    const name = personNameHint(item)
+    if (id && name) out[id] = name
+  }
+  return out
 }
 
 function dualOptions(opts: UserOpt[], raws: string[]): UserOpt[] {
@@ -165,8 +198,15 @@ export function filterDeptIdsFromValues(
   const out: string[] = []
   for (const key of keys) {
     const v = values[key]
-    if (Array.isArray(v)) out.push(...v.map(String).filter(Boolean))
-    else if (v != null && v !== '') out.push(String(v))
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        const id = personRawOf(item)
+        if (id) out.push(id)
+      }
+    } else {
+      const id = personRawOf(v)
+      if (id) out.push(id)
+    }
   }
   return [...new Set(out)]
 }
@@ -215,6 +255,13 @@ export default function PersonField({
         const loadDepts = readonly ? undefined : deptIds
         let next = await loadBaseUsers(pickableScope, loadDepts)
         if (!alive) return
+        const hints = nameHintsFromValue(value, multi)
+        if (Object.keys(hints).length) {
+          next = mergeOpts(
+            next,
+            Object.entries(hints).map(([id, label]) => ({ value: id, label })),
+          )
+        }
         if (!readonly && deptIds?.length) {
           // 编辑：有科室过滤时，清掉范围外已选，避免「能看见但提交被拒」
           const allowed = new Set(next.map((o) => o.value))
@@ -237,12 +284,13 @@ export default function PersonField({
   }, [value, multi, scopeKeyStr, readonly])
 
   const raws = useMemo(() => asRawList(value, multi), [value, multi])
+  const hints = useMemo(() => nameHintsFromValue(value, multi), [value, multi])
   const selectOpts = useMemo(() => dualOptions(opts, raws), [opts, raws])
 
   const nameOf = (raw: string) => {
     const hit = opts.find((o) => o.value === raw || o.username === raw)
       || selectOpts.find((o) => o.value === raw)
-    return hit?.label || raw
+    return hit?.label || hints[raw] || raw
   }
 
   if (readonly) {
@@ -259,11 +307,8 @@ export default function PersonField({
     emptyHint = '无可选人员（请到「系统管理 → 可选范围」勾选成员）'
   }
 
-  const selectValue = multi
-    ? (Array.isArray(value)
-      ? value
-      : (value != null && value !== '' ? [String(value)] : []))
-    : ((value as string | undefined) ?? undefined)
+  // 编辑态也归一成 id 字符串，避免 Select 收到 {id,name} 显示 [object Object]
+  const selectValue = multi ? raws : (raws[0] ?? undefined)
 
   return (
     <Select

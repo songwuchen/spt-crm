@@ -113,7 +113,6 @@ const CustomerLifecycleReport = lazy(() => import('@/pages/report/CustomerLifecy
 const TeamPerformanceReport = lazy(() => import('@/pages/report/TeamPerformanceReport'))
 const ChangeRequestList = lazy(() => import('@/pages/change/ChangeRequestList'))
 const MilestoneList = lazy(() => import('@/pages/delivery/MilestoneList'))
-const QuoteList = lazy(() => import('@/pages/quote/QuoteList'))
 const ContractList = lazy(() => import('@/pages/contract/ContractList'))
 const DashboardSnapshot = lazy(() => import('@/pages/dashboard/DashboardSnapshot'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
@@ -216,7 +215,8 @@ export const router = createBrowserRouter([
       { path: 'reports/team-performance', element: <Guard permission="project:view"><TeamPerformanceReport /></Guard> },
       { path: 'solutions/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="scheme_management" listPath="/solutions" title="方案管理" /></Guard> },
       { path: 'solutions', element: <Guard permission="form_data:view"><FormModulePage templateCode="scheme_management" title="方案管理" basePath="/solutions" /></Guard> },
-      { path: 'quotes', element: <Guard permission="quote:view"><QuoteList /></Guard> },
+      { path: 'quotes/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="quote_management" listPath="/quotes" title="报价管理" /></Guard> },
+      { path: 'quotes', element: <Guard permission="form_data:view"><FormModulePage templateCode="quote_management" title="报价管理" basePath="/quotes" /></Guard> },
       { path: 'contracts', element: <Guard permission="contract:view"><ContractList /></Guard> },
       { path: 'contract-reviews', element: <Guard permission="contract_review:view"><ContractReviewList /></Guard> },
       { path: 'contract-reviews/new', element: <Guard permission="contract_review:create"><ContractReviewForm /></Guard> },

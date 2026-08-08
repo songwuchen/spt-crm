@@ -1,0 +1,275 @@
+[
+  {
+    "name": "_widget_1584947843078",
+    "title": "流程编号",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854303",
+    "title": "部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854327",
+    "title": "业务员",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854451",
+    "title": "参考合同号",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854467",
+    "title": "客户名称",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1703483758901",
+    "title": "下卡合同号",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854483",
+    "title": "客户类别",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "新客户",
+      "老客户"
+    ]
+  },
+  {
+    "name": "_widget_1584171854518",
+    "title": "价格类型",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "核价",
+      "报价"
+    ]
+  },
+  {
+    "name": "_widget_1584171854537",
+    "title": "价格明细",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "产品名称",
+      "规格型号",
+      "单位",
+      "数量"
+    ]
+  },
+  {
+    "name": "_widget_1584171854549",
+    "title": "产品名称",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1584171854537",
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854562",
+    "title": "规格型号",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1584171854537",
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854577",
+    "title": "单位",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1584171854537",
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854595",
+    "title": "数量",
+    "type": "number",
+    "required": false,
+    "parent": "_widget_1584171854537",
+    "options": []
+  },
+  {
+    "name": "_widget_1594186007096",
+    "title": "是否转采购",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1594186007147",
+    "title": "采购",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854659",
+    "title": "询价单附件",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854768",
+    "title": "成本价附件",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1618967240669",
+    "title": "询价图片",
+    "type": "image",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585297155465",
+    "title": "特别提醒",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854755",
+    "title": "成本价",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1757730783981",
+    "title": "已取消字段",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854615",
+    "title": "（221209取消）特别提醒",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854502",
+    "title": "（221209取消）付款方式",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1667021798398",
+    "title": "是否为分布筛（240311取消）",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1584171854672",
+    "title": "（221209取消）材料成本",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854742",
+    "title": "（221209取消）材料成本附件",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854806",
+    "title": "（221209取消）信誉分析及建议",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854822",
+    "title": "（221209取消）价格",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584171854838",
+    "title": "（221209取消）配置参数",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "creator",
+    "title": "提交人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "createTime",
+    "title": "提交时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "updateTime",
+    "title": "更新时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  }
+]

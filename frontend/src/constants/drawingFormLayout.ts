@@ -295,6 +295,40 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
       discount_docs: 6, penalty_docs: 6, images: 6, remark_2: 24,
     },
   },
+  // 报价管理（简道云核价管理流程）
+  quote_management: {
+    contentMaxWidth: 1080,
+    listExpandDetail: 'price_lines',
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'department', 'sales_person', 'ref_contract_no',
+          'customer_name', 'card_contract_no', 'customer_category', 'price_type',
+        ],
+      },
+      {
+        title: '价格明细',
+        fieldIds: ['price_lines'],
+      },
+      {
+        title: '采购与附件',
+        fieldIds: [
+          'need_purchase', 'purchaser',
+          'inquiry_attachments', 'cost_attachments', 'inquiry_images',
+          'special_reminder', 'cost_price',
+        ],
+      },
+    ],
+    spans: {
+      serial_no: 6, department: 6, sales_person: 6, ref_contract_no: 6,
+      customer_name: 12, card_contract_no: 6, customer_category: 6, price_type: 6,
+      price_lines: 24,
+      need_purchase: 6, purchaser: 6,
+      inquiry_attachments: 8, cost_attachments: 8, inquiry_images: 8,
+      special_reminder: 12, cost_price: 12,
+    },
+  },
 }
 
 /** 解析列表应展开的明细表：字段 props.list_expand 优先，其次布局 listExpandDetail */

@@ -47,6 +47,32 @@ export async function getDeptNameMap(): Promise<Record<string, string>> {
   return { ...(c.names || {}) }
 }
 
+/** 兼容 id 字符串 / {id,name} / 数组（冒烟脚本、简道云风格对象值）。 */
+function normalizeDeptIds(value: unknown, multi?: boolean): {
+  ids: string[]
+  nameHints: Record<string, string>
+} {
+  const nameHints: Record<string, string> = {}
+  const one = (v: unknown): string | null => {
+    if (v == null || v === '') return null
+    if (typeof v === 'object' && !Array.isArray(v)) {
+      const o = v as Record<string, unknown>
+      const id = String(o.id || o.value || '').trim()
+      const name = String(o.name || o.title || o.label || '').trim()
+      if (id && name) nameHints[id] = name
+      return id || null
+    }
+    const s = String(v).trim()
+    return s && s !== '[object Object]' ? s : null
+  }
+  if (multi) {
+    const list = Array.isArray(value) ? value : (value != null && value !== '' ? [value] : [])
+    return { ids: list.map(one).filter((x): x is string => !!x), nameHints }
+  }
+  const id = one(value)
+  return { ids: id ? [id] : [], nameHints }
+}
+
 export default function DeptField({
   value, onChange, multi, readonly, placeholder, scopeCode,
 }: {
@@ -73,10 +99,19 @@ export default function DeptField({
     return () => { alive = false }
   }, [scopeCode])
 
-  const selectedIds = (multi
-    ? (Array.isArray(value) ? value : [])
-    : (value != null && value !== '' ? [value] : [])
-  ).map(String).filter(Boolean)
+  const { ids: selectedIds, nameHints } = normalizeDeptIds(value, multi)
+  // 对象值里自带的 name 先并入，避免只读态闪「未知部门([object Object])」
+  useEffect(() => {
+    if (!Object.keys(nameHints).length) return
+    setNames((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const [k, v] of Object.entries(nameHints)) {
+        if (v && next[k] !== v) { next[k] = v; changed = true }
+      }
+      return changed ? next : prev
+    })
+  }, [JSON.stringify(nameHints)])
 
   // 树外 id（常为简道云历史部门 MongoId）：拉名称回显，避免「未知部门(56ca…)」
   useEffect(() => {
@@ -134,7 +169,7 @@ export default function DeptField({
       allowClear showSearch treeNodeFilterProp="title"
       multiple={!!multi}
       placeholder={placeholder || '选择部门'}
-      value={(value as string | string[]) ?? (multi ? [] : undefined)}
+      value={multi ? selectedIds : (selectedIds[0] ?? undefined)}
       onChange={(v) => onChange?.(v)}
     />
   )

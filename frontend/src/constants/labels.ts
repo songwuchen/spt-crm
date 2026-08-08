@@ -36,6 +36,8 @@ export const approvalBizTypeLabels: Record<string, string> = {
   '收款登记': '收款登记',
   scheme_management: '方案管理',
   department_code_base: '部门编号',
+  quote_management: '报价管理',
+  '报价管理': '报价管理',
   '合同图纸（资料）领用申请': '图纸领用',
   '安装图设计通知': '安装图通知',
   '方案管理': '方案管理',

@@ -39,6 +39,17 @@ PRESET_SCOPES = [
         "is_system": True,
         "rules": {"role_codes": [], "user_ids": [], "dept_ids": [], "include_children": True},
     },
+    {
+        "code": "quote_purchasers",
+        "name": "报价管理-采购",
+        "kind": "person",
+        "description": (
+            "对齐简道云核价管理「采购」可选范围（计划采购部，含下级）。"
+            "也可在此直接勾选/调整成员。"
+        ),
+        "is_system": True,
+        "rules": {"role_codes": [], "user_ids": [], "dept_ids": [], "include_children": True},
+    },
 ]
 
 
@@ -69,6 +80,52 @@ async def _flatten_role_rules_to_users(
     preset = next((p for p in PRESET_SCOPES if p["code"] == scope.code), None)
     if preset and preset.get("description"):
         scope.description = preset["description"]
+    return True
+
+
+async def seed_quote_purchasers_depts(db: AsyncSession, tenant_id: str) -> bool:
+    """报价管理-采购：按简道云「计划采购部」回填 dept_ids（空范围时）。"""
+    row = (
+        await db.execute(
+            select(PickableScope).where(
+                PickableScope.tenant_id == tenant_id,
+                PickableScope.code == "quote_purchasers",
+            )
+        )
+    ).scalar_one_or_none()
+    if not row:
+        return False
+    r = _rules(row)
+    if r.get("dept_ids") or r.get("user_ids"):
+        return False
+    dept_id = None
+    try:
+        from app.domains.lowcode.jdy_id_remap import build_jdy_to_crm_dept_map
+        m = await build_jdy_to_crm_dept_map(db, tenant_id)
+        dept_id = m.get("56ca5b8af97e80434fc06129")
+    except Exception:
+        dept_id = None
+    if not dept_id:
+        for name in ("计划采购部", "采购部"):
+            hit = (
+                await db.execute(
+                    select(Department.id).where(
+                        Department.tenant_id == tenant_id,
+                        Department.name == name,
+                    ).limit(1)
+                )
+            ).scalar_one_or_none()
+            if hit:
+                dept_id = hit
+                break
+    if not dept_id:
+        return False
+    row.rules = {
+        "role_codes": [],
+        "user_ids": [],
+        "dept_ids": [str(dept_id)],
+        "include_children": True,
+    }
     return True
 
 
@@ -109,6 +166,10 @@ async def ensure_preset_scopes(db: AsyncSession, tenant_id: str) -> list[str]:
         ))
         created.append(p["code"])
     if created or changed:
+        await db.flush()
+
+    if await seed_quote_purchasers_depts(db, tenant_id):
+        changed = True
         await db.flush()
 
     # 所有人员范围：若仍绑角色，摊平成 user_ids（含预置与历史数据）
