@@ -246,8 +246,12 @@ def build_rules(fields: list[dict]) -> list[dict]:
     ]
 
 
-def apply_finance_node_required(nodes: list[dict], notes: list[str]) -> None:
-    """财务核价节点：「是否转采购」业务必填（简道云 optAuth 仅为可写）。"""
+# 客户类别 / 价格类型：创建不填，部门审批时可填（非必填）
+_APPROVER_FILL_FIELDS = ("customer_category", "price_type")
+
+
+def apply_finance_need_purchase_editable(nodes: list[dict], notes: list[str]) -> None:
+    """财务核价节点：「是否转采购」可填非必填（客户要求）。"""
     for n in nodes:
         if not isinstance(n, dict) or n.get("name") != "财务核价":
             continue
@@ -255,13 +259,56 @@ def apply_finance_node_required(nodes: list[dict], notes: list[str]) -> None:
         found = False
         for p in perms:
             if isinstance(p, dict) and p.get("field") == "need_purchase":
-                p["access"] = "required"
+                p["access"] = "editable"
                 found = True
                 break
         if not found:
-            perms.append({"field": "need_purchase", "access": "required"})
+            perms.append({"field": "need_purchase", "access": "editable"})
         n["field_perms"] = perms
-        notes.append("财务核价：是否转采购 → required")
+        notes.append("财务核价：是否转采购 → editable（非必填）")
+        break
+
+
+def apply_dept_approver_fill_fields(nodes: list[dict], notes: list[str]) -> None:
+    """部门审批：客户类别 / 价格类型 → editable（创建阶段隐藏，非必填）。"""
+    touched = 0
+    for n in nodes:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if n.get("name") != "部门审批":
+            continue
+        perms = list(n.get("field_perms") or [])
+        by_field = {
+            p.get("field"): p for p in perms
+            if isinstance(p, dict) and p.get("field")
+        }
+        for fid in _APPROVER_FILL_FIELDS:
+            if fid in by_field:
+                by_field[fid]["access"] = "editable"
+            else:
+                perms.append({"field": fid, "access": "editable"})
+                by_field[fid] = perms[-1]
+        n["field_perms"] = perms
+        touched += 1
+    if touched:
+        notes.append(
+            f"部门审批×{touched}：客户类别/价格类型 → editable（创建不填，非必填）"
+        )
+
+
+def apply_notify_initiator(nodes: list[dict], notes: list[str]) -> None:
+    """原「通知尚高华」改为通知发起人（谁发起通知谁）。"""
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        if n.get("id") != "n7" and n.get("name") != "通知尚高华":
+            continue
+        n["name"] = "通知发起人"
+        n["type"] = n.get("type") or "approval"
+        n["approver_rule"] = {"type": "creator"}
+        # 清掉 build_flow 里残留的「具名用户尚高华」备注
+        notes[:] = [x for x in notes if "通知尚高华" not in x]
+        notes.append("通知尚高华 → 通知发起人（approver_rule=creator）")
         break
 
 
@@ -273,7 +320,7 @@ def gen_one() -> dict:
     )
     fields = build_fields(fields_raw, widget_limits)
     force_req = {
-        "department", "sales_person", "customer_name", "customer_category", "price_type",
+        "department", "sales_person", "customer_name",
     }
     for fd in fields:
         if fd["id"] in force_req:
@@ -283,7 +330,16 @@ def gen_one() -> dict:
 
     rules = build_rules(fields)
     nodes, routes, notes = build_flow(wf_raw, fields, FORM["title"])
-    apply_finance_node_required(nodes, notes)
+    # build_flow 内 optAuth 会把发起可写字段标成 initiator；客户类别/价格类型改回审批填写
+    for fd in fields:
+        if fd["id"] in _APPROVER_FILL_FIELDS:
+            fd["available_on_create"] = False
+            fd["fill_stage"] = "approver"
+            fd["required"] = False
+    apply_finance_need_purchase_editable(nodes, notes)
+    apply_dept_approver_fill_fields(nodes, notes)
+    apply_notify_initiator(nodes, notes)
+    notes.append("客户类别/价格类型：创建隐藏，部门审批可填（非必填）")
 
     pack = {
         "name": FORM["title"],

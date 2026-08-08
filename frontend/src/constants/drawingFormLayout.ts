@@ -113,6 +113,8 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
           'apply_or_change',
           'product_model', 'design_dispatch', 'transfer_packaging_users',
           'design_assignees', 'order_date', 'images',
+          // 有/无合同号总工都要填：只挂一次，避免两区各渲染一遍
+          'need_gm_approval',
         ],
       },
       {
@@ -120,7 +122,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
         fieldIds: [
           'involve_std_drawing', 'contract_no', 'apply_reason', 'designer',
           'transfer_channel', 'paper_print_tip', 'drawing_type',
-          'attachment_name', 'attachments', 'offices', 'need_gm_approval',
+          'attachment_name', 'attachments', 'offices',
         ],
       },
       {
@@ -133,7 +135,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
           'scheme_detail', 'install_env', 'install_position',
           'foundation_drawing', 'install_method', 'scheme_material',
           'attention', 'attachment_names', 'attachments_no_image',
-          'offices_multi', 'transfer_sw_lwt', 'need_gm_approval',
+          'offices_multi', 'transfer_sw_lwt',
         ],
       },
       {
@@ -381,7 +383,7 @@ export function applyDrawingFormLayout(
   for (const sec of layout.sections) {
     const matched = sec.fieldIds
       .map((id) => byId.get(id))
-      .filter((f): f is FieldDefinition => !!f)
+      .filter((f): f is FieldDefinition => !!f && !used.has(f.id))
     if (!matched.length) continue
     out.push({
       id: `__section_${sec.title}`,

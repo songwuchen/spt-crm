@@ -294,8 +294,9 @@ async def pickable_contracts(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    """表单/审批回显合同号：仅需登录，不要求 contract:view。"""
+    """表单/审批关联合同：按图纸编号检索与回显（仅需登录，不要求 contract:view）。"""
     from app.domains.contract.models import Contract
+    from sqlalchemy import case
 
     id_list = [x.strip() for x in (ids or "").split(",") if x.strip()]
     q = select(Contract.id, Contract.contract_no, Contract.drawing_no).where(
@@ -304,14 +305,26 @@ async def pickable_contracts(
     if id_list:
         q = q.where(Contract.id.in_(id_list))
     elif keyword:
-        like = f"%{keyword}%"
+        kw = keyword.strip()
+        like = f"%{kw}%"
+        # 优先命中图纸编号，其次合同号
         q = q.where(or_(
-            Contract.contract_no.ilike(like),
             Contract.drawing_no.ilike(like),
+            Contract.contract_no.ilike(like),
             Contract.peer_contract_no.ilike(like),
-        )).limit(50)
+        )).order_by(
+            case(
+                (Contract.drawing_no.ilike(like), 0),
+                (Contract.contract_no.ilike(like), 1),
+                else_=2,
+            ),
+            Contract.updated_at.desc(),
+        ).limit(50)
     else:
-        q = q.order_by(Contract.updated_at.desc()).limit(50)
+        q = q.order_by(
+            case((Contract.drawing_no.is_not(None) & (Contract.drawing_no != ""), 0), else_=1),
+            Contract.updated_at.desc(),
+        ).limit(50)
     rows = (await db.execute(q)).all()
     return ok([
         {"id": r[0], "contract_no": r[1], "drawing_no": r[2]}

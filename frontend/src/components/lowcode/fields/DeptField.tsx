@@ -94,7 +94,11 @@ export default function DeptField({
     let alive = true
     setLoading(true)
     loadTree(scopeCode).then((c) => {
-      if (alive && c) { setTree(c.tree); setNames(c.names); setLoading(false) }
+      if (!alive || !c) return
+      setTree(c.tree)
+      // 合并而非整表替换：避免后到的树覆盖已通过 labels/nameHints 解析的树外 id
+      setNames((prev) => ({ ...c.names, ...prev }))
+      setLoading(false)
     })
     return () => { alive = false }
   }, [scopeCode])
@@ -113,10 +117,11 @@ export default function DeptField({
     })
   }, [JSON.stringify(nameHints)])
 
-  // 树外 id（常为简道云历史部门 MongoId）：拉名称回显，避免「未知部门(56ca…)」
+  // 树外 id（超出 pickable_scope / 简道云历史 MongoId）：拉名称回显
+  const missingKey = selectedIds.filter((id) => !names[id]).join('|')
   useEffect(() => {
-    const missing = selectedIds.filter((id) => !names[id])
-    if (!missing.length) return
+    if (!missingKey) return
+    const missing = missingKey.split('|').filter(Boolean)
     let alive = true
     client.get<unknown, ApiResponse<Record<string, string>>>('/api/v1/lc/department-labels', {
       params: { ids: missing.join(',') },
@@ -132,8 +137,7 @@ export default function DeptField({
       })
     }).catch(() => { /* ignore */ })
     return () => { alive = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds.join('|')])
+  }, [missingKey])
 
   const treeIdSet = new Set<string>()
   ;(function collect(nodes: TreeNode[]) {

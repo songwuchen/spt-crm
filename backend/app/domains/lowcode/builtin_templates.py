@@ -350,9 +350,22 @@ def _apply_drawing_jdy_fields() -> None:
                 "score_total", "score_date",
             }
             for f in defs:
-                if isinstance(f, dict) and f.get("id") in ("offices", "offices_multi"):
+                if not isinstance(f, dict):
+                    continue
+                if f.get("id") in ("offices", "offices_multi"):
                     f["type"] = "department_multi"
                     f["label"] = "科室"
+                if f.get("id") == "order_date":
+                    f["type"] = "date"
+                    props = dict(f.get("props") or {})
+                    props["show_time"] = False
+                    props["date_only"] = True
+                    props["default_today"] = True
+                    f["props"] = props
+                if f.get("id") == "contract_no":
+                    f["type"] = "contract"
+                    f["label"] = "合同号"
+                    f["description"] = "从合同管理中选择；按图纸编号搜索，选项以图纸编号显示。"
         defs = [f for f in defs if f.get("id") not in drop_ids]
         rules = [
             r for r in (pack.get("rule_definitions") or [])

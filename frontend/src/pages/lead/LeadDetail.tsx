@@ -429,21 +429,65 @@ export default function LeadDetail() {
                   label: <span className="font-semibold">详细信息</span>,
                   children: (
                     <div className="pb-6 space-y-6">
-                      {/* Demand Summary */}
-                      {lead.demand_summary && (
-                        <div>
-                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-2">需求摘要</div>
-                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-700 leading-relaxed">
-                            {lead.demand_summary}
+                      {/* 客户关注：线索内容 / 公司 / 申报人·部门·时间 / 收录或退回 */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">线索内容</div>
+                          <div className="text-sm font-semibold text-slate-700 whitespace-pre-wrap leading-relaxed">
+                            {lead.demand_summary || lead.title || <span className="text-slate-300 font-normal">-</span>}
                           </div>
                         </div>
-                      )}
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">公司名称</div>
+                          <div className="text-sm font-semibold text-slate-700">
+                            {lead.company_name || <span className="text-slate-300 font-normal">-</span>}
+                          </div>
+                        </div>
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">最终状态</div>
+                          <div className="text-sm font-semibold">
+                            {(() => {
+                              const finalLabels: Record<string, { label: string; cls: string }> = {
+                                approved: { label: '收录', cls: 'text-emerald-600' },
+                                rejected: { label: '退回', cls: 'text-red-600' },
+                                pending: { label: '待审', cls: 'text-amber-600' },
+                                attacked: { label: '袭击', cls: 'text-orange-600' },
+                              }
+                              const f = finalLabels[reviewStatus] || { label: reviewStatus, cls: 'text-slate-700' }
+                              return <span className={f.cls}>{f.label}</span>
+                            })()}
+                          </div>
+                          {reviewStatus === 'rejected' && lead.reject_reason && (
+                            <div className="mt-2 text-xs text-red-500 leading-relaxed">原因：{lead.reject_reason}</div>
+                          )}
+                        </div>
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">申报人</div>
+                          <div className="text-sm font-semibold text-slate-700">
+                            {lead.reporter_name || <span className="text-slate-300 font-normal">-</span>}
+                          </div>
+                        </div>
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">部门</div>
+                          <div className="text-sm font-semibold text-slate-700">
+                            {lead.department_name || <span className="text-slate-300 font-normal">-</span>}
+                          </div>
+                        </div>
+                        <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">申报时间</div>
+                          <div className="text-sm font-semibold text-slate-700">
+                            {lead.reported_at
+                              ? new Date(lead.reported_at).toLocaleString('zh-CN')
+                              : <span className="text-slate-300 font-normal">-</span>}
+                          </div>
+                        </div>
+                      </div>
 
                       {/* Remark */}
                       {lead.remark && (
                         <div>
                           <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-2">备注</div>
-                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-600 leading-relaxed">
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
                             {lead.remark}
                           </div>
                         </div>

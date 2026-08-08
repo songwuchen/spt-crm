@@ -50,7 +50,11 @@ export function computeFieldStates(
         case 'masked': states[perm.fieldId].masked = true; states[perm.fieldId].readonly = true; break
         case 'readonly': states[perm.fieldId].readonly = true; break
         case 'required': states[perm.fieldId].required = true; break
-        case 'editable': states[perm.fieldId].readonly = false; break
+        // editable = 可填非必填（审批节点 field_perms）；勿沿用字段定义上的 required
+        case 'editable':
+          states[perm.fieldId].readonly = false
+          states[perm.fieldId].required = false
+          break
       }
     }
   }

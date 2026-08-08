@@ -352,7 +352,7 @@ def build() -> dict:
         if f.get("id") == "contract_no":
             f["type"] = "contract"
             f["label"] = "合同号"
-            f["description"] = "从合同管理中选择合同。"
+            f["description"] = "从合同管理中选择；按图纸编号搜索，选项以图纸编号显示。"
             f.pop("options", None)
         # 科室：有/无合同号均多选（研究院安排等节点可多选）
         if f.get("id") == "offices":
@@ -388,6 +388,14 @@ def build() -> dict:
             props = dict(f.get("props") or {})
             props["show_time"] = False
             props["date_only"] = True
+            f["props"] = props
+        # 下单日期：审批填写时默认当天
+        if f.get("id") == "order_date":
+            f["type"] = "date"
+            props = dict(f.get("props") or {})
+            props["show_time"] = False
+            props["date_only"] = True
+            props["default_today"] = True
             f["props"] = props
 
     def _cond_refs_drop(cond: dict | None) -> bool:

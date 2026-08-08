@@ -103,6 +103,33 @@ def test_contract_version_default_has_ops_field_perms():
     assert any(p["field"] == "accept_date" and p["access"] == "editable" for p in fin_fp)
 
 
+def test_strip_packaging_fork_exclusive_groups():
+    from app.domains.lowcode.workflow_service import strip_packaging_fork_exclusive_groups
+
+    nodes = [
+        {"id": "n5", "name": "研究院安排", "type": "approval"},
+        {"id": "n6", "name": "图纸领取", "type": "approval"},
+        {"id": "n8", "name": "研究院安排", "type": "approval"},
+        {"id": "n20", "name": "工艺包装", "type": "approval"},
+    ]
+    routes = [
+        {"id": "r11", "source": "n5", "target": "n6", "exclusive_group": "ex_n5"},
+        {
+            "id": "r14", "source": "n5", "target": "n8", "exclusive_group": "ex_n5",
+            "condition": {"field": "design_dispatch", "operator": "in", "value": ["新乡单"]},
+        },
+        {
+            "id": "r30", "source": "n5", "target": "n20", "exclusive_group": "ex_n5",
+            "condition": {"field": "transfer_packaging_users", "operator": "in", "value": ["x"]},
+        },
+    ]
+    assert strip_packaging_fork_exclusive_groups(nodes, routes) is True
+    for r in routes:
+        assert r.get("exclusive_group") is None
+        assert r.get("fork") == "parallel"
+    assert strip_packaging_fork_exclusive_groups(nodes, routes) is False
+
+
 def test_next_targets_always_cc_does_not_steal_else():
     """旁路抄送 always 边不抢占区域经理/业务部门的 else 语义。"""
     from types import SimpleNamespace
@@ -203,3 +230,70 @@ def test_next_targets_exclusive_group_if_else():
     assert "para_a" in t4 and "para_b" in t4
     assert "else_node" in t4  # 互斥组未命中条件 → else
     assert "cc1" in t4
+
+
+def test_next_targets_packaging_fork_parallel():
+    """研究院安排后：新乡单∥工艺包装（含李海春）可并行；都不中走图纸领取。"""
+    from types import SimpleNamespace
+
+    from app.domains.lowcode.workflow_engine import WorkflowEngine, evaluate_condition
+
+    lihaichun = "66b986a3daac8bf32617e233"
+    routes = [
+        {
+            "id": "r_else", "source": "n5", "target": "n6",
+            "fork": "parallel",
+        },
+        {
+            "id": "r_xx", "source": "n5", "target": "n8",
+            "fork": "parallel",
+            "condition": {
+                "field": "design_dispatch", "operator": "in",
+                "value": ["新乡单", "郑州单", "共同"],
+            },
+        },
+        {
+            "id": "r_pack", "source": "n5", "target": "n20",
+            "fork": "parallel",
+            "condition": {
+                "field": "transfer_packaging_users", "operator": "in",
+                "value": [lihaichun],
+            },
+        },
+    ]
+    version = SimpleNamespace(route_definitions=routes, node_definitions=[])
+    eng = WorkflowEngine(db=None, tenant_id="t")
+
+    # 新乡单 + 人选含李海春 → 两个主链并行（对齐简道云）
+    t1 = eng._next_targets(version, "n5", {
+        "design_dispatch": "新乡单",
+        "transfer_packaging_users": [lihaichun, "other-uid"],
+    })
+    assert "n8" in t1 and "n20" in t1
+    assert "n6" not in t1
+
+    # 仅新乡单 → 只进第二研究院安排
+    t2 = eng._next_targets(version, "n5", {
+        "design_dispatch": "新乡单",
+        "transfer_packaging_users": ["other-uid"],
+    })
+    assert t2 == ["n8"]
+
+    # 仅李海春 → 只进工艺包装
+    t3 = eng._next_targets(version, "n5", {
+        "design_dispatch": "总部单",
+        "transfer_packaging_users": [lihaichun],
+    })
+    assert t3 == ["n20"]
+
+    # 都不中 → else 图纸领取
+    t4 = eng._next_targets(version, "n5", {
+        "design_dispatch": "总部单",
+        "transfer_packaging_users": [],
+    })
+    assert t4 == ["n6"]
+
+    assert evaluate_condition(
+        {"field": "transfer_packaging_users", "operator": "in", "value": [lihaichun]},
+        {"transfer_packaging_users": [lihaichun]},
+    )

@@ -21,6 +21,7 @@ import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
 import ImportExcelModal from '@/components/ImportExcelModal'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { isMasked, fmtMoney, fmtPct } from '@/utils/mask'
+import { printHtml } from '@/utils/printHtml'
 
 import Icon from '@/components/Icon'
 const BREAKDOWN_LABELS: Record<string, string> = {
@@ -289,15 +290,7 @@ export default function QuoteDetail() {
       <div class="foot">本报价单由系统生成 · ${esc(quote.quote_no)}</div>
     </body></html>`
 
-    const iframe = document.createElement('iframe')
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
-    iframe.onload = () => {
-      const win = iframe.contentWindow
-      if (win) { win.focus(); win.print() }
-      setTimeout(() => { if (iframe.parentNode) document.body.removeChild(iframe) }, 1000)
-    }
-    document.body.appendChild(iframe)
-    iframe.srcdoc = html
+    printHtml(html)
   }
 
   const handleCompare = async () => {

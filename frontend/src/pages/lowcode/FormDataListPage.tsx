@@ -8,7 +8,10 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import FillHeightTable from '@/components/list/FillHeightTable'
-import { ArrowLeftOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons'
+import {
+  ArrowLeftOutlined, PlusOutlined, DownloadOutlined,
+  PrinterOutlined, EditOutlined, DeleteOutlined, SendOutlined,
+} from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { downloadFile } from '@/utils/download'
@@ -26,6 +29,7 @@ import { getDeptNameMap } from '@/components/lowcode/fields/DeptField'
 import { getProjectLabelMap } from '@/components/lowcode/fields/ProjectField'
 import { getContractLabelMap } from '@/components/lowcode/fields/ContractField'
 import { getCustomerLabelMap } from '@/components/lowcode/fields/CustomerField'
+import { printSchemeInstance } from '@/pages/drawing/schemePrint'
 
 const { Title, Text } = Typography
 
@@ -486,22 +490,46 @@ export default function FormDataListPage({
   const del = async (recId: string) => {
     await lowcodeApi.deleteInstance(recId)
     message.success('已删除')
+    if (viewRec?.id === recId) closeView()
     load()
   }
 
+  const canPrintScheme = templateCode === 'scheme_management'
+  const canEditRecord = (status?: string | null) =>
+    status === 'draft' || status === 'rejected'
+
+  const handlePrint = async (recId: string) => {
+    try {
+      const res = await lowcodeApi.getInstance(recId)
+      let flowSteps: WfInstanceDetail['flow_steps'] | undefined
+      try {
+        if (res.data.process_instance_id) {
+          const wf = await workflowApi.instance(res.data.process_instance_id)
+          flowSteps = wf.data?.flow_steps
+        } else {
+          const wf = await workflowApi.byFormInstance({ form_instance_id: recId })
+          flowSteps = wf.data?.flow_steps
+        }
+      } catch { /* 无流程也可打印 */ }
+      await printSchemeInstance({
+        formData: res.data.form_data || {},
+        fieldDefinitions: res.data.field_definitions || [],
+        businessNo: res.data.business_no,
+        flowSteps,
+      })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '打印失败')
+    }
+  }
+
+  const enterEdit = () => {
+    setViewRec((s) => (s ? { ...s, readonly: false } : s))
+  }
+
+  // 列表操作列只保留「查看」；打印/编辑/删除放到详情工具栏（对齐简道云）
   const renderOps = (r: FormInstance) => (
-    <Space size="small">
-      <Button size="small" type="link" onClick={() => openView(r.id, true)}>查看</Button>
-      {(r.status === 'draft' || r.status === 'rejected') && (
-        <Button size="small" type="link" onClick={() => openView(r.id, false)}>编辑</Button>
-      )}
-      {(r.status === 'draft' || r.status === 'rejected') && (
-        <Button size="small" type="link" onClick={() => openView(r.id, false)}>提交审批</Button>
-      )}
-      <Popconfirm title="确认删除该记录?" onConfirm={() => del(r.id)}>
-        <Button size="small" type="link" danger>删除</Button>
-      </Popconfirm>
-    </Space>
+    <Button size="small" type="link" onClick={() => openView(r.id, true)}>查看</Button>
   )
 
   const columns: ColumnsType<FormInstance | DetailFlatRow> = expandDetail && flatRows
@@ -554,7 +582,7 @@ export default function FormDataListPage({
           },
         },
         {
-          title: '操作', key: 'op', width: 200, fixed: 'right' as const,
+          title: '操作', key: 'op', width: 72, fixed: 'right' as const,
           onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
           render: (_: unknown, row) => renderOps((row as DetailFlatRow).record),
         },
@@ -591,7 +619,7 @@ export default function FormDataListPage({
           render: (v: string) => (v ? formatCellDateTime(v, true) : '—'),
         },
         {
-          title: '操作', key: 'op', width: 220, fixed: 'right' as const,
+          title: '操作', key: 'op', width: 72, fixed: 'right' as const,
           render: (_: unknown, r: FormInstance | DetailFlatRow) => renderOps(r as FormInstance),
         },
       ]
@@ -630,8 +658,8 @@ export default function FormDataListPage({
           dataSource={(flatRows || items) as (FormInstance | DetailFlatRow)[]}
           scroll={{
             x: Math.max(
-              1100,
-              140 * colFields.length + (expandDetail ? 120 * detailCols.length + 200 : 0) + 440,
+              900,
+              140 * colFields.length + (expandDetail ? 120 * detailCols.length + 200 : 0) + 280,
             ),
           }}
           pagination={{
@@ -647,50 +675,82 @@ export default function FormDataListPage({
       <Modal
         title={viewRec?.readonly ? '查看记录' : '编辑记录'} open={!!viewRec} width={modalWidth}
         onCancel={closeView}
-        footer={viewRec?.readonly ? null : (
-          (viewRec?.status === 'draft' || viewRec?.status === 'rejected')
+        footer={
+          viewRec && !viewRec.readonly && canEditRecord(viewRec.status)
             ? [
                 <Button key="c" onClick={closeView}>取消</Button>,
                 <Button key="s" onClick={saveEdit}>存草稿</Button>,
                 <Button key="sub" type="primary" onClick={submitDraft}>提交审批</Button>,
               ]
-            : null
-        )}
+            : [<Button key="c" onClick={closeView}>关闭</Button>]
+        }
         destroyOnClose
-        styles={{ body: { paddingTop: 12 } }}
+        styles={{ body: { paddingTop: 8 } }}
       >
         {viewRec && (
-          <div className="flex gap-0" style={{ minHeight: 480 }}>
-            <div className="flex-1 overflow-y-auto pr-3" style={{ maxHeight: '70vh' }}>
-              <FormRenderer
-                fields={displayFields}
-                rules={viewRec.rules}
-                mode={viewRec.readonly ? 'readonly' : 'edit'}
-                value={viewRec.value}
-                onChange={(v) => setViewRec((s) => (s ? { ...s, value: v } : s))}
-                serialPreviews={serialPreviews}
-              />
+          <>
+            {/* 详情工具栏：打印 / 编辑 / 提交审批 / 删除（对齐简道云） */}
+            <div
+              className="flex items-center gap-1 mb-3 px-1 py-1 border-b border-slate-100"
+              style={{ marginTop: -4 }}
+            >
+              {canPrintScheme && (
+                <Button
+                  type="text"
+                  icon={<PrinterOutlined />}
+                  onClick={() => handlePrint(viewRec.id)}
+                >
+                  打印
+                </Button>
+              )}
+              {canEditRecord(viewRec.status) && viewRec.readonly && (
+                <Button type="text" icon={<EditOutlined />} onClick={enterEdit}>
+                  编辑
+                </Button>
+              )}
+              {canEditRecord(viewRec.status) && (
+                <Button type="text" icon={<SendOutlined />} onClick={submitDraft}>
+                  提交审批
+                </Button>
+              )}
+              <Popconfirm title="确认删除该记录?" onConfirm={() => del(viewRec.id)}>
+                <Button type="text" danger icon={<DeleteOutlined />}>
+                  删除
+                </Button>
+              </Popconfirm>
             </div>
-            {showFlowPane && (
-              <div
-                className="w-[300px] shrink-0 overflow-hidden rounded-md border border-slate-200"
-                style={{ maxHeight: '70vh' }}
-              >
-                {wfDetail ? (
-                  <WfFlowDynamics
-                    steps={wfDetail.flow_steps || []}
-                    comments={wfDetail.comments || []}
-                    onSubmitComment={handleWfComment}
-                    commenting={wfCommenting}
-                  />
-                ) : (
-                  <div className="h-full flex items-center justify-center bg-slate-50 px-4">
-                    <Text type="secondary" className="text-sm">暂无流程动态</Text>
-                  </div>
-                )}
+            <div className="flex gap-0" style={{ minHeight: 480 }}>
+              <div className="flex-1 overflow-y-auto pr-3" style={{ maxHeight: '70vh' }}>
+                <FormRenderer
+                  fields={displayFields}
+                  rules={viewRec.rules}
+                  mode={viewRec.readonly ? 'readonly' : 'edit'}
+                  value={viewRec.value}
+                  onChange={(v) => setViewRec((s) => (s ? { ...s, value: v } : s))}
+                  serialPreviews={serialPreviews}
+                />
               </div>
-            )}
-          </div>
+              {showFlowPane && (
+                <div
+                  className="w-[300px] shrink-0 overflow-hidden rounded-md border border-slate-200"
+                  style={{ maxHeight: '70vh' }}
+                >
+                  {wfDetail ? (
+                    <WfFlowDynamics
+                      steps={wfDetail.flow_steps || []}
+                      comments={wfDetail.comments || []}
+                      onSubmitComment={handleWfComment}
+                      commenting={wfCommenting}
+                    />
+                  ) : (
+                    <div className="h-full flex items-center justify-center bg-slate-50 px-4">
+                      <Text type="secondary" className="text-sm">暂无流程动态</Text>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </Modal>
     </div>

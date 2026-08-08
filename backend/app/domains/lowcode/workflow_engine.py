@@ -69,9 +69,18 @@ def _cmp(actual: Any, op: str, expected: Any) -> bool:
         return {"gt": a > b, "gte": a >= b, "lt": a < b, "lte": a <= b}[op]
     if op == "in":
         lst = expected if isinstance(expected, list) else str(expected).split(",")
+        # 人员多选等：actual 为列表时，任一成员命中即真（简道云 usergroup in）
+        if isinstance(actual, list):
+            return any(str(a) == str(e) for a in actual for e in lst)
+        if isinstance(actual, dict) and actual.get("id") is not None:
+            return any(str(actual.get("id")) == str(e) for e in lst)
         return any(str(actual) == str(e) for e in lst)
     if op == "not_in":
         lst = expected if isinstance(expected, list) else str(expected).split(",")
+        if isinstance(actual, list):
+            return all(str(a) != str(e) for a in actual for e in lst)
+        if isinstance(actual, dict) and actual.get("id") is not None:
+            return all(str(actual.get("id")) != str(e) for e in lst)
         return all(str(actual) != str(e) for e in lst)
     if op == "contains":
         return str(expected) in str(actual or "")
@@ -407,6 +416,18 @@ class WorkflowEngine:
             return []
 
     async def _activate_approval(self, inst, version, node, ctx) -> None:
+        # 并行分叉汇入同一审批节点时（如 研究院安排∥工艺包装 → 再入研究院安排）：
+        # 已有进行中的同定义节点则跳过，避免重复建待办。
+        existing = (await self.db.execute(
+            select(WfNodeInstance.id).where(
+                WfNodeInstance.process_instance_id == inst.id,
+                WfNodeInstance.node_def_id == node["id"],
+                WfNodeInstance.status == "running",
+            ).limit(1)
+        )).scalar_one_or_none() if self.db is not None else None
+        if existing:
+            return
+
         approvers = await self._resolve_approvers(version, node, ctx)
         if not approvers:
             strategy = node.get("empty_strategy") or (node.get("config") or {}).get("empty_strategy") or "auto_approve"

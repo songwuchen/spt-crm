@@ -491,20 +491,20 @@ def _flow_is_jdy_quote(nodes: list | None) -> bool:
     return "财务核价" in names and "部门审批" in names and len(nodes or []) >= 15
 
 
-def _flow_missing_quote_need_purchase_required(nodes: list | None) -> bool:
-    """报价管理：财务核价节点「是否转采购」须为 required。"""
+def _flow_has_quote_need_purchase_required(nodes: list | None) -> bool:
+    """报价管理：财务核价仍把「是否转采购」标成 required（应改为可填非必填）。"""
     for n in nodes or []:
         if not isinstance(n, dict) or n.get("name") != "财务核价":
             continue
         for p in n.get("field_perms") or []:
             if isinstance(p, dict) and p.get("field") == "need_purchase":
-                return p.get("access") != "required"
-        return True
+                return p.get("access") == "required"
+        return False
     return False
 
 
-def apply_quote_finance_need_purchase_required(nodes: list[dict]) -> bool:
-    """就地补：财务核价.need_purchase → required。返回是否有改动。"""
+def apply_quote_finance_need_purchase_optional(nodes: list[dict]) -> bool:
+    """就地改：财务核价.need_purchase required → editable。"""
     changed = False
     for n in nodes or []:
         if not isinstance(n, dict) or n.get("name") != "财务核价":
@@ -513,15 +513,93 @@ def apply_quote_finance_need_purchase_required(nodes: list[dict]) -> bool:
         found = False
         for p in perms:
             if isinstance(p, dict) and p.get("field") == "need_purchase":
-                if p.get("access") != "required":
-                    p["access"] = "required"
+                if p.get("access") == "required":
+                    p["access"] = "editable"
                     changed = True
                 found = True
                 break
         if not found:
-            perms.append({"field": "need_purchase", "access": "required"})
+            perms.append({"field": "need_purchase", "access": "editable"})
             changed = True
         n["field_perms"] = perms
+        break
+    return changed
+
+
+_QUOTE_DEPT_APPROVER_FIELDS = ("customer_category", "price_type")
+
+
+def _flow_has_quote_dept_approver_required(nodes: list | None) -> bool:
+    """任一「部门审批」仍将客户类别/价格类型标为 required。"""
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if n.get("name") != "部门审批":
+            continue
+        for p in (n.get("field_perms") or []):
+            if (
+                isinstance(p, dict)
+                and p.get("field") in _QUOTE_DEPT_APPROVER_FIELDS
+                and p.get("access") == "required"
+            ):
+                return True
+    return False
+
+
+def apply_quote_dept_approver_optional(nodes: list[dict]) -> bool:
+    """就地改：部门审批.customer_category/price_type → editable（非必填）。"""
+    changed = False
+    for n in nodes:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if n.get("name") != "部门审批":
+            continue
+        perms = list(n.get("field_perms") or [])
+        by_field = {
+            p.get("field"): p for p in perms
+            if isinstance(p, dict) and p.get("field")
+        }
+        for fid in _QUOTE_DEPT_APPROVER_FIELDS:
+            if fid in by_field:
+                if by_field[fid].get("access") != "editable":
+                    by_field[fid]["access"] = "editable"
+                    changed = True
+            else:
+                perms.append({"field": fid, "access": "editable"})
+                changed = True
+        n["field_perms"] = perms
+    return changed
+
+
+def _flow_missing_quote_notify_initiator(nodes: list | None) -> bool:
+    """报价管理仍存在「通知尚高华」或 n7 未指向发起人。"""
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        if n.get("name") == "通知尚高华":
+            return True
+        if n.get("id") == "n7":
+            rule = n.get("approver_rule") or {}
+            if n.get("name") != "通知发起人" or rule.get("type") != "creator":
+                return True
+    return False
+
+
+def apply_quote_notify_initiator(nodes: list[dict]) -> bool:
+    """就地改：通知尚高华 → 通知发起人（creator）。"""
+    changed = False
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        if n.get("id") != "n7" and n.get("name") != "通知尚高华":
+            continue
+        if n.get("name") != "通知发起人":
+            n["name"] = "通知发起人"
+            changed = True
+        rule = n.get("approver_rule") or {}
+        if rule.get("type") != "creator":
+            n["approver_rule"] = {"type": "creator"}
+            changed = True
         break
     return changed
 
@@ -566,8 +644,16 @@ def _drawing_flow_has_cc_end_bug(nodes: list | None, routes: list | None) -> boo
     return False
 
 
+def _source_is_jdy_parallel_fork(outs: list) -> bool:
+    """简道云多条件可并行分叉（如研究院安排→工艺包装∥第二研究院安排），勿强补互斥组。"""
+    return any(isinstance(o, dict) and o.get("fork") == "parallel" for o in outs)
+
+
 def _flow_missing_exclusive_groups(routes: list | None) -> bool:
-    """同源多出边未标 exclusive_group 时，画布像一条直线、引擎也可能不按 if/else 选路。"""
+    """同源多出边未标 exclusive_group 时，画布像一条直线、引擎也可能不按 if/else 选路。
+
+    标了 ``fork=parallel`` 的分叉（对齐简道云多条件并行）故意不设互斥组，跳过。
+    """
     by_src: dict[str, list] = {}
     for r in routes or []:
         if not isinstance(r, dict) or r.get("always"):
@@ -579,9 +665,43 @@ def _flow_missing_exclusive_groups(routes: list | None) -> bool:
     for outs in by_src.values():
         if len(outs) < 2:
             continue
+        if _source_is_jdy_parallel_fork(outs):
+            continue
         if any(not o.get("exclusive_group") for o in outs):
             return True
     return False
+
+
+def strip_packaging_fork_exclusive_groups(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """去掉「→工艺包装」同源分叉上的 exclusive_group，并标 fork=parallel。"""
+    by_id = {
+        n["id"]: n for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id")
+    }
+    pack_sources: set[str] = set()
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        t = by_id.get(r.get("target") or "")
+        if t and t.get("name") == "工艺包装":
+            pack_sources.add(str(r.get("source") or ""))
+    if not pack_sources:
+        return False
+    changed = False
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        if str(r.get("source") or "") not in pack_sources:
+            continue
+        if r.get("exclusive_group") is not None:
+            r.pop("exclusive_group", None)
+            changed = True
+        if r.get("fork") != "parallel":
+            r["fork"] = "parallel"
+            changed = True
+    return changed
 
 
 async def ensure_all_biz_defaults(db, tenant_id: str) -> None:
@@ -1278,19 +1398,49 @@ async def _upgrade_drawing_form_flow_if_needed(
             and _flow_missing_biz_score_perms(version.node_definitions)
         )
     )
-    # 报价管理：财务核价「是否转采购」补必填
+    # 报价管理：财务核价「是否转采购」取消必填 → editable
     if (
         topology_ok
         and form_code == "quote_management"
-        and _flow_missing_quote_need_purchase_required(version.node_definitions)
+        and _flow_has_quote_need_purchase_required(version.node_definitions)
     ):
         import copy
         patched = copy.deepcopy(version.node_definitions or [])
-        apply_quote_finance_need_purchase_required(patched)
+        apply_quote_finance_need_purchase_optional(patched)
         await _publish_system_default_upgrade(
             db, tenant_id, d, version,
             patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"财务核价补 need_purchase 必填({form_code})",
+            DRAWING_FORM_FLOW_DESC, f"财务核价 need_purchase 取消必填({form_code})",
+        )
+        return
+    # 报价管理：部门审批「客户类别/价格类型」取消必填 → editable
+    if (
+        topology_ok
+        and form_code == "quote_management"
+        and _flow_has_quote_dept_approver_required(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_quote_dept_approver_optional(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"部门审批客户类别/价格类型取消必填({form_code})",
+        )
+        return
+    # 报价管理：通知尚高华 → 通知发起人
+    if (
+        topology_ok
+        and form_code == "quote_management"
+        and _flow_missing_quote_notify_initiator(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_quote_notify_initiator(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"通知尚高华改为通知发起人({form_code})",
         )
         return
     # 方案管理：剥离业务打分三项（及总分/日期）节点可填权限
@@ -1341,6 +1491,21 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"无合同号总工按 need_gm 走总经理审批({form_code})",
         )
         return
+    # 工艺包装分叉：简道云多条件并行，去掉误加的 exclusive_group
+    if topology_ok and form_code in (
+        "drawing_requisition", "install_drawing_notice", "scheme_management",
+    ):
+        import copy
+        patched_routes = copy.deepcopy(version.route_definitions or [])
+        if strip_packaging_fork_exclusive_groups(
+            version.node_definitions, patched_routes,
+        ):
+            await _publish_system_default_upgrade(
+                db, tenant_id, d, version,
+                version.node_definitions, patched_routes,
+                DRAWING_FORM_FLOW_DESC, f"工艺包装分叉改为并行({form_code})",
+            )
+            return
     # 仅缺互斥组：在现有 CRM 条件上补 exclusive_group，避免用生成图覆盖已 remap 的部门/人员
     if topology_ok and _flow_missing_exclusive_groups(version.route_definitions):
         patched = [dict(r) if isinstance(r, dict) else r for r in (version.route_definitions or [])]
@@ -1353,6 +1518,8 @@ async def _upgrade_drawing_form_flow_if_needed(
                 by_src.setdefault(src, []).append(r)
         for src, outs in by_src.items():
             if len(outs) < 2:
+                continue
+            if _source_is_jdy_parallel_fork(outs):
                 continue
             gid = f"ex_{src}"
             for r in outs:

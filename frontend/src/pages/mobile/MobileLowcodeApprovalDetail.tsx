@@ -14,6 +14,7 @@ import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
+import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 
 function bizEntityPath(bizType?: string | null, bizId?: string | null, bizRefId?: string | null): string | null {
   if (!bizType || !bizId) return null
@@ -51,17 +52,25 @@ export default function MobileLowcodeApprovalDetail() {
   const load = async (taskHint?: string | null) => {
     const d = await workflowApi.instance(id, taskHint ? { task_id: taskHint } : undefined)
     setDetail(d.data)
-    setFieldUpdates({ ...(d.data.current_task?.field_values || {}) })
+    let nextFields: FieldDefinition[] = fields
     if (d.data.form_fields?.length) {
+      nextFields = d.data.form_fields
       setFields(d.data.form_fields)
       setFormData(d.data.form_data || {})
     } else if (d.data.form_instance_id) {
       try {
         const fi = await lowcodeApi.getInstance(d.data.form_instance_id)
+        nextFields = fi.data.field_definitions
         setFields(fi.data.field_definitions)
         setFormData(fi.data.form_data)
       } catch { /* 无 form_data:view 且非审批相关人时忽略 */ }
     }
+    const ct = d.data.current_task
+    setFieldUpdates(applyApproveFieldDefaults({ ...(ct?.field_values || {}) }, {
+      fieldIds: (ct?.field_perms || []).map((p) => p.field),
+      formFields: nextFields,
+      fieldMeta: ct?.field_meta,
+    }))
     return d.data
   }
 

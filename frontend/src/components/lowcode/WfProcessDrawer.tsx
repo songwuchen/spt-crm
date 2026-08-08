@@ -20,6 +20,7 @@ import ContractRegistrationReadonly from '@/components/lowcode/ContractRegistrat
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
+import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 
 const { Text, Title } = Typography
 
@@ -106,14 +107,16 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     if (!instanceId) return
     const d = await workflowApi.instance(instanceId, taskId ? { task_id: taskId } : undefined)
     setDetail(d.data)
-    setFieldUpdates({ ...(d.data.current_task?.field_values || {}) })
     // 优先用流程详情内嵌的表单快照（审批人不必有 form_data:view）
+    let nextFields: FieldDefinition[] = []
     if (d.data.form_fields?.length) {
+      nextFields = d.data.form_fields
       setFields(d.data.form_fields)
       setFormData(d.data.form_data || {})
     } else if (d.data.form_instance_id) {
       try {
         const fi = await lowcodeApi.getInstance(d.data.form_instance_id)
+        nextFields = fi.data.field_definitions
         setFields(fi.data.field_definitions)
         setFormData(fi.data.form_data)
       } catch {
@@ -123,6 +126,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     } else {
       setFields([]); setFormData({})
     }
+    const ct = d.data.current_task
+    const seed = { ...(ct?.field_values || {}) }
+    setFieldUpdates(applyApproveFieldDefaults(seed, {
+      fieldIds: (ct?.field_perms || []).map((p) => p.field),
+      formFields: nextFields,
+      fieldMeta: ct?.field_meta,
+    }))
     await loadContractBiz(d.data)
   }
 

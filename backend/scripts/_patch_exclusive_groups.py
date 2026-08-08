@@ -24,6 +24,9 @@ def patch_routes(routes: list) -> int:
     for src, outs in by_src.items():
         if len(outs) < 2:
             continue
+        # 简道云多条件并行分叉（工艺包装等）勿补互斥
+        if any(o.get("fork") == "parallel" for o in outs):
+            continue
         gid = f"ex_{src}"
         for r in outs:
             if r.get("exclusive_group") != gid:

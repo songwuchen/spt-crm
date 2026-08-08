@@ -115,10 +115,12 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
 
   return (
     <Row gutter={16}>
-      {topFields.map((field) => {
+      {topFields.map((field, idx) => {
+        // 布局误挂同一 field.id 多次时，用 index 保证 React key 唯一
+        const rowKey = `${field.id}__${idx}`
         if (field.type === 'section' || field.type === 'separator') {
           return (
-            <Col span={24} key={field.id}>
+            <Col span={24} key={rowKey}>
               <ContractSectionTitle title={field.label} className="mt-2 mb-1" />
             </Col>
           )
@@ -130,7 +132,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
         // detail_table 强制整行，避免明细列被挤扁
         const span = field.type === 'detail_table' ? 24 : (field.span || 24)
         return (
-          <Col span={span} key={field.id}>
+          <Col span={span} key={rowKey}>
             <FieldItem
               field={field}
               state={st}

@@ -744,7 +744,9 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
         if r.get("target") in cc_ids and not r.get("always"):
             r["always"] = True
 
-    # 简道云同源多出边视为 if/else 互斥组（抄送 always 边不参与）
+    # 简道云同源多出边：默认 if/else 互斥组；含「工艺包装」的分叉为多条件并行
+    # （新乡单∥人选含李海春可同时进第二研究院安排+工艺包装），标 fork=parallel、不设互斥。
+    name_by_id = {n["id"]: (n.get("name") or "") for n in nodes}
     by_src: dict[str, list] = {}
     for r in routes:
         if r.get("always"):
@@ -752,6 +754,14 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
         by_src.setdefault(r["source"], []).append(r)
     for src, outs in by_src.items():
         if len(outs) < 2:
+            continue
+        if any(name_by_id.get(r.get("target") or "") == "工艺包装" for r in outs):
+            for r in outs:
+                r.pop("exclusive_group", None)
+                r["fork"] = "parallel"
+            notes.append(
+                f"节点「{src}」含工艺包装分叉：{len(outs)} 条出边标并行(fork=parallel)"
+            )
             continue
         gid = f"ex_{src}"
         for r in outs:

@@ -260,6 +260,15 @@ async def sync_builtin_form_fields(
     current_rules = (published.rule_definitions if published else None) or []
     # 合并：保留租户在设计器里配的阶段/必填/权限/标签，避免 ensure 覆盖页面配置
     want = _merge_builtin_field_defs(want, current)
+    if key == "quote_management":
+        # 客户类别/价格类型：创建隐藏、部门审批可填（非必填）；勿被旧租户 required 覆盖
+        for fd in want:
+            if not isinstance(fd, dict):
+                continue
+            if fd.get("id") in ("customer_category", "price_type"):
+                fd["required"] = False
+                fd["available_on_create"] = False
+                fd["fill_stage"] = "approver"
     if key == "scheme_management":
         # 保证关联客户 + 公司名称回填语义不被旧租户版本带偏
         has_related_customer = any(
@@ -289,6 +298,10 @@ async def sync_builtin_form_fields(
             if fd.get("id") == "related_customer":
                 fd["type"] = "customer"
                 fd["label"] = fd.get("label") or "关联客户"
+            if fd.get("id") == "contract_no":
+                fd["type"] = "contract"
+                fd["label"] = "合同号"
+                fd["description"] = "从合同管理中选择；按图纸编号搜索，选项以图纸编号显示。"
             if fd.get("id") == "apply_or_change":
                 fd["type"] = "textarea"
                 fd["label"] = "申请事由/修改事项(如表述不完，请填至备注)"
@@ -313,6 +326,8 @@ async def sync_builtin_form_fields(
                 props = dict(fd.get("props") or {})
                 props["show_time"] = False
                 props["date_only"] = True
+                if fd.get("id") == "order_date":
+                    props["default_today"] = True
                 fd["props"] = props
         # 确保下图类型四选项完整（避免旧租户版本被裁过选项后合并不回来）
         for fd in want:
