@@ -373,6 +373,16 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "multi_mode": "or_sign",
         "empty_strategy": "auto_approve",
     },
+    {
+        "form_code": "pricing_checklist_hjqd",
+        "code": "SYS_PRICING_CHECKLIST_HJQD",
+        "name": "核价清单传递",
+        "approver_rule": {
+            "type": "specified_role", "value": "finance_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
 ]
 
 DRAWING_FORM_FLOW_DESC = (
@@ -406,6 +416,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     try:
         from app.domains.lowcode._quote_management_generated import QUOTE_MANAGEMENT_JDY
         packs.update(QUOTE_MANAGEMENT_JDY)
+    except Exception:
+        pass
+    try:
+        from app.domains.lowcode._pricing_checklist_hjqd_generated import PRICING_CHECKLIST_HJQD_JDY
+        packs.update(PRICING_CHECKLIST_HJQD_JDY)
     except Exception:
         pass
     pack = packs.get(form_code)
@@ -615,7 +630,16 @@ def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
         return _flow_is_jdy_payment(nodes)
     if form_code == "quote_management":
         return _flow_is_jdy_quote(nodes)
+    if form_code == "pricing_checklist_hjqd":
+        return _flow_is_jdy_pricing_checklist(nodes)
     return False
+
+
+def _flow_is_jdy_pricing_checklist(nodes: list | None) -> bool:
+    """已对齐简道云核价清单传递：含「财务」+ 抄送申请人。"""
+    names = {n.get("name") for n in (nodes or [])}
+    types = {n.get("type") for n in (nodes or [])}
+    return "财务" in names and "cc" in types and len(nodes or []) >= 5
 
 
 def _flow_has_legacy_department_leader(nodes: list | None) -> bool:
@@ -1584,6 +1608,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "收款登记"
     elif form_code == "quote_management":
         d.name = "报价管理"
+    elif form_code == "pricing_checklist_hjqd":
+        d.name = "核价清单传递"
     await _publish_system_default_upgrade(
         db, tenant_id, d, version, new_nodes, new_routes,
         DRAWING_FORM_FLOW_DESC, f"简道云表单流({form_code})",

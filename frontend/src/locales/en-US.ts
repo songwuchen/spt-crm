@@ -83,6 +83,7 @@ const enUS = {
     opportunities: 'Opportunities',
     solutions: 'Solutions',
     quotes: 'Quote Management',
+    pricingChecklists: 'Pricing Checklist Transfer',
     contracts: 'Contracts',
     applicationFields: 'Application Fields',
     applicationMaterials: 'Application Materials',

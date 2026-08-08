@@ -217,6 +217,8 @@ export const router = createBrowserRouter([
       { path: 'solutions', element: <Guard permission="form_data:view"><FormModulePage templateCode="scheme_management" title="方案管理" basePath="/solutions" /></Guard> },
       { path: 'quotes/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="quote_management" listPath="/quotes" title="报价管理" /></Guard> },
       { path: 'quotes', element: <Guard permission="form_data:view"><FormModulePage templateCode="quote_management" title="报价管理" basePath="/quotes" /></Guard> },
+      { path: 'pricing-checklists/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="pricing_checklist_hjqd" listPath="/pricing-checklists" title="核价清单传递" /></Guard> },
+      { path: 'pricing-checklists', element: <Guard permission="form_data:view"><FormModulePage templateCode="pricing_checklist_hjqd" title="核价清单传递" basePath="/pricing-checklists" /></Guard> },
       { path: 'contracts', element: <Guard permission="contract:view"><ContractList /></Guard> },
       { path: 'contract-reviews', element: <Guard permission="contract_review:view"><ContractReviewList /></Guard> },
       { path: 'contract-reviews/new', element: <Guard permission="contract_review:create"><ContractReviewForm /></Guard> },

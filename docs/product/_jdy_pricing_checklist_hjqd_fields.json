@@ -1,0 +1,464 @@
+{
+  "success": true,
+  "data": {
+    "fields": [
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "流水号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699757",
+        "type": "sn"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "流程名称*",
+        "labelHidden": false,
+        "lineWidth": 9,
+        "name": "_widget_1719023699758",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "安装图设计通知",
+            "text": "安装图设计通知"
+          },
+          {
+            "value": "合同图纸（资料）领用申请",
+            "text": "合同图纸（资料）领用申请"
+          },
+          {
+            "value": "客服领图",
+            "text": "客服领图"
+          },
+          {
+            "value": "中央研究院协同卡",
+            "text": "中央研究院协同卡"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "选择安装图设计通知数据",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1719023699776",
+        "type": "linkfield"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "流水号-安装图设计通知",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699779",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "新设计卡号-安装图设计通知",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699783",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "订货人（文本）-安装图设计通知",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699781",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "申请人-安装图设计通知",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699780",
+        "type": "user"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "部门-安装图设计通知",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699782",
+        "type": "dept"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "选择合同图纸(资料)领用申请数据",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1719023699789",
+        "type": "linkfield"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "流水号-合同图纸(资料)领用申请",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699791",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "合同号-合同图纸(资料)领用申请",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699795",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "申请人-合同图纸(资料)领用申请",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699793",
+        "type": "user"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "订货人（文本）-合同图纸(资料)领用申请",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699794",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "部门-合同图纸(资料)领用申请",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699792",
+        "type": "dept"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "选择客服领图数据",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1719023699808",
+        "type": "linkfield"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "流水号-客服领图",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719035409175",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "合同号-客服领图",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719035409178",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "订货人（文本）-客服领图",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719035409180",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "申请人-客服领图",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719035409177",
+        "type": "user"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "部门-客服领图",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719035409176",
+        "type": "dept"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "选择中央研究院协同卡数据",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1719023699807",
+        "type": "linkfield"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "流水号-中央研究院协同卡",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719035409184",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "合同号-中央研究院协同卡",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719035409185",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "订货人（文本）-中央研究院协同卡",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719035409187",
+        "type": "user"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "申请人-中央研究院协同卡",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719035409188",
+        "type": "user"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "订货部门-中央研究院协同卡",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719035409186",
+        "type": "dept"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "流水号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699761",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "对应设计卡号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699760",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "合同号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699774",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "订货人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699762",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "申请人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699763",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "业务部门",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719035409198",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "分割线",
+        "labelHidden": true,
+        "lineWidth": 12,
+        "name": "_widget_1719044595812",
+        "type": "separator"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "设计员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699765",
+        "type": "user"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "科室",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699764",
+        "type": "dept"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "日期时间",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699766",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "核价单数量",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699767",
+        "type": "number"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "图片",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699769",
+        "type": "image"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "附件",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1719023699771",
+        "type": "upload"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "备注",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1719023699773",
+        "type": "text"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "核价清单是否有问题0909",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1725840520052",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "text": "问题类型和具体问题明细0909",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1725840520070",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "667638539c1f73c42e4bcbff",
+            "form": "667638539c1f73c42e4bcbff",
+            "text": "问题类型",
+            "labelHidden": false,
+            "name": "_widget_1725840520072",
+            "type": "text",
+            "subform": "_widget_1725840520070"
+          },
+          {
+            "id": "667638539c1f73c42e4bcbff",
+            "form": "667638539c1f73c42e4bcbff",
+            "text": "具体问题",
+            "labelHidden": false,
+            "name": "_widget_1725840520073",
+            "type": "text",
+            "subform": "_widget_1725840520070",
+            "fieldWidth": "custom"
+          }
+        ]
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "name": "creator",
+        "type": "user",
+        "text": "提交人"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "name": "createTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "提交时间"
+      },
+      {
+        "id": "667638539c1f73c42e4bcbff",
+        "form": "667638539c1f73c42e4bcbff",
+        "name": "updateTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "更新时间"
+      }
+    ]
+  }
+}

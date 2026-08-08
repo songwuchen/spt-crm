@@ -99,6 +99,7 @@ const zhCN = {
     opportunities: '商机管理',
     solutions: '方案管理',
     quotes: '报价管理',
+    pricingChecklists: '核价清单传递',
     contracts: '合同管理',
     applicationFields: '应用领域',
     applicationMaterials: '应用物料',

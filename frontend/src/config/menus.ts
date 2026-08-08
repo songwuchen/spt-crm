@@ -47,6 +47,7 @@ export const menuGroups: MenuGroup[] = [
       { key: '/opportunities', icon: 'rocket_launch', labelKey: 'nav.opportunities', permission: 'project:view' },
       { key: '/solutions', icon: 'lightbulb', labelKey: 'nav.solutions', permission: 'form_data:view' },
       { key: '/quotes', icon: 'sell', labelKey: 'nav.quotes', permission: 'form_data:view' },
+      { key: '/pricing-checklists', icon: 'request_quote', labelKey: 'nav.pricingChecklists', permission: 'form_data:view' },
       { key: '/contracts', icon: 'contract', labelKey: 'nav.contracts', permission: 'contract:view' },
       { key: '/contract-reviews', icon: 'fact_check', labelKey: 'nav.contractReviews', permission: 'contract_review:view' },
       { key: '/prod-card-supplements', icon: 'assignment', labelKey: 'nav.prodCardSupplements', permission: 'form_data:view' },

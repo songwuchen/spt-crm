@@ -330,6 +330,74 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
       special_reminder: 12, cost_price: 12,
     },
   },
+  // 核价清单传递（中央研究院 HJQD）
+  pricing_checklist_hjqd: {
+    contentMaxWidth: 1080,
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: ['serial_no', 'process_name'],
+      },
+      {
+        title: '关联安装图设计通知',
+        fieldIds: [
+          'link_install', 'install_serial_no', 'install_design_card_no',
+          'install_order_person', 'install_applicant', 'install_department',
+        ],
+      },
+      {
+        title: '关联合同图纸领用',
+        fieldIds: [
+          'link_requisition', 'req_serial_no', 'req_contract_no',
+          'req_applicant', 'req_order_person', 'req_department',
+        ],
+      },
+      {
+        title: '关联客服领图',
+        fieldIds: [
+          'link_cs_drawing', 'cs_serial_no', 'cs_contract_no',
+          'cs_order_person', 'cs_applicant', 'cs_department',
+        ],
+      },
+      {
+        title: '关联中央研究院协同卡',
+        fieldIds: [
+          'link_coop_card', 'coop_serial_no', 'coop_contract_no',
+          'coop_order_person', 'coop_applicant', 'coop_order_dept',
+        ],
+      },
+      {
+        title: '核价清单',
+        fieldIds: [
+          'summary_serial_no', 'design_card_no', 'contract_no',
+          'order_person', 'applicant', 'business_dept',
+          'designer', 'office', 'apply_datetime', 'pricing_qty',
+          'images', 'attachments', 'remark',
+        ],
+      },
+      {
+        title: '问题反馈（财务填写）',
+        fieldIds: ['has_issue', 'issue_details'],
+      },
+    ],
+    spans: {
+      serial_no: 8, process_name: 16,
+      link_install: 24, link_requisition: 24, link_cs_drawing: 24, link_coop_card: 24,
+      install_serial_no: 8, install_design_card_no: 8, install_order_person: 8,
+      install_applicant: 8, install_department: 8,
+      req_serial_no: 8, req_contract_no: 8, req_applicant: 8,
+      req_order_person: 8, req_department: 8,
+      cs_serial_no: 8, cs_contract_no: 8, cs_order_person: 8,
+      cs_applicant: 8, cs_department: 8,
+      coop_serial_no: 8, coop_contract_no: 8, coop_order_person: 8,
+      coop_applicant: 8, coop_order_dept: 8,
+      summary_serial_no: 8, design_card_no: 8, contract_no: 8,
+      order_person: 8, applicant: 8, business_dept: 8,
+      designer: 8, office: 8, apply_datetime: 8, pricing_qty: 8,
+      images: 12, attachments: 12, remark: 24,
+      has_issue: 8, issue_details: 24,
+    },
+  },
 }
 
 /** 解析列表应展开的明细表：字段 props.list_expand 优先，其次布局 listExpandDetail */

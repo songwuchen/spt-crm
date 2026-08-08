@@ -175,6 +175,20 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "sync_fields": True,
     },
     {
+        "key": "pricing_checklist_hjqd",
+        "name": "核价清单传递",
+        "category": "研究院",
+        "icon": "FileDoneOutlined",
+        "description": (
+            "对齐简道云中央研究院「核价清单传递流程HJQD」"
+            "(app=58465841… entry=66763853…)。"
+            "流水号 HJQD-+yyyyMMdd+五位不重置。"
+            "详见 docs/product/_jdy_pricing_checklist_hjqd_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
         "key": "contract_drawing_map",
         "name": "合同图纸对应表",
         "category": "图纸",
@@ -315,9 +329,13 @@ def _apply_drawing_jdy_fields() -> None:
         from app.domains.lowcode._quote_management_generated import QUOTE_MANAGEMENT_JDY
     except Exception:
         QUOTE_MANAGEMENT_JDY = {}
+    try:
+        from app.domains.lowcode._pricing_checklist_hjqd_generated import PRICING_CHECKLIST_HJQD_JDY
+    except Exception:
+        PRICING_CHECKLIST_HJQD_JDY = {}
     packs = {
         **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY,
-        **INVOICE_PAYMENT_JDY, **QUOTE_MANAGEMENT_JDY,
+        **INVOICE_PAYMENT_JDY, **QUOTE_MANAGEMENT_JDY, **PRICING_CHECKLIST_HJQD_JDY,
     }
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])
