@@ -7,6 +7,45 @@
 """
 from __future__ import annotations
 
+# 默认（SPT）租户可使用方案管理预置人选/科室范围；其它租户 ensure 时剥离，避免空范围选不了人
+DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
+SPT_SCHEME_SCOPE_CODES = frozenset({"room_leaders", "scheme_offices", "fa-zxxgy"})
+SPT_SCHEME_SCOPED_FIELD_IDS = frozenset({
+    "design_assignees", "designer", "transfer_packaging_users",
+    "offices", "offices_multi",
+})
+
+
+def strip_spt_scheme_pickable_scopes(
+    tenant_id: str | None, field_definitions: list | None,
+) -> list:
+    """非默认租户：去掉方案管理 SPT 专用 pickable_scope。"""
+    defs = list(field_definitions or [])
+    if not tenant_id or tenant_id == DEFAULT_TENANT_ID:
+        return defs
+    out: list = []
+    for fd in defs:
+        if not isinstance(fd, dict):
+            out.append(fd)
+            continue
+        fid = fd.get("id")
+        props = fd.get("props")
+        if not isinstance(props, dict):
+            out.append(fd)
+            continue
+        scope = props.get("pickable_scope")
+        if not isinstance(scope, dict):
+            out.append(fd)
+            continue
+        code = scope.get("scope_code")
+        if fid in SPT_SCHEME_SCOPED_FIELD_IDS or (code and code in SPT_SCHEME_SCOPE_CODES):
+            props = {k: v for k, v in props.items() if k != "pickable_scope"}
+            fd = dict(fd)
+            fd["props"] = props or None
+        out.append(fd)
+    return out
+
+
 # 简道云角色 ID → CRM Role.code（生成器仍可用）
 JDY_ROLE_TO_CRM_CODE: dict[str, str] = {
     "63815e3a7fb607000acc9195": "room_leader",

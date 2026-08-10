@@ -270,6 +270,7 @@ function ValueControl({
       <RangePicker
         size="middle"
         style={{ width: '100%' }}
+        allowClear
         showTime={showTime ? { format: 'HH:mm' } : false}
         placeholder={['开始时间', '结束时间']}
         value={arr.length === 2 ? [dayjs(arr[0]), dayjs(arr[1])] : null}
@@ -291,6 +292,7 @@ function ValueControl({
         <Select
           size="middle"
           mode="multiple"
+          allowClear
           style={{ width: '100%' }}
           value={(value as string[]) || []}
           placeholder="请选择"
@@ -299,21 +301,31 @@ function ValueControl({
         />
       )
     }
+    // 文本类「等于任意一个」：单行输入 + 清除，多个值用逗号分隔（对齐简道云）
+    const text = Array.isArray(value)
+      ? (value as string[]).join(',')
+      : (value == null ? '' : String(value))
     return (
-      <Select
+      <Input
         size="middle"
-        mode="tags"
-        style={{ width: '100%' }}
-        value={(value as string[]) || []}
-        placeholder="输入后回车，可多个"
-        onChange={onChange}
-        tokenSeparators={[',', '，']}
+        allowClear
+        value={text}
+        placeholder="多个值用逗号分隔"
+        onChange={(e) => {
+          const s = e.target.value
+          if (!s) {
+            onChange(undefined)
+            return
+          }
+          const parts = s.split(/[,，]/).map((x) => x.trim()).filter(Boolean)
+          onChange(parts.length ? parts : undefined)
+        }}
       />
     )
   }
 
   if (type === 'number' || type === 'amount') {
-    return <InputNumber size="middle" style={{ width: '100%' }} value={value as number} onChange={onChange} />
+    return <InputNumber size="middle" style={{ width: '100%' }} value={value as number} onChange={onChange} placeholder="请输入" />
   }
   if (type === 'date' || type === 'datetime') {
     const showTime = type === 'datetime'
@@ -321,6 +333,7 @@ function ValueControl({
       <DatePicker
         size="middle"
         style={{ width: '100%' }}
+        allowClear
         showTime={showTime ? { format: 'HH:mm' } : false}
         value={value ? dayjs(value as string) : null}
         onChange={(d) => onChange(d ? d.format(showTime ? 'YYYY-MM-DD HH:mm:ss' : 'YYYY-MM-DD') : undefined)}
@@ -332,6 +345,7 @@ function ValueControl({
       <Select
         size="middle"
         style={{ width: '100%' }}
+        allowClear
         showSearch
         optionFilterProp="label"
         value={value as string}

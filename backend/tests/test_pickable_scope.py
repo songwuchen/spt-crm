@@ -3,6 +3,8 @@ from app.domains.lowcode.pickable_scope import (
     role_codes_from_field,
     scope_code_from_field,
     filter_by_fields_from_field,
+    strip_spt_scheme_pickable_scopes,
+    DEFAULT_TENANT_ID,
     JDY_ROLE_TO_CRM_CODE,
 )
 
@@ -44,3 +46,15 @@ def test_scope_code_from_field():
     assert filter_by_fields_from_field({
         "props": {"pickable_scope": {"filter_by_fields": ["offices"]}},
     }) == ["offices"]
+
+
+def test_strip_spt_scheme_pickable_scopes_only_non_default():
+    defs = [
+        {"id": "design_assignees", "props": {"pickable_scope": {"scope_code": "room_leaders"}}},
+        {"id": "applicant", "props": {"default_current_user": True}},
+    ]
+    kept = strip_spt_scheme_pickable_scopes(DEFAULT_TENANT_ID, defs)
+    assert kept[0]["props"]["pickable_scope"]["scope_code"] == "room_leaders"
+    stripped = strip_spt_scheme_pickable_scopes("9365954a-a6b3-461a-b478-27e786b08c78", defs)
+    assert stripped[0].get("props") in (None, {})
+    assert stripped[1]["props"]["default_current_user"] is True

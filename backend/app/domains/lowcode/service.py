@@ -143,9 +143,11 @@ async def install_builtin_template(
     )
     db.add(tpl)
     await db.flush()
+    from app.domains.lowcode.pickable_scope import strip_spt_scheme_pickable_scopes
     version = FormTemplateVersion(
         id=generate_uuid(), tenant_id=tenant_id, template_id=tpl.id,
-        version_number=1, field_definitions=bt["field_definitions"],
+        version_number=1,
+        field_definitions=strip_spt_scheme_pickable_scopes(tenant_id, bt["field_definitions"]),
         layout_definition={}, rule_definitions=bt.get("rule_definitions", []),
         status="draft",
     )
@@ -261,6 +263,8 @@ async def sync_builtin_form_fields(
     current_rules = (published.rule_definitions if published else None) or []
     # 合并：保留租户在设计器里配的阶段/必填/权限/标签，避免 ensure 覆盖页面配置
     want = _merge_builtin_field_defs(want, current)
+    from app.domains.lowcode.pickable_scope import strip_spt_scheme_pickable_scopes
+    want = strip_spt_scheme_pickable_scopes(tenant_id, want)
     if key == "quote_management":
         # 客户类别/价格类型：创建隐藏、部门审批可填（非必填）；勿被旧租户 required 覆盖
         for fd in want:
@@ -557,9 +561,11 @@ async def ensure_builtin_form(
     )
     db.add(tpl)
     await db.flush()
+    from app.domains.lowcode.pickable_scope import strip_spt_scheme_pickable_scopes
+    install_defs = strip_spt_scheme_pickable_scopes(tenant_id, bt["field_definitions"])
     db.add(FormTemplateVersion(
         id=generate_uuid(), tenant_id=tenant_id, template_id=tpl.id,
-        version_number=1, field_definitions=bt["field_definitions"],
+        version_number=1, field_definitions=install_defs,
         layout_definition={}, rule_definitions=bt.get("rule_definitions", []),
         status="draft",
     ))

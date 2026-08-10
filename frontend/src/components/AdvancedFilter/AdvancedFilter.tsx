@@ -185,14 +185,30 @@ function ValueControl({ field, op, value, onChange }: {
   if (kind === 'list') {
     if (type === 'enum' && field.options) {
       return (
-        <Select size="small" mode="multiple" style={{ width: '100%' }} value={(value as string[]) || []}
+        <Select size="small" mode="multiple" allowClear style={{ width: '100%' }} value={(value as string[]) || []}
           placeholder="选择" onChange={onChange}
           options={field.options.map((o) => ({ value: o.value, label: o.label }))} />
       )
     }
+    const text = Array.isArray(value)
+      ? (value as string[]).join(',')
+      : (value == null ? '' : String(value))
     return (
-      <Select size="small" mode="tags" style={{ width: '100%' }} value={(value as string[]) || []}
-        placeholder="输入后回车，可多个" onChange={onChange} tokenSeparators={[',', '，', ' ']} />
+      <Input
+        size="small"
+        allowClear
+        value={text}
+        placeholder="多个值用逗号分隔"
+        onChange={(e) => {
+          const s = e.target.value
+          if (!s) {
+            onChange(undefined)
+            return
+          }
+          const parts = s.split(/[,，\s]+/).map((x) => x.trim()).filter(Boolean)
+          onChange(parts.length ? parts : undefined)
+        }}
+      />
     )
   }
 
@@ -202,24 +218,24 @@ function ValueControl({ field, op, value, onChange }: {
   }
   if (DATE_TYPES.includes(type)) {
     return (
-      <DatePicker size="small" style={{ width: '100%' }}
+      <DatePicker size="small" style={{ width: '100%' }} allowClear
         value={value ? dayjs(value as string) : null}
         onChange={(d) => onChange(d ? d.format('YYYY-MM-DD') : undefined)} />
     )
   }
   if (type === 'boolean') {
     return (
-      <Select size="small" style={{ width: '100%' }} value={value as string} placeholder="选择" onChange={onChange}
+      <Select size="small" style={{ width: '100%' }} allowClear value={value as string} placeholder="选择" onChange={onChange}
         options={[{ value: 'true', label: '是' }, { value: 'false', label: '否' }]} />
     )
   }
   if (type === 'enum' && field.options) {
     return (
-      <Select size="small" style={{ width: '100%' }} value={value as string} placeholder="选择" showSearch optionFilterProp="label"
+      <Select size="small" style={{ width: '100%' }} allowClear value={value as string} placeholder="选择" showSearch optionFilterProp="label"
         onChange={onChange} options={field.options.map((o) => ({ value: o.value, label: o.label }))} />
     )
   }
-  return <Input size="small" value={value as string} onChange={(e) => onChange(e.target.value)} placeholder="输入值" />
+  return <Input size="small" allowClear value={value as string} onChange={(e) => onChange(e.target.value)} placeholder="输入值" />
 }
 
 /** 人员/客户搜索选择器：按名称搜索，值存 id（单选或多选）。 */
@@ -247,7 +263,7 @@ function OptionSelect({ source, multiple, value, onChange }: {
   })
   return (
     <Select
-      size="small" style={{ width: '100%' }} showSearch filterOption={false}
+      size="small" style={{ width: '100%' }} showSearch filterOption={false} allowClear
       mode={multiple ? 'multiple' : undefined}
       value={value as any}
       placeholder={source === 'customers' ? '搜索客户' : source === 'departments' ? '搜索部门' : '搜索用户'}
