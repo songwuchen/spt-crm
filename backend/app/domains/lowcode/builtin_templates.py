@@ -377,6 +377,14 @@ def _apply_drawing_jdy_fields() -> None:
                 if f.get("id") in ("offices", "offices_multi"):
                     f["type"] = "department_multi"
                     f["label"] = "科室"
+                # 设计指派/设计人：不按科室联动过滤人员
+                if f.get("id") in ("design_assignees", "designer"):
+                    props = dict(f.get("props") or {})
+                    scope = props.get("pickable_scope")
+                    if isinstance(scope, dict) and scope.get("filter_by_fields"):
+                        scope = {k: v for k, v in scope.items() if k != "filter_by_fields"}
+                        props["pickable_scope"] = scope
+                        f["props"] = props
                 if f.get("id") == "order_date":
                     f["type"] = "date"
                     props = dict(f.get("props") or {})

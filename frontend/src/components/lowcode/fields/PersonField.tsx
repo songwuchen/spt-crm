@@ -216,15 +216,13 @@ export function officeDeptIdsFromValues(values: Record<string, unknown> | undefi
   return filterDeptIdsFromValues(values)
 }
 
-/** 是否应按科室字段收窄人选 */
+/** 是否应按表单内部门字段收窄人选（仅显式配置 filter_by_fields 时） */
 export function shouldFilterByDeptFields(
   scope: PickableScope | null | undefined,
-  fieldId?: string,
+  _fieldId?: string,
 ): boolean {
   if (!scope) return false
-  if (scope.filter_by_fields?.length) return true
-  const hasScope = !!(scope.scope_code || scope.role_codes?.length)
-  return hasScope && (fieldId === 'design_assignees' || fieldId === 'designer')
+  return !!scope.filter_by_fields?.length
 }
 
 export default function PersonField({

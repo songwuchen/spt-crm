@@ -19,7 +19,6 @@ def test_pickable_scope_from_jdy_limit():
         {"roles": ["63815e3a7fb607000acc9195"]}
     ) == {
         "scope_code": "room_leaders",
-        "filter_by_fields": ["offices", "offices_multi"],
     }
 
 

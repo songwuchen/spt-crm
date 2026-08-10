@@ -37,10 +37,8 @@ def pickable_scope_from_jdy_limit(limit: dict | None) -> dict | None:
         if code and code not in role_codes:
             role_codes.append(code)
     if scope_codes:
-        out: dict = {"scope_code": scope_codes[0]}
-        if len(scope_codes) == 1 and scope_codes[0] == "room_leaders":
-            out["filter_by_fields"] = ["offices", "offices_multi"]
-        return out
+        # 方案管理：设计指派/设计人按 room_leaders 范围选人，不再按科室字段二次收窄
+        return {"scope_code": scope_codes[0]}
     if role_codes:
         return {"role_codes": role_codes}
     for did in limit.get("departs") or []:
