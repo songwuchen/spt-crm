@@ -835,7 +835,9 @@ class WorkflowEngine:
                 continue
 
             extra_depts: list[str] = []
-            for fid in filter_by_fields_from_field(fd):
+            # 方案管理设计指派/设计人：提交校验也不按科室收窄
+            skip_dept_filter = key in ("design_assignees", "designer")
+            for fid in ([] if skip_dept_filter else filter_by_fields_from_field(fd)):
                 v = merged.get(fid)
                 if isinstance(v, list):
                     extra_depts.extend(str(x) for x in v if x)

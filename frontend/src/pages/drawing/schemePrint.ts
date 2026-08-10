@@ -146,10 +146,37 @@ function printCss(): string {
     .val { text-align: center; font-size: 10.5pt; }
     .val-left { text-align: left; font-size: 10.5pt; }
     .sign { height: 18pt; vertical-align: top; }
-    .idea { min-height: 22pt; height: 22pt; vertical-align: top; }
-    .opin { min-height: 18pt; height: 18pt; vertical-align: top; }
+    /* 安装图签字区：签字列加宽、是否列收窄、填写行加高 */
+    table.sign-block {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    table.sign-block td {
+      border: 1px solid #000;
+      padding: 2pt 2pt;
+      vertical-align: middle;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    table.sign-block tr.sign-head td { height: auto; }
+    table.sign-block tr.sign-body td {
+      height: 36pt;
+      min-height: 36pt;
+      vertical-align: top;
+    }
+    table.sign-block tr.sign-body td.yn {
+      height: 36pt;
+      vertical-align: middle;
+    }
+    .idea { min-height: 40pt; height: 40pt; vertical-align: top; }
+    .opin { min-height: 32pt; height: 32pt; vertical-align: top; }
+    .result { min-height: 36pt; height: 36pt; vertical-align: top; }
     .matter { min-height: 16pt; vertical-align: top; }
     .chk-stack { text-align: center; line-height: 1.35; font-size: 10pt; }
+    /* 是否勾选列：只够 ☐是/☐否，标签允许多行挤窄 */
+    .lbl.yn { font-size: 8pt; line-height: 1.15; padding: 1pt 1pt; }
+    .val.yn { padding: 1pt 1pt; }
     .meta {
       display: flex;
       flex-wrap: wrap;
@@ -628,28 +655,46 @@ function buildInstallHtml(ctx: {
         })}</td>
       </tr>
       <tr>
-        <td class="lbl" colspan="1">设计人</td>
-        <td class="lbl" colspan="1">专工</td>
-        <td class="lbl" colspan="1">审核<span class="sub">（室主任签）</span></td>
-        <td class="lbl" colspan="1">是否有参数表</td>
-        <td class="lbl" colspan="2">是否需要业务内勤请示总经理</td>
-        <td class="lbl" colspan="1">标准化<span class="sub">（标准化室签）</span></td>
-        <td class="lbl" colspan="1">审定<span class="sub">（总工助理签）</span></td>
-        <td class="lbl" colspan="1">批准<span class="sub">（总工签）</span></td>
-        <td class="lbl" colspan="1">工作量</td>
-        <td class="lbl" colspan="2">实际交图日期</td>
-      </tr>
-      <tr>
-        <td class="val sign" colspan="1"></td>
-        <td class="val sign" colspan="1"></td>
-        <td class="val sign" colspan="1"></td>
-        <td class="val sign" colspan="1">${yesNoStack('')}</td>
-        <td class="val sign" colspan="2">${yesNoStack('')}</td>
-        <td class="val sign" colspan="1"></td>
-        <td class="val sign" colspan="1"></td>
-        <td class="val sign" colspan="1"></td>
-        <td class="val sign" colspan="1"></td>
-        <td class="val sign" colspan="2"></td>
+        <td class="nest" colspan="12">
+          <table class="sign-block">
+            <colgroup>
+              <col style="width:11%">
+              <col style="width:11%">
+              <col style="width:12%">
+              <col style="width:6%">
+              <col style="width:7%">
+              <col style="width:12%">
+              <col style="width:12%">
+              <col style="width:12%">
+              <col style="width:8%">
+              <col style="width:9%">
+            </colgroup>
+            <tr class="sign-head">
+              <td class="lbl">设计人</td>
+              <td class="lbl">专工</td>
+              <td class="lbl">审核<span class="sub">（室主任签）</span></td>
+              <td class="lbl yn">是否有参数表</td>
+              <td class="lbl yn">是否需要业务内勤请示总经理</td>
+              <td class="lbl">标准化<span class="sub">（标准化室签）</span></td>
+              <td class="lbl">审定<span class="sub">（总工助理签）</span></td>
+              <td class="lbl">批准<span class="sub">（总工签）</span></td>
+              <td class="lbl">工作量</td>
+              <td class="lbl">实际交图日期</td>
+            </tr>
+            <tr class="sign-body">
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val yn">${yesNoStack('')}</td>
+              <td class="val yn">${yesNoStack(form.need_gm_approval)}</td>
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val"></td>
+            </tr>
+          </table>
+        </td>
       </tr>
       <tr>
         <td class="lbl" colspan="1">设计思路</td>
@@ -670,6 +715,10 @@ function buildInstallHtml(ctx: {
         <td class="val-left opin" colspan="5">${cell(form.assistant_opinion)}</td>
         <td class="lbl" colspan="1">批准总工意见</td>
         <td class="val-left opin" colspan="5">${cell(form.chief_opinion)}</td>
+      </tr>
+      <tr>
+        <td class="lbl" colspan="1">最后结果</td>
+        <td class="val-left result" colspan="11">${cell(form.final_result)}</td>
       </tr>
     </table>
     ${approvalFoot}`

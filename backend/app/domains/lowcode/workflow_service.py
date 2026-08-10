@@ -3011,6 +3011,15 @@ async def _resolve_current_task_for_viewer(
                 props = dict(meta.get("props") or {})
                 props["pickable_scope"] = pub_props["pickable_scope"]
                 meta["props"] = props
+        # 设计指派/设计人：审批详情也不再按科室联动过滤（兼容服务器旧已发布模板）
+        if fid in ("design_assignees", "designer"):
+            props = dict(meta.get("props") or {})
+            scope = props.get("pickable_scope")
+            if isinstance(scope, dict) and scope.get("filter_by_fields"):
+                props["pickable_scope"] = {
+                    k: v for k, v in scope.items() if k != "filter_by_fields"
+                }
+                meta["props"] = props
         item = {
             "id": fid,
             "label": meta.get("label") or fid,

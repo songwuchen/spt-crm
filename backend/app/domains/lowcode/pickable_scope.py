@@ -1,7 +1,8 @@
 """人员/部门字段可选范围。
 
 字段 props.pickable_scope 支持：
-  { "scope_code": "room_leaders", "filter_by_fields": ["offices", "offices_multi"] }
+  { "scope_code": "room_leaders" }
+  { "scope_code": "xxx", "filter_by_fields": ["offices", "offices_multi"] }  # 可选按科室收窄
   { "role_codes": ["room_leader"] }   # 兼容旧配置
 """
 from __future__ import annotations

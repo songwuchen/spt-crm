@@ -216,12 +216,16 @@ export function officeDeptIdsFromValues(values: Record<string, unknown> | undefi
   return filterDeptIdsFromValues(values)
 }
 
+/** 方案管理设计指派/设计人：永不按科室收窄（忽略历史 filter_by_fields） */
+const NO_DEPT_FILTER_FIELDS = new Set(['design_assignees', 'designer'])
+
 /** 是否应按表单内部门字段收窄人选（仅显式配置 filter_by_fields 时） */
 export function shouldFilterByDeptFields(
   scope: PickableScope | null | undefined,
-  _fieldId?: string,
+  fieldId?: string,
 ): boolean {
   if (!scope) return false
+  if (fieldId && NO_DEPT_FILTER_FIELDS.has(fieldId)) return false
   return !!scope.filter_by_fields?.length
 }
 
