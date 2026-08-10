@@ -169,7 +169,7 @@ function printCss(): string {
       height: 36pt;
       vertical-align: middle;
     }
-    .idea { min-height: 40pt; height: 40pt; vertical-align: top; }
+    .idea { min-height: 56pt; height: 56pt; vertical-align: top; }
     .opin { min-height: 32pt; height: 32pt; vertical-align: top; }
     .result { min-height: 36pt; height: 36pt; vertical-align: top; }
     .matter { min-height: 16pt; vertical-align: top; }
@@ -443,6 +443,22 @@ function approvalOpsHtml(steps?: WfFlowStep[] | null): string {
   return `<div class="ops">${rows}</div>`
 }
 
+/**
+ * 流程动态按「最新在前」；截到指定节点（含该节点），其后节点不进入打印。
+ * 未出现目标节点时原样返回（流程尚未走到总工）。
+ */
+function stepsThroughNode(
+  steps: WfFlowStep[] | null | undefined,
+  nodeNameIncludes: string,
+): WfFlowStep[] {
+  const list = steps || []
+  if (!list.length) return []
+  const chrono = [...list].reverse()
+  const cut = chrono.findIndex((s) => (s.node_name || '').includes(nodeNameIncludes))
+  if (cut < 0) return list
+  return chrono.slice(0, cut + 1).reverse()
+}
+
 /** 表下审批意见区（非表格）：标签 + 小字记录 + 打印时间/流水号 */
 function approvalFootHtml(
   steps: WfFlowStep[] | null | undefined,
@@ -481,7 +497,11 @@ function buildRequisitionHtml(ctx: {
   const decrypt = form.need_decrypt != null
     ? (optionLabel(fields, 'need_decrypt', form.need_decrypt) || String(form.need_decrypt))
     : ''
-  const approvalFoot = approvalFootHtml(steps, form, serial)
+  const approvalFoot = approvalFootHtml(
+    stepsThroughNode(steps, '总工审批'),
+    form,
+    serial,
+  )
 
   const body = `
     <h1>合同图纸（资料）领用申请</h1>
@@ -519,44 +539,64 @@ function buildRequisitionHtml(ctx: {
         <td class="val-left matter" colspan="11">${cell(form.apply_reason || form.apply_or_change)}</td>
       </tr>
       <tr>
-        <td class="lbl" colspan="1">设计人</td>
-        <td class="lbl" colspan="2">审核<span class="sub">（室主任签）</span></td>
-        <td class="lbl" colspan="2">是否需要业务内勤请示总经理</td>
-        <td class="lbl" colspan="2">标准化<span class="sub">（标准化室签）</span></td>
-        <td class="lbl" colspan="2">审定<span class="sub">（总工助理签）</span></td>
-        <td class="lbl" colspan="1">批准<span class="sub">（总工签）</span></td>
-        <td class="lbl" colspan="1">工作量</td>
-        <td class="lbl" colspan="1">实际交图日期</td>
-      </tr>
-      <tr>
-        <td class="val sign" colspan="1"></td>
-        <td class="val sign" colspan="2"></td>
-        <td class="val sign" colspan="2">${yesNoStack('')}</td>
-        <td class="val sign" colspan="2"></td>
-        <td class="val sign" colspan="2"></td>
-        <td class="val sign" colspan="1"></td>
-        <td class="val sign" colspan="1"></td>
-        <td class="val sign" colspan="1"></td>
+        <td class="nest" colspan="12">
+          <table class="sign-block">
+            <colgroup>
+              <col style="width:10%">
+              <col style="width:14%">
+              <col style="width:8%">
+              <col style="width:14%">
+              <col style="width:14%">
+              <col style="width:12%">
+              <col style="width:10%">
+              <col style="width:18%">
+            </colgroup>
+            <tr class="sign-head">
+              <td class="lbl">设计人</td>
+              <td class="lbl">审核<span class="sub">（室主任签）</span></td>
+              <td class="lbl yn">是否需要业务内勤请示总经理</td>
+              <td class="lbl">标准化<span class="sub">（标准化室签）</span></td>
+              <td class="lbl">审定<span class="sub">（总工助理签）</span></td>
+              <td class="lbl">批准<span class="sub">（总工签）</span></td>
+              <td class="lbl">工作量</td>
+              <td class="lbl">实际交图日期</td>
+            </tr>
+            <tr class="sign-body">
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val yn">${yesNoStack('')}</td>
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val"></td>
+            </tr>
+          </table>
+        </td>
       </tr>
       <tr>
         <td class="lbl" colspan="1">设计思路</td>
-        <td class="val-left idea" colspan="11">${cell(form.design_idea)}</td>
+        <td class="val-left idea" colspan="11"></td>
       </tr>
       <tr>
         <td class="lbl" colspan="1">计算过程</td>
-        <td class="val-left idea" colspan="11">${cell(form.calc_process)}</td>
+        <td class="val-left idea" colspan="11"></td>
       </tr>
       <tr>
         <td class="lbl" colspan="1">专工意见</td>
-        <td class="val-left opin" colspan="5">${cell(form.expert_opinion)}</td>
+        <td class="val-left opin" colspan="5"></td>
         <td class="lbl" colspan="1">室主任意见</td>
-        <td class="val-left opin" colspan="5">${cell(form.office_opinion)}</td>
+        <td class="val-left opin" colspan="5"></td>
       </tr>
       <tr>
         <td class="lbl" colspan="1">总工助理意见</td>
-        <td class="val-left opin" colspan="5">${cell(form.assistant_opinion)}</td>
+        <td class="val-left opin" colspan="5"></td>
         <td class="lbl" colspan="1">总工意见</td>
-        <td class="val-left opin" colspan="5">${cell(form.chief_opinion)}</td>
+        <td class="val-left opin" colspan="5"></td>
+      </tr>
+      <tr>
+        <td class="lbl" colspan="1">最后结果</td>
+        <td class="val-left result" colspan="11"></td>
       </tr>
     </table>
     ${approvalFoot}`
@@ -609,7 +649,11 @@ function buildInstallHtml(ctx: {
       <td class="val" colspan="1">${idx === 0 ? cell(preDesigners) : ''}</td>
     </tr>`
   }).join('')
-  const approvalFoot = approvalFootHtml(steps, form, businessNo)
+  const approvalFoot = approvalFootHtml(
+    stepsThroughNode(steps, '总工审批'),
+    form,
+    businessNo,
+  )
   const productModel = form.product_model != null ? String(form.product_model) : ''
 
   const body = `
@@ -686,7 +730,7 @@ function buildInstallHtml(ctx: {
               <td class="val"></td>
               <td class="val"></td>
               <td class="val yn">${yesNoStack('')}</td>
-              <td class="val yn">${yesNoStack(form.need_gm_approval)}</td>
+              <td class="val yn">${yesNoStack('')}</td>
               <td class="val"></td>
               <td class="val"></td>
               <td class="val"></td>
@@ -698,27 +742,27 @@ function buildInstallHtml(ctx: {
       </tr>
       <tr>
         <td class="lbl" colspan="1">设计思路</td>
-        <td class="val-left idea" colspan="11">${cell(form.design_idea)}</td>
+        <td class="val-left idea" colspan="11"></td>
       </tr>
       <tr>
         <td class="lbl" colspan="1">计算过程</td>
-        <td class="val-left idea" colspan="11">${cell(form.calc_process)}</td>
+        <td class="val-left idea" colspan="11"></td>
       </tr>
       <tr>
         <td class="lbl" colspan="1">专工意见</td>
-        <td class="val-left opin" colspan="5">${cell(form.expert_opinion)}</td>
+        <td class="val-left opin" colspan="5"></td>
         <td class="lbl" colspan="1">室主任意见</td>
-        <td class="val-left opin" colspan="5">${cell(form.office_opinion)}</td>
+        <td class="val-left opin" colspan="5"></td>
       </tr>
       <tr>
         <td class="lbl" colspan="1">审定意见</td>
-        <td class="val-left opin" colspan="5">${cell(form.assistant_opinion)}</td>
+        <td class="val-left opin" colspan="5"></td>
         <td class="lbl" colspan="1">批准总工意见</td>
-        <td class="val-left opin" colspan="5">${cell(form.chief_opinion)}</td>
+        <td class="val-left opin" colspan="5"></td>
       </tr>
       <tr>
         <td class="lbl" colspan="1">最后结果</td>
-        <td class="val-left result" colspan="11">${cell(form.final_result)}</td>
+        <td class="val-left result" colspan="11"></td>
       </tr>
     </table>
     ${approvalFoot}`
