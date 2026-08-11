@@ -14,6 +14,7 @@ from app.common.exceptions import BusinessException
 EDITABLE_STATUSES: dict[str, frozenset[str]] = {
     "contract_version": frozenset({"draft", "rejected"}),
     "contract_review": frozenset({"draft", "rejected"}),
+    "tech_agreement_review": frozenset({"draft", "rejected"}),
     "quote_version": frozenset({"draft", "rejected"}),
     # 方案提交态为 reviewing（REGISTRY 的 submitted 较少用）
     "solution": frozenset({"draft", "rejected"}),

@@ -210,6 +210,24 @@ async def _build_policy_context(db: AsyncSession, tenant_id: str, biz_type: str,
                     "finance_risk", "purchase_risk", "export_risk",
                 ):
                     context[risk_key] = rj.get(risk_key)
+        elif biz_type == "tech_agreement_review":
+            from app.domains.tech_agreement_review.models import TechAgreementReview
+            rv = (await db.execute(
+                select(TechAgreementReview).where(
+                    TechAgreementReview.id == biz_id, TechAgreementReview.tenant_id == tenant_id,
+                )
+            )).scalar_one_or_none()
+            if rv:
+                context["owner_id"] = rv.owner_id
+                context["applicant_id"] = rv.applicant_id
+                context["department_id"] = rv.department_id
+                context["department_name"] = rv.department_name
+                context["need_pricing"] = rv.need_pricing
+                context["has_smart"] = rv.has_smart
+                context["has_objection"] = rv.has_objection
+                fj = rv.form_json if isinstance(rv.form_json, dict) else {}
+                context["design_approver_ids"] = fj.get("design_approver_ids")
+                context["design_approver_2_ids"] = fj.get("design_approver_2_ids")
         elif biz_type == "change_request":
             from app.domains.change.models import ChangeRequest
             cr = (await db.execute(
@@ -1283,6 +1301,74 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
                     f"¥{float(rv.contract_amount):,.2f}" if rv.contract_amount is not None else None,
                 )
                 _put("账期", rv.payment_term)
+                _put("状态", status_labels.get(rv.status or "", rv.status))
+        elif biz_type == "tech_agreement_review":
+            from app.domains.auth.models import User
+            from app.domains.tech_agreement_review.models import TechAgreementReview
+            from app.domains.tech_agreement_review.service import _hydrate_display_names
+            rv = (await db.execute(
+                select(TechAgreementReview).where(
+                    TechAgreementReview.id == biz_id, TechAgreementReview.tenant_id == tenant_id,
+                )
+            )).scalar_one_or_none()
+            if rv:
+                await _hydrate_display_names(db, tenant_id, [rv])
+
+                def _put(label: str, val) -> None:
+                    if val is None:
+                        return
+                    s = str(val).strip() if not isinstance(val, (int, float)) else str(val)
+                    if s == "" or s == "None":
+                        return
+                    detail[label] = s if not isinstance(val, (int, float)) else val
+
+                async def _person_labels(raw) -> str | None:
+                    ids: list[str] = []
+                    if isinstance(raw, str) and raw.strip():
+                        ids = [raw.strip()]
+                    elif isinstance(raw, (list, tuple)):
+                        ids = [str(x).strip() for x in raw if x]
+                    if not ids:
+                        return None
+                    rows = (await db.execute(
+                        select(User).where(User.tenant_id == tenant_id, User.id.in_(ids))
+                    )).scalars().all()
+                    by_id = {
+                        u.id: (u.real_name or u.username or "").strip() or u.id
+                        for u in rows
+                    }
+                    return "、".join(by_id.get(i, i) for i in ids) or None
+
+                status_labels = {
+                    "draft": "草稿", "submitted": "已提交",
+                    "approved": "已通过", "rejected": "已驳回",
+                }
+                fj = rv.form_json if isinstance(rv.form_json, dict) else {}
+                _put("流水号", rv.review_code)
+                if rv.apply_at is not None:
+                    try:
+                        _put("日期时间", rv.apply_at.strftime("%Y-%m-%d %H:%M"))
+                    except Exception:
+                        _put("日期时间", str(rv.apply_at))
+                _put("申请人", rv.applicant_name)
+                _put("业务员", rv.owner_name)
+                _put("业务部门", rv.department_name)
+                _put("公司名称", rv.company_name)
+                _put("所属行业", rv.industry)
+                _put("地址", rv.address)
+                _put("电控装置", rv.elec_ctrl)
+                _put("项目名称及应用", rv.project_title)
+                _put("是否有重量要求", rv.has_weight_req)
+                _put("是否趁用呆滞设备", rv.use_idle_equip)
+                _put("合同是否含智能化部分", rv.has_smart)
+                _put("是否核价", rv.need_pricing)
+                _put("合同签订依据及情况", rv.sign_basis)
+                _put("参考合同号", rv.ref_contract_no)
+                _put("前期沟通人", rv.pre_contact)
+                _put("备注", rv.remark)
+                _put("设计审批", await _person_labels(fj.get("design_approver_ids")))
+                _put("设计审批2", await _person_labels(fj.get("design_approver_2_ids")))
+                _put("是否有异议", rv.has_objection)
                 _put("状态", status_labels.get(rv.status or "", rv.status))
         elif biz_type == "change_request":
             from app.domains.change.models import ChangeRequest

@@ -59,6 +59,10 @@ async def _load_biz_object(db: AsyncSession, tenant_id: str, biz_type: str, biz_
     if (biz_type or "").startswith("contract_review"):
         from app.domains.contract_review.models import ContractReview
         return await _first(ContractReview, biz_id), "owner"
+    # 技术协议评审（含 tech_agreement_review_drawing 等附件槽）
+    if (biz_type or "").startswith("tech_agreement_review"):
+        from app.domains.tech_agreement_review.models import TechAgreementReview
+        return await _first(TechAgreementReview, biz_id), "owner"
     # 合同本体 + 合同附件分类别名（contract_agreement / contract_image / …）
     if biz_type == "contract" or (biz_type or "").startswith("contract_"):
         from app.domains.contract.models import Contract

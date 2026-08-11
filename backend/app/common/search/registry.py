@@ -53,6 +53,7 @@ def _build_registry() -> dict:
     from app.domains.quote.models import Quote
     from app.domains.contract.models import Contract
     from app.domains.contract_review.models import ContractReview
+    from app.domains.tech_agreement_review.models import TechAgreementReview
     from app.domains.order.models import Order
     from app.domains.product.models import Product
     from app.domains.service_ticket.models import ServiceTicket
@@ -190,6 +191,38 @@ def _build_registry() -> dict:
         TextField("payment_term", "账期", ContractReview.payment_term),
         DateField("reported_at", "报备时间", ContractReview.reported_at, is_datetime=True),
         DateField("created_at", "创建时间", ContractReview.created_at, is_datetime=True),
+    ])
+
+    reg["tech_agreement_review"] = ResourceSchema("tech_agreement_review", "技术协议评审", [
+        TextField("review_code", "流水号", TechAgreementReview.review_code),
+        EnumField("status", "流程状态", TechAgreementReview.status,
+                  options=[("draft", "草稿"), ("submitted", "已提交"),
+                           ("approved", "已通过"), ("rejected", "已驳回")]),
+        TextField("company_name", "公司名称", TechAgreementReview.company_name),
+        PeopleField("applicant_id", "申请人", TechAgreementReview.applicant_id, option_source="users"),
+        TextField("applicant_name", "申请人姓名", TechAgreementReview.applicant_name),
+        PeopleField("owner_id", "业务员", TechAgreementReview.owner_id, option_source="users"),
+        TextField("owner_name", "业务员姓名", TechAgreementReview.owner_name),
+        TextField("department_name", "业务部门", TechAgreementReview.department_name),
+        TextField("industry", "所属行业", TechAgreementReview.industry),
+        EnumField("elec_ctrl", "电控装置", TechAgreementReview.elec_ctrl,
+                  options=[("含电控电缆", "含电控电缆"), ("含电控不含电缆", "含电控不含电缆"),
+                           ("不含电控不含电缆", "不含电控不含电缆"), ("不含电控含电缆", "不含电控含电缆")]),
+        TextField("project_title", "项目名称及应用", TechAgreementReview.project_title),
+        EnumField("has_weight_req", "是否有重量要求", TechAgreementReview.has_weight_req,
+                  options=[("有", "有"), ("无", "无")]),
+        EnumField("use_idle_equip", "是否趁用呆滞设备", TechAgreementReview.use_idle_equip,
+                  options=[("是", "是"), ("否", "否")]),
+        EnumField("has_smart", "合同是否含智能化部分", TechAgreementReview.has_smart,
+                  options=[("是", "是"), ("否", "否")]),
+        EnumField("need_pricing", "是否核价", TechAgreementReview.need_pricing,
+                  options=[("已核价", "已核价"), ("未核价", "未核价")]),
+        TextField("sign_basis", "合同签订依据及情况", TechAgreementReview.sign_basis),
+        TextField("ref_contract_no", "参考合同号", TechAgreementReview.ref_contract_no),
+        EnumField("has_objection", "是否有异议", TechAgreementReview.has_objection,
+                  options=[("是", "是"), ("否", "否")]),
+        DateField("apply_at", "日期时间", TechAgreementReview.apply_at, is_datetime=True),
+        DateField("created_at", "创建时间", TechAgreementReview.created_at, is_datetime=True),
     ])
 
     reg["order"] = ResourceSchema("order", "订单", [

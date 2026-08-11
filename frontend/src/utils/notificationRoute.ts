@@ -37,6 +37,8 @@ export function notificationTarget(bizType?: string, bizId?: string): string | n
       return mobile ? '/m/contracts' : (bizId ? `/opportunities/contracts/${bizId}` : null)
     case 'contract_review':
       return bizId ? `${p}/contract-reviews/${bizId}` : `${p}/contract-reviews`
+    case 'tech_agreement_review':
+      return bizId ? `/tech-agreement-reviews/${bizId}` : '/tech-agreement-reviews'
     case 'contract_version':
       // 通知若带的是版本 id（非流程实例），无法稳定拼合同 URL，回审批中心
       return mobile ? '/m/approvals' : '/approvals'

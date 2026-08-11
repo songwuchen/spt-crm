@@ -8,14 +8,18 @@ Usage:
     from app.common.code_generator import generate_code
     code = await generate_code(db, tenant_id, "QT")   # -> QT-20260311-0001
     code = await generate_code(db, tenant_id, "INV")   # -> INV-20260311-0001
+    # 技术协议评审对齐简道云 HTJSXY：HTJSXY-2026031101（日期后无连字符、2 位日序）
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, func, String, Integer, Date
+from sqlalchemy import select, String, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+
+# 北京时间取日，对齐简道云 createTime / 每日重置（免 tzdata）
+_LOCAL_TZ = timezone(timedelta(hours=8))
 
 
 class CodeSequence(Base):
@@ -52,6 +56,18 @@ PREFIXES = {
     "guarantee":      "GT",
     "measurement":    "MS",
     "contract_review": "CR",
+    # 简道云流水号：fixedChars=HTJSXY- + yyyyMMdd + 2位日重置
+    "tech_agreement_review": "HTJSXY",
+}
+
+# 序号位数（默认 4）；简道云技术协议评审 digitsNum=2
+SEQ_DIGITS: dict[str, int] = {
+    "tech_agreement_review": 2,
+}
+
+# 日期与序号之间的连接符（默认 "-"）；简道云 sn 规则为段直接拼接 → ""
+DATE_SEQ_SEP: dict[str, str] = {
+    "tech_agreement_review": "",
 }
 
 
@@ -66,10 +82,13 @@ async def generate_code(db: AsyncSession, tenant_id: str, biz_type: str, prefix:
         prefix: Override prefix (uses PREFIXES[biz_type] if not given)
 
     Returns:
-        Code string like "INV-20260311-0001"
+        Code string like "INV-20260311-0001" or "HTJSXY-2026031101"
     """
     pfx = prefix or PREFIXES.get(biz_type, biz_type.upper())
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    # 按北京时间取日（对齐简道云 createTime / 日重置）
+    today = datetime.now(_LOCAL_TZ).strftime("%Y%m%d")
+    digits = SEQ_DIGITS.get(biz_type, 4)
+    sep = DATE_SEQ_SEP.get(biz_type, "-")
 
     # Try to atomically increment the sequence
     seq_row = (await db.execute(
@@ -96,4 +115,4 @@ async def generate_code(db: AsyncSession, tenant_id: str, biz_type: str, prefix:
         db.add(seq_row)
 
     await db.flush()  # Ensure the row is written (but don't commit — caller manages transaction)
-    return f"{pfx}-{today}-{next_seq:04d}"
+    return f"{pfx}-{today}{sep}{next_seq:0{digits}d}"

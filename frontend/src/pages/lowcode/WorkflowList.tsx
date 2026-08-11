@@ -25,6 +25,7 @@ const BIZ_TYPE_LABEL: Record<string, string> = {
   quote_version: '报价单',
   contract_version: '合同版本（登记运营）',
   contract_review: '合同评审会签',
+  tech_agreement_review: '技术协议评审',
   change_request: '变更单',
   solution: '方案',
 }
@@ -36,6 +37,7 @@ const BIZ_TYPE_OPTIONS = [
   { label: '报价单', value: 'quote_version' },
   { label: '合同版本（登记运营 / 签署前）', value: 'contract_version' },
   { label: '合同评审会签', value: 'contract_review' },
+  { label: '技术协议评审', value: 'tech_agreement_review' },
   { label: '变更单', value: 'change_request' },
   { label: '方案', value: 'solution' },
 ]

@@ -32,6 +32,10 @@ _REG_JSON_KEYS = frozenset({
     "contract_type", "accept_method", "accept_materials", "accept_date",
 })
 
+# 技术协议评审：form_json / 原生列
+_TAR_FORM_KEYS = frozenset({"design_approver_ids", "design_approver_2_ids"})
+_TAR_NATIVE_KEYS = frozenset({"has_objection", "need_pricing", "has_smart", "owner_id", "department_id"})
+
 
 def _is_empty(v: Any) -> bool:
     if v is None:
@@ -160,6 +164,21 @@ async def load_field_values(
                 values[f] = rj.get(f)
         return values
 
+    if biz_type == "tech_agreement_review":
+        from app.domains.tech_agreement_review.models import TechAgreementReview
+        row = (await db.execute(select(TechAgreementReview).where(
+            TechAgreementReview.id == biz_id, TechAgreementReview.tenant_id == tenant_id,
+        ))).scalar_one_or_none()
+        if not row:
+            return values
+        fj = row.form_json if isinstance(row.form_json, dict) else {}
+        for f in fields:
+            if f in _TAR_NATIVE_KEYS:
+                values[f] = getattr(row, f, None)
+            elif f in _TAR_FORM_KEYS or f in fj:
+                values[f] = fj.get(f)
+        return values
+
     if biz_type == "contract_version":
         from app.domains.contract.models import Contract, ContractVersion
         ver = (await db.execute(select(ContractVersion).where(
@@ -219,9 +238,37 @@ async def apply_field_updates(
     if biz_type == "contract_review" and biz_id:
         await _patch_contract_review(db, tenant_id, biz_id, updates)
         return
+    if biz_type == "tech_agreement_review" and biz_id:
+        await _patch_tech_agreement_review(db, tenant_id, biz_id, updates)
+        return
     if biz_type == "contract_version" and biz_id:
         await _patch_contract_registration(db, tenant_id, biz_id, updates)
         return
+
+
+async def _patch_tech_agreement_review(
+    db: AsyncSession, tenant_id: str, rid: str, updates: dict[str, Any],
+) -> None:
+    from app.domains.tech_agreement_review.models import TechAgreementReview
+    row = (await db.execute(select(TechAgreementReview).where(
+        TechAgreementReview.id == rid, TechAgreementReview.tenant_id == tenant_id,
+    ))).scalar_one_or_none()
+    if not row:
+        raise BusinessException(code=VALIDATION_ERROR, message="技术协议评审不存在，无法写回字段")
+    fj = dict(row.form_json) if isinstance(row.form_json, dict) else {}
+    dirty_json = False
+    for k, v in updates.items():
+        if k in _TAR_NATIVE_KEYS:
+            setattr(row, k, v)
+        elif k in _TAR_FORM_KEYS:
+            fj[k] = v
+            dirty_json = True
+        else:
+            raise BusinessException(code=VALIDATION_ERROR, message=f"技术协议评审不支持写回字段: {k}")
+    if dirty_json:
+        row.form_json = fj
+        flag_modified(row, "form_json")
+    await db.flush()
 
 
 async def _patch_contract_review(

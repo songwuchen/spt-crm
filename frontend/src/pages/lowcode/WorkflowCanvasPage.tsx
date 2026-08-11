@@ -17,23 +17,14 @@ import {
 } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
-import type { WfNode, WfRoute, WfDesign, ApproverType, FieldDefinition, WfFieldPerm } from '@/types/lowcode'
+import type { WfNode, WfRoute, WfDesign, FieldDefinition, WfFieldPerm } from '@/types/lowcode'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import DeptField from '@/components/lowcode/fields/DeptField'
+import { ApproverRuleEditor } from '@/components/lowcode/ApproverRuleEditor'
 import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 
 const { Title, Text } = Typography
 
-const APPROVER_TYPES: { value: ApproverType; label: string; needValue?: 'user' | 'field_person' | 'field_dept' | 'text' }[] = [
-  { value: 'specified_user', label: '指定人员', needValue: 'user' },
-  { value: 'creator', label: '发起人本人' },
-  { value: 'direct_supervisor', label: '直接上级' },
-  { value: 'dept_head', label: '部门负责人' },
-  { value: 'multi_level_superior', label: '逐级上级' },
-  { value: 'form_field_person', label: '表单人员字段', needValue: 'field_person' },
-  { value: 'form_field_dept', label: '表单部门字段', needValue: 'field_dept' },
-  { value: 'specified_role', label: '指定角色(角色码)', needValue: 'text' },
-]
 const MULTI_MODES = [
   { value: 'or_sign', label: '或签(一人通过即可)' },
   { value: 'countersign', label: '会签(全部通过)' },
@@ -311,11 +302,11 @@ function DesignerInner() {
   const patchNode = (nid: string, patch: Partial<WfNode>) => {
     setNodes((nds) => nds.map((n) => n.id === nid ? { ...n, data: { node: { ...(n.data as { node: WfNode }).node, ...patch } } } : n))
   }
-  const patchRule = (nid: string, patch: Record<string, unknown>) => {
+  const patchRule = (nid: string, rule: NonNullable<WfNode['approver_rule']>) => {
     setNodes((nds) => nds.map((n) => {
       if (n.id !== nid) return n
       const node = (n.data as { node: WfNode }).node
-      return { ...n, data: { node: { ...node, approver_rule: { ...(node.approver_rule || { type: 'creator' }), ...patch } } } }
+      return { ...n, data: { node: { ...node, approver_rule: rule } } }
     }))
   }
   const patchEdgeCond = (eid: string, cond: WfRoute['condition']) => {
@@ -475,28 +466,13 @@ function DesignerInner() {
 
 function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelete }: {
   node: WfNode; formFields: FieldDefinition[]
-  onName: (v: string) => void; onRule: (p: Record<string, unknown>) => void; onMode: (v: WfNode['multi_mode']) => void
+  onName: (v: string) => void
+  onRule: (rule: NonNullable<WfNode['approver_rule']>) => void
+  onMode: (v: WfNode['multi_mode']) => void
   onPatch: (p: Partial<WfNode>) => void; onDelete: () => void
 }) {
   const isEditable = node.type === 'approval' || node.type === 'cc'
-  const meta = APPROVER_TYPES.find((a) => a.value === node.approver_rule?.type)
-  const personFields = formFields.filter((f) => f.type === 'person' || f.type === 'person_multi')
-  const deptFields = formFields.filter((f) => f.type === 'department' || f.type === 'department_multi')
   const to = node.timeout
-  const fieldValue = (node.approver_rule?.value as string) || undefined
-  const fieldOptions = (meta?.needValue === 'field_person' ? personFields : deptFields).map((f) => ({
-    value: f.id,
-    label: f.label || f.id,
-  }))
-  // 已保存的字段若不在目录里（旧数据/目录滞后），仍展示出来避免「看起来像没配」
-  if (fieldValue && !fieldOptions.some((o) => o.value === fieldValue)) {
-    fieldOptions.unshift({ value: fieldValue, label: fieldValue })
-  }
-  const fieldEmptyHint = formFields.length === 0
-    ? '未加载到业务/表单字段，请刷新页面或检查流程是否绑定了表单/业务类型'
-    : (meta?.needValue === 'field_person'
-      ? '目录中暂无人员类字段（线索应有「负责人」）。请确认已发布最新后端并刷新。'
-      : '目录中暂无部门类字段')
   const permFieldEmptyHint = formFields.length === 0
     ? '未加载到表单字段：请确认本流程已绑定表单模板，且表单已发布'
     : '无可选字段'
@@ -515,29 +491,12 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
       )}
       {isEditable && (
         <>
-          <div><Text type="secondary" style={{ fontSize: 12 }}>{node.type === 'approval' ? '审批人' : '抄送人'}</Text>
-            <Select size="small" style={{ width: '100%' }} value={node.approver_rule?.type}
-              options={APPROVER_TYPES.map((t) => ({ label: t.label, value: t.value }))}
-              onChange={(v) => onRule({ type: v, value: undefined })} /></div>
-          {meta?.needValue === 'user' && <PersonField value={node.approver_rule?.value} onChange={(v) => onRule({ value: v })} multi />}
-          {(meta?.needValue === 'field_person' || meta?.needValue === 'field_dept') && (
-            <Select
-              size="small"
-              style={{ width: '100%' }}
-              placeholder="选择业务字段（运行时按单据动态解析）"
-              value={fieldValue}
-              options={fieldOptions}
-              optionFilterProp="label"
-              showSearch
-              notFoundContent={<span style={{ fontSize: 12 }}>{fieldEmptyHint}</span>}
-              onChange={(v) => onRule({ value: v })}
-            />
-          )}
-          {meta?.needValue === 'text' && (
-            <Input size="small" placeholder="角色码,逗号分隔"
-              value={Array.isArray(node.approver_rule?.value) ? (node.approver_rule?.value as string[]).join(',') : ''}
-              onChange={(e) => onRule({ value: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
-          )}
+          <ApproverRuleEditor
+            rule={node.approver_rule}
+            formFields={formFields}
+            roleLabel={node.type === 'approval' ? '审批人' : '抄送人'}
+            onChange={onRule}
+          />
           {node.type === 'approval' && (
             <>
               <div><Text type="secondary" style={{ fontSize: 12 }}>多人模式</Text>

@@ -113,6 +113,18 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         {"id": "created_by_id", "label": "创建人", "type": "person"},
         {"id": "project_id", "label": "商机ID", "type": "text"},
     ],
+    "tech_agreement_review": [
+        {"id": "applicant_id", "label": "申请人", "type": "person"},
+        {"id": "owner_id", "label": "业务员", "type": "person"},
+        {"id": "department_id", "label": "业务部门", "type": "department"},
+        {"id": "need_pricing", "label": "是否核价", "type": "text"},
+        {"id": "has_smart", "label": "合同是否含智能化部分", "type": "yes_no"},
+        {"id": "has_objection", "label": "是否有异议", "type": "yes_no"},
+        # 总工填写 → 下一节点「设计审批1」按此字段选人
+        {"id": "design_approver_ids", "label": "设计审批", "type": "person_multi"},
+        # 设计审批1 填写 → 下一节点「设计审批2」按此字段选人
+        {"id": "design_approver_2_ids", "label": "设计审批2", "type": "person_multi"},
+    ],
 }
 
 

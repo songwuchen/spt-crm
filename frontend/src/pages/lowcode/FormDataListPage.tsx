@@ -20,6 +20,7 @@ import {
   PrinterOutlined, EditOutlined, DeleteOutlined, SendOutlined,
   SearchOutlined, ReloadOutlined, PaperClipOutlined,
 } from '@ant-design/icons'
+import ModalFullscreenTitle, { modalFullscreenProps } from '@/components/ModalFullscreenTitle'
 import { lowcodeApi } from '@/api/lowcode'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { attachmentApi } from '@/api/attachment'
@@ -529,6 +530,7 @@ export default function FormDataListPage({
   const colStorageKey = COL_STORAGE_PREFIX + (templateCode || id || 'unknown')
   const [colState, setColStateRaw] = useState<ColumnState>(() => loadColState(colStorageKey))
   const [viewRec, setViewRec] = useState<ViewRec | null>(null)
+  const [modalFullscreen, setModalFullscreen] = useState(false)
   const [serialPreviews, setSerialPreviews] = useState<Record<string, string>>({})
   const [wfDetail, setWfDetail] = useState<WfInstanceDetail | null>(null)
   const [wfCommenting, setWfCommenting] = useState(false)
@@ -756,6 +758,7 @@ export default function FormDataListPage({
     setViewRec(null)
     setWfDetail(null)
     setSerialPreviews({})
+    setModalFullscreen(false)
   }
 
   // 编辑弹窗：选部门 → 回填部门编号
@@ -1020,6 +1023,8 @@ export default function FormDataListPage({
   const modalWidth = wfDetail || showFlowPane
     ? 1100
     : (drawingLayout ? 960 : 780)
+  const fsProps = modalFullscreenProps(modalFullscreen, modalWidth)
+  const contentMaxH = modalFullscreen ? 'calc(100vh - 200px)' : '70vh'
   const displayFields = viewRec
     ? (drawingLayout ? applyDrawingFormLayout(templateCode, viewRec.fields) : viewRec.fields)
     : []
@@ -1105,7 +1110,18 @@ export default function FormDataListPage({
         />
 
       <Modal
-        title={viewRec?.readonly ? '查看记录' : '编辑记录'} open={!!viewRec} width={modalWidth}
+        title={(
+          <ModalFullscreenTitle
+            title={viewRec?.readonly ? '查看记录' : '编辑记录'}
+            fullscreen={modalFullscreen}
+            onToggle={() => setModalFullscreen((v) => !v)}
+          />
+        )}
+        open={!!viewRec}
+        width={fsProps.width}
+        style={fsProps.style}
+        wrapClassName={fsProps.wrapClassName}
+        styles={fsProps.styles}
         onCancel={closeView}
         footer={
           viewRec && !viewRec.readonly && canEditRecord(viewRec.status)
@@ -1117,13 +1133,12 @@ export default function FormDataListPage({
             : [<Button key="c" onClick={closeView}>关闭</Button>]
         }
         destroyOnClose
-        styles={{ body: { paddingTop: 8 } }}
       >
         {viewRec && (
-          <>
+          <div className={modalFullscreen ? 'flex flex-col flex-1 min-h-0' : undefined}>
             {/* 详情工具栏：打印 / 编辑 / 提交审批 / 删除（对齐简道云） */}
             <div
-              className="flex items-center gap-1 mb-3 px-1 py-1 border-b border-slate-100"
+              className="flex items-center gap-1 mb-3 px-1 py-1 border-b border-slate-100 shrink-0"
               style={{ marginTop: -4 }}
             >
               {canPrintScheme && (
@@ -1151,8 +1166,8 @@ export default function FormDataListPage({
                 </Button>
               </Popconfirm>
             </div>
-            <div className="flex gap-0" style={{ minHeight: 480 }}>
-              <div className="flex-1 overflow-y-auto pr-3" style={{ maxHeight: '70vh' }}>
+            <div className="flex gap-0 flex-1 min-h-0" style={{ minHeight: modalFullscreen ? undefined : 480 }}>
+              <div className="flex-1 overflow-y-auto pr-3" style={{ maxHeight: contentMaxH }}>
                 <FormRenderer
                   fields={displayFields}
                   rules={viewRec.rules}
@@ -1165,7 +1180,7 @@ export default function FormDataListPage({
               {showFlowPane && (
                 <div
                   className="w-[300px] shrink-0 overflow-hidden rounded-md border border-slate-200"
-                  style={{ maxHeight: '70vh' }}
+                  style={{ maxHeight: contentMaxH, height: modalFullscreen ? contentMaxH : undefined }}
                 >
                   {wfDetail ? (
                     <WfFlowDynamics
@@ -1182,7 +1197,7 @@ export default function FormDataListPage({
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
       </Modal>
     </div>

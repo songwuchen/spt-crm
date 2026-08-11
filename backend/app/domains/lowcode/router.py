@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/v1/lc", tags=["扩展平台-表单引擎"])
 # 允许配置扩展字段的既有业务实体
 ENTITY_TYPES = {
     "customer", "project", "lead", "contact", "service_ticket", "order",
-    "contract", "contract_review", "quote", "payment", "solution",
+    "contract", "contract_review", "tech_agreement_review", "quote", "payment", "solution",
 }
 
 

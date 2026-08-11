@@ -37,7 +37,7 @@ PRESIGN_EXPIRES = 600  # 10 minutes
 def _is_contract_attachment_biz(biz_type: str | None) -> bool:
     """合同本体及合同登记附件槽位（contract_agreement / contract_image / …）。"""
     bt = biz_type or ""
-    if bt.startswith("contract_review"):
+    if bt.startswith("contract_review") or bt.startswith("tech_agreement_review"):
         return False
     return bt == "contract" or bt.startswith("contract_")
 

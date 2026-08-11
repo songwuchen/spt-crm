@@ -96,6 +96,19 @@ const FIELD_CATALOG: Record<string, FieldDef[]> = {
     { value: 'purchase_risk', label: '采购风险', type: 'text' },
     { value: 'export_risk', label: '出口风险', type: 'text' },
   ],
+  tech_agreement_review: [
+    { value: 'need_pricing', label: '是否核价', type: 'enum', options: [
+      { value: '已核价', label: '已核价' }, { value: '未核价', label: '未核价' },
+    ] },
+    { value: 'has_smart', label: '合同是否含智能化部分', type: 'enum', options: [
+      { value: '是', label: '是' }, { value: '否', label: '否' },
+    ] },
+    { value: 'has_objection', label: '是否有异议', type: 'enum', options: [
+      { value: '是', label: '是' }, { value: '否', label: '否' },
+    ] },
+    { value: 'department_id', label: '部门', type: 'text' },
+    { value: 'industry', label: '所属行业', type: 'text' },
+  ],
   change_request: [
     { value: 'change_type', label: '变更类型', type: 'enum', options: [
       { value: 'requirement', label: '需求' }, { value: 'quote', label: '报价' },
@@ -177,6 +190,7 @@ const BIZ_TYPE_OPTIONS = [
   { value: 'quote_version', label: '报价审批' },
   { value: 'contract_version', label: '合同版本审批' },
   { value: 'contract_review', label: '合同评审会签' },
+  { value: 'tech_agreement_review', label: '技术协议评审' },
   { value: 'change_request', label: '变更审批' },
   { value: 'solution', label: '方案审批' },
   { value: 'service_ticket', label: '售后工单审批' },

@@ -98,6 +98,9 @@ const GuaranteePage = lazy(() => import('@/pages/guarantee/GuaranteePage'))
 const ContractReviewList = lazy(() => import('@/pages/contractReview/ContractReviewList'))
 const ContractReviewForm = lazy(() => import('@/pages/contractReview/ContractReviewForm'))
 const ContractReviewDetail = lazy(() => import('@/pages/contractReview/ContractReviewDetail'))
+const TechAgreementReviewList = lazy(() => import('@/pages/techAgreementReview/TechAgreementReviewList'))
+const TechAgreementReviewForm = lazy(() => import('@/pages/techAgreementReview/TechAgreementReviewForm'))
+const TechAgreementReviewDetail = lazy(() => import('@/pages/techAgreementReview/TechAgreementReviewDetail'))
 const EquipmentProfilePage = lazy(() => import('@/pages/equipment/EquipmentProfilePage'))
 const MeasurementPage = lazy(() => import('@/pages/measurement/MeasurementPage'))
 const TenderList = lazy(() => import('@/pages/tender/TenderList'))
@@ -236,6 +239,11 @@ export const router = createBrowserRouter([
       { path: 'contract-reviews/new', element: <Guard permission="contract_review:create"><ContractReviewForm /></Guard> },
       { path: 'contract-reviews/:id/edit', element: <Guard permission="contract_review:edit"><ContractReviewForm /></Guard> },
       { path: 'contract-reviews/:id', element: <Guard permission="contract_review:view"><ContractReviewDetail /></Guard> },
+      { path: 'tech-agreement-reviews', element: <Guard permission="tech_agreement_review:view"><TechAgreementReviewList /></Guard> },
+      { path: 'tech-agreement-reviews/fill', element: <Guard permission="tech_agreement_review:create"><TechAgreementReviewForm /></Guard> },
+      { path: 'tech-agreement-reviews/new', element: <Guard permission="tech_agreement_review:create"><TechAgreementReviewForm /></Guard> },
+      { path: 'tech-agreement-reviews/:id/edit', element: <Guard permission="tech_agreement_review:edit"><TechAgreementReviewForm /></Guard> },
+      { path: 'tech-agreement-reviews/:id', element: <Guard permission="tech_agreement_review:view"><TechAgreementReviewDetail /></Guard> },
       { path: 'prod-card-supplements/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="prod_card_supplement" listPath="/prod-card-supplements" title="生产卡/补充流程" /></Guard> },
       { path: 'prod-card-supplements', element: <Guard permission="form_data:view"><FormModulePage templateCode="prod_card_supplement" title="生产卡/补充流程" basePath="/prod-card-supplements" /></Guard> },
       { path: 'invoice-applications/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="invoice_application" listPath="/invoice-applications" title="开票申请" /></Guard> },

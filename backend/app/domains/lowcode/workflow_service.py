@@ -291,6 +291,14 @@ BIZ_DEFAULT_SPECS: list[dict] = [
         "empty_strategy": "auto_approve",
     },
     {
+        "biz_type": "tech_agreement_review",
+        "code": "SYS_TECH_AGREEMENT_REVIEW",
+        "name": "技术协议评审审批",
+        "approver_rule": {"type": "specified_role", "value": "sales_manager", "exclude_initiator": True},
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
         "biz_type": "lead",
         "code": "SYS_LEAD_REVIEW",
         "name": "线索审核",
@@ -980,6 +988,30 @@ _JDY_REVIEW_USER = {
     "cc_xunhan": "01670210101135172",         # 许曼（简道云迅焊）
 }
 
+# 简道云「合同技术协议评审」chargers / 抄送 → CRM username
+_JDY_TAR_USER = {
+    "market_support": "023641581817",         # 李巧芳（市场支持中心）
+    "chief": "02364335378133",                # 曹修国（总工审批）
+    # 审批反馈后抄送相关人（简道云 ccUsers.users；另含业务员字段）
+    "cc_related": [
+        "02364335378133",  # 曹修国
+        "02365310056917",  # 王东明
+        "02365625057413",  # 周彦立
+        "02365312411349",  # 李兴玉
+        "0236562418583",   # 樊磊
+        "01142154504565",  # 刘松潮
+        "02374448122197",  # 王鹏飞（z老）
+        "02380224638593",  # 李巧丽
+        "02374836394830",  # 韦利星
+        "0237444753532",   # 吕芹
+        "02365310124408",  # 丰芊
+        "04055912043654",  # 常文飞
+        "02383653146747",  # 吕宗源
+        "02396211202298",  # 许杰
+        "02380332036601",  # 李振
+    ],
+}
+
 CONTRACT_VERSION_DEFAULT_DESC = (
     "系统默认（对齐简道云合同登记）：审批人按简道云具名配置；"
     "财务后按标准交付/方式并行产采仓质，再接采购员/质检员/财务维护；"
@@ -1341,6 +1373,102 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
         {"id": "r_design_fb_gm", "source": "approval_design_fb", "target": "approval_gm"},
     ]
     return nodes, routes
+
+
+def _tech_agreement_flow_graph() -> tuple[list[dict], list[dict]]:
+    """技术协议评审默认图：对齐简道云「合同技术协议评审 HTJSXY」全拓扑。
+
+    发起旁路抄送业务员；
+    部门审批（业务部门主管）→ 市场支持中心 → 总工（填设计审批）→
+    设计审批1（填设计审批2）→ 设计审批2 → 业务反馈（业务员）→
+    设计审批1.1 → 设计审批2.1 → 审批反馈（申请人/发起人）→
+    旁路抄送相关人 → 结束。
+
+    注：简道云导出里「业务反馈→设计审批1.1→2.1→审批反馈」为无条件边
+    （界面画成旁路，实际每单都走）；CRM 按导出条件落地。
+    """
+    u = _JDY_TAR_USER
+    nodes: list[dict] = [
+        {"id": "start", "type": "start", "name": "发起"},
+        _cc_node(
+            "cc_owner", "抄送业务员",
+            {"type": "form_field_person", "value": "owner_id"},
+        ),
+        {
+            "id": "approval_dept", "type": "approval", "name": "部门审批",
+            "approver_rule": {"type": "dept_head", "exclude_initiator": True},
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+        },
+        _user_approval_node("approval_market", "市场支持中心", u["market_support"]),
+        _user_approval_node(
+            "approval_chief", "总工审批", u["chief"],
+            field_perms=_fp(("design_approver_ids", "required")),
+        ),
+        _field_person_approval_node(
+            "approval_design1", "设计审批1", "design_approver_ids",
+            field_perms=_fp(("design_approver_2_ids", "required")),
+        ),
+        _field_person_approval_node(
+            "approval_design2", "设计审批2", "design_approver_2_ids",
+            field_perms=_fp(("has_objection", "editable")),
+        ),
+        _field_person_approval_node("approval_biz_fb", "业务反馈", "owner_id"),
+        _field_person_approval_node(
+            "approval_design1_1", "设计审批1.1", "design_approver_ids",
+            field_perms=_fp(("design_approver_2_ids", "required")),
+        ),
+        _field_person_approval_node(
+            "approval_design2_1", "设计审批2.1", "design_approver_2_ids",
+        ),
+        {
+            "id": "approval_feedback", "type": "approval", "name": "审批反馈",
+            "approver_rule": {
+                "type": "mixed",
+                "value": [
+                    {"type": "creator"},
+                    {"type": "form_field_person", "value": "applicant_id"},
+                ],
+            },
+            "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+        },
+        _cc_node(
+            "cc_related", "抄送相关人",
+            {
+                "type": "mixed",
+                "value": [
+                    {"type": "specified_user", "value": u["cc_related"]},
+                    {"type": "form_field_person", "value": "owner_id"},
+                ],
+            },
+        ),
+        {"id": "end", "type": "end", "name": "结束"},
+    ]
+    routes: list[dict] = [
+        {"id": "r_start_cc_owner", "source": "start", "target": "cc_owner", "always": True},
+        {"id": "r_start_dept", "source": "start", "target": "approval_dept"},
+        {"id": "r_dept_market", "source": "approval_dept", "target": "approval_market"},
+        {"id": "r_market_chief", "source": "approval_market", "target": "approval_chief"},
+        {"id": "r_chief_d1", "source": "approval_chief", "target": "approval_design1"},
+        {"id": "r_d1_d2", "source": "approval_design1", "target": "approval_design2"},
+        {"id": "r_d2_biz", "source": "approval_design2", "target": "approval_biz_fb"},
+        {"id": "r_biz_d11", "source": "approval_biz_fb", "target": "approval_design1_1"},
+        {"id": "r_d11_d21", "source": "approval_design1_1", "target": "approval_design2_1"},
+        {"id": "r_d21_fb", "source": "approval_design2_1", "target": "approval_feedback"},
+        {
+            "id": "r_fb_cc_related", "source": "approval_feedback",
+            "target": "cc_related", "always": True,
+        },
+        {"id": "r_fb_end", "source": "approval_feedback", "target": "end"},
+    ]
+    return nodes, routes
+
+
+TECH_AGREEMENT_DEFAULT_DESC = (
+    "系统默认（对齐简道云合同技术协议评审）：发起抄送业务员；"
+    "部门审批 → 市场支持中心 → 总工填设计审批 → 设计审批1/2 → "
+    "业务反馈 → 设计审批1.1/2.1 → 审批反馈；旁路抄送相关人后结束。"
+    "可在流程管理中继续改。"
+)
 
 
 def _default_flow_graph(
@@ -1774,6 +1902,15 @@ async def ensure_default_definition(
         if sys_def and sys_def.status == "published":
             await _upgrade_contract_review_jdy_if_needed(db, tenant_id, sys_def)
 
+    if biz_type == "tech_agreement_review":
+        sys_def = (await db.execute(select(WfProcessDefinition).where(
+            WfProcessDefinition.tenant_id == tenant_id,
+            WfProcessDefinition.code == code,
+            WfProcessDefinition.is_deleted == False,  # noqa: E712
+        ).limit(1))).scalar_one_or_none()
+        if sys_def and sys_def.status == "published":
+            await _upgrade_tech_agreement_jdy_if_needed(db, tenant_id, sys_def)
+
     existing = (await db.execute(select(WfProcessDefinition).where(
         WfProcessDefinition.tenant_id == tenant_id,
         WfProcessDefinition.biz_type == biz_type,
@@ -1789,6 +1926,9 @@ async def ensure_default_definition(
     elif biz_type == "contract_review":
         nodes, routes = _contract_review_flow_graph()
         description = CONTRACT_REVIEW_DEFAULT_DESC
+    elif biz_type == "tech_agreement_review":
+        nodes, routes = _tech_agreement_flow_graph()
+        description = TECH_AGREEMENT_DEFAULT_DESC
     else:
         nodes, routes = _default_flow_graph(
             name, approver_rule, multi_mode, empty_strategy, with_owner_cc=with_owner_cc,
@@ -1807,6 +1947,8 @@ async def ensure_default_definition(
             await _upgrade_contract_version_jdy_reg_if_needed(db, tenant_id, revived)
         if biz_type == "contract_review" and revived:
             await _upgrade_contract_review_jdy_if_needed(db, tenant_id, revived)
+        if biz_type == "tech_agreement_review" and revived:
+            await _upgrade_tech_agreement_jdy_if_needed(db, tenant_id, revived)
         return revived
 
     d = WfProcessDefinition(
@@ -2023,6 +2165,51 @@ async def _upgrade_contract_review_jdy_if_needed(
     await _publish_system_default_upgrade(
         db, tenant_id, d, version, new_nodes, new_routes,
         CONTRACT_REVIEW_DEFAULT_DESC, "简道云评审会签流(旁路抄送/反馈回路)",
+    )
+
+
+def _flow_is_tech_agreement_jdy(nodes: list | None) -> bool:
+    """是否已是简道云技术协议全拓扑（含市场支持 / 业务反馈 / 1.1·2.1）。"""
+    names = {
+        n.get("name") for n in (nodes or [])
+        if isinstance(n, dict) and n.get("type") in ("approval", "cc")
+    }
+    required = {
+        "抄送业务员", "部门审批", "市场支持中心", "总工审批",
+        "设计审批1", "设计审批2", "业务反馈",
+        "设计审批1.1", "设计审批2.1", "审批反馈", "抄送相关人",
+    }
+    if not required.issubset(names):
+        return False
+    # 旧精简版也有总工+设计审批字段权限，必须靠节点名区分
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if n.get("name") != "总工审批":
+            continue
+        for p in n.get("field_perms") or []:
+            if isinstance(p, dict) and p.get("field") == "design_approver_ids":
+                return True
+    return False
+
+
+async def _upgrade_tech_agreement_jdy_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition,
+) -> None:
+    """系统兜底技术协议流：精简版/单节点升级为简道云全拓扑。"""
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    if d.biz_type != "tech_agreement_review":
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+    if _flow_is_tech_agreement_jdy(version.node_definitions):
+        return
+    new_nodes, new_routes = _tech_agreement_flow_graph()
+    await _publish_system_default_upgrade(
+        db, tenant_id, d, version, new_nodes, new_routes,
+        TECH_AGREEMENT_DEFAULT_DESC, "简道云技术协议评审(全拓扑)",
     )
 
 
@@ -2431,6 +2618,8 @@ async def list_cc(db, tenant_id, user_id, page_no, page_size):
                 biz_ref_id = cv_map.get(inst.biz_id)
             elif inst.biz_type == "contract_review":
                 biz_ref_id = inst.biz_id
+            elif inst.biz_type == "tech_agreement_review":
+                biz_ref_id = inst.biz_id
         out.append({
             "cc_id": c.id,
             "is_read": bool(c.is_read),
@@ -2491,6 +2680,8 @@ async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
         if i.biz_type == "contract_version" and i.biz_id:
             d["biz_ref_id"] = cv_map.get(i.biz_id)
         elif i.biz_type == "contract_review":
+            d["biz_ref_id"] = i.biz_id
+        elif i.biz_type == "tech_agreement_review":
             d["biz_ref_id"] = i.biz_id
         else:
             d["biz_ref_id"] = None
@@ -2567,6 +2758,8 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
             if inst.biz_type == "contract_version" and inst.biz_id:
                 biz_ref_id = cv_contract_map.get(inst.biz_id)
             elif inst.biz_type == "contract_review":
+                biz_ref_id = inst.biz_id
+            elif inst.biz_type == "tech_agreement_review":
                 biz_ref_id = inst.biz_id
         out.append({
             "task_id": t.id, "status": t.status, "opinion": t.opinion,
@@ -2889,6 +3082,8 @@ async def get_instance_detail(
         except Exception:
             biz_detail = {}
         if inst.biz_type == "contract_review":
+            biz_ref_id = inst.biz_id
+        elif inst.biz_type == "tech_agreement_review":
             biz_ref_id = inst.biz_id
         elif inst.biz_type == "contract_version":
             try:

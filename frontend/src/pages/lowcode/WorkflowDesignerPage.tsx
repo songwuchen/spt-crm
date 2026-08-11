@@ -8,21 +8,11 @@ import {
 import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
-import type { WfNode, WfDesign, ApproverType, FieldDefinition } from '@/types/lowcode'
-import PersonField from '@/components/lowcode/fields/PersonField'
+import type { WfNode, WfDesign, FieldDefinition } from '@/types/lowcode'
+import { ApproverRuleEditor } from '@/components/lowcode/ApproverRuleEditor'
 
 const { Title, Text } = Typography
 
-const APPROVER_TYPES: { value: ApproverType; label: string; needValue?: 'user' | 'field_person' | 'field_dept' | 'text' }[] = [
-  { value: 'specified_user', label: '指定人员', needValue: 'user' },
-  { value: 'creator', label: '发起人本人' },
-  { value: 'direct_supervisor', label: '直接上级' },
-  { value: 'dept_head', label: '部门负责人' },
-  { value: 'multi_level_superior', label: '逐级上级' },
-  { value: 'form_field_person', label: '表单人员字段', needValue: 'field_person' },
-  { value: 'form_field_dept', label: '表单部门字段(取负责人)', needValue: 'field_dept' },
-  { value: 'specified_role', label: '指定角色(填角色码)', needValue: 'text' },
-]
 const MULTI_MODES = [
   { value: 'or_sign', label: '或签(一人通过即可)' },
   { value: 'countersign', label: '会签(全部通过)' },
@@ -83,8 +73,8 @@ export default function WorkflowDesignerPage() {
     }])
   }
   const patch = (idx: number, p: Partial<WfNode>) => setMiddle(middle.map((n, i) => (i === idx ? { ...n, ...p } : n)))
-  const patchRule = (idx: number, p: Record<string, unknown>) =>
-    setMiddle(middle.map((n, i) => (i === idx ? { ...n, approver_rule: { ...(n.approver_rule || { type: 'creator' }), ...p } } : n)))
+  const patchRule = (idx: number, rule: NonNullable<WfNode['approver_rule']>) =>
+    setMiddle(middle.map((n, i) => (i === idx ? { ...n, approver_rule: rule } : n)))
   const remove = (idx: number) => setMiddle(middle.filter((_, i) => i !== idx))
   const move = (idx: number, dir: -1 | 1) => {
     const j = idx + dir
@@ -124,9 +114,6 @@ export default function WorkflowDesignerPage() {
 
   if (loading) return <Card loading />
 
-  const personFields = formFields.filter((f) => f.type === 'person' || f.type === 'person_multi')
-  const deptFields = formFields.filter((f) => f.type === 'department' || f.type === 'department_multi')
-
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
@@ -164,18 +151,18 @@ export default function WorkflowDesignerPage() {
                 </Space>
               </Col>
             </Row>
-            <Row gutter={8} align="middle" style={{ marginTop: 8 }}>
-              <Col span={8}>
-                <Select size="small" style={{ width: '100%' }} value={n.approver_rule?.type}
-                  options={APPROVER_TYPES.map((t) => ({ label: t.label, value: t.value }))}
-                  onChange={(v) => patchRule(idx, { type: v, value: undefined })} />
-              </Col>
-              <Col span={n.type === 'approval' ? 9 : 16}>
-                <ApproverValue node={n} personFields={personFields} deptFields={deptFields}
-                  onChange={(value) => patchRule(idx, { value })} />
+            <Row gutter={8} align="top" style={{ marginTop: 8 }}>
+              <Col span={n.type === 'approval' ? 17 : 24}>
+                <ApproverRuleEditor
+                  rule={n.approver_rule}
+                  formFields={formFields}
+                  roleLabel={n.type === 'approval' ? '审批人' : '抄送人'}
+                  onChange={(next) => patchRule(idx, next)}
+                />
               </Col>
               {n.type === 'approval' && (
                 <Col span={7}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>多人模式</Text>
                   <Select size="small" style={{ width: '100%' }} value={n.multi_mode || 'or_sign'}
                     options={MULTI_MODES} onChange={(v) => patch(idx, { multi_mode: v })} />
                 </Col>
@@ -202,39 +189,4 @@ export default function WorkflowDesignerPage() {
 
 function NodeBadge({ color, label }: { color: string; label: string }) {
   return <span style={{ display: 'inline-block', padding: '2px 12px', borderRadius: 12, background: color, color: '#fff', fontSize: 12 }}>{label}</span>
-}
-
-function ApproverValue({ node, personFields, deptFields, onChange }: {
-  node: WfNode
-  personFields: FieldDefinition[]
-  deptFields: FieldDefinition[]
-  onChange: (v: unknown) => void
-}) {
-  const t = node.approver_rule?.type
-  const meta = APPROVER_TYPES.find((a) => a.value === t)
-  if (!meta?.needValue) return <Text type="secondary" style={{ fontSize: 12 }}>无需指定</Text>
-  if (meta.needValue === 'user') {
-    return <PersonField value={node.approver_rule?.value} onChange={onChange} multi />
-  }
-  if (meta.needValue === 'field_person' || meta.needValue === 'field_dept') {
-    const fields = meta.needValue === 'field_person' ? personFields : deptFields
-    const value = (node.approver_rule?.value as string) || undefined
-    const options = fields.map((f) => ({ value: f.id, label: f.label || f.id }))
-    if (value && !options.some((o) => o.value === value)) {
-      options.unshift({ value, label: value })
-    }
-    return (
-      <Select size="small" style={{ width: '100%' }} placeholder="选择业务字段（运行时动态解析）"
-        value={value}
-        options={options}
-        optionFilterProp="label"
-        showSearch
-        notFoundContent={fields.length ? '无匹配字段' : '未加载到人员/部门类业务字段，请刷新'}
-        onChange={onChange} />
-    )
-  }
-  // text: 角色码等
-  return <Input size="small" placeholder="逗号分隔(如 finance_manager)"
-    value={Array.isArray(node.approver_rule?.value) ? (node.approver_rule?.value as string[]).join(',') : (node.approver_rule?.value as string) || ''}
-    onChange={(e) => onChange(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))} />
 }

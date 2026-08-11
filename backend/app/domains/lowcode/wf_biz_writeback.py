@@ -27,6 +27,8 @@ REGISTRY: dict[str, dict[str, str]] = {
                          "withdrawn": "draft", "submitted": "submitted"},
     "contract_review": {"table": "contract_reviews", "status_col": "status", "approved": "approved", "rejected": "rejected",
                         "withdrawn": "draft", "submitted": "submitted"},
+    "tech_agreement_review": {"table": "tech_agreement_reviews", "status_col": "status", "approved": "approved", "rejected": "rejected",
+                              "withdrawn": "draft", "submitted": "submitted"},
     "change_request": {"table": "change_requests", "status_col": "status", "approved": "approved", "rejected": "rejected",
                        "withdrawn": "draft", "submitted": "submitted"},
     "solution": {"table": "solutions", "status_col": "status", "approved": "approved", "rejected": "rejected",

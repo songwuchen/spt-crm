@@ -19,6 +19,7 @@ import PersonField from '@/components/lowcode/fields/PersonField'
 import ContractRegistrationReadonly from '@/components/lowcode/ContractRegistrationReadonly'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
+import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { isSchemeManagementForm, printSchemeInstance } from '@/pages/drawing/schemePrint'
@@ -39,6 +40,7 @@ export function bizEntityPath(
     order: `${p}/orders/${bizId}`,
     service_ticket: `${p}/service-tickets/${bizId}`,
     contract_review: `${p}/contract-reviews/${bizId}`,
+    tech_agreement_review: `${p}/tech-agreement-reviews/${bizId}`,
   }
   if (map[bizType]) return map[bizType]
   if (bizType === 'contract_version') {
@@ -295,7 +297,9 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       ? '线索信息'
                       : detail.biz_type === 'contract_review'
                         ? '合同评审信息'
-                        : '业务信息'}
+                        : detail.biz_type === 'tech_agreement_review'
+                          ? '技术协议评审信息'
+                          : '业务信息'}
                 </div>
                 {fields.length ? (
                   <FormRenderer
@@ -314,7 +318,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 rounded-lg bg-slate-50 border border-slate-100 p-4">
                       {bizEntries.map(([k, v]) => (
                         <div key={k} className="flex gap-2 text-sm min-w-0">
-                          <span className="shrink-0 w-24 text-slate-500">{k}</span>
+                          <span className="shrink-0 w-28 text-slate-500">{k}</span>
                           <span className="text-slate-800 font-medium break-all">
                             {v == null || v === '' ? '—' : String(v)}
                           </span>
@@ -328,8 +332,8 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 rounded-lg bg-slate-50 border border-slate-100 p-4">
                     {bizEntries.map(([k, v]) => (
                       <div key={k} className="flex gap-2 text-sm min-w-0">
-                        <span className="shrink-0 w-24 text-slate-500">{k}</span>
-                        <span className="text-slate-800 font-medium break-all">
+                        <span className="shrink-0 w-28 text-slate-500">{k}</span>
+                        <span className="text-slate-800 font-medium break-all whitespace-pre-wrap">
                           {v == null || v === '' ? '—' : String(v)}
                         </span>
                       </div>
@@ -337,6 +341,22 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                   </div>
                 ) : (
                   <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
+                )}
+                {detail.biz_type === 'tech_agreement_review' && detail.biz_id && (
+                  <div className="mt-4 space-y-3">
+                    <AttachmentPanel
+                      bizType="tech_agreement_review_drawing"
+                      bizId={detail.biz_id}
+                      title="认可图（附件）"
+                      compact
+                    />
+                    <AttachmentPanel
+                      bizType="tech_agreement_review"
+                      bizId={detail.biz_id}
+                      title="技术协议（附件）"
+                      compact
+                    />
+                  </div>
                 )}
               </section>
 

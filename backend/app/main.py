@@ -47,6 +47,7 @@ from app.domains.commission.router import router as commission_router
 from app.domains.collection.router import router as collection_router
 from app.domains.guarantee.router import router as guarantee_router
 from app.domains.contract_review.router import router as contract_review_router
+from app.domains.tech_agreement_review.router import router as tech_agreement_review_router
 from app.domains.equipment.router import router as equipment_router
 from app.domains.measurement.router import router as measurement_router
 from app.domains.task.router import router as task_router
@@ -176,6 +177,7 @@ app.include_router(commission_router)
 app.include_router(collection_router)
 app.include_router(guarantee_router)
 app.include_router(contract_review_router)
+app.include_router(tech_agreement_review_router)
 app.include_router(equipment_router)
 app.include_router(measurement_router)
 app.include_router(task_router)

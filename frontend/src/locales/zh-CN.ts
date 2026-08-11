@@ -106,6 +106,7 @@ const zhCN = {
     materialNames: '物料名称',
     departmentCodes: '部门编号',
     contractReviews: '合同评审',
+    techAgreementReviews: '技术协议评审',
     prodCardSupplements: '生产卡/补充流程',
     invoiceApplications: '开票申请',
     paymentRegistrations: '收款登记',

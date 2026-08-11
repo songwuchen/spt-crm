@@ -1,0 +1,239 @@
+/** 流程节点审批人/抄送人规则编辑（含组合选人 mixed）。 */
+import { Button, Input, Select, Space, Typography } from 'antd'
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import PersonField from '@/components/lowcode/fields/PersonField'
+import type { ApproverType, FieldDefinition, WfApproverRule } from '@/types/lowcode'
+
+const { Text } = Typography
+
+type NeedValue = 'user' | 'field_person' | 'field_dept' | 'text' | 'mixed'
+
+export type ApproverTypeMeta = {
+  value: ApproverType
+  label: string
+  needValue?: NeedValue
+}
+
+/** 单一选人规则（可嵌进 mixed；不可再嵌套 mixed） */
+export const ATOMIC_APPROVER_TYPES: ApproverTypeMeta[] = [
+  { value: 'specified_user', label: '指定人员', needValue: 'user' },
+  { value: 'creator', label: '发起人本人' },
+  { value: 'direct_supervisor', label: '直接上级' },
+  { value: 'dept_head', label: '部门负责人' },
+  { value: 'multi_level_superior', label: '逐级上级' },
+  { value: 'form_field_person', label: '表单人员字段', needValue: 'field_person' },
+  { value: 'form_field_dept', label: '表单部门字段', needValue: 'field_dept' },
+  { value: 'specified_role', label: '指定角色(角色码)', needValue: 'text' },
+]
+
+export const APPROVER_TYPES: ApproverTypeMeta[] = [
+  ...ATOMIC_APPROVER_TYPES,
+  { value: 'mixed', label: '组合选人', needValue: 'mixed' },
+]
+
+function personFieldOptions(formFields: FieldDefinition[], current?: string) {
+  const opts = formFields
+    .filter((f) => f.type === 'person' || f.type === 'person_multi')
+    .map((f) => ({ value: f.id, label: f.label || f.id }))
+  if (current && !opts.some((o) => o.value === current)) {
+    opts.unshift({ value: current, label: current })
+  }
+  return opts
+}
+
+function deptFieldOptions(formFields: FieldDefinition[], current?: string) {
+  const opts = formFields
+    .filter((f) => f.type === 'department' || f.type === 'department_multi')
+    .map((f) => ({ value: f.id, label: f.label || f.id }))
+  if (current && !opts.some((o) => o.value === current)) {
+    opts.unshift({ value: current, label: current })
+  }
+  return opts
+}
+
+function asSubRules(value: unknown): WfApproverRule[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((x): x is WfApproverRule => !!x && typeof x === 'object' && !!(x as WfApproverRule).type)
+}
+
+/** 单一规则的取值区（不含 type 选择） */
+function AtomicValueEditor({
+  rule,
+  formFields,
+  onChange,
+}: {
+  rule: WfApproverRule
+  formFields: FieldDefinition[]
+  onChange: (value: unknown) => void
+}) {
+  const meta = ATOMIC_APPROVER_TYPES.find((a) => a.value === rule.type)
+  if (!meta?.needValue) {
+    return <Text type="secondary" style={{ fontSize: 12 }}>无需指定</Text>
+  }
+  if (meta.needValue === 'user') {
+    return <PersonField value={rule.value} onChange={onChange} multi />
+  }
+  if (meta.needValue === 'field_person') {
+    const cur = typeof rule.value === 'string' ? rule.value : undefined
+    return (
+      <Select
+        size="small"
+        style={{ width: '100%' }}
+        placeholder="选择人员字段"
+        value={cur}
+        options={personFieldOptions(formFields, cur)}
+        optionFilterProp="label"
+        showSearch
+        onChange={onChange}
+      />
+    )
+  }
+  if (meta.needValue === 'field_dept') {
+    const cur = typeof rule.value === 'string' ? rule.value : undefined
+    return (
+      <Select
+        size="small"
+        style={{ width: '100%' }}
+        placeholder="选择部门字段"
+        value={cur}
+        options={deptFieldOptions(formFields, cur)}
+        optionFilterProp="label"
+        showSearch
+        onChange={onChange}
+      />
+    )
+  }
+  return (
+    <Input
+      size="small"
+      placeholder="角色码，逗号分隔"
+      value={Array.isArray(rule.value) ? (rule.value as string[]).join(',') : (rule.value as string) || ''}
+      onChange={(e) => onChange(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
+    />
+  )
+}
+
+function MixedEditor({
+  value,
+  formFields,
+  onChange,
+}: {
+  value: unknown
+  formFields: FieldDefinition[]
+  onChange: (subs: WfApproverRule[]) => void
+}) {
+  const subs = asSubRules(value)
+
+  const patchAt = (idx: number, patch: Partial<WfApproverRule>) => {
+    const next = subs.map((s, i) => (i === idx ? { ...s, ...patch } : s))
+    onChange(next)
+  }
+
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size={6}>
+      <Text type="secondary" style={{ fontSize: 12 }}>
+        组合多条规则，运行时取人员并集（去重）
+      </Text>
+      {subs.map((sub, idx) => (
+        <div
+          key={idx}
+          style={{
+            border: '1px solid var(--ant-color-border-secondary, #f0f0f0)',
+            borderRadius: 6,
+            padding: 8,
+            background: 'var(--ant-color-fill-quaternary, #fafafa)',
+          }}
+        >
+          <Space direction="vertical" style={{ width: '100%' }} size={4}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <Select
+                size="small"
+                style={{ flex: 1 }}
+                value={sub.type}
+                options={ATOMIC_APPROVER_TYPES.map((t) => ({ label: t.label, value: t.value }))}
+                onChange={(t) => patchAt(idx, { type: t, value: undefined })}
+              />
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                disabled={subs.length <= 1}
+                onClick={() => onChange(subs.filter((_, i) => i !== idx))}
+              />
+            </div>
+            <AtomicValueEditor
+              rule={sub}
+              formFields={formFields}
+              onChange={(v) => patchAt(idx, { value: v })}
+            />
+          </Space>
+        </div>
+      ))}
+      <Button
+        size="small"
+        type="dashed"
+        block
+        icon={<PlusOutlined />}
+        onClick={() => onChange([...subs, { type: 'creator' }])}
+      >
+        添加选人规则
+      </Button>
+    </Space>
+  )
+}
+
+export function ApproverRuleEditor({
+  rule,
+  formFields,
+  onChange,
+  roleLabel = '审批人',
+}: {
+  rule?: WfApproverRule
+  formFields: FieldDefinition[]
+  /** 整份规则变更（切换类型时会重置 value） */
+  onChange: (next: WfApproverRule) => void
+  roleLabel?: string
+}) {
+  const current = rule || { type: 'creator' as ApproverType }
+  const meta = APPROVER_TYPES.find((a) => a.value === current.type)
+  const typeValue = APPROVER_TYPES.some((t) => t.value === current.type)
+    ? current.type
+    : current.type
+
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size="small">
+      <div>
+        <Text type="secondary" style={{ fontSize: 12 }}>{roleLabel}</Text>
+        <Select
+          size="small"
+          style={{ width: '100%' }}
+          value={typeValue}
+          options={APPROVER_TYPES.map((t) => ({ label: t.label, value: t.value }))}
+          onChange={(t) => {
+            if (t === 'mixed') {
+              onChange({ type: 'mixed', value: asSubRules(current.value).length
+                ? asSubRules(current.value)
+                : [{ type: 'creator' }] })
+              return
+            }
+            onChange({ type: t, value: undefined })
+          }}
+        />
+      </div>
+      {meta?.needValue === 'mixed' ? (
+        <MixedEditor
+          value={current.value}
+          formFields={formFields}
+          onChange={(subs) => onChange({ type: 'mixed', value: subs })}
+        />
+      ) : meta?.needValue ? (
+        <AtomicValueEditor
+          rule={current}
+          formFields={formFields}
+          onChange={(v) => onChange({ ...current, value: v })}
+        />
+      ) : null}
+    </Space>
+  )
+}

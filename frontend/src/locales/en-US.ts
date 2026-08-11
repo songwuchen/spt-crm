@@ -90,6 +90,7 @@ const enUS = {
     materialNames: 'Material Names',
     departmentCodes: 'Department Codes',
     contractReviews: 'Contract Reviews',
+    techAgreementReviews: 'Tech Agreement Reviews',
     prodCardSupplements: 'Prod Card / Supplement',
     invoiceApplications: 'Invoice Application',
     paymentRegistrations: 'Payment Registration',

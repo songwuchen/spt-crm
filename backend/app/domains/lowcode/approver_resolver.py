@@ -181,8 +181,9 @@ class ApproverResolver:
         """从表单数据提取部门 id（department / department_multi 等）。"""
         if not isinstance(form_data, dict):
             return []
-        # 只用主部门字段，不用「科室」等审批指派字段
-        for key in ("department", "department_multi", "dept"):
+        # 只用主部门字段，不用「科室」等审批指派字段。
+        # 业务单据常用 department_id（合同评审/技术协议等），与低代码 department 并列。
+        for key in ("department", "department_id", "department_multi", "dept"):
             if key not in form_data:
                 continue
             out: list[str] = []
