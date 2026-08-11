@@ -45,18 +45,20 @@ def test_contract_detail_tables_in_catalog():
 
 
 def test_customer_required_defaults_align_jdy():
-    """对齐简道云 allowBlank=false：开关/名称/行业/内贸档案/智能化关键项/开票税号等默认必填。"""
+    """对齐简道云：内贸/智能化分区字段目录默认必填；开关/行业/地址由表单硬必填（API 可简写建档）。"""
     by = {f["id"]: f for f in get_native_fields("customer")}
-    always = ["is_smart_filing", "is_foreign_trade", "name", "industry", "address"]
+    assert by["name"].get("required") is True
+    # 始终展示项不设目录 default_required，避免 pytest/openapi 只传 name 被拦
+    for fid in ("is_smart_filing", "is_foreign_trade", "industry", "address", "owner_id"):
+        assert by[fid].get("required") is not True, fid
     domestic = [
         "registered_capital", "paid_in_capital", "founded_year", "parent_company_note",
         "customer_nature", "customer_relation", "level", "primary_contact_title",
         "wage_insurance_status", "taxpayer_id", "is_company_customer",
     ]
     smart = ["legal_person", "headcount", "smart_industry_category"]
-    for fid in always + domestic + smart + ["owner_id"]:
+    for fid in domestic + smart:
         assert by[fid].get("required") is True, fid
-    # 外贸区标签带*但目录默认非必填，由系统规则条件必填
     for fid in ("short_name", "country", "foreign_customer_type", "customer_email"):
         assert by[fid].get("required") is not True, fid
     rules = get_system_rules("customer")

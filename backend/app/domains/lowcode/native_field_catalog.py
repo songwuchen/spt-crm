@@ -203,20 +203,22 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
 
     # 客户表单已接 PolicyItem（FORM_WIRED）；系统显隐规则见 SYSTEM_RULES["customer"]。
     "customer": [
-        # ---- 开关（对齐简道云 allowBlank=false）----
-        _f("is_smart_filing", "是否智能化客户信息备案", "radio", default_required=True,
+        # ---- 开关：表单侧 PolicyItem 硬必填；目录不设 default_required，避免 API/测试
+        # 只传 name 建客户时被「开关未填」拦住（开关缺省时内贸分区也未展开）。
+        _f("is_smart_filing", "是否智能化客户信息备案", "radio",
            options=[{"value": True, "label": "是"}, {"value": False, "label": "否"}]),
-        _f("is_foreign_trade", "是否外贸客户", "radio", default_required=True,
+        _f("is_foreign_trade", "是否外贸客户", "radio",
            options=[{"value": True, "label": "是"}, {"value": False, "label": "否"}]),
         # ---- 基本信息（始终可见）----
         _f("name", "客户名称", system_required=True),
         _f("customer_code", "客户编号"),
-        _f("industry", "所属行业", "radio", options_source="dict:industry", default_required=True,
+        # 行业/地址：同样由表单硬必填；API 简写建档不强制
+        _f("industry", "所属行业", "radio", options_source="dict:industry",
            options=[{"value": v, "label": v} for v in (
                "工业升级", "循环经济", "基建民生", "技术改造", "其他")]),
         _f("scale_level", "企业规模", "select", options_source="dict:scale_level",
            options=[{"value": v, "label": v} for v in ("微型", "小型", "中型", "大型", "特大型")]),
-        _f("address", "详细地址", default_required=True),
+        _f("address", "详细地址"),
         _f("website", "主页"),
         _f("source", "客户来源", "select", options_source="dict:customer_source",
            options=[
@@ -296,8 +298,8 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         _f("expected_purchase_date", "预计采购日期", "date"),
         _f("postal_code", "邮编"),
         _f("remark", "备注", "textarea"),
-        # 业务员：简道云在外贸区必填；CRM 内贸/外贸均展示，默认必填（公海新建前端可不传）
-        _f("owner_id", "业务员", "person", companions=("owner_name",), default_required=True),
+        # 业务员：表单必填；API 创建时会回落到当前用户，故目录不设 default_required
+        _f("owner_id", "业务员", "person", companions=("owner_name",)),
     ],
     "contact": [
         _f("name", "姓名", system_required=True),

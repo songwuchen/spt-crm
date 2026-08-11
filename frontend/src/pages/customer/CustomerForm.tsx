@@ -310,7 +310,7 @@ export default function CustomerForm() {
   }
 
   const ownerField = !toPool ? (
-    <PolicyItem name="owner_id" label="业务员">
+    <PolicyItem name="owner_id" label="业务员" rules={[{ required: true, message: '请选择业务员' }]}>
       <OwnerSelect userSelect={userSelect} />
     </PolicyItem>
   ) : null
@@ -336,10 +336,10 @@ export default function CustomerForm() {
               <Form.Item label="日期时间">
                 <Input value={createdAtDisplay} disabled readOnly />
               </Form.Item>
-              <PolicyItem name="is_smart_filing" label="是否智能化客户信息备案">
+              <PolicyItem name="is_smart_filing" label="是否智能化客户信息备案" rules={[{ required: true, message: '请选择' }]}>
                 <Radio.Group options={YES_NO} />
               </PolicyItem>
-              <PolicyItem name="is_foreign_trade" label="是否外贸客户">
+              <PolicyItem name="is_foreign_trade" label="是否外贸客户" rules={[{ required: true, message: '请选择' }]}>
                 <Radio.Group options={YES_NO} />
               </PolicyItem>
             </div>
@@ -427,7 +427,7 @@ export default function CustomerForm() {
             <Form.Item name="city" hidden><Input /></Form.Item>
             <Form.Item name="district" hidden><Input /></Form.Item>
             <Form.Item name="region_code" hidden><Input /></Form.Item>
-            <PolicyItem name="address">
+            <PolicyItem name="address" rules={[{ required: true, message: '请填写详细地址' }]}>
               <Input.TextArea rows={2} placeholder="请填写详细地址" />
             </PolicyItem>
 
@@ -436,7 +436,7 @@ export default function CustomerForm() {
             </PolicyItem>
 
             {/* 内贸分类：通栏单选（对齐简道云字段顺序） */}
-            <PolicyItem name="industry" label="所属行业">
+            <PolicyItem name="industry" label="所属行业" rules={[{ required: true, message: '请选择所属行业' }]}>
               <ChoiceOptionsBridge fieldId="industry" fallback={DEFAULT_INDUSTRIES} dictOptions={industryDict.options}>
                 {(opts) => <Radio.Group options={opts} />}
               </ChoiceOptionsBridge>
