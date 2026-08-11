@@ -13,7 +13,7 @@ import {
   PlusOutlined, PlusCircleOutlined, PlusSquareOutlined, MinusOutlined, CloseOutlined,
   CloseCircleOutlined, CheckOutlined, CheckCircleOutlined, CheckSquareOutlined,
   EditOutlined, DeleteOutlined, ClearOutlined, CopyOutlined, SearchOutlined,
-  FilterOutlined, ReloadOutlined, SyncOutlined, UndoOutlined, SendOutlined,
+  FilterOutlined, ReloadOutlined, SyncOutlined, UndoOutlined, RollbackOutlined, SendOutlined,
   ExportOutlined, DownloadOutlined, ShareAltOutlined, LinkOutlined, DisconnectOutlined,
   EyeOutlined, HolderOutlined, PushpinOutlined, SelectOutlined, SwapOutlined,
   LoadingOutlined, PauseCircleOutlined, PlayCircleOutlined, StopOutlined,
@@ -107,6 +107,8 @@ const MAP: Record<string, IconComp> = {
   handshake: SolutionOutlined, contract: FileProtectOutlined,
   description: FileTextOutlined, note: FileTextOutlined, sticky_note_2: FileTextOutlined,
   summarize: FileTextOutlined, edit_document: ProfileOutlined, assignment: ProfileOutlined,
+  // 客服「产品退货」菜单：退回语义
+  assignment_return: RollbackOutlined,
   fact_check: FileDoneOutlined, difference: DiffOutlined, dynamic_form: FormOutlined,
   folder: FolderOutlined, menu_book: ReadOutlined, receipt_long: AccountBookOutlined,
   checklist: UnorderedListOutlined, table_rows: TableOutlined, view_kanban: ProjectOutlined,
