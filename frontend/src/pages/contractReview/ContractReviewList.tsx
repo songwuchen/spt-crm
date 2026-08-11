@@ -73,9 +73,9 @@ function readColValue(row: ContractReview, col: ReviewListColumnDef): unknown {
   }
   if (col.kind === 'person' || col.kind === 'dept') {
     const nameKey = col.nameKey
-    if (nameKey) return (row as Record<string, unknown>)[nameKey]
+    if (nameKey) return (row as unknown as Record<string, unknown>)[nameKey]
   }
-  return (row as Record<string, unknown>)[col.key]
+  return (row as unknown as Record<string, unknown>)[col.key]
 }
 
 function renderCell(col: ReviewListColumnDef, row: ContractReview, navigate: (p: string) => void): ReactNode {

@@ -52,7 +52,7 @@ export default function TechAgreementReviewViewBody({
 }: {
   row: TechAgreementReview
   wfInstance: WfInstanceDetail | null
-  onSubmitComment?: (content: string) => Promise<void> | void
+  onSubmitComment?: (content: string) => Promise<void>
   commenting?: boolean
   showFlowPane?: boolean
 }) {
