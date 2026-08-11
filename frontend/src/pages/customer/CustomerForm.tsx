@@ -1,6 +1,6 @@
 import {
   useEffect, useState, useRef, useCallback, cloneElement, isValidElement,
-  type ComponentProps, type ReactElement,
+  type ComponentProps, type ReactElement, type ReactNode,
 } from 'react'
 import {
   Form, Input, Select, Button, Card, Alert, DatePicker, InputNumber,
@@ -598,13 +598,13 @@ export default function CustomerForm() {
               <Form.Item name="currency" label="币种">
                 <Select placeholder="默认人民币 CNY" allowClear options={CURRENCY_OPTIONS} />
               </Form.Item>
-              <Form.Item name="scale_level" label="企业规模">
+              <PolicyItem name="scale_level" label="企业规模">
                 <ChoiceOptionsBridge fieldId="scale_level" fallback={DEFAULT_SCALES} dictOptions={scaleDict.options}>
                   {(opts) => (
                     <Select placeholder="请选择" allowClear options={opts} loading={scaleDict.loading} />
                   )}
                 </ChoiceOptionsBridge>
-              </Form.Item>
+              </PolicyItem>
               {isEdit && (
                 <Form.Item name="status" label="状态">
                   <Select options={[

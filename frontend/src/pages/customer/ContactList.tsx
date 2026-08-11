@@ -321,9 +321,9 @@ export default function ContactList() {
           <PolicyItem name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
             <Input placeholder="请输入姓名" />
           </PolicyItem>
-          <Form.Item name="department" label="所在部门">
+          <PolicyItem name="department" label="所在部门">
             <Input placeholder="部门" />
-          </Form.Item>
+          </PolicyItem>
           <PolicyItem name="title" label="职位">
             <AutoComplete
               allowClear

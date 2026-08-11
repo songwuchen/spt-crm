@@ -624,7 +624,7 @@ function FieldProps({ field, roleOptions, personScopeOptions, deptScopeOptions, 
   const [dictLoading, setDictLoading] = useState(false)
   const setProp = (k: string, v: unknown) => onPatch({ props: { ...field.props, [k]: v } })
   const optText = (field.options || []).map((o) => {
-    const v = o.value === true || o.value === false ? String(o.value) : String(o.value ?? '')
+    const v = String(o.value ?? '')
     return o.label === v || o.label == null ? v : `${o.label}|${v}`
   }).join('\n')
 

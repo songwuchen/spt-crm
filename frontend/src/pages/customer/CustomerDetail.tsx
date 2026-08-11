@@ -917,7 +917,7 @@ export default function CustomerDetail() {
        <FieldPolicyProvider entityType="contact" form={form} customFieldValues={contactCustomFields}>
         <Form form={form} layout="vertical">
           <PolicyItem name="name" label="姓名" rules={[{ required: true }]}><Input /></PolicyItem>
-          <Form.Item name="department" label="所在部门"><Input placeholder="部门" /></Form.Item>
+          <PolicyItem name="department" label="所在部门"><Input placeholder="部门" /></PolicyItem>
           <PolicyItem name="title" label="职务">
             <AutoComplete
               allowClear
