@@ -1,0 +1,477 @@
+[
+  {
+    "name": "_widget_1578121055665",
+    "title": "流水号",
+    "type": "sn",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1617689215719",
+    "title": "日期时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1578119863142",
+    "title": "业务部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1577520412656",
+    "title": "业务员",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1770085266609",
+    "title": "业务员ID（辅助）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1770085266610",
+    "title": "对应区域经理或组长",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1577514157595",
+    "title": "客户名称",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1647329433188",
+    "title": "客户类别",
+    "type": "linkquery",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1577514157611",
+    "title": "货物地址",
+    "type": "address",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1577514157633",
+    "title": "现场联系人及电话",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1577519023451",
+    "title": "备注",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1675673210466",
+    "title": "是否需退回",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1749182322753",
+    "title": "是否关联验收回款",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1675673210468",
+    "title": "是否需打借据",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1739261778534",
+    "title": "紧急程度判定-业务经理",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "紧急",
+      "一般"
+    ]
+  },
+  {
+    "name": "_widget_1739261778536",
+    "title": "紧急程度判定-客服经理",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "紧急",
+      "一般"
+    ]
+  },
+  {
+    "name": "_widget_1739261778538",
+    "title": "最终紧急程度判定（辅助）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1739318635777",
+    "title": "紧急程度判定-总经理",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "紧急",
+      "一般"
+    ]
+  },
+  {
+    "name": "_widget_1739318635876",
+    "title": "最终紧急程度判定",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1739261778695",
+    "title": "紧急程度判定情况查看",
+    "type": "linkquery",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022536",
+    "title": "换货（含补发）",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "合同号",
+      "设备名称",
+      "规格型号",
+      "数量",
+      "单位",
+      "发货日期",
+      "退换详细说明",
+      "故障分类"
+    ]
+  },
+  {
+    "name": "_widget_1577519022537",
+    "title": "合同号",
+    "type": "combo",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022538",
+    "title": "设备名称",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022539",
+    "title": "规格型号",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022540",
+    "title": "数量",
+    "type": "number",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1578287834987",
+    "title": "单位",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022541",
+    "title": "发货日期",
+    "type": "datetime",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022542",
+    "title": "退换详细说明",
+    "type": "textarea",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1617691334516",
+    "title": "故障分类",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1687499358442",
+    "title": "成本价",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1619070274799",
+    "title": "图片",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "上传人",
+      "图片"
+    ]
+  },
+  {
+    "name": "_widget_1619070274816",
+    "title": "上传人",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1619070274799",
+    "options": []
+  },
+  {
+    "name": "_widget_1619070274835",
+    "title": "图片",
+    "type": "image",
+    "required": false,
+    "parent": "_widget_1619070274799",
+    "options": []
+  },
+  {
+    "name": "_widget_1578271183948",
+    "title": "附件0418",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1578271183961",
+    "title": "客服附件0418",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1578702338220",
+    "title": "客服补登附件0418",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1589433529814",
+    "title": "会签附件0418",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1578452391724",
+    "title": "需要补登",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "否",
+      "是"
+    ]
+  },
+  {
+    "name": "_widget_1675988284441",
+    "title": "货是否发完",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "否",
+      "是"
+    ]
+  },
+  {
+    "name": "_widget_1716164018678",
+    "title": "是否小萌",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1578127027977",
+    "title": "会签",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "否",
+      "是"
+    ]
+  },
+  {
+    "name": "_widget_1618966943220",
+    "title": "图片0418",
+    "type": "image",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1578127028052",
+    "title": "会签人员",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1586759362043",
+    "title": "是否追溯（已取消）",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1617689215015",
+    "title": "责任方",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1593825383660",
+    "title": "是否需要转交相关人员处理后补登",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "需要",
+      "不需要"
+    ]
+  },
+  {
+    "name": "_widget_1593825383717",
+    "title": "相关人员处理",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1774333375920",
+    "title": "客服备注",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "内容",
+      "附件"
+    ]
+  },
+  {
+    "name": "_widget_1774333375922",
+    "title": "内容",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1774333375920",
+    "options": []
+  },
+  {
+    "name": "_widget_1774333375923",
+    "title": "附件",
+    "type": "upload",
+    "required": false,
+    "parent": "_widget_1774333375920",
+    "options": []
+  },
+  {
+    "name": "creator",
+    "title": "提交人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "createTime",
+    "title": "提交时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "updateTime",
+    "title": "更新时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  }
+]

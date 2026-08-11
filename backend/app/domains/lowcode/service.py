@@ -219,6 +219,7 @@ def _field_defs_fingerprint(defs: list | None) -> str:
             bool(f.get("required")),
             bool(f.get("available_on_create", True)),
             str(f.get("fill_stage") or ""),
+            bool(f.get("form_editable", True)),
             json.dumps(f.get("options") or [], sort_keys=True, ensure_ascii=False),
             json.dumps(f.get("props") or {}, sort_keys=True, ensure_ascii=False),
             json.dumps(f.get("default_value"), ensure_ascii=False, default=str)
@@ -265,6 +266,52 @@ async def sync_builtin_form_fields(
     want = _merge_builtin_field_defs(want, current)
     from app.domains.lowcode.pickable_scope import strip_spt_scheme_pickable_scopes
     want = strip_spt_scheme_pickable_scopes(tenant_id, want)
+    # 客户服务部简道云副本：必填/只读/发起可见必须以 builtin 为准。
+    # 否则租户首装旧版（仅客户名称必填）会经 _merge 永久盖住 allowBlank=false。
+    if key.startswith("cs_"):
+        raw_by = {
+            f["id"]: f
+            for f in (bt.get("field_definitions") or [])
+            if isinstance(f, dict) and f.get("id")
+        }
+        for fd in want:
+            if not isinstance(fd, dict):
+                continue
+            raw = raw_by.get(fd.get("id"))
+            if not raw:
+                continue
+            for k in ("required", "form_editable", "available_on_create", "fill_stage"):
+                if k in raw:
+                    fd[k] = raw[k]
+                elif k == "required":
+                    fd["required"] = False
+                elif k == "form_editable":
+                    fd.pop("form_editable", None)
+            raw_cols = {
+                c["id"]: c
+                for c in (raw.get("detail_table_columns") or [])
+                if isinstance(c, dict) and c.get("id")
+            }
+            cols = fd.get("detail_table_columns") or []
+            if raw_cols and cols:
+                for col in cols:
+                    if not isinstance(col, dict):
+                        continue
+                    rc = raw_cols.get(col.get("id"))
+                    if not rc:
+                        continue
+                    if "required" in rc:
+                        col["required"] = rc["required"]
+                    else:
+                        col["required"] = False
+        # 长说明类字段：单行输入体验差，填报页用多行（简道云 widget 仍为 text）
+        if key == "cs_service_request":
+            for fd in want:
+                if isinstance(fd, dict) and fd.get("id") in ("field_5", "field_6", "remark"):
+                    fd["type"] = "textarea"
+    if key == "prod_card_supplement":
+        from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_contract_pick_fields
+        apply_prod_card_contract_pick_fields(want)
     if key == "quote_management":
         # 客户类别/价格类型：创建隐藏、部门审批可填（非必填）；勿被旧租户 required 覆盖
         for fd in want:

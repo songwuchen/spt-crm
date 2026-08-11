@@ -52,6 +52,7 @@ def _build_registry() -> dict:
     from app.domains.project.models import OpportunityProject as Project
     from app.domains.quote.models import Quote
     from app.domains.contract.models import Contract
+    from app.domains.contract_review.models import ContractReview
     from app.domains.order.models import Order
     from app.domains.product.models import Product
     from app.domains.service_ticket.models import ServiceTicket
@@ -155,6 +156,40 @@ def _build_registry() -> dict:
         TextField("assignee_name", "负责人姓名", Contract.assignee_name),
         TextField("department_name", "负责部门", Contract.department_name),
         DateField("created_at", "创建时间", Contract.created_at, is_datetime=True),
+    ])
+
+    reg["contract_review"] = ResourceSchema("contract_review", "合同评审", [
+        TextField("review_code", "流水号", ContractReview.review_code),
+        EnumField("review_type", "合同评审/项目评审", ContractReview.review_type,
+                  options=[("合同评审", "合同评审"), ("项目评审", "项目评审")]),
+        EnumField("status", "流程状态", ContractReview.status,
+                  options=[("draft", "草稿"), ("submitted", "已提交"),
+                           ("approved", "已通过"), ("rejected", "已驳回")]),
+        TextField("company_name", "公司名称", ContractReview.company_name),
+        EnumField("is_export", "是否出口合同", ContractReview.is_export,
+                  options=[("是", "是"), ("否", "否")]),
+        EnumField("need_pricing", "是否核价", ContractReview.need_pricing,
+                  options=[("有核价", "有核价"), ("未核价", "未核价")]),
+        EnumField("need_install", "是否需要安装", ContractReview.need_install,
+                  options=[("指导安装", "指导安装"), ("负责安装", "负责安装"),
+                           ("无需指导安装", "无需指导安装")]),
+        PeopleField("owner_id", "业务员", ContractReview.owner_id, option_source="users"),
+        TextField("owner_name", "业务员姓名", ContractReview.owner_name),
+        PeopleField("region_manager_id", "区域经理/组长", ContractReview.region_manager_id,
+                    option_source="users"),
+        TextField("region_manager_name", "区域经理姓名", ContractReview.region_manager_name),
+        TextField("department_name", "业务部门", ContractReview.department_name),
+        EnumField("customer_type", "客户类型", ContractReview.customer_type,
+                  options=[("新客户", "新客户"), ("老客户", "老客户")]),
+        EnumField("elec_ctrl", "电控装置", ContractReview.elec_ctrl,
+                  options=[("含电控电缆", "含电控电缆"), ("含电控不含电缆", "含电控不含电缆"),
+                           ("不含电控不含电缆", "不含电控不含电缆"), ("不含电控含电缆", "不含电控含电缆")]),
+        TextField("project_title", "项目名称及应用", ContractReview.project_title),
+        NumberField("contract_amount", "合同价格（元）", ContractReview.contract_amount),
+        TextField("delivery_period", "交货期", ContractReview.delivery_period),
+        TextField("payment_term", "账期", ContractReview.payment_term),
+        DateField("reported_at", "报备时间", ContractReview.reported_at, is_datetime=True),
+        DateField("created_at", "创建时间", ContractReview.created_at, is_datetime=True),
     ])
 
     reg["order"] = ResourceSchema("order", "订单", [

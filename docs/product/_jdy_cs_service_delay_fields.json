@@ -1,0 +1,152 @@
+{
+  "success": true,
+  "data": {
+    "fields": [
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "text": "流水号",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1604021830267",
+        "type": "sn"
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "text": "合同号",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1585191665097",
+        "type": "combo",
+        "colorEnable": false
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "text": "业务员",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1585191665061",
+        "type": "user"
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "text": "所属部门",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1585191665079",
+        "type": "dept"
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "text": "设备信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1585191665113",
+        "type": "subform",
+        "items": [
+          {
+            "id": "5f9b6dacb6ec680007f9c46f",
+            "form": "5f9b6dacb6ec680007f9c46f",
+            "text": "产品名称",
+            "labelHidden": false,
+            "name": "_widget_1585191665125",
+            "type": "text",
+            "subform": "_widget_1585191665113"
+          },
+          {
+            "id": "5f9b6dacb6ec680007f9c46f",
+            "form": "5f9b6dacb6ec680007f9c46f",
+            "text": "规格型号",
+            "labelHidden": false,
+            "name": "_widget_1585191665148",
+            "type": "text",
+            "subform": "_widget_1585191665113"
+          },
+          {
+            "id": "5f9b6dacb6ec680007f9c46f",
+            "form": "5f9b6dacb6ec680007f9c46f",
+            "text": "数量/单位",
+            "labelHidden": false,
+            "name": "_widget_1585191665207",
+            "type": "text",
+            "subform": "_widget_1585191665113",
+            "fieldWidth": "half"
+          }
+        ]
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "text": "服务公司",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1585191665226",
+        "type": "text"
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "text": "服务事项",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1585191665241",
+        "type": "text"
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "text": "延期至",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1585191665258",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "text": "延期原因",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1585191665284",
+        "type": "text"
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "text": "备注",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1585191665301",
+        "type": "textarea"
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "name": "creator",
+        "type": "user",
+        "text": "提交人"
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "name": "createTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "提交时间"
+      },
+      {
+        "id": "5f9b6dacb6ec680007f9c46f",
+        "form": "5f9b6dacb6ec680007f9c46f",
+        "name": "updateTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "更新时间"
+      }
+    ]
+  }
+}

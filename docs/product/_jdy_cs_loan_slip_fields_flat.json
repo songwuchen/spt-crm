@@ -1,0 +1,186 @@
+[
+  {
+    "name": "_widget_1597215968591",
+    "title": "流水号",
+    "type": "sn",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1562729205516",
+    "title": "借据日期",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1562729205685",
+    "title": "客户名称",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1562983148782",
+    "title": "合同号",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1562813161623",
+    "title": "业务部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1562729205744",
+    "title": "业务员",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1774490710430",
+    "title": "对应内勤",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1562730672596",
+    "title": "明细",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "设备名称",
+      "规格型号",
+      "数量",
+      "单位"
+    ]
+  },
+  {
+    "name": "_widget_1562730672619",
+    "title": "设备名称",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1562730672596",
+    "options": []
+  },
+  {
+    "name": "_widget_1562917785582",
+    "title": "规格型号",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1562730672596",
+    "options": []
+  },
+  {
+    "name": "_widget_1562730672647",
+    "title": "数量",
+    "type": "number",
+    "required": false,
+    "parent": "_widget_1562730672596",
+    "options": []
+  },
+  {
+    "name": "_widget_1562922344901",
+    "title": "单位",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1562730672596",
+    "options": []
+  },
+  {
+    "name": "_widget_1749513825257",
+    "title": "是否已抽条",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1655946162663",
+    "title": "抽条日期",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1657596605516",
+    "title": "附件",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1657596605551",
+    "title": "图片",
+    "type": "image",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1562730825101",
+    "title": "抽条备注",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1770085770734",
+    "title": "业务员ID（辅助）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1770085770735",
+    "title": "区域经理/组长",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "creator",
+    "title": "提交人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "createTime",
+    "title": "提交时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "updateTime",
+    "title": "更新时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  }
+]

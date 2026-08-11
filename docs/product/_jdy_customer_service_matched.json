@@ -1,0 +1,44 @@
+{
+  "cs_service_request": {
+    "id": "5e06c8a92675f1000634baf1",
+    "name": "客户服务申请及反馈",
+    "app": "58e2fbc7ffd1608b4ce92809",
+    "hasFlow": true,
+    "folder": "客服流程"
+  },
+  "cs_product_replace": {
+    "id": "5e06f4ad2a9eb70007f7c164",
+    "name": "售出产品更换（补发）流程",
+    "app": "58e2fbc7ffd1608b4ce92809",
+    "hasFlow": true,
+    "folder": "客服流程"
+  },
+  "cs_product_return": {
+    "id": "5e10538c0d5a270006df2763",
+    "name": "售出产品/工具退回流程SCCP/GJTH",
+    "app": "58e2fbc7ffd1608b4ce92809",
+    "hasFlow": true,
+    "folder": "客服流程"
+  },
+  "cs_loan_slip": {
+    "id": "62cccb4c8ee15d0009136487",
+    "name": "客服借据",
+    "app": "58e2fbc7ffd1608b4ce92809",
+    "hasFlow": true,
+    "folder": "客服流程"
+  },
+  "cs_service_delay": {
+    "id": "5f9b6dacb6ec680007f9c46f",
+    "name": "客户服务延期申请",
+    "app": "58e2fbc7ffd1608b4ce92809",
+    "hasFlow": true,
+    "folder": "1"
+  },
+  "cs_correspondence": {
+    "id": "65de94717b566a9ff2059102",
+    "name": "客服往来函件KFWLHJ",
+    "app": "58e2fbc7ffd1608b4ce92809",
+    "hasFlow": true,
+    "folder": "1"
+  }
+}

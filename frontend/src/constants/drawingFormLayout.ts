@@ -3,7 +3,7 @@ import type { FieldDefinition } from '@/types/lowcode'
 
 export type DrawingSection = { title: string; fieldIds: string[] }
 
-export const DRAWING_FORM_LAYOUT: Record<string, {
+export type DrawingFormLayoutSpec = {
   sections: DrawingSection[]
   /** fieldId -> antd Col span (default 12 for short, 24 for long) */
   spans?: Record<string, number>
@@ -13,9 +13,27 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
    * 也可用字段 props.list_expand=true 声明；二者任一即可。
    */
   listExpandDetail?: string
-}> = {
+  /**
+   * 多明细同时展开（如「主要产品信息」+「有其它排产产品明细」）。
+   * 优先于 listExpandDetail；行高取各明细行数的最大值。
+   */
+  listExpandDetails?: string[]
+  /**
+   * 列表默认展示列（字段 id，顺序即列序）。对齐简道云「数据管理」扫视列；
+   * 未配置时列表页走启发式。单号列由列表页单独置顶，此处可省略 serial_no。
+   */
+  listColumns?: string[]
+  /** 明细子列展示上限（默认 8；产品明细可调高） */
+  listDetailMaxCols?: number
+}
+
+export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
   drawing_requisition: {
     contentMaxWidth: 1080,
+    listColumns: [
+      'contract_no', 'product_model', 'apply_datetime', 'department',
+      'applicant', 'order_person', 'drawing_type', 'apply_reason',
+    ],
     sections: [
       {
         title: '基本信息',
@@ -47,6 +65,10 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
   },
   install_drawing_notice: {
     contentMaxWidth: 1100,
+    listColumns: [
+      'customer_name', 'matter', 'apply_datetime', 'department',
+      'applicant', 'order_person', 'sales_person', 'design_card_no',
+    ],
     sections: [
       {
         title: '基本信息',
@@ -101,6 +123,10 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
   // 方案管理：scheme_type 分流；独有字段靠规则显隐，布局按类型分区列出
   scheme_management: {
     contentMaxWidth: 1100,
+    listColumns: [
+      'scheme_type', 'related_customer', 'contract_no', 'apply_datetime',
+      'department', 'applicant', 'order_person', 'product_model',
+    ],
     sections: [
       {
         title: '方案类型',
@@ -157,6 +183,10 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
   // 生产卡/补充流程：分区对齐 JDY 分隔条；span = lineWidth×2
   prod_card_supplement: {
     contentMaxWidth: 1100,
+    listColumns: [
+      'card_date', 'department', 'submitter', 'product_type',
+      'is_supplement', 'involve_outsource', 'is_shipped', 'contract_no_select',
+    ],
     sections: [
       {
         title: '基本信息',
@@ -235,6 +265,10 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
   // 开票申请
   invoice_application: {
     contentMaxWidth: 1080,
+    listColumns: [
+      'serial_no', 'apply_date', 'customer_name', 'sales_person',
+      'department', 'drawing_no', 'total_amount', 'invoice_no',
+    ],
     sections: [
       {
         title: '基本信息',
@@ -273,6 +307,10 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
   payment_registration: {
     contentMaxWidth: 1080,
     listExpandDetail: 'payment_details',
+    listColumns: [
+      'payment_no', 'payment_date', 'customer_name', 'department',
+      'payment_total', 'sales_person',
+    ],
     sections: [
       {
         title: '来款信息',
@@ -300,6 +338,10 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
   quote_management: {
     contentMaxWidth: 1080,
     listExpandDetail: 'price_lines',
+    listColumns: [
+      'customer_name', 'sales_person', 'department', 'price_type',
+      'customer_category', 'ref_contract_no', 'need_purchase',
+    ],
     sections: [
       {
         title: '基本信息',
@@ -333,6 +375,10 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
   // 核价清单传递（中央研究院 HJQD）
   pricing_checklist_hjqd: {
     contentMaxWidth: 1080,
+    listColumns: [
+      'serial_no', 'process_name', 'contract_no', 'order_person',
+      'applicant', 'business_dept', 'design_card_no', 'apply_datetime',
+    ],
     sections: [
       {
         title: '基本信息',
@@ -398,20 +444,202 @@ export const DRAWING_FORM_LAYOUT: Record<string, {
       has_issue: 8, issue_details: 24,
     },
   },
+  // —— 客户服务部（售后低代码，与原生售后工单并存）——
+  // 列表列序对齐简道云「客户服务申请及反馈」数据管理横向滚动视图
+  cs_service_request: {
+    contentMaxWidth: 1100,
+    listDetailMaxCols: 10,
+    listExpandDetails: ['field_10', 'field_19'],
+    listColumns: [
+      'field', 'sales_person', 'field_2', 'customer_name',
+      'field_3', 'field_4', 'field_5', 'field_6', 'field_7', 'remark',
+      'field_8', 'field_9', 'field_18',
+      'field_27', 'field_28',
+      'field_29', 'field_30', 'field_31', 'field_32',
+      'field_33', 'field_34', 'field_35', 'field_36',
+    ],
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'field', 'sales_person', 'field_2', 'customer_name',
+          'field_3', 'field_4', 'field_5', 'field_6', 'field_7', 'remark',
+          'field_8', 'field_9',
+        ],
+      },
+      {
+        title: '主要产品信息',
+        fieldIds: ['field_10'],
+      },
+      {
+        title: '其它待排查 / 排产产品',
+        fieldIds: ['field_18', 'field_19'],
+      },
+      {
+        title: '总工转交与附件',
+        fieldIds: [
+          'field_27', 'field_28',
+          'field_29', 'field_30', 'field_31', 'field_32',
+        ],
+      },
+      {
+        title: '协作与转交（审批）',
+        fieldIds: [
+          'field_33', 'field_34', 'field_35', 'field_36',
+          'field_37', 'field_38', 'field_39', 'field_40',
+        ],
+      },
+      {
+        title: '客服备注',
+        fieldIds: ['field_41'],
+      },
+    ],
+    spans: {
+      // 基本信息：两列短字段 + 服务地点/要求/路线/性质整行（对齐简道云填报）
+      serial_no: 12, field: 12, sales_person: 12, field_2: 12,
+      customer_name: 12, field_3: 12,
+      field_4: 24, field_5: 24, field_6: 24, field_7: 24, remark: 24,
+      field_8: 12, field_9: 12,
+      field_10: 24, field_18: 12, field_19: 24,
+      field_29: 8, field_30: 8, field_31: 8, field_32: 24,
+      field_41: 24,
+    },
+  },
+  cs_product_replace: {
+    contentMaxWidth: 1080,
+    listColumns: [
+      'customer_name', 'sales_person', 'field_2', 'field',
+      'field_6', 'field_5', 'field_4', 'field_27',
+    ],
+    listExpandDetail: 'field_13',
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'field', 'field_2', 'sales_person', 'field_3',
+          'customer_name', 'field_4', 'field_5', 'remark', 'field_6', 'field_7', 'field_27',
+        ],
+      },
+      { title: '更换明细', fieldIds: ['field_13', 'field_22'] },
+    ],
+    spans: { remark: 24, field_13: 24, field_22: 24 },
+  },
+  cs_product_return: {
+    contentMaxWidth: 1080,
+    listColumns: [
+      'customer_name', 'field_4', 'sales_person', 'field_5',
+      'field', 'field_6', 'field_7', 'field_2',
+    ],
+    listExpandDetail: 'field_8',
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'field', 'field_2', 'field_3', 'field_4',
+          'customer_name', 'field_5', 'sales_person', 'field_6', 'field_7', 'remark',
+        ],
+      },
+      { title: '退回明细', fieldIds: ['field_8', 'field_16'] },
+    ],
+    spans: { remark: 24, field_8: 24, field_16: 24 },
+  },
+  cs_loan_slip: {
+    contentMaxWidth: 960,
+    listColumns: [
+      'customer_name', 'contract_no', 'sales_person', 'field_2',
+      'field', 'field_14', 'field_9', 'field_10',
+    ],
+    listExpandDetail: 'field_4',
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'field', 'customer_name', 'contract_no',
+          'field_2', 'sales_person', 'field_3', 'field_14',
+        ],
+      },
+      { title: '借据明细', fieldIds: ['field_4', 'field_11', 'field_12'] },
+    ],
+    spans: { field_4: 24 },
+  },
+  cs_service_delay: {
+    contentMaxWidth: 960,
+    listColumns: [
+      'contract_no', 'sales_person', 'field', 'field_6',
+      'field_7', 'field_8', 'field_9',
+    ],
+    listExpandDetail: 'field_2',
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'contract_no', 'sales_person', 'field',
+          'field_6', 'field_7', 'field_8', 'field_9', 'remark',
+        ],
+      },
+      { title: '设备信息', fieldIds: ['field_2'] },
+    ],
+    spans: { field_9: 24, remark: 24, field_2: 24 },
+  },
+  cs_correspondence: {
+    contentMaxWidth: 960,
+    listColumns: [
+      'customer_name', 'contract_no', 'applicant', 'field',
+      'sales_person', 'field_5', 'field_7',
+    ],
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'field', 'applicant', 'field_2', 'contract_no',
+          'customer_name', 'field_5', 'sales_person', 'field_6', 'field_7',
+        ],
+      },
+      { title: '函件附件', fieldIds: ['field_8'] },
+    ],
+    spans: { field_7: 24, field_8: 24 },
+  },
 }
 
-/** 解析列表应展开的明细表：字段 props.list_expand 优先，其次布局 listExpandDetail */
+/** 解析列表默认列字段 id（简道云式扫视列） */
+export function resolveListColumnIds(templateCode?: string): string[] | undefined {
+  if (!templateCode) return undefined
+  const cols = DRAWING_FORM_LAYOUT[templateCode]?.listColumns
+  return cols?.length ? cols : undefined
+}
+
+/** 解析列表应展开的明细表（可多个，对齐简道云多子表横向分组） */
+export function resolveListExpandDetails(
+  fields: FieldDefinition[],
+  templateCode?: string,
+): FieldDefinition[] {
+  const byId = new Map(fields.map((f) => [f.id, f]))
+  const out: FieldDefinition[] = []
+  const seen = new Set<string>()
+  const push = (f?: FieldDefinition) => {
+    if (!f || f.type !== 'detail_table' || seen.has(f.id)) return
+    seen.add(f.id)
+    out.push(f)
+  }
+  for (const f of fields) {
+    if (f.type === 'detail_table' && !!(f.props as { list_expand?: boolean } | undefined)?.list_expand) {
+      push(f)
+    }
+  }
+  const layout = templateCode ? DRAWING_FORM_LAYOUT[templateCode] : undefined
+  const ids = layout?.listExpandDetails?.length
+    ? layout.listExpandDetails
+    : (layout?.listExpandDetail ? [layout.listExpandDetail] : [])
+  for (const id of ids) push(byId.get(id))
+  return out
+}
+
+/** 兼容旧调用：取第一个展开明细 */
 export function resolveListExpandDetail(
   fields: FieldDefinition[],
   templateCode?: string,
 ): FieldDefinition | undefined {
-  const byProp = fields.find(
-    (f) => f.type === 'detail_table' && !!(f.props as { list_expand?: boolean } | undefined)?.list_expand,
-  )
-  if (byProp) return byProp
-  const id = templateCode ? DRAWING_FORM_LAYOUT[templateCode]?.listExpandDetail : undefined
-  if (!id) return undefined
-  return fields.find((f) => f.id === id && f.type === 'detail_table')
+  return resolveListExpandDetails(fields, templateCode)[0]
 }
 
 const SHORT_TYPES = new Set([
@@ -462,7 +690,16 @@ export function applyDrawingFormLayout(
     })
     for (const f of matched) {
       used.add(f.id)
-      out.push(withSpan(f))
+      let next = withSpan(f)
+      // 分区标题与唯一明细表同名时去掉字段标签，避免「主要产品信息」重复两行
+      if (
+        matched.length === 1
+        && f.type === 'detail_table'
+        && (f.label || '') === sec.title
+      ) {
+        next = { ...next, label: '' }
+      }
+      out.push(next)
     }
   }
 

@@ -50,12 +50,16 @@ async def list_reviews(
     status: str | None = Query(None),
     review_type: str | None = Query(None),
     keyword: str | None = Query(None),
+    filter: str | None = Query(None, description="高级筛选 FilterDsl(JSON)"),
+    sort_by: str | None = Query(None),
+    sort_order: str | None = Query(None),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     u=Depends(require_permissions("contract_review:view")),
 ):
     items, total = await service.list_reviews(
-        db, tenant_id, pageNo, pageSize, status, review_type, keyword, current_user=u,
+        db, tenant_id, pageNo, pageSize, status, review_type, keyword,
+        current_user=u, filter=filter, sort_by=sort_by, sort_order=sort_order,
     )
     return ok({
         "items": [_to_dict(r) for r in items],

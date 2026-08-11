@@ -28,14 +28,19 @@ export function computeFieldStates(
     states[field.id] = {
       masked: false,
       visible: (field.props?.hidden as boolean) !== true,
-      readonly: (field.props?.readonly as boolean) === true,
+      // form_editable=false：系统只读列（流水号、公式回填的区域经理等），对齐简道云 view 权限
+      readonly: (field.props?.readonly as boolean) === true
+        || field.form_editable === false
+        || !!(field.props as { read_only?: boolean } | undefined)?.read_only,
       required: !!field.required,
     }
     for (const col of field.detail_table_columns || []) {
       states[col.id] = {
         masked: false,
         visible: (col.props?.hidden as boolean) !== true,
-        readonly: (col.props?.readonly as boolean) === true,
+        readonly: (col.props?.readonly as boolean) === true
+          || col.form_editable === false
+          || !!(col.props as { read_only?: boolean } | undefined)?.read_only,
         required: !!col.required,
       }
     }

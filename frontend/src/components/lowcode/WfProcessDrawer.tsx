@@ -242,7 +242,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       {loading || !detail ? (
         <div className="flex items-center justify-center h-full min-h-[560px]"><Spin /></div>
       ) : (
-        <div className="flex h-full min-h-0 flex-1">
+        <div className="flex h-full min-h-0 flex-1 flex-col lg:flex-row overflow-hidden">
           {/* 左侧：单据滚动 + 底部固定操作区 */}
           <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 shrink-0">
@@ -472,8 +472,8 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
             )}
           </div>
 
-          {/* 右侧：流程动态 / 数据评论 */}
-          <div className="w-[320px] shrink-0 hidden md:block min-h-0 self-stretch">
+          {/* 右侧/下方：流程动态（始终展示，避免 hidden md:block 在窄屏/缩放时整栏消失） */}
+          <div className="w-full lg:w-[320px] shrink-0 flex flex-col min-h-[280px] lg:min-h-0 lg:self-stretch border-t lg:border-t-0 lg:border-l border-slate-200 overflow-hidden bg-slate-50">
             <WfFlowDynamics
               steps={detail.flow_steps || []}
               comments={detail.comments || []}

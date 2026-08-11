@@ -8,9 +8,10 @@ import type { ApiResponse } from '@/api/types'
 interface COpt { label: string; value: string }
 type ContractRow = { id: string; contract_no?: string | null; drawing_no?: string | null }
 
-let cache: { opts: COpt[]; ts: number } | null = null
+let cache: { opts: COpt[]; ts: number; deptKey: string } | null = null
 const TTL = 5 * 60 * 1000
 let inflight: Promise<COpt[]> | null = null
+let inflightDept = ''
 const silent = { headers: { 'X-Silent-Error': '1' } }
 
 /** 关联合同：优先显示图纸编号；无图纸号时显示合同号。 */
@@ -25,23 +26,28 @@ function toOpts(rows: ContractRow[]): COpt[] {
   return (rows || []).map((c) => ({ label: contractLabel(c), value: c.id }))
 }
 
-async function fetchList(keyword?: string): Promise<COpt[]> {
+async function fetchList(keyword?: string, departmentId?: string | null): Promise<COpt[]> {
   const r = await client.get<unknown, ApiResponse<ContractRow[]>>('/api/v1/lc/pickable-contracts', {
-    params: { keyword: keyword || undefined },
+    params: {
+      keyword: keyword || undefined,
+      department_id: departmentId || undefined,
+    },
     ...silent,
   })
   return toOpts(r.data || [])
 }
 
-async function loadBase(): Promise<COpt[]> {
-  if (cache && Date.now() - cache.ts < TTL) return cache.opts
-  if (inflight) return inflight
-  inflight = fetchList()
+async function loadBase(departmentId?: string | null): Promise<COpt[]> {
+  const deptKey = departmentId || ''
+  if (cache && cache.deptKey === deptKey && Date.now() - cache.ts < TTL) return cache.opts
+  if (inflight && inflightDept === deptKey) return inflight
+  inflightDept = deptKey
+  inflight = fetchList(undefined, departmentId)
     .then((opts) => {
-      cache = { opts, ts: Date.now() }
+      cache = { opts, ts: Date.now(), deptKey }
       return opts
     })
-    .catch(() => cache?.opts || [])
+    .catch(() => (cache?.deptKey === deptKey ? cache.opts : []) || [])
     .finally(() => { inflight = null })
   return inflight
 }
@@ -69,7 +75,6 @@ async function hydrateMissing(ids: string[], opts: COpt[]): Promise<COpt[]> {
         have.add(id)
       }
     }
-    cache = { opts: next, ts: Date.now() }
   } catch {
     for (const id of missing) {
       if (!have.has(id)) {
@@ -92,16 +97,43 @@ export async function getContractLabelMap(ids: string[]): Promise<Record<string,
   return map
 }
 
+/** 生产卡选合同带出 */
+export async function fetchProdCardContractFill(
+  contractId: string,
+  mode: 'drawing_no_query' | 'contract_no_select',
+): Promise<Record<string, unknown>> {
+  const r = await client.get<unknown, ApiResponse<{ fill?: Record<string, unknown> }>>(
+    `/api/v1/lc/pickable-contracts/${encodeURIComponent(contractId)}/prod-card-fill`,
+    { params: { mode }, ...silent },
+  )
+  return (r.data?.fill && typeof r.data.fill === 'object') ? r.data.fill : {}
+}
+
+export const PROD_CARD_FILL_CLEAR: Record<'drawing_no_query' | 'contract_no_select', string[]> = {
+  drawing_no_query: [
+    'no_drawing_no', 'no_sales_person', 'prod_card_line_items',
+    'tech_params', 'packaging_req', 'remark_prod_card', 'paint_req',
+    'special_reminder', 'no_warranty_period', 'project_name',
+    'contract_tech_review_sn',
+  ],
+  contract_no_select: [
+    'yes_contract_no', 'yes_sales_person', 'yes_customer_name', 'contract_tech_review_sn',
+  ],
+}
+
 export default function ContractField({
-  value, onChange, readonly, placeholder,
+  value, onChange, readonly, placeholder, departmentId,
 }: {
   value: unknown
   onChange?: (v: string | undefined) => void
   readonly?: boolean
   placeholder?: string
+  /** 按合同所属部门过滤（生产卡：所在部门） */
+  departmentId?: string | null
 }) {
   const raw = value == null || value === '' ? undefined : String(value)
-  const [opts, setOpts] = useState<COpt[]>(cache?.opts || [])
+  const dept = departmentId || undefined
+  const [opts, setOpts] = useState<COpt[]>([])
   const [loading, setLoading] = useState(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchSeq = useRef(0)
@@ -111,13 +143,12 @@ export default function ContractField({
     setLoading(true)
     ;(async () => {
       try {
-        // 只读：不拉全量列表，仅按 id 回显图纸编号
         if (readonly) {
           const next = raw ? await hydrateMissing([raw], []) : []
           if (alive) setOpts(next)
           return
         }
-        const base = await loadBase()
+        const base = await loadBase(dept)
         const next = raw ? await hydrateMissing([raw], base) : base
         if (alive) setOpts(next)
       } finally {
@@ -125,7 +156,7 @@ export default function ContractField({
       }
     })()
     return () => { alive = false }
-  }, [raw, readonly])
+  }, [raw, readonly, dept])
 
   const options = useMemo(() => {
     if (!raw || opts.some((o) => o.value === raw)) return opts
@@ -144,22 +175,21 @@ export default function ContractField({
       filterOption={false}
       defaultActiveFirstOption={false}
       style={{ width: '100%' }}
-      placeholder={placeholder || '按图纸编号搜索'}
+      placeholder={placeholder || (dept ? '按图纸编号搜索（本部门合同）' : '按图纸编号搜索')}
       value={raw}
       options={options}
       loading={loading}
-      notFoundContent={loading ? <Spin size="small" /> : '无匹配合同'}
+      notFoundContent={loading ? <Spin size="small" /> : (dept ? '本部门无匹配合同' : '无匹配合同')}
       onSearch={(kw) => {
         if (searchTimer.current) clearTimeout(searchTimer.current)
         const q = kw.trim()
         searchTimer.current = setTimeout(() => {
           const seq = ++searchSeq.current
           setLoading(true)
-          const req = q ? fetchList(q) : loadBase()
+          const req = q ? fetchList(q, dept) : loadBase(dept)
           req
             .then(async (found) => {
               if (seq !== searchSeq.current) return
-              // 远程搜索结果直接替换列表（filterOption=false 时合并旧项会导致“搜了不变”）
               let next = found
               if (raw && !next.some((o) => o.value === raw)) {
                 next = await hydrateMissing([raw], next)
@@ -175,9 +205,8 @@ export default function ContractField({
       }}
       onDropdownVisibleChange={(open) => {
         if (!open) return
-        // 重新打开时若无搜索词，恢复默认列表
         if (!searchTimer.current) {
-          void loadBase().then((base) => {
+          void loadBase(dept).then((base) => {
             setOpts((prev) => {
               if (raw && !base.some((o) => o.value === raw)) {
                 const cur = prev.find((o) => o.value === raw)

@@ -1,0 +1,566 @@
+{
+  "success": true,
+  "data": {
+    "fields": [
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "流水号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578121055665",
+        "type": "sn"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "日期时间",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1703723955401",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "*提交人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1672114764912",
+        "type": "user"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "发起部门",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1657678970356",
+        "type": "dept"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "类型",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1703723955300",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "退回及维修再发货",
+            "text": "退回及维修再发货"
+          },
+          {
+            "value": "材质鉴定",
+            "text": "材质鉴定"
+          },
+          {
+            "value": "工具退回",
+            "text": "工具退回"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "客户名称",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1577514157595",
+        "type": "combo",
+        "colorEnable": false
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "业务部门",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578119863142",
+        "type": "dept"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "业务员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1577520412656",
+        "type": "user"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "现场联系人及电话",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1577514157633",
+        "type": "text"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "货物地址",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1577514157611",
+        "type": "address"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "备注",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1577519023451",
+        "type": "textarea"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "售出产品退回",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1577519022536",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "合同号",
+            "labelHidden": false,
+            "name": "_widget_1577519022537",
+            "type": "combo",
+            "subform": "_widget_1577519022536",
+            "colorEnable": false,
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "设备名称",
+            "labelHidden": false,
+            "name": "_widget_1577519022538",
+            "type": "text",
+            "subform": "_widget_1577519022536"
+          },
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "规格型号",
+            "labelHidden": false,
+            "name": "_widget_1577519022539",
+            "type": "text",
+            "subform": "_widget_1577519022536"
+          },
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "数量",
+            "labelHidden": false,
+            "name": "_widget_1577519022540",
+            "type": "number",
+            "subform": "_widget_1577519022536",
+            "fieldWidth": "half"
+          },
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "单位",
+            "labelHidden": false,
+            "name": "_widget_1578287861127",
+            "type": "text",
+            "subform": "_widget_1577519022536",
+            "fieldWidth": "half"
+          },
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "发货日期",
+            "labelHidden": false,
+            "name": "_widget_1577519022541",
+            "type": "datetime",
+            "subform": "_widget_1577519022536",
+            "format": "yyyy-MM-dd"
+          },
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "退回产品详细说明",
+            "labelHidden": false,
+            "name": "_widget_1577519022542",
+            "type": "textarea",
+            "subform": "_widget_1577519022536"
+          },
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "备注",
+            "labelHidden": false,
+            "name": "_widget_1577519022543",
+            "type": "textarea",
+            "subform": "_widget_1577519022536"
+          },
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "仓库判定*",
+            "labelHidden": false,
+            "name": "_widget_1665817650935",
+            "type": "radiogroup",
+            "subform": "_widget_1577519022536",
+            "items": [
+              {
+                "value": "生产维修",
+                "text": "生产维修"
+              },
+              {
+                "value": "供应维修",
+                "text": "供应维修"
+              },
+              {
+                "value": "申请报废",
+                "text": "申请报废"
+              }
+            ],
+            "colorEnable": false,
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "仓库确认231228取消",
+            "labelHidden": false,
+            "name": "_widget_1665817556699",
+            "type": "radiogroup",
+            "subform": "_widget_1577519022536",
+            "items": [
+              {
+                "value": "已收",
+                "text": "已收"
+              }
+            ],
+            "colorEnable": false,
+            "fieldWidth": "custom"
+          }
+        ]
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "历史售出产品更换（补发）流程查看",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1764918545251",
+        "type": "linkquery"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "图片",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1619070556652",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "上传人",
+            "labelHidden": false,
+            "name": "_widget_1619070556669",
+            "type": "text",
+            "subform": "_widget_1619070556652"
+          },
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "图片",
+            "labelHidden": false,
+            "name": "_widget_1619070556688",
+            "type": "image",
+            "subform": "_widget_1619070556652"
+          }
+        ]
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "发起节点上传退回图片",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1736757240448",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "上传人",
+            "labelHidden": false,
+            "name": "_widget_1736757240449",
+            "type": "text",
+            "subform": "_widget_1736757240448"
+          },
+          {
+            "id": "5e10538c0d5a270006df2763",
+            "form": "5e10538c0d5a270006df2763",
+            "text": "图片",
+            "labelHidden": false,
+            "name": "_widget_1736757240450",
+            "type": "image",
+            "subform": "_widget_1736757240448"
+          }
+        ]
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "其他节点查看发起人退回图片",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1736757240488",
+        "type": "linkquery"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "图片",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1578537741743",
+        "type": "image"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "附件",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1590721272018",
+        "type": "upload"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "图片",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1620023611025",
+        "type": "image"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "会签成员",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1578128358932",
+        "type": "usergroup"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "会签（231228取消）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578128358916",
+        "type": "combo",
+        "items": [
+          {
+            "value": "否",
+            "text": "否"
+          },
+          {
+            "value": "是",
+            "text": "是"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "分发质检人员",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1703723955512",
+        "type": "usergroup"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "分发生产人员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1703723955568",
+        "type": "usergroup"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "分发采购人员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1703723955540",
+        "type": "usergroup"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "分发仓库人员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1586758707499",
+        "type": "usergroup"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "维修部门",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578128358033",
+        "type": "dept"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "仓库判定1",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578127027977",
+        "type": "combo",
+        "items": [
+          {
+            "value": "生产维修",
+            "text": "生产维修"
+          },
+          {
+            "value": "供应维修",
+            "text": "供应维修"
+          },
+          {
+            "value": "申请报废",
+            "text": "申请报废"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "流程判断",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1691974761704",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "原流程",
+            "text": "原流程"
+          },
+          {
+            "value": "客服",
+            "text": "客服"
+          },
+          {
+            "value": "质检",
+            "text": "质检"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "物流情况",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1753923897787",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "已经安排车",
+            "text": "已经安排车"
+          },
+          {
+            "value": "下转提交",
+            "text": "下转提交"
+          },
+          {
+            "value": "其他",
+            "text": "其他"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "是否转相关人员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1734925951092",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "text": "转相关人员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1734925951094",
+        "type": "usergroup"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "name": "creator",
+        "type": "user",
+        "text": "提交人"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "name": "createTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "提交时间"
+      },
+      {
+        "id": "5e10538c0d5a270006df2763",
+        "form": "5e10538c0d5a270006df2763",
+        "name": "updateTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "更新时间"
+      }
+    ]
+  }
+}

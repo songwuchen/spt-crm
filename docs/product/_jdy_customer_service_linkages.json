@@ -1,0 +1,563 @@
+{
+  "forms": {
+    "cs_service_request": {
+      "app": "58e2fbc7ffd1608b4ce92809",
+      "entry": "5e06c8a92675f1000634baf1",
+      "required_fields": [
+        {
+          "widget": "_widget_1577494164593",
+          "label": "所属部门",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1577494164575",
+          "label": "业务员",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1577494164611",
+          "label": "客户名称",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1684370183791",
+          "label": "是否是小萌",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1577494164627",
+          "label": "服务地点",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1577494164659",
+          "label": "服务要求",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1577494164643",
+          "label": "乘车路线及费用",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1577513844817",
+          "label": "服务性质",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1646903016596",
+          "label": "紧急情况",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1712128588465",
+          "label": "有无合同号",
+          "allowBlank": false,
+          "parent": "_widget_1577495431595"
+        },
+        {
+          "widget": "_widget_1577495431618",
+          "label": "合同号",
+          "allowBlank": false,
+          "parent": "_widget_1577495431595"
+        },
+        {
+          "widget": "_widget_1578108364286",
+          "label": "现场联系人及电话",
+          "allowBlank": false,
+          "parent": "_widget_1577495431595"
+        },
+        {
+          "widget": "_widget_1577495431631",
+          "label": "设备名称",
+          "allowBlank": false,
+          "parent": "_widget_1577495431595"
+        },
+        {
+          "widget": "_widget_1577495431646",
+          "label": "设备型号",
+          "allowBlank": false,
+          "parent": "_widget_1577495431595"
+        },
+        {
+          "widget": "_widget_1577495431703",
+          "label": "数量",
+          "allowBlank": false,
+          "parent": "_widget_1577495431595"
+        },
+        {
+          "widget": "_widget_1578287341598",
+          "label": "单位",
+          "allowBlank": false,
+          "parent": "_widget_1577495431595"
+        },
+        {
+          "widget": "_widget_1577495431722",
+          "label": "发货日期",
+          "allowBlank": false,
+          "parent": "_widget_1577495431595"
+        },
+        {
+          "widget": "_widget_1577495432709",
+          "label": "其它待排查产品",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1577495432750",
+          "label": "合同号",
+          "allowBlank": false,
+          "parent": "_widget_1577495432749"
+        },
+        {
+          "widget": "_widget_1577495433532",
+          "label": "现场联系人及电话",
+          "allowBlank": false,
+          "parent": "_widget_1577495432749"
+        },
+        {
+          "widget": "_widget_1577495432751",
+          "label": "设备名称",
+          "allowBlank": false,
+          "parent": "_widget_1577495432749"
+        },
+        {
+          "widget": "_widget_1577495432752",
+          "label": "设备型号",
+          "allowBlank": false,
+          "parent": "_widget_1577495432749"
+        },
+        {
+          "widget": "_widget_1577495432753",
+          "label": "数量",
+          "allowBlank": false,
+          "parent": "_widget_1577495432749"
+        },
+        {
+          "widget": "_widget_1578287341623",
+          "label": "单位",
+          "allowBlank": false,
+          "parent": "_widget_1577495432749"
+        },
+        {
+          "widget": "_widget_1577495432754",
+          "label": "发货日期",
+          "allowBlank": false,
+          "parent": "_widget_1577495432749"
+        },
+        {
+          "widget": "_widget_1600497623100",
+          "label": "总工转交",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1600497620698",
+          "label": "总工下转",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1599529315677",
+          "label": "是否需要转交",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1599529317113",
+          "label": "是否需要通知相关人员",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1776385827924",
+          "label": "客服组长",
+          "allowBlank": false,
+          "parent": null
+        },
+        {
+          "widget": "_widget_1736846540976",
+          "label": "是否需要总经理批示",
+          "allowBlank": false,
+          "parent": null
+        }
+      ],
+      "required_fields_detail": [
+        {
+          "widget": "_widget_1577494164593",
+          "label": "所属部门",
+          "type": "dept",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577494164575",
+          "label": "业务员",
+          "type": "user",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577494164611",
+          "label": "客户名称",
+          "type": "combo",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1684370183791",
+          "label": "是否是小萌",
+          "type": "radiogroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577494164627",
+          "label": "服务地点",
+          "type": "text",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577494164659",
+          "label": "服务要求",
+          "type": "text",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577494164643",
+          "label": "乘车路线及费用",
+          "type": "text",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577513844817",
+          "label": "服务性质",
+          "type": "checkboxgroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1646903016596",
+          "label": "紧急情况",
+          "type": "checkboxgroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1712128588465",
+          "label": "有无合同号",
+          "type": "radiogroup",
+          "parent": "_widget_1577495431595",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495431618",
+          "label": "合同号",
+          "type": "combo",
+          "parent": "_widget_1577495431595",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1578108364286",
+          "label": "现场联系人及电话",
+          "type": "text",
+          "parent": "_widget_1577495431595",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495431631",
+          "label": "设备名称",
+          "type": "text",
+          "parent": "_widget_1577495431595",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495431646",
+          "label": "设备型号",
+          "type": "text",
+          "parent": "_widget_1577495431595",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495431703",
+          "label": "数量",
+          "type": "number",
+          "parent": "_widget_1577495431595",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1578287341598",
+          "label": "单位",
+          "type": "text",
+          "parent": "_widget_1577495431595",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495431722",
+          "label": "发货日期",
+          "type": "datetime",
+          "parent": "_widget_1577495431595",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495432709",
+          "label": "其它待排查产品",
+          "type": "combo",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495432750",
+          "label": "合同号",
+          "type": "combo",
+          "parent": "_widget_1577495432749",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495433532",
+          "label": "现场联系人及电话",
+          "type": "text",
+          "parent": "_widget_1577495432749",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495432751",
+          "label": "设备名称",
+          "type": "text",
+          "parent": "_widget_1577495432749",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495432752",
+          "label": "设备型号",
+          "type": "text",
+          "parent": "_widget_1577495432749",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495432753",
+          "label": "数量",
+          "type": "number",
+          "parent": "_widget_1577495432749",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1578287341623",
+          "label": "单位",
+          "type": "text",
+          "parent": "_widget_1577495432749",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1577495432754",
+          "label": "发货日期",
+          "type": "datetime",
+          "parent": "_widget_1577495432749",
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1600497623100",
+          "label": "总工转交",
+          "type": "radiogroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1600497620698",
+          "label": "总工下转",
+          "type": "user",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1599529315677",
+          "label": "是否需要转交",
+          "type": "radiogroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1599529317113",
+          "label": "是否需要通知相关人员",
+          "type": "radiogroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1776385827924",
+          "label": "客服组长",
+          "type": "usergroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1736846540976",
+          "label": "是否需要总经理批示",
+          "type": "radiogroup",
+          "parent": null,
+          "allowBlank": false
+        }
+      ],
+      "fieldShowRules": [
+        {
+          "scope": "form",
+          "subform_widget": null,
+          "index": 0,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1577495432709",
+              "trigger_label": "其它待排查产品",
+              "method": "in",
+              "value": [
+                "有"
+              ],
+              "type": "text",
+              "mode": "custom"
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1577495432749",
+              "label": "有其它排产产品明细"
+            }
+          ]
+        },
+        {
+          "scope": "form",
+          "subform_widget": null,
+          "index": 1,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1600497623100",
+              "trigger_label": "总工转交",
+              "method": "in",
+              "value": [
+                "室主任"
+              ],
+              "type": "text",
+              "mode": "custom"
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1600497620698",
+              "label": "总工下转"
+            }
+          ]
+        },
+        {
+          "scope": "form",
+          "subform_widget": null,
+          "index": 2,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1599529315677",
+              "trigger_label": "是否需要转交",
+              "method": "in",
+              "value": [
+                "是"
+              ],
+              "type": "text",
+              "mode": "custom"
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1599529315858",
+              "label": "转交人员"
+            }
+          ]
+        },
+        {
+          "scope": "form",
+          "subform_widget": null,
+          "index": 3,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1599529317113",
+              "trigger_label": "是否需要通知相关人员",
+              "method": "in",
+              "value": [
+                "是"
+              ],
+              "type": "text",
+              "mode": "custom"
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1599529317145",
+              "label": "通知相关人员"
+            }
+          ]
+        }
+      ],
+      "subformFieldShowRules": [
+        {
+          "scope": "subform",
+          "subform_widget": "_widget_1577495431595",
+          "index": 0,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1712128588465",
+              "trigger_label": "有无合同号",
+              "method": "eq",
+              "value": [
+                "有"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1577495431618",
+              "label": "合同号"
+            }
+          ]
+        },
+        {
+          "scope": "subform",
+          "subform_widget": "_widget_1577495432749",
+          "index": 0,
+          "rel": "and",
+          "conditions": [
+            {
+              "trigger_widget": "_widget_1712128588499",
+              "trigger_label": "有无合同号",
+              "method": "eq",
+              "value": [
+                "有"
+              ],
+              "type": "text",
+              "mode": null
+            }
+          ],
+          "show_fields": [
+            {
+              "widget": "_widget_1577495432750",
+              "label": "合同号"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

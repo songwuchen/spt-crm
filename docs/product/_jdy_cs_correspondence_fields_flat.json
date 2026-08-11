@@ -1,0 +1,157 @@
+[
+  {
+    "name": "_widget_1709085809841",
+    "title": "流水号",
+    "type": "sn",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809140",
+    "title": "申请日期",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809141",
+    "title": "申请人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809142",
+    "title": "申请部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809854",
+    "title": "申请部门（文本）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809842",
+    "title": "选择合同数据",
+    "type": "linkfield",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809143",
+    "title": "合同号",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809144",
+    "title": "客户名称",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809843",
+    "title": "业务部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809145",
+    "title": "业务员",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1770086518837",
+    "title": "业务员ID（辅助）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1770086518838",
+    "title": "区域经理/组长",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809146",
+    "title": "具体情况描述",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809844",
+    "title": "附件与图片",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "图片",
+      "附件"
+    ]
+  },
+  {
+    "name": "_widget_1709085809846",
+    "title": "图片",
+    "type": "image",
+    "required": false,
+    "parent": "_widget_1709085809844",
+    "options": []
+  },
+  {
+    "name": "_widget_1709085809847",
+    "title": "附件",
+    "type": "upload",
+    "required": false,
+    "parent": "_widget_1709085809844",
+    "options": []
+  },
+  {
+    "name": "creator",
+    "title": "提交人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "createTime",
+    "title": "提交时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "updateTime",
+    "title": "更新时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  }
+]

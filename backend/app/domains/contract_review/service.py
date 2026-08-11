@@ -92,7 +92,14 @@ async def list_reviews(
     review_type: str | None = None,
     keyword: str | None = None,
     current_user: dict | None = None,
+    filter: str | None = None,
+    sort_by: str | None = None,
+    sort_order: str | None = None,
 ):
+    from app.common.search import (
+        entity_search_context, filter_clause_from_schema_or_400, resolve_sort_from_schema,
+    )
+
     base = select(ContractReview).where(ContractReview.tenant_id == tenant_id)
     if status:
         base = base.where(ContractReview.status == status)
@@ -107,9 +114,19 @@ async def list_reviews(
             ContractReview.owner_name.ilike(kw),
         ))
 
+    search_schema = await entity_search_context("contract_review", db, tenant_id)
+    clause = filter_clause_from_schema_or_400(
+        search_schema, filter, {"user_id": (current_user or {}).get("sub")},
+    )
+    if clause is not None:
+        base = base.where(clause)
+
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+    order = resolve_sort_from_schema(
+        search_schema, sort_by, sort_order, ContractReview.created_at.desc(),
+    )
     items = list((await db.execute(
-        base.order_by(ContractReview.created_at.desc())
+        base.order_by(order)
         .offset((page_no - 1) * page_size).limit(page_size)
     )).scalars().all())
     await _hydrate_display_names(db, tenant_id, items)

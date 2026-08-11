@@ -188,6 +188,61 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "field_definitions": [],
         "sync_fields": True,
     },
+    # —— 客户服务部（售后低代码，与原生售后工单并存）——
+    {
+        "key": "cs_service_request",
+        "name": "客户服务申请及反馈",
+        "category": "售后",
+        "icon": "CustomerServiceOutlined",
+        "description": "对齐简道云客户服务部「客户服务申请及反馈」。与原生售后工单并存。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "cs_product_replace",
+        "name": "售出产品更换（补发）",
+        "category": "售后",
+        "icon": "SwapOutlined",
+        "description": "对齐简道云客户服务部「售出产品更换（补发）流程」。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "cs_product_return",
+        "name": "售出产品/工具退回",
+        "category": "售后",
+        "icon": "RollbackOutlined",
+        "description": "对齐简道云客户服务部「售出产品/工具退回流程SCCP/GJTH」。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "cs_loan_slip",
+        "name": "客服借据",
+        "category": "售后",
+        "icon": "FileTextOutlined",
+        "description": "对齐简道云客户服务部「客服借据」。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "cs_service_delay",
+        "name": "客户服务延期申请",
+        "category": "售后",
+        "icon": "FieldTimeOutlined",
+        "description": "对齐简道云客户服务部「客户服务延期申请」。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "cs_correspondence",
+        "name": "客服往来函件",
+        "category": "售后",
+        "icon": "MailOutlined",
+        "description": "对齐简道云客户服务部「客服往来函件KFWLHJ」。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
     {
         "key": "contract_drawing_map",
         "name": "合同图纸对应表",
@@ -333,9 +388,14 @@ def _apply_drawing_jdy_fields() -> None:
         from app.domains.lowcode._pricing_checklist_hjqd_generated import PRICING_CHECKLIST_HJQD_JDY
     except Exception:
         PRICING_CHECKLIST_HJQD_JDY = {}
+    try:
+        from app.domains.lowcode._customer_service_jdy_generated import CUSTOMER_SERVICE_JDY
+    except Exception:
+        CUSTOMER_SERVICE_JDY = {}
     packs = {
         **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY,
         **INVOICE_PAYMENT_JDY, **QUOTE_MANAGEMENT_JDY, **PRICING_CHECKLIST_HJQD_JDY,
+        **CUSTOMER_SERVICE_JDY,
     }
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])
@@ -364,6 +424,9 @@ def _apply_drawing_jdy_fields() -> None:
         if t["key"] == "install_drawing_notice":
             from app.domains.lowcode.biz_score import apply_biz_score_field_defs
             apply_biz_score_field_defs(defs)
+        if t["key"] == "prod_card_supplement":
+            from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_contract_pick_fields
+            apply_prod_card_contract_pick_fields(defs)
         # 永久删除：前期沟通的设计员（文本）；方案管理去掉业务打分字段
         drop_ids = {"pre_designer_text"}
         if t["key"] == "scheme_management":

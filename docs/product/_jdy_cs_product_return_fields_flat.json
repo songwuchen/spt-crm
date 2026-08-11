@@ -1,0 +1,431 @@
+[
+  {
+    "name": "_widget_1578121055665",
+    "title": "流水号",
+    "type": "sn",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1703723955401",
+    "title": "日期时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672114764912",
+    "title": "*提交人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1657678970356",
+    "title": "发起部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1703723955300",
+    "title": "类型",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "退回及维修再发货",
+      "材质鉴定",
+      "工具退回"
+    ]
+  },
+  {
+    "name": "_widget_1577514157595",
+    "title": "客户名称",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1578119863142",
+    "title": "业务部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1577520412656",
+    "title": "业务员",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1577514157633",
+    "title": "现场联系人及电话",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1577514157611",
+    "title": "货物地址",
+    "type": "address",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1577519023451",
+    "title": "备注",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022536",
+    "title": "售出产品退回",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "合同号",
+      "设备名称",
+      "规格型号",
+      "数量",
+      "单位",
+      "发货日期",
+      "退回产品详细说明",
+      "备注",
+      "仓库判定*",
+      "仓库确认231228取消"
+    ]
+  },
+  {
+    "name": "_widget_1577519022537",
+    "title": "合同号",
+    "type": "combo",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022538",
+    "title": "设备名称",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022539",
+    "title": "规格型号",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022540",
+    "title": "数量",
+    "type": "number",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1578287861127",
+    "title": "单位",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022541",
+    "title": "发货日期",
+    "type": "datetime",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022542",
+    "title": "退回产品详细说明",
+    "type": "textarea",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1577519022543",
+    "title": "备注",
+    "type": "textarea",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": []
+  },
+  {
+    "name": "_widget_1665817650935",
+    "title": "仓库判定*",
+    "type": "radiogroup",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": [
+      "生产维修",
+      "供应维修",
+      "申请报废"
+    ]
+  },
+  {
+    "name": "_widget_1665817556699",
+    "title": "仓库确认231228取消",
+    "type": "radiogroup",
+    "required": false,
+    "parent": "_widget_1577519022536",
+    "options": [
+      "已收"
+    ]
+  },
+  {
+    "name": "_widget_1764918545251",
+    "title": "历史售出产品更换（补发）流程查看",
+    "type": "linkquery",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1619070556652",
+    "title": "图片",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "上传人",
+      "图片"
+    ]
+  },
+  {
+    "name": "_widget_1619070556669",
+    "title": "上传人",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1619070556652",
+    "options": []
+  },
+  {
+    "name": "_widget_1619070556688",
+    "title": "图片",
+    "type": "image",
+    "required": false,
+    "parent": "_widget_1619070556652",
+    "options": []
+  },
+  {
+    "name": "_widget_1736757240448",
+    "title": "发起节点上传退回图片",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "上传人",
+      "图片"
+    ]
+  },
+  {
+    "name": "_widget_1736757240449",
+    "title": "上传人",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1736757240448",
+    "options": []
+  },
+  {
+    "name": "_widget_1736757240450",
+    "title": "图片",
+    "type": "image",
+    "required": false,
+    "parent": "_widget_1736757240448",
+    "options": []
+  },
+  {
+    "name": "_widget_1736757240488",
+    "title": "其他节点查看发起人退回图片",
+    "type": "linkquery",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1578537741743",
+    "title": "图片",
+    "type": "image",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1590721272018",
+    "title": "附件",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1620023611025",
+    "title": "图片",
+    "type": "image",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1578128358932",
+    "title": "会签成员",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1578128358916",
+    "title": "会签（231228取消）",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": [
+      "否",
+      "是"
+    ]
+  },
+  {
+    "name": "_widget_1703723955512",
+    "title": "分发质检人员",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1703723955568",
+    "title": "分发生产人员",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1703723955540",
+    "title": "分发采购人员",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1586758707499",
+    "title": "分发仓库人员",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1578128358033",
+    "title": "维修部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1578127027977",
+    "title": "仓库判定1",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": [
+      "生产维修",
+      "供应维修",
+      "申请报废"
+    ]
+  },
+  {
+    "name": "_widget_1691974761704",
+    "title": "流程判断",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "原流程",
+      "客服",
+      "质检"
+    ]
+  },
+  {
+    "name": "_widget_1753923897787",
+    "title": "物流情况",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "已经安排车",
+      "下转提交",
+      "其他"
+    ]
+  },
+  {
+    "name": "_widget_1734925951092",
+    "title": "是否转相关人员",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1734925951094",
+    "title": "转相关人员",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "creator",
+    "title": "提交人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "createTime",
+    "title": "提交时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "updateTime",
+    "title": "更新时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  }
+]

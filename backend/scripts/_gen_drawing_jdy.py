@@ -787,13 +787,40 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
 # 简道云 optAuth 位：1=可见 2=可写 4=简报
 _JDY_OPT_VIEW = 1
 _JDY_OPT_EDIT = 2
+# 节点 validator：ISEMPTY($_widget_xxx#)!=1 → 该节点审批时必填
+_JDY_ISEMPTY_REQ_RE = re.compile(
+    r"ISEMPTY\(\s*\$_([^)#]+)#\s*\)\s*!=\s*1",
+    re.IGNORECASE,
+)
 
 
 def _slug_from_opt_widget(widget: str, widget_slug: dict[str, str]) -> str | None:
-    if widget in widget_slug:
-        return widget_slug[widget]
-    top = str(widget).split(".", 1)[0]
-    return widget_slug.get(top)
+    w = str(widget)
+    candidates = [w, w.split(".", 1)[0]]
+    # validator 公式常写 $_widget_xxx#，optAuth key 为 _widget_xxx
+    for c in list(candidates):
+        if c.startswith("widget_") and not c.startswith("_"):
+            candidates.append("_" + c)
+        if c.startswith("_widget_"):
+            candidates.append(c[1:])
+    for c in candidates:
+        if c in widget_slug:
+            return widget_slug[c]
+    return None
+
+
+def _validator_required_slugs(flow: dict, widget_slug: dict[str, str]) -> set[str]:
+    """解析节点 validator（如 客户种类必填）→ CRM 字段 id。"""
+    out: set[str] = set()
+    for v in flow.get("validator") or []:
+        if not isinstance(v, dict):
+            continue
+        formula = str(v.get("formula") or "")
+        for m in _JDY_ISEMPTY_REQ_RE.finditer(formula):
+            slug = _slug_from_opt_widget(m.group(1), widget_slug)
+            if slug:
+                out.add(slug)
+    return out
 
 
 def apply_jdy_opt_auth(
@@ -806,8 +833,9 @@ def apply_jdy_opt_auth(
     """把简道云节点 optAuth 落到字段阶段属性 + 审批节点 field_perms。
 
     - 发起节点可写 → available_on_create=True（创建可填/可必填）
+    - 发起仅可见 → available_on_create=True 且 form_editable=False（只读展示）
     - 仅审批节点可写 → available_on_create=False，创建隐藏且去掉 required；
-      对应节点 field_perms=required（原 allowBlank=false）或 editable
+      对应节点 field_perms=required（原 allowBlank=false / validator 必填）或 editable
     """
     widget_slug = widget_slug_map(fields)
     by_id = {
@@ -847,6 +875,7 @@ def apply_jdy_opt_auth(
 
     originally_required = {fd["id"] for fd in fields if fd.get("required")}
     n_approver_only = 0
+    n_start_readonly = 0
     for fd in fields:
         fid = fd.get("id")
         if not fid or not fd.get("jdy_widget"):
@@ -854,6 +883,7 @@ def apply_jdy_opt_auth(
         if fid in start_edit:
             fd["available_on_create"] = True
             fd["fill_stage"] = "initiator"
+            fd.pop("form_editable", None)
             continue
         if fid in approval_edit:
             fd["available_on_create"] = False
@@ -865,12 +895,15 @@ def apply_jdy_opt_auth(
         if fid in start_view:
             fd["available_on_create"] = True
             fd["fill_stage"] = "initiator"
-            if fd.get("required") and fid not in start_edit:
+            # 发起仅可见：表单只读展示（如流水号、区域经理/组长）
+            fd["form_editable"] = False
+            if fd.get("required"):
                 fd["required"] = False
-                fd["form_editable"] = False
+            n_start_readonly += 1
             continue
         # 无 optAuth 条目：保持生成器原样，避免误藏 CRM 自有字段
 
+    n_validator_req = 0
     for fid, f in by_id.items():
         if fid in (-1, 0) or (f.get("type") or "flow") == "cc":
             continue
@@ -883,6 +916,7 @@ def apply_jdy_opt_auth(
         oa = f.get("optAuth") or {}
         if not isinstance(oa, dict):
             continue
+        validator_req = _validator_required_slugs(f, widget_slug)
         for w, flags in oa.items():
             if not isinstance(flags, int) or not (flags & _JDY_OPT_EDIT):
                 continue
@@ -890,11 +924,22 @@ def apply_jdy_opt_auth(
             if not slug or slug in seen:
                 continue
             seen.add(slug)
-            if slug not in start_edit and slug in originally_required:
+            if slug in validator_req or (
+                slug not in start_edit and slug in originally_required
+            ):
                 access = "required"
+                if slug in validator_req:
+                    n_validator_req += 1
             else:
                 access = "editable"
             perms.append({"field": slug, "access": access})
+        # validator 声明了必填但 optAuth 未给可写时，仍挂 required（避免漏校验）
+        for slug in validator_req:
+            if slug in seen:
+                continue
+            seen.add(slug)
+            perms.append({"field": slug, "access": "required"})
+            n_validator_req += 1
         if perms:
             node["field_perms"] = perms
 
@@ -902,6 +947,14 @@ def apply_jdy_opt_auth(
         notes.append(
             f"optAuth：{n_approver_only} 个字段仅审批可写"
             f"（创建 available_on_create=false，必填下沉到节点 field_perms）"
+        )
+    if n_start_readonly:
+        notes.append(
+            f"optAuth：{n_start_readonly} 个字段发起仅可见（form_editable=false）"
+        )
+    if n_validator_req:
+        notes.append(
+            f"节点 validator：{n_validator_req} 处审批必填（如「客户种类必填」）"
         )
 
 

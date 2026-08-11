@@ -1,0 +1,639 @@
+{
+  "success": true,
+  "data": {
+    "fields": [
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "流水号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578121055665",
+        "type": "sn"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "日期时间",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1617689215719",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "业务部门",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578119863142",
+        "type": "dept"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "业务员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1577520412656",
+        "type": "user"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "业务员ID（辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1770085266609",
+        "type": "text"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "对应区域经理或组长",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1770085266610",
+        "type": "user"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "客户名称",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1577514157595",
+        "type": "combo",
+        "colorEnable": false
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "客户类别",
+        "labelHidden": true,
+        "lineWidth": 3,
+        "name": "_widget_1647329433188",
+        "type": "linkquery"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "货物地址",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1577514157611",
+        "type": "address"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "现场联系人及电话",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1577514157633",
+        "type": "text"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "备注",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1577519023451",
+        "type": "textarea"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "是否需退回",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1675673210466",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "是否关联验收回款",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1749182322753",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "是否需打借据",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1675673210468",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "紧急程度判定-业务经理",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1739261778534",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "紧急",
+            "text": "紧急"
+          },
+          {
+            "value": "一般",
+            "text": "一般"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "紧急程度判定-客服经理",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1739261778536",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "紧急",
+            "text": "紧急"
+          },
+          {
+            "value": "一般",
+            "text": "一般"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "最终紧急程度判定（辅助）",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1739261778538",
+        "type": "text"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "紧急程度判定-总经理",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1739318635777",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "紧急",
+            "text": "紧急"
+          },
+          {
+            "value": "一般",
+            "text": "一般"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "最终紧急程度判定",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1739318635876",
+        "type": "text"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "紧急程度判定情况查看",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1739261778695",
+        "type": "linkquery"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "换货（含补发）",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1577519022536",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "合同号",
+            "labelHidden": false,
+            "name": "_widget_1577519022537",
+            "type": "combo",
+            "subform": "_widget_1577519022536",
+            "colorEnable": false,
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "设备名称",
+            "labelHidden": false,
+            "name": "_widget_1577519022538",
+            "type": "text",
+            "subform": "_widget_1577519022536"
+          },
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "规格型号",
+            "labelHidden": false,
+            "name": "_widget_1577519022539",
+            "type": "text",
+            "subform": "_widget_1577519022536"
+          },
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "数量",
+            "labelHidden": false,
+            "name": "_widget_1577519022540",
+            "type": "number",
+            "subform": "_widget_1577519022536",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "单位",
+            "labelHidden": false,
+            "name": "_widget_1578287834987",
+            "type": "text",
+            "subform": "_widget_1577519022536",
+            "fieldWidth": "half"
+          },
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "发货日期",
+            "labelHidden": false,
+            "name": "_widget_1577519022541",
+            "type": "datetime",
+            "subform": "_widget_1577519022536",
+            "fieldWidth": "half",
+            "format": "yyyy-MM-dd"
+          },
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "退换详细说明",
+            "labelHidden": false,
+            "name": "_widget_1577519022542",
+            "type": "textarea",
+            "subform": "_widget_1577519022536",
+            "fieldWidth": "normal"
+          },
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "故障分类",
+            "labelHidden": false,
+            "name": "_widget_1617691334516",
+            "type": "text",
+            "subform": "_widget_1577519022536"
+          }
+        ]
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "成本价",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1687499358442",
+        "type": "text"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "图片",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1619070274799",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "上传人",
+            "labelHidden": false,
+            "name": "_widget_1619070274816",
+            "type": "text",
+            "subform": "_widget_1619070274799"
+          },
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "图片",
+            "labelHidden": false,
+            "name": "_widget_1619070274835",
+            "type": "image",
+            "subform": "_widget_1619070274799"
+          }
+        ]
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "附件0418",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578271183948",
+        "type": "upload"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "客服附件0418",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578271183961",
+        "type": "upload"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "客服补登附件0418",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578702338220",
+        "type": "upload"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "会签附件0418",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1589433529814",
+        "type": "upload"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "需要补登",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578452391724",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "否",
+            "text": "否"
+          },
+          {
+            "value": "是",
+            "text": "是"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "货是否发完",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1675988284441",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "否",
+            "text": "否"
+          },
+          {
+            "value": "是",
+            "text": "是"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "是否小萌",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1716164018678",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "会签",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1578127027977",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "否",
+            "text": "否"
+          },
+          {
+            "value": "是",
+            "text": "是"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "图片0418",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1618966943220",
+        "type": "image"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "会签人员",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1578127028052",
+        "type": "usergroup"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "是否追溯（已取消）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1586759362043",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "责任方",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1617689215015",
+        "type": "text"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "是否需要转交相关人员处理后补登",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1593825383660",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "需要",
+            "text": "需要"
+          },
+          {
+            "value": "不需要",
+            "text": "不需要"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "相关人员处理",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1593825383717",
+        "type": "user"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "text": "客服备注",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1774333375920",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "内容",
+            "labelHidden": false,
+            "name": "_widget_1774333375922",
+            "type": "text",
+            "subform": "_widget_1774333375920"
+          },
+          {
+            "id": "5e06f4ad2a9eb70007f7c164",
+            "form": "5e06f4ad2a9eb70007f7c164",
+            "text": "附件",
+            "labelHidden": false,
+            "name": "_widget_1774333375923",
+            "type": "upload",
+            "subform": "_widget_1774333375920"
+          }
+        ]
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "name": "creator",
+        "type": "user",
+        "text": "提交人"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "name": "createTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "提交时间"
+      },
+      {
+        "id": "5e06f4ad2a9eb70007f7c164",
+        "form": "5e06f4ad2a9eb70007f7c164",
+        "name": "updateTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "更新时间"
+      }
+    ]
+  }
+}

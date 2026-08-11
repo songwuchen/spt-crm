@@ -1,0 +1,2631 @@
+{
+  "app_id": "58e2fbc7ffd1608b4ce92809",
+  "entry_id": "5f9b6dacb6ec680007f9c46f",
+  "form_name": "客户服务延期申请",
+  "workflow_config": {
+    "editable": false,
+    "flows": [
+      {
+        "_id": "5f9b6dacb6ec680007f9c475",
+        "flowId": -1,
+        "name": "流程结束",
+        "parents": [
+          7
+        ],
+        "type": "flow",
+        "condition": {
+          "7": {}
+        },
+        "comment": {
+          "enable": false,
+          "checkRule": 1,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "backNodes": [],
+        "backRule": 0,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 610,
+        "y": 575,
+        "lines": {
+          "7": {
+            "sp": "B",
+            "tp": "T"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": []
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "optAuth": {},
+        "appId": "58e2fbc7ffd1608b4ce92809",
+        "entryId": "5f9b6dacb6ec680007f9c46f",
+        "version": "1",
+        "allowSubmit": true,
+        "printIds": [],
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "allowPrint": false,
+        "allowDraft": true,
+        "pluginOutMappings": [],
+        "sign": {
+          "enable": false
+        },
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "5f9b6dacb6ec680007f9c476",
+        "flowId": 0,
+        "name": "流程发起节点",
+        "parents": [],
+        "type": "flow",
+        "condition": {},
+        "comment": {
+          "enable": false,
+          "checkRule": 1,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [],
+        "backNodes": [],
+        "backRule": 0,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 610,
+        "y": 50,
+        "lines": {},
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": []
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "optAuth": {
+          "_widget_1585191665009": 5,
+          "_widget_1585191665061": 7,
+          "_widget_1585191665079": 7,
+          "_widget_1585191665339": 3,
+          "_widget_1585191665097": 3,
+          "_widget_1585191665113": 115,
+          "_widget_1585191665113._widget_1585191665125": 3,
+          "_widget_1585191665113._widget_1585191665148": 3,
+          "_widget_1585191665113._widget_1585191665207": 3,
+          "_widget_1585191665226": 3,
+          "_widget_1585191665241": 3,
+          "_widget_1585191665258": 3,
+          "_widget_1585191665284": 3,
+          "_widget_1585191665301": 3
+        },
+        "appId": "58e2fbc7ffd1608b4ce92809",
+        "entryId": "5f9b6dacb6ec680007f9c46f",
+        "version": "1",
+        "allowSubmit": true,
+        "printIds": [],
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "allowPrint": false,
+        "allowDraft": true,
+        "close_text": "",
+        "draft_text": "",
+        "pluginOutMappings": [],
+        "print_text": "",
+        "save_text": "",
+        "sign": {
+          "enable": false
+        },
+        "submit_text": "",
+        "allowSaveStart": false,
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "5f9b6dacb6ec680007f9c477",
+        "flowId": 1,
+        "name": "部门主管",
+        "parents": [
+          0
+        ],
+        "type": "flow",
+        "condition": {
+          "0": {}
+        },
+        "chargers": {
+          "users": [],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": [],
+            "deptWidgets": {
+              "_widget_1585191665079": [
+                0
+              ]
+            }
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "checkRule": 2,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0
+        ],
+        "backNodes": [],
+        "backRule": 1,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 610,
+        "y": 134,
+        "lines": {
+          "0": {
+            "sp": "B",
+            "tp": "T"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "optAuth": {
+          "_widget_1585191665009": 5,
+          "_widget_1585191665061": 5,
+          "_widget_1585191665079": 5,
+          "_widget_1585191665339": 1,
+          "_widget_1585191665097": 1,
+          "_widget_1585191665113": 1,
+          "_widget_1585191665113._widget_1585191665125": 1,
+          "_widget_1585191665113._widget_1585191665148": 1,
+          "_widget_1585191665113._widget_1585191665207": 1,
+          "_widget_1585191665226": 1,
+          "_widget_1585191665241": 1,
+          "_widget_1585191665258": 1,
+          "_widget_1585191665284": 1,
+          "_widget_1585191665301": 3
+        },
+        "appId": "58e2fbc7ffd1608b4ce92809",
+        "entryId": "5f9b6dacb6ec680007f9c46f",
+        "version": "1",
+        "allowSubmit": true,
+        "printIds": [],
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "allowPrint": false,
+        "allowDraft": true,
+        "allowSave": false,
+        "allowSavePrint": false,
+        "backFlowType": 1,
+        "back_text": "",
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "close_text": "",
+        "pluginOutMappings": [],
+        "print_text": "",
+        "save_print_text": "",
+        "save_text": "",
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "sign": {
+          "enable": false
+        },
+        "submit_text": "",
+        "transfer_text": "",
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "noChargersRule": 1,
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "5f9b6dacb6ec680007f9c478",
+        "flowId": 2,
+        "name": "部门经理",
+        "parents": [
+          1
+        ],
+        "type": "flow",
+        "condition": {
+          "1": {}
+        },
+        "chargers": {
+          "users": [],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": [],
+            "userWidgets": {
+              "_widget_1585191665061": [
+                0
+              ]
+            }
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "checkRule": 2,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0,
+          1
+        ],
+        "backNodes": [],
+        "backRule": 1,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 610,
+        "y": 212,
+        "lines": {
+          "1": {
+            "sp": "B",
+            "tp": "T"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "optAuth": {
+          "_widget_1585191665009": 5,
+          "_widget_1585191665061": 5,
+          "_widget_1585191665079": 5,
+          "_widget_1585191665339": 1,
+          "_widget_1585191665097": 1,
+          "_widget_1585191665113": 1,
+          "_widget_1585191665113._widget_1585191665125": 1,
+          "_widget_1585191665113._widget_1585191665148": 1,
+          "_widget_1585191665113._widget_1585191665207": 1,
+          "_widget_1585191665226": 1,
+          "_widget_1585191665241": 1,
+          "_widget_1585191665258": 1,
+          "_widget_1585191665284": 1,
+          "_widget_1585191665301": 3
+        },
+        "appId": "58e2fbc7ffd1608b4ce92809",
+        "entryId": "5f9b6dacb6ec680007f9c46f",
+        "version": "1",
+        "allowSubmit": true,
+        "printIds": [],
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "allowPrint": false,
+        "allowDraft": true,
+        "allowSavePrint": false,
+        "backFlowType": 1,
+        "back_text": "",
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "close_text": "",
+        "pluginOutMappings": [],
+        "print_text": "",
+        "save_print_text": "",
+        "save_text": "",
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "sign": {
+          "enable": false
+        },
+        "submit_text": "",
+        "transfer_text": "",
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "noChargersRule": 1,
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "5f9b6dacb6ec680007f9c479",
+        "flowId": 3,
+        "name": "客服反馈",
+        "parents": [
+          2
+        ],
+        "type": "flow",
+        "condition": {
+          "2": {}
+        },
+        "chargers": {
+          "users": [],
+          "roles": [
+            {
+              "id": 2813,
+              "_id": "5f6c3e539a4cbe0006b74d65",
+              "role_id": 2813,
+              "role_no": 2813,
+              "name": "7.5客户服务延期申请-客服反馈",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2650,
+              "group_no": 2650,
+              "seq": 267758,
+              "status": 1
+            }
+          ],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "checkRule": 2,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0,
+          1,
+          2
+        ],
+        "backNodes": [
+          0,
+          1,
+          2
+        ],
+        "backRule": 2,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 610,
+        "y": 295,
+        "lines": {
+          "2": {
+            "sp": "B",
+            "tp": "T"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "optAuth": {
+          "_widget_1585191665009": 5,
+          "_widget_1585191665061": 5,
+          "_widget_1585191665079": 5,
+          "_widget_1585191665339": 1,
+          "_widget_1585191665097": 1,
+          "_widget_1585191665113": 1,
+          "_widget_1585191665113._widget_1585191665125": 1,
+          "_widget_1585191665113._widget_1585191665148": 1,
+          "_widget_1585191665113._widget_1585191665207": 1,
+          "_widget_1585191665226": 1,
+          "_widget_1585191665241": 1,
+          "_widget_1585191665258": 1,
+          "_widget_1585191665284": 1,
+          "_widget_1585191665301": 3
+        },
+        "appId": "58e2fbc7ffd1608b4ce92809",
+        "entryId": "5f9b6dacb6ec680007f9c46f",
+        "version": "1",
+        "allowSubmit": true,
+        "printIds": [],
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "allowPrint": false,
+        "allowDraft": true,
+        "allowSavePrint": false,
+        "backFlowType": 1,
+        "back_text": "",
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "close_text": "",
+        "pluginOutMappings": [],
+        "print_text": "",
+        "save_print_text": "",
+        "save_text": "",
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "sign": {
+          "enable": false
+        },
+        "submit_text": "",
+        "transfer_text": "",
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "noChargersRule": 1,
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "5f9b6dacb6ec680007f9c47a",
+        "flowId": 4,
+        "name": "客服审批",
+        "parents": [
+          3
+        ],
+        "type": "flow",
+        "condition": {
+          "3": {}
+        },
+        "chargers": {
+          "users": [],
+          "roles": [
+            {
+              "id": 2814,
+              "_id": "5f6c3e74bb221e00067d4f39",
+              "role_id": 2814,
+              "role_no": 2814,
+              "name": "7.5客户服务延期申请-客服审批",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2650,
+              "group_no": 2650,
+              "seq": 268782,
+              "status": 1
+            }
+          ],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "checkRule": 2,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "backNodes": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "backRule": 2,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 610,
+        "y": 374,
+        "lines": {
+          "3": {
+            "sp": "B",
+            "tp": "T"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "optAuth": {
+          "_widget_1585191665009": 5,
+          "_widget_1585191665061": 5,
+          "_widget_1585191665079": 5,
+          "_widget_1585191665339": 1,
+          "_widget_1585191665097": 1,
+          "_widget_1585191665113": 1,
+          "_widget_1585191665113._widget_1585191665125": 1,
+          "_widget_1585191665113._widget_1585191665148": 1,
+          "_widget_1585191665113._widget_1585191665207": 1,
+          "_widget_1585191665226": 1,
+          "_widget_1585191665241": 1,
+          "_widget_1585191665258": 1,
+          "_widget_1585191665284": 1,
+          "_widget_1585191665301": 1
+        },
+        "appId": "58e2fbc7ffd1608b4ce92809",
+        "entryId": "5f9b6dacb6ec680007f9c46f",
+        "version": "1",
+        "allowSubmit": true,
+        "printIds": [],
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "allowPrint": false,
+        "allowDraft": true,
+        "allowSavePrint": false,
+        "backFlowType": 1,
+        "back_text": "",
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "close_text": "",
+        "pluginOutMappings": [],
+        "print_text": "",
+        "save_print_text": "",
+        "save_text": "",
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "sign": {
+          "enable": false
+        },
+        "submit_text": "",
+        "transfer_text": "",
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "noChargersRule": 1,
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "5f9b6dacb6ec680007f9c47b",
+        "flowId": 5,
+        "name": "曹工审批",
+        "parents": [
+          4
+        ],
+        "type": "flow",
+        "condition": {
+          "4": {}
+        },
+        "chargers": {
+          "users": [],
+          "roles": [
+            {
+              "id": 2830,
+              "_id": "5f890e9a5a7d7300069e790c",
+              "role_id": 2830,
+              "role_no": 2830,
+              "name": "曹修国",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2610,
+              "group_no": 2610,
+              "seq": 265710,
+              "status": 1
+            }
+          ],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "checkRule": 2,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "backNodes": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "backRule": 2,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 610,
+        "y": 449,
+        "lines": {
+          "4": {
+            "sp": "B",
+            "tp": "T"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "optAuth": {
+          "_widget_1585191665009": 5,
+          "_widget_1585191665061": 5,
+          "_widget_1585191665079": 5,
+          "_widget_1585191665339": 1,
+          "_widget_1585191665097": 1,
+          "_widget_1585191665113": 1,
+          "_widget_1585191665113._widget_1585191665125": 1,
+          "_widget_1585191665113._widget_1585191665148": 1,
+          "_widget_1585191665113._widget_1585191665207": 1,
+          "_widget_1585191665226": 1,
+          "_widget_1585191665241": 1,
+          "_widget_1585191665258": 1,
+          "_widget_1585191665284": 1,
+          "_widget_1585191665301": 1
+        },
+        "appId": "58e2fbc7ffd1608b4ce92809",
+        "entryId": "5f9b6dacb6ec680007f9c46f",
+        "version": "1",
+        "allowSubmit": true,
+        "printIds": [],
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "allowPrint": false,
+        "allowDraft": true,
+        "allowSavePrint": false,
+        "backFlowType": 1,
+        "back_text": "",
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "close_text": "",
+        "pluginOutMappings": [],
+        "print_text": "",
+        "save_print_text": "",
+        "save_text": "",
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "sign": {
+          "enable": false
+        },
+        "submit_text": "",
+        "transfer_text": "",
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "noChargersRule": 1,
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "5f9b6dacb6ec680007f9c47c",
+        "flowId": 6,
+        "name": "总经理审批",
+        "parents": [
+          5
+        ],
+        "type": "flow",
+        "condition": {
+          "5": {}
+        },
+        "chargers": {
+          "users": [],
+          "roles": [
+            {
+              "id": 2,
+              "_id": "59e4279780abe9c825a8dbf5",
+              "role_id": 2,
+              "role_no": 2,
+              "name": "总经理",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2547,
+              "group_no": 2547,
+              "seq": 10222,
+              "status": 1
+            }
+          ],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "checkRule": 2,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "backNodes": [],
+        "backRule": 1,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 820,
+        "y": 449,
+        "lines": {
+          "5": {
+            "sp": "R",
+            "tp": "L"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "optAuth": {
+          "_widget_1585191665009": 5,
+          "_widget_1585191665061": 5,
+          "_widget_1585191665079": 5,
+          "_widget_1585191665339": 1,
+          "_widget_1585191665097": 1,
+          "_widget_1585191665113": 1,
+          "_widget_1585191665113._widget_1585191665125": 1,
+          "_widget_1585191665113._widget_1585191665148": 1,
+          "_widget_1585191665113._widget_1585191665207": 1,
+          "_widget_1585191665226": 1,
+          "_widget_1585191665241": 1,
+          "_widget_1585191665258": 1,
+          "_widget_1585191665284": 1,
+          "_widget_1585191665301": 1
+        },
+        "appId": "58e2fbc7ffd1608b4ce92809",
+        "entryId": "5f9b6dacb6ec680007f9c46f",
+        "version": "1",
+        "allowSubmit": true,
+        "printIds": [],
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "allowPrint": false,
+        "allowDraft": true,
+        "allowSavePrint": false,
+        "backFlowType": 1,
+        "back_text": "",
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "close_text": "",
+        "pluginOutMappings": [],
+        "print_text": "",
+        "save_print_text": "",
+        "save_text": "",
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "sign": {
+          "enable": false
+        },
+        "submit_text": "",
+        "transfer_text": "",
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "noChargersRule": 1,
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "5f9b6dacb6ec680007f9c47d",
+        "flowId": 7,
+        "name": "客服备案",
+        "parents": [
+          6
+        ],
+        "type": "flow",
+        "condition": {
+          "6": {}
+        },
+        "chargers": {
+          "users": [],
+          "roles": [
+            {
+              "id": 2813,
+              "_id": "5f6c3e539a4cbe0006b74d65",
+              "role_id": 2813,
+              "role_no": 2813,
+              "name": "7.5客户服务延期申请-客服反馈",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2650,
+              "group_no": 2650,
+              "seq": 267758,
+              "status": 1
+            }
+          ],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "ccUsers": {
+          "charger": false,
+          "creator": true,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "checkRule": 2,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "backNodes": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "backRule": 2,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 1024,
+        "y": 449,
+        "lines": {
+          "6": {
+            "sp": "R",
+            "tp": "L"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "optAuth": {
+          "_widget_1585191665009": 5,
+          "_widget_1585191665061": 5,
+          "_widget_1585191665079": 5,
+          "_widget_1585191665339": 1,
+          "_widget_1585191665097": 1,
+          "_widget_1585191665113": 1,
+          "_widget_1585191665113._widget_1585191665125": 1,
+          "_widget_1585191665113._widget_1585191665148": 1,
+          "_widget_1585191665113._widget_1585191665207": 1,
+          "_widget_1585191665226": 1,
+          "_widget_1585191665241": 1,
+          "_widget_1585191665258": 1,
+          "_widget_1585191665284": 1,
+          "_widget_1585191665301": 1
+        },
+        "appId": "58e2fbc7ffd1608b4ce92809",
+        "entryId": "5f9b6dacb6ec680007f9c46f",
+        "version": "1",
+        "allowSubmit": true,
+        "printIds": [],
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "allowPrint": false,
+        "allowDraft": true,
+        "allowSavePrint": false,
+        "backFlowType": 1,
+        "back_text": "",
+        "close_text": "",
+        "pluginOutMappings": [],
+        "print_text": "",
+        "save_print_text": "",
+        "save_text": "",
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "sign": {
+          "enable": false
+        },
+        "submit_text": "",
+        "transfer_text": "",
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "noChargersRule": 1,
+        "approvalMethod": 1,
+        "printList": []
+      }
+    ],
+    "theme": 1,
+    "flowFormViews": []
+  },
+  "auth_config": {
+    "existAuthGroups": [
+      {
+        "_id": "5f9b6dacb6ec680007f9c473",
+        "groupId": -1,
+        "members": {
+          "users": [],
+          "departs": [
+            {
+              "_id": "56ca5b8af97e80434fc0612a",
+              "dept_no": 4430387,
+              "parent_no": 1,
+              "name": "董事会",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 9,
+              "departmentId": 4430387,
+              "parentId": 1,
+              "order": 9,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06117",
+              "dept_no": 4371366,
+              "parent_no": 1,
+              "name": "总经理",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 17,
+              "departmentId": 4371366,
+              "parentId": 1,
+              "order": 17,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611b",
+              "dept_no": 4430291,
+              "parent_no": 1,
+              "name": "总经办",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 23,
+              "departmentId": 4430291,
+              "parentId": 1,
+              "order": 23,
+              "editable": true
+            },
+            {
+              "_id": "642e5d42bea83252be799020",
+              "dept_no": 843243589,
+              "name": "科技规划办公室",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": -1,
+              "seq": 24,
+              "departmentId": 843243589,
+              "order": 24,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611d",
+              "dept_no": 4430294,
+              "parent_no": 1,
+              "name": "行政部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 27,
+              "departmentId": 4430294,
+              "parentId": 1,
+              "order": 27,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06116",
+              "dept_no": 4368508,
+              "parent_no": 1,
+              "name": "财务部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 31,
+              "departmentId": 4368508,
+              "parentId": 1,
+              "order": 31,
+              "editable": true
+            },
+            {
+              "_id": "5a1f69ecb77d3d7d0e84e768",
+              "dept_no": 54742764,
+              "parent_no": 1,
+              "name": "技术总工",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 35,
+              "departmentId": 54742764,
+              "parentId": 1,
+              "order": 35,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611f",
+              "dept_no": 4430296,
+              "parent_no": 1,
+              "name": "生产管理部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 41,
+              "departmentId": 4430296,
+              "parentId": 1,
+              "order": 41,
+              "editable": true
+            },
+            {
+              "_id": "615c078c3ec912e56d66cc3e",
+              "dept_no": 551138197,
+              "parent_no": 1,
+              "name": "研发中心*研发制作",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 44,
+              "departmentId": 551138197,
+              "parentId": 1,
+              "order": 44,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06120",
+              "dept_no": 4430297,
+              "parent_no": 1,
+              "name": "工艺与质量控制部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 50,
+              "departmentId": 4430297,
+              "parentId": 1,
+              "order": 50,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06114",
+              "dept_no": 4335335,
+              "parent_no": 1,
+              "name": "AI中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 57,
+              "departmentId": 4335335,
+              "parentId": 1,
+              "order": 57,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06119",
+              "dept_no": 4430289,
+              "parent_no": 1,
+              "name": "人力资源部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 59,
+              "departmentId": 4430289,
+              "parentId": 1,
+              "order": 59,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611a",
+              "dept_no": 4430290,
+              "parent_no": 1,
+              "name": "信息情报部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 61,
+              "departmentId": 4430290,
+              "parentId": 1,
+              "order": 61,
+              "editable": true
+            },
+            {
+              "_id": "57ce1791b6eb93772163787d",
+              "dept_no": 15943580,
+              "parent_no": 1,
+              "name": "人工智能+营销支持部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 62,
+              "departmentId": 15943580,
+              "parentId": 1,
+              "order": 62,
+              "editable": true
+            },
+            {
+              "_id": "60fc55223ec912e56dd675c7",
+              "dept_no": 506121698,
+              "name": "小萌中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": -1,
+              "seq": 63,
+              "departmentId": 506121698,
+              "order": 63,
+              "editable": true
+            },
+            {
+              "_id": "5f5280bb576dbcf967d8a661",
+              "dept_no": 402157113,
+              "parent_no": 1,
+              "name": "审计部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 65,
+              "departmentId": 402157113,
+              "parentId": 1,
+              "order": 65,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0614a",
+              "dept_no": 4513548,
+              "parent_no": 1,
+              "name": "证券部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 67,
+              "departmentId": 4513548,
+              "parentId": 1,
+              "order": 67,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06129",
+              "dept_no": 4430308,
+              "parent_no": 1,
+              "name": "计划采购部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 69,
+              "departmentId": 4430308,
+              "parentId": 1,
+              "order": 69,
+              "editable": true
+            },
+            {
+              "_id": "58a64a3f0c8103f1319c8754",
+              "dept_no": 26426217,
+              "parent_no": 1,
+              "name": "物流部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 70,
+              "departmentId": 26426217,
+              "parentId": 1,
+              "order": 70,
+              "editable": true
+            },
+            {
+              "_id": "5a9fa0ada21496c4066c2c4b",
+              "dept_no": 61166000,
+              "parent_no": 1,
+              "name": "市场支持中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 71,
+              "departmentId": 61166000,
+              "parentId": 1,
+              "order": 71,
+              "editable": true
+            },
+            {
+              "_id": "57ce1791b6eb93772163787f",
+              "dept_no": 16629288,
+              "name": "工业机器人销售部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": -1,
+              "seq": 72,
+              "departmentId": 16629288,
+              "order": 72,
+              "editable": true
+            },
+            {
+              "_id": "5a9fa0ada21496c4066c2c4c",
+              "dept_no": 61192369,
+              "parent_no": 1,
+              "name": "（暂存）冶金装备销售事业部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 72,
+              "departmentId": 61192369,
+              "parentId": 1,
+              "order": 72,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06143",
+              "dept_no": 4507725,
+              "parent_no": 1,
+              "name": "清欠办",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 73,
+              "departmentId": 4507725,
+              "parentId": 1,
+              "order": 73,
+              "editable": true
+            },
+            {
+              "_id": "59dc5c5f0b18743912395106",
+              "dept_no": 52371059,
+              "parent_no": 1,
+              "name": "新疆威猛工业智能装备有限公司",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 74,
+              "departmentId": 52371059,
+              "parentId": 1,
+              "order": 74,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06124",
+              "dept_no": 4430301,
+              "parent_no": 1,
+              "name": "精细筛分装备销售部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 75,
+              "departmentId": 4430301,
+              "parentId": 1,
+              "order": 75,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06126",
+              "dept_no": 4430303,
+              "parent_no": 1,
+              "name": "冶金矿山装备销售事业部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 76,
+              "departmentId": 4430303,
+              "parentId": 1,
+              "order": 76,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06128",
+              "dept_no": 4430306,
+              "parent_no": 1,
+              "name": "国际营销中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 77,
+              "departmentId": 4430306,
+              "parentId": 1,
+              "order": 77,
+              "editable": true
+            },
+            {
+              "_id": "59cb63fa0c8103f131a4333d",
+              "dept_no": 49621075,
+              "parent_no": 1,
+              "name": "金微星建工",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 78,
+              "departmentId": 49621075,
+              "parentId": 1,
+              "order": 78,
+              "editable": true
+            }
+          ],
+          "roles": []
+        },
+        "printIds": [],
+        "status": 1,
+        "seq": 9344,
+        "desc": "在此分组内的成员可以发起流程",
+        "presetName": "发起流程",
+        "enable": true
+      },
+      {
+        "_id": "5f9b6dacb6ec680007f9c472",
+        "groupId": -2,
+        "members": {
+          "users": [],
+          "departs": [
+            {
+              "_id": "56ca5b8af97e80434fc06121",
+              "dept_no": 4430298,
+              "parent_no": 54742764,
+              "name": "客户服务部",
+              "path": [
+                1,
+                54742764
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 55,
+              "departmentId": 4430298,
+              "parentId": 54742764,
+              "order": 55,
+              "editable": true
+            }
+          ],
+          "roles": []
+        },
+        "printIds": [],
+        "status": 1,
+        "seq": 12928,
+        "desc": "在此分组内的成员可以查看全部流程",
+        "presetName": "查看全部流程",
+        "enable": true
+      },
+      {
+        "_id": "5f9b6dacb6ec680007f9c474",
+        "members": {
+          "users": [],
+          "departs": [
+            {
+              "_id": "56ca5b8af97e80434fc0612a",
+              "dept_no": 4430387,
+              "parent_no": 1,
+              "name": "董事会",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 9,
+              "departmentId": 4430387,
+              "parentId": 1,
+              "order": 9,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06117",
+              "dept_no": 4371366,
+              "parent_no": 1,
+              "name": "总经理",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 17,
+              "departmentId": 4371366,
+              "parentId": 1,
+              "order": 17,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611b",
+              "dept_no": 4430291,
+              "parent_no": 1,
+              "name": "总经办",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 23,
+              "departmentId": 4430291,
+              "parentId": 1,
+              "order": 23,
+              "editable": true
+            },
+            {
+              "_id": "642e5d42bea83252be799020",
+              "dept_no": 843243589,
+              "name": "科技规划办公室",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": -1,
+              "seq": 24,
+              "departmentId": 843243589,
+              "order": 24,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611d",
+              "dept_no": 4430294,
+              "parent_no": 1,
+              "name": "行政部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 27,
+              "departmentId": 4430294,
+              "parentId": 1,
+              "order": 27,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06116",
+              "dept_no": 4368508,
+              "parent_no": 1,
+              "name": "财务部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 31,
+              "departmentId": 4368508,
+              "parentId": 1,
+              "order": 31,
+              "editable": true
+            },
+            {
+              "_id": "5a1f69ecb77d3d7d0e84e768",
+              "dept_no": 54742764,
+              "parent_no": 1,
+              "name": "技术总工",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 35,
+              "departmentId": 54742764,
+              "parentId": 1,
+              "order": 35,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611f",
+              "dept_no": 4430296,
+              "parent_no": 1,
+              "name": "生产管理部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 41,
+              "departmentId": 4430296,
+              "parentId": 1,
+              "order": 41,
+              "editable": true
+            },
+            {
+              "_id": "615c078c3ec912e56d66cc3e",
+              "dept_no": 551138197,
+              "parent_no": 1,
+              "name": "研发中心*研发制作",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 44,
+              "departmentId": 551138197,
+              "parentId": 1,
+              "order": 44,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06120",
+              "dept_no": 4430297,
+              "parent_no": 1,
+              "name": "工艺与质量控制部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 50,
+              "departmentId": 4430297,
+              "parentId": 1,
+              "order": 50,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06114",
+              "dept_no": 4335335,
+              "parent_no": 1,
+              "name": "AI中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 57,
+              "departmentId": 4335335,
+              "parentId": 1,
+              "order": 57,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06119",
+              "dept_no": 4430289,
+              "parent_no": 1,
+              "name": "人力资源部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 59,
+              "departmentId": 4430289,
+              "parentId": 1,
+              "order": 59,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611a",
+              "dept_no": 4430290,
+              "parent_no": 1,
+              "name": "信息情报部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 61,
+              "departmentId": 4430290,
+              "parentId": 1,
+              "order": 61,
+              "editable": true
+            },
+            {
+              "_id": "57ce1791b6eb93772163787d",
+              "dept_no": 15943580,
+              "parent_no": 1,
+              "name": "人工智能+营销支持部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 62,
+              "departmentId": 15943580,
+              "parentId": 1,
+              "order": 62,
+              "editable": true
+            },
+            {
+              "_id": "60fc55223ec912e56dd675c7",
+              "dept_no": 506121698,
+              "name": "小萌中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": -1,
+              "seq": 63,
+              "departmentId": 506121698,
+              "order": 63,
+              "editable": true
+            },
+            {
+              "_id": "5f5280bb576dbcf967d8a661",
+              "dept_no": 402157113,
+              "parent_no": 1,
+              "name": "审计部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 65,
+              "departmentId": 402157113,
+              "parentId": 1,
+              "order": 65,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0614a",
+              "dept_no": 4513548,
+              "parent_no": 1,
+              "name": "证券部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 67,
+              "departmentId": 4513548,
+              "parentId": 1,
+              "order": 67,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06129",
+              "dept_no": 4430308,
+              "parent_no": 1,
+              "name": "计划采购部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 69,
+              "departmentId": 4430308,
+              "parentId": 1,
+              "order": 69,
+              "editable": true
+            },
+            {
+              "_id": "58a64a3f0c8103f1319c8754",
+              "dept_no": 26426217,
+              "parent_no": 1,
+              "name": "物流部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 70,
+              "departmentId": 26426217,
+              "parentId": 1,
+              "order": 70,
+              "editable": true
+            },
+            {
+              "_id": "5a9fa0ada21496c4066c2c4b",
+              "dept_no": 61166000,
+              "parent_no": 1,
+              "name": "市场支持中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 71,
+              "departmentId": 61166000,
+              "parentId": 1,
+              "order": 71,
+              "editable": true
+            },
+            {
+              "_id": "57ce1791b6eb93772163787f",
+              "dept_no": 16629288,
+              "name": "工业机器人销售部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": -1,
+              "seq": 72,
+              "departmentId": 16629288,
+              "order": 72,
+              "editable": true
+            },
+            {
+              "_id": "5a9fa0ada21496c4066c2c4c",
+              "dept_no": 61192369,
+              "parent_no": 1,
+              "name": "（暂存）冶金装备销售事业部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 72,
+              "departmentId": 61192369,
+              "parentId": 1,
+              "order": 72,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06143",
+              "dept_no": 4507725,
+              "parent_no": 1,
+              "name": "清欠办",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 73,
+              "departmentId": 4507725,
+              "parentId": 1,
+              "order": 73,
+              "editable": true
+            },
+            {
+              "_id": "59dc5c5f0b18743912395106",
+              "dept_no": 52371059,
+              "parent_no": 1,
+              "name": "新疆威猛工业智能装备有限公司",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 74,
+              "departmentId": 52371059,
+              "parentId": 1,
+              "order": 74,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06124",
+              "dept_no": 4430301,
+              "parent_no": 1,
+              "name": "精细筛分装备销售部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 75,
+              "departmentId": 4430301,
+              "parentId": 1,
+              "order": 75,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06126",
+              "dept_no": 4430303,
+              "parent_no": 1,
+              "name": "冶金矿山装备销售事业部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 76,
+              "departmentId": 4430303,
+              "parentId": 1,
+              "order": 76,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06128",
+              "dept_no": 4430306,
+              "parent_no": 1,
+              "name": "国际营销中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 77,
+              "departmentId": 4430306,
+              "parentId": 1,
+              "order": 77,
+              "editable": true
+            },
+            {
+              "_id": "59cb63fa0c8103f131a4333d",
+              "dept_no": 49621075,
+              "parent_no": 1,
+              "name": "金微星建工",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 78,
+              "departmentId": 49621075,
+              "parentId": 1,
+              "order": 78,
+              "editable": true
+            }
+          ],
+          "roles": []
+        },
+        "printIds": [],
+        "name": "查看自己流程",
+        "desc": "",
+        "groupId": 3,
+        "status": 1,
+        "seq": 14464,
+        "enable": true
+      },
+      {
+        "_id": "62de540ccc9e45000753eb78",
+        "members": {
+          "users": [],
+          "departs": [
+            {
+              "_id": "56ca5b8af97e80434fc0612a",
+              "dept_no": 4430387,
+              "parent_no": 1,
+              "name": "董事会",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 9,
+              "departmentId": 4430387,
+              "parentId": 1,
+              "order": 9,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06117",
+              "dept_no": 4371366,
+              "parent_no": 1,
+              "name": "总经理",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 17,
+              "departmentId": 4371366,
+              "parentId": 1,
+              "order": 17,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611b",
+              "dept_no": 4430291,
+              "parent_no": 1,
+              "name": "总经办",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 23,
+              "departmentId": 4430291,
+              "parentId": 1,
+              "order": 23,
+              "editable": true
+            },
+            {
+              "_id": "642e5d42bea83252be799020",
+              "dept_no": 843243589,
+              "name": "科技规划办公室",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": -1,
+              "seq": 24,
+              "departmentId": 843243589,
+              "order": 24,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611d",
+              "dept_no": 4430294,
+              "parent_no": 1,
+              "name": "行政部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 27,
+              "departmentId": 4430294,
+              "parentId": 1,
+              "order": 27,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06116",
+              "dept_no": 4368508,
+              "parent_no": 1,
+              "name": "财务部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 31,
+              "departmentId": 4368508,
+              "parentId": 1,
+              "order": 31,
+              "editable": true
+            },
+            {
+              "_id": "5a1f69ecb77d3d7d0e84e768",
+              "dept_no": 54742764,
+              "parent_no": 1,
+              "name": "技术总工",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 35,
+              "departmentId": 54742764,
+              "parentId": 1,
+              "order": 35,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611f",
+              "dept_no": 4430296,
+              "parent_no": 1,
+              "name": "生产管理部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 41,
+              "departmentId": 4430296,
+              "parentId": 1,
+              "order": 41,
+              "editable": true
+            },
+            {
+              "_id": "615c078c3ec912e56d66cc3e",
+              "dept_no": 551138197,
+              "parent_no": 1,
+              "name": "研发中心*研发制作",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 44,
+              "departmentId": 551138197,
+              "parentId": 1,
+              "order": 44,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06120",
+              "dept_no": 4430297,
+              "parent_no": 1,
+              "name": "工艺与质量控制部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 50,
+              "departmentId": 4430297,
+              "parentId": 1,
+              "order": 50,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06114",
+              "dept_no": 4335335,
+              "parent_no": 1,
+              "name": "AI中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 57,
+              "departmentId": 4335335,
+              "parentId": 1,
+              "order": 57,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06119",
+              "dept_no": 4430289,
+              "parent_no": 1,
+              "name": "人力资源部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 59,
+              "departmentId": 4430289,
+              "parentId": 1,
+              "order": 59,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0611a",
+              "dept_no": 4430290,
+              "parent_no": 1,
+              "name": "信息情报部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 61,
+              "departmentId": 4430290,
+              "parentId": 1,
+              "order": 61,
+              "editable": true
+            },
+            {
+              "_id": "57ce1791b6eb93772163787d",
+              "dept_no": 15943580,
+              "parent_no": 1,
+              "name": "人工智能+营销支持部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 62,
+              "departmentId": 15943580,
+              "parentId": 1,
+              "order": 62,
+              "editable": true
+            },
+            {
+              "_id": "60fc55223ec912e56dd675c7",
+              "dept_no": 506121698,
+              "name": "小萌中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": -1,
+              "seq": 63,
+              "departmentId": 506121698,
+              "order": 63,
+              "editable": true
+            },
+            {
+              "_id": "5f5280bb576dbcf967d8a661",
+              "dept_no": 402157113,
+              "parent_no": 1,
+              "name": "审计部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 65,
+              "departmentId": 402157113,
+              "parentId": 1,
+              "order": 65,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc0614a",
+              "dept_no": 4513548,
+              "parent_no": 1,
+              "name": "证券部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 67,
+              "departmentId": 4513548,
+              "parentId": 1,
+              "order": 67,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06129",
+              "dept_no": 4430308,
+              "parent_no": 1,
+              "name": "计划采购部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 69,
+              "departmentId": 4430308,
+              "parentId": 1,
+              "order": 69,
+              "editable": true
+            },
+            {
+              "_id": "58a64a3f0c8103f1319c8754",
+              "dept_no": 26426217,
+              "parent_no": 1,
+              "name": "物流部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 70,
+              "departmentId": 26426217,
+              "parentId": 1,
+              "order": 70,
+              "editable": true
+            },
+            {
+              "_id": "5a9fa0ada21496c4066c2c4b",
+              "dept_no": 61166000,
+              "parent_no": 1,
+              "name": "市场支持中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 71,
+              "departmentId": 61166000,
+              "parentId": 1,
+              "order": 71,
+              "editable": true
+            },
+            {
+              "_id": "57ce1791b6eb93772163787f",
+              "dept_no": 16629288,
+              "name": "工业机器人销售部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": -1,
+              "seq": 72,
+              "departmentId": 16629288,
+              "order": 72,
+              "editable": true
+            },
+            {
+              "_id": "5a9fa0ada21496c4066c2c4c",
+              "dept_no": 61192369,
+              "parent_no": 1,
+              "name": "（暂存）冶金装备销售事业部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 72,
+              "departmentId": 61192369,
+              "parentId": 1,
+              "order": 72,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06143",
+              "dept_no": 4507725,
+              "parent_no": 1,
+              "name": "清欠办",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 73,
+              "departmentId": 4507725,
+              "parentId": 1,
+              "order": 73,
+              "editable": true
+            },
+            {
+              "_id": "59dc5c5f0b18743912395106",
+              "dept_no": 52371059,
+              "parent_no": 1,
+              "name": "新疆威猛工业智能装备有限公司",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 74,
+              "departmentId": 52371059,
+              "parentId": 1,
+              "order": 74,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06124",
+              "dept_no": 4430301,
+              "parent_no": 1,
+              "name": "精细筛分装备销售部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 75,
+              "departmentId": 4430301,
+              "parentId": 1,
+              "order": 75,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06126",
+              "dept_no": 4430303,
+              "parent_no": 1,
+              "name": "冶金矿山装备销售事业部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 76,
+              "departmentId": 4430303,
+              "parentId": 1,
+              "order": 76,
+              "editable": true
+            },
+            {
+              "_id": "56ca5b8af97e80434fc06128",
+              "dept_no": 4430306,
+              "parent_no": 1,
+              "name": "国际营销中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 77,
+              "departmentId": 4430306,
+              "parentId": 1,
+              "order": 77,
+              "editable": true
+            },
+            {
+              "_id": "59cb63fa0c8103f131a4333d",
+              "dept_no": 49621075,
+              "parent_no": 1,
+              "name": "金微星建工",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 78,
+              "departmentId": 49621075,
+              "parentId": 1,
+              "order": 78,
+              "editable": true
+            }
+          ],
+          "roles": []
+        },
+        "printIds": [],
+        "viewIds": [],
+        "name": "删除自己流程",
+        "desc": "",
+        "groupId": 4,
+        "status": 1,
+        "seq": 15616,
+        "enable": true
+      },
+      {
+        "_id": "67038173375cbbec51d6b922",
+        "groupId": 5,
+        "name": "导出",
+        "desc": "",
+        "members": {
+          "users": [],
+          "departs": [],
+          "roles": [
+            {
+              "id": 2940,
+              "_id": "67037f6d286afc672515cc84",
+              "role_id": 2940,
+              "role_no": 2940,
+              "name": "客服日志设计导出25人-260330",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2639,
+              "group_no": 2639,
+              "seq": 349170,
+              "status": 1
+            }
+          ]
+        },
+        "printIds": [],
+        "viewIds": [],
+        "status": 1,
+        "seq": 16640,
+        "autoProcessIds": [],
+        "displayAutoProcessIds": [],
+        "enable": true
+      }
+    ],
+    "optionalAuthGroups": [
+      {
+        "name": "导出",
+        "groupId": 5
+      },
+      {
+        "name": "删除自己流程",
+        "groupId": 4
+      },
+      {
+        "name": "查看自己流程",
+        "groupId": 3
+      },
+      {
+        "name": "发起流程",
+        "groupId": -1
+      },
+      {
+        "name": "查看全部流程",
+        "groupId": -2
+      },
+      {
+        "name": "管理全部流程",
+        "groupId": -4
+      }
+    ],
+    "allowSwitchAuthGroupDisplayMode": true,
+    "authGroupDisplayMode": 1
+  },
+  "config_synced_at": "2026-07-01T05:50:55.190806"
+}

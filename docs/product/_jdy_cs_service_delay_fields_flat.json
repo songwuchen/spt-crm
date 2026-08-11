@@ -1,0 +1,134 @@
+[
+  {
+    "name": "_widget_1604021830267",
+    "title": "流水号",
+    "type": "sn",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585191665097",
+    "title": "合同号",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585191665061",
+    "title": "业务员",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585191665079",
+    "title": "所属部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585191665113",
+    "title": "设备信息",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "产品名称",
+      "规格型号",
+      "数量/单位"
+    ]
+  },
+  {
+    "name": "_widget_1585191665125",
+    "title": "产品名称",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1585191665113",
+    "options": []
+  },
+  {
+    "name": "_widget_1585191665148",
+    "title": "规格型号",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1585191665113",
+    "options": []
+  },
+  {
+    "name": "_widget_1585191665207",
+    "title": "数量/单位",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1585191665113",
+    "options": []
+  },
+  {
+    "name": "_widget_1585191665226",
+    "title": "服务公司",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585191665241",
+    "title": "服务事项",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585191665258",
+    "title": "延期至",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585191665284",
+    "title": "延期原因",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585191665301",
+    "title": "备注",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "creator",
+    "title": "提交人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "createTime",
+    "title": "提交时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "updateTime",
+    "title": "更新时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  }
+]

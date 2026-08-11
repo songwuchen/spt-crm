@@ -11,6 +11,9 @@ import PersonField, {
 import DeptField from '@/components/lowcode/fields/DeptField'
 import FileField from '@/components/lowcode/fields/FileField'
 import CustomerField from '@/components/lowcode/fields/CustomerField'
+import ContractField, {
+  fetchProdCardContractFill, PROD_CARD_FILL_CLEAR,
+} from '@/components/lowcode/fields/ContractField'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { dateFieldFormat, fieldShowsTime } from '@/components/lowcode/dateField'
@@ -168,6 +171,9 @@ export default function ApproveFieldForm({
   const setField = (id: string, v: unknown) => {
     onChange({ ...values, [id]: v })
   }
+  const patchFields = (patch: Record<string, unknown>) => {
+    onChange({ ...values, ...patch })
+  }
 
   const missing = new Set(
     localHighlight
@@ -298,6 +304,48 @@ export default function ApproveFieldForm({
                     value={val}
                     onChange={(v) => setField(p.field, v)}
                     placeholder={`请选择${label}`}
+                  />
+                </div>
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
+              </div>
+            )
+          }
+
+          if (t === 'contract') {
+            const fillMode = (fieldProps as { contract_fill?: 'drawing_no_query' | 'contract_no_select' }).contract_fill
+            const deptField = (fieldProps as { filter_by_department_field?: string }).filter_by_department_field
+            let departmentId: string | undefined
+            if (deptField) {
+              const rawDept = mergedValues[deptField]
+              if (Array.isArray(rawDept) && rawDept[0] != null && rawDept[0] !== '') {
+                departmentId = String(rawDept[0])
+              } else if (rawDept != null && rawDept !== '') {
+                departmentId = String(rawDept)
+              }
+            }
+            return (
+              <div key={p.field} className={err ? 'approve-field-error' : undefined}>
+                <FieldLabel label={label} required={required} error={err} />
+                <div style={{ marginTop: 4 }}>
+                  <ContractField
+                    value={val}
+                    departmentId={departmentId}
+                    placeholder={`请选择${label}`}
+                    onChange={(v) => {
+                      if (!fillMode) {
+                        setField(p.field, v)
+                        return
+                      }
+                      if (!v) {
+                        const cleared: Record<string, unknown> = { [p.field]: undefined }
+                        for (const k of PROD_CARD_FILL_CLEAR[fillMode] || []) cleared[k] = undefined
+                        patchFields(cleared)
+                        return
+                      }
+                      void fetchProdCardContractFill(v, fillMode).then((fill) => {
+                        patchFields({ [p.field]: v, ...fill })
+                      }).catch(() => setField(p.field, v))
+                    }}
                   />
                 </div>
                 {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}

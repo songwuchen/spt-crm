@@ -18,7 +18,9 @@ import PersonField, {
 } from './fields/PersonField'
 import DeptField from './fields/DeptField'
 import ProjectField from './fields/ProjectField'
-import ContractField from './fields/ContractField'
+import ContractField, {
+  fetchProdCardContractFill, PROD_CARD_FILL_CLEAR,
+} from './fields/ContractField'
 import CustomerField from './fields/CustomerField'
 import FileField from './fields/FileField'
 import AddressField from './fields/AddressField'
@@ -109,6 +111,9 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
   const setField = (id: string, v: unknown) => {
     onChange?.({ ...value, [id]: v })
   }
+  const patchFields = (patch: Record<string, unknown>) => {
+    onChange?.({ ...value, ...patch })
+  }
 
   const topFields = fields.filter((f) => !GROUP_TYPES.has(f.type))
   if (!topFields.length) return <Empty description="该表单暂无字段" />
@@ -140,6 +145,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
               value={value[field.id]}
               allValues={ruleValues}
               onChange={(v) => setField(field.id, v)}
+              onPatch={patchFields}
               serialPreview={serialPreviews?.[field.id]}
               rules={rules}
               fields={fields}
@@ -153,7 +159,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
 }
 
 function FieldItem({
-  field, state, mode, value, allValues, onChange, serialPreview, rules = [], fields = [], detailLayout = 'table',
+  field, state, mode, value, allValues, onChange, onPatch, serialPreview, rules = [], fields = [], detailLayout = 'table',
 }: {
   field: FieldDefinition
   state?: FieldState
@@ -161,6 +167,7 @@ function FieldItem({
   value: unknown
   allValues: Record<string, unknown>
   onChange: (v: unknown) => void
+  onPatch?: (patch: Record<string, unknown>) => void
   serialPreview?: string
   rules?: FormRule[]
   fields?: FieldDefinition[]
@@ -169,12 +176,14 @@ function FieldItem({
   const readonly = mode === 'readonly' || state?.readonly
     || !!(field.props as { read_only?: boolean } | undefined)?.read_only
     || !!field.readonly
+    || field.form_editable === false
   const required = state?.required
   // 脱敏字段一律不渲染真实控件：后端已把值换成 "***"，但若值恰好没被裁到（如设计器预览），
   // 这里也不能把明文渲染出去。
   const masked = state?.masked || field.masked
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 16 }} data-lc-field={field.id}>
+      {(field.label || required) ? (
       <div style={{ marginBottom: 4, fontSize: 13, color: 'rgba(0,0,0,0.75)' }}>
         {required && <span style={{ color: '#ff4d4f', marginRight: 4 }}>*</span>}
         {field.label}
@@ -184,6 +193,7 @@ function FieldItem({
           </Text>
         )}
       </div>
+      ) : null}
       {masked
         ? <Text type="secondary" title="您所在角色无权查看该字段的明文">{MASK_VALUE}</Text>
         : (
@@ -193,6 +203,7 @@ function FieldItem({
             value={value}
             allValues={allValues}
             onChange={onChange}
+            onPatch={onPatch}
             serialPreview={serialPreview}
             rules={rules}
             fields={fields}
@@ -204,13 +215,14 @@ function FieldItem({
 }
 
 function FieldWidget({
-  field, readonly, value, allValues, onChange, serialPreview, rules = [], fields = [], detailLayout = 'table',
+  field, readonly, value, allValues, onChange, onPatch, serialPreview, rules = [], fields = [], detailLayout = 'table',
 }: {
   field: FieldDefinition
   readonly: boolean
   value: unknown
   allValues: Record<string, unknown>
   onChange: (v: unknown) => void
+  onPatch?: (patch: Record<string, unknown>) => void
   serialPreview?: string
   rules?: FormRule[]
   fields?: FieldDefinition[]
@@ -282,8 +294,46 @@ function FieldWidget({
     }
     case 'project':
       return <ProjectField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
-    case 'contract':
-      return <ContractField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
+    case 'contract': {
+      const props = (field.props || {}) as {
+        filter_by_department_field?: string
+        contract_fill?: 'drawing_no_query' | 'contract_no_select'
+      }
+      const deptField = props.filter_by_department_field
+      let departmentId: string | undefined
+      if (deptField) {
+        const rawDept = allValues[deptField]
+        if (Array.isArray(rawDept) && rawDept[0] != null && rawDept[0] !== '') {
+          departmentId = String(rawDept[0])
+        } else if (rawDept != null && rawDept !== '') {
+          departmentId = String(rawDept)
+        }
+      }
+      const fillMode = props.contract_fill
+      return (
+        <ContractField
+          value={value}
+          readonly={readonly}
+          placeholder={ph}
+          departmentId={departmentId}
+          onChange={(v) => {
+            if (!fillMode || !onPatch) {
+              onChange(v)
+              return
+            }
+            if (!v) {
+              const cleared: Record<string, unknown> = { [field.id]: undefined }
+              for (const k of PROD_CARD_FILL_CLEAR[fillMode] || []) cleared[k] = undefined
+              onPatch(cleared)
+              return
+            }
+            void fetchProdCardContractFill(v, fillMode).then((fill) => {
+              onPatch({ [field.id]: v, ...fill })
+            }).catch(() => onChange(v))
+          }}
+        />
+      )
+    }
     case 'customer':
       return <CustomerField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
     case 'file':
@@ -586,13 +636,15 @@ function DetailTable({
   )
 }
 
-// 客户端必填校验(即时反馈;后端仍会二次校验)。返回首个错误或 null。
-export function validateRequired(
+// 客户端必填校验(即时反馈;后端仍会二次校验)。
+export type RequiredFieldError = { message: string; fieldId: string }
+
+export function findRequiredError(
   fields: FieldDefinition[],
   states: Record<string, FieldState>,
   values: Record<string, unknown>,
   rules: FormRule[] = [],
-): string | null {
+): RequiredFieldError | null {
   const empty = (v: unknown) => v == null || v === '' || (Array.isArray(v) && v.length === 0)
   for (const f of fields) {
     if (f.type === 'formula' || f.type === 'auto_number') continue
@@ -603,8 +655,9 @@ export function validateRequired(
     if (st && !st.visible) continue
     // 脱敏字段跳过必填：看不到明文就无法填写，脱敏+必填会让记录永远存不下去
     if (st?.masked) continue
+    const label = f.label || f.id
     const req = st ? st.required : f.required
-    if (req && empty(values[f.id])) return `「${f.label}」为必填项`
+    if (req && empty(values[f.id])) return { message: `「${label}」为必填项`, fieldId: f.id }
     if (f.type === 'detail_table') {
       const rows = values[f.id]
       if (!Array.isArray(rows) || !rows.length) continue
@@ -618,11 +671,45 @@ export function validateRequired(
           if (cst && !cst.visible) continue
           const colReq = cst ? cst.required : !!c.required
           if (colReq && empty(row[c.id])) {
-            return `「${f.label}」第 ${i + 1} 行「${c.label}」为必填项`
+            return {
+              message: `「${label}」第 ${i + 1} 行「${c.label || c.id}」为必填项`,
+              fieldId: f.id,
+            }
           }
         }
       }
     }
   }
   return null
+}
+
+/** 滚到低代码字段锚点并短暂高亮，便于提交校验失败时定位。 */
+export function scrollToLcField(fieldId: string) {
+  if (!fieldId || typeof document === 'undefined') return
+  const el = document.querySelector(`[data-lc-field="${CSS.escape(fieldId)}"]`) as HTMLElement | null
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  const prevOutline = el.style.outline
+  const prevOffset = el.style.outlineOffset
+  el.style.outline = '2px solid #ff4d4f'
+  el.style.outlineOffset = '4px'
+  window.setTimeout(() => {
+    el.style.outline = prevOutline
+    el.style.outlineOffset = prevOffset
+  }, 1600)
+  const focusable = el.querySelector(
+    'input:not([disabled]),textarea:not([disabled]),select:not([disabled]),button:not([disabled]),[tabindex]:not([tabindex="-1"])',
+  ) as HTMLElement | null
+  try {
+    focusable?.focus({ preventScroll: true })
+  } catch { /* ignore */ }
+}
+
+export function validateRequired(
+  fields: FieldDefinition[],
+  states: Record<string, FieldState>,
+  values: Record<string, unknown>,
+  rules: FormRule[] = [],
+): string | null {
+  return findRequiredError(fields, states, values, rules)?.message ?? null
 }

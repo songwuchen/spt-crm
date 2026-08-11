@@ -5,7 +5,7 @@ import { Card, Button, Space, message, Typography, Result } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
 import type { FieldDefinition, FormRule } from '@/types/lowcode'
-import FormRenderer, { validateRequired, deriveRolePerms } from '@/components/lowcode/FormRenderer'
+import FormRenderer, { findRequiredError, scrollToLcField, deriveRolePerms } from '@/components/lowcode/FormRenderer'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { DRAWING_FORM_LAYOUT, applyDrawingFormLayout } from '@/constants/drawingFormLayout'
@@ -224,8 +224,12 @@ export default function FormFillPage({
   const submit = async (asDraft: boolean) => {
     if (!asDraft) {
       const states = computeFieldStates(displayFields, value, rules, deriveRolePerms(displayFields, userRoles))
-      const e = validateRequired(displayFields, states, value, rules)
-      if (e) { message.error(e); return }
+      const e = findRequiredError(displayFields, states, value, rules)
+      if (e) {
+        message.error(e.message)
+        scrollToLcField(e.fieldId)
+        return
+      }
     }
     setSubmitting(true)
     try {

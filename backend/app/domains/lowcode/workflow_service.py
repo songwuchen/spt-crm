@@ -383,10 +383,70 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "multi_mode": "or_sign",
         "empty_strategy": "auto_approve",
     },
+    {
+        "form_code": "cs_service_request",
+        "code": "SYS_CS_SERVICE_REQUEST",
+        "name": "客户服务申请及反馈",
+        "approver_rule": {
+            "type": "specified_role", "value": "service_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "form_code": "cs_product_replace",
+        "code": "SYS_CS_PRODUCT_REPLACE",
+        "name": "售出产品更换（补发）",
+        "approver_rule": {
+            "type": "specified_role", "value": "service_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "form_code": "cs_product_return",
+        "code": "SYS_CS_PRODUCT_RETURN",
+        "name": "售出产品/工具退回",
+        "approver_rule": {
+            "type": "specified_role", "value": "service_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "form_code": "cs_loan_slip",
+        "code": "SYS_CS_LOAN_SLIP",
+        "name": "客服借据",
+        "approver_rule": {
+            "type": "specified_role", "value": "service_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "form_code": "cs_service_delay",
+        "code": "SYS_CS_SERVICE_DELAY",
+        "name": "客户服务延期申请",
+        "approver_rule": {
+            "type": "specified_role", "value": "service_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "form_code": "cs_correspondence",
+        "code": "SYS_CS_CORRESPONDENCE",
+        "name": "客服往来函件",
+        "approver_rule": {
+            "type": "specified_role", "value": "service_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
 ]
 
 DRAWING_FORM_FLOW_DESC = (
-    "对齐简道云表单流程拓扑（图纸/方案/生产卡/开票/收款；具名审批人/角色在 CRM 无对应用户时 "
+    "对齐简道云表单流程拓扑（图纸/方案/生产卡/开票/收款/售后客服；具名审批人/角色在 CRM 无对应用户时 "
     "empty_strategy=auto_approve；详见 docs/product/_jdy_*_forms.md）"
 )
 
@@ -423,6 +483,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         packs.update(PRICING_CHECKLIST_HJQD_JDY)
     except Exception:
         pass
+    try:
+        from app.domains.lowcode._customer_service_jdy_generated import CUSTOMER_SERVICE_JDY
+        packs.update(CUSTOMER_SERVICE_JDY)
+    except Exception:
+        pass
     pack = packs.get(form_code)
     if not pack:
         return None
@@ -454,6 +519,21 @@ def _flow_has_node_field_perms(nodes: list | None) -> bool:
         isinstance(n, dict) and n.get("type") == "approval" and n.get("field_perms")
         for n in (nodes or [])
     )
+
+
+def _flow_field_perms_sig(nodes: list | None) -> str:
+    """审批节点 field_perms 指纹（含 required/editable），用于检测简道云校验变更。"""
+    import json
+    items: list[tuple[str, str, str]] = []
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        nid = str(n.get("id") or "")
+        for p in n.get("field_perms") or []:
+            if not isinstance(p, dict):
+                continue
+            items.append((nid, str(p.get("field") or ""), str(p.get("access") or "")))
+    return json.dumps(sorted(items), ensure_ascii=False)
 
 
 def _flow_missing_biz_score_perms(nodes: list | None) -> bool:
@@ -632,7 +712,16 @@ def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
         return _flow_is_jdy_quote(nodes)
     if form_code == "pricing_checklist_hjqd":
         return _flow_is_jdy_pricing_checklist(nodes)
+    if form_code and form_code.startswith("cs_"):
+        return _flow_is_jdy_customer_service(nodes)
     return False
+
+
+def _flow_is_jdy_customer_service(nodes: list | None) -> bool:
+    """已对齐简道云客户服务部流程：多审批节点（非单节点兜底）。"""
+    nodes = nodes or []
+    types = {n.get("type") for n in nodes if isinstance(n, dict)}
+    return "approval" in types and len(nodes) >= 5
 
 
 def _flow_is_jdy_pricing_checklist(nodes: list | None) -> bool:
@@ -1390,6 +1479,13 @@ async def _upgrade_drawing_form_flow_if_needed(
         "SYS_INVOICE_APPLICATION",
         "SYS_PAYMENT_REGISTRATION",
         "SYS_QUOTE_MANAGEMENT",
+        "SYS_PRICING_CHECKLIST_HJQD",
+        "SYS_CS_SERVICE_REQUEST",
+        "SYS_CS_PRODUCT_REPLACE",
+        "SYS_CS_PRODUCT_RETURN",
+        "SYS_CS_LOAN_SLIP",
+        "SYS_CS_SERVICE_DELAY",
+        "SYS_CS_CORRESPONDENCE",
     ):
         return
     graph = _drawing_flow_graph(form_code)
@@ -1416,6 +1512,11 @@ async def _upgrade_drawing_form_flow_if_needed(
         and not (
             _flow_has_node_field_perms(new_nodes)
             and not _flow_has_node_field_perms(version.node_definitions)
+        )
+        and not (
+            _flow_has_node_field_perms(new_nodes)
+            and _flow_field_perms_sig(new_nodes)
+            != _flow_field_perms_sig(version.node_definitions)
         )
         and not (
             form_code == "install_drawing_notice"
@@ -1610,6 +1711,18 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "报价管理"
     elif form_code == "pricing_checklist_hjqd":
         d.name = "核价清单传递"
+    elif form_code == "cs_service_request":
+        d.name = "客户服务申请及反馈"
+    elif form_code == "cs_product_replace":
+        d.name = "售出产品更换（补发）"
+    elif form_code == "cs_product_return":
+        d.name = "售出产品/工具退回"
+    elif form_code == "cs_loan_slip":
+        d.name = "客服借据"
+    elif form_code == "cs_service_delay":
+        d.name = "客户服务延期申请"
+    elif form_code == "cs_correspondence":
+        d.name = "客服往来函件"
     await _publish_system_default_upgrade(
         db, tenant_id, d, version, new_nodes, new_routes,
         DRAWING_FORM_FLOW_DESC, f"简道云表单流({form_code})",

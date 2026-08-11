@@ -1,0 +1,554 @@
+[
+  {
+    "folder": "客服人员跟踪-210406关",
+    "name": "(210406)7.2.1人员跟踪表",
+    "type": "form",
+    "id": "58e3020d81942fcb3b1479c6",
+    "hasFlow": false,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "客服人员跟踪-210406关",
+    "name": "现场购买物资入库流程-210406关",
+    "type": "form",
+    "id": "5da03aa8b19df6000615e3c2",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "客服日志",
+    "name": "客服日志-260701",
+    "type": "form",
+    "id": "5da6665ea116b30006467184",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "客户服务记录",
+    "type": "form",
+    "id": "5da67046a116b30006467b68",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "客服日志",
+    "name": "客服日报仪表盘",
+    "type": "dash",
+    "id": "5dad05934cb6490006998fd8",
+    "hasFlow": false,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "客服部信息平台",
+    "type": "dash",
+    "id": "5dae743c0beac40006c9611d",
+    "hasFlow": false,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "客服人员跟踪-210406关",
+    "name": "（230309关停）7.8安装调试结果通知",
+    "type": "form",
+    "id": "5ddce088dd7ac00006a303e9",
+    "hasFlow": false,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "客服流程",
+    "name": "客户服务申请及反馈",
+    "type": "form",
+    "id": "5e06c8a92675f1000634baf1",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "客服流程",
+    "name": "售出产品更换（补发）流程",
+    "type": "form",
+    "id": "5e06f4ad2a9eb70007f7c164",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "客服流程",
+    "name": "售出产品/工具退回流程SCCP/GJTH",
+    "type": "form",
+    "id": "5e10538c0d5a270006df2763",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "客户服务延期申请",
+    "type": "form",
+    "id": "5f9b6dacb6ec680007f9c46f",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "故障部位（数据维护）",
+    "type": "form",
+    "id": "6063cfd6698a2f000841f41b",
+    "hasFlow": false,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "售出产品更换（补发）信息平台",
+    "type": "dash",
+    "id": "606bf80db2965b00088b36d6",
+    "hasFlow": false,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "客服流程",
+    "name": "客服借据",
+    "type": "form",
+    "id": "62cccb4c8ee15d0009136487",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "客服领图",
+    "type": "form",
+    "id": "63840316a3241c000a805869",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "客户服务评价",
+    "type": "form",
+    "id": "644b2e30be37a50009751a1c",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "客户系统看板",
+    "type": "dash",
+    "id": "651255ca54c64434c689769e",
+    "hasFlow": false,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "客服人员跟踪-210406关",
+    "name": "客服紧急发货KFJJFH（260320停用）",
+    "type": "form",
+    "id": "65655cdf3427f1fe47fd105c",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "客服会议纪要KFHYJY",
+    "type": "form",
+    "id": "657425e5dd8c742e10423c70",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "外协用工申请流程K-WXYG",
+    "type": "form",
+    "id": "658b7721ca600bb80a97554b",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "客服往来函件KFWLHJ",
+    "type": "form",
+    "id": "65de94717b566a9ff2059102",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "客服日志",
+    "name": "日报查询",
+    "type": "dash",
+    "id": "6679252b419551dda0576e0a",
+    "hasFlow": false,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "客服流程",
+    "name": "客服待发货进程DFH",
+    "type": "form",
+    "id": "669f19999a10c5740be39152",
+    "hasFlow": true,
+    "app": "58e2fbc7ffd1608b4ce92809"
+  },
+  {
+    "folder": "1",
+    "name": "核价管理流程",
+    "type": "form",
+    "id": "5e6c740e6d74970006a67190",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "停用未用流程",
+    "name": "BOM单变更申请（未启用）",
+    "type": "form",
+    "id": "5e6c9feda73e9700063e40ec",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "图纸",
+    "name": "安装图设计通知",
+    "type": "form",
+    "id": "5e6edc5b44b7070006d191cb",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "图纸",
+    "name": "合同图纸（资料）领用申请",
+    "type": "form",
+    "id": "5e6ee08be3051400062159ee",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "合理化建议上报程序（原持续改进）",
+    "type": "form",
+    "id": "5e7311a0cd48890006429613",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "设备安装服务流程",
+    "type": "form",
+    "id": "5e7577eb0d2d440006b800dd",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "工程消缺物资补充流程",
+    "type": "form",
+    "id": "5e75bebb694dd70007d34355",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "停用未用流程",
+    "name": "客户服务延期申请（转至客户服务部）230309删关",
+    "type": "form",
+    "id": "5e75bed5ca02180006774a34",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "特殊放行申请",
+    "type": "form",
+    "id": "5e75bf1d00edd300062d2991",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "停用未用流程",
+    "name": "标准件追溯流程（240706删导）",
+    "type": "form",
+    "id": "5e75bf652f08d5000634bd5f",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "停用未用流程",
+    "name": "图纸信息反馈流程（停用）",
+    "type": "form",
+    "id": "5e75bfa7b748120006f6ef3a",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "固定资产及办公用品处理-260731",
+    "name": "固定资产及办公用品处置申请CZ-260731",
+    "type": "form",
+    "id": "5e7857342c5b2700062c775f",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "住宿申请单-260731",
+    "type": "form",
+    "id": "5e797e0858e36f00069ba8ee",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "采购类",
+    "name": "采购价格对比裁决流程（250826停用250922删导）",
+    "type": "form",
+    "id": "5e79a58d3e9db80006c52ce4",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "产品验收申请流程-已迁mes",
+    "type": "form",
+    "id": "5e79a5af58e36f00069d6a70",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "图纸",
+    "name": "图纸领取及安装图设计通知查询",
+    "type": "dash",
+    "id": "5e79c2a94ebc86000601af3b",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "追溯",
+    "name": "节点奖惩流程",
+    "type": "form",
+    "id": "5e82daaceb1ed80006a628cd",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "创新发明上报程序",
+    "type": "form",
+    "id": "5e82ed572e68f900064c5064",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "采购类",
+    "name": "260804-采购合同评审流程",
+    "type": "form",
+    "id": "5e8a867d972baf0006e07738",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "停用未用流程",
+    "name": "固定资产验收申请流程（230309关权限）",
+    "type": "form",
+    "id": "5e8a8684eb864500063ecb23",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "采购类",
+    "name": "外购、外协件技术反馈流程",
+    "type": "form",
+    "id": "5e8a86892cb51c0006e19f5b",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "采购类",
+    "name": "原材料调价申请流程（241031关闭）",
+    "type": "form",
+    "id": "5e8a868f143e11000646f541",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "工程物资补充查询",
+    "type": "dash",
+    "id": "5ea24e51121b7b0006d2d77e",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "停用未用流程",
+    "name": "废料、废物处理申请（231207停用250419删）",
+    "type": "form",
+    "id": "5ea8fd0cb4748f00060356c5",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "停用未用流程",
+    "name": "追溯流程（220728停用250922删导）",
+    "type": "form",
+    "id": "5ed054fb4ca0c20006d5ba40",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "合理化建议",
+    "type": "dash",
+    "id": "5fc5f16446aa5c0006bd3f1d",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "图纸",
+    "name": "前期设计需要供应商提供图纸流程",
+    "type": "form",
+    "id": "5fe2b3e3f6f8100008a6e891",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "维修物料出门证",
+    "type": "form",
+    "id": "60d9597ca028990008e71cf7",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "采购类",
+    "name": "采购合同评审查询-260804",
+    "type": "dash",
+    "id": "61aefc051d432f0007c46ac9",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "停用未用流程",
+    "name": "车间查图机电子图申请(241004关）",
+    "type": "form",
+    "id": "61e4d26f914ee10007e171ed",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "选型快速通道（260626停止）",
+    "type": "form",
+    "id": "6348aa69b7a8e1000a060d02",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "停用未用流程",
+    "name": "呆滞物料趁用通用流程（230804关）",
+    "type": "form",
+    "id": "63689f1ff09267000a7f7b7a",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "图纸",
+    "name": "图纸领取仪表盘",
+    "type": "dash",
+    "id": "63719d2d7794a1000a86e39b",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "企标化建设",
+    "name": "企标化需求流程",
+    "type": "form",
+    "id": "63e9ce8f26c5880008ed15dc",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "固定资产及办公用品处理-260731",
+    "name": "报废类型-鉴定人",
+    "type": "form",
+    "id": "6417bca630324900080c681b",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "企标化建设",
+    "name": "企标建设考核流程",
+    "type": "form",
+    "id": "64433fd8f725d3000885df3f",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "图纸",
+    "name": "物料名称",
+    "type": "form",
+    "id": "6470532c9df3b60008b186f4",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "图纸",
+    "name": "部门编号基础表",
+    "type": "form",
+    "id": "652a535738a7bba253a00aa8",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "固定资产及办公用品处理-260731",
+    "name": "办公设备固定资产验收YS-260731",
+    "type": "form",
+    "id": "65e9872731f4873d2f09e508",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "图纸",
+    "name": "项目号基础表",
+    "type": "form",
+    "id": "66bc0195c3721f90d2995dc4",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "OEM项目外购设备放行流程",
+    "type": "form",
+    "id": "67419b2dfc925f5aa286e3d7",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "OEM项目合同反馈流程",
+    "type": "form",
+    "id": "674ff59f9a3ed7b5542a662d",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "外采设备数据库",
+    "type": "form",
+    "id": "681d7c365408b175a8fd6440",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "外采设备数据库仪表盘",
+    "type": "dash",
+    "id": "6827f807bdeca67548db64af",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "1",
+    "name": "通用专利提交",
+    "type": "form",
+    "id": "69d6fe82af2ab9133d13f21f",
+    "hasFlow": true,
+    "app": "5e6c73fefc53170006bd4e9c"
+  },
+  {
+    "folder": "图纸",
+    "name": "设计卡号",
+    "type": "form",
+    "id": "6a1d40dd9182192bbcce1a5e",
+    "hasFlow": false,
+    "app": "5e6c73fefc53170006bd4e9c"
+  }
+]

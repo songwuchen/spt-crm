@@ -290,6 +290,9 @@ async def pickable_customers(
 async def pickable_contracts(
     keyword: str | None = Query(None),
     ids: str | None = Query(None, description="逗号分隔的合同 id，用于只读回显"),
+    department_id: str | None = Query(
+        None, description="按合同所属部门过滤（生产卡：只能选所在部门关联合同）",
+    ),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
@@ -302,6 +305,9 @@ async def pickable_contracts(
     q = select(Contract.id, Contract.contract_no, Contract.drawing_no).where(
         Contract.tenant_id == tenant_id,
     )
+    dept = (department_id or "").strip()
+    if dept and not id_list:
+        q = q.where(Contract.department_id == dept)
     if id_list:
         q = q.where(Contract.id.in_(id_list))
     elif keyword:
@@ -330,6 +336,75 @@ async def pickable_contracts(
         {"id": r[0], "contract_no": r[1], "drawing_no": r[2]}
         for r in rows
     ])
+
+
+@router.get("/pickable-contracts/{contract_id}/prod-card-fill")
+async def pickable_contract_prod_card_fill(
+    contract_id: str,
+    mode: str = Query(
+        "drawing_no_query",
+        description="drawing_no_query（非补充）或 contract_no_select（补充）",
+    ),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """生产卡选合同后带出字段（不要求 contract:view）。"""
+    from app.domains.contract.models import Contract, ContractVersion
+    from app.domains.lowcode.prod_card_contract_fill import build_prod_card_fill_from_contract
+
+    if mode not in ("drawing_no_query", "contract_no_select"):
+        mode = "drawing_no_query"
+    c = (
+        await db.execute(
+            select(Contract).where(Contract.id == contract_id, Contract.tenant_id == tenant_id)
+        )
+    ).scalar_one_or_none()
+    if not c:
+        raise BusinessException(code=NOT_FOUND, message="合同不存在")
+
+    ver = (
+        await db.execute(
+            select(ContractVersion).where(
+                ContractVersion.tenant_id == tenant_id,
+                ContractVersion.contract_id == contract_id,
+                ContractVersion.version_no == c.current_version_no,
+            )
+        )
+    ).scalar_one_or_none()
+    if not ver:
+        ver = (
+            await db.execute(
+                select(ContractVersion).where(
+                    ContractVersion.tenant_id == tenant_id,
+                    ContractVersion.contract_id == contract_id,
+                ).order_by(ContractVersion.version_no.desc()).limit(1)
+            )
+        ).scalar_one_or_none()
+
+    customer_name = None
+    if c.customer_id:
+        from app.common.list_enrich import customer_names_map
+        names = await customer_names_map(db, tenant_id, [c.customer_id])
+        customer_name = names.get(c.customer_id)
+
+    fill = build_prod_card_fill_from_contract(
+        contract_no=c.contract_no,
+        drawing_no=c.drawing_no,
+        assignee_id=c.assignee_id,
+        assignee_name=c.assignee_name,
+        customer_name=customer_name,
+        registration_json=c.registration_json if isinstance(c.registration_json, dict) else {},
+        key_clauses_json=ver.key_clauses_json if ver else None,
+        mode=mode,
+    )
+    return ok({
+        "contract_id": c.id,
+        "contract_no": c.contract_no,
+        "drawing_no": c.drawing_no,
+        "department_id": c.department_id,
+        "fill": fill,
+    })
 
 
 # ==================== 模板序列化 ====================
