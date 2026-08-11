@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Input, Select, Tag, Button, Modal, Form, Switch, Space, Popconfirm, Alert, message } from 'antd'
+import { Input, Select, Tag, Button, Modal, Form, Switch, Space, Popconfirm, Alert, message, AutoComplete } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { SearchOutlined, PhoneOutlined, MailOutlined, PlusOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
@@ -188,6 +188,7 @@ export default function ContactList() {
       ),
     },
     { title: '职位', dataIndex: 'title', width: 120, render: (v: string) => v || '-' },
+    { title: '所在部门', dataIndex: 'department', width: 120, render: (v: string) => v || '-' },
     {
       title: '角色', dataIndex: 'role_type', width: 100,
       render: (v: string) => v ? <Tag color={roleTypeColors[v]}>{roleTypeLabels[v] || v}</Tag> : '-',
@@ -320,8 +321,17 @@ export default function ContactList() {
           <PolicyItem name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
             <Input placeholder="请输入姓名" />
           </PolicyItem>
+          <Form.Item name="department" label="所在部门">
+            <Input placeholder="部门" />
+          </Form.Item>
           <PolicyItem name="title" label="职位">
-            <Input placeholder="请输入职位" />
+            <AutoComplete
+              allowClear
+              placeholder="职位档位或手输"
+              options={[
+                '一般员工', '主管级别', '部门经理级别', '副总经理级别', '总经理及董事长级别',
+              ].map((v) => ({ label: v, value: v }))}
+            />
           </PolicyItem>
           <Form.Item name="role_type" label="角色类型">
             <Select

@@ -4,6 +4,9 @@ import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { contractReviewApi } from '@/api/contractReview'
+import { customerApi } from '@/api/customer'
+import type { Customer } from '@/api/types'
+import { industryLabels } from '@/api/types'
 import ContractReviewFields from '@/components/ContractReviewFields'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
@@ -13,6 +16,21 @@ import { CONTRACT_REVIEW_STATUS, REVIEW_NATIVE_KEYS } from '@/constants/contract
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useCustomerSelect } from '@/hooks/useSelectOptions'
+
+/** 对齐简道云「选择公司名称」linkDataMaps：从客户主数据带出行业文案 */
+function formatCustomerIndustry(c: Customer): string {
+  const levels = [c.industry_l1, c.industry_l2, c.industry_l3].filter(Boolean)
+  if (levels.length) return levels.join('/')
+  const raw = (c.industry || '').trim()
+  if (!raw) return ''
+  return industryLabels[raw] || raw
+}
+
+function yesNoText(v: boolean | null | undefined): string | undefined {
+  if (v === true) return '是'
+  if (v === false) return '否'
+  return undefined
+}
 
 type ContactRow = {
   key: string
@@ -49,12 +67,56 @@ export default function ContractReviewForm() {
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
   const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const [reviewId, setReviewId] = useState<string | undefined>(isEdit ? id : undefined)
+  const [fillingCustomer, setFillingCustomer] = useState(false)
   const customerSelect = useCustomerSelect()
   const currentUser = useAuthStore((s) => s.user)
   usePageTitle(isEdit ? '编辑合同评审' : '新建合同评审')
 
   const patchContact = (key: string, patch: Partial<ContactRow>) => {
     setContacts((rows) => rows.map((x) => (x.key === key ? { ...x, ...patch } : x)))
+  }
+
+  /** 对齐简道云选「公司名称」后 linkDataMaps 回填客户信息区字段 */
+  const fillFromCustomer = async (customerId?: string, fallbackName?: string) => {
+    if (!customerId) {
+      const rj = { ...(form.getFieldValue('review_json') || {}) } as Record<string, unknown>
+      for (const k of [
+        'is_foreign_trade', 'company_nature', 'industry', 'scale_fund',
+        'customer_relation', 'holding_desc', 'salary_insurance',
+      ]) {
+        rj[k] = undefined
+      }
+      form.setFieldsValue({ customer_id: undefined, company_name: undefined, review_json: rj })
+      return
+    }
+    setFillingCustomer(true)
+    try {
+      const c = (await customerApi.get(customerId)).data
+      const rj = { ...(form.getFieldValue('review_json') || {}) } as Record<string, unknown>
+      rj.is_foreign_trade = yesNoText(c.is_foreign_trade) ?? rj.is_foreign_trade
+      if (c.customer_nature) rj.company_nature = c.customer_nature
+      const industry = formatCustomerIndustry(c)
+      if (industry) rj.industry = industry
+      if (c.paid_in_capital != null && c.paid_in_capital !== undefined) {
+        rj.scale_fund = Number(c.paid_in_capital)
+      }
+      if (c.customer_relation) rj.customer_relation = c.customer_relation
+      if (c.parent_company_note) rj.holding_desc = c.parent_company_note
+      if (c.wage_insurance_status) rj.salary_insurance = c.wage_insurance_status
+      form.setFieldsValue({
+        customer_id: customerId,
+        company_name: (c.name || fallbackName || '').trim() || undefined,
+        review_json: rj,
+      })
+    } catch {
+      form.setFieldsValue({
+        customer_id: customerId,
+        company_name: fallbackName || form.getFieldValue('company_name'),
+      })
+      message.warning('客户详情加载失败，客户信息未自动带出，可手动填写')
+    } finally {
+      setFillingCustomer(false)
+    }
   }
 
   useEffect(() => {
@@ -219,14 +281,14 @@ export default function ContractReviewForm() {
               <Form.Item name="customer_id" label="关联客户">
                 <Select
                   allowClear showSearch filterOption={false}
-                  placeholder="搜索客户（可选，选中后回填公司名称）"
+                  placeholder="搜索客户（选中后回填公司名称、客户信息等）"
                   options={customerSelect.options}
-                  loading={customerSelect.loading}
+                  loading={customerSelect.loading || fillingCustomer}
                   onSearch={customerSelect.onSearch}
                   onDropdownVisibleChange={customerSelect.onDropdownVisibleChange}
-                  onChange={(_v, opt) => {
+                  onChange={(v, opt) => {
                     const o = opt as { label?: string } | undefined
-                    if (o?.label) form.setFieldValue('company_name', o.label)
+                    void fillFromCustomer(v ? String(v) : undefined, o?.label)
                   }}
                 />
               </Form.Item>

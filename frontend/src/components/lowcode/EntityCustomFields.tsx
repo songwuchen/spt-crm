@@ -39,8 +39,8 @@ const EntityCustomFields = forwardRef<EntityCustomFieldsRef, Props>(function Ent
   { entityType, value, values, onChange, readOnly, title = '扩展字段', contextValues }, ref,
 ) {
   const val = value ?? values
-  const [fields, setFields] = useState<FieldDefinition[]>([])
-  const [rules, setRules] = useState<FormRule[]>([])
+  const [localFields, setLocalFields] = useState<FieldDefinition[]>([])
+  const [localRules, setLocalRules] = useState<FormRule[]>([])
   const [loaded, setLoaded] = useState(false)
   const userRoles = useAuthStore((s) => s.user?.roles) || []
 
@@ -49,8 +49,8 @@ const EntityCustomFields = forwardRef<EntityCustomFieldsRef, Props>(function Ent
     lowcodeApi.entityFields(entityType)
       .then((r) => {
         if (!alive) return
-        setFields(r.data.field_definitions || [])
-        setRules(r.data.rule_definitions || [])
+        setLocalFields(r.data.field_definitions || [])
+        setLocalRules(r.data.rule_definitions || [])
         setLoaded(true)
       })
       .catch(() => { if (alive) setLoaded(true) })
@@ -61,14 +61,25 @@ const EntityCustomFields = forwardRef<EntityCustomFieldsRef, Props>(function Ent
   // 规则可能引用同一表单里的原生字段：处在 FieldPolicyProvider 内时自动取它订阅到的
   // 原生值，页面无需手传；显式传入的 contextValues 优先（无 Provider 的场景用）。
   const policy = useFieldPolicy()
+  // Provider 已拉过完整 schema（含 merge_system_rules）时复用，避免两套规则口径不一致
+  const usePolicySchema = policy.loaded && !policy.failed
+  const fields = usePolicySchema ? policy.customFields : localFields
+  const rules = usePolicySchema ? policy.rules : localRules
+  const schemaReady = usePolicySchema || loaded
+
   const nativeContext = contextValues ?? policy.nativeValues
   const ruleValues = useMemo(
     () => ({ ...(nativeContext || {}), ...(val || {}) }),
     [nativeContext, val],
   )
+  // 把原生字段一并送入引擎，级联隐藏（条件引用已被隐藏的原生字段）才能与 PolicyItem 同口径
+  const engineFields = useMemo(
+    () => (usePolicySchema ? [...policy.nativeFields, ...fields] : fields),
+    [usePolicySchema, policy.nativeFields, fields],
+  )
   const states = useMemo(
-    () => computeFieldStates(fields, ruleValues, rules, deriveRolePerms(fields, userRoles)),
-    [fields, ruleValues, rules, userRoles],
+    () => computeFieldStates(engineFields, ruleValues, rules, deriveRolePerms(engineFields, userRoles)),
+    [engineFields, ruleValues, rules, userRoles],
   )
 
   useImperativeHandle(ref, () => ({
@@ -76,7 +87,7 @@ const EntityCustomFields = forwardRef<EntityCustomFieldsRef, Props>(function Ent
   }), [readOnly, fields, states, val, rules])
 
   // 无扩展字段时不渲染(避免在业务表单里留空块)
-  if (!loaded || fields.length === 0) return null
+  if (!schemaReady || fields.length === 0) return null
 
   return (
     <div>

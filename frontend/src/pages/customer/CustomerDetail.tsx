@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Tag, Button, Space, Table, Modal, Form, Input, Select, Switch, Spin, Tabs, Popover, message } from 'antd'
+import { Tag, Button, Space, Table, Modal, Form, Input, Select, Switch, Spin, Tabs, Popover, message, AutoComplete } from 'antd'
 import { PlusOutlined as PlusIcon } from '@ant-design/icons'
 import { EditOutlined, PlusOutlined, DeleteOutlined, MergeCellsOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -40,11 +40,56 @@ const roleTypeMap: Record<string, { label: string; color: string }> = {
 
 function InfoField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="py-3 border-b border-slate-50 last:border-0">
+    <div className="py-2.5 border-b border-slate-50">
       <div className="text-[12px] text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</div>
-      <div className="text-sm font-semibold text-slate-700">{value || <span className="text-slate-300">-</span>}</div>
+      <div className="text-sm font-semibold text-slate-700 break-words">{value || <span className="text-slate-300">-</span>}</div>
     </div>
   )
+}
+
+function JdySectionTitle({ title }: { title: string }) {
+  return (
+    <div className="relative mb-4 mt-2 flex items-center overflow-hidden rounded-sm bg-teal-600 px-4 py-2.5 text-white">
+      <span className="relative z-10 text-[14px] font-semibold tracking-wide">{title}</span>
+      <div className="pointer-events-none absolute inset-y-0 right-0 flex">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="h-full w-5 origin-bottom-right -skew-x-[28deg] bg-white/15"
+            style={{ marginLeft: i === 0 ? 8 : 6 }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function DetailSection({
+  title, cols = 3, children,
+}: {
+  title?: string
+  cols?: 2 | 3 | 4
+  children: React.ReactNode
+}) {
+  const colClass = cols === 4
+    ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
+    : cols === 2
+      ? 'grid-cols-1 sm:grid-cols-2'
+      : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+  return (
+    <div className="mb-2">
+      {title ? <JdySectionTitle title={title} /> : null}
+      <div className={`grid ${colClass} gap-x-8 gap-y-0`}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function yn(v: boolean | null | undefined) {
+  if (v === true) return '是'
+  if (v === false) return '否'
+  return undefined
 }
 
 function ReportSection({ title, dataSource, columns }: { title: string; dataSource: any[]; columns: ColumnsType<any> }) {
@@ -147,6 +192,7 @@ export default function CustomerDetail() {
   const contactColumns: ColumnsType<Contact> = [
     { title: '姓名', dataIndex: 'name', width: 120,
       render: (v) => <span className="font-bold text-slate-900">{v}</span> },
+    { title: '所在部门', dataIndex: 'department', width: 120 },
     { title: '职务', dataIndex: 'title', width: 120 },
     { title: '角色', dataIndex: 'role_type', width: 100,
       render: (v) => {
@@ -397,74 +443,178 @@ export default function CustomerDetail() {
         </div>
       )}
 
-      {/* Content Grid */}
-      <div className="grid grid-cols-12 gap-6">
-        {/* Left: Customer Portrait */}
-        <div className="col-span-3">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-0">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">客户画像</h3>
-            <InfoField label="简称" value={customer.short_name} />
-            <InfoField label="企业规模" value={customer.scale_level} />
-            <InfoField label="详细地址" value={customer.address} />
-            <InfoField label="网站" value={customer.website} />
-            <InfoField label="来源" value={customer.source ? (sourceLabels[customer.source] || customer.source) : undefined} />
-            <InfoField label="负责人" value={customer.owner_name} />
-            <InfoField label="备注" value={customer.remark} />
-            <div className="pt-3">
-              <CustomFieldsPanel entityType="customer" values={customer.custom_fields_json} readOnly />
-            </div>
-          </div>
-
-          {/* 商机要素 · 采购意向 (BANT) */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mt-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">商机要素 · 采购意向</h3>
-            {(() => {
-              const kc = contacts.find((c) => c.id === customer.key_contact_id)
-              return <InfoField label="关键人" value={kc ? `${kc.name}${(kc.mobile || kc.phone) ? ' · ' + (kc.mobile || kc.phone) : ''}` : undefined} />
-            })()}
-            <div className="py-3 border-b border-slate-50 flex items-center justify-between">
-              <span className="text-[12px] text-slate-400 uppercase font-bold tracking-wider">采购意向类别</span>
-              {customer.intent_level
-                ? <Tag color={intentLevelColors[customer.intent_level] || 'default'}>{intentLevelLabels[customer.intent_level] || customer.intent_level}</Tag>
-                : <span className="text-slate-300 text-sm">-</span>}
-            </div>
-            <InfoField label="预计采购时间" value={customer.expected_purchase_date} />
-            <InfoField label="客户预算" value={customer.budget_amount != null ? `${customer.currency || 'CNY'} ${Number(customer.budget_amount).toLocaleString()}` : undefined} />
-            <InfoField label="需求匹配程度" value={customer.need_match_level ? (matchLevelLabels[customer.need_match_level] || customer.need_match_level) : undefined} />
-            <InfoField label="核心需求" value={customer.demand} />
-            <InfoField label="结单商机数" value={customer.won_deal_count ? String(customer.won_deal_count) : undefined} />
-          </div>
-
-          {/* 跟进 / 归属 / 公海生命周期 */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mt-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">跟进 / 归属</h3>
-            <InfoField label="最新跟进人" value={customer.last_activity_by_name} />
-            <InfoField label="最新活动时间" value={customer.last_activity_at ? new Date(customer.last_activity_at).toLocaleString('zh-CN') : undefined} />
-            {customer.status === 'active' && customer.expected_recycle_at && (
-              <div className="py-3 border-b border-slate-50">
-                <div className="text-[12px] text-slate-400 uppercase font-bold tracking-wider mb-1">预计回收公海</div>
-                <div className={`text-sm font-semibold ${new Date(customer.expected_recycle_at).getTime() < Date.now() ? 'text-rose-600' : 'text-amber-600'}`}>
-                  {new Date(customer.expected_recycle_at).toLocaleDateString('zh-CN')}
-                </div>
-              </div>
-            )}
-            {customer.status === 'pool' && (
-              <InfoField label="入池方式" value={customer.pool_source ? (poolSourceLabels[customer.pool_source] || customer.pool_source) : undefined} />
-            )}
-            <InfoField label="所属部门" value={customer.department_name} />
-            <InfoField label="国家 / 邮编" value={[customer.country, customer.postal_code].filter(Boolean).join(' ') || undefined} />
-            <InfoField label="币种" value={customer.currency} />
-            <InfoField label="最新修改人" value={customer.updated_by_name} />
-          </div>
-        </div>
-
-        {/* Center + Right: Tabs */}
-        <div className="col-span-9">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* 全宽 Tabs：详情信息为首项 */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <Tabs
-              defaultActiveKey="contacts"
+              defaultActiveKey="info"
               className="px-6 pt-2"
               items={[
+                {
+                  key: 'info',
+                  label: <span className="font-semibold">详情信息</span>,
+                  children: (
+                    <div className="pb-6 max-w-6xl">
+                      {/* 顶栏：编号 | 日期 | 智能化 | 外贸 */}
+                      <DetailSection cols={4}>
+                        <InfoField label="客户编号" value={customer.customer_code} />
+                        <InfoField label="日期时间" value={customer.created_at ? new Date(customer.created_at).toLocaleString('zh-CN') : undefined} />
+                        <InfoField label="是否智能化客户信息备案" value={yn(customer.is_smart_filing)} />
+                        <InfoField label="是否外贸客户" value={yn(customer.is_foreign_trade)} />
+                      </DetailSection>
+
+                      <div className="mb-4">
+                        <InfoField label="客户名称" value={customer.name} />
+                      </div>
+
+                      {/* 内贸档案（外贸=否时显示；地址/行业始终展示，对齐创建表单） */}
+                      {!customer.is_foreign_trade && (
+                        <DetailSection cols={3}>
+                          <InfoField label="注册资金（万元）" value={customer.registered_capital != null ? String(customer.registered_capital) : undefined} />
+                          <InfoField label="实缴资本（万元）" value={customer.paid_in_capital != null ? String(customer.paid_in_capital) : undefined} />
+                          <InfoField label="成立年份" value={customer.founded_year != null ? String(customer.founded_year) : undefined} />
+                        </DetailSection>
+                      )}
+                      <div className="mb-2">
+                        <InfoField
+                          label="地址"
+                          value={[customer.province, customer.city, customer.district, customer.address].filter(Boolean).join(' ') || undefined}
+                        />
+                        {!customer.is_foreign_trade && (
+                          <InfoField label="母公司或者控股公司情况及性质说明" value={customer.parent_company_note} />
+                        )}
+                      </div>
+                      {!customer.is_foreign_trade && (
+                        <DetailSection cols={2}>
+                          <InfoField label="所属行业" value={customer.industry ? (industryMap[customer.industry] || customer.industry) : undefined} />
+                          <InfoField label="客户性质" value={customer.customer_nature} />
+                          <InfoField label="客户关系" value={customer.customer_relation} />
+                          <InfoField label="客户类型" value={customer.level} />
+                          <InfoField label="主联系人职位" value={customer.primary_contact_title} />
+                          <InfoField label="客户工资及保险情况" value={customer.wage_insurance_status} />
+                          <InfoField label="业务员" value={customer.owner_name} />
+                        </DetailSection>
+                      )}
+                      {!!customer.is_foreign_trade && (
+                        <div className="mb-4">
+                          <InfoField label="所属行业" value={customer.industry ? (industryMap[customer.industry] || customer.industry) : undefined} />
+                        </div>
+                      )}
+
+                      {/* 国外客户信息 */}
+                      {!!customer.is_foreign_trade && (
+                        <DetailSection title="国外客户信息" cols={4}>
+                          <InfoField label="国家/地区" value={customer.region} />
+                          <InfoField label="业务员" value={customer.owner_name} />
+                          <InfoField label="客户简称" value={customer.short_name} />
+                          <InfoField label="客户代码" value={customer.foreign_customer_code} />
+                          <InfoField label="国别" value={customer.country} />
+                          <InfoField label="客户类型" value={customer.foreign_customer_type} />
+                          <InfoField label="关注产品" value={customer.focus_product} />
+                          <InfoField label="客户来源" value={customer.source ? (sourceLabels[customer.source] || customer.source) : undefined} />
+                          <InfoField label="邮箱" value={customer.customer_email} />
+                          <InfoField label="主页" value={customer.website} />
+                          <InfoField
+                            label="主营产品"
+                            value={Array.isArray(customer.main_products_json) ? customer.main_products_json.join('、') : undefined}
+                          />
+                        </DetailSection>
+                      )}
+
+                      {/* 智能化备案 */}
+                      {!!customer.is_smart_filing && (
+                        <>
+                          <DetailSection title="智能化项目客户信息备案" cols={4}>
+                            <InfoField label="企业法人" value={customer.legal_person} />
+                            <InfoField label="企业员工人数" value={customer.headcount != null ? String(customer.headcount) : undefined} />
+                            <InfoField label="所属行业分类" value={customer.smart_industry_category} />
+                            <InfoField label="年运行天数" value={customer.annual_run_days} />
+                            <InfoField label="占地面积" value={customer.floor_area} />
+                            <InfoField label="年用电量" value={customer.annual_power_usage} />
+                            <InfoField label="日运营小时数" value={customer.daily_operate_hours} />
+                          </DetailSection>
+                          <div className="mb-4">
+                            <InfoField label="企业财务状况" value={customer.financial_status} />
+                            <InfoField label="企业经营状况" value={customer.business_status} />
+                          </div>
+                          <div className="mb-6">
+                            <AttachmentPanel bizType="customer_org_chart" bizId={id!} title="企业组织架构图" accept="image/*" />
+                          </div>
+                        </>
+                      )}
+
+                      {/* 开票信息（外贸=否） */}
+                      {!customer.is_foreign_trade && (
+                        <DetailSection title="开票信息" cols={4}>
+                          <InfoField label="纳税人识别号" value={customer.taxpayer_id} />
+                          <InfoField label="开户行帐号" value={customer.bank_account} />
+                          <InfoField label="地址电话" value={customer.invoice_address_phone} />
+                          <InfoField label="是否公司客户" value={yn(customer.is_company_customer)} />
+                        </DetailSection>
+                      )}
+
+                      {/* 其他（对齐创建表单） */}
+                      <DetailSection title="其他" cols={4}>
+                        <InfoField label="预计采购时间" value={customer.expected_purchase_date} />
+                        <div className="py-2.5 border-b border-slate-50">
+                          <div className="text-[12px] text-slate-400 uppercase font-bold tracking-wider mb-1">采购意向类别</div>
+                          <div className="text-sm font-semibold text-slate-700">
+                            {customer.intent_level
+                              ? <Tag color={intentLevelColors[customer.intent_level] || 'default'}>{intentLevelLabels[customer.intent_level] || customer.intent_level}</Tag>
+                              : <span className="text-slate-300">-</span>}
+                          </div>
+                        </div>
+                        <InfoField
+                          label="客户预算(元)"
+                          value={customer.budget_amount != null ? `${customer.currency || 'CNY'} ${Number(customer.budget_amount).toLocaleString()}` : undefined}
+                        />
+                        <InfoField
+                          label="需求匹配程度"
+                          value={customer.need_match_level ? (matchLevelLabels[customer.need_match_level] || customer.need_match_level) : undefined}
+                        />
+                        <InfoField label="邮政编码" value={customer.postal_code} />
+                        <InfoField label="币种" value={customer.currency} />
+                        <InfoField label="企业规模" value={customer.scale_level} />
+                        <InfoField label="状态" value={customer.status === 'active' ? '活跃' : customer.status === 'inactive' ? '不活跃' : customer.status === 'pool' ? '公海' : customer.status} />
+                      </DetailSection>
+                      <div className="mb-4">
+                        <InfoField label="核心需求" value={customer.demand} />
+                        <InfoField
+                          label="标签"
+                          value={Array.isArray(customer.tags_json) && customer.tags_json.length
+                            ? customer.tags_json.join('、')
+                            : undefined}
+                        />
+                        <InfoField label="备注" value={customer.remark} />
+                      </div>
+                      <div className="mb-6">
+                        <CustomFieldsPanel entityType="customer" values={customer.custom_fields_json} readOnly />
+                      </div>
+
+                      <DetailSection title="跟进 / 归属" cols={3}>
+                        <InfoField label="最新跟进人" value={customer.last_activity_by_name} />
+                        <InfoField label="最新活动时间" value={customer.last_activity_at ? new Date(customer.last_activity_at).toLocaleString('zh-CN') : undefined} />
+                        {customer.status === 'active' && customer.expected_recycle_at && (
+                          <div className="py-2.5 border-b border-slate-50">
+                            <div className="text-[12px] text-slate-400 uppercase font-bold tracking-wider mb-1">预计回收公海</div>
+                            <div className={`text-sm font-semibold ${new Date(customer.expected_recycle_at).getTime() < Date.now() ? 'text-rose-600' : 'text-amber-600'}`}>
+                              {new Date(customer.expected_recycle_at).toLocaleDateString('zh-CN')}
+                            </div>
+                          </div>
+                        )}
+                        {customer.status === 'pool' && (
+                          <InfoField label="入池方式" value={customer.pool_source ? (poolSourceLabels[customer.pool_source] || customer.pool_source) : undefined} />
+                        )}
+                        <InfoField label="所属部门" value={customer.department_name} />
+                        <InfoField label="最新修改人" value={customer.updated_by_name} />
+                        <InfoField label="结单商机数" value={customer.won_deal_count ? String(customer.won_deal_count) : undefined} />
+                        {(() => {
+                          const kc = contacts.find((c) => c.id === customer.key_contact_id)
+                          return <InfoField label="关键人" value={kc ? `${kc.name}${(kc.mobile || kc.phone) ? ' · ' + (kc.mobile || kc.phone) : ''}` : undefined} />
+                        })()}
+                      </DetailSection>
+                    </div>
+                  ),
+                },
                 {
                   key: 'contacts',
                   label: <span className="font-semibold">联系人 ({contacts.length})</span>,
@@ -755,8 +905,6 @@ export default function CustomerDetail() {
                 },
               ]}
             />
-          </div>
-        </div>
       </div>
 
       {/* Contact Modal */}
@@ -769,7 +917,16 @@ export default function CustomerDetail() {
        <FieldPolicyProvider entityType="contact" form={form} customFieldValues={contactCustomFields}>
         <Form form={form} layout="vertical">
           <PolicyItem name="name" label="姓名" rules={[{ required: true }]}><Input /></PolicyItem>
-          <PolicyItem name="title" label="职务"><Input /></PolicyItem>
+          <Form.Item name="department" label="所在部门"><Input placeholder="部门" /></Form.Item>
+          <PolicyItem name="title" label="职务">
+            <AutoComplete
+              allowClear
+              placeholder="职位档位或手输"
+              options={[
+                '一般员工', '主管级别', '部门经理级别', '副总经理级别', '总经理及董事长级别',
+              ].map((v) => ({ label: v, value: v }))}
+            />
+          </PolicyItem>
           <Form.Item name="role_type" label="角色类型">
             <Select placeholder="请选择角色" allowClear
               options={Object.entries(roleTypeMap).map(([k, v]) => ({ label: v.label, value: k }))} />

@@ -68,8 +68,27 @@ def _loose_equal(a: Any, b: Any) -> bool:
         return False
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
         return json.dumps(sorted(_js_str(x) for x in a)) == json.dumps(sorted(_js_str(x) for x in b))
+    # 简道云「是/否」与布尔互认（客户信息 fieldShowRules 条件值为「是」「否」）
+    na, nb = _yn_norm(a), _yn_norm(b)
+    if na is not None and nb is not None:
+        return na == nb
     # 数值/布尔/字符串一律按 JS 的字符串化后比较（'5' == 5 成立，与前端一致）
     return _js_str(a) == _js_str(b)
+
+
+def _yn_norm(v: Any) -> bool | None:
+    """把 是/否、true/false、1/0 归一成 bool；无法识别则返回 None。"""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)) and v in (0, 1) and not isinstance(v, bool):
+        return bool(v)
+    if isinstance(v, str):
+        s = v.strip().lower()
+        if s in ("是", "true", "yes", "y", "1"):
+            return True
+        if s in ("否", "false", "no", "n", "0"):
+            return False
+    return None
 
 
 def _is_empty(v: Any) -> bool:

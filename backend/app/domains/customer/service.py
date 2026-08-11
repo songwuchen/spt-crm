@@ -202,7 +202,11 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
     dump["custom_fields_json"] = await sanitize_entity_write(
         db, tenant_id, "customer", dump.get("custom_fields_json"), None, user.get("roles"))
     await validate_entity_custom_fields(
-        db, tenant_id, "customer", dump["custom_fields_json"], user.get("roles"))
+        db, tenant_id, "customer", dump["custom_fields_json"], user.get("roles"), context=dump)
+    # 业务员目录默认必填：校验前先落到创建人，避免公海新建（前端传空）被策略误拦；
+    # 公海路由在 create 之后仍会清空 owner。
+    if not dump.get("owner_id"):
+        dump["owner_id"] = user.get("sub")
     # 原生字段策略：读取侧已按角色隐藏/脱敏，写入侧必须对称拦截，
     # 否则拿到 "***" 的用户一提交就会把真实值覆盖掉
     dump = await enforce_native_field_policy(db, tenant_id, "customer", dump, None, user.get("roles"))
@@ -257,8 +261,11 @@ async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, da
     if "custom_fields_json" in update_data:
         update_data["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "customer", update_data["custom_fields_json"], customer.custom_fields_json, user.get("roles"))
+        # 条件规则求值需要「更新后」的原生+扩展合集
+        ctx = {c.key: getattr(customer, c.key, None) for c in customer.__table__.columns}
+        ctx.update(update_data)
         await validate_entity_custom_fields(
-            db, tenant_id, "customer", update_data["custom_fields_json"], user.get("roles"))
+            db, tenant_id, "customer", update_data["custom_fields_json"], user.get("roles"), context=ctx)
     update_data = await enforce_native_field_policy(
         db, tenant_id, "customer", update_data, customer, user.get("roles"), required_scope="payload")
     # 最新修改人

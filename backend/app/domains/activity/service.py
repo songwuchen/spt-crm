@@ -30,7 +30,7 @@ async def _load_biz_object(db: AsyncSession, tenant_id: str, biz_type: str, biz_
         )).scalar_one_or_none()
 
     # 自带 owner_id 的顶层实体
-    if biz_type == "customer":
+    if biz_type == "customer" or biz_type == "customer_org_chart":
         from app.domains.customer.models import Customer
         return await _first(Customer, biz_id), "owner"
     if biz_type == "lead":

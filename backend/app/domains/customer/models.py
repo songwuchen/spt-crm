@@ -54,6 +54,38 @@ class Customer(TenantScopedBase):
     postal_code: Mapped[str | None] = mapped_column(String(20))  # 邮政编码
     currency: Mapped[str | None] = mapped_column(String(10))  # 币种（CNY/USD…）
 
+    # ===== 对齐简道云「客户信息」=====
+    is_smart_filing: Mapped[bool | None] = mapped_column(Boolean)  # 是否智能化客户信息备案
+    is_foreign_trade: Mapped[bool | None] = mapped_column(Boolean)  # 是否外贸客户
+    registered_capital: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))  # 注册资金（万元）
+    paid_in_capital: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))  # 实缴资本（万元）
+    founded_year: Mapped[int | None] = mapped_column(Integer)  # 成立年份
+    parent_company_note: Mapped[str | None] = mapped_column(Text)  # 母公司/控股说明
+    customer_nature: Mapped[str | None] = mapped_column(String(50))  # 客户性质：一般民企/国企…
+    customer_relation: Mapped[str | None] = mapped_column(String(50))  # 客户关系：直接/间接
+    primary_contact_title: Mapped[str | None] = mapped_column(String(100))  # 主联系人职位档
+    wage_insurance_status: Mapped[str | None] = mapped_column(String(50))  # 工资及保险情况
+    is_company_customer: Mapped[bool | None] = mapped_column(Boolean)  # 是否公司客户
+    # 开票信息
+    taxpayer_id: Mapped[str | None] = mapped_column(String(64))  # 纳税人识别号
+    invoice_address_phone: Mapped[str | None] = mapped_column(String(300))  # 地址电话
+    bank_account: Mapped[str | None] = mapped_column(String(200))  # 开户行帐号
+    # 外贸分区
+    foreign_customer_code: Mapped[str | None] = mapped_column(String(100))  # 客户代码
+    foreign_customer_type: Mapped[str | None] = mapped_column(String(50))  # 合作客户/潜在…
+    focus_product: Mapped[str | None] = mapped_column(String(100))  # 关注产品
+    customer_email: Mapped[str | None] = mapped_column(String(200))  # 客户级邮箱
+    main_products_json: Mapped[list | None] = mapped_column(JSON)  # 主营产品多选
+    # 智能化备案分区
+    legal_person: Mapped[str | None] = mapped_column(String(100))  # 企业法人
+    smart_industry_category: Mapped[str | None] = mapped_column(String(200))  # 所属行业分类
+    annual_run_days: Mapped[str | None] = mapped_column(String(50))  # 年运行天数
+    floor_area: Mapped[str | None] = mapped_column(String(100))  # 占地面积
+    financial_status: Mapped[str | None] = mapped_column(Text)  # 企业财务状况
+    business_status: Mapped[str | None] = mapped_column(Text)  # 企业经营状况
+    annual_power_usage: Mapped[str | None] = mapped_column(String(100))  # 年用电量
+    daily_operate_hours: Mapped[str | None] = mapped_column(String(50))  # 日运营小时数
+
     # ===== 归属 / 审计增补 =====
     department_id: Mapped[str | None] = mapped_column(String(36))  # 所属部门（冗余自负责人，便于按部门统计/查询）
     department_name: Mapped[str | None] = mapped_column(String(100))
@@ -79,6 +111,7 @@ class Contact(TenantScopedBase):
     customer_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     title: Mapped[str | None] = mapped_column(String(100))
+    department: Mapped[str | None] = mapped_column(String(100))  # 所在部门（对齐 JDY 联系人明细）
     role_type: Mapped[str | None] = mapped_column(String(50))  # decision_maker/influencer/user/finance/procurement
     phone: Mapped[str | None] = mapped_column(String(30))
     mobile: Mapped[str | None] = mapped_column(String(30))

@@ -77,6 +77,34 @@ export interface Customer {
   country?: string
   postal_code?: string
   currency?: string
+  // 对齐简道云「客户信息」
+  is_smart_filing?: boolean | null
+  is_foreign_trade?: boolean | null
+  registered_capital?: number | null
+  paid_in_capital?: number | null
+  founded_year?: number | null
+  parent_company_note?: string
+  customer_nature?: string
+  customer_relation?: string
+  primary_contact_title?: string
+  wage_insurance_status?: string
+  is_company_customer?: boolean | null
+  taxpayer_id?: string
+  invoice_address_phone?: string
+  bank_account?: string
+  foreign_customer_code?: string
+  foreign_customer_type?: string
+  focus_product?: string
+  customer_email?: string
+  main_products_json?: string[]
+  legal_person?: string
+  smart_industry_category?: string
+  annual_run_days?: string
+  floor_area?: string
+  financial_status?: string
+  business_status?: string
+  annual_power_usage?: string
+  daily_operate_hours?: string
   // 归属 / 审计
   department_id?: string
   department_name?: string
@@ -116,6 +144,7 @@ export interface Contact {
   customer_id: string
   name: string
   title?: string
+  department?: string
   role_type?: string
   phone?: string
   mobile?: string

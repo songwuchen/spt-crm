@@ -180,7 +180,22 @@ function looseEqual(a: unknown, b: unknown): boolean {
   if (a == null && b == null) return true
   if (a == null || b == null) return false
   if (Array.isArray(a) && Array.isArray(b)) return JSON.stringify([...a].sort()) === JSON.stringify([...b].sort())
+  // 简道云「是/否」与布尔互认
+  const na = ynNorm(a)
+  const nb = ynNorm(b)
+  if (na !== null && nb !== null) return na === nb
   return String(a) === String(b)
+}
+
+function ynNorm(v: unknown): boolean | null {
+  if (typeof v === 'boolean') return v
+  if (typeof v === 'number' && (v === 0 || v === 1)) return v === 1
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase()
+    if (['是', 'true', 'yes', 'y', '1'].includes(s)) return true
+    if (['否', 'false', 'no', 'n', '0'].includes(s)) return false
+  }
+  return null
 }
 
 function isEmpty(val: unknown): boolean {

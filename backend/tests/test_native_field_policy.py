@@ -44,6 +44,78 @@ def test_contract_detail_tables_in_catalog():
     ).OVERRIDABLE_KEYS
 
 
+def test_customer_required_defaults_align_jdy():
+    """对齐简道云 allowBlank=false：开关/名称/行业/内贸档案/智能化关键项/开票税号等默认必填。"""
+    by = {f["id"]: f for f in get_native_fields("customer")}
+    always = ["is_smart_filing", "is_foreign_trade", "name", "industry", "address"]
+    domestic = [
+        "registered_capital", "paid_in_capital", "founded_year", "parent_company_note",
+        "customer_nature", "customer_relation", "level", "primary_contact_title",
+        "wage_insurance_status", "taxpayer_id", "is_company_customer",
+    ]
+    smart = ["legal_person", "headcount", "smart_industry_category"]
+    for fid in always + domestic + smart + ["owner_id"]:
+        assert by[fid].get("required") is True, fid
+    # 外贸区标签带*但目录默认非必填，由系统规则条件必填
+    for fid in ("short_name", "country", "foreign_customer_type", "customer_email"):
+        assert by[fid].get("required") is not True, fid
+    rules = get_system_rules("customer")
+    assert any(r["id"] == "__sys_customer_foreign_star_required" for r in rules)
+
+
+def test_customer_system_rules_align_jdy_show_rules():
+    """客户显隐对齐简道云：外贸/智能化开关控制内贸·开票 / 外贸 / 备案分区。"""
+    from app.domains.lowcode.rule_engine import compute_field_states
+
+    fields = get_native_fields("customer")
+    rules = get_system_rules("customer")
+    assert [r["id"] for r in rules] == [
+        "__sys_customer_smart_when_yes",
+        "__sys_customer_domestic_when_not_foreign",
+        "__sys_customer_foreign_when_yes",
+        "__sys_customer_foreign_star_required",
+    ]
+    by_id = {f["id"] for f in fields}
+    assert {"is_foreign_trade", "is_smart_filing", "country", "taxpayer_id", "legal_person"} <= by_id
+
+    domestic = compute_field_states(
+        fields, {"is_foreign_trade": False, "is_smart_filing": False}, rules,
+    )
+    assert domestic["registered_capital"]["visible"] is True
+    assert domestic["taxpayer_id"]["visible"] is True
+    assert domestic["country"]["visible"] is False
+    assert domestic["legal_person"]["visible"] is False
+    assert domestic.get("region", {}).get("visible", True) is False
+    assert domestic.get("website", {}).get("visible", True) is False
+
+    foreign = compute_field_states(
+        fields, {"is_foreign_trade": True, "is_smart_filing": False}, rules,
+    )
+    assert foreign["registered_capital"]["visible"] is False
+    assert foreign["country"]["visible"] is True
+    assert foreign["region"]["visible"] is True
+    assert foreign["website"]["visible"] is True
+    assert foreign["source"]["visible"] is True
+
+    smart_cn = compute_field_states(
+        fields, {"is_foreign_trade": "否", "is_smart_filing": "是"}, rules,
+    )
+    assert smart_cn["legal_person"]["visible"] is True
+    assert smart_cn["taxpayer_id"]["visible"] is True
+    assert smart_cn["short_name"]["visible"] is False
+
+    # 必填：隐藏区清掉；外贸=是时简称/国别等条件必填
+    assert domestic["registered_capital"]["required"] is True
+    assert domestic["legal_person"]["required"] is False
+    assert domestic["short_name"]["required"] is False
+    assert foreign["registered_capital"]["required"] is False
+    assert foreign["short_name"]["required"] is True
+    assert foreign["country"]["required"] is True
+    assert foreign["customer_email"]["required"] is True
+    assert smart_cn["legal_person"]["required"] is True
+    assert smart_cn["headcount"]["required"] is True
+
+
 def test_merge_system_rules_override_and_disable():
     defaults = get_system_rules("contract")
     assert defaults, "合同应有系统规则"

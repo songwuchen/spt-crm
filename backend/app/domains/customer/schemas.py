@@ -1,9 +1,40 @@
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Any
 from datetime import date
 from pydantic import BaseModel, Field, field_validator
 
 
-class CustomerCreate(BaseModel):
+class CustomerJdyFields(BaseModel):
+    """简道云客户信息对齐字段。"""
+    is_smart_filing: Optional[bool] = None
+    is_foreign_trade: Optional[bool] = None
+    registered_capital: Optional[float] = None
+    paid_in_capital: Optional[float] = None
+    founded_year: Optional[int] = Field(None, ge=1800, le=2100)
+    parent_company_note: Optional[str] = None
+    customer_nature: Optional[str] = Field(None, max_length=50)
+    customer_relation: Optional[str] = Field(None, max_length=50)
+    primary_contact_title: Optional[str] = Field(None, max_length=100)
+    wage_insurance_status: Optional[str] = Field(None, max_length=50)
+    is_company_customer: Optional[bool] = None
+    taxpayer_id: Optional[str] = Field(None, max_length=64)
+    invoice_address_phone: Optional[str] = Field(None, max_length=300)
+    bank_account: Optional[str] = Field(None, max_length=200)
+    foreign_customer_code: Optional[str] = Field(None, max_length=100)
+    foreign_customer_type: Optional[str] = Field(None, max_length=50)
+    focus_product: Optional[str] = Field(None, max_length=100)
+    customer_email: Optional[str] = Field(None, max_length=200)
+    main_products_json: Optional[List[Any]] = None
+    legal_person: Optional[str] = Field(None, max_length=100)
+    smart_industry_category: Optional[str] = Field(None, max_length=200)
+    annual_run_days: Optional[str] = Field(None, max_length=50)
+    floor_area: Optional[str] = Field(None, max_length=100)
+    financial_status: Optional[str] = None
+    business_status: Optional[str] = None
+    annual_power_usage: Optional[str] = Field(None, max_length=100)
+    daily_operate_hours: Optional[str] = Field(None, max_length=50)
+
+
+class CustomerCreate(CustomerJdyFields):
     name: str = Field(..., min_length=1, max_length=200)
     customer_code: Optional[str] = Field(None, max_length=64)
     short_name: Optional[str] = Field(None, max_length=100)
@@ -46,7 +77,7 @@ class CustomerCreate(BaseModel):
         return v
 
 
-class CustomerUpdate(BaseModel):
+class CustomerUpdate(CustomerJdyFields):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     customer_code: Optional[str] = Field(None, max_length=64)
     short_name: Optional[str] = Field(None, max_length=100)
@@ -97,7 +128,7 @@ class CustomerUpdate(BaseModel):
         return v
 
 
-class CustomerOut(BaseModel):
+class CustomerOut(CustomerJdyFields):
     id: str
     customer_code: Optional[str] = None
     name: str
@@ -151,6 +182,7 @@ class CustomerOut(BaseModel):
 class ContactCreate(BaseModel):
     name: str
     title: Optional[str] = None
+    department: Optional[str] = None
     role_type: Optional[str] = None
     phone: Optional[str] = None
     mobile: Optional[str] = None
@@ -164,6 +196,7 @@ class ContactCreate(BaseModel):
 class ContactUpdate(BaseModel):
     name: Optional[str] = None
     title: Optional[str] = None
+    department: Optional[str] = None
     role_type: Optional[str] = None
     phone: Optional[str] = None
     mobile: Optional[str] = None
@@ -179,6 +212,7 @@ class ContactOut(BaseModel):
     customer_id: str
     name: str
     title: Optional[str] = None
+    department: Optional[str] = None
     role_type: Optional[str] = None
     phone: Optional[str] = None
     mobile: Optional[str] = None
@@ -189,6 +223,7 @@ class ContactOut(BaseModel):
     custom_fields_json: Optional[dict] = None
 
     model_config = {"from_attributes": True}
+
 
 
 class RelationCreate(BaseModel):

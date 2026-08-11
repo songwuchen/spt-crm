@@ -21,6 +21,8 @@ from typing import Any
 OVERRIDABLE_KEYS = {
     "label", "placeholder", "description", "required", "span",
     "visible_roles", "unmask_roles", "edit_roles", "props",
+    # 下拉/单选/多选选项：设计器可改，发布后业务页与 FormRenderer 同口径
+    "options",
     # 填写阶段：发起可见 vs 仅审批填写（对齐简道云 optAuth）
     "available_on_create", "fill_stage", "form_editable",
     # 明细子表列：设计器可改列结构（合同明细/收款计划与通用 detail_table 共用）
@@ -199,24 +201,108 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         _f("remark", "备注", "textarea"),
     ],
 
-    # 以下实体的表单尚未接 PolicyItem（不在 FORM_WIRED 里），目录先服务于读取路径的
-    # 隐藏/脱敏。字段以「敏感、值得按角色控制」为选取标准，全部核对过真实列名 ——
-    # 被删掉的旧 field_rules UI 里 18 个字段有 12 个是不存在的列（如 customer.phone、
-    # contract.amount），照那份清单配规则本就匹配不到任何东西。
+    # 客户表单已接 PolicyItem（FORM_WIRED）；系统显隐规则见 SYSTEM_RULES["customer"]。
     "customer": [
+        # ---- 开关（对齐简道云 allowBlank=false）----
+        _f("is_smart_filing", "是否智能化客户信息备案", "radio", default_required=True,
+           options=[{"value": True, "label": "是"}, {"value": False, "label": "否"}]),
+        _f("is_foreign_trade", "是否外贸客户", "radio", default_required=True,
+           options=[{"value": True, "label": "是"}, {"value": False, "label": "否"}]),
+        # ---- 基本信息（始终可见）----
         _f("name", "客户名称", system_required=True),
-        _f("address", "详细地址"),
-        _f("website", "网址"),
+        _f("customer_code", "客户编号"),
+        _f("industry", "所属行业", "radio", options_source="dict:industry", default_required=True,
+           options=[{"value": v, "label": v} for v in (
+               "工业升级", "循环经济", "基建民生", "技术改造", "其他")]),
+        _f("scale_level", "企业规模", "select", options_source="dict:scale_level",
+           options=[{"value": v, "label": v} for v in ("微型", "小型", "中型", "大型", "特大型")]),
+        _f("address", "详细地址", default_required=True),
+        _f("website", "主页"),
+        _f("source", "客户来源", "select", options_source="dict:customer_source",
+           options=[
+               {"value": "expo", "label": "展会"},
+               {"value": "referral", "label": "转介绍"},
+               {"value": "ad", "label": "广告"},
+               {"value": "inbound", "label": "官网/入站"},
+               {"value": "partner", "label": "合作伙伴"},
+               {"value": "call", "label": "电话"},
+               {"value": "阿里", "label": "阿里"},
+               {"value": "QQ", "label": "QQ"},
+               {"value": "TQ", "label": "TQ"},
+               {"value": "ETW", "label": "ETW"},
+               {"value": "GM", "label": "GM"},
+               {"value": "Trade2cn", "label": "Trade2cn"},
+               {"value": "Tradekey", "label": "Tradekey"},
+               {"value": "Direct Industry", "label": "Direct Industry"},
+               {"value": "搜索", "label": "搜索"},
+               {"value": "康帕斯", "label": "康帕斯"},
+               {"value": "LINKEDIN", "label": "LINKEDIN"},
+               {"value": "其他", "label": "其他"},
+           ]),
+        # ---- 内贸档案（外贸=否时显示；显隐隐藏时规则引擎会去掉必填）----
+        _f("registered_capital", "注册资金（万元）", "amount", default_required=True),
+        _f("paid_in_capital", "实缴资本（万元）", "amount", default_required=True),
+        _f("founded_year", "成立年份", "number", default_required=True),
+        _f("parent_company_note", "母公司或者控股公司情况及性质说明", "textarea", default_required=True),
+        _f("customer_nature", "客户性质", "radio", default_required=True,
+           options=[{"value": v, "label": v} for v in ("一般民企", "国企控股", "国有企业", "上市公司", "其他")]),
+        _f("customer_relation", "客户关系", "radio", default_required=True,
+           options=[{"value": "直接关系", "label": "直接关系"}, {"value": "间接关系", "label": "间接关系"}]),
+        _f("level", "客户类型", "radio", options_source="dict:customer_level", default_required=True,
+           options=[{"value": v, "label": v} for v in ("A", "B", "C", "D")]),
+        _f("primary_contact_title", "主联系人职位", "radio", default_required=True,
+           options=[{"value": v, "label": v} for v in (
+               "一般员工", "主管级别", "部门经理级别", "副总经理级别", "总经理及董事长级别")]),
+        _f("wage_insurance_status", "客户工资及保险情况", "radio", default_required=True,
+           options=[{"value": v, "label": v} for v in ("正常", "正常有拖欠", "非正常")]),
+        # ---- 开票（外贸=否时显示）----
+        _f("taxpayer_id", "纳税人识别号", default_required=True),
+        _f("invoice_address_phone", "地址电话"),
+        _f("bank_account", "开户行帐号"),
+        _f("is_company_customer", "是否公司客户", "radio", default_required=True,
+           options=[{"value": True, "label": "是"}, {"value": False, "label": "否"}]),
+        # ---- 外贸（外贸=是时显示；简道云标签带*但 allowBlank=true，默认非必填）----
+        _f("region", "国家/地区"),
+        _f("country", "国别"),
+        _f("short_name", "客户简称"),
+        _f("foreign_customer_code", "客户代码"),
+        _f("foreign_customer_type", "客户类型（外贸）", "select",
+           options=[{"value": v, "label": v} for v in (
+               "合作客户", "潜在客户", "合作供应商", "潜在供应商", "合作货贷商",
+               "验货公司", "合作会展商", "合作推广商", "潜在推广商", "潜在货代商")]),
+        _f("focus_product", "关注产品", "select",
+           options=[{"value": v, "label": v} for v in (
+               "旋振筛", "检验筛", "振动筛", "高幅筛", "熔剂筛", "节肢筛", "圆振筛", "直线筛",
+               "球团筛", "香蕉筛", "弧形筛", "脱泥脱介筛", "轻型筛", "落砂机", "给料机",
+               "输送机", "破碎机", "破碎筛分生产线", "备件", "其他")]),
+        _f("customer_email", "邮箱"),
+        _f("main_products_json", "主营产品", "checkbox",
+           options=[{"value": v, "label": v} for v in (
+               "冶金", "煤炭", "矿山", "焦化", "电力", "食品", "医药", "化工",
+               "砂石骨料，制砂", "水处理")]),
+        # ---- 智能化备案（智能化=是时显示）----
+        _f("legal_person", "企业法人", default_required=True),
+        _f("headcount", "企业员工人数", "number", default_required=True),
+        _f("smart_industry_category", "所属行业分类", default_required=True),
+        _f("annual_run_days", "年运行天数"),
+        _f("floor_area", "占地面积"),
+        _f("financial_status", "企业财务状况", "textarea"),
+        _f("business_status", "企业经营状况", "textarea"),
+        _f("annual_power_usage", "年用电量"),
+        _f("daily_operate_hours", "日运营小时数"),
+        # ---- 商机 / 其它 ----
         _f("budget_amount", "预算金额", "amount"),
         _f("demand", "需求描述", "textarea"),
         _f("expected_purchase_date", "预计采购日期", "date"),
-        _f("headcount", "人数规模", "number"),
         _f("postal_code", "邮编"),
         _f("remark", "备注", "textarea"),
+        # 业务员：简道云在外贸区必填；CRM 内贸/外贸均展示，默认必填（公海新建前端可不传）
+        _f("owner_id", "业务员", "person", companions=("owner_name",), default_required=True),
     ],
     "contact": [
         _f("name", "姓名", system_required=True),
         _f("title", "职务"),
+        _f("department", "所在部门"),
         _f("phone", "电话"),
         _f("mobile", "手机"),
         _f("email", "邮箱"),
@@ -560,6 +646,51 @@ SYSTEM_RULES: dict[str, list[dict[str, Any]]] = {
             "type": "required",
             "target_field_id": "smart_points",
             "condition": {"field": "has_intelligence", "operator": "eq", "value": "是"},
+            "action": {"required": True},
+        },
+    ],
+    # 客户信息显隐：对齐简道云 fieldShowRules（条件成立 → visible:True；不成立则引擎取反隐藏）
+    "customer": [
+        {
+            "id": "__sys_customer_smart_when_yes",
+            "type": "visibility",
+            "target_field_ids": [
+                "legal_person", "headcount", "smart_industry_category",
+                "annual_run_days", "floor_area", "financial_status", "business_status",
+                "annual_power_usage", "daily_operate_hours",
+            ],
+            "condition": {"field": "is_smart_filing", "operator": "in", "value": [True, "是"]},
+            "action": {"visible": True},
+        },
+        {
+            "id": "__sys_customer_domestic_when_not_foreign",
+            "type": "visibility",
+            "target_field_ids": [
+                "registered_capital", "paid_in_capital", "founded_year", "parent_company_note",
+                "customer_nature", "customer_relation", "level", "primary_contact_title",
+                "wage_insurance_status",
+                "taxpayer_id", "invoice_address_phone", "bank_account", "is_company_customer",
+            ],
+            "condition": {"field": "is_foreign_trade", "operator": "in", "value": [False, "否"]},
+            "action": {"visible": True},
+        },
+        {
+            "id": "__sys_customer_foreign_when_yes",
+            "type": "visibility",
+            "target_field_ids": [
+                "country", "short_name", "foreign_customer_code", "foreign_customer_type",
+                "focus_product", "customer_email", "main_products_json",
+                "website", "source", "region",
+            ],
+            "condition": {"field": "is_foreign_trade", "operator": "in", "value": [True, "是"]},
+            "action": {"visible": True},
+        },
+        # 外贸区标签带 *（客户简称*/国别*/客户类型*/邮箱*）：外贸=是时必填
+        {
+            "id": "__sys_customer_foreign_star_required",
+            "type": "required",
+            "target_field_ids": ["short_name", "country", "foreign_customer_type", "customer_email"],
+            "condition": {"field": "is_foreign_trade", "operator": "in", "value": [True, "是"]},
             "action": {"required": True},
         },
     ],

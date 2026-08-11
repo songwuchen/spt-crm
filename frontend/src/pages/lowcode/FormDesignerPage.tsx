@@ -8,6 +8,7 @@ import {
 } from 'antd'
 import {
   DeleteOutlined, PlusOutlined, ArrowLeftOutlined, HolderOutlined, EyeOutlined, BranchesOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons'
 import FieldTypeIcon, { FIELD_TYPE_LABEL as TYPE_LABEL } from '@/components/lowcode/fieldTypeIcon'
 import {
@@ -18,6 +19,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { lowcodeApi } from '@/api/lowcode'
+import { settingsApi } from '@/api/settings'
 import { roleApi } from '@/api/user'
 import { pickableScopeApi } from '@/api/pickableScope'
 import type { Role } from '@/api/types'
@@ -619,15 +621,49 @@ function FieldProps({ field, roleOptions, personScopeOptions, deptScopeOptions, 
   onPatch: (p: Partial<FieldDefinition>) => void
 }) {
   const [permOpen, setPermOpen] = useState(false)
+  const [dictLoading, setDictLoading] = useState(false)
   const setProp = (k: string, v: unknown) => onPatch({ props: { ...field.props, [k]: v } })
-  const optText = (field.options || []).map((o) => (o.label === o.value ? o.label : `${o.label}|${o.value}`)).join('\n')
+  const optText = (field.options || []).map((o) => {
+    const v = o.value === true || o.value === false ? String(o.value) : String(o.value ?? '')
+    return o.label === v || o.label == null ? v : `${o.label}|${v}`
+  }).join('\n')
+
+  const dictType = typeof field.options_source === 'string' && field.options_source.startsWith('dict:')
+    ? field.options_source.slice(5)
+    : null
+  const enumSource = typeof field.options_source === 'string' && field.options_source.startsWith('enum:')
+    ? field.options_source.slice(5)
+    : null
+
+  const loadDictOptions = async () => {
+    if (!dictType) return
+    setDictLoading(true)
+    try {
+      const r = await settingsApi.listDataDict(dictType) as { data?: { dict_code?: string; dict_label?: string; enabled?: boolean }[] }
+      const items = (r.data || []).filter((d) => d.enabled !== false)
+      const opts = items.map((d) => ({
+        label: d.dict_label || d.dict_code || '',
+        value: d.dict_code || d.dict_label || '',
+      })).filter((o) => o.value)
+      if (!opts.length) {
+        message.warning(`数据字典「${dictType}」暂无启用项，仍显示目录默认选项`)
+        return
+      }
+      onPatch({ options: opts })
+      message.success(`已从字典「${dictType}」载入 ${opts.length} 项`)
+    } catch {
+      message.error('加载数据字典失败')
+    } finally {
+      setDictLoading(false)
+    }
+  }
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="small">
       <Tag color="blue" icon={<FieldTypeIcon type={field.type} />}>{TYPE_LABEL[field.type] || field.type}</Tag>
       {field.native && (
         <Text type="secondary" style={{ fontSize: 12 }}>
-          内置字段：可改标签/必填/显隐/只读与字段权限，不能删除或改类型。
+          内置字段：可改标签/必填/显隐/只读/选项与字段权限，不能删除或改类型。
           {field.json_storage ? ` 值存于 ${field.json_storage}。` : ''}
         </Text>
       )}
@@ -722,9 +758,42 @@ function FieldProps({ field, roleOptions, personScopeOptions, deptScopeOptions, 
 
       {CHOICE_TYPES.has(field.type) && (
         <div>
-          <Text type="secondary" style={{ fontSize: 12 }}>选项(每行一个,可用 显示|存储值)</Text>
-          <Input.TextArea size="small" rows={4} defaultValue={optText}
-            onBlur={(e) => onPatch({ options: e.target.value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { const [a, b] = l.split('|'); return { label: a, value: (b ?? a).trim() } }) })} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>选项(每行一个,可用 显示|存储值)</Text>
+            {dictType && (
+              <Button type="link" size="small" icon={<ReloadOutlined />} loading={dictLoading} onClick={loadDictOptions} style={{ padding: 0, height: 'auto' }}>
+                从字典同步
+              </Button>
+            )}
+          </div>
+          {(dictType || enumSource) && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 6, padding: '4px 8px' }}
+              message={
+                <span style={{ fontSize: 12 }}>
+                  {dictType
+                    ? <>选项来源：数据字典 <Text code>{dictType}</Text>。下方为目录默认/已覆盖列表；可编辑后发布，或点「从字典同步」。</>
+                    : <>选项来源：系统枚举 <Text code>{enumSource}</Text></>}
+                </span>
+              }
+            />
+          )}
+          <Input.TextArea
+            size="small"
+            rows={Math.min(12, Math.max(4, (field.options || []).length || 4))}
+            key={`${field.id}-opts-${(field.options || []).length}-${optText.slice(0, 24)}`}
+            defaultValue={optText}
+            placeholder={dictType ? '空则业务页回退读数据字典' : '每行一个选项'}
+            onBlur={(e) => onPatch({
+              options: e.target.value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+                const [a, b] = l.split('|')
+                const raw = (b ?? a).trim()
+                return { label: a.trim(), value: raw }
+              }),
+            })}
+          />
         </div>
       )}
       {field.type === 'cascade' && (

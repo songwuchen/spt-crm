@@ -145,11 +145,17 @@ async def _entity_field_defs(db, tenant_id: str, entity_type: str) -> list[dict[
     return await get_entity_fields(db, tenant_id, entity_type)
 
 
-async def validate_entity_custom_fields(db, tenant_id: str, entity_type: str, values: Any, user_roles) -> None:
+async def validate_entity_custom_fields(
+    db, tenant_id: str, entity_type: str, values: Any, user_roles,
+    *, context: dict | None = None,
+) -> None:
     """校验业务实体扩展字段的必填(含条件必填)，不通过则抛 BusinessException。
 
     在业务 service 的 create/update 里紧挨 sanitize_entity_write 调用。此前扩展字段的
     required 前后端都没人校验，红色星号纯装饰；条件必填也可被直接调 API 绕过。
+
+    context: 可选的原生字段值（整单 payload），用于条件规则求值。扩展必填校验仍只针对
+    扩展字段定义；若不传 context，依赖原生开关的条件规则会求值失败（规则不生效）。
     """
     from app.common.error_codes import VALIDATION_ERROR
     from app.common.exceptions import BusinessException
@@ -164,8 +170,11 @@ async def validate_entity_custom_fields(db, tenant_id: str, entity_type: str, va
     defs = await get_entity_fields(db, tenant_id, entity_type)
     if not defs:
         return
+    cf = values if isinstance(values, dict) else {}
+    # 条件求值需要原生+扩展合集（对齐 FieldPolicy / enforce_native_field_policy）
+    merged = {**(context or {}), **cf}
     err = validate_required_with_rules(
-        defs, values if isinstance(values, dict) else {},
+        defs, merged,
         schema["rule_definitions"], role_field_permissions(defs, user_roles),
     )
     if err:

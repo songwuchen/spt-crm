@@ -665,12 +665,14 @@ async def get_entity_fields(
 ):
     """取该业务实体已发布的扩展字段定义与规则,供业务表单/详情页用 FormRenderer 渲染。"""
     _check_entity(entity_type)
+    from app.domains.lowcode.native_field_catalog import merge_system_rules
     schema = await service.get_entity_schema(db, tenant_id, entity_type)
     # 只返回扩展字段：本接口的消费方(扩展字段面板/列表可调出列)都只认扩展字段
     return ok({
         "field_definitions": [fd for fd in schema["field_definitions"]
                               if not (isinstance(fd, dict) and fd.get("native"))],
-        "rule_definitions": schema["rule_definitions"],
+        # 与 entity-form-schema 同口径合并系统规则，避免扩展字段条件显隐与表单不一致
+        "rule_definitions": merge_system_rules(entity_type, schema["rule_definitions"]),
     })
 
 
