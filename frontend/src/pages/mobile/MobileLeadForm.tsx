@@ -73,7 +73,8 @@ export default function MobileLeadForm() {
       }
       const res = await leadApi.create(payload as Partial<import('@/api/types').Lead> & { as_draft?: boolean })
       message.success(andSubmit ? '已提交审批' : '已存为草稿')
-      navigate(res.data?.id ? `/m/leads/${res.data.id}` : -1)
+      if (res.data?.id) navigate(`/m/leads/${res.data.id}`)
+      else navigate(-1)
     } catch { message.error(andSubmit ? '提交失败' : '保存失败') }
     finally { setLoading(false) }
   }

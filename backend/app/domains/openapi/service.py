@@ -693,7 +693,10 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
     from app.domains.openapi.dto import lead_to_dto
 
     payload = await _resolve_lead_write_payload(db, ctx, data)
-    lead = await create_lead(db, ctx.tenant_id, LeadCreate(**payload), _pseudo_user(ctx))
+    # 开放平台多为幂等回放/补全：先落草稿不启审，便于紧接着 update；需审核时由业务侧提交
+    lead = await create_lead(
+        db, ctx.tenant_id, LeadCreate(**{**payload, "as_draft": True}), _pseudo_user(ctx),
+    )
     # create_lead defaults owner to the creator (here the app id) when none resolved;
     # de-own into the pool only in that case.
     if lead.owner_id == ctx.app_id:

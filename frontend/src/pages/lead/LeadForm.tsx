@@ -117,7 +117,7 @@ export default function LeadForm() {
   useEffect(() => {
     if (id) {
       leadApi.get(id).then(async (res) => {
-        const d = res.data as Record<string, unknown>
+        const d = res.data as unknown as Record<string, unknown>
         if (d.status === 'qualified' || d.status === 'discarded') {
           message.warning(d.status === 'qualified' ? '已转化的线索不可编辑' : '已废弃的线索不可编辑')
           navigate(`/leads/${id}`, { replace: true })
@@ -209,7 +209,7 @@ export default function LeadForm() {
         message.success('已存为草稿')
       }
       if (leadId && pendingFiles.length > 0) {
-        await flushPendingAttachments('lead', leadId, pendingFiles)
+        await flushPendingAttachments(leadId, [{ bizType: 'lead', files: pendingFiles }])
       }
       navigate(leadId ? `/leads/${leadId}` : '/leads')
     } catch {
@@ -229,7 +229,7 @@ export default function LeadForm() {
       message.warning(first || (andSubmit ? '请完善必填项后再提交' : '请完善必填项后再存草稿'))
       const name = fields[0]?.name
       if (name?.length) {
-        form.scrollToField(name, { behavior: 'smooth', block: 'center' })
+        form.scrollToField(name)
       }
       return
     }
