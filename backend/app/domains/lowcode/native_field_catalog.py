@@ -231,15 +231,16 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
            available_on_create=False, fill_stage="followup",
            options=[{"value": v, "label": v} for v in (
                "进行中", "暂停", "取消", "落标", "中标", "已签合同")]),
-        # ---- 评估信息（审批时填写；销售创建表单不展示）----
+        # ---- 评估信息（审批节点 / 情报裁定写入；销售表单不展示）----
         _f("customer_newness", "客户类型（新/老）", "radio",
-           available_on_create=False, fill_stage="approver",
+           form_editable=False, available_on_create=False, fill_stage="approver",
            options=[{"value": "new", "label": "新"}, {"value": "old", "label": "老"}]),
         _f("reject_reason", "回退原因", "textarea",
-           available_on_create=False, fill_stage="approver"),
-        _f("assess_remark", "备注2", "textarea", available_on_create=False, fill_stage="approver"),
+           form_editable=False, available_on_create=False, fill_stage="approver"),
+        _f("assess_remark", "备注2", "textarea",
+           form_editable=False, available_on_create=False, fill_stage="approver"),
         _f("review_opinion", "操作意见", "textarea",
-           available_on_create=False, fill_stage="approver"),
+           form_editable=False, available_on_create=False, fill_stage="approver"),
         # ---- 其他（CRM 扩展，不挡报备主路径）----
         _f("source", "线索来源", "select", options_source="dict:lead_source"),
         _f("biz_date", "业务日期", "date"),

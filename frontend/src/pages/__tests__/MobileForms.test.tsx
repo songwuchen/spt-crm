@@ -71,26 +71,31 @@ describe('MobileLeadForm', () => {
   it('渲染基础字段', () => {
     render(<MobileLeadForm />)
     expect(screen.getByText('新建线索')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('输入线索标题')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('输入项目名称')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('输入公司名称')).toBeInTheDocument()
+    expect(screen.getByText('来源')).toBeInTheDocument()
   })
 
   it('补齐的目录字段收在「更多字段」里，展开后可见', () => {
     render(<MobileLeadForm />)
-    // 折叠态下这些字段不可见（用 hidden 容器包着，值仍在 Form 里）
+    // 客户类型/行业已上提到主区；折叠区仍有业务日期等跟进字段
     fireEvent.click(screen.getByText('展开更多字段'))
-    expect(screen.getByText('行业')).toBeInTheDocument()
-    expect(screen.getByText('客户类型')).toBeInTheDocument()
     expect(screen.getByText('业务日期')).toBeInTheDocument()
+    expect(screen.getByText('线索来源')).toBeInTheDocument()
+    expect(screen.getByText('项目近况')).toBeInTheDocument()
   })
 
-  it('填入标题与公司名后可提交', async () => {
+  it('填入项目名称与公司名后可存草稿', async () => {
     render(<MobileLeadForm />)
-    fireEvent.change(screen.getByPlaceholderText('输入线索标题'), { target: { value: '测试线索' } })
+    fireEvent.change(screen.getByPlaceholderText('输入项目名称'), { target: { value: '测试线索' } })
     fireEvent.change(screen.getByPlaceholderText('输入公司名称'), { target: { value: '测试公司' } })
-    fireEvent.click(screen.getByText('保存'))
+    fireEvent.click(screen.getByText('存草稿'))
     await waitFor(() => expect(leadCreate).toHaveBeenCalled())
-    expect(leadCreate.mock.calls[0][0]).toMatchObject({ title: '测试线索', company_name: '测试公司' })
+    expect(leadCreate.mock.calls[0][0]).toMatchObject({
+      title: '测试线索',
+      company_name: '测试公司',
+      as_draft: true,
+    })
   })
 })
 

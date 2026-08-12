@@ -320,14 +320,17 @@ async def test_lead_approve_clears_previous_reject_reason(client: AsyncClient, a
         WfTaskInstance.process_instance_id == inst.id, WfTaskInstance.status == "pending",
     ))).scalars().first()
 
+    # 情报节点 field_perms 要求 customer_newness；裸 approve 仅测试允许时也须带齐必填写回
     await WorkflowEngine(db, DEMO_TENANT).act(
         task.id, {"sub": reviewer_id, "real_name": "测试内勤"}, "approve", opinion="ok",
+        field_updates={"customer_newness": "new"},
         allow_lead_intel=True,
     )
 
     await db.refresh(lead)
     assert lead.review_status == "approved"
     assert lead.reject_reason is None, "通过后仍残留旧的驳回原因"
+    assert lead.customer_newness == "new"
 
 
 @pytest.mark.asyncio

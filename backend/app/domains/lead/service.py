@@ -595,17 +595,17 @@ def _intel_field_updates(
     *,
     customer_newness: str | None,
     return_reason: str | None,
-    opinion: str | None,
     assess_remark: str | None,
 ) -> dict:
-    """情报裁定 → 引擎节点 field_updates（与 SYS_LEAD_REVIEW field_perms 对齐）。"""
+    """情报裁定 → 引擎节点 field_updates（与 SYS_LEAD_REVIEW field_perms 对齐）。
+
+    操作意见走引擎 act(opinion=...)，不进 field_updates（节点 perms 不含 review_opinion）。
+    """
     updates: dict = {}
     if customer_newness is not None:
         updates["customer_newness"] = customer_newness
     if return_reason is not None:
         updates["reject_reason"] = return_reason
-    if opinion is not None:
-        updates["review_opinion"] = opinion
     if assess_remark is not None:
         updates["assess_remark"] = assess_remark
     return updates
@@ -700,7 +700,6 @@ async def intel_review_lead(
             field_updates=_intel_field_updates(
                 customer_newness=customer_newness,
                 return_reason=return_reason,
-                opinion=opinion,
                 assess_remark=assess_remark,
             ),
             allow_lead_intel=True,
@@ -726,7 +725,6 @@ async def intel_review_lead(
         field_updates=_intel_field_updates(
             customer_newness=customer_newness,
             return_reason=None,
-            opinion=opinion,
             assess_remark=assess_remark,
         ),
         allow_lead_intel=True,
