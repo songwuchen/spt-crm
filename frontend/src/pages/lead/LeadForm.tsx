@@ -165,10 +165,13 @@ export default function LeadForm() {
   }, [id, currentUser])
 
   const onFinish = async (values: Record<string, unknown>, andSubmit: boolean) => {
-    const cfError = customFieldsRef.current?.validate()
-    if (cfError) {
-      message.error(cfError)
-      return
+    // 提交审批才校验扩展必填；存草稿只落库
+    if (andSubmit) {
+      const cfError = customFieldsRef.current?.validate()
+      if (cfError) {
+        message.error(cfError)
+        return
+      }
     }
     setLoading(true)
     try {
@@ -222,11 +225,17 @@ export default function LeadForm() {
   const handleSave = async (andSubmit: boolean) => {
     let values: Record<string, unknown>
     try {
-      values = await form.validateFields()
+      // 存草稿：仅校验项目名称（DB NOT NULL）；提交审批：全量必填
+      if (andSubmit) {
+        values = await form.validateFields()
+      } else {
+        await form.validateFields(['title'])
+        values = form.getFieldsValue(true)
+      }
     } catch (err: unknown) {
       const fields = (err as { errorFields?: { name: (string | number)[]; errors: string[] }[] })?.errorFields || []
       const first = fields[0]?.errors?.[0]
-      message.warning(first || (andSubmit ? '请完善必填项后再提交' : '请完善必填项后再存草稿'))
+      message.warning(first || (andSubmit ? '请完善必填项后再提交' : '请填写项目名称后再存草稿'))
       const name = fields[0]?.name
       if (name?.length) {
         form.scrollToField(name)
@@ -250,7 +259,12 @@ export default function LeadForm() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-        <FieldPolicyProvider entityType="lead" form={form} customFieldValues={customFields}>
+        <FieldPolicyProvider
+          entityType="lead"
+          form={form}
+          customFieldValues={customFields}
+          formMode={isEdit ? 'edit' : 'create'}
+        >
           <Form
             form={form}
             layout="vertical"
@@ -344,19 +358,23 @@ export default function LeadForm() {
                   )}
                 </ChoiceOptionsBridge>
               </PolicyItem>
-              <PolicyItem name="bid_result" label="中标情况">
-                <ChoiceOptionsBridge fieldId="bid_result" fallback={BID_RESULT_OPTIONS}>
-                  {(opts) => <Select placeholder="请选择" allowClear options={opts} />}
-                </ChoiceOptionsBridge>
-              </PolicyItem>
-              {/* 显隐由 SYSTEM_RULES：落标/流标/未参与 时显示「原因」 */}
-              <PolicyItem name="bid_fail_reason" label="原因">
-                <ChoiceOptionsBridge fieldId="bid_fail_reason" fallback={BID_FAIL_REASON_OPTIONS}>
-                  {(opts) => (
-                    <Select placeholder="请选择原因" allowClear options={opts} showSearch optionFilterProp="label" />
-                  )}
-                </ChoiceOptionsBridge>
-              </PolicyItem>
+              {/* 中标情况：新建不填；编辑/跟进后再维护（available_on_create=False） */}
+              {isEdit && (
+                <>
+                  <PolicyItem name="bid_result" label="中标情况">
+                    <ChoiceOptionsBridge fieldId="bid_result" fallback={BID_RESULT_OPTIONS}>
+                      {(opts) => <Select placeholder="请选择" allowClear options={opts} />}
+                    </ChoiceOptionsBridge>
+                  </PolicyItem>
+                  <PolicyItem name="bid_fail_reason" label="原因">
+                    <ChoiceOptionsBridge fieldId="bid_fail_reason" fallback={BID_FAIL_REASON_OPTIONS}>
+                      {(opts) => (
+                        <Select placeholder="请选择原因" allowClear options={opts} showSearch optionFilterProp="label" />
+                      )}
+                    </ChoiceOptionsBridge>
+                  </PolicyItem>
+                </>
+              )}
               {/* 显隐+必填由 SYSTEM_RULES：内部冲突=是 时显示并必填 */}
               <PolicyItem name="conflict_note" label="备注：请示部门经理的结果"
                 className="sm:col-span-2 xl:col-span-4">
@@ -499,7 +517,7 @@ export default function LeadForm() {
               <Button onClick={() => navigate('/leads')}>取消</Button>
               {canSubmitApproval && (
                 <span className="text-xs text-slate-400">
-                  「提交审批」会发起情报审核流程；「存草稿」仅保存，可稍后在详情页再提交。
+                  「提交审批」会校验必填项并发起情报审核；「存草稿」只需填写项目名称，可稍后补全再提交。
                 </span>
               )}
             </div>

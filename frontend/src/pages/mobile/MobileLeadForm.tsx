@@ -37,7 +37,6 @@ export default function MobileLeadForm() {
   const industryDict = useDataDict('industry', INDUSTRY_OPTIONS)
   const customerTypeDict = useDataDict('customer_type', CUSTOMER_TYPE_OPTIONS)
   const countryType = Form.useWatch('country_type', form)
-  const bidResult = Form.useWatch('bid_result', form)
   const hasConflict = Form.useWatch('has_internal_conflict', form)
   const reporterSelect = useUserSelect()
   const ownerSelect = useUserSelect()
@@ -56,9 +55,22 @@ export default function MobileLeadForm() {
 
   const handleSave = async (andSubmit: boolean) => {
     let values: Record<string, unknown>
-    try { values = await form.validateFields() } catch (e) { reportFirstFormError(e, message.error); return }
-    const cfError = customFieldsRef.current?.validate()
-    if (cfError) { message.error(cfError); return }
+    try {
+      if (andSubmit) {
+        values = await form.validateFields()
+      } else {
+        // 存草稿：仅项目名称必填（与桌面端一致）
+        await form.validateFields(['title'])
+        values = form.getFieldsValue(true)
+      }
+    } catch (e) {
+      reportFirstFormError(e, message.error)
+      return
+    }
+    if (andSubmit) {
+      const cfError = customFieldsRef.current?.validate()
+      if (cfError) { message.error(cfError); return }
+    }
     setLoading(true)
     try {
       const payload = {
@@ -89,7 +101,12 @@ export default function MobileLeadForm() {
         <span className="w-10" />
       </div>
 
-      <FieldPolicyProvider entityType="lead" form={form} customFieldValues={customFields}>
+      <FieldPolicyProvider
+        entityType="lead"
+        form={form}
+        customFieldValues={customFields}
+        formMode="create"
+      >
         <Form form={form} layout="vertical" className="p-4 space-y-4 mobile-policy-form">
           <MField name="category" label="来源">
             <Radio.Group options={CATEGORY_OPTIONS} />
@@ -148,15 +165,6 @@ export default function MobileLeadForm() {
           </MField>
 
           <MoreFields>
-            <MField name="bid_result" label="中标情况">
-              <Select placeholder="请选择" allowClear options={BID_RESULT_OPTIONS} className="w-full" />
-            </MField>
-            {['落标', '流标', '未参与'].includes(String(bidResult || '')) && (
-              <MField name="bid_fail_reason" label="原因">
-                <Select placeholder="请选择" allowClear options={BID_FAIL_REASON_OPTIONS}
-                  showSearch optionFilterProp="label" className="w-full" />
-              </MField>
-            )}
             <MField name="entrust_status" label="委托状态">
               <Radio.Group options={ENTRUST_STATUS_OPTIONS} />
             </MField>

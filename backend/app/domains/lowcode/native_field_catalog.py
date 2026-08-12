@@ -194,10 +194,10 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
                "筛分分选-煤炭", "筛分分选-电力", "筛分分选-化工", "筛分分选-医药",
                "筛分分选-食品", "筛分分选-备件", "循环经济", "废钢利用",
                "智能化大宗物料管理")]),
-        _f("bid_result", "中标情况", "select",
+        _f("bid_result", "中标情况", "select", available_on_create=False,
            options=[{"value": v, "label": v} for v in (
                "中标", "结果未出", "项目取消", "项目延期", "落标", "流标", "未参与")]),
-        _f("bid_fail_reason", "原因", "select",
+        _f("bid_fail_reason", "原因", "select", available_on_create=False,
            options=[{"value": v, "label": v} for v in (
                "价格原因：价格高、最低价中标",
                "内定：客户不愿意更换厂家、客户内部操作了、走形式、内定中标单位了",
@@ -847,9 +847,13 @@ def merge_native_overrides(
     out: list[dict[str, Any]] = []
     for base in get_native_fields(entity_type):
         ov = overrides.get(base["id"])
+        # 目录规定创建不可用时，禁止租户改回创建可见（避免新建又被要求填「中标情况」等）
+        catalog_create_ok = base.get("available_on_create", True) is not False
         if ov:
             for key in OVERRIDABLE_KEYS:
                 if key not in ov:
+                    continue
+                if key == "available_on_create" and not catalog_create_ok:
                     continue
                 if key == "props":
                     props = {k: v for k, v in (ov.get("props") or {}).items()

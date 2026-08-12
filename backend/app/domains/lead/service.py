@@ -218,9 +218,13 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     payload["custom_fields_json"] = await sanitize_entity_write(
         db, tenant_id, "lead", payload.get("custom_fields_json"), None, user.get("roles"))
     await validate_entity_custom_fields(
-        db, tenant_id, "lead", payload["custom_fields_json"], user.get("roles"))
+        db, tenant_id, "lead", payload["custom_fields_json"], user.get("roles"),
+        skip_required=as_draft)
     # 原生字段的租户策略（必填/条件显隐/只读/字段级权限）同样在后端强制
-    payload = await enforce_native_field_policy(db, tenant_id, "lead", payload, None, user.get("roles"))
+    # 存草稿跳过必填；提交审批（默认 create）仍全量校验
+    payload = await enforce_native_field_policy(
+        db, tenant_id, "lead", payload, None, user.get("roles"),
+        skip_required=as_draft)
     # 报备人：表单可选；未选则默认当前用户（添加人）
     reporter_id, reporter_name = await _resolve_user_display(
         db, tenant_id, payload.pop("reporter_id", None), fallback=user)
@@ -362,10 +366,14 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
         payload["custom_fields_json"] = await sanitize_entity_write(
             db, tenant_id, "lead", payload["custom_fields_json"], lead.custom_fields_json, user.get("roles"))
         await validate_entity_custom_fields(
-            db, tenant_id, "lead", payload["custom_fields_json"], user.get("roles"))
-    # 原生字段策略：必填只校验本次提交携带的字段，避免批量改派/废弃被历史数据卡住
+            db, tenant_id, "lead", payload["custom_fields_json"], user.get("roles"),
+            skip_required=(getattr(lead, "review_status", None) in ("draft", "rejected")))
+    # 原生字段策略：必填只校验本次提交携带的字段，避免批量改派/废弃被历史数据卡住；
+    # 草稿/回退后的「存草稿」跳过必填，提交审批时由 resubmit_lead_review 全量校验。
     payload = await enforce_native_field_policy(
-        db, tenant_id, "lead", payload, lead, user.get("roles"), required_scope="payload")
+        db, tenant_id, "lead", payload, lead, user.get("roles"),
+        required_scope="payload",
+        skip_required=(getattr(lead, "review_status", None) in ("draft", "rejected")))
     # 审核门禁：未通过审核的线索不可经编辑直接置为「已转化」(移动端转化走 update)
     if payload.get("status") == "qualified" and getattr(lead, "review_status", "approved") != "approved":
         from app.common.error_codes import VALIDATION_ERROR
@@ -568,10 +576,21 @@ async def discard_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
 async def resubmit_lead_review(db: AsyncSession, tenant_id: str, lead_id: str, user: dict) -> Lead:
     """草稿或被回退的线索提交 / 重新提交内勤审核。"""
     from app.common.error_codes import VALIDATION_ERROR
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, validate_entity_custom_fields,
+    )
     lead = await get_lead(db, tenant_id, lead_id, user)
     rs = getattr(lead, "review_status", None)
     if rs not in ("draft", "rejected"):
         raise BusinessException(code=VALIDATION_ERROR, message="仅草稿或被回退的线索可提交审核")
+
+    # 提交审批时按当前落库值全量校验必填（存草稿阶段已放宽）
+    await enforce_native_field_policy(
+        db, tenant_id, "lead", {}, lead, user.get("roles"), required_scope="all")
+    await validate_entity_custom_fields(
+        db, tenant_id, "lead", getattr(lead, "custom_fields_json", None) or {}, user.get("roles"),
+        context={"title": lead.title, "company_name": lead.company_name},
+    )
 
     lead.review_status = "pending"
     lead.reject_reason = None

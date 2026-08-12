@@ -44,6 +44,8 @@ interface PolicyValue {
   /** 策略拉取失败（网络/鉴权/5xx）。此时应保留调用方自带的校验规则作兜底，
    *  否则客户端校验会整个消失，用户只能撞到服务端错误。 */
   failed: boolean
+  /** create 时隐藏 available_on_create=false 的字段（对齐 FormRenderer）。 */
+  formMode: 'create' | 'edit'
   nativeFields: FieldDefinition[]
   customFields: FieldDefinition[]
   rules: FormRule[]
@@ -56,7 +58,7 @@ interface PolicyValue {
 
 const EMPTY: PolicyValue = {
   // 没有 Provider 时按「拉取失败」处理：调用方的规则原样生效，行为与改造前一致
-  loaded: false, failed: true, nativeFields: [], customFields: [], rules: [], states: {},
+  loaded: false, failed: true, formMode: 'edit', nativeFields: [], customFields: [], rules: [], states: {},
   nativeValues: {}, labelOf: () => undefined,
 }
 
@@ -67,7 +69,8 @@ export function useFieldPolicy() {
 }
 
 export function FieldPolicyProvider({
-  entityType, form, customFieldValues, rulesOverride, nativeFieldsOverride, children,
+  entityType, form, customFieldValues, rulesOverride, nativeFieldsOverride,
+  formMode = 'edit', children,
 }: {
   entityType: string
   /** 业务表单实例；Provider 内部订阅它的全部值用于规则求值。 */
@@ -78,6 +81,8 @@ export function FieldPolicyProvider({
   rulesOverride?: FormRule[]
   /** 设计器预览：用画布上的原生字段（含未发布的标签/必填/明细列）覆盖接口 schema。 */
   nativeFieldsOverride?: FieldDefinition[]
+  /** create：隐藏 available_on_create=false 的字段（如线索「中标情况」）。 */
+  formMode?: 'create' | 'edit'
   children: ReactNode
 }) {
   const [schema, setSchema] = useState<{
@@ -154,6 +159,7 @@ export function FieldPolicyProvider({
     return {
       loaded,
       failed,
+      formMode,
       nativeFields: effectiveNative,
       customFields: schema.custom,
       rules: effectiveRules,
@@ -162,7 +168,7 @@ export function FieldPolicyProvider({
       labelOf: (fieldId: string) => labels.get(fieldId),
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema, relevantKey, customFieldValues, userRoles, loaded, failed, effectiveRules, effectiveNative, nativeFieldsOverride])
+  }, [schema, relevantKey, customFieldValues, userRoles, loaded, failed, effectiveRules, effectiveNative, nativeFieldsOverride, formMode])
 
   return <FieldPolicyContext.Provider value={value}>{children}</FieldPolicyContext.Provider>
 }
@@ -181,6 +187,13 @@ export function PolicyItem({ name, rules, label, children, ...rest }: PolicyItem
   const policy = useFieldPolicy()
   const fieldId = Array.isArray(name) ? String(name[name.length - 1]) : name
   const state = policy.states[fieldId]
+  const fdEarly = policy.nativeFields.find((f) => f.id === fieldId)
+    || policy.customFields.find((f) => f.id === fieldId)
+
+  // 新建表单：目录规定「创建不可用」的字段整项不渲染（如线索中标情况）
+  if (policy.formMode === 'create' && fdEarly && fdEarly.available_on_create === false) {
+    return null
+  }
 
   // 策略还没加载完就先按「无策略」渲染，避免必填星号闪烁
   if (!policy.loaded || !state) {
@@ -190,8 +203,7 @@ export function PolicyItem({ name, rules, label, children, ...rest }: PolicyItem
   if (!state.visible) return null
 
   const finalLabel = policy.labelOf(fieldId) ?? label
-  const fd = policy.nativeFields.find((f) => f.id === fieldId)
-    || policy.customFields.find((f) => f.id === fieldId)
+  const fd = fdEarly
   // 策略已知时：租户「关掉必填」优先于目录 default_required；
   // 但调用方显式传入的 required 规则（业务表单硬约束，如合同号）与 system_required 仍生效。
   // 策略未加载/失败时保留调用方规则，避免客户端校验整个消失。

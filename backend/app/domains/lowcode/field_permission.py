@@ -147,7 +147,7 @@ async def _entity_field_defs(db, tenant_id: str, entity_type: str) -> list[dict[
 
 async def validate_entity_custom_fields(
     db, tenant_id: str, entity_type: str, values: Any, user_roles,
-    *, context: dict | None = None,
+    *, context: dict | None = None, skip_required: bool = False,
 ) -> None:
     """校验业务实体扩展字段的必填(含条件必填)，不通过则抛 BusinessException。
 
@@ -156,14 +156,15 @@ async def validate_entity_custom_fields(
 
     context: 可选的原生字段值（整单 payload），用于条件规则求值。扩展必填校验仍只针对
     扩展字段定义；若不传 context，依赖原生开关的条件规则会求值失败（规则不生效）。
+    skip_required: 存草稿时跳过必填（只保留权限裁剪由 sanitize 负责）。
     """
     from app.common.error_codes import VALIDATION_ERROR
     from app.common.exceptions import BusinessException
     from app.domains.lowcode.rule_engine import validate_required_with_rules
     from app.domains.lowcode.service import get_entity_fields, get_entity_schema, role_field_permissions
 
-    if is_system_principal(user_roles):
-        return  # 服务端到服务端调用：无用户角色可评，字段策略整体豁免
+    if skip_required or is_system_principal(user_roles):
+        return  # 草稿 / 系统主体：不拦必填
     schema = await get_entity_schema(db, tenant_id, entity_type)
     # 只校验扩展字段：原生字段的覆盖项也存在同一个列表里，但它们的值在业务列上、
     # 不在 custom_fields_json 里，混进来会变成「明明填了该原生字段却报它必填」。
@@ -183,7 +184,7 @@ async def validate_entity_custom_fields(
 
 async def enforce_native_field_policy(
     db, tenant_id: str, entity_type: str, payload: dict, prior: Any, user_roles,
-    *, required_scope: str = "all",
+    *, required_scope: str = "all", skip_required: bool = False,
 ) -> dict:
     """对业务实体的「原生字段」施加租户配置的字段策略（后端权威边界）。
 
@@ -199,6 +200,8 @@ async def enforce_native_field_policy(
       "payload" —— 只校验本次请求携带的字段（更新用）。表单编辑会提交全部字段，照常拦；
                    而批量改派/废弃这类只带一两个字段的局部更新，不会因历史数据缺少某个
                    「后来才被设为必填」的字段而整批失败。
+    skip_required:
+      True —— 只做只读/隐藏裁剪，不拦必填（线索存草稿等）。
     """
     from app.common.error_codes import VALIDATION_ERROR
     from app.common.exceptions import BusinessException
@@ -272,6 +275,8 @@ async def enforce_native_field_policy(
     # 此时直接复用首次结果，省掉一整轮不动点迭代。
     final_values = {**native_values, **custom_values} if stripped else merged
     final_states = compute_field_states(all_defs, final_values, rules, perms) if stripped else states
+    if skip_required:
+        return payload
     for fd in native_defs:
         fid = fd.get("id")
         if fd.get("form_editable") is False:
