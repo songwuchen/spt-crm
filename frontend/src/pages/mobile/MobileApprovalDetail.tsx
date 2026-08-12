@@ -16,7 +16,7 @@ const bizTypeLabels: Record<string, string> = {
   contract_version: '合同审批',
   change_request: '变更审批',
   solution: '方案审批',
-  lead: '线索审核',
+  lead: '信息情报部审批',
 }
 
 const bizTypeIcons: Record<string, string> = {
@@ -151,7 +151,7 @@ export default function MobileApprovalDetail() {
     if (detail.change_type) items.push({ label: '变更类型', value: detail.change_type })
     if (detail.version_no) items.push({ label: '版本号', value: `V${detail.version_no}` })
     // 线索审核
-    if (detail.lead_code) items.push({ label: '线索编码', value: detail.lead_code })
+    if (detail.lead_code) items.push({ label: '项目号', value: detail.lead_code })
     if (detail.company_name) items.push({ label: '公司', value: detail.company_name })
     if (detail.contact) items.push({ label: '联系人', value: detail.contact })
     if (detail.source) items.push({ label: '来源', value: detail.source })

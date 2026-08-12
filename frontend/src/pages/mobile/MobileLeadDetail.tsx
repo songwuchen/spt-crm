@@ -19,6 +19,12 @@ interface LeadItem {
   department_name?: string | null; created_at: string
   review_status?: string; reject_reason?: string | null
   customer_newness?: string | null; review_opinion?: string | null
+  assess_remark?: string | null
+  has_internal_conflict?: string | null
+  bid_result?: string | null
+  project_activity?: string | null
+  report_project_status?: string | null
+  category?: string | null
 }
 
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -90,7 +96,7 @@ export default function MobileLeadDetail() {
     if (!id) return
     try {
       await leadApi.submitReview(id)
-      message.success('已重新提交审核')
+      message.success('已提交审批')
       loadLead()
     } catch {
       message.error('提交审核失败')
@@ -159,7 +165,7 @@ export default function MobileLeadDetail() {
       {/* 待我情报审批 */}
       {myTask && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 mb-3">
-          <div className="text-sm font-bold text-slate-900 mb-2">该线索待您审批</div>
+          <div className="text-sm font-bold text-slate-900 mb-2">信息情报部审批</div>
           <LeadIntelReviewForm
             compact
             leadId={id!}
@@ -167,6 +173,7 @@ export default function MobileLeadDetail() {
             initialNewness={lead.customer_newness}
             initialOpinion={lead.review_opinion}
             initialReturnReason={lead.reject_reason}
+            initialAssessRemark={lead.assess_remark}
             onDone={(decision) => {
               if (decision === 'draft') {
                 loadLead()
@@ -183,11 +190,23 @@ export default function MobileLeadDetail() {
       {reviewCfg && (
         <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-3 mb-3`}>
           <div className={`flex items-center gap-1.5 text-sm font-bold ${reviewCfg.text}`}>
-            <MobileIcon name={reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'} style={{ fontSize: 18 }} />
+            <MobileIcon
+              name={
+                reviewStatus === 'pending' ? 'hourglass_top'
+                  : reviewStatus === 'draft' ? 'edit_note'
+                    : reviewStatus === 'attacked' ? 'priority_high'
+                      : 'gpp_bad'
+              }
+              style={{ fontSize: 18 }}
+            />
+            {reviewStatus === 'draft' && '草稿未提交'}
             {reviewStatus === 'pending' && '待内勤审核'}
             {reviewStatus === 'rejected' && '已回退'}
             {reviewStatus === 'attacked' && '已标记袭击'}
           </div>
+          {reviewStatus === 'draft' && (
+            <div className="text-sm text-slate-600 mt-1">完善信息后可提交审批。</div>
+          )}
           {reviewStatus === 'rejected' && (
             <div className="text-sm text-slate-600 mt-1">
               {lead.reject_reason ? `回退原因：${lead.reject_reason}` : '请修改后重新提交审核。'}
@@ -196,10 +215,10 @@ export default function MobileLeadDetail() {
           {reviewStatus === 'attacked' && (
             <div className="text-sm text-slate-600 mt-1">袭击状态不可转化为客户。</div>
           )}
-          {reviewStatus === 'rejected' && (
+          {(reviewStatus === 'draft' || reviewStatus === 'rejected') && (
             <button onClick={handleResubmit}
               className="mt-2 w-full py-2 bg-primary text-white rounded-lg text-sm font-bold">
-              重新提交审核
+              提交审批
             </button>
           )}
         </div>
@@ -207,18 +226,18 @@ export default function MobileLeadDetail() {
 
       {reviewApproved && canOperate && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 mb-3">
-          <div className="text-sm font-bold text-emerald-700">线索已收录</div>
-          <div className="text-sm text-slate-600 mt-1">请确认是否转化为客户/商机，也可先跟进再转化。</div>
+          <div className="text-sm font-bold text-emerald-700">信息情报部已收录</div>
+          <div className="text-sm text-slate-600 mt-1">请确认是否转商机：可转化为客户并同时创建商机，也可先跟进再转化。</div>
           <button onClick={handleQualify}
             className="mt-2 w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold">
-            转化为客户
+            确认是否转商机
           </button>
         </div>
       )}
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
         <div className="flex justify-between">
-          <span className="text-sm text-slate-400">编码</span>
+          <span className="text-sm text-slate-400">项目号</span>
           <span className="text-sm font-mono text-slate-600">{lead.lead_code}</span>
         </div>
         {lead.customer_newness && (

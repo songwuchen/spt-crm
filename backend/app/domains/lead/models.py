@@ -45,8 +45,9 @@ class Lead(TenantScopedBase):
     created_by_name: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(50), default="new")  # new / following / qualified / discarded
     # 审核态（提交审核流程）：
-    # approved=免审/收录（可转化）, pending=待审, rejected=回退, attacked=袭击（流程结束但不可转化）。
-    # 与 status 正交：status 表达销售进程，review_status 是创建时的审核门禁。
+    # draft=草稿未提交, approved=免审/收录（可转化）, pending=待审,
+    # rejected=回退, attacked=袭击（流程结束但不可转化）。
+    # 与 status 正交：status 表达销售进程，review_status 是申报审核门禁。
     review_status: Mapped[str] = mapped_column(String(20), default="approved", index=True)
     # 关联的审批流 id。2026-07-19 线索审核切到扩展平台工作流引擎后，新数据存的是
     # wf_process_instance.id；此前的历史数据存的是 approval_flows.id（两者不可混查）。
@@ -55,6 +56,21 @@ class Lead(TenantScopedBase):
     # 情报审批：新/老客户（与 customer_type 字典正交）；操作意见（暂存与终态都会写）
     customer_newness: Mapped[str | None] = mapped_column(String(10))  # new / old
     review_opinion: Mapped[str | None] = mapped_column(Text)
+    # ---- 简道云「申报信息」对齐字段（中文枚举便于同步/展示）----
+    has_internal_conflict: Mapped[str | None] = mapped_column(String(10))  # 是 / 否
+    conflict_note: Mapped[str | None] = mapped_column(String(500))  # 请示部门经理的结果
+    bid_result: Mapped[str | None] = mapped_column(String(50))  # 中标情况
+    bid_fail_reason: Mapped[str | None] = mapped_column(String(500))  # 落标/流标/未参与原因
+    entrust_status: Mapped[str | None] = mapped_column(String(20))  # 已开 / 未开
+    entrust_issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    entrust_term: Mapped[str | None] = mapped_column(String(100))
+    project_activity: Mapped[str | None] = mapped_column(String(50))  # 项目动态
+    project_recent: Mapped[str | None] = mapped_column(String(500))
+    follow_progress: Mapped[str | None] = mapped_column(String(500))
+    site_visit: Mapped[str | None] = mapped_column(String(500))
+    # 报备「项目状态」，与 status(new/following/…) 正交
+    report_project_status: Mapped[str | None] = mapped_column(String(50))
+    assess_remark: Mapped[str | None] = mapped_column(Text)  # 评估区备注2
     score: Mapped[int] = mapped_column(Integer, default=0)
     converted_customer_id: Mapped[str | None] = mapped_column(String(36))
     remark: Mapped[str | None] = mapped_column(Text)

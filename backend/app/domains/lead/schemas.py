@@ -61,8 +61,24 @@ class LeadCreate(BaseModel):
     reported_at: Optional[datetime] = None
     biz_date: Optional[date] = None
     remark: Optional[str] = Field(None, max_length=2000)
+    # 简道云「申报信息」对齐
+    has_internal_conflict: Optional[str] = Field(None, max_length=10)
+    conflict_note: Optional[str] = Field(None, max_length=500)
+    bid_result: Optional[str] = Field(None, max_length=50)
+    bid_fail_reason: Optional[str] = Field(None, max_length=500)
+    entrust_status: Optional[str] = Field(None, max_length=20)
+    entrust_issued_at: Optional[datetime] = None
+    entrust_term: Optional[str] = Field(None, max_length=100)
+    project_activity: Optional[str] = Field(None, max_length=50)
+    project_recent: Optional[str] = Field(None, max_length=500)
+    follow_progress: Optional[str] = Field(None, max_length=500)
+    site_visit: Optional[str] = Field(None, max_length=500)
+    report_project_status: Optional[str] = Field(None, max_length=50)
+    assess_remark: Optional[str] = Field(None, max_length=2000)
     products: Optional[List[LeadProductIn]] = None
     custom_fields_json: Optional[dict] = None
+    # True=仅落库不启审（存草稿）；False/默认=创建后自动提交情报审批
+    as_draft: bool = False
 
     @field_validator("contact_email")
     @classmethod
@@ -105,6 +121,19 @@ class LeadUpdate(BaseModel):
     biz_date: Optional[date] = None
     status: Optional[str] = None
     remark: Optional[str] = Field(None, max_length=2000)
+    has_internal_conflict: Optional[str] = Field(None, max_length=10)
+    conflict_note: Optional[str] = Field(None, max_length=500)
+    bid_result: Optional[str] = Field(None, max_length=50)
+    bid_fail_reason: Optional[str] = Field(None, max_length=500)
+    entrust_status: Optional[str] = Field(None, max_length=20)
+    entrust_issued_at: Optional[datetime] = None
+    entrust_term: Optional[str] = Field(None, max_length=100)
+    project_activity: Optional[str] = Field(None, max_length=50)
+    project_recent: Optional[str] = Field(None, max_length=500)
+    follow_progress: Optional[str] = Field(None, max_length=500)
+    site_visit: Optional[str] = Field(None, max_length=500)
+    report_project_status: Optional[str] = Field(None, max_length=50)
+    assess_remark: Optional[str] = Field(None, max_length=2000)
     products: Optional[List[LeadProductIn]] = None
     custom_fields_json: Optional[dict] = None
 
@@ -121,6 +150,7 @@ class LeadIntelReviewIn(BaseModel):
     customer_newness: Optional[LeadCustomerNewness] = None
     return_reason: Optional[str] = Field(None, max_length=2000)
     opinion: Optional[str] = Field(None, max_length=2000)
+    assess_remark: Optional[str] = Field(None, max_length=2000)
 
     @model_validator(mode="after")
     def _require_fields_by_decision(self):

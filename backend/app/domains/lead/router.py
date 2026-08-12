@@ -79,6 +79,21 @@ def _lead_dict(l, products=None, dept_names=None) -> dict:
         "reject_reason": getattr(l, "reject_reason", None),
         "customer_newness": getattr(l, "customer_newness", None),
         "review_opinion": getattr(l, "review_opinion", None),
+        "has_internal_conflict": getattr(l, "has_internal_conflict", None),
+        "conflict_note": getattr(l, "conflict_note", None),
+        "bid_result": getattr(l, "bid_result", None),
+        "bid_fail_reason": getattr(l, "bid_fail_reason", None),
+        "entrust_status": getattr(l, "entrust_status", None),
+        "entrust_issued_at": (
+            l.entrust_issued_at.isoformat() if getattr(l, "entrust_issued_at", None) else None
+        ),
+        "entrust_term": getattr(l, "entrust_term", None),
+        "project_activity": getattr(l, "project_activity", None),
+        "project_recent": getattr(l, "project_recent", None),
+        "follow_progress": getattr(l, "follow_progress", None),
+        "site_visit": getattr(l, "site_visit", None),
+        "report_project_status": getattr(l, "report_project_status", None),
+        "assess_remark": getattr(l, "assess_remark", None),
         "converted_customer_id": l.converted_customer_id,
         "remark": l.remark,
         # 扩展字段值必须回传：strip_entity_dicts 依赖它做字段级权限裁剪，前端编辑表单也据此
@@ -187,7 +202,7 @@ async def export_leads_excel(
     dept_names = await _lead_department_names(db, tenant_id, items)
     headers = [
         # 列表 & 基本信息
-        "线索编码", "标题", "公司名称", "部门", "来源", "类别", "客户类型", "行业",
+        "项目号", "标题", "公司名称", "部门", "来源", "类别", "客户类型", "行业",
         "业务日期", "报备人", "报备时间", "负责人", "状态", "评分",
         # 联系人信息
         "联系人", "联系电话", "邮箱",
@@ -377,7 +392,7 @@ async def submit_lead_review(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("lead:edit")),
 ):
-    """被驳回的线索修改后重新提交内勤审核。"""
+    """草稿或被回退的线索提交 / 重新提交内勤审核。"""
     l = await service.resubmit_lead_review(db, tenant_id, lead_id, current_user)
     products = await service.list_lead_products(db, tenant_id, l.id)
     return await ok_entity(db, tenant_id, "lead", _lead_dict(l, products), current_user.get("roles"))
@@ -389,6 +404,7 @@ class IntelReviewBody(BaseModel):
     customer_newness: Optional[str] = None  # new | old
     return_reason: Optional[str] = None
     opinion: Optional[str] = None
+    assess_remark: Optional[str] = None
 
 
 @router.post("/{lead_id}/intel_review")
@@ -409,6 +425,7 @@ async def intel_review_lead(
         customer_newness=payload.customer_newness,
         return_reason=payload.return_reason,
         opinion=payload.opinion,
+        assess_remark=payload.assess_remark,
     )
     products = await service.list_lead_products(db, tenant_id, l.id)
     return await ok_entity(

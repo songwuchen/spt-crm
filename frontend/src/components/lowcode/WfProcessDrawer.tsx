@@ -294,7 +294,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                   {detail.biz_type === 'contract_version' && contract
                     ? '合同登记信息'
                     : detail.biz_type === 'lead'
-                      ? '线索信息'
+                      ? '申报信息（创建时填写）'
                       : detail.biz_type === 'contract_review'
                         ? '合同评审信息'
                         : detail.biz_type === 'tech_agreement_review'
@@ -331,8 +331,15 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                 ) : bizEntries.length ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 rounded-lg bg-slate-50 border border-slate-100 p-4">
                     {bizEntries.map(([k, v]) => (
-                      <div key={k} className="flex gap-2 text-sm min-w-0">
-                        <span className="shrink-0 w-28 text-slate-500">{k}</span>
+                      <div
+                        key={k}
+                        className={`flex gap-2 text-sm min-w-0 ${
+                          ['备注1（线索内容）', '备注：请示部门经理的结果', '详细地址', '回退原因', '备注2', '操作意见', '备注'].includes(k)
+                            ? 'sm:col-span-2'
+                            : ''
+                        }`}
+                      >
+                        <span className="shrink-0 w-36 text-slate-500">{k}</span>
                         <span className="text-slate-800 font-medium break-all whitespace-pre-wrap">
                           {v == null || v === '' ? '—' : String(v)}
                         </span>
@@ -341,6 +348,11 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                   </div>
                 ) : (
                   <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
+                )}
+                {detail.biz_type === 'lead' && detail.biz_id && (
+                  <div className="mt-4">
+                    <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
+                  </div>
                 )}
                 {detail.biz_type === 'tech_agreement_review' && detail.biz_id && (
                   <div className="mt-4 space-y-3">
@@ -360,6 +372,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                 )}
               </section>
 
+              {/* 非线索：本节点可填业务字段 */}
               {canAct && !isLeadIntel && detail.current_task && (detail.current_task.field_perms?.length ?? 0) > 0 && (
                 <section className="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
                   <div className="text-sm font-semibold text-slate-700 mb-2">
@@ -379,16 +392,41 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
               )}
             </div>
 
-            {/* 线索：情报四态裁定（收录/袭击/回退/暂存），隐藏通用通过驳回 */}
+            {/* 线索：本节点填写（新/老 → 最终状态 → 回退原因 → 备注2 → 操作意见）+ 裁定 */}
             {isLeadIntel && (
-              <div className="shrink-0 border-t border-slate-200 bg-white shadow-[0_-4px_12px_rgba(15,23,42,0.04)] px-5 py-4 max-h-[45vh] overflow-y-auto">
-                <div className="text-sm font-semibold text-slate-700 mb-3">情报审批</div>
+              <div className="shrink-0 border-t border-slate-200 bg-white shadow-[0_-4px_12px_rgba(15,23,42,0.04)] px-5 py-4 max-h-[50vh] overflow-y-auto">
+                <div className="text-sm font-semibold text-slate-700 mb-3">
+                  本节点填写（{detail.current_task?.node_name || '信息情报部审批'}）
+                </div>
                 <LeadIntelReviewForm
+                  embedded
                   leadId={detail.biz_id!}
                   taskId={effectiveTaskId!}
                   initialNewness={
-                    detail.biz_detail?.['客户类型'] === '新' ? 'new'
-                      : detail.biz_detail?.['客户类型'] === '老' ? 'old'
+                    (fieldUpdates.customer_newness as string)
+                      || (detail.biz_detail?.['新/老客户'] === '新' ? 'new'
+                        : detail.biz_detail?.['新/老客户'] === '老' ? 'old'
+                          : undefined)
+                  }
+                  initialReturnReason={
+                    fieldUpdates.reject_reason != null
+                      ? String(fieldUpdates.reject_reason)
+                      : detail.biz_detail?.['回退原因'] != null
+                        ? String(detail.biz_detail['回退原因'])
+                        : undefined
+                  }
+                  initialAssessRemark={
+                    fieldUpdates.assess_remark != null
+                      ? String(fieldUpdates.assess_remark)
+                      : detail.biz_detail?.['备注2'] != null
+                        ? String(detail.biz_detail['备注2'])
+                        : undefined
+                  }
+                  initialOpinion={
+                    fieldUpdates.review_opinion != null
+                      ? String(fieldUpdates.review_opinion)
+                      : detail.biz_detail?.['操作意见'] != null
+                        ? String(detail.biz_detail['操作意见'])
                         : undefined
                   }
                   onDone={(decision) => {

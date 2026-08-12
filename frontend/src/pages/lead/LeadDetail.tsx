@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Button, Space, Modal, Spin, Tabs, Checkbox, message } from 'antd'
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Button, Space, Modal, Tabs, Checkbox, message } from 'antd'
+import { EditOutlined, DeleteOutlined, AuditOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
 import { workflowApi } from '@/api/lowcodeWorkflow'
-import type { WfTodoItem } from '@/types/lowcode'
+import type { WfInstanceDetail, WfTodoItem } from '@/types/lowcode'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import type { Lead } from '@/api/types'
 import { sourceLabels } from '@/api/types'
@@ -16,6 +16,7 @@ import { useDataDict } from '@/hooks/useDataDict'
 import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import { formatRegion } from '@/utils/address'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
+import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 
 import Icon from '@/components/Icon'
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
@@ -33,15 +34,6 @@ const qualifySteps = [
   { key: 'following', label: '跟进', icon: 'chat' },
   { key: 'qualified', label: '转化', icon: 'check_circle' },
 ]
-
-function InfoField({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="py-3 border-b border-slate-50 last:border-0">
-      <div className="text-[12px] text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</div>
-      <div className="text-sm font-semibold text-slate-700">{value || <span className="text-slate-300">-</span>}</div>
-    </div>
-  )
-}
 
 function ScoreGauge({ score }: { score: number }) {
   const getColor = (s: number) => {
@@ -80,6 +72,9 @@ export default function LeadDetail() {
   // 当前用户对该线索的待审批任务（有则可在本页直接情报裁定）
   const [myTask, setMyTask] = useState<WfTodoItem | null>(null)
   const [reviewInFlight, setReviewInFlight] = useState(false)
+  const [wfInstance, setWfInstance] = useState<WfInstanceDetail | null>(null)
+  const [wfCommenting, setWfCommenting] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const customerTypeDict = useDataDict('customer_type')
   const industryDict = useDataDict('industry')
 
@@ -89,6 +84,17 @@ export default function LeadDetail() {
       setLead(res.data)
     } catch {
       message.error('获取线索详情失败')
+    }
+  }
+
+  const loadWf = async (bizId: string) => {
+    try {
+      const res = await workflowApi.byBiz({ biz_type: 'lead', biz_id: bizId })
+      setWfInstance(res.data || null)
+      setReviewInFlight(res.data?.status === 'running')
+    } catch {
+      setWfInstance(null)
+      setReviewInFlight(false)
     }
   }
 
@@ -103,14 +109,24 @@ export default function LeadDetail() {
     } catch { setMyTask(null) }
   }
 
-  const fetchReviewLock = async () => {
-    try {
-      const wf = await workflowApi.byBiz({ biz_type: 'lead', biz_id: id! })
-      setReviewInFlight(wf.data?.status === 'running')
-    } catch { setReviewInFlight(false) }
-  }
+  useEffect(() => {
+    if (id) {
+      void fetchLead()
+      void fetchMyApproval()
+      void loadWf(id)
+    }
+  }, [id])
 
-  useEffect(() => { if (id) { fetchLead(); fetchMyApproval(); fetchReviewLock() } }, [id])
+  const handleWfComment = async (content: string) => {
+    if (!wfInstance?.id || !id) return
+    setWfCommenting(true)
+    try {
+      await workflowApi.comment(wfInstance.id, content)
+      await loadWf(id)
+    } finally {
+      setWfCommenting(false)
+    }
+  }
 
   // 「开始跟进」：跳到动态页并打开跟进记录编辑（自动带入线索信息）
   const handleStartFollowUp = () => {
@@ -131,7 +147,7 @@ export default function LeadDetail() {
   const handleQualify = () => {
     let createOpp = true
     Modal.confirm({
-      title: '确认转化',
+      title: '确认是否转商机',
       content: (
         <div>
           <p className="mb-2">将此线索转化为客户？转化后线索状态将变为"已转化"。</p>
@@ -154,14 +170,28 @@ export default function LeadDetail() {
     })
   }
 
-  const handleResubmit = async () => {
-    try {
-      await leadApi.submitReview(id!)
-      message.success('已重新提交审核')
-      fetchLead()
-    } catch {
-      message.error('提交审核失败')
-    }
+  const handleSubmitApproval = () => {
+    if (!id) return
+    Modal.confirm({
+      title: '提交审批',
+      content: '确认提交该线索进入信息情报部审批？提交后可在本页右侧「流程动态」查看进度。',
+      okText: '提交审批',
+      onOk: async () => {
+        setSubmitting(true)
+        try {
+          await leadApi.submitReview(id)
+          message.success('已提交审批')
+          await fetchLead()
+          await loadWf(id)
+          await fetchMyApproval()
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          message.error(msg || '提交审核失败')
+        } finally {
+          setSubmitting(false)
+        }
+      },
+    })
   }
 
   const handleDiscard = () => {
@@ -188,11 +218,18 @@ export default function LeadDetail() {
   const canOperate = lead.status !== 'qualified' && lead.status !== 'discarded'
   const reviewStatus = lead.review_status || 'approved'
   const canEditLead = canOperate && !reviewInFlight
+  const canSubmitApproval = canOperate && (reviewStatus === 'draft' || reviewStatus === 'rejected')
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
   const s = statusConfig[lead.status] || statusConfig.new
 
   const currentStepIdx = lead.status === 'discarded' ? -1 : qualifySteps.findIndex((st) => st.key === lead.status)
+
+  const reviewBannerIcon =
+    reviewStatus === 'pending' ? 'hourglass_top'
+      : reviewStatus === 'draft' ? 'edit_note'
+        : reviewStatus === 'attacked' ? 'priority_high'
+          : 'gpp_bad'
 
   return (
     <div>
@@ -212,7 +249,7 @@ export default function LeadDetail() {
                 </span>
                 {reviewCfg && (
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${reviewCfg.bg} ${reviewCfg.text} ${reviewCfg.border}`}>
-                    <Icon name={reviewStatus === 'pending' ? 'hourglass_top' : 'gpp_bad'} className="text-sm" />
+                    <Icon name={reviewBannerIcon} className="text-sm" />
                     {reviewCfg.label}
                   </span>
                 )}
@@ -243,10 +280,9 @@ export default function LeadDetail() {
                 {canEditLead && (
                   <Button icon={<EditOutlined />} onClick={() => navigate(`/leads/${id}/edit`)}>编辑</Button>
                 )}
-                {reviewStatus === 'rejected' && (
-                  <Button type="primary" onClick={handleResubmit}>
-                    <Icon name="restart_alt" className="text-sm mr-1" />
-                    重新提交审核
+                {canSubmitApproval && (
+                  <Button type="primary" icon={<AuditOutlined />} loading={submitting} onClick={handleSubmitApproval}>
+                    提交审批
                   </Button>
                 )}
                 {reviewApproved && (
@@ -315,7 +351,7 @@ export default function LeadDetail() {
             <Icon name="approval" className="text-primary" />
             <div>
               <div className="text-sm font-bold text-slate-900">该线索待您审批</div>
-              <div className="text-sm text-slate-500">{myTask.title || '线索审核'}</div>
+              <div className="text-sm text-slate-500">{myTask.title || '信息情报部审批'}</div>
             </div>
           </div>
           <LeadIntelReviewForm
@@ -324,12 +360,14 @@ export default function LeadDetail() {
             initialNewness={lead.customer_newness}
             initialOpinion={lead.review_opinion}
             initialReturnReason={lead.reject_reason}
+            initialAssessRemark={lead.assess_remark}
             onDone={(decision) => {
               if (decision === 'draft') {
-                fetchLead()
+                void fetchLead()
               } else {
                 setMyTask(null)
-                fetchLead()
+                void fetchLead()
+                if (id) void loadWf(id)
               }
             }}
           />
@@ -339,25 +377,23 @@ export default function LeadDetail() {
       {/* Review status banner */}
       {reviewCfg && (
         <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-4 mb-6 flex items-start gap-3`}>
-          <Icon name={
-            reviewStatus === 'pending' ? 'hourglass_top'
-              : reviewStatus === 'attacked' ? 'priority_high'
-                : 'gpp_bad'
-          } className={`${reviewCfg.text}`} />
+          <Icon name={reviewBannerIcon} className={`${reviewCfg.text}`} />
           <div className="flex-1">
             <div className={`text-sm font-bold ${reviewCfg.text}`}>
+              {reviewStatus === 'draft' && '线索草稿未提交'}
               {reviewStatus === 'pending' && '线索待信息情报部内勤审核'}
               {reviewStatus === 'rejected' && '线索已回退'}
               {reviewStatus === 'attacked' && '线索已标记为袭击'}
             </div>
             <div className="text-sm text-slate-600 mt-1">
+              {reviewStatus === 'draft' && '完善申报信息后提交审批，可在右侧查看流程动态。'}
               {reviewStatus === 'pending' && '审核收录后方可转化为客户。'}
               {reviewStatus === 'rejected' && (lead.reject_reason ? `回退原因：${lead.reject_reason}` : '请根据反馈修改线索信息后重新提交审核。')}
               {reviewStatus === 'attacked' && '袭击状态不可转化为客户。'}
             </div>
           </div>
-          {reviewStatus === 'rejected' && canOperate && (
-            <Button size="small" type="primary" onClick={handleResubmit}>重新提交审核</Button>
+          {canSubmitApproval && (
+            <Button size="small" type="primary" loading={submitting} onClick={handleSubmitApproval}>提交审批</Button>
           )}
         </div>
       )}
@@ -368,56 +404,19 @@ export default function LeadDetail() {
           <div className="flex items-start gap-3">
             <Icon name="verified" className="text-emerald-600" />
             <div>
-              <div className="text-sm font-bold text-emerald-700">线索已收录</div>
+              <div className="text-sm font-bold text-emerald-700">信息情报部已收录</div>
               <div className="text-sm text-slate-600 mt-1">
-                请业务员（负责人）确认后，自行选择是否转化为客户/商机；也可先跟进再转化。
+                请业务员（负责人）确认是否转商机：可转化为客户并同时创建商机，也可先跟进再转化。
               </div>
             </div>
           </div>
-          <Button type="primary" onClick={handleQualify}>转化为客户</Button>
+          <Button type="primary" onClick={handleQualify}>确认是否转商机</Button>
         </div>
       )}
 
-      {/* Content Grid */}
+      {/* Content Grid：主栏详情 + 右侧 AI */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Lead Portrait */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Score Card */}
-          <ScoreGauge score={lead.score ?? 0} />
-
-          {/* Lead Info */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-0">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">线索信息</h3>
-            <InfoField label="线索编号" value={lead.lead_code} />
-            <InfoField label="业务日期" value={lead.biz_date} />
-            <InfoField label="联系人" value={lead.contact_name} />
-            <InfoField label="联系电话" value={lead.contact_phone} />
-            <InfoField label="联系邮箱" value={lead.contact_email} />
-            <InfoField label="来源" value={lead.source ? (sourceLabels[lead.source] || lead.source) : undefined} />
-            <InfoField label="客户类型" value={lead.customer_type ? (customerTypeDict.options.find(o => o.value === lead.customer_type)?.label || lead.customer_type) : undefined} />
-            <InfoField label="新/老客户" value={lead.customer_newness ? (customerNewnessLabels[lead.customer_newness] || lead.customer_newness) : undefined} />
-            <InfoField label="类别" value={lead.category ? categoryLabels[lead.category] : undefined} />
-            <InfoField label="国别" value={lead.country_type ? (lead.country_type === 'overseas' && lead.country_name ? `${countryLabels.overseas} · ${lead.country_name}` : countryLabels[lead.country_type]) : undefined} />
-            {/* region 是用户填的详细地址/备注地点，与 formatLocation 的省市区互补，此前详情页完全看不到 */}
-            <InfoField label="详细地址" value={lead.region} />
-            <InfoField label="报备人" value={lead.reporter_name} />
-            <InfoField label="报备时间" value={lead.reported_at ? new Date(lead.reported_at).toLocaleString('zh-CN') : undefined} />
-            <InfoField label="负责人" value={lead.owner_name} />
-            <InfoField label="部门" value={lead.department_name} />
-            <InfoField label="录入人" value={lead.created_by_name} />
-            {lead.converted_customer_id && (
-              <InfoField label="转化客户" value={
-                <a onClick={() => navigate(`/customers/${lead.converted_customer_id}`)} className="text-primary font-bold text-sm hover:underline">
-                  查看客户详情
-                </a>
-              } />
-            )}
-          </div>
-          <EntityCustomFields entityType="lead" value={lead.custom_fields_json || {}} readOnly />
-        </div>
-
-        {/* Center: Tabs Content */}
-        <div className="lg:col-span-6">
+        <div className="lg:col-span-9">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <Tabs
               activeKey={activeTab}
@@ -429,71 +428,263 @@ export default function LeadDetail() {
                   label: <span className="font-semibold">详细信息</span>,
                   children: (
                     <div className="pb-6 space-y-6">
-                      {/* 客户关注：线索内容 / 公司 / 申报人·部门·时间 / 收录或退回 */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">线索内容</div>
-                          <div className="text-sm font-semibold text-slate-700 whitespace-pre-wrap leading-relaxed">
-                            {lead.demand_summary || lead.title || <span className="text-slate-300 font-normal">-</span>}
-                          </div>
+                      <div>
+                        <div className="relative mb-3 flex items-center overflow-hidden rounded-sm bg-teal-600 px-3 py-2 text-white">
+                          <span className="text-[13px] font-semibold">线索信息</span>
                         </div>
-                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">公司名称</div>
-                          <div className="text-sm font-semibold text-slate-700">
-                            {lead.company_name || <span className="text-slate-300 font-normal">-</span>}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">项目号</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.lead_code || '-'}</div>
                           </div>
-                        </div>
-                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">最终状态</div>
-                          <div className="text-sm font-semibold">
-                            {(() => {
-                              const finalLabels: Record<string, { label: string; cls: string }> = {
-                                approved: { label: '收录', cls: 'text-emerald-600' },
-                                rejected: { label: '退回', cls: 'text-red-600' },
-                                pending: { label: '待审', cls: 'text-amber-600' },
-                                attacked: { label: '袭击', cls: 'text-orange-600' },
-                              }
-                              const f = finalLabels[reviewStatus] || { label: reviewStatus, cls: 'text-slate-700' }
-                              return <span className={f.cls}>{f.label}</span>
-                            })()}
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">公司名称</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.company_name || '-'}</div>
                           </div>
-                          {reviewStatus === 'rejected' && lead.reject_reason && (
-                            <div className="mt-2 text-xs text-red-500 leading-relaxed">原因：{lead.reject_reason}</div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">申报人</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.reporter_name || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">部门</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.department_name || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">申报时间</div>
+                            <div className="text-sm font-semibold text-slate-700">
+                              {lead.reported_at ? new Date(lead.reported_at).toLocaleString('zh-CN') : '-'}
+                            </div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">负责人</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.owner_name || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">联系人</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.contact_name || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">联系电话</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.contact_phone || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">渠道来源</div>
+                            <div className="text-sm font-semibold text-slate-700">
+                              {lead.source ? (sourceLabels[lead.source] || lead.source) : '-'}
+                            </div>
+                          </div>
+                          <div className="sm:col-span-2 xl:col-span-3 p-4 bg-primary/5 rounded-xl border border-primary/20">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-primary/70 mb-1">线索内容</div>
+                            <div className="text-sm font-semibold text-slate-700 whitespace-pre-wrap">
+                              {lead.demand_summary || lead.title || '-'}
+                            </div>
+                          </div>
+                          {lead.converted_customer_id && (
+                            <div className="sm:col-span-2 xl:col-span-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                              <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">转化客户</div>
+                              <a
+                                onClick={() => navigate(`/customers/${lead.converted_customer_id}`)}
+                                className="text-primary font-bold text-sm hover:underline cursor-pointer"
+                              >
+                                查看客户详情
+                              </a>
+                            </div>
                           )}
                         </div>
-                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">申报人</div>
-                          <div className="text-sm font-semibold text-slate-700">
-                            {lead.reporter_name || <span className="text-slate-300 font-normal">-</span>}
-                          </div>
+                        <div className="mt-4">
+                          <EntityCustomFields entityType="lead" value={lead.custom_fields_json || {}} readOnly />
                         </div>
-                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">部门</div>
-                          <div className="text-sm font-semibold text-slate-700">
-                            {lead.department_name || <span className="text-slate-300 font-normal">-</span>}
-                          </div>
+                      </div>
+
+                      <div>
+                        <div className="relative mb-3 flex items-center overflow-hidden rounded-sm bg-teal-600 px-3 py-2 text-white">
+                          <span className="text-[13px] font-semibold">申报信息（创建时填写）</span>
                         </div>
-                        <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">申报时间</div>
-                          <div className="text-sm font-semibold text-slate-700">
-                            {lead.reported_at
-                              ? new Date(lead.reported_at).toLocaleString('zh-CN')
-                              : <span className="text-slate-300 font-normal">-</span>}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">来源</div>
+                            <div className="text-sm font-semibold text-slate-700">
+                              {lead.category ? categoryLabels[lead.category] : '-'}
+                            </div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">客户类型</div>
+                            <div className="text-sm font-semibold text-slate-700">
+                              {lead.customer_type
+                                ? (customerTypeDict.options.find(o => o.value === lead.customer_type)?.label || lead.customer_type)
+                                : '-'}
+                            </div>
+                          </div>
+                          <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">项目名称</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.title || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">公司名称</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.company_name || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">行业</div>
+                            <div className="text-sm font-semibold text-slate-700">
+                              {lead.industry
+                                ? (industryDict.options.find(o => o.value === lead.industry)?.label || lead.industry)
+                                : '-'}
+                            </div>
+                          </div>
+                          <div className="sm:col-span-2 p-4 bg-primary/5 rounded-xl border border-primary/20">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-primary/70 mb-1">线索内容（备注1）</div>
+                            <div className="text-sm font-semibold text-slate-700 whitespace-pre-wrap">
+                              {lead.demand_summary || '-'}
+                            </div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">是否内部冲突</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.has_internal_conflict || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">中标情况</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.bid_result || '-'}</div>
+                          </div>
+                          {lead.has_internal_conflict === '是' && (
+                            <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                              <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">请示部门经理的结果</div>
+                              <div className="text-sm font-semibold text-slate-700 whitespace-pre-wrap">{lead.conflict_note || '-'}</div>
+                            </div>
+                          )}
+                          {lead.bid_fail_reason && (
+                            <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                              <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">原因</div>
+                              <div className="text-sm font-semibold text-slate-700">{lead.bid_fail_reason}</div>
+                            </div>
+                          )}
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">国别 / 地址</div>
+                            <div className="text-sm font-semibold text-slate-700">{formatLocation(lead) || lead.region || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">委托状态</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.entrust_status || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">委托开具日期</div>
+                            <div className="text-sm font-semibold text-slate-700">
+                              {lead.entrust_issued_at ? new Date(lead.entrust_issued_at).toLocaleString('zh-CN') : '-'}
+                            </div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">委托期限</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.entrust_term || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">填表人</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.created_by_name || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">部门</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.department_name || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">申报人</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.reporter_name || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">申报时间</div>
+                            <div className="text-sm font-semibold text-slate-700">
+                              {lead.reported_at ? new Date(lead.reported_at).toLocaleString('zh-CN') : '-'}
+                            </div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">项目动态</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.project_activity || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">负责人</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.owner_name || '-'}</div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Remark */}
+                      <div>
+                        <div className="relative mb-3 flex items-center overflow-hidden rounded-sm bg-teal-600 px-3 py-2 text-white">
+                          <span className="text-[13px] font-semibold">业务反馈项目详情（跟进时填写）</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">项目近况</div>
+                            <div className="text-sm font-semibold text-slate-700 whitespace-pre-wrap">{lead.project_recent || '-'}</div>
+                          </div>
+                          <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">跟进进度</div>
+                            <div className="text-sm font-semibold text-slate-700 whitespace-pre-wrap">{lead.follow_progress || '-'}</div>
+                          </div>
+                          <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">实地拜访情况</div>
+                            <div className="text-sm font-semibold text-slate-700 whitespace-pre-wrap">{lead.site_visit || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">项目状态</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.report_project_status || '-'}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="relative mb-3 flex items-center overflow-hidden rounded-sm bg-teal-600 px-3 py-2 text-white">
+                          <span className="text-[13px] font-semibold">评估信息（审批时填写）</span>
+                        </div>
+                        <p className="mb-3 text-xs text-slate-400">
+                          由信息情报部在审批待办中填写：新/老客户、最终状态、回退原因、备注2
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">客户类型（新/老）</div>
+                            <div className="text-sm font-semibold text-slate-700">
+                              {lead.customer_newness
+                                ? (customerNewnessLabels[lead.customer_newness] || lead.customer_newness)
+                                : '-'}
+                            </div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">项目最终状态</div>
+                            <div className="text-sm font-semibold">
+                              {(() => {
+                                const finalLabels: Record<string, { label: string; cls: string }> = {
+                                  draft: { label: '草稿', cls: 'text-slate-500' },
+                                  approved: { label: '收录', cls: 'text-emerald-600' },
+                                  rejected: { label: '回退', cls: 'text-red-600' },
+                                  pending: { label: '待审', cls: 'text-amber-600' },
+                                  attacked: { label: '袭击', cls: 'text-orange-600' },
+                                }
+                                const f = finalLabels[reviewStatus] || { label: reviewStatus, cls: 'text-slate-700' }
+                                return <span className={f.cls}>{f.label}</span>
+                              })()}
+                            </div>
+                            {reviewStatus === 'rejected' && lead.reject_reason && (
+                              <div className="mt-2 text-xs text-red-500 leading-relaxed">回退原因：{lead.reject_reason}</div>
+                            )}
+                          </div>
+                          <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">备注2</div>
+                            <div className="text-sm font-semibold text-slate-700 whitespace-pre-wrap">{lead.assess_remark || '-'}</div>
+                          </div>
+                          {lead.review_opinion && (
+                            <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                              <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">操作意见</div>
+                              <div className="text-sm font-semibold text-slate-700 whitespace-pre-wrap">{lead.review_opinion}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
                       {lead.remark && (
                         <div>
-                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-2">备注</div>
+                          <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-2">其他备注</div>
                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
                             {lead.remark}
                           </div>
                         </div>
                       )}
 
-                      {/* Meta Info */}
                       <div className="grid grid-cols-2 gap-4">
                         <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                           <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">创建时间</div>
@@ -535,8 +726,33 @@ export default function LeadDetail() {
           </div>
         </div>
 
-        {/* Right: AI Insights Panel */}
-        <div className="lg:col-span-3">
+        {/* Right: AI 评分 + 流程动态 + 智能洞察 */}
+        <div className="lg:col-span-3 space-y-6">
+          <ScoreGauge score={lead.score ?? 0} />
+          <div
+            className="rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white"
+            style={{ height: 'min(520px, calc(100vh - 280px))', minHeight: 360 }}
+          >
+            {wfInstance ? (
+              <WfFlowDynamics
+                steps={wfInstance.flow_steps || []}
+                comments={wfInstance.comments || []}
+                onSubmitComment={handleWfComment}
+                commenting={wfCommenting}
+              />
+            ) : (
+              <div className="h-full flex flex-col bg-slate-50">
+                <div className="px-3 pt-3 pb-2 text-sm font-medium text-slate-600 border-b border-slate-200">
+                  流程动态
+                </div>
+                <div className="flex-1 flex items-center justify-center px-4 text-sm text-slate-400 text-center">
+                  {reviewStatus === 'draft'
+                    ? '提交审批后将在此显示流程进度'
+                    : '暂无流程动态'}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="bg-blue-50/50 rounded-xl border border-blue-100 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-5">
               <Icon name="auto_awesome" className="text-primary" />

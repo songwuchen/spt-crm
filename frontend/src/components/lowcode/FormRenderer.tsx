@@ -29,6 +29,7 @@ import RichTextField from './fields/RichTextField'
 import SignatureField from './fields/SignatureField'
 import BaseFormLookupField, { parseFormOptionsSource } from './fields/BaseFormLookupField'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
+import { applySimpleFormulas } from '@/utils/lowcodeSimpleFormulas'
 
 const { TextArea } = Input
 const { Text } = Typography
@@ -109,14 +110,22 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
   )
 
   const setField = (id: string, v: unknown) => {
-    onChange?.({ ...value, [id]: v })
+    onChange?.(applySimpleFormulas(fields, { ...value, [id]: v }))
   }
   const patchFields = (patch: Record<string, unknown>) => {
-    onChange?.({ ...value, ...patch })
+    onChange?.(applySimpleFormulas(fields, { ...value, ...patch }))
   }
 
   const topFields = fields.filter((f) => !GROUP_TYPES.has(f.type))
   if (!topFields.length) return <Empty description="该表单暂无字段" />
+
+  const isShown = (field: FieldDefinition): boolean => {
+    if (field.type === 'section' || field.type === 'separator') return false
+    if (mode === 'edit' && field.available_on_create === false) return false
+    const st = states[field.id]
+    if (st && !st.visible) return false
+    return true
+  }
 
   return (
     <Row gutter={16}>
@@ -124,6 +133,14 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
         // 布局误挂同一 field.id 多次时，用 index 保证 React key 唯一
         const rowKey = `${field.id}__${idx}`
         if (field.type === 'section' || field.type === 'separator') {
+          // 分区下若创建页全部是审批才填字段，则整段标题一并隐藏
+          let hasVisibleChild = false
+          for (let j = idx + 1; j < topFields.length; j++) {
+            const next = topFields[j]
+            if (next.type === 'section' || next.type === 'separator') break
+            if (isShown(next)) { hasVisibleChild = true; break }
+          }
+          if (!hasVisibleChild) return null
           return (
             <Col span={24} key={rowKey}>
               <ContractSectionTitle title={field.label} className="mt-2 mb-1" />

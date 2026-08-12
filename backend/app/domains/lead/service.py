@@ -177,10 +177,10 @@ async def submit_lead_review(db: AsyncSession, tenant_id: str, lead: Lead, user:
     """
     from app.domains.lowcode.workflow_service import ensure_default_definition, start_for_biz
 
-    title = f"线索审核: {(lead.lead_code + ' ') if lead.lead_code else ''}{lead.title}"
-    # 先确保系统兜底流程存在且已含「抄送负责人」节点（可在设计器改），再发起
+    title = f"信息情报部审批: {(lead.lead_code + ' ') if lead.lead_code else ''}{lead.title}"
+    # 先确保系统兜底流程存在且已含「业务员确认是否转商机」抄送（可在设计器改），再发起
     await ensure_default_definition(
-        db, tenant_id, biz_type="lead", code=LEAD_DEFAULT_FLOW_CODE, name="线索审核",
+        db, tenant_id, biz_type="lead", code=LEAD_DEFAULT_FLOW_CODE, name="信息情报部审批",
         # 刻意按角色而非按 lead:review 权限解析，避免把管理员(拥有全部权限)也拉进审核人池
         approver_rule={"type": "specified_role", "value": "lead_intel", "exclude_initiator": True},
         multi_mode="or_sign", empty_strategy="auto_approve",
@@ -210,6 +210,7 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     payload = data.model_dump()
     products = data.products  # 产品明细单独处理，不能 setattr 到模型
     payload.pop("products", None)
+    as_draft = bool(payload.pop("as_draft", False))
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
@@ -256,25 +257,27 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
                      action="create", resource_type="lead", resource_id=lead.id,
                      summary=f"创建线索: {lead.title}")
 
-    # 审核门禁：任何人（含管理员）在系统内新建/导入线索都需内勤审核。
-    # 仅显式传 auto_review=False 的入口（如公开表单 webhook）免审。
-    if auto_review is None:
-        needs_review = True
-    else:
-        needs_review = not auto_review
-    if needs_review:
-        lead.review_status = "pending"
+    # 审核门禁：系统内新建/导入默认需内勤审核；as_draft 仅落库；
+    # 显式 auto_review=False（如公开表单 webhook）免审放行。
+    if auto_review is False:
+        return lead
+    if as_draft:
+        lead.review_status = "draft"
         await db.commit()
-        try:
-            inst = await submit_lead_review(db, tenant_id, lead, user)
-        except Exception as e:
-            logger.warning("Lead review submit failed for %s: %s", lead.id, e)
-            # 失败可能来自 DB 错误，此时 session 已进入 needs-rollback；
-            # 不回滚就继续用它提交会抛 PendingRollbackError，线索已落库却返回 500。
-            await db.rollback()
-            inst = None
-        await _apply_review_flow(db, tenant_id, lead, inst, user)
         await db.refresh(lead)
+        return lead
+    lead.review_status = "pending"
+    await db.commit()
+    try:
+        inst = await submit_lead_review(db, tenant_id, lead, user)
+    except Exception as e:
+        logger.warning("Lead review submit failed for %s: %s", lead.id, e)
+        # 失败可能来自 DB 错误，此时 session 已进入 needs-rollback；
+        # 不回滚就继续用它提交会抛 PendingRollbackError，线索已落库却返回 500。
+        await db.rollback()
+        inst = None
+    await _apply_review_flow(db, tenant_id, lead, inst, user)
+    await db.refresh(lead)
     return lead
 
 
@@ -328,8 +331,8 @@ async def _notify_owner_review_passed(tenant_id: str, lead: Lead) -> None:
             try:
                 await dispatch_todo(
                     db, tenant_id, owner_id,
-                    f"线索审核已通过，请确认是否转化: {lead.title or ''}",
-                    "内勤审核已通过，请打开线索详情自行选择是否转化为客户/商机。",
+                    f"信息情报部已收录，请确认是否转商机: {lead.title or ''}",
+                    "信息情报部审批已收录，请打开线索详情确认是否转化为客户/商机。",
                     link=f"/leads/{lead.id}",
                     mobile_link=f"/m/leads/{lead.id}",
                 )
@@ -563,11 +566,12 @@ async def discard_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
 
 
 async def resubmit_lead_review(db: AsyncSession, tenant_id: str, lead_id: str, user: dict) -> Lead:
-    """被驳回的线索修改后重新提交内勤审核。"""
+    """草稿或被回退的线索提交 / 重新提交内勤审核。"""
     from app.common.error_codes import VALIDATION_ERROR
     lead = await get_lead(db, tenant_id, lead_id, user)
-    if lead.review_status != "rejected":
-        raise BusinessException(code=VALIDATION_ERROR, message="仅被驳回的线索可重新提交审核")
+    rs = getattr(lead, "review_status", None)
+    if rs not in ("draft", "rejected"):
+        raise BusinessException(code=VALIDATION_ERROR, message="仅草稿或被回退的线索可提交审核")
 
     lead.review_status = "pending"
     lead.reject_reason = None
@@ -583,8 +587,28 @@ async def resubmit_lead_review(db: AsyncSession, tenant_id: str, lead_id: str, u
 
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="submit_review", resource_type="lead", resource_id=lead.id,
-                     summary=f"重新提交线索审核: {lead.title}")
+                     summary=f"提交线索审核: {lead.title}")
     return lead
+
+
+def _intel_field_updates(
+    *,
+    customer_newness: str | None,
+    return_reason: str | None,
+    opinion: str | None,
+    assess_remark: str | None,
+) -> dict:
+    """情报裁定 → 引擎节点 field_updates（与 SYS_LEAD_REVIEW field_perms 对齐）。"""
+    updates: dict = {}
+    if customer_newness is not None:
+        updates["customer_newness"] = customer_newness
+    if return_reason is not None:
+        updates["reject_reason"] = return_reason
+    if opinion is not None:
+        updates["review_opinion"] = opinion
+    if assess_remark is not None:
+        updates["assess_remark"] = assess_remark
+    return updates
 
 
 async def intel_review_lead(
@@ -593,6 +617,7 @@ async def intel_review_lead(
     customer_newness: str | None = None,
     return_reason: str | None = None,
     opinion: str | None = None,
+    assess_remark: str | None = None,
 ) -> Lead:
     """情报审批：收录 / 袭击 / 回退 / 暂存。
 
@@ -609,7 +634,7 @@ async def intel_review_lead(
     # 复用 schema 校验（路由层也会校验；此处防内部直调）
     LeadIntelReviewIn(
         decision=decision, task_id=task_id, customer_newness=customer_newness,
-        return_reason=return_reason, opinion=opinion,
+        return_reason=return_reason, opinion=opinion, assess_remark=assess_remark,
     )
 
     task = (await db.execute(select(WfTaskInstance).where(
@@ -648,6 +673,8 @@ async def intel_review_lead(
         lead.customer_newness = customer_newness
     if opinion is not None:
         lead.review_opinion = opinion or None
+    if assess_remark is not None:
+        lead.assess_remark = assess_remark.strip() or None
 
     if decision == "draft":
         if return_reason is not None:
@@ -670,6 +697,12 @@ async def intel_review_lead(
         await db.commit()
         await WorkflowEngine(db, tenant_id).act(
             task_id, user, "reject", opinion=reason or opinion,
+            field_updates=_intel_field_updates(
+                customer_newness=customer_newness,
+                return_reason=return_reason,
+                opinion=opinion,
+                assess_remark=assess_remark,
+            ),
             allow_lead_intel=True,
         )
         await db.refresh(lead)
@@ -682,6 +715,7 @@ async def intel_review_lead(
         return lead
 
     # include / attack：先落字段再 approve（情报裁定放行引擎拦截）
+    # 引擎会按节点 field_perms 校验必填；须把评估字段一并传入 field_updates
     lead.reject_reason = None
     if decision == "attack":
         # 先写成 attacked，writeback 通过时保留，抄送文案据此区分「不可转化」
@@ -689,6 +723,12 @@ async def intel_review_lead(
     await db.commit()
     await WorkflowEngine(db, tenant_id).act(
         task_id, user, "approve", opinion=opinion,
+        field_updates=_intel_field_updates(
+            customer_newness=customer_newness,
+            return_reason=None,
+            opinion=opinion,
+            assess_remark=assess_remark,
+        ),
         allow_lead_intel=True,
     )
     await db.refresh(lead)

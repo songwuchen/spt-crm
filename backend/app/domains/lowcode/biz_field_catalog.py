@@ -91,15 +91,21 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
     ],
     "lead": [
         {"id": "score", "label": "评分", "type": "number"},
-        {"id": "source", "label": "来源", "type": "text"},
+        {"id": "source", "label": "线索来源", "type": "text"},
         {"id": "customer_type", "label": "客户类型", "type": "text"},
-        {"id": "customer_newness", "label": "新/老客户", "type": "text"},
-        {"id": "category", "label": "类别", "type": "text"},
-        {"id": "country_type", "label": "国内外", "type": "text"},
+        # ---- 审批时填写（信息情报部）----
+        {
+            "id": "customer_newness", "label": "客户类型（新/老）", "type": "radio",
+            "options": [{"value": "new", "label": "新"}, {"value": "old", "label": "老"}],
+        },
+        {"id": "assess_remark", "label": "备注2", "type": "textarea"},
+        {"id": "reject_reason", "label": "回退原因", "type": "textarea"},
+        {"id": "review_opinion", "label": "操作意见", "type": "textarea"},
+        {"id": "category", "label": "来源", "type": "text"},
+        {"id": "country_type", "label": "国别", "type": "text"},
         {"id": "industry", "label": "行业", "type": "text"},
-        # 供抄送/审批人「表单人员字段」解析：审批通过后抄送给线索负责人
         {"id": "owner_id", "label": "负责人", "type": "person"},
-        {"id": "reporter_id", "label": "报备人", "type": "person"},
+        {"id": "reporter_id", "label": "申报人", "type": "person"},
         {"id": "department_id", "label": "部门", "type": "department"},
     ],
     "solution": [

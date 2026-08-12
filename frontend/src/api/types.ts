@@ -209,6 +209,19 @@ export interface Lead {
   remark?: string
   custom_fields_json?: Record<string, unknown>
   products?: LeadProduct[]
+  has_internal_conflict?: string | null
+  conflict_note?: string | null
+  bid_result?: string | null
+  bid_fail_reason?: string | null
+  entrust_status?: string | null
+  entrust_issued_at?: string | null
+  entrust_term?: string | null
+  project_activity?: string | null
+  project_recent?: string | null
+  follow_progress?: string | null
+  site_visit?: string | null
+  report_project_status?: string | null
+  assess_remark?: string | null
   created_at: string
   updated_at: string
 }

@@ -8,7 +8,7 @@ import { leadApi } from '@/api/lead'
 import type { Lead } from '@/api/types'
 import { sourceLabels } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
-import { leadStatusConfig as statusConfig, leadReviewStatusConfig } from '@/constants/labels'
+import { leadStatusConfig as statusConfig, leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
@@ -26,27 +26,53 @@ const { RangePicker } = DatePicker
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
 const countryLabels: Record<string, string> = { domestic: '国内', overseas: '国外' }
 
-function ScoreBar({ score }: { score: number }) {
-  const getColor = (s: number) => {
-    if (s >= 80) return 'bg-emerald-500'
-    if (s >= 60) return 'bg-primary'
-    if (s >= 40) return 'bg-amber-500'
-    return 'bg-slate-300'
-  }
-  const getLabel = (s: number) => {
-    if (s >= 80) return 'text-emerald-600'
-    if (s >= 60) return 'text-primary'
-    if (s >= 40) return 'text-amber-600'
-    return 'text-slate-400'
+/** 简道云风格色块标签 */
+function JdyTag({ text, tone }: { text: string; tone: string }) {
+  const tones: Record<string, string> = {
+    red: 'bg-red-500 text-white',
+    amber: 'bg-amber-500 text-white',
+    orange: 'bg-orange-500 text-white',
+    green: 'bg-emerald-500 text-white',
+    teal: 'bg-teal-500 text-white',
+    blue: 'bg-blue-500 text-white',
+    cyan: 'bg-cyan-500 text-white',
+    slate: 'bg-slate-400 text-white',
   }
   return (
-    <div className="flex items-center gap-2.5 min-w-[100px]">
-      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${getColor(score)}`} style={{ width: `${score}%` }} />
-      </div>
-      <span className={`text-sm font-black tabular-nums ${getLabel(score)}`}>{score}</span>
-    </div>
+    <span className={`inline-flex max-w-full truncate px-2 py-0.5 rounded text-[12px] font-medium ${tones[tone] || tones.slate}`}>
+      {text}
+    </span>
   )
+}
+
+function emptyCell() {
+  return <span className="text-slate-300">-</span>
+}
+
+function fmtDate(v?: string | null, withTime = false) {
+  if (!v) return emptyCell()
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return emptyCell()
+  return (
+    <span className="text-sm text-slate-600 whitespace-nowrap">
+      {withTime ? d.toLocaleString('zh-CN') : d.toLocaleDateString('zh-CN')}
+    </span>
+  )
+}
+
+const CATEGORY_TONE: Record<string, string> = { self_reported: 'red', distributed: 'amber' }
+const CONFLICT_TONE: Record<string, string> = { 是: 'red', 否: 'amber' }
+const COUNTRY_TONE: Record<string, string> = { domestic: 'red', overseas: 'blue' }
+const ACTIVITY_TONE: Record<string, string> = {
+  技术交流: 'red', 出方案: 'orange', 报价: 'green', 投标: 'teal', 拟建: 'cyan',
+}
+const NEWNESS_TONE: Record<string, string> = { new: 'red', old: 'amber' }
+const CUSTOMER_TYPE_TONES = ['green', 'blue', 'red', 'orange', 'teal', 'cyan', 'amber'] as const
+
+function customerTypeTone(value: string): string {
+  let h = 0
+  for (let i = 0; i < value.length; i++) h = (h + value.charCodeAt(i) * (i + 1)) % CUSTOMER_TYPE_TONES.length
+  return CUSTOMER_TYPE_TONES[h]
 }
 
 export default function LeadList() {
@@ -192,123 +218,219 @@ export default function LeadList() {
 
   const doSearch = () => { updateParams({ page: undefined }); fetchData(1) }
 
+  // 列顺序对齐简道云「申报信息」数据管理（跳过导入专用列）
   const allColumns: ColumnsType<Lead> = [
-    { title: t('lead.name'), key: 'title', width: 260,
-      render: (_, record) => (
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-            <Icon name="trending_up" className="text-sm text-slate-400" />
-          </div>
-          <div>
-            <a onClick={() => navigate(`/leads/${record.id}`)} className="text-sm font-bold text-slate-900 hover:text-primary">
-              {record.title}
-            </a>
-            <div className="text-[13px] text-slate-400">
-              {record.lead_code && <span className="font-mono mr-2">{record.lead_code}</span>}
-              {record.company_name}
-            </div>
-          </div>
-        </div>
+    {
+      title: '项目编号', dataIndex: 'lead_code', key: 'lead_code', width: 168, fixed: 'left',
+      render: (v: string, r) => v
+        ? <a onClick={() => navigate(`/leads/${r.id}`)} className="font-mono text-sm text-slate-700 hover:text-primary">{v}</a>
+        : emptyCell(),
+    },
+    {
+      title: '来源', dataIndex: 'category', key: 'category', width: 80,
+      render: (v: string) => v
+        ? <JdyTag text={categoryLabels[v] || v} tone={CATEGORY_TONE[v] || 'slate'} />
+        : emptyCell(),
+    },
+    {
+      title: '项目名称', dataIndex: 'title', key: 'title', width: 220,
+      render: (v: string, r) => (
+        <a onClick={() => navigate(`/leads/${r.id}`)} className="text-sm font-semibold text-slate-900 hover:text-primary line-clamp-2">
+          {v || '-'}
+        </a>
       ),
     },
-    { title: t('lead.contact'), dataIndex: 'contact_name', width: 100,
-      render: (v) => v ? (
-        <span className="text-sm text-slate-700">{v}</span>
-      ) : <span className="text-slate-300">-</span>,
+    {
+      title: '公司名称', dataIndex: 'company_name', key: 'company_name', width: 200,
+      render: (v: string) => v
+        ? <span className="text-sm text-slate-700 line-clamp-2">{v}</span>
+        : emptyCell(),
     },
-    { title: t('lead.source'), dataIndex: 'source', width: 90, responsive: ['lg'],
-      render: (v: string) => v ? (
-        <span className="text-sm text-slate-600">{sourceLabels[v] || v}</span>
-      ) : <span className="text-slate-300">-</span>,
-    },
-    { title: '客户类型', dataIndex: 'customer_type', key: 'customer_type', width: 140, responsive: ['xl'],
+    {
+      title: '客户类型', dataIndex: 'customer_type', key: 'customer_type', width: 150,
       render: (v: string) => {
-        if (!v) return <span className="text-slate-300">-</span>
+        if (!v) return emptyCell()
         const label = customerTypeDict.options.find(o => o.value === v)?.label || v
-        return <span className="text-sm text-slate-600">{label}</span>
+        return <JdyTag text={label} tone={customerTypeTone(v)} />
       },
     },
-    { title: '行业', dataIndex: 'industry', key: 'industry', width: 140, responsive: ['xl'],
-      render: (v: string) => {
-        if (!v) return <span className="text-slate-300">-</span>
-        const label = industryDict.options.find(o => o.value === v)?.label || v
-        return <span className="text-sm text-slate-600">{label}</span>
-      },
-    },
-    { title: '类别', dataIndex: 'category', key: 'category', width: 80, responsive: ['xl'],
-      render: (v: string) => v ? <span className="text-sm text-slate-600">{categoryLabels[v] || v}</span> : <span className="text-slate-300">-</span>,
-    },
-    { title: '地区', key: 'location', width: 160, responsive: ['xl'],
+    {
+      title: '项目地址', key: 'address', width: 200,
       render: (_, r) => {
         if (r.country_type === 'overseas') {
-          return <span className="text-sm text-slate-600">{countryLabels.overseas}{r.country_name ? ` · ${r.country_name}` : ''}</span>
+          const text = [countryLabels.overseas, r.country_name, r.region].filter(Boolean).join(' · ')
+          return text ? <span className="text-sm text-slate-600 line-clamp-2">{text}</span> : emptyCell()
         }
-        const label = formatRegion(r)
-        return label ? <span className="text-sm text-slate-600">{label}</span> : <span className="text-slate-300">-</span>
+        const loc = [formatRegion(r), r.region].filter(Boolean).join(' ')
+        return loc ? <span className="text-sm text-slate-600 line-clamp-2">{loc}</span> : emptyCell()
       },
     },
-    { title: t('lead.score'), dataIndex: 'score', width: 140,
-      render: (v: number) => <ScoreBar score={v ?? 0} />,
-    },
-    { title: t('lead.status'), dataIndex: 'status', width: 100,
-      render: (v: string) => {
-        const cfg = statusConfig[v] || statusConfig.new
-        return (
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-            {cfg.label}
-          </span>
-        )
-      },
-    },
-    { title: '审核状态', dataIndex: 'review_status', width: 96,
-      render: (v: string) => {
-        const rcfg = leadReviewStatusConfig[v || 'approved'] || leadReviewStatusConfig.approved
-        return (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-bold border ${rcfg.bg} ${rcfg.text} ${rcfg.border}`}>
-            {rcfg.label}
-          </span>
-        )
-      },
-    },
-    { title: '报备人', dataIndex: 'reporter_name', width: 90,
-      render: (v) => v ? <span className="text-sm text-slate-600">{v}</span> : <span className="text-slate-300">-</span>,
-    },
-    { title: '报备时间', dataIndex: 'reported_at', width: 150,
+    {
+      title: '是否内部冲突', dataIndex: 'has_internal_conflict', key: 'has_internal_conflict', width: 110,
       render: (v: string) => v
-        ? <span className="text-sm text-slate-600">{new Date(v).toLocaleString('zh-CN')}</span>
-        : <span className="text-slate-300">-</span>,
+        ? <JdyTag text={v} tone={CONFLICT_TONE[v] || 'slate'} />
+        : emptyCell(),
     },
-    { title: t('common.owner'), dataIndex: 'owner_name', width: 90,
-      render: (v) => v ? (
-        <span className="text-sm text-slate-600">{v}</span>
-      ) : <span className="text-slate-300">-</span>,
+    {
+      title: '行业', dataIndex: 'industry', key: 'industry', width: 140,
+      render: (v: string) => {
+        if (!v) return emptyCell()
+        const label = industryDict.options.find(o => o.value === v)?.label || v
+        return <span className="text-sm text-slate-600 line-clamp-2">{label}</span>
+      },
     },
-    { title: '部门', dataIndex: 'department_name', width: 120,
-      render: (v) => v ? <span className="text-sm text-slate-600">{v}</span> : <span className="text-slate-300">-</span>,
+    {
+      title: '中标情况', dataIndex: 'bid_result', key: 'bid_result', width: 100,
+      render: (v: string) => v ? <span className="text-sm text-slate-600">{v}</span> : emptyCell(),
     },
-    { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, responsive: ['xl'],
-      render: (v) => v ? <span className="text-sm text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-',
+    {
+      title: '原因', dataIndex: 'bid_fail_reason', key: 'bid_fail_reason', width: 140,
+      render: (v: string) => v
+        ? <span className="text-sm text-slate-600 line-clamp-2" title={v}>{v}</span>
+        : emptyCell(),
     },
-    // 以下原生列默认隐藏、可在「列配置」中调出（__optIn），避免默认列数过多撑爆表格。
-    // 它们此前完全不可见，但导出模板/详情页都有，属于用户会找的字段。
+    {
+      title: '备注：请示部门经理的结果', dataIndex: 'conflict_note', key: 'conflict_note', width: 180,
+      render: (v: string) => v
+        ? <span className="text-sm text-slate-600 line-clamp-2" title={v}>{v}</span>
+        : emptyCell(),
+    },
+    {
+      title: '国别', dataIndex: 'country_type', key: 'country_type', width: 80,
+      render: (v: string) => v
+        ? <JdyTag text={countryLabels[v] || v} tone={COUNTRY_TONE[v] || 'slate'} />
+        : emptyCell(),
+    },
+    {
+      title: '委托状态', dataIndex: 'entrust_status', key: 'entrust_status', width: 90,
+      render: (v: string) => v
+        ? <JdyTag text={v} tone={v === '已开' ? 'red' : 'slate'} />
+        : emptyCell(),
+    },
+    {
+      title: '委托开具日期', dataIndex: 'entrust_issued_at', key: 'entrust_issued_at', width: 120,
+      render: (v: string) => fmtDate(v),
+    },
+    {
+      title: '委托期限', dataIndex: 'entrust_term', key: 'entrust_term', width: 100,
+      render: (v: string) => v ? <span className="text-sm text-slate-600">{v}</span> : emptyCell(),
+    },
+    {
+      title: '填表人', dataIndex: 'created_by_name', key: 'created_by_name', width: 90,
+      render: (v: string) => v
+        ? <span className="text-sm text-primary">{v}</span>
+        : emptyCell(),
+    },
+    {
+      title: '部门', dataIndex: 'department_name', key: 'department_name', width: 160,
+      render: (v: string) => v
+        ? <span className="text-sm text-slate-600 line-clamp-2">{v}</span>
+        : emptyCell(),
+    },
+    {
+      title: '申报人', dataIndex: 'reporter_name', key: 'reporter_name', width: 90,
+      render: (v: string) => v
+        ? <span className="text-sm text-primary">{v}</span>
+        : emptyCell(),
+    },
+    {
+      title: '申报时间', dataIndex: 'reported_at', key: 'reported_at', width: 120,
+      render: (v: string) => fmtDate(v),
+    },
+    {
+      title: '项目动态', dataIndex: 'project_activity', key: 'project_activity', width: 100,
+      render: (v: string) => v
+        ? <JdyTag text={v} tone={ACTIVITY_TONE[v] || 'blue'} />
+        : emptyCell(),
+    },
+    {
+      title: '备注1', dataIndex: 'demand_summary', key: 'demand_summary', width: 160,
+      render: (v: string) => v
+        ? <span className="text-sm text-slate-600 line-clamp-2" title={v}>{v}</span>
+        : emptyCell(),
+    },
+    {
+      title: '项目近况', dataIndex: 'project_recent', key: 'project_recent', width: 120, __optIn: true as any,
+      render: (v: string) => v ? <span className="text-sm text-slate-600 line-clamp-2">{v}</span> : emptyCell(),
+    } as any,
+    {
+      title: '跟进进度', dataIndex: 'follow_progress', key: 'follow_progress', width: 120, __optIn: true as any,
+      render: (v: string) => v ? <span className="text-sm text-slate-600 line-clamp-2">{v}</span> : emptyCell(),
+    } as any,
+    {
+      title: '实地拜访情况', dataIndex: 'site_visit', key: 'site_visit', width: 120, __optIn: true as any,
+      render: (v: string) => v ? <span className="text-sm text-slate-600 line-clamp-2">{v}</span> : emptyCell(),
+    } as any,
+    {
+      title: '项目状态', dataIndex: 'report_project_status', key: 'report_project_status', width: 100, __optIn: true as any,
+      render: (v: string) => v ? <span className="text-sm text-slate-600">{v}</span> : emptyCell(),
+    } as any,
+    {
+      title: '客户类型（新/老）', dataIndex: 'customer_newness', key: 'customer_newness', width: 120,
+      render: (v: string) => v
+        ? <JdyTag text={customerNewnessLabels[v] || v} tone={NEWNESS_TONE[v] || 'slate'} />
+        : emptyCell(),
+    },
+    {
+      title: '项目最终状态', dataIndex: 'review_status', key: 'review_status', width: 110,
+      render: (v: string) => {
+        const rcfg = leadReviewStatusConfig[v || 'pending'] || leadReviewStatusConfig.pending
+        const tone =
+          v === 'approved' ? 'amber'
+            : v === 'rejected' ? 'teal'
+              : v === 'attacked' ? 'orange'
+                : 'amber'
+        return <JdyTag text={rcfg.label} tone={tone} />
+      },
+    },
+    {
+      title: '回退原因', dataIndex: 'reject_reason', key: 'reject_reason', width: 140,
+      render: (v: string) => v
+        ? <span className="text-sm text-slate-600 line-clamp-2" title={v}>{v}</span>
+        : emptyCell(),
+    },
+    {
+      title: '备注2', dataIndex: 'assess_remark', key: 'assess_remark', width: 140,
+      render: (v: string) => v
+        ? <span className="text-sm text-slate-600 line-clamp-2" title={v}>{v}</span>
+        : emptyCell(),
+    },
+    {
+      title: '提交时间', dataIndex: 'created_at', key: 'created_at', width: 160,
+      render: (v: string) => fmtDate(v, true),
+    },
+    {
+      title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 160,
+      render: (v: string) => fmtDate(v, true),
+    },
+    // CRM 扩展列：默认隐藏，列配置可调出
     ...([
+      { title: t('lead.score'), dataIndex: 'score', width: 100,
+        render: (v: number) => <span className="text-sm font-bold tabular-nums text-slate-700">{v ?? 0}</span> },
+      { title: t('lead.status'), dataIndex: 'status', width: 100,
+        render: (v: string) => {
+          const cfg = statusConfig[v] || statusConfig.new
+          return (
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+              {cfg.label}
+            </span>
+          )
+        } },
+      { title: t('common.owner'), dataIndex: 'owner_name', width: 90 },
+      { title: t('lead.contact'), dataIndex: 'contact_name', width: 90 },
+      { title: t('lead.source'), dataIndex: 'source', width: 90,
+        render: (v: string) => v ? <span className="text-sm text-slate-600">{sourceLabels[v] || v}</span> : emptyCell() },
       { title: '业务日期', dataIndex: 'biz_date', width: 110 },
       { title: '联系电话', dataIndex: 'contact_phone', width: 130 },
       { title: '联系邮箱', dataIndex: 'contact_email', width: 180 },
-      { title: '详细地址', dataIndex: 'region', width: 180 },
-      { title: '录入人', dataIndex: 'created_by_name', width: 90 },
-      { title: '更新时间', dataIndex: 'updated_at', width: 110,
-        render: (v: string) => v
-          ? <span className="text-sm text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span>
-          : <span className="text-slate-300">-</span> },
     ] as ColumnsType<Lead>).map((c) => ({
       ...c,
       __optIn: true,
       render: (c as any).render ?? ((v: unknown) =>
-        v ? <span className="text-sm text-slate-600">{String(v)}</span> : <span className="text-slate-300">-</span>),
+        v ? <span className="text-sm text-slate-600">{String(v)}</span> : emptyCell()),
     })),
-    { title: '', key: 'actions', width: 160, fixed: 'right',
+    { title: '', key: 'actions', width: 150, fixed: 'right',
       render: (_, record) => (
         <Space size={0}>
           <a onClick={() => navigate(`/leads/${record.id}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
@@ -331,7 +453,8 @@ export default function LeadList() {
     },
   ]
 
-  const view = useListView<Lead>('lead', allColumns, { pageKey: 'leads', entityType: 'lead' })
+  // pageKey 换新版本，避免旧列配置覆盖简道云默认列
+  const view = useListView<Lead>('lead', allColumns, { pageKey: 'leads_jdy_v1', entityType: 'lead' })
 
   return (
     <div>

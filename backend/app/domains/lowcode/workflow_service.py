@@ -301,7 +301,7 @@ BIZ_DEFAULT_SPECS: list[dict] = [
     {
         "biz_type": "lead",
         "code": "SYS_LEAD_REVIEW",
-        "name": "线索审核",
+        "name": "信息情报部审批",
         "approver_rule": {"type": "specified_role", "value": "lead_intel", "exclude_initiator": True},
         "multi_mode": "or_sign",
         "empty_strategy": "auto_approve",
@@ -1475,28 +1475,112 @@ def _default_flow_graph(
     name: str, approver_rule: dict, multi_mode: str, empty_strategy: str,
     *, with_owner_cc: bool = False,
 ) -> tuple[list[dict], list[dict]]:
-    """系统兜底流程节点图。with_owner_cc=True 时在审批后抄送「表单人员字段=owner_id」。"""
+    """系统兜底流程节点图。with_owner_cc=True 时对齐简道云「申报信息」文案并抄送负责人。"""
+    start_name = "递呈信息" if with_owner_cc else "发起"
+    end_name = "流程结束" if with_owner_cc else "结束"
+    approval_node: dict = {
+        "id": "approval_1", "type": "approval", "name": name,
+        "approver_rule": approver_rule, "multi_mode": multi_mode,
+        "empty_strategy": empty_strategy,
+    }
+    # 线索：情报节点可填评估字段（对齐升级后引擎「本节点可填写字段」）
+    if with_owner_cc:
+        approval_node["field_perms"] = _fp(
+            ("customer_newness", "required"),
+            ("reject_reason", "editable"),
+            ("assess_remark", "editable"),
+            ("review_opinion", "editable"),
+        )
     nodes: list[dict] = [
-        {"id": "start", "type": "start", "name": "发起"},
-        {"id": "approval_1", "type": "approval", "name": name,
-         "approver_rule": approver_rule, "multi_mode": multi_mode,
-         "empty_strategy": empty_strategy},
+        {"id": "start", "type": "start", "name": start_name},
+        approval_node,
     ]
     routes: list[dict] = [
         {"id": "r_start", "source": "start", "target": "approval_1"},
     ]
     if with_owner_cc:
         nodes.append({
-            "id": "cc_owner", "type": "cc", "name": "通知业务员确认转化",
+            "id": "cc_owner", "type": "cc", "name": "业务员确认是否转商机",
             "approver_rule": {"type": "form_field_person", "value": "owner_id"},
         })
-        nodes.append({"id": "end", "type": "end", "name": "结束"})
+        nodes.append({"id": "end", "type": "end", "name": end_name})
         routes.append({"id": "r_cc", "source": "approval_1", "target": "cc_owner"})
         routes.append({"id": "r_end", "source": "cc_owner", "target": "end"})
     else:
-        nodes.append({"id": "end", "type": "end", "name": "结束"})
+        nodes.append({"id": "end", "type": "end", "name": end_name})
         routes.append({"id": "r_end", "source": "approval_1", "target": "end"})
     return nodes, routes
+
+
+_LEAD_INTEL_FIELD_PERMS = _fp(
+    ("customer_newness", "required"),
+    ("reject_reason", "editable"),
+    ("assess_remark", "editable"),
+    ("review_opinion", "editable"),
+)
+
+
+async def _upgrade_lead_intel_field_perms_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition,
+) -> None:
+    """给线索情报审批节点补齐「本节点可填写字段」（不改审批人，尊重租户已配指定人）。
+
+    字段顺序对齐简道云：新/老 → 回退原因 → 备注2 → 操作意见（最终状态由情报表单承担）。
+    """
+    if d.code != "SYS_LEAD_REVIEW":
+        return
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+    nodes = list(version.node_definitions or [])
+    approvals = [n for n in nodes if isinstance(n, dict) and n.get("type") == "approval"]
+    if len(approvals) != 1:
+        return
+    ap = approvals[0]
+    existing = {
+        (p.get("field") or p.get("id")): p
+        for p in (ap.get("field_perms") or [])
+        if isinstance(p, dict)
+    }
+    want = {p["field"]: p["access"] for p in _LEAD_INTEL_FIELD_PERMS}
+    want_order = [p["field"] for p in _LEAD_INTEL_FIELD_PERMS]
+    cur_order = [
+        (p.get("field") or p.get("id"))
+        for p in (ap.get("field_perms") or [])
+        if isinstance(p, dict) and (p.get("field") or p.get("id")) in want
+    ]
+    need_merge = not all(f in existing for f in want)
+    need_reorder = cur_order != want_order
+    if not need_merge and not need_reorder:
+        return
+    merged = dict(existing)
+    for f, acc in want.items():
+        if f not in merged:
+            merged[f] = {"field": f, "access": acc}
+        elif not merged[f].get("access"):
+            merged[f] = {"field": f, "access": acc}
+    ordered: list[dict] = []
+    for f in want_order:
+        if f in merged:
+            ordered.append({"field": f, "access": merged[f].get("access") or want[f]})
+    for f, p in merged.items():
+        if f not in want:
+            ordered.append(p)
+    new_nodes: list[dict] = []
+    for n in nodes:
+        nn = dict(n)
+        if nn.get("id") == ap.get("id") or (
+            nn.get("type") == "approval" and nn.get("name") == ap.get("name")
+        ):
+            nn["field_perms"] = ordered
+        new_nodes.append(nn)
+    await _publish_system_default_upgrade(
+        db, tenant_id, d, version, new_nodes, list(version.route_definitions or []),
+        "系统默认流程（情报节点可填：新/老、回退原因、备注2、操作意见）",
+        "线索情报节点field_perms",
+    )
 
 
 async def ensure_default_form_definition(
@@ -1883,6 +1967,10 @@ async def ensure_default_definition(
             await _upgrade_default_owner_cc_if_needed(
                 db, tenant_id, sys_def, name, approver_rule, multi_mode, empty_strategy,
             )
+            await _upgrade_lead_jdy_labels_if_needed(
+                db, tenant_id, sys_def, name, approver_rule, multi_mode, empty_strategy,
+            )
+            await _upgrade_lead_intel_field_perms_if_needed(db, tenant_id, sys_def)
 
     if biz_type == "contract_version":
         sys_def = (await db.execute(select(WfProcessDefinition).where(
@@ -2262,8 +2350,10 @@ async def _upgrade_default_owner_cc_if_needed(
         for n in nodes:
             if n.get("id") == cc.get("id"):
                 nn = dict(n)
-                if not nn.get("name") or nn.get("name") in ("抄送", "CC"):
-                    nn["name"] = "通知业务员确认转化"
+                if not nn.get("name") or nn.get("name") in (
+                    "抄送", "CC", "通知业务员确认转化",
+                ):
+                    nn["name"] = "业务员确认是否转商机"
                 nn["approver_rule"] = {"type": "form_field_person", "value": "owner_id"}
                 new_nodes.append(nn)
             else:
@@ -2287,6 +2377,108 @@ async def _upgrade_default_owner_cc_if_needed(
     logger.info(
         "已升级系统兜底流程 %s(tenant=%s) → v%s：审批通过后抄送负责人",
         d.code, tenant_id, next_ver,
+    )
+
+
+# 简道云「申报信息」对齐文案：递呈信息 → 信息情报部审批 → 业务员确认是否转商机 → 流程结束
+_LEAD_JDY_START = "递呈信息"
+_LEAD_JDY_APPROVAL = "信息情报部审批"
+_LEAD_JDY_CC = "业务员确认是否转商机"
+_LEAD_JDY_END = "流程结束"
+_LEAD_LEGACY_START = {"发起", "开始", "start"}
+_LEAD_LEGACY_APPROVAL = {"线索审核", "内勤审批", "审批"}
+_LEAD_LEGACY_CC = {"通知业务员确认转化", "抄送", "CC", "抄送业务员"}
+_LEAD_LEGACY_END = {"结束", "end"}
+
+
+async def _upgrade_lead_jdy_labels_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition, name: str,
+    approver_rule: dict, multi_mode: str, empty_strategy: str,
+) -> None:
+    """系统兜底线索流节点文案对齐简道云「申报信息」。
+
+    仅处理简单拓扑（唯一审批 + 可选一条 owner 抄送）；租户自配复杂流不改。
+    """
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    if d.code != "SYS_LEAD_REVIEW":
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+
+    nodes = list(version.node_definitions or [])
+    routes = list(version.route_definitions or [])
+    types = {n.get("type") for n in nodes}
+    approvals = [n for n in nodes if n.get("type") == "approval"]
+    ccs = [n for n in nodes if n.get("type") == "cc"]
+
+    if not (types <= {"start", "approval", "end", "cc"} and len(approvals) == 1):
+        return
+    if len(ccs) > 1:
+        return
+    if len(ccs) == 1:
+        cc = ccs[0]
+        rule = dict(cc.get("approver_rule") or (cc.get("config") or {}).get("approver_rule") or {})
+        # 非 owner 抄送则视为租户定制，不改文案以免误导
+        if rule.get("type") == "form_field_person" and rule.get("value") not in (None, "", "owner_id"):
+            return
+        if rule.get("type") not in (None, "", "creator", "form_field_person"):
+            if not (rule.get("type") == "specified_user" and not rule.get("value")):
+                return
+
+    target_approval_name = name or _LEAD_JDY_APPROVAL
+    changed = False
+    new_nodes: list[dict] = []
+    for n in nodes:
+        nn = dict(n)
+        ntype = nn.get("type")
+        cur = (nn.get("name") or "").strip()
+        if ntype == "start" and cur in _LEAD_LEGACY_START:
+            nn["name"] = _LEAD_JDY_START
+            changed = True
+        elif ntype == "end" and cur in _LEAD_LEGACY_END:
+            nn["name"] = _LEAD_JDY_END
+            changed = True
+        elif ntype == "approval" and (
+            cur in _LEAD_LEGACY_APPROVAL or cur != target_approval_name
+        ):
+            # 仅当仍是旧系统名或与目标不一致时改；租户若改成其它自定义名则保留
+            if cur in _LEAD_LEGACY_APPROVAL or cur in ("", "审批节点"):
+                nn["name"] = target_approval_name
+                changed = True
+        elif ntype == "cc" and (cur in _LEAD_LEGACY_CC or not cur):
+            nn["name"] = _LEAD_JDY_CC
+            nn["approver_rule"] = {"type": "form_field_person", "value": "owner_id"}
+            changed = True
+        new_nodes.append(nn)
+
+    # 定义显示名
+    if (d.name or "") in _LEAD_LEGACY_APPROVAL or d.name in ("线索审核",):
+        d.name = target_approval_name
+        changed = True
+
+    if not changed:
+        return
+
+    # 若尚无 owner 抄送且拓扑仍是 start→审批→结束，一并补上（与 owner_cc 升级互补）
+    if len(ccs) == 0 and types <= {"start", "approval", "end"}:
+        new_nodes, routes = _default_flow_graph(
+            target_approval_name, approver_rule, multi_mode, empty_strategy, with_owner_cc=True,
+        )
+        old_ap = approvals[0]
+        for n in new_nodes:
+            if n.get("id") == "approval_1" or n.get("type") == "approval":
+                for k in ("approver_rule", "multi_mode", "empty_strategy", "timeout"):
+                    if old_ap.get(k) is not None:
+                        n[k] = old_ap[k]
+                n["name"] = target_approval_name
+                break
+
+    await _publish_system_default_upgrade(
+        db, tenant_id, d, version, new_nodes, routes,
+        "系统默认流程（对齐简道云「申报信息」：递呈信息→信息情报部审批→业务员确认是否转商机）",
+        "简道云申报信息(线索文案)",
     )
 
 

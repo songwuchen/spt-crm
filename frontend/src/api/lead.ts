@@ -6,7 +6,7 @@ export const leadApi = {
     client.get<unknown, ApiResponse<PageData<Lead>>>('/api/v1/leads', { params }),
   get: (id: string) =>
     client.get<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}`),
-  create: (data: Partial<Lead>) =>
+  create: (data: Partial<Lead> & { as_draft?: boolean }) =>
     client.post<unknown, ApiResponse<Lead>>('/api/v1/leads', data),
   update: (id: string, data: Partial<Lead>) =>
     client.put<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}`, data),
@@ -23,6 +23,7 @@ export const leadApi = {
     customer_newness?: 'new' | 'old'
     return_reason?: string
     opinion?: string
+    assess_remark?: string
   }) =>
     client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/intel_review`, data),
   delete: (id: string) =>

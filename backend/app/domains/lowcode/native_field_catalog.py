@@ -172,32 +172,80 @@ FORM_WIRED: set[str] = {
 # entity_type -> 该实体表单上可配置的原生字段（顺序即设计器/表单默认顺序）
 CATALOG: dict[str, list[dict[str, Any]]] = {
     "lead": [
-        # ---- 基本信息 ----
-        _f("title", "线索标题", system_required=True),           # leads.title NOT NULL
-        # 列可空，但改造前表单硬编码必填 —— 保留默认必填以免行为回退，租户可自行关掉
+        # ---- 申报信息（对齐简道云销售中心「申报信息」）----
+        # 必填策略：JDY allowBlank=false 的字段在 LeadForm 用 PolicyItem 硬必填；
+        # 目录仅对 title/company_name 设出厂必填，避免 OpenAPI/pytest 简写建档被大批量拦住
+        #（与 customer 开关字段同理）。条件必填/显隐见 SYSTEM_RULES。
+        _f("category", "来源", "radio", options_source="enum:lead_category",
+           options=[{"value": "self_reported", "label": "自报"}, {"value": "distributed", "label": "分发"}]),
+        _f("title", "项目名称", system_required=True),
         _f("company_name", "公司名称", default_required=True),
-        _f("customer_type", "客户类型", "select", options_source="dict:customer_type"),
-        _f("industry", "行业", "select", options_source="dict:industry"),
-        _f("source", "线索来源", "select", options_source="dict:lead_source"),
-        _f("category", "类别", "select", options_source="enum:lead_category"),
-        _f("department_id", "部门", "department", companions=("department_name",)),
-        _f("reporter_id", "报备人", "person", companions=("reporter_name",)),
-        _f("reported_at", "报备时间", "datetime"),
-        _f("owner_id", "负责人", "person", companions=("owner_name",)),
-        _f("biz_date", "业务日期", "date"),
-        # ---- 项目地址 ----
-        _f("country_type", "国别", "select", options_source="enum:lead_country_type"),
-        _f("country_name", "国家"),
-        # province/city/district 刻意不入目录：它们由 RegionCascader 作为一个整体选择，
-        # 表单里只有隐藏桩、没有独立可编辑项。若单独配必填，会出现「后端拦下、界面上却
-        # 找不到该字段」的情况。省市区整体必填需要绑定级联控件，属于后续能力。
+        _f("customer_type", "客户类型", "select", options_source="dict:customer_type",
+           options=[{"value": v, "label": v} for v in (
+               "终端客户-央企/国企", "终端客户-大型民企（注册资本10亿以上）",
+               "终端客户-一般民企", "设计院", "总包商", "配套商、贸易商", "其他")]),
         _f("region", "详细地址"),
-        # ---- 联系人 ----
+        _f("has_internal_conflict", "是否内部冲突", "radio", options=_YES_NO),
+        # 冲突备注：JDY allowBlank=false，仅「是」时显示；必填由 SYSTEM_RULES 条件注入
+        _f("conflict_note", "备注：请示部门经理的结果"),
+        _f("industry", "行业", "select", options_source="dict:industry",
+           options=[{"value": v, "label": v} for v in (
+               "筛分分选-冶金", "筛分分选-矿山", "筛分分选-砂石", "筛分分选-焦化",
+               "筛分分选-煤炭", "筛分分选-电力", "筛分分选-化工", "筛分分选-医药",
+               "筛分分选-食品", "筛分分选-备件", "循环经济", "废钢利用",
+               "智能化大宗物料管理")]),
+        _f("bid_result", "中标情况", "select",
+           options=[{"value": v, "label": v} for v in (
+               "中标", "结果未出", "项目取消", "项目延期", "落标", "流标", "未参与")]),
+        _f("bid_fail_reason", "原因", "select",
+           options=[{"value": v, "label": v} for v in (
+               "价格原因：价格高、最低价中标",
+               "内定：客户不愿意更换厂家、客户内部操作了、走形式、内定中标单位了",
+               "资质原因：需要煤安证、矿安证、业主要求进口品牌；业绩达不到",
+               "技术原因：技术参数不符合、参数达不到现场要求、筛分效率达不到、功率偏高客户不同意、技术没达到对方要求、客户要求技术是国际标准",
+               "客户现场原因：现场空间不足",
+               "质保原因：质保期达不到",
+               "付款方式偏离：客户不接受咱的付款方式",
+               "工期原因：要求交货时间达不到",
+               "客户不透露")]),
+        _f("country_type", "国别", "radio", options_source="enum:lead_country_type",
+           options=[{"value": "domestic", "label": "国内"}, {"value": "overseas", "label": "国外"}]),
+        _f("country_name", "国家"),
+        _f("entrust_status", "委托状态", "radio",
+           options=[{"value": "已开", "label": "已开"}, {"value": "未开", "label": "未开"}]),
+        _f("entrust_issued_at", "委托开具日期", "datetime"),
+        _f("entrust_term", "委托期限"),
+        _f("department_id", "部门", "department", companions=("department_name",)),
+        _f("reporter_id", "申报人", "person", companions=("reporter_name",)),
+        _f("reported_at", "申报时间", "datetime"),
+        _f("owner_id", "负责人", "person", companions=("owner_name",)),
+        _f("project_activity", "项目动态", "radio",
+           options=[{"value": v, "label": v} for v in (
+               "技术交流", "出方案", "报价", "投标", "拟建")]),
+        _f("demand_summary", "备注1（线索内容）", "textarea"),
+        # ---- 业务反馈项目详情（跟进时填写，非发起必填）----
+        _f("project_recent", "项目近况", available_on_create=False, fill_stage="followup"),
+        _f("follow_progress", "跟进进度", available_on_create=False, fill_stage="followup"),
+        _f("site_visit", "实地拜访情况", available_on_create=False, fill_stage="followup"),
+        _f("report_project_status", "项目状态", "radio",
+           available_on_create=False, fill_stage="followup",
+           options=[{"value": v, "label": v} for v in (
+               "进行中", "暂停", "取消", "落标", "中标", "已签合同")]),
+        # ---- 评估信息（审批时填写；销售创建表单不展示）----
+        _f("customer_newness", "客户类型（新/老）", "radio",
+           available_on_create=False, fill_stage="approver",
+           options=[{"value": "new", "label": "新"}, {"value": "old", "label": "老"}]),
+        _f("reject_reason", "回退原因", "textarea",
+           available_on_create=False, fill_stage="approver"),
+        _f("assess_remark", "备注2", "textarea", available_on_create=False, fill_stage="approver"),
+        _f("review_opinion", "操作意见", "textarea",
+           available_on_create=False, fill_stage="approver"),
+        # ---- 其他（CRM 扩展，不挡报备主路径）----
+        _f("source", "线索来源", "select", options_source="dict:lead_source"),
+        _f("biz_date", "业务日期", "date"),
         _f("contact_name", "联系人"),
         _f("contact_phone", "联系电话"),
         _f("contact_email", "联系邮箱"),
-        # ---- 补充 ----
-        _f("demand_summary", "需求摘要", "textarea"),
         _f("remark", "备注", "textarea"),
     ],
 
@@ -568,6 +616,38 @@ SYSTEM_RULES: dict[str, list[dict[str, Any]]] = {
             "type": "visibility",
             "target_field_id": "country_name",
             "condition": {"field": "country_type", "operator": "eq", "value": "overseas"},
+            "action": {"visible": True},
+        },
+        {
+            "id": "__sys_country_name_required",
+            "type": "required",
+            "target_field_id": "country_name",
+            "condition": {"field": "country_type", "operator": "eq", "value": "overseas"},
+            "action": {"required": True},
+        },
+        {
+            "id": "__sys_conflict_note_when_yes",
+            "type": "visibility",
+            "target_field_id": "conflict_note",
+            "condition": {"field": "has_internal_conflict", "operator": "eq", "value": "是"},
+            "action": {"visible": True},
+        },
+        {
+            "id": "__sys_conflict_note_required",
+            "type": "required",
+            "target_field_id": "conflict_note",
+            "condition": {"field": "has_internal_conflict", "operator": "eq", "value": "是"},
+            "action": {"required": True},
+        },
+        {
+            "id": "__sys_bid_fail_reason_when_lost",
+            "type": "visibility",
+            "target_field_id": "bid_fail_reason",
+            "condition": {
+                "field": "bid_result",
+                "operator": "in",
+                "value": ["落标", "流标", "未参与"],
+            },
             "action": {"visible": True},
         },
     ],

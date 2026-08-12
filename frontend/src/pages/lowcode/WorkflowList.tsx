@@ -152,7 +152,7 @@ export default function WorkflowList() {
         <div>
           <Title level={4} style={{ margin: 0 }}>流程管理</Title>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            系统会自动补齐默认流：「合同版本」= 财务审核后按标准交付/旋振筛并行运营部门；「合同评审」= 业务部门→多部门会签→总经理/财务；「线索审核」含抄送负责人。
+            系统会自动补齐默认流：「合同版本」= 财务审核后按标准交付/旋振筛并行运营部门；「合同评审」= 业务部门→多部门会签→总经理/财务；「申报信息/线索」= 递呈信息→信息情报部审批→业务员确认是否转商机。
           </Text>
         </div>
         {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建流程</Button>}

@@ -128,6 +128,13 @@ def validate_field_updates(
     return filtered
 
 
+# 线索：审批节点可填的原生列
+_LEAD_NATIVE_KEYS = frozenset({
+    "customer_newness", "assess_remark", "reject_reason", "review_opinion",
+    "score", "industry", "customer_type", "category", "country_type",
+})
+
+
 async def load_field_values(
     db: AsyncSession, tenant_id: str, biz_type: str | None, biz_id: str | None,
     form_instance_id: str | None, fields: list[str],
@@ -147,6 +154,18 @@ async def load_field_values(
             return values
 
     if not biz_type or not biz_id:
+        return values
+
+    if biz_type == "lead":
+        from app.domains.lead.models import Lead
+        row = (await db.execute(select(Lead).where(
+            Lead.id == biz_id, Lead.tenant_id == tenant_id,
+        ))).scalar_one_or_none()
+        if not row:
+            return values
+        for f in fields:
+            if f in _LEAD_NATIVE_KEYS or hasattr(row, f):
+                values[f] = getattr(row, f, None)
         return values
 
     if biz_type == "contract_review":
@@ -235,6 +254,9 @@ async def apply_field_updates(
             await db.flush()
             return
 
+    if biz_type == "lead" and biz_id:
+        await _patch_lead(db, tenant_id, biz_id, updates)
+        return
     if biz_type == "contract_review" and biz_id:
         await _patch_contract_review(db, tenant_id, biz_id, updates)
         return
@@ -244,6 +266,21 @@ async def apply_field_updates(
     if biz_type == "contract_version" and biz_id:
         await _patch_contract_registration(db, tenant_id, biz_id, updates)
         return
+
+
+async def _patch_lead(
+    db: AsyncSession, tenant_id: str, lead_id: str, updates: dict[str, Any],
+) -> None:
+    from app.domains.lead.models import Lead
+    row = (await db.execute(select(Lead).where(
+        Lead.id == lead_id, Lead.tenant_id == tenant_id,
+    ))).scalar_one_or_none()
+    if not row:
+        return
+    for k, v in updates.items():
+        if k in _LEAD_NATIVE_KEYS and hasattr(row, k):
+            setattr(row, k, v)
+    await db.flush()
 
 
 async def _patch_tech_agreement_review(

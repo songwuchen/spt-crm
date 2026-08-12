@@ -86,7 +86,7 @@ async def notify_lead_review_approved(
     await send_notification(
         db, tenant_id, recipient_id=owner_id,
         type="lead_review_approved",
-        title=f"线索审核已通过，请确认是否转化: {lead_title}",
+        title=f"信息情报部已收录，请确认是否转商机: {lead_title}",
         content=(
             f"线索{code}「{lead_title}」已通过信息情报部内勤审核。"
             f"请打开线索详情，自行选择是否转化为客户/商机。"

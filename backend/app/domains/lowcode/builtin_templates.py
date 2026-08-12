@@ -427,6 +427,9 @@ def _apply_drawing_jdy_fields() -> None:
         if t["key"] == "prod_card_supplement":
             from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_contract_pick_fields
             apply_prod_card_contract_pick_fields(defs)
+        if t["key"] == "payment_registration":
+            from app.domains.lowcode.payment_registration_fields import apply_payment_registration_fields
+            apply_payment_registration_fields(defs)
         # 永久删除：前期沟通的设计员（文本）；方案管理去掉业务打分字段
         drop_ids = {"pre_designer_text"}
         if t["key"] == "scheme_management":

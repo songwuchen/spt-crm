@@ -1381,7 +1381,7 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
                 detail["scope_description"] = cr.scope_description
         elif biz_type == "lead":
             # 线索审核已切到扩展平台工作流：审批抽屉无自定义表单，必须靠 biz_detail
-            # 把单据关键信息铺全，否则内勤只能看到标题、无法审完整内容。
+            # 把「申报信息（创建时填写）」铺全，并翻译字典码为中文标签。
             from app.domains.lead.models import Lead
             ld = (await db.execute(
                 select(Lead).where(Lead.id == biz_id, Lead.tenant_id == tenant_id)
@@ -1395,32 +1395,59 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
                         return
                     detail[label] = s if not isinstance(val, (int, float)) else val
 
-                _put("线索编号", ld.lead_code)
-                _put("线索标题", ld.title)
-                _put("客户名称", ld.company_name)
-                _put("联系人", ld.contact_name)
-                _put("联系电话", ld.contact_phone)
-                _put("联系邮箱", ld.contact_email)
-                _put("来源", ld.source)
-                _put("客户类型", ld.customer_type)
-                if getattr(ld, "customer_newness", None) == "new":
-                    _put("新/老客户", "新")
-                elif getattr(ld, "customer_newness", None) == "old":
-                    _put("新/老客户", "老")
-                _put("类别", ld.category)
-                if ld.country_type == "overseas" and ld.country_name:
-                    _put("国别", f"海外 · {ld.country_name}")
+                async def _dict_label(dict_type: str, code: str | None) -> str | None:
+                    if not code:
+                        return None
+                    try:
+                        from app.domains.admin.models import DataDictionary
+                        lab = (await db.execute(
+                            select(DataDictionary.dict_label).where(
+                                DataDictionary.tenant_id == tenant_id,
+                                DataDictionary.dict_type == dict_type,
+                                DataDictionary.dict_code == code,
+                                DataDictionary.is_deleted == False,  # noqa: E712
+                            ).limit(1)
+                        )).scalar_one_or_none()
+                        return lab or code
+                    except Exception:
+                        return code
+
+                cat_labels = {"self_reported": "自报", "distributed": "分发"}
+                country_labels = {"domestic": "国内", "overseas": "国外"}
+
+                _put("项目编号", ld.lead_code)
+                _put("来源", cat_labels.get(ld.category or "", ld.category))
+                _put("项目名称", ld.title)
+                _put("公司名称", ld.company_name)
+                _put("客户类型", await _dict_label("customer_type", ld.customer_type))
+
+                if ld.country_type == "overseas":
+                    _put(
+                        "国别",
+                        f"{country_labels['overseas']}"
+                        + (f" · {ld.country_name}" if ld.country_name else ""),
+                    )
+                    _put("国家", ld.country_name)
                 elif ld.country_type:
-                    _put("国别", "国内" if ld.country_type == "domestic" else ld.country_type)
+                    _put("国别", country_labels.get(ld.country_type, ld.country_type))
+
                 loc = " / ".join([p for p in (ld.province, ld.city, ld.district) if p])
-                _put("省市区", loc or None)
+                _put("项目地址（省市区）", loc or None)
                 _put("详细地址", ld.region)
-                _put("行业", ld.industry)
-                _put("报备人", ld.reporter_name)
-                if ld.reported_at:
-                    _put("报备时间", ld.reported_at.isoformat(sep=" ", timespec="minutes"))
-                _put("负责人", ld.owner_name)
-                _put("录入人", ld.created_by_name)
+                _put("是否内部冲突", getattr(ld, "has_internal_conflict", None))
+                _put("备注：请示部门经理的结果", getattr(ld, "conflict_note", None))
+                _put("行业", await _dict_label("industry", ld.industry))
+                _put("中标情况", getattr(ld, "bid_result", None))
+                _put("原因", getattr(ld, "bid_fail_reason", None))
+                _put("委托状态", getattr(ld, "entrust_status", None))
+                if getattr(ld, "entrust_issued_at", None):
+                    _put(
+                        "委托开具日期",
+                        ld.entrust_issued_at.isoformat(sep=" ", timespec="minutes"),
+                    )
+                _put("委托期限", getattr(ld, "entrust_term", None))
+
+                _put("填表人", ld.created_by_name)
                 if ld.department_id:
                     from app.domains.organization.models import Department
                     dept = (await db.execute(
@@ -1429,14 +1456,48 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
                         )
                     )).scalar_one_or_none()
                     _put("部门", dept)
+                _put("申报人", ld.reporter_name)
+                if ld.reported_at:
+                    _put("申报时间", ld.reported_at.isoformat(sep=" ", timespec="minutes"))
+                _put("负责人", ld.owner_name)
+                _put("项目动态", getattr(ld, "project_activity", None))
+                _put("备注1（线索内容）", ld.demand_summary)
+
+                # 业务反馈（若有）
+                _put("项目近况", getattr(ld, "project_recent", None))
+                _put("跟进进度", getattr(ld, "follow_progress", None))
+                _put("实地拜访情况", getattr(ld, "site_visit", None))
+                _put("项目状态", getattr(ld, "report_project_status", None))
+
+                # 联系人等扩展
+                _put("联系人", ld.contact_name)
+                _put("联系电话", ld.contact_phone)
+                _put("联系邮箱", ld.contact_email)
+                src_lab = await _dict_label("lead_source", ld.source)
+                _put("线索来源", src_lab if ld.source else None)
+                if ld.biz_date:
+                    _put("业务日期", str(ld.biz_date))
+                _put("备注", ld.remark)
+
+                # 已有评估信息（审批侧只读回显；裁定仍用情报表单）
+                if getattr(ld, "customer_newness", None) == "new":
+                    _put("新/老客户", "新")
+                elif getattr(ld, "customer_newness", None) == "old":
+                    _put("新/老客户", "老")
+                rev_labels = {
+                    "pending": "待审", "approved": "收录",
+                    "rejected": "回退", "attacked": "袭击",
+                }
+                rs = getattr(ld, "review_status", None)
+                if rs:
+                    _put("项目最终状态", rev_labels.get(rs, rs))
+                _put("回退原因", getattr(ld, "reject_reason", None))
+                _put("备注2", getattr(ld, "assess_remark", None))
+                _put("操作意见", getattr(ld, "review_opinion", None))
                 _put("评分", ld.score)
-                if ld.demand_summary:
-                    _put("需求摘要", ld.demand_summary)
-                if ld.remark:
-                    _put("备注", ld.remark)
+
                 cf = ld.custom_fields_json if isinstance(ld.custom_fields_json, dict) else None
                 if cf:
-                    # 扩展字段：优先用字段定义的中文名，否则回退 field key
                     label_map: dict[str, str] = {}
                     try:
                         from app.domains.admin.models import CustomFieldDef

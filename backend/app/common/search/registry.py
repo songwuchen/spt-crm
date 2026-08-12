@@ -86,7 +86,7 @@ def _build_registry() -> dict:
     ])
 
     reg["lead"] = ResourceSchema("lead", "线索", [
-        TextField("lead_code", "线索编号", Lead.lead_code),
+        TextField("lead_code", "项目号", Lead.lead_code),
         TextField("title", "线索标题", Lead.title),
         TextField("company_name", "公司名称", Lead.company_name),
         TextField("contact_name", "联系人", Lead.contact_name),

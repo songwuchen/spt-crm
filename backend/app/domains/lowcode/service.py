@@ -312,6 +312,9 @@ async def sync_builtin_form_fields(
     if key == "prod_card_supplement":
         from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_contract_pick_fields
         apply_prod_card_contract_pick_fields(want)
+    if key == "payment_registration":
+        from app.domains.lowcode.payment_registration_fields import apply_payment_registration_fields
+        apply_payment_registration_fields(want)
     if key == "quote_management":
         # 客户类别/价格类型：创建隐藏、部门审批可填（非必填）；勿被旧租户 required 覆盖
         for fd in want:

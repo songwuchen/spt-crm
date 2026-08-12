@@ -13,6 +13,7 @@ import ApproveFieldForm, { missingRequiredFields } from '@/components/lowcode/Ap
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
+import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { isSchemeManagementForm, printSchemeInstance } from '@/pages/drawing/schemePrint'
@@ -224,12 +225,12 @@ export default function MobileLowcodeApprovalDetail() {
       {!fields.length && bizEntries.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
           <div className="text-sm font-bold text-slate-500 mb-2">
-            {detail.biz_type === 'lead' ? '线索信息' : '业务信息'}
+            {detail.biz_type === 'lead' ? '申报信息（创建时填写）' : '业务信息'}
           </div>
           <div className="space-y-2">
             {bizEntries.map(([k, v]) => (
               <div key={k} className="flex gap-3 text-sm">
-                <span className="shrink-0 w-20 text-slate-500">{k}</span>
+                <span className="shrink-0 w-28 text-slate-500">{k}</span>
                 <span className="text-slate-800 font-medium whitespace-pre-wrap break-all">{String(v)}</span>
               </div>
             ))}
@@ -237,6 +238,11 @@ export default function MobileLowcodeApprovalDetail() {
         </div>
       )}
 
+      {detail.biz_type === 'lead' && detail.biz_id && (
+        <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
+          <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
+        </div>
+      )}
       <div className={canAct ? 'mb-3' : ''}>
         <WfFlowDynamics
           variant="page"
@@ -250,15 +256,40 @@ export default function MobileLowcodeApprovalDetail() {
       </div>
 
       {isLeadIntel && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3 max-h-[55vh] overflow-y-auto" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
-          <div className="text-sm font-bold text-slate-700 mb-2">情报审批</div>
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3 max-h-[55vh] overflow-y-auto z-30" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
+          <div className="text-sm font-bold text-slate-700 mb-2">
+            本节点填写（{detail.current_task?.node_name || '信息情报部审批'}）
+          </div>
           <LeadIntelReviewForm
             compact
+            embedded
             leadId={detail.biz_id!}
             taskId={effectiveTaskId!}
             initialNewness={
-              detail.biz_detail?.['客户类型'] === '新' ? 'new'
-                : detail.biz_detail?.['客户类型'] === '老' ? 'old'
+              (fieldUpdates.customer_newness as string)
+                || (detail.biz_detail?.['新/老客户'] === '新' ? 'new'
+                  : detail.biz_detail?.['新/老客户'] === '老' ? 'old'
+                    : undefined)
+            }
+            initialReturnReason={
+              fieldUpdates.reject_reason != null
+                ? String(fieldUpdates.reject_reason)
+                : detail.biz_detail?.['回退原因'] != null
+                  ? String(detail.biz_detail['回退原因'])
+                  : undefined
+            }
+            initialAssessRemark={
+              fieldUpdates.assess_remark != null
+                ? String(fieldUpdates.assess_remark)
+                : detail.biz_detail?.['备注2'] != null
+                  ? String(detail.biz_detail['备注2'])
+                  : undefined
+            }
+            initialOpinion={
+              fieldUpdates.review_opinion != null
+                ? String(fieldUpdates.review_opinion)
+                : detail.biz_detail?.['操作意见'] != null
+                  ? String(detail.biz_detail['操作意见'])
                   : undefined
             }
             onDone={(decision) => {

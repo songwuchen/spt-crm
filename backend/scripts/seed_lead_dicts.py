@@ -47,6 +47,7 @@ INDUSTRIES = [
     ("screening_power", "筛分分选-电力"),
     ("screening_chemical", "筛分分选-化工"),
     ("screening_pharma", "筛分分选-医药"),
+    ("screening_food", "筛分分选-食品"),
     ("screening_spare_parts", "筛分分选-备件"),
     ("circular_economy", "循环经济"),
     ("scrap_steel", "废钢利用"),

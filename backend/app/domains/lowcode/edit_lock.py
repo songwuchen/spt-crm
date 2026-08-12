@@ -76,7 +76,7 @@ async def assert_biz_editable(
 async def assert_lead_editable(
     db: AsyncSession, tenant_id: str, lead_id: str, review_status: str | None,
 ) -> None:
-    """线索：running 必锁；pending 仅在无 running（撤回后）可编辑；rejected 可编辑。
+    """线索：running 必锁；draft/rejected 可编辑；pending 仅在无 running（撤回后）可编辑。
 
     approved/attacked 等由 update_lead 既有门禁处理，此处不额外拦截「未进审」的 approved。
     """
@@ -84,10 +84,10 @@ async def assert_lead_editable(
     if running:
         raise BusinessException(code=VALIDATION_ERROR, message=_LOCK_MSG)
     rs = review_status or "approved"
+    if rs in ("draft", "rejected"):
+        return
     if rs == "pending":
         # 无 running：撤回后回写 pending，允许修改再提交
-        return
-    if rs == "rejected":
         return
     # approved / attacked / 其它：不因审批锁拦截（转化/废弃另有校验）
 
