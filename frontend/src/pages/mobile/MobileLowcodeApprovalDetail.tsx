@@ -257,41 +257,42 @@ export default function MobileLowcodeApprovalDetail() {
 
       {isLeadIntel && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3 max-h-[55vh] overflow-y-auto z-30" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
-          <div className="text-sm font-bold text-slate-700 mb-2">
-            本节点填写（{detail.current_task?.node_name || '信息情报部审批'}）
-          </div>
+          {detail.current_task && (detail.current_task.field_perms?.length ?? 0) > 0 && (
+            <div className="mb-3">
+              <div className="text-sm font-bold text-slate-700 mb-2">
+                本节点填写（{detail.current_task.node_name || '信息情报部审批'}）
+              </div>
+              <ApproveFieldForm
+                currentTask={{
+                  ...detail.current_task,
+                  field_perms: (detail.current_task.field_perms || []).filter(
+                    (p) => p.field !== 'review_opinion',
+                  ),
+                }}
+                values={fieldUpdates}
+                onChange={setFieldUpdates}
+                highlightMissing={fieldHighlight}
+                rules={detail.form_rules || []}
+                formData={formData}
+                formFields={fields}
+              />
+            </div>
+          )}
+          <div className="text-sm font-bold text-slate-700 mb-1">操作意见</div>
+          <Input.TextArea
+            rows={2}
+            placeholder="选填"
+            value={opinion}
+            onChange={(e) => setOpinion(e.target.value)}
+            style={{ marginBottom: 8 }}
+          />
           <LeadIntelReviewForm
             compact
-            embedded
+            actionsOnly
             leadId={detail.biz_id!}
             taskId={effectiveTaskId!}
-            initialNewness={
-              (fieldUpdates.customer_newness as string)
-                || (detail.biz_detail?.['新/老客户'] === '新' ? 'new'
-                  : detail.biz_detail?.['新/老客户'] === '老' ? 'old'
-                    : undefined)
-            }
-            initialReturnReason={
-              fieldUpdates.reject_reason != null
-                ? String(fieldUpdates.reject_reason)
-                : detail.biz_detail?.['回退原因'] != null
-                  ? String(detail.biz_detail['回退原因'])
-                  : undefined
-            }
-            initialAssessRemark={
-              fieldUpdates.assess_remark != null
-                ? String(fieldUpdates.assess_remark)
-                : detail.biz_detail?.['备注2'] != null
-                  ? String(detail.biz_detail['备注2'])
-                  : undefined
-            }
-            initialOpinion={
-              fieldUpdates.review_opinion != null
-                ? String(fieldUpdates.review_opinion)
-                : detail.biz_detail?.['操作意见'] != null
-                  ? String(detail.biz_detail['操作意见'])
-                  : undefined
-            }
+            fieldValues={fieldUpdates}
+            opinion={opinion}
             onDone={(decision) => {
               if (decision === 'draft') {
                 void load(effectiveTaskId)

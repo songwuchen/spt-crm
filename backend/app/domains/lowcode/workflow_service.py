@@ -1489,7 +1489,6 @@ def _default_flow_graph(
             ("customer_newness", "required"),
             ("reject_reason", "editable"),
             ("assess_remark", "editable"),
-            ("review_opinion", "editable"),
         )
     nodes: list[dict] = [
         {"id": "start", "type": "start", "name": start_name},
@@ -1516,7 +1515,6 @@ _LEAD_INTEL_FIELD_PERMS = _fp(
     ("customer_newness", "required"),
     ("reject_reason", "editable"),
     ("assess_remark", "editable"),
-    ("review_opinion", "editable"),
 )
 
 

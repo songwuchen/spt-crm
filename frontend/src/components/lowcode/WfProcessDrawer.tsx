@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Button, Space, Tag, Drawer, Input, message, Typography, Select, Spin,
+  Button, Space, Tag, Drawer, Input, message, Typography, Select, Spin, Radio,
 } from 'antd'
 import {
   CheckCircleOutlined, CloseCircleOutlined, SwapOutlined,
@@ -71,6 +71,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const [moreOpen, setMoreOpen] = useState(false)
   const [sideTab, setSideTab] = useState('flow')
   const [commenting, setCommenting] = useState(false)
+  const [leadFinalStatus, setLeadFinalStatus] = useState<'include' | 'return' | 'attack'>('include')
   const [contract, setContract] = useState<ContractItem | null>(null)
   const [contractVersion, setContractVersion] = useState<ContractVersion | null>(null)
   const [contractLoading, setContractLoading] = useState(false)
@@ -372,14 +373,20 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                 )}
               </section>
 
-              {/* 非线索：本节点可填业务字段 */}
-              {canAct && !isLeadIntel && detail.current_task && (detail.current_task.field_perms?.length ?? 0) > 0 && (
+              {/* 本节点可填业务字段（通用：含线索情报节点 field_perms） */}
+              {canAct && detail.current_task && (detail.current_task.field_perms?.length ?? 0) > 0 && (
                 <section className="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
                   <div className="text-sm font-semibold text-slate-700 mb-2">
                     本节点填写（{detail.current_task.node_name || '审批'}）
                   </div>
                   <ApproveFieldForm
-                    currentTask={detail.current_task}
+                    currentTask={{
+                      ...detail.current_task,
+                      // 操作意见走底部通用栏，不在节点字段里再渲染一遍
+                      field_perms: (detail.current_task.field_perms || []).filter(
+                        (p) => p.field !== 'review_opinion',
+                      ),
+                    }}
                     values={fieldUpdates}
                     onChange={setFieldUpdates}
                     showTitle={false}
@@ -388,61 +395,33 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     formData={formData}
                     formFields={fields}
                   />
+                  {isLeadIntel && (
+                    <div className="mt-4 pt-3 border-t border-amber-100/80">
+                      <div className="text-sm font-medium text-slate-700 mb-2">
+                        <span className="text-red-500 mr-0.5">*</span>项目最终状态
+                      </div>
+                      <Radio.Group
+                        value={leadFinalStatus}
+                        onChange={(e) => setLeadFinalStatus(e.target.value)}
+                        optionType="button"
+                        buttonStyle="solid"
+                        options={[
+                          { value: 'include', label: '收录' },
+                          { value: 'return', label: '回退' },
+                          { value: 'attack', label: '袭击' },
+                        ]}
+                      />
+                      {leadFinalStatus === 'return' && (
+                        <div className="mt-2 text-xs text-amber-700">回退须在上方填写「回退原因」</div>
+                      )}
+                    </div>
+                  )}
                 </section>
               )}
             </div>
 
-            {/* 线索：本节点填写（新/老 → 最终状态 → 回退原因 → 备注2 → 操作意见）+ 裁定 */}
-            {isLeadIntel && (
-              <div className="shrink-0 border-t border-slate-200 bg-white shadow-[0_-4px_12px_rgba(15,23,42,0.04)] px-5 py-4 max-h-[50vh] overflow-y-auto">
-                <div className="text-sm font-semibold text-slate-700 mb-3">
-                  本节点填写（{detail.current_task?.node_name || '信息情报部审批'}）
-                </div>
-                <LeadIntelReviewForm
-                  embedded
-                  leadId={detail.biz_id!}
-                  taskId={effectiveTaskId!}
-                  initialNewness={
-                    (fieldUpdates.customer_newness as string)
-                      || (detail.biz_detail?.['新/老客户'] === '新' ? 'new'
-                        : detail.biz_detail?.['新/老客户'] === '老' ? 'old'
-                          : undefined)
-                  }
-                  initialReturnReason={
-                    fieldUpdates.reject_reason != null
-                      ? String(fieldUpdates.reject_reason)
-                      : detail.biz_detail?.['回退原因'] != null
-                        ? String(detail.biz_detail['回退原因'])
-                        : undefined
-                  }
-                  initialAssessRemark={
-                    fieldUpdates.assess_remark != null
-                      ? String(fieldUpdates.assess_remark)
-                      : detail.biz_detail?.['备注2'] != null
-                        ? String(detail.biz_detail['备注2'])
-                        : undefined
-                  }
-                  initialOpinion={
-                    fieldUpdates.review_opinion != null
-                      ? String(fieldUpdates.review_opinion)
-                      : detail.biz_detail?.['操作意见'] != null
-                        ? String(detail.biz_detail['操作意见'])
-                        : undefined
-                  }
-                  onDone={(decision) => {
-                    if (decision === 'draft') {
-                      void reloadDetail()
-                      return
-                    }
-                    onDone()
-                    onClose()
-                  }}
-                />
-              </div>
-            )}
-
-            {/* 底部固定：操作意见 + 操作按钮（对齐简道云；线索走情报表单） */}
-            {canAct && !isLeadIntel && (
+            {/* 底部固定：操作意见 + 操作按钮（线索按钮为收录/袭击/回退/暂存） */}
+            {canAct && (
               <div className="shrink-0 border-t border-slate-200 bg-white shadow-[0_-4px_12px_rgba(15,23,42,0.04)]">
                 <div className="px-5 pt-3 pb-2">
                   <div className="text-sm font-semibold text-slate-700 mb-2">操作意见</div>
@@ -456,47 +435,73 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     className="!resize-none"
                   />
                 </div>
-                <div className="px-5 py-3 flex flex-wrap items-center gap-2">
-                  <Button
-                    type="primary"
-                    icon={<CheckCircleOutlined />}
-                    loading={busy}
-                    onClick={() => act('approve')}
-                  >
-                    通过
-                  </Button>
-                  <Button
-                    loading={busy}
-                    icon={<RollbackOutlined />}
-                    onClick={() => {
-                      if (!(detail.approval_nodes?.length)) {
-                        message.info('当前流程无可退回节点')
-                        return
-                      }
-                      setMoreOpen(true)
-                    }}
-                    disabled={!(detail.approval_nodes?.length)}
-                  >
-                    退回
-                  </Button>
-                  <Button
-                    loading={busy}
-                    icon={<SwapOutlined />}
-                    onClick={() => setMoreOpen(true)}
-                  >
-                    转交
-                  </Button>
-                  <Button
-                    danger
-                    icon={<CloseCircleOutlined />}
-                    loading={busy}
-                    onClick={() => act('reject')}
-                    title="驳回后发起人可修改并重新提交"
-                  >
-                    驳回
-                  </Button>
-                </div>
-                {moreOpen && (
+                {isLeadIntel ? (
+                  <div className="px-5 py-3">
+                    <LeadIntelReviewForm
+                      actionsOnly
+                      showFinalStatus={false}
+                      compact
+                      leadId={detail.biz_id!}
+                      taskId={effectiveTaskId!}
+                      fieldValues={fieldUpdates}
+                      opinion={opinion}
+                      finalStatus={leadFinalStatus}
+                      onFinalStatusChange={(v) => {
+                        if (v === 'include' || v === 'return' || v === 'attack') setLeadFinalStatus(v)
+                      }}
+                      onDone={(decision) => {
+                        if (decision === 'draft') {
+                          void reloadDetail()
+                          return
+                        }
+                        onDone()
+                        onClose()
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="px-5 py-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      type="primary"
+                      icon={<CheckCircleOutlined />}
+                      loading={busy}
+                      onClick={() => act('approve')}
+                    >
+                      通过
+                    </Button>
+                    <Button
+                      loading={busy}
+                      icon={<RollbackOutlined />}
+                      onClick={() => {
+                        if (!(detail.approval_nodes?.length)) {
+                          message.info('当前流程无可退回节点')
+                          return
+                        }
+                        setMoreOpen(true)
+                      }}
+                      disabled={!(detail.approval_nodes?.length)}
+                    >
+                      退回
+                    </Button>
+                    <Button
+                      loading={busy}
+                      icon={<SwapOutlined />}
+                      onClick={() => setMoreOpen(true)}
+                    >
+                      转交
+                    </Button>
+                    <Button
+                      danger
+                      icon={<CloseCircleOutlined />}
+                      loading={busy}
+                      onClick={() => act('reject')}
+                      title="驳回后发起人可修改并重新提交"
+                    >
+                      驳回
+                    </Button>
+                  </div>
+                )}
+                {!isLeadIntel && moreOpen && (
                   <div className="px-5 pb-3 space-y-2 border-t border-dashed border-slate-100 pt-3">
                     <Space wrap>
                       <div style={{ width: 220 }}>
