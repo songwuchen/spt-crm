@@ -57,6 +57,7 @@ export const FIELD_TYPE_ICON: Record<FieldType, IconComp> = {
   project: ProjectOutlined,
   contract: FileProtectOutlined,
   customer: BankOutlined,
+  tech_agreement_review: FileTextOutlined,
   section: MinusOutlined,
   separator: MinusOutlined,
 }
@@ -93,6 +94,7 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   // 缺了就会在画布和属性面板显示 sub_table_data 这种英文原名。
   related_doc: '关联文档', location: '定位', select_data: '数据联动',
   relation: '关联记录', sub_table_data: '子表数据', project: '关联商机', contract: '关联合同', customer: '关联客户',
+  tech_agreement_review: '关联技术协议评审',
   section: '分区标题', separator: '分隔线',
 }
 
