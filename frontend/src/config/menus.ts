@@ -66,6 +66,7 @@ export const menuGroups: MenuGroup[] = [
       { key: '/application-materials', icon: 'inventory_2', labelKey: 'nav.applicationMaterials', permission: 'form_data:view' },
       { key: '/material-names', icon: 'label', labelKey: 'nav.materialNames', permission: 'form_data:view' },
       { key: '/department-codes', icon: 'apartment', labelKey: 'nav.departmentCodes', permission: 'form_data:view' },
+      { key: '/salesperson-region-map', icon: 'group', labelKey: 'nav.salespersonRegionMap', permission: 'form_data:view' },
     ],
   },
   {

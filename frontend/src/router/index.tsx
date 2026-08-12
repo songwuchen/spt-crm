@@ -218,6 +218,8 @@ export const router = createBrowserRouter([
       { path: 'material-names', element: <Guard permission="form_data:view"><FormModulePage templateCode="material_name" title="物料名称" basePath="/material-names" /></Guard> },
       { path: 'department-codes/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="department_code_base" listPath="/department-codes" title="部门编号基础表" /></Guard> },
       { path: 'department-codes', element: <Guard permission="form_data:view"><FormModulePage templateCode="department_code_base" title="部门编号基础表" basePath="/department-codes" /></Guard> },
+      { path: 'salesperson-region-map/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="salesperson_region_map" listPath="/salesperson-region-map" title="业务员区域经理对照" /></Guard> },
+      { path: 'salesperson-region-map', element: <Guard permission="form_data:view"><FormModulePage templateCode="salesperson_region_map" title="业务员区域经理对照" basePath="/salesperson-region-map" /></Guard> },
       { path: 'products', element: <Guard permission="product:view"><ProductList /></Guard> },
       { path: 'orders', element: <Guard permission="order:view"><OrderList /></Guard> },
       { path: 'tenders', element: <Guard permission="tender:view"><TenderList /></Guard> },

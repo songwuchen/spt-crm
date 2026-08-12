@@ -1,0 +1,144 @@
+{
+  "success": true,
+  "data": {
+    "fields": [
+      {
+        "id": "698151a0a1258c7c3db86c8c",
+        "form": "698151a0a1258c7c3db86c8c",
+        "text": "备忘",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1770082739665",
+        "type": "separator"
+      },
+      {
+        "id": "698151a0a1258c7c3db86c8c",
+        "form": "698151a0a1258c7c3db86c8c",
+        "text": "区域编号",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1770082739662",
+        "type": "sn"
+      },
+      {
+        "id": "698151a0a1258c7c3db86c8c",
+        "form": "698151a0a1258c7c3db86c8c",
+        "text": "员工ID",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1770082739660",
+        "type": "text"
+      },
+      {
+        "id": "698151a0a1258c7c3db86c8c",
+        "form": "698151a0a1258c7c3db86c8c",
+        "text": "区域",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1705115573566",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "华北区",
+            "text": "华北区"
+          },
+          {
+            "value": "华东区",
+            "text": "华东区"
+          },
+          {
+            "value": "华南区",
+            "text": "华南区"
+          },
+          {
+            "value": "华西区",
+            "text": "华西区"
+          },
+          {
+            "value": "新疆区域",
+            "text": "新疆区域"
+          },
+          {
+            "value": "备品备件推进组",
+            "text": "备品备件推进组"
+          },
+          {
+            "value": "循环经济组",
+            "text": "循环经济组"
+          },
+          {
+            "value": "分布筛推进组",
+            "text": "分布筛推进组"
+          },
+          {
+            "value": "战略推进组",
+            "text": "战略推进组"
+          },
+          {
+            "value": "宝武系",
+            "text": "宝武系"
+          },
+          {
+            "value": "裕华系",
+            "text": "裕华系"
+          },
+          {
+            "value": "大包",
+            "text": "大包"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "698151a0a1258c7c3db86c8c",
+        "form": "698151a0a1258c7c3db86c8c",
+        "text": "所属部门",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1705116382932",
+        "type": "dept"
+      },
+      {
+        "id": "698151a0a1258c7c3db86c8c",
+        "form": "698151a0a1258c7c3db86c8c",
+        "text": "业务员",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1770082739661",
+        "type": "user"
+      },
+      {
+        "id": "698151a0a1258c7c3db86c8c",
+        "form": "698151a0a1258c7c3db86c8c",
+        "text": "大区经理或组长",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1705115573567",
+        "type": "user"
+      },
+      {
+        "id": "698151a0a1258c7c3db86c8c",
+        "form": "698151a0a1258c7c3db86c8c",
+        "name": "creator",
+        "type": "user",
+        "text": "提交人"
+      },
+      {
+        "id": "698151a0a1258c7c3db86c8c",
+        "form": "698151a0a1258c7c3db86c8c",
+        "name": "createTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "提交时间"
+      },
+      {
+        "id": "698151a0a1258c7c3db86c8c",
+        "form": "698151a0a1258c7c3db86c8c",
+        "name": "updateTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "更新时间"
+      }
+    ]
+  }
+}

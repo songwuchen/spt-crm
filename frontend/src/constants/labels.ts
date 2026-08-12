@@ -36,6 +36,7 @@ export const approvalBizTypeLabels: Record<string, string> = {
   '收款登记': '收款登记',
   scheme_management: '方案管理',
   department_code_base: '部门编号',
+  salesperson_region_map: '业务员区域经理',
   quote_management: '报价管理',
   '报价管理': '报价管理',
   pricing_checklist_hjqd: '核价清单传递',

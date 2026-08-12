@@ -206,6 +206,64 @@ export default function FormFillPage({
     return () => { alive = false }
   }, [departmentId, fields])
 
+  // 选业务员 → 回填区域经理/组长（对齐简道云「业务员区域经理对照」）
+  const salesSourceField = fields.find((f) =>
+    f.type === 'person' && (f.id === 'sales_person' || f.id === 'salesperson' || f.id === 'owner_id'
+      || f.label === '业务员'),
+  )
+  const regionTargetField = fields.find((f) =>
+    f.type === 'person' && (f.id === 'region_manager' || f.id === 'region_manager_id'
+      || (f.label || '').includes('区域经理')),
+  )
+  const salesPersonRaw = salesSourceField ? value[salesSourceField.id] : undefined
+  const salesPersonId = salesPersonRaw == null || salesPersonRaw === ''
+    ? ''
+    : (typeof salesPersonRaw === 'object' && salesPersonRaw !== null && 'id' in (salesPersonRaw as object)
+      ? String((salesPersonRaw as { id?: string }).id || '')
+      : String(salesPersonRaw))
+
+  const prevSalesPersonRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (!fields.length || !salesSourceField || !regionTargetField) return
+    const sid = salesPersonId.trim()
+    const prev = prevSalesPersonRef.current
+    const changed = prev !== undefined && prev !== sid
+    prevSalesPersonRef.current = sid
+    const targetId = regionTargetField.id
+
+    if (!sid) {
+      if (changed) {
+        setValue((prevV) => {
+          if (prevV[targetId] == null || prevV[targetId] === '') return prevV
+          return { ...prevV, [targetId]: undefined }
+        })
+      }
+      return
+    }
+
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await lowcodeApi.lookupSalespersonRegion(sid)
+        const mid = (r.data?.region_manager_id || '').trim()
+        if (!alive) return
+        setValue((prevV) => {
+          if (mid) {
+            if (prevV[targetId] === mid) return prevV
+            return { ...prevV, [targetId]: mid }
+          }
+          if (changed && prevV[targetId] != null && prevV[targetId] !== '') {
+            return { ...prevV, [targetId]: undefined }
+          }
+          return prevV
+        })
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => { alive = false }
+  }, [salesPersonId, fields, salesSourceField?.id, regionTargetField?.id])
+
   useEffect(() => {
     if (!id || loading || !fields.some((f) => f.type === 'auto_number')) return
     if (peekTimer.current) clearTimeout(peekTimer.current)

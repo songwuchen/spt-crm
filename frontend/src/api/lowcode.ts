@@ -61,6 +61,17 @@ export const lowcodeApi = {
       { params: { department_id: departmentId } },
     ),
 
+  /** 按业务员查区域经理/组长对照表 */
+  lookupSalespersonRegion: (salespersonId: string) =>
+    client.get<unknown, ApiResponse<{
+      salesperson_id: string | null
+      region_manager_id: string | null
+      region_manager_name: string | null
+    }>>(
+      '/api/v1/lc/salesperson-region',
+      { params: { salesperson_id: salespersonId } },
+    ),
+
   /** 基础资料表选项（物料名称 / 应用领域 / 应用物料） */
   baseLookups: (params: {
     type: 'application_field' | 'application_material' | 'material_name'

@@ -5,6 +5,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { contractReviewApi } from '@/api/contractReview'
 import { customerApi } from '@/api/customer'
+import { lowcodeApi } from '@/api/lowcode'
 import type { Customer } from '@/api/types'
 import { industryLabels } from '@/api/types'
 import ContractReviewFields from '@/components/ContractReviewFields'
@@ -71,6 +72,45 @@ export default function ContractReviewForm() {
   const customerSelect = useCustomerSelect()
   const currentUser = useAuthStore((s) => s.user)
   usePageTitle(isEdit ? '编辑合同评审' : '新建合同评审')
+  const ownerId = Form.useWatch('owner_id', form) as string | undefined
+  const prevOwnerIdRef = useRef<string | undefined>(undefined)
+
+  /** 对齐简道云：选业务员后按「业务员区域经理对照」回填区域经理/组长 */
+  useEffect(() => {
+    if (loading) return
+    const sid = (ownerId || '').trim()
+    const prev = prevOwnerIdRef.current
+    const changed = prev !== undefined && prev !== sid
+    prevOwnerIdRef.current = sid
+
+    if (!sid) {
+      if (changed) {
+        form.setFieldsValue({ region_manager_id: undefined, region_manager_name: undefined })
+      }
+      return
+    }
+
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await lowcodeApi.lookupSalespersonRegion(sid)
+        if (!alive) return
+        const mid = (r.data?.region_manager_id || '').trim()
+        const mname = (r.data?.region_manager_name || '').trim()
+        if (mid) {
+          form.setFieldsValue({
+            region_manager_id: mid,
+            region_manager_name: mname || undefined,
+          })
+        } else if (changed) {
+          form.setFieldsValue({ region_manager_id: undefined, region_manager_name: undefined })
+        }
+      } catch {
+        /* 对照表未初始化或网络失败时不打断填报 */
+      }
+    })()
+    return () => { alive = false }
+  }, [ownerId, loading, form])
 
   const patchContact = (key: string, patch: Partial<ContactRow>) => {
     setContacts((rows) => rows.map((x) => (x.key === key ? { ...x, ...patch } : x)))

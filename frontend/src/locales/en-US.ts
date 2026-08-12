@@ -89,6 +89,7 @@ const enUS = {
     applicationMaterials: 'Application Materials',
     materialNames: 'Material Names',
     departmentCodes: 'Department Codes',
+    salespersonRegionMap: 'Salesperson Region Map',
     contractReviews: 'Contract Reviews',
     techAgreementReviews: 'Tech Agreement Reviews',
     prodCardSupplements: 'Prod Card / Supplement',

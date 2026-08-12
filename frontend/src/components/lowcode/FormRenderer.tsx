@@ -21,6 +21,9 @@ import ProjectField from './fields/ProjectField'
 import ContractField, {
   fetchProdCardContractFill, PROD_CARD_FILL_CLEAR,
 } from './fields/ContractField'
+import TechAgreementReviewField, {
+  fetchProdCardTarFill, PROD_CARD_TAR_FILL_CLEAR, resolveTarFilterIds,
+} from './fields/TechAgreementReviewField'
 import CustomerField from './fields/CustomerField'
 import FileField from './fields/FileField'
 import AddressField from './fields/AddressField'
@@ -41,12 +44,14 @@ const SUPPORTED = new Set([
   'formula', 'auto_number', 'detail_table',
   'person', 'person_multi', 'department', 'department_multi', 'file', 'image',
   'address', 'cascade', 'rich_text', 'signature', 'project', 'contract', 'customer',
+  'tech_agreement_review',
 ])
 
 // 这些类型自行渲染只读态(名称/URL 需异步解析或富媒体展示),不走通用 ReadonlyValue。
 const SELF_RENDER_READONLY = new Set([
   'detail_table', 'person', 'person_multi', 'department', 'department_multi', 'file', 'image',
   'address', 'cascade', 'rich_text', 'signature', 'project', 'contract', 'customer',
+  'tech_agreement_review',
 ])
 
 const GROUP_TYPES = new Set(['tab_group', 'collapse_section'])
@@ -345,6 +350,43 @@ function FieldWidget({
               return
             }
             void fetchProdCardContractFill(v, fillMode).then((fill) => {
+              onPatch({ [field.id]: v, ...fill })
+            }).catch(() => onChange(v))
+          }}
+        />
+      )
+    }
+    case 'tech_agreement_review': {
+      const props = (field.props || {}) as {
+        filter_by_submitter_field?: string
+        filter_by_department_field?: string
+        tar_fill?: 'prod_card_sn'
+      }
+      const { applicantId, departmentId } = resolveTarFilterIds(
+        allValues,
+        props.filter_by_submitter_field,
+        props.filter_by_department_field,
+      )
+      const fillMode = props.tar_fill
+      return (
+        <TechAgreementReviewField
+          value={value}
+          readonly={readonly}
+          placeholder={ph}
+          applicantId={applicantId}
+          departmentId={departmentId}
+          onChange={(v) => {
+            if (!fillMode || !onPatch) {
+              onChange(v)
+              return
+            }
+            if (!v) {
+              const cleared: Record<string, unknown> = { [field.id]: undefined }
+              for (const k of PROD_CARD_TAR_FILL_CLEAR) cleared[k] = undefined
+              onPatch(cleared)
+              return
+            }
+            void fetchProdCardTarFill(v).then((fill) => {
               onPatch({ [field.id]: v, ...fill })
             }).catch(() => onChange(v))
           }}

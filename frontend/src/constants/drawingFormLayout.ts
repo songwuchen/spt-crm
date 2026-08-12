@@ -646,6 +646,7 @@ const SHORT_TYPES = new Set([
   'text', 'select', 'radio', 'person', 'person_multi',
   'department', 'department_multi', 'date', 'datetime', 'number',
   'amount', 'multi_select', 'switch', 'formula', 'auto_number', 'project', 'contract', 'customer',
+  'tech_agreement_review',
 ])
 
 function defaultSpan(field: FieldDefinition): number {

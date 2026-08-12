@@ -173,6 +173,20 @@ async def lookup_department_code(
     return ok({"department_id": department_id, "dept_code": code})
 
 
+@router.get("/salesperson-region")
+async def lookup_salesperson_region(
+    salesperson_id: str = Query(..., description="业务员用户 id"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """按业务员查「业务员区域经理对照」表，供合同评审/客服等回填区域经理。"""
+    from app.domains.lowcode.salesperson_region import resolve_region_manager
+
+    data = await resolve_region_manager(db, tenant_id, salesperson_id, user)
+    return ok(data)
+
+
 @router.get("/base-lookups")
 async def base_form_lookups(
     type: str = Query(..., description="application_field | application_material | material_name"),
@@ -403,6 +417,101 @@ async def pickable_contract_prod_card_fill(
         "contract_no": c.contract_no,
         "drawing_no": c.drawing_no,
         "department_id": c.department_id,
+        "fill": fill,
+    })
+
+
+@router.get("/pickable-tech-agreement-reviews")
+async def pickable_tech_agreement_reviews(
+    keyword: str | None = Query(None),
+    ids: str | None = Query(None, description="逗号分隔的评审 id，用于只读回显"),
+    applicant_id: str | None = Query(
+        None, description="申请人过滤（生产卡：提交人）；与 department_id 为 OR",
+    ),
+    department_id: str | None = Query(
+        None, description="业务部门过滤（生产卡：所在部门）；与 applicant_id 为 OR",
+    ),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """表单关联技术协议评审：按流水号/项目/公司检索（仅需登录）。"""
+    from app.domains.tech_agreement_review.models import TechAgreementReview
+
+    id_list = [x.strip() for x in (ids or "").split(",") if x.strip()]
+    q = select(
+        TechAgreementReview.id,
+        TechAgreementReview.review_code,
+        TechAgreementReview.company_name,
+        TechAgreementReview.project_title,
+        TechAgreementReview.applicant_name,
+        TechAgreementReview.department_name,
+    ).where(TechAgreementReview.tenant_id == tenant_id)
+
+    if id_list:
+        q = q.where(TechAgreementReview.id.in_(id_list))
+    else:
+        app_id = (applicant_id or "").strip()
+        dept = (department_id or "").strip()
+        if app_id and dept:
+            q = q.where(or_(
+                TechAgreementReview.applicant_id == app_id,
+                TechAgreementReview.department_id == dept,
+            ))
+        elif app_id:
+            q = q.where(TechAgreementReview.applicant_id == app_id)
+        elif dept:
+            q = q.where(TechAgreementReview.department_id == dept)
+        if keyword:
+            kw = keyword.strip()
+            like = f"%{kw}%"
+            q = q.where(or_(
+                TechAgreementReview.review_code.ilike(like),
+                TechAgreementReview.company_name.ilike(like),
+                TechAgreementReview.project_title.ilike(like),
+                TechAgreementReview.applicant_name.ilike(like),
+            ))
+        q = q.order_by(TechAgreementReview.updated_at.desc()).limit(50)
+
+    rows = (await db.execute(q)).all()
+    return ok([
+        {
+            "id": r[0],
+            "review_code": r[1],
+            "company_name": r[2],
+            "project_title": r[3],
+            "applicant_name": r[4],
+            "department_name": r[5],
+        }
+        for r in rows
+    ])
+
+
+@router.get("/pickable-tech-agreement-reviews/{review_id}/prod-card-fill")
+async def pickable_tar_prod_card_fill(
+    review_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """生产卡选技术协议评审后带出流水号（对齐简道云 linkDataMaps）。"""
+    from app.domains.tech_agreement_review.models import TechAgreementReview
+    from app.domains.lowcode.prod_card_contract_fill import build_prod_card_fill_from_tar
+
+    row = (
+        await db.execute(
+            select(TechAgreementReview).where(
+                TechAgreementReview.id == review_id,
+                TechAgreementReview.tenant_id == tenant_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not row:
+        raise BusinessException(code=NOT_FOUND, message="技术协议评审不存在")
+    fill = build_prod_card_fill_from_tar(review_code=row.review_code)
+    return ok({
+        "review_id": row.id,
+        "review_code": row.review_code,
         "fill": fill,
     })
 

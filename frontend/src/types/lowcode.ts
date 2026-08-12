@@ -13,6 +13,7 @@ export type FieldType =
   | 'project'
   | 'contract'
   | 'customer'
+  | 'tech_agreement_review'
 
 export interface OptionItem {
   label: string

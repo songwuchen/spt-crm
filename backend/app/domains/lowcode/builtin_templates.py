@@ -360,6 +360,42 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
             {"id": "dept_code", "type": "text", "label": "编号", "required": True},
         ],
     },
+    {
+        "key": "salesperson_region_map",
+        "name": "业务员区域经理对照",
+        "category": "合同",
+        "icon": "TeamOutlined",
+        "description": (
+            "对齐简道云销售中心「业务员→区域经理/组长」对照表"
+            "(formId=698151a0…)。"
+            "合同评审/客服等选业务员后按本表自动回填区域经理/组长。"
+        ),
+        "sync_fields": True,
+        "field_definitions": [
+            {"id": "salesperson", "type": "person", "label": "业务员", "required": True},
+            {"id": "region_manager", "type": "person", "label": "区域经理/组长", "required": True},
+            {
+                "id": "region",
+                "type": "select",
+                "label": "区域",
+                "options": [
+                    {"value": "华北区", "label": "华北区"},
+                    {"value": "华东区", "label": "华东区"},
+                    {"value": "华南区", "label": "华南区"},
+                    {"value": "华西区", "label": "华西区"},
+                    {"value": "新疆区域", "label": "新疆区域"},
+                    {"value": "备品备件推进组", "label": "备品备件推进组"},
+                    {"value": "循环经济组", "label": "循环经济组"},
+                    {"value": "分布筛推进组", "label": "分布筛推进组"},
+                    {"value": "战略推进组", "label": "战略推进组"},
+                    {"value": "宝武系", "label": "宝武系"},
+                    {"value": "裕华系", "label": "裕华系"},
+                    {"value": "大包", "label": "大包"},
+                ],
+            },
+            {"id": "remark", "type": "textarea", "label": "备注"},
+        ],
+    },
 ]
 
 

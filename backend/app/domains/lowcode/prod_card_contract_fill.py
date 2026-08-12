@@ -125,3 +125,30 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             props["filter_by_department_field"] = "department"
             props["contract_fill"] = "contract_no_select"
             f["props"] = props
+        elif fid == "select_contract_tech_review":
+            # 简道云 linkfield → 技术协议评审；选中后带出流水号（linkDataMaps）
+            f["type"] = "tech_agreement_review"
+            f["label"] = "选择合同技术协议评审"
+            f["description"] = (
+                "从技术协议评审中选择（申请人=提交人或业务部门=所在部门）；"
+                "选中后自动带出流水号。"
+            )
+            props = dict(f.get("props") or {})
+            props["filter_by_submitter_field"] = "submitter"
+            props["filter_by_department_field"] = "department"
+            props["tar_fill"] = "prod_card_sn"
+            f["props"] = props
+        elif fid == "contract_tech_review_sn":
+            props = dict(f.get("props") or {})
+            props["readonly"] = True
+            f["props"] = props
+            f["description"] = f.get("description") or "由所选技术协议评审自动带出，不可手改。"
+
+
+def build_prod_card_fill_from_tar(*, review_code: str | None) -> dict[str, Any]:
+    """生产卡选技术协议评审后的带出（对齐简道云 linkDataMaps：仅流水号）。"""
+    return {"contract_tech_review_sn": (review_code or "").strip()}
+
+
+def prod_card_tar_fill_clear_keys() -> list[str]:
+    return ["contract_tech_review_sn"]

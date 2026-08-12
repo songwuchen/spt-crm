@@ -37,6 +37,8 @@ const breadcrumbNameMap: Record<string, string> = {
   '/material-names/fill': '新增',
   '/department-codes': '部门编号',
   '/department-codes/fill': '新增',
+  '/salesperson-region-map': '业务员区域经理',
+  '/salesperson-region-map/fill': '新增',
   '/contract-reviews': '合同评审',
   '/contract-reviews/new': '新建合同评审',
   '/tech-agreement-reviews': '技术协议评审',

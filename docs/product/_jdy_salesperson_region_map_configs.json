@@ -1,0 +1,139 @@
+{
+  "app_id": "5de0b3e85600ec0006f420f2",
+  "entry_id": "698151a0a1258c7c3db86c8c",
+  "form_name": "架构表-冶金矿山装备销售事业部",
+  "workflow_config": {
+    "editable": false,
+    "flows": [],
+    "theme": 1,
+    "flowFormViews": []
+  },
+  "auth_config": {
+    "existAuthGroups": [
+      {
+        "_id": "698151a0a1258c7c3db86c9b",
+        "groupId": 3,
+        "name": "维护",
+        "desc": "",
+        "members": {
+          "users": [
+            {
+              "username": "1767691603763250",
+              "avatar": "https://static-legacy.dingtalk.com/media/lADPM5HikxLz6rbNA8DNAhs_539_960.jpg",
+              "type": 0,
+              "status": 1,
+              "frozen": 0,
+              "dept": [
+                61166000,
+                52371059,
+                4507725,
+                4430303
+              ],
+              "role": [
+                1356,
+                2562,
+                2571,
+                2585,
+                2880,
+                2891,
+                2900,
+                2922,
+                2931,
+                5,
+                -80401479
+              ],
+              "is_global_docker": false,
+              "_id": "5befc6899ededaf9744d022a",
+              "member_id": "5befc6899ededaf9744d022a",
+              "nickname": "岳毅",
+              "name": "岳毅",
+              "editable": true
+            },
+            {
+              "username": "122532231437821026",
+              "avatar": "https://static-legacy.dingtalk.com/media/lADPD3W5XZs8QzDNAWbNAWY_358_358.jpg",
+              "type": 0,
+              "status": 1,
+              "frozen": 0,
+              "dept": [
+                123474026
+              ],
+              "role": [
+                2928,
+                2937,
+                2946,
+                2952,
+                -80401479
+              ],
+              "is_global_docker": false,
+              "_id": "5c6622441f2d98adcd79711c",
+              "member_id": "5c6622441f2d98adcd79711c",
+              "nickname": "陈杏玉",
+              "name": "陈杏玉",
+              "host_corp_id_list": [
+                "ww1cfe92ce0552bbe8"
+              ],
+              "guest_corp_id_list": [],
+              "editable": true
+            }
+          ],
+          "departs": [
+            {
+              "_id": "56ca5b8af97e80434fc06119",
+              "dept_no": 4430289,
+              "parent_no": 1,
+              "name": "人力资源部",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 59,
+              "departmentId": 4430289,
+              "parentId": 1,
+              "order": 59,
+              "editable": true
+            }
+          ],
+          "roles": []
+        },
+        "printIds": [],
+        "viewIds": [],
+        "status": 1,
+        "seq": 1024,
+        "autoProcessIds": [],
+        "displayAutoProcessIds": [],
+        "enable": true
+      }
+    ],
+    "optionalAuthGroups": [
+      {
+        "name": "维护",
+        "groupId": 3
+      },
+      {
+        "name": "仅添加数据",
+        "groupId": -1
+      },
+      {
+        "name": "添加并管理本人数据",
+        "groupId": -3
+      },
+      {
+        "name": "添加并查看全部数据",
+        "groupId": -5
+      },
+      {
+        "name": "管理全部数据",
+        "groupId": -4
+      },
+      {
+        "name": "查看全部数据",
+        "groupId": -2
+      }
+    ],
+    "allowSwitchAuthGroupDisplayMode": false,
+    "authGroupDisplayMode": 1
+  },
+  "config_synced_at": "2026-07-01T05:49:59.813773"
+}

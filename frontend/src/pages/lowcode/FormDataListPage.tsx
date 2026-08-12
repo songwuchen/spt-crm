@@ -787,6 +787,40 @@ export default function FormDataListPage({
     return () => { alive = false }
   }, [viewRec?.readonly, viewRec?.value?.department, viewRec?.fields])
 
+  // 编辑弹窗：选业务员 → 回填区域经理/组长
+  useEffect(() => {
+    if (!viewRec || viewRec.readonly) return
+    const salesField = viewRec.fields.find((f) =>
+      f.type === 'person' && (f.id === 'sales_person' || f.id === 'salesperson' || f.id === 'owner_id'
+        || f.label === '业务员'),
+    )
+    const regionField = viewRec.fields.find((f) =>
+      f.type === 'person' && (f.id === 'region_manager' || f.id === 'region_manager_id'
+        || (f.label || '').includes('区域经理')),
+    )
+    if (!salesField || !regionField) return
+    const raw = viewRec.value?.[salesField.id]
+    const sid = raw == null || raw === ''
+      ? ''
+      : (typeof raw === 'object' && raw !== null && 'id' in (raw as object)
+        ? String((raw as { id?: string }).id || '')
+        : String(raw))
+    if (!sid) return
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await lowcodeApi.lookupSalespersonRegion(sid)
+        const mid = (r.data?.region_manager_id || '').trim()
+        if (!alive || !mid) return
+        setViewRec((s) => {
+          if (!s || s.value?.[regionField.id] === mid) return s
+          return { ...s, value: { ...s.value, [regionField.id]: mid } }
+        })
+      } catch { /* ignore */ }
+    })()
+    return () => { alive = false }
+  }, [viewRec?.readonly, viewRec?.fields, viewRec?.value?.sales_person, viewRec?.value?.salesperson, viewRec?.value?.owner_id])
+
   // 编辑弹窗：流水号预览
   useEffect(() => {
     if (!viewRec || viewRec.readonly || !id) return

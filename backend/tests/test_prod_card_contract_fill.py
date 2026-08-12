@@ -81,6 +81,8 @@ def test_apply_prod_card_contract_pick_fields():
         {"id": "is_supplement", "type": "radio", "label": "是否为补充"},
         {"id": "drawing_no_query", "type": "text", "label": "图纸编号查询"},
         {"id": "contract_no_select", "type": "text", "label": "合同号选择"},
+        {"id": "select_contract_tech_review", "type": "text", "label": "选择合同技术协议评审"},
+        {"id": "contract_tech_review_sn", "type": "text", "label": "合同技术协议评审流水号"},
     ]
     apply_prod_card_contract_pick_fields(defs)
     assert defs[0]["default_value"] == "否"
@@ -90,3 +92,14 @@ def test_apply_prod_card_contract_pick_fields():
     assert defs[1]["props"]["filter_by_department_field"] == "department"
     assert defs[2]["type"] == "contract"
     assert defs[2]["props"]["contract_fill"] == "contract_no_select"
+    assert defs[3]["type"] == "tech_agreement_review"
+    assert defs[3]["props"]["tar_fill"] == "prod_card_sn"
+    assert defs[3]["props"]["filter_by_submitter_field"] == "submitter"
+    assert defs[4]["props"]["readonly"] is True
+
+
+def test_build_prod_card_fill_from_tar():
+    from app.domains.lowcode.prod_card_contract_fill import build_prod_card_fill_from_tar
+    assert build_prod_card_fill_from_tar(review_code=" HTJSXY00001 ") == {
+        "contract_tech_review_sn": "HTJSXY00001",
+    }

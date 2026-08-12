@@ -14,6 +14,9 @@ import CustomerField from '@/components/lowcode/fields/CustomerField'
 import ContractField, {
   fetchProdCardContractFill, PROD_CARD_FILL_CLEAR,
 } from '@/components/lowcode/fields/ContractField'
+import TechAgreementReviewField, {
+  fetchProdCardTarFill, PROD_CARD_TAR_FILL_CLEAR, resolveTarFilterIds,
+} from '@/components/lowcode/fields/TechAgreementReviewField'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { dateFieldFormat, fieldShowsTime } from '@/components/lowcode/dateField'
@@ -343,6 +346,49 @@ export default function ApproveFieldForm({
                         return
                       }
                       void fetchProdCardContractFill(v, fillMode).then((fill) => {
+                        patchFields({ [p.field]: v, ...fill })
+                      }).catch(() => setField(p.field, v))
+                    }}
+                  />
+                </div>
+                {err && <Text type="danger" style={{ fontSize: 12 }}>请选择{label}</Text>}
+              </div>
+            )
+          }
+
+          if (t === 'tech_agreement_review') {
+            const tarProps = fieldProps as {
+              filter_by_submitter_field?: string
+              filter_by_department_field?: string
+              tar_fill?: 'prod_card_sn'
+            }
+            const { applicantId, departmentId } = resolveTarFilterIds(
+              mergedValues,
+              tarProps.filter_by_submitter_field,
+              tarProps.filter_by_department_field,
+            )
+            const fillMode = tarProps.tar_fill
+            return (
+              <div key={p.field} className={err ? 'approve-field-error' : undefined}>
+                <FieldLabel label={label} required={required} error={err} />
+                <div style={{ marginTop: 4 }}>
+                  <TechAgreementReviewField
+                    value={val}
+                    applicantId={applicantId}
+                    departmentId={departmentId}
+                    placeholder={`请选择${label}`}
+                    onChange={(v) => {
+                      if (!fillMode) {
+                        setField(p.field, v)
+                        return
+                      }
+                      if (!v) {
+                        const cleared: Record<string, unknown> = { [p.field]: undefined }
+                        for (const k of PROD_CARD_TAR_FILL_CLEAR) cleared[k] = undefined
+                        patchFields(cleared)
+                        return
+                      }
+                      void fetchProdCardTarFill(v).then((fill) => {
                         patchFields({ [p.field]: v, ...fill })
                       }).catch(() => setField(p.field, v))
                     }}
