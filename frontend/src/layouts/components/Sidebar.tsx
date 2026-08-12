@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
 import { menuGroups, PROTECTED_MENU_KEYS } from '@/config/menus'
 import { t } from '@/locales'
+import { useApprovalPendingCount } from '@/hooks/useApprovalPendingCount'
 
 import Icon from '@/components/Icon'
 
@@ -34,6 +35,7 @@ export default function Sidebar() {
   const menuAliases = useUiSettingsStore((s) => s.menuAliases)
   const hiddenMenus = useUiSettingsStore((s) => s.hiddenMenus)
   const selectedKey = getSelectedKey(location.pathname)
+  const approvalPendingCount = useApprovalPendingCount(60_000, location.pathname)
 
   const hiddenSet = new Set(hiddenMenus)
   const brandName = systemName || 'SPT-CRM'
@@ -69,6 +71,7 @@ export default function Sidebar() {
               <nav className="sidebar-group-nav">
                 {visibleItems.map((item) => {
                   const isActive = selectedKey === item.key
+                  const badge = item.key === '/approvals' ? approvalPendingCount : 0
                   return (
                     <button
                       key={item.key}
@@ -77,6 +80,11 @@ export default function Sidebar() {
                     >
                       <Icon name={item.icon} className="sidebar-item-icon" />
                       <span className="sidebar-item-label">{menuAliases[item.key] || t(item.labelKey)}</span>
+                      {badge > 0 && (
+                        <span className="sidebar-item-badge" aria-label={`${badge} 条待办`}>
+                          {badge > 99 ? '99+' : badge}
+                        </span>
+                      )}
                     </button>
                   )
                 })}
@@ -194,6 +202,28 @@ export default function Sidebar() {
         .sidebar-item-label {
           font-size: 14px;
           font-weight: 500;
+          flex: 1;
+          text-align: left;
+          min-width: 0;
+        }
+        .sidebar-item-badge {
+          margin-left: auto;
+          flex-shrink: 0;
+          min-width: 18px;
+          height: 18px;
+          padding: 0 6px;
+          border-radius: 999px;
+          background: #ef4444;
+          color: #ffffff;
+          font-size: 11px;
+          font-weight: 700;
+          line-height: 18px;
+          text-align: center;
+          box-sizing: border-box;
+        }
+        .sidebar-item--active .sidebar-item-badge {
+          background: rgba(255, 255, 255, 0.95);
+          color: #137fec;
         }
 
         /* Default state */

@@ -12,6 +12,9 @@ import { workflowApi } from './lowcodeWorkflow'
 
 export type ApprovalEngine = 'legacy' | 'wf'
 
+/** 侧栏角标等：审批待办变化时派发，便于立即刷新计数 */
+export const APPROVAL_PENDING_CHANGED = 'spt:approval-pending-changed'
+
 /** 单页条数：过大时 WF enrich / 旧引擎 list 会明显拖慢审批中心首屏 */
 const PAGE_SIZE = 40
 
@@ -113,12 +116,15 @@ export async function decideUnified(
 ): Promise<void> {
   if (item.engine === 'wf') {
     await workflowApi.act(item.taskId, { action, opinion: comment })
-    return
+  } else {
+    await approvalApi.decide(item.taskId, {
+      action: action === 'approve' ? 'approved' : 'rejected',
+      comment,
+    })
   }
-  await approvalApi.decide(item.taskId, {
-    action: action === 'approve' ? 'approved' : 'rejected',
-    comment,
-  })
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(APPROVAL_PENDING_CHANGED))
+  }
 }
 
 export interface UnifiedMineItem {
