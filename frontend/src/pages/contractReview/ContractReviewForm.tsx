@@ -265,25 +265,29 @@ export default function ContractReviewForm() {
     }
   }
 
-  /** 与合同管理新建一致：校验失败时提示并滚到第一个必填项 */
+  /** 提交才校验必填；存草稿直接取当前值（对齐技术协议评审） */
   const handleSave = async (andSubmit: boolean) => {
     let values: Record<string, unknown>
-    try {
-      values = await form.validateFields()
-    } catch (err: unknown) {
-      const fields = (err as { errorFields?: { name: (string | number)[]; errors: string[] }[] })?.errorFields || []
-      const first = fields[0]?.errors?.[0]
-      message.warning(first || (andSubmit ? '请完善必填项后再提交' : '请完善必填项后再存草稿'))
-      const name = fields[0]?.name
-      if (name?.length) {
-        form.scrollToField(name, { behavior: 'smooth', block: 'center' })
+    if (andSubmit) {
+      try {
+        values = await form.validateFields()
+      } catch (err: unknown) {
+        const fields = (err as { errorFields?: { name: (string | number)[]; errors: string[] }[] })?.errorFields || []
+        const first = fields[0]?.errors?.[0]
+        message.warning(first || '请完善必填项后再提交')
+        const name = fields[0]?.name
+        if (name?.length) {
+          form.scrollToField(name, { behavior: 'smooth', block: 'center' })
+        }
+        return
       }
-      return
-    }
-    const cfErr = customFieldsRef.current?.validate()
-    if (cfErr) {
-      message.warning(cfErr)
-      return
+      const cfErr = customFieldsRef.current?.validate()
+      if (cfErr) {
+        message.warning(cfErr)
+        return
+      }
+    } else {
+      values = form.getFieldsValue(true) as Record<string, unknown>
     }
     await onFinish(values, andSubmit)
   }
