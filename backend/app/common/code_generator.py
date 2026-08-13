@@ -9,7 +9,7 @@ Usage:
     code = await generate_code(db, tenant_id, "QT")   # -> QT-20260311-0001
     code = await generate_code(db, tenant_id, "INV")   # -> INV-20260311-0001
     # 技术协议评审对齐简道云 HTJSXY：HTJSXY-2026031101（日期后无连字符、2 位日序）
-    # 线索项目号：202608001（年月 + 3 位月序，无字母前缀）
+    # 线索项目号：202608001；商机：PRJ-202608001（年月 + 3 位月序）
 """
 from datetime import datetime, timedelta, timezone
 
@@ -43,7 +43,7 @@ class CodeSequence(Base):
 PREFIXES = {
     "customer":       "CUS",
     "lead":           "",  # 项目号：202608001
-    "project":        "PRJ",
+    "project":        "PRJ",  # 商机：PRJ-202608001（规则同线索，带前缀）
     "quote":          "QT",
     "contract":       "CT",
     "invoice":        "INV",
@@ -61,21 +61,24 @@ PREFIXES = {
     "tech_agreement_review": "HTJSXY",
 }
 
-# 序号位数（默认 4）；简道云技术协议评审 digitsNum=2；线索项目号 3 位月序
+# 序号位数（默认 4）；简道云技术协议评审 digitsNum=2；线索/商机项目号 3 位月序
 SEQ_DIGITS: dict[str, int] = {
     "tech_agreement_review": 2,
     "lead": 3,
+    "project": 3,
 }
 
-# 日期与序号之间的连接符（默认 "-"）；简道云 sn / 线索项目号为直接拼接 → ""
+# 日期与序号之间的连接符（默认 "-"）；简道云 sn / 线索·商机项目号为直接拼接 → ""
 DATE_SEQ_SEP: dict[str, str] = {
     "tech_agreement_review": "",
     "lead": "",
+    "project": "",
 }
 
-# date_key 格式（默认按日 YYYYMMDD）；线索按月 YYYYMM
+# date_key 格式（默认按日 YYYYMMDD）；线索/商机按月 YYYYMM
 DATE_KEY_FMT: dict[str, str] = {
     "lead": "%Y%m",
+    "project": "%Y%m",
 }
 
 # 序列表里空前缀易混淆，线索用内部前缀存计数，输出仍无字母段
@@ -95,7 +98,7 @@ async def generate_code(db: AsyncSession, tenant_id: str, biz_type: str, prefix:
         prefix: Override prefix (uses PREFIXES[biz_type] if not given)
 
     Returns:
-        Code string like "INV-20260311-0001"、"HTJSXY-2026031101"、"202608001"
+        Code string like "INV-20260311-0001"、"HTJSXY-2026031101"、线索 "202608001"、商机 "PRJ-202608001"
     """
     display_pfx = PREFIXES.get(biz_type, biz_type.upper()) if prefix is None else prefix
     seq_pfx = _SEQ_PREFIX_ALIAS.get(biz_type, display_pfx) if prefix is None else prefix

@@ -470,9 +470,14 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
             remark_parts.append(f"预算: {lead.budget_range}")
         if lead.remark:
             remark_parts.append(lead.remark)
+        # 转化商机：沿用线索数字段并加 PRJ- 前缀；无编号则按商机规则生成
+        if lead.lead_code and not str(lead.lead_code).upper().startswith("PRJ-"):
+            project_code = f"PRJ-{lead.lead_code}"
+        else:
+            project_code = lead.lead_code or await generate_code(db, tenant_id, "project")
         project = OpportunityProject(
             id=generate_uuid(), tenant_id=tenant_id,
-            project_code=await generate_code(db, tenant_id, "project"),
+            project_code=project_code,
             name=lead.title or lead.company_name or "新商机",
             customer_id=customer.id, stage_code="S1",
             # 直接同步线索与商机重复的字段，避免转化后重复录入 (issue #94)
