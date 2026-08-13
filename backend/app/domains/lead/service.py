@@ -479,29 +479,33 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
             remark_parts.append(f"预算: {lead.budget_range}")
         if lead.remark:
             remark_parts.append(lead.remark)
-        # 转化商机：优先 PRJ-{线索号}；若已被占用（线索/商机各自月序独立，易撞号）则按商机规则生成
+        # 转化商机：优先 PRJ-{线索号}；冲突则生成。
+        # 注意：uq_project_tenant_code 含软删行，占用检查不可过滤 is_deleted。
         async def _project_code_taken(code: str) -> bool:
             return (
                 await db.execute(
                     select(OpportunityProject.id).where(
                         OpportunityProject.tenant_id == tenant_id,
                         OpportunityProject.project_code == code,
-                        OpportunityProject.is_deleted == False,  # noqa: E712
                     ).limit(1)
                 )
             ).scalar_one_or_none() is not None
 
+        async def _alloc_project_code(preferred: str | None) -> str:
+            if preferred and not await _project_code_taken(preferred):
+                return preferred
+            for _ in range(64):
+                code = await generate_code(db, tenant_id, "project")
+                if not await _project_code_taken(code):
+                    return code
+            raise BusinessException(message="商机编号生成失败，请重试")
+
+        preferred: str | None = None
         if lead.lead_code and not str(lead.lead_code).upper().startswith("PRJ-"):
-            candidate = f"PRJ-{str(lead.lead_code).strip()}"
-            project_code = (
-                candidate
-                if not await _project_code_taken(candidate)
-                else await generate_code(db, tenant_id, "project")
-            )
-        else:
-            project_code = lead.lead_code or await generate_code(db, tenant_id, "project")
-            if project_code and await _project_code_taken(project_code):
-                project_code = await generate_code(db, tenant_id, "project")
+            preferred = f"PRJ-{str(lead.lead_code).strip()}"
+        elif lead.lead_code:
+            preferred = str(lead.lead_code).strip()
+        project_code = await _alloc_project_code(preferred)
         project = OpportunityProject(
             id=generate_uuid(), tenant_id=tenant_id,
             project_code=project_code,
