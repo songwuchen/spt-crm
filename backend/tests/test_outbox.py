@@ -54,11 +54,14 @@ async def test_inbox_event_receive_and_process(client: AsyncClient, auth_headers
     if not await _has_event_permission(client, auth_headers):
         pytest.skip("Admin user lacks event permissions")
 
+    import uuid
+    external_id = f"ERP-{uuid.uuid4().hex[:12]}"
+
     # Receive inbox event
     resp = await client.post("/api/v1/events/inbox", headers=auth_headers, json={
         "source": "erp",
         "event_type": "order.synced",
-        "external_id": "ERP-00123",
+        "external_id": external_id,
         "payload_json": {"order_no": "SO-001"},
     })
     data = resp.json()

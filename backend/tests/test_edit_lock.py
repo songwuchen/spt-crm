@@ -101,7 +101,20 @@ async def test_assert_lead_pending_without_running_ok():
         return_value=False,
     ):
         await assert_lead_editable(db, "t1", "l1", "pending")
-        await assert_lead_editable(db, "t1", "l1", "rejected")
+        await assert_lead_editable(db, "t1", "l1", "draft")
+
+
+@pytest.mark.asyncio
+async def test_assert_lead_rejected_locked():
+    db = MagicMock()
+    with patch(
+        "app.domains.lowcode.edit_lock.has_running_process",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        with pytest.raises(BusinessException) as ei:
+            await assert_lead_editable(db, "t1", "l1", "rejected")
+        assert "驳回" in ei.value.message
 
 
 @pytest.mark.asyncio
