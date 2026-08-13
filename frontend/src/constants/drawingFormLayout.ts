@@ -363,7 +363,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       has_contract_tech_review: 12, select_contract_tech_review: 12, contract_tech_review_sn: 12,
     },
   },
-  // 开票申请
+  // 开票申请（选合同号带出红框字段；已去掉合同明细变动）
   invoice_application: {
     contentMaxWidth: 1080,
     listColumns: [
@@ -376,13 +376,19 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
         fieldIds: [
           'serial_no', 'apply_date', 'department', 'drawing_no_select',
           'drawing_no', 'customer_name', 'dept_contract_no', 'customer_no',
-          'sales_person', 'contract_data',
+          'sales_person',
+        ],
+      },
+      {
+        title: '开票信息',
+        fieldIds: [
+          'taxpayer_id', 'invoice_address_phone', 'bank_account',
         ],
       },
       {
         title: '合同明细与合计',
         fieldIds: [
-          'contract_lines_new', 'contract_lines_change',
+          'contract_data', 'contract_lines_new',
           'total_amount', 'total_amount_adjusted', 'customer_code',
         ],
       },
@@ -397,8 +403,9 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
     spans: {
       serial_no: 6, apply_date: 6, department: 6, drawing_no_select: 6,
       drawing_no: 6, customer_name: 12, dept_contract_no: 6, customer_no: 6,
-      sales_person: 6, contract_data: 24,
-      contract_lines_new: 24, contract_lines_change: 24,
+      sales_person: 6,
+      taxpayer_id: 8, invoice_address_phone: 8, bank_account: 8,
+      contract_data: 24, contract_lines_new: 24,
       total_amount: 8, total_amount_adjusted: 8, customer_code: 8,
       invoice_datetime: 6, invoice_special_req: 18, invoice_no: 6, remark: 18,
       invoice_email: 8, attachments: 8, images: 8,

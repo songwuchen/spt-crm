@@ -97,10 +97,10 @@ export async function getContractLabelMap(ids: string[]): Promise<Record<string,
   return map
 }
 
-/** 生产卡选合同带出 */
+/** 生产卡 / 开票申请选合同带出 */
 export async function fetchProdCardContractFill(
   contractId: string,
-  mode: 'drawing_no_query' | 'contract_no_select',
+  mode: 'drawing_no_query' | 'contract_no_select' | 'invoice_application',
 ): Promise<Record<string, unknown>> {
   const r = await client.get<unknown, ApiResponse<{ fill?: Record<string, unknown> }>>(
     `/api/v1/lc/pickable-contracts/${encodeURIComponent(contractId)}/prod-card-fill`,
@@ -109,7 +109,10 @@ export async function fetchProdCardContractFill(
   return (r.data?.fill && typeof r.data.fill === 'object') ? r.data.fill : {}
 }
 
-export const PROD_CARD_FILL_CLEAR: Record<'drawing_no_query' | 'contract_no_select', string[]> = {
+export const PROD_CARD_FILL_CLEAR: Record<
+  'drawing_no_query' | 'contract_no_select' | 'invoice_application',
+  string[]
+> = {
   drawing_no_query: [
     'no_drawing_no', 'no_sales_person', 'prod_card_line_items',
     'tech_params', 'packaging_req', 'remark_prod_card', 'paint_req',
@@ -118,6 +121,11 @@ export const PROD_CARD_FILL_CLEAR: Record<'drawing_no_query' | 'contract_no_sele
   ],
   contract_no_select: [
     'yes_contract_no', 'yes_sales_person', 'yes_customer_name', 'contract_tech_review_sn',
+  ],
+  invoice_application: [
+    'drawing_no', 'customer_name', 'dept_contract_no', 'customer_no', 'customer_code',
+    'sales_person', 'contract_data', 'contract_lines_new', 'total_amount',
+    'taxpayer_id', 'invoice_address_phone', 'bank_account',
   ],
 }
 

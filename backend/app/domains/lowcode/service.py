@@ -315,6 +315,9 @@ async def sync_builtin_form_fields(
     if key == "payment_registration":
         from app.domains.lowcode.payment_registration_fields import apply_payment_registration_fields
         apply_payment_registration_fields(want)
+    if key == "invoice_application":
+        from app.domains.lowcode.invoice_application_fields import apply_invoice_application_fields
+        apply_invoice_application_fields(want)
     if key == "quote_management":
         # 客户类别/价格类型：创建隐藏、部门审批可填（非必填）；勿被旧租户 required 覆盖
         for fd in want:

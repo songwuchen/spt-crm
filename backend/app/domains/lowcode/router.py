@@ -405,17 +405,18 @@ async def pickable_contract_prod_card_fill(
     contract_id: str,
     mode: str = Query(
         "drawing_no_query",
-        description="drawing_no_query（非补充）或 contract_no_select（补充）",
+        description="drawing_no_query / contract_no_select / invoice_application",
     ),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    """生产卡选合同后带出字段（不要求 contract:view）。"""
+    """选合同后带出字段（生产卡 / 开票申请；不要求 contract:view）。"""
     from app.domains.contract.models import Contract, ContractVersion
     from app.domains.lowcode.prod_card_contract_fill import build_prod_card_fill_from_contract
+    from app.domains.lowcode.invoice_application_fields import build_invoice_fill_from_contract
 
-    if mode not in ("drawing_no_query", "contract_no_select"):
+    if mode not in ("drawing_no_query", "contract_no_select", "invoice_application"):
         mode = "drawing_no_query"
     c = (
         await db.execute(
@@ -445,21 +446,53 @@ async def pickable_contract_prod_card_fill(
         ).scalar_one_or_none()
 
     customer_name = None
+    customer_code = None
+    taxpayer_id = None
+    invoice_address_phone = None
+    bank_account = None
     if c.customer_id:
-        from app.common.list_enrich import customer_names_map
-        names = await customer_names_map(db, tenant_id, [c.customer_id])
-        customer_name = names.get(c.customer_id)
+        from app.domains.customer.models import Customer
+        cu = (
+            await db.execute(
+                select(Customer).where(Customer.id == c.customer_id, Customer.tenant_id == tenant_id)
+            )
+        ).scalar_one_or_none()
+        if cu:
+            customer_name = cu.name
+            customer_code = cu.customer_code
+            taxpayer_id = getattr(cu, "taxpayer_id", None)
+            invoice_address_phone = getattr(cu, "invoice_address_phone", None)
+            bank_account = getattr(cu, "bank_account", None)
+        else:
+            from app.common.list_enrich import customer_names_map
+            names = await customer_names_map(db, tenant_id, [c.customer_id])
+            customer_name = names.get(c.customer_id)
 
-    fill = build_prod_card_fill_from_contract(
-        contract_no=c.contract_no,
-        drawing_no=c.drawing_no,
-        assignee_id=c.assignee_id,
-        assignee_name=c.assignee_name,
-        customer_name=customer_name,
-        registration_json=c.registration_json if isinstance(c.registration_json, dict) else {},
-        key_clauses_json=ver.key_clauses_json if ver else None,
-        mode=mode,
-    )
+    if mode == "invoice_application":
+        fill = build_invoice_fill_from_contract(
+            contract_no=c.contract_no,
+            drawing_no=c.drawing_no,
+            peer_contract_no=c.peer_contract_no,
+            assignee_id=c.assignee_id,
+            customer_name=customer_name,
+            customer_code=customer_code,
+            amount_total=c.amount_total,
+            taxpayer_id=taxpayer_id,
+            invoice_address_phone=invoice_address_phone,
+            bank_account=bank_account,
+            key_clauses_json=ver.key_clauses_json if ver else None,
+        )
+    else:
+        fill = build_prod_card_fill_from_contract(
+            contract_no=c.contract_no,
+            drawing_no=c.drawing_no,
+            assignee_id=c.assignee_id,
+            assignee_name=c.assignee_name,
+            customer_name=customer_name,
+            registration_json=c.registration_json if isinstance(c.registration_json, dict) else {},
+            key_clauses_json=ver.key_clauses_json if ver else None,
+            mode=mode,
+        )
     return ok({
         "contract_id": c.id,
         "contract_no": c.contract_no,

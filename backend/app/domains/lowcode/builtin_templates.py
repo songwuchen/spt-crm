@@ -479,6 +479,9 @@ def _apply_drawing_jdy_fields() -> None:
         if t["key"] == "payment_registration":
             from app.domains.lowcode.payment_registration_fields import apply_payment_registration_fields
             apply_payment_registration_fields(defs)
+        if t["key"] == "invoice_application":
+            from app.domains.lowcode.invoice_application_fields import apply_invoice_application_fields
+            apply_invoice_application_fields(defs)
         # 永久删除：文本桩字段（保留选人）；方案管理去掉业务打分字段
         drop_ids = {"pre_designer_text"}
         if t["key"] == "drawing_requisition":
