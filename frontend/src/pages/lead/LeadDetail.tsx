@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Space, Modal, Tabs, Checkbox, message } from 'antd'
+import { Button, Space, Modal, Tabs, Checkbox, message, Form, Input, Select } from 'antd'
 import { EditOutlined, DeleteOutlined, AuditOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
@@ -12,7 +12,9 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { leadStatusConfig as statusConfig, leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
+import { REPORT_PROJECT_STATUS_OPTIONS, REACTIVATION_CLOSE_STATUSES } from '@/constants/leadForm'
 import { useDataDict } from '@/hooks/useDataDict'
+import { useAuthStore } from '@/stores/useAuthStore'
 import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import { formatRegion } from '@/utils/address'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
@@ -75,6 +77,10 @@ export default function LeadDetail() {
   const [wfInstance, setWfInstance] = useState<WfInstanceDetail | null>(null)
   const [wfCommenting, setWfCommenting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [reactModalOpen, setReactModalOpen] = useState(false)
+  const [reactSubmitting, setReactSubmitting] = useState(false)
+  const [reactForm] = Form.useForm()
+  const currentUser = useAuthStore((s) => s.user)
   const customerTypeDict = useDataDict('customer_type')
   const industryDict = useDataDict('industry')
 
@@ -151,6 +157,9 @@ export default function LeadDetail() {
       content: (
         <div>
           <p className="mb-2">将此线索转化为客户？转化后线索状态将变为"已转化"。</p>
+          <p className="mb-2 text-slate-500 text-sm">
+            需要出方案报价请确认转化商机；如为拟建项目，目前不需要出方案报价，请不要转化为商机。
+          </p>
           <Checkbox defaultChecked onChange={(e) => { createOpp = e.target.checked }}>
             同时创建商机（带入需求摘要 / 预算）
           </Checkbox>
@@ -211,12 +220,52 @@ export default function LeadDetail() {
     })
   }
 
+  const openReactivationModal = () => {
+    reactForm.setFieldsValue({
+      project_recent: lead?.project_recent || undefined,
+      follow_progress: lead?.follow_progress || undefined,
+      site_visit: lead?.site_visit || undefined,
+      report_project_status: lead?.report_project_status || undefined,
+    })
+    setReactModalOpen(true)
+  }
+
+  const handleReactivationSubmit = async () => {
+    if (!id) return
+    try {
+      const values = await reactForm.validateFields()
+      setReactSubmitting(true)
+      const res = await leadApi.submitReactivation(id, values)
+      setLead(res.data)
+      setReactModalOpen(false)
+      const closed = REACTIVATION_CLOSE_STATUSES.includes(values.report_project_status)
+      message.success(closed ? '本轮重激活已结束' : '已提交，将进入下一环节')
+      await loadWf(id)
+      await fetchMyApproval()
+    } catch (err: unknown) {
+      if ((err as { errorFields?: unknown })?.errorFields) return
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '提交失败')
+    } finally {
+      setReactSubmitting(false)
+    }
+  }
+
   if (!lead) return (
     <DetailSkeleton />
   )
 
   const canOperate = lead.status !== 'qualified' && lead.status !== 'discarded'
   const reviewStatus = lead.review_status || 'approved'
+  const reactStatus = lead.reactivation_status || 'none'
+  const reactTodo =
+    reactStatus === 'awaiting_reporter' || reactStatus === 'awaiting_filler'
+  const canSubmitReact =
+    reactTodo &&
+    !!currentUser &&
+    (reactStatus === 'awaiting_reporter'
+      ? [lead.reporter_id, lead.owner_id, lead.created_by_id].includes(currentUser.id)
+      : [lead.created_by_id, lead.reporter_id, lead.owner_id].includes(currentUser.id))
   const canEditLead = canOperate && !reviewInFlight
   const canSubmitApproval = canOperate && (reviewStatus === 'draft' || reviewStatus === 'rejected')
   const reviewApproved = reviewStatus === 'approved'
@@ -406,13 +455,84 @@ export default function LeadDetail() {
             <div>
               <div className="text-sm font-bold text-emerald-700">信息情报部已收录</div>
               <div className="text-sm text-slate-600 mt-1">
-                请业务员（负责人）确认是否转商机：可转化为客户并同时创建商机，也可先跟进再转化。
+                需要出方案报价请确认转化商机；如为拟建项目，目前不需要出方案报价，请不要转化为商机。
               </div>
             </div>
           </div>
           <Button type="primary" onClick={handleQualify}>确认是否转商机</Button>
         </div>
       )}
+
+      {/* 180 天重激活跟进 */}
+      {reactTodo && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-6 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Icon name="schedule" className="text-amber-600" />
+            <div>
+              <div className="text-sm font-bold text-amber-800">
+                {reactStatus === 'awaiting_reporter' ? '线索已满周期，请申报人更新近况' : '请填表人核对并提交情报审批'}
+              </div>
+              <div className="text-sm text-slate-600 mt-1">
+                填写项目近况 / 跟进进度 / 实地拜访与项目状态。选暂缓、取消、落标将结束本轮；其他结果将进入信息情报部审批。
+                {lead.reactivation_round ? `（第 ${lead.reactivation_round} 轮）` : ''}
+              </div>
+            </div>
+          </div>
+          {canSubmitReact && (
+            <Button type="primary" onClick={openReactivationModal}>填写跟进</Button>
+          )}
+        </div>
+      )}
+      {reactStatus === 'pending_review' && (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 mb-6 flex items-start gap-3">
+          <Icon name="hourglass_top" className="text-sky-600" />
+          <div>
+            <div className="text-sm font-bold text-sky-800">重激活已提交情报审批</div>
+            <div className="text-sm text-slate-600 mt-1">收录或袭击后将重新开始 180 天计时。</div>
+          </div>
+        </div>
+      )}
+      {reactStatus === 'closed' && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 mb-6 flex items-start gap-3">
+          <Icon name="block" className="text-slate-500" />
+          <div>
+            <div className="text-sm font-bold text-slate-700">重激活本轮已结束</div>
+            <div className="text-sm text-slate-600 mt-1">
+              项目状态：{lead.report_project_status || '-'}（暂缓/取消/落标不再自动重激活）
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Modal
+        title="重激活跟进"
+        open={reactModalOpen}
+        onCancel={() => setReactModalOpen(false)}
+        onOk={() => void handleReactivationSubmit()}
+        confirmLoading={reactSubmitting}
+        okText="提交"
+        destroyOnClose
+      >
+        <Form form={reactForm} layout="vertical" className="mt-2">
+          <Form.Item name="project_recent" label="项目近况">
+            <Input.TextArea rows={3} maxLength={500} showCount placeholder="请填写项目近况" />
+          </Form.Item>
+          <Form.Item name="follow_progress" label="跟进进度">
+            <Input.TextArea rows={3} maxLength={500} showCount placeholder="请填写跟进进度" />
+          </Form.Item>
+          <Form.Item name="site_visit" label="实地拜访情况">
+            <Input.TextArea rows={3} maxLength={500} showCount placeholder="请填写实地拜访情况" />
+          </Form.Item>
+          <Form.Item
+            name="report_project_status"
+            label="项目状态"
+            rules={[{ required: true, message: '请选择项目状态' }]}
+            extra="暂缓 / 取消 / 落标将结束本轮；其他状态将进入下一审批环节"
+          >
+            <Select options={REPORT_PROJECT_STATUS_OPTIONS} placeholder="请选择" />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       {/* Content Grid：主栏详情 + 右侧 AI */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

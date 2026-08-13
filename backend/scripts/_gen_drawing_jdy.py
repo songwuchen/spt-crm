@@ -414,6 +414,19 @@ def build_fields(
     return out
 
 
+def apply_drawing_requisition_defaults(fields: list[dict]) -> None:
+    """委托 app 模块，保持生成器与运行时一致。"""
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from app.domains.lowcode.drawing_requisition_fields import (  # noqa: WPS433
+        apply_drawing_requisition_fields,
+    )
+    apply_drawing_requisition_fields(fields)
+
+
 def widget_slug_map(fields: list[dict]) -> dict[str, str]:
     m: dict[str, str] = {}
     for f in fields:
@@ -1018,6 +1031,8 @@ def main():
         required_widgets, rule_widgets, _ = collect_linkage_sets(linkage)
         widget_limits = load_widget_limits_from_edit_raw(OUT / f"_jdy_{key}_edit_raw.json")
         fields = build_fields(fields_raw, required_widgets, rule_widgets, widget_limits)
+        if key == "drawing_requisition":
+            apply_drawing_requisition_defaults(fields)
         rules = build_rule_definitions(linkage, fields)
         nodes, routes, notes = build_flow(wf_raw, fields, title)
         result[key] = {

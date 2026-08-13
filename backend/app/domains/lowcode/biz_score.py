@@ -24,6 +24,7 @@ BIZ_SCORE_FIELD_PERMS: list[dict[str, str]] = [
     {"field": "score_progress", "access": "required"},
     {"field": "score_skill", "access": "required"},
     {"field": "score_date", "access": "editable"},
+    {"field": "remark", "access": "required"},
 ]
 
 
@@ -55,6 +56,11 @@ def apply_biz_score_field_defs(field_defs: list[dict[str, Any]]) -> None:
             props = dict(fd.get("props") or {}) if isinstance(fd.get("props"), dict) else {}
             props["default_today"] = True
             fd["props"] = props
+        elif fid == "remark":
+            # 打分区「备注」：创建勿校验必填（与三项分数同属审批填写）
+            fd["available_on_create"] = False
+            fd["fill_stage"] = "approver"
+            fd["required"] = False
 
 
 def _merge_score_perms(existing: list | None) -> list[dict[str, str]]:

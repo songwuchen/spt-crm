@@ -63,17 +63,26 @@ export default function MobileLowcodeFormFill() {
     setValue((prev) => {
       let changed = false
       const next = { ...prev }
+      const primaryDept = currentUser.department_id
+        || currentUser.department_ids?.[0]
       for (const f of fields) {
         const props = (f.props || {}) as Record<string, unknown>
-        if (!props.default_current_user) continue
-        if (f.type !== 'person' && f.type !== 'person_multi') continue
-        if (next[f.id] != null && next[f.id] !== '') continue
-        next[f.id] = f.type === 'person_multi' ? [currentUser.id] : currentUser.id
-        changed = true
+        if (props.default_current_user && (f.type === 'person' || f.type === 'person_multi')) {
+          if (next[f.id] == null || next[f.id] === '') {
+            next[f.id] = f.type === 'person_multi' ? [currentUser.id] : currentUser.id
+            changed = true
+          }
+        }
+        if (props.default_current_dept && (f.type === 'department' || f.type === 'department_multi') && primaryDept) {
+          if (next[f.id] == null || next[f.id] === '' || (Array.isArray(next[f.id]) && !(next[f.id] as unknown[]).length)) {
+            next[f.id] = f.type === 'department_multi' ? [primaryDept] : primaryDept
+            changed = true
+          }
+        }
       }
       return changed ? next : prev
     })
-  }, [currentUser?.id, fields])
+  }, [currentUser?.id, currentUser?.department_id, currentUser?.department_ids, fields])
 
   const relatedProjectId = value.related_project == null || value.related_project === ''
     ? ''

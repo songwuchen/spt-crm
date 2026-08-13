@@ -145,10 +145,20 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
 @router.get("/me")
 async def me(current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     from app.domains.auth.models import User
+    import app.domains.organization.models  # noqa: F401 — UserDepartment mapper
 
     user = (await db.execute(select(User).where(User.id == current_user["sub"], User.tenant_id == current_user["tenant_id"]))).scalar_one_or_none()
     if not user:
         return ok(None)
+
+    dept_ids: list[str] = []
+    dept_name: str | None = None
+    for ud in (user.user_departments or []):
+        did = getattr(ud, "department_id", None)
+        if did and did not in dept_ids:
+            dept_ids.append(did)
+        if not dept_name and getattr(ud, "department", None) is not None:
+            dept_name = getattr(ud.department, "name", None)
 
     info = UserInfo(
         id=user.id,
@@ -161,6 +171,9 @@ async def me(current_user: dict = Depends(get_current_user), db: AsyncSession = 
         roles=current_user.get("roles", []),
         permissions=current_user.get("permissions", []),
         must_change_password=bool(user.must_change_password),
+        department_id=dept_ids[0] if dept_ids else None,
+        department_ids=dept_ids,
+        department_name=dept_name,
     )
     return ok(info.model_dump())
 

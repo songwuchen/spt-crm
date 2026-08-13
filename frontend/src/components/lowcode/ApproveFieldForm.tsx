@@ -265,6 +265,7 @@ export default function ApproveFieldForm({
 
           if (t === 'department' || t === 'department_multi') {
             const scopeCode = (fieldProps as { pickable_scope?: PickableScope })?.pickable_scope?.scope_code
+            const asMulti = t === 'department_multi' || Array.isArray(val)
             return (
               <div key={p.field} className={err ? 'approve-field-error' : undefined}>
                 <FieldLabel label={label} required={required} error={err} />
@@ -272,7 +273,7 @@ export default function ApproveFieldForm({
                   <DeptField
                     value={val}
                     onChange={(v) => setField(p.field, v)}
-                    multi={t === 'department_multi'}
+                    multi={asMulti}
                     placeholder={`请选择${label}`}
                     scopeCode={scopeCode}
                   />

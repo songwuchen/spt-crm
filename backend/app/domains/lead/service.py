@@ -296,6 +296,8 @@ async def _apply_review_flow(db: AsyncSession, tenant_id: str, lead: Lead, inst,
         # 连流程都起不来（流程被删且恢复失败、或引擎异常）→ 仍按免审放行，避免线索
         # 永远卡在待审无法转化；但必须通知提交人，否则审核门禁被跳过了却无人知情。
         lead.review_status = "approved"
+        from app.domains.lead.reactivation import mark_cycle_reset
+        mark_cycle_reset(lead)
         await db.commit()
         from app.domains.lowcode import wf_notify
         await wf_notify.notify_review_flow_unavailable(
@@ -306,6 +308,13 @@ async def _apply_review_flow(db: AsyncSession, tenant_id: str, lead: Lead, inst,
         return
     if inst.status != "running":
         await db.refresh(lead)
+        # 发起即结束（空审批人自动通过等）：writeback 已重置周期；ORM 再刷一次
+        if lead.review_status in ("approved", "attacked"):
+            from app.domains.lead.reactivation import mark_cycle_reset
+            if not getattr(lead, "cycle_anchor_at", None) or (
+                getattr(lead, "reactivation_status", None) == "pending_review"
+            ):
+                mark_cycle_reset(lead)
     lead.review_flow_id = inst.id
     await db.commit()
 

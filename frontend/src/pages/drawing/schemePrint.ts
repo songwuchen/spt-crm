@@ -1,7 +1,7 @@
 /**
- * 方案管理打印：按 scheme_type 输出两套 A4 表格单据（对齐简道云在线表格打印版式）。
- * - requisition → 合同图纸（资料）领用申请
- * - install → 安装图通知单及设计卡
+ * 图纸类打印：输出两套 A4 表格单据（对齐简道云在线表格打印版式）。
+ * - 方案管理有合同号 / 合同图纸领用 → 合同图纸（资料）领用申请
+ * - 方案管理无合同号 / 安装图设计通知 → 安装图通知单及设计卡
  *
  * 版式要点（对照简道云截图）：
  * - 横向 A4；整页一张表铺满；12 列栅格，标签窄、内容宽
@@ -613,8 +613,10 @@ function buildInstallHtml(ctx: {
 }): string {
   const { form, fields, labels, businessNo, steps } = ctx
   const projectNo = projectLabel(form.related_project, labels)
-    || (form.project_no != null ? String(form.project_no) : '')
+    || projectLabel(form.project_no, labels)
     || (form.project_no_print != null ? String(form.project_no_print) : '')
+    || (form.project_no != null && !/^[0-9a-f-]{36}$/i.test(String(form.project_no))
+      ? String(form.project_no) : '')
   const orderPerson = personName(form.order_person, labels)
   const dept = deptName(form.department, labels)
   const applicant = personName(form.applicant, labels)
@@ -782,12 +784,15 @@ async function resolveLabels(
     ...collectIds(form.transfer_packaging_users),
     ...collectIds(form.transfer_sw_lwt),
   ]
-  const projectIds = collectIds(form.related_project)
+  const projectIds = [
+    ...collectIds(form.related_project),
+    ...collectIds(form.project_no),
+  ]
   const contractIds = collectIds(form.contract_no)
   const [users, depts, projects, contracts] = await Promise.all([
     personIds.length ? getPersonLabelMap(personIds) : Promise.resolve({} as Record<string, string>),
     getDeptNameMap(),
-    projectIds.length ? getProjectLabelMap(projectIds) : Promise.resolve({} as Record<string, string>),
+    projectIds.length ? getProjectLabelMap(projectIds, 'code') : Promise.resolve({} as Record<string, string>),
     contractIds.length ? getContractLabelMap(contractIds) : Promise.resolve({} as Record<string, string>),
   ])
   return { users, depts, projects, contracts }
@@ -806,6 +811,54 @@ export function isSchemeManagementForm(
   return false
 }
 
+/** 是否合同图纸领用（独立 builtin，打印版式与方案管理「有合同号」相同） */
+export function isDrawingRequisitionForm(
+  fields?: FieldDefinition[] | null,
+  formData?: Record<string, unknown> | null,
+  processName?: string | null,
+): boolean {
+  if (isSchemeManagementForm(fields, formData, processName)) return false
+  if (isInstallDrawingNoticeForm(fields, formData, processName)) return false
+  if (processName && /(合同图纸|图纸领用|资料[）)]领用)/.test(processName)) return true
+  const ids = new Set((fields || []).map((f) => f.id))
+  if (ids.has('transfer_channel') && ids.has('drawing_type') && ids.has('involve_std_drawing')) {
+    return true
+  }
+  return false
+}
+
+/** 是否安装图设计通知（独立 builtin，打印版式与方案管理「无合同号」相同） */
+export function isInstallDrawingNoticeForm(
+  fields?: FieldDefinition[] | null,
+  formData?: Record<string, unknown> | null,
+  processName?: string | null,
+): boolean {
+  if (isSchemeManagementForm(fields, formData, processName)) return false
+  if (processName && /安装图设计通知/.test(processName)) return true
+  const ids = new Set((fields || []).map((f) => f.id))
+  if (
+    ids.has('project_no')
+    && ids.has('design_card_no')
+    && ids.has('drawing_issue_type')
+    && !ids.has('scheme_type')
+    && !ids.has('transfer_channel')
+  ) {
+    return true
+  }
+  return false
+}
+
+/** 方案管理 / 合同图纸领用 / 安装图设计通知：可打印对应单据 */
+export function canPrintDrawingDocument(
+  fields?: FieldDefinition[] | null,
+  formData?: Record<string, unknown> | null,
+  processName?: string | null,
+): boolean {
+  return isSchemeManagementForm(fields, formData, processName)
+    || isDrawingRequisitionForm(fields, formData, processName)
+    || isInstallDrawingNoticeForm(fields, formData, processName)
+}
+
 export async function printSchemeInstance(opts: {
   formData: Record<string, unknown>
   fieldDefinitions: FieldDefinition[]
@@ -813,18 +866,23 @@ export async function printSchemeInstance(opts: {
   flowSteps?: WfFlowStep[] | null
 }): Promise<void> {
   const form = opts.formData || {}
+  const fields = opts.fieldDefinitions || []
   const labels = await resolveLabels(form)
   const schemeType = String(form.scheme_type || '')
-  const serial = opts.businessNo
-    || (form.serial_no != null && form.serial_no !== '' ? String(form.serial_no) : '')
-    || (form.design_card_no != null && form.design_card_no !== '' ? String(form.design_card_no) : '')
-  const html = schemeType === 'install'
+  const serial = (form.serial_no != null && form.serial_no !== '' ? String(form.serial_no) : '')
+    || (opts.businessNo && opts.businessNo !== String(form.design_card_no || '')
+      ? String(opts.businessNo)
+      : '')
+  // 方案管理无合同号 / 独立安装图设计通知 → 安装图通知单；其余 → 领用单
+  const useInstall = schemeType === 'install'
+    || isInstallDrawingNoticeForm(fields, form)
+  const html = useInstall
     ? buildInstallHtml({
-      form, fields: opts.fieldDefinitions || [], labels,
+      form, fields, labels,
       businessNo: serial, steps: opts.flowSteps,
     })
     : buildRequisitionHtml({
-      form, fields: opts.fieldDefinitions || [], labels,
+      form, fields, labels,
       businessNo: serial, steps: opts.flowSteps,
     })
   const m = html.match(/<title[^>]*>([^<]*)<\/title>/i)

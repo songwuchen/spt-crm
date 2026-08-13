@@ -26,6 +26,13 @@ export const leadApi = {
     assess_remark?: string
   }) =>
     client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/intel_review`, data),
+  submitReactivation: (id: string, data: {
+    project_recent?: string
+    follow_progress?: string
+    site_visit?: string
+    report_project_status: string
+  }) =>
+    client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/reactivation/submit`, data),
   delete: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/leads/${id}`),
   batchAssign: (ids: string[], owner_id: string, owner_name: string) =>

@@ -40,6 +40,33 @@ def supported_biz_types() -> list[str]:
     return list(REGISTRY.keys())
 
 
+async def _lead_reset_reactivation_cycle(db: AsyncSession, tenant_id: str, lead_id: str) -> None:
+    """收录/袭击通过后重置 180 天重激活计时。"""
+    await db.execute(
+        text(
+            "UPDATE leads SET cycle_anchor_at = NOW(), reactivation_status = 'none', "
+            "reactivation_notified_at = NULL "
+            "WHERE id = :bid AND tenant_id = :tenant"
+        ),
+        {"bid": lead_id, "tenant": tenant_id},
+    )
+
+
+async def _lead_reactivation_on_reject(db: AsyncSession, tenant_id: str, lead_id: str) -> None:
+    """重激活提交情报审被回退时，退回填表人/申报人待办态。"""
+    await db.execute(
+        text(
+            "UPDATE leads SET reactivation_status = CASE "
+            "WHEN reactivation_status = 'pending_review' AND created_by_id IS NOT NULL "
+            "THEN 'awaiting_filler' "
+            "WHEN reactivation_status = 'pending_review' THEN 'awaiting_reporter' "
+            "ELSE reactivation_status END "
+            "WHERE id = :bid AND tenant_id = :tenant"
+        ),
+        {"bid": lead_id, "tenant": tenant_id},
+    )
+
+
 async def writeback(
     db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str, flow_status: str,
     reason: str | None = None,
@@ -76,6 +103,7 @@ async def writeback(
                     text(f"UPDATE leads SET {reason_col} = NULL WHERE id = :bid AND tenant_id = :tenant"),
                     {"bid": biz_id, "tenant": tenant_id},
                 )
+            await _lead_reset_reactivation_cycle(db, tenant_id, biz_id)
             return
     sets = [f"{reg['status_col']} = :val"]
     params: dict[str, object] = {"val": val, "bid": biz_id, "tenant": tenant_id}
@@ -88,3 +116,7 @@ async def writeback(
         text(f"UPDATE {reg['table']} SET {', '.join(sets)} WHERE id = :bid AND tenant_id = :tenant"),
         params,
     )
+    if biz_type == "lead" and flow_status == "completed":
+        await _lead_reset_reactivation_cycle(db, tenant_id, biz_id)
+    elif biz_type == "lead" and flow_status == "rejected":
+        await _lead_reactivation_on_reject(db, tenant_id, biz_id)

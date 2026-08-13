@@ -12,9 +12,18 @@ function isEmptyValue(v: unknown): boolean {
 
 export function buildLowcodeInitialValues(
   fields: FieldDefinition[],
-  currentUser?: { id?: string; real_name?: string; username?: string } | null,
+  currentUser?: {
+    id?: string
+    real_name?: string
+    username?: string
+    department_id?: string
+    department_ids?: string[]
+  } | null,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {}
+  const primaryDept = currentUser?.department_id
+    || (currentUser?.department_ids && currentUser.department_ids[0])
+    || undefined
   for (const f of fields) {
     if (f.type === 'detail_table') {
       if (Array.isArray(f.default_value) && f.default_value.length) {
@@ -24,7 +33,15 @@ export function buildLowcodeInitialValues(
             (v) => v != null && v !== '' && !(Array.isArray(v) && v.length === 0),
           )
         })
-        if (meaningful.length) out[f.id] = meaningful
+        if (meaningful.length) {
+          out[f.id] = meaningful
+          continue
+        }
+      }
+      // 对齐简道云：出方案图明细等默认带一行空记录，避免「请填写至少一条」却看不到行
+      const ensureMin = Math.max(0, Number((f.props as { ensure_min_rows?: number } | undefined)?.ensure_min_rows ?? 0) || 0)
+      if (ensureMin > 0) {
+        out[f.id] = Array.from({ length: ensureMin }, () => ({}))
       }
       continue
     }
@@ -39,6 +56,10 @@ export function buildLowcodeInitialValues(
     }
     if (props.default_current_user && (f.type === 'person' || f.type === 'person_multi') && currentUser?.id) {
       out[f.id] = f.type === 'person_multi' ? [currentUser.id] : currentUser.id
+      continue
+    }
+    if (props.default_current_dept && (f.type === 'department' || f.type === 'department_multi') && primaryDept) {
+      out[f.id] = f.type === 'department_multi' ? [primaryDept] : primaryDept
     }
   }
   return out

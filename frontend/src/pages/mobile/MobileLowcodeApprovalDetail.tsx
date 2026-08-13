@@ -16,7 +16,7 @@ import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
-import { isSchemeManagementForm, printSchemeInstance } from '@/pages/drawing/schemePrint'
+import { canPrintDrawingDocument, printSchemeInstance } from '@/pages/drawing/schemePrint'
 
 function bizEntityPath(bizType?: string | null, bizId?: string | null, bizRefId?: string | null): string | null {
   if (!bizType || !bizId) return null
@@ -152,7 +152,7 @@ export default function MobileLowcodeApprovalDetail() {
   if (loading) return <div className="flex items-center justify-center h-64"><MobileIcon name="progress_activity" className="animate-spin text-primary" style={{ fontSize: 32 }} /></div>
   if (!detail) return null
   const st = PSTATUS[detail.status] || { cls: 'bg-slate-100 text-slate-500', text: detail.status }
-  const canPrintScheme = isSchemeManagementForm(fields, formData, detail.process_name)
+  const canPrintScheme = canPrintDrawingDocument(fields, formData, detail.process_name)
 
   const handlePrintScheme = async () => {
     try {

@@ -95,5 +95,38 @@ def patch_scheme_material_columns(defs: list) -> None:
             patch_scheme_material_columns(nested)
 
 
+# 删掉文本桩后，用户填的是 need_screening_eff_star；规则条件必须跟着改，否则
+# 「粒度分布 / 筛分效率 / 水分」会一直被显隐规则藏掉。
+_SCREENING_TRIGGER_REMAP = {
+    "need_screening_eff": "need_screening_eff_star",
+}
+
+
+def remap_scheme_material_rule_triggers(rules: list) -> list:
+    """就地修正物料特性子表显隐/必填规则的触发字段；返回同一 list。"""
+    def walk(node: dict | list | None) -> None:
+        if isinstance(node, list):
+            for x in node:
+                if isinstance(x, dict):
+                    walk(x)
+            return
+        if not isinstance(node, dict):
+            return
+        fid = node.get("field")
+        if isinstance(fid, str) and fid in _SCREENING_TRIGGER_REMAP:
+            node["field"] = _SCREENING_TRIGGER_REMAP[fid]
+        for x in node.get("cond") or []:
+            if isinstance(x, dict):
+                walk(x)
+
+    for r in rules or []:
+        if not isinstance(r, dict):
+            continue
+        cond = r.get("condition")
+        if isinstance(cond, dict):
+            walk(cond)
+    return rules
+
+
 # 兼容旧调用名
 patch_material_names_lookup = patch_scheme_material_columns

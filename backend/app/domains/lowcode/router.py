@@ -271,6 +271,54 @@ async def pickable_projects(
     ])
 
 
+@router.get("/pickable-projects/{project_id}/install-notice-fill")
+async def pickable_project_install_notice_fill(
+    project_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """安装图「项目号选择」选商机后带出业务员/公司名称/事项（仅需登录）。"""
+    from app.domains.project.models import OpportunityProject as Project
+
+    p = (
+        await db.execute(
+            select(Project).where(
+                Project.id == project_id,
+                Project.tenant_id == tenant_id,
+                Project.is_deleted == False,  # noqa: E712
+            )
+        )
+    ).scalar_one_or_none()
+    if not p:
+        raise BusinessException(code=NOT_FOUND, message="商机不存在")
+
+    customer_name = None
+    if p.customer_id:
+        from app.common.list_enrich import customer_names_map
+        names = await customer_names_map(db, tenant_id, [p.customer_id])
+        customer_name = names.get(p.customer_id)
+    # 迁移商机常无 customer_id，公司名在扩展字段（对齐简道云「公司名称」）
+    if not (customer_name or "").strip():
+        cf = p.custom_fields_json if isinstance(p.custom_fields_json, dict) else {}
+        for key in ("公司名称", "company_name", "customer_name"):
+            raw = cf.get(key)
+            if raw is not None and str(raw).strip():
+                customer_name = str(raw).strip()
+                break
+
+    fill = {
+        "sales_person": p.owner_id or None,
+        "customer_name": customer_name or "",
+        "matter": (p.name or "").strip(),
+    }
+    return ok({
+        "project_id": p.id,
+        "project_code": p.project_code,
+        "fill": fill,
+    })
+
+
 @router.get("/pickable-customers")
 async def pickable_customers(
     keyword: str | None = Query(None),

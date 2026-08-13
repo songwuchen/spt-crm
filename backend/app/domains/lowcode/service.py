@@ -324,12 +324,72 @@ async def sync_builtin_form_fields(
                 fd["required"] = False
                 fd["available_on_create"] = False
                 fd["fill_stage"] = "approver"
+    if key == "drawing_requisition":
+        from app.domains.lowcode.drawing_requisition_fields import (
+            apply_drawing_requisition_fields,
+        )
+        # 创建/审批阶段以 builtin 为准，避免租户旧版把审批字段放回创建页
+        raw_by = {
+            f["id"]: f
+            for f in (bt.get("field_definitions") or [])
+            if isinstance(f, dict) and f.get("id")
+        }
+        for fd in want:
+            if not isinstance(fd, dict):
+                continue
+            raw = raw_by.get(fd.get("id"))
+            if raw:
+                for k in ("available_on_create", "fill_stage", "required", "form_editable"):
+                    if k in raw:
+                        fd[k] = raw[k]
+        apply_drawing_requisition_fields(want)
+        want_rules = [
+            r for r in want_rules
+            if not (
+                isinstance(r, dict)
+                and (
+                    r.get("target_field_id") in ("order_person_text", "designer_text", "need_decrypt_note")
+                    or bool(
+                        set(r.get("target_field_ids") or [])
+                        & {"order_person_text", "designer_text", "need_decrypt_note"}
+                    )
+                )
+            )
+        ]
+    if key == "install_drawing_notice":
+        from app.domains.lowcode.base_lookups import remap_scheme_material_rule_triggers
+        from app.domains.lowcode.dept_code import (
+            apply_design_card_serial_rules,
+            apply_install_drawing_serial_no_field,
+        )
+        from app.domains.lowcode.install_drawing_notice_fields import (
+            apply_install_drawing_notice_fields,
+        )
+        apply_design_card_serial_rules(want)
+        apply_install_drawing_serial_no_field(want)
+        apply_install_drawing_notice_fields(want)
+        want_rules = [
+            r for r in want_rules
+            if not (
+                isinstance(r, dict)
+                and (
+                    r.get("target_field_id") == "order_person_text"
+                    or "order_person_text" in set(r.get("target_field_ids") or [])
+                )
+            )
+        ]
+        remap_scheme_material_rule_triggers(want_rules)
     if key == "scheme_management":
+        from app.domains.lowcode.base_lookups import (
+            patch_scheme_material_columns, remap_scheme_material_rule_triggers,
+        )
         from app.domains.lowcode.dept_code import (
             apply_design_card_serial_rules, apply_scheme_serial_no_field,
         )
         apply_design_card_serial_rules(want)
         apply_scheme_serial_no_field(want)
+        patch_scheme_material_columns(want)
+        remap_scheme_material_rule_triggers(want_rules)
         # 保证关联客户 + 公司名称回填语义不被旧租户版本带偏
         has_related_customer = any(
             isinstance(fd, dict) and fd.get("id") == "related_customer" for fd in want
@@ -980,9 +1040,9 @@ def _extract_amount(form_data: dict, field_defs: list[dict]) -> Decimal | None:
 
 
 def _pick_business_no(form_data: dict | None, field_defs: list[dict] | None) -> str | None:
-    """业务编号：优先流水号字段，其次其它 auto_number。"""
+    """业务编号：只用流水号类字段，不用设计卡号（二者规则不同）。"""
     data = form_data or {}
-    for fid in ("serial_no", "design_card_no", "drawing_no", "quote_no", "business_no"):
+    for fid in ("serial_no", "drawing_no", "quote_no", "business_no", "payment_no"):
         v = data.get(fid)
         if v is not None and str(v).strip() != "":
             return str(v).strip()[:64]
@@ -990,7 +1050,10 @@ def _pick_business_no(form_data: dict | None, field_defs: list[dict] | None) -> 
         if not isinstance(fd, dict) or fd.get("type") != "auto_number":
             continue
         fid = fd.get("id")
-        if not fid:
+        if not fid or fid == "design_card_no":
+            continue
+        lab = str(fd.get("label") or "")
+        if "设计卡" in lab:
             continue
         v = data.get(fid)
         if v is not None and str(v).strip() != "":

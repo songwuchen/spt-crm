@@ -41,10 +41,19 @@ async function loadTree(scopeCode?: string | null): Promise<DeptCache> {
   return p
 }
 
-/** 列表/导出用：部门 id → 名称 */
-export async function getDeptNameMap(): Promise<Record<string, string>> {
+/** 列表/导出用：部门 id → 名称；可选补查树外 id（历史/范围外）。 */
+export async function getDeptNameMap(extraIds?: string[]): Promise<Record<string, string>> {
   const c = await loadTree()
-  return { ...(c.names || {}) }
+  const names = { ...(c.names || {}) }
+  const missing = (extraIds || []).map((x) => String(x || '').trim()).filter((id) => id && !names[id])
+  if (!missing.length) return names
+  try {
+    const res = await client.get<unknown, ApiResponse<Record<string, string>>>('/api/v1/lc/department-labels', {
+      params: { ids: missing.join(',') },
+    })
+    Object.assign(names, res.data || {})
+  } catch { /* ignore */ }
+  return names
 }
 
 /** 兼容 id 字符串 / {id,name} / 数组（冒烟脚本、简道云风格对象值）。 */
@@ -55,7 +64,9 @@ function normalizeDeptIds(value: unknown, multi?: boolean): {
   const nameHints: Record<string, string> = {}
   const one = (v: unknown): string | null => {
     if (v == null || v === '') return null
-    if (typeof v === 'object' && !Array.isArray(v)) {
+    // 绝不能 String(array)：会变成 "uuid1,uuid2" 整串，只读态显示成「未知部门(uuid1…)」
+    if (Array.isArray(v)) return null
+    if (typeof v === 'object') {
       const o = v as Record<string, unknown>
       const id = String(o.id || o.value || '').trim()
       const name = String(o.name || o.title || o.label || '').trim()
@@ -65,7 +76,8 @@ function normalizeDeptIds(value: unknown, multi?: boolean): {
     const s = String(v).trim()
     return s && s !== '[object Object]' ? s : null
   }
-  if (multi) {
+  // 值为数组时始终按多选解析（模板曾把 offices 标成单选 department，但共同场景写入 id 数组）
+  if (multi || Array.isArray(value)) {
     const list = Array.isArray(value) ? value : (value != null && value !== '' ? [value] : [])
     return { ids: list.map(one).filter((x): x is string => !!x), nameHints }
   }
@@ -89,6 +101,7 @@ export default function DeptField({
   const [tree, setTree] = useState<TreeNode[]>(cacheByScope.get(cacheKey)?.tree || [])
   const [names, setNames] = useState<Record<string, string>>(cacheByScope.get(cacheKey)?.names || {})
   const [loading, setLoading] = useState(!cacheByScope.get(cacheKey))
+  const [labelsPending, setLabelsPending] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -117,27 +130,36 @@ export default function DeptField({
     })
   }, [JSON.stringify(nameHints)])
 
-  // 树外 id（超出 pickable_scope / 简道云历史 MongoId）：拉名称回显
+  // 树外 id（超出 pickable_scope / 简道云历史 MongoId）：拉名称回显；并合并全量树作兜底
   const missingKey = selectedIds.filter((id) => !names[id]).join('|')
   useEffect(() => {
-    if (!missingKey) return
+    if (!missingKey) {
+      setLabelsPending(false)
+      return
+    }
     const missing = missingKey.split('|').filter(Boolean)
     let alive = true
-    client.get<unknown, ApiResponse<Record<string, string>>>('/api/v1/lc/department-labels', {
-      params: { ids: missing.join(',') },
-    }).then((res) => {
-      if (!alive || !res.data) return
+    setLabelsPending(true)
+    Promise.all([
+      client.get<unknown, ApiResponse<Record<string, string>>>('/api/v1/lc/department-labels', {
+        params: { ids: missing.join(',') },
+      }).then((res) => res.data || {}).catch(() => ({}) as Record<string, string>),
+      // 范围树可能不含已选 id：再并一份全量名称
+      scopeCode ? loadTree().then((c) => c.names || {}).catch(() => ({})) : Promise.resolve({} as Record<string, string>),
+    ]).then(([labels, allNames]) => {
+      if (!alive) return
       setNames((prev) => {
-        const next = { ...prev }
+        const next = { ...allNames, ...prev }
         let changed = false
-        for (const [k, v] of Object.entries(res.data || {})) {
+        for (const [k, v] of Object.entries({ ...allNames, ...labels })) {
           if (v && next[k] !== v) { next[k] = v; changed = true }
         }
         return changed ? next : prev
       })
-    }).catch(() => { /* ignore */ })
+      setLabelsPending(false)
+    })
     return () => { alive = false }
-  }, [missingKey])
+  }, [missingKey, scopeCode])
 
   const treeIdSet = new Set<string>()
   ;(function collect(nodes: TreeNode[]) {
@@ -147,11 +169,17 @@ export default function DeptField({
     }
   })(tree)
 
+  const unknownLabel = (id: string) => (
+    (loading || labelsPending)
+      ? '…'
+      : (id.length > 12 ? `未知部门(${id.slice(0, 8)}…)` : `未知部门(${id})`)
+  )
+
   // 树中不存在的历史/外部 id：挂到树顶，标题优先用已解析名称
   const orphanNodes: TreeNode[] = selectedIds
     .filter((id) => !treeIdSet.has(id))
     .map((id) => ({
-      title: names[id] || (id.length > 12 ? `未知部门(${id.slice(0, 8)}…)` : `未知部门(${id})`),
+      title: names[id] || unknownLabel(id),
       value: id,
     }))
   const treeData = orphanNodes.length ? [...orphanNodes, ...tree] : tree
@@ -160,7 +188,7 @@ export default function DeptField({
     if (!selectedIds.length) return <div style={{ paddingTop: 4 }}>—</div>
     return (
       <div style={{ paddingTop: 4 }}>
-        {selectedIds.map((id) => names[id] || (id.length > 12 ? `未知部门(${id.slice(0, 8)}…)` : id)).join('，')}
+        {selectedIds.map((id) => names[id] || unknownLabel(id)).join('，')}
       </div>
     )
   }

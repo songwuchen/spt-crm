@@ -161,6 +161,14 @@ class LeadIntelReviewIn(BaseModel):
         return self
 
 
+class LeadReactivationSubmitIn(BaseModel):
+    """180 天重激活跟进提交。"""
+    project_recent: Optional[str] = Field(None, max_length=500)
+    follow_progress: Optional[str] = Field(None, max_length=500)
+    site_visit: Optional[str] = Field(None, max_length=500)
+    report_project_status: str = Field(..., min_length=1, max_length=50)
+
+
 # 线索出参没有 Out schema：序列化统一走 router._lead_dict()。
 # 曾存在的 LeadOut 是零引用死代码，且已与 _lead_dict 分叉（少 lead_code、多 custom_fields_json），
 # 正是「看起来权威、实际没人用」导致字段遗漏的根源，故删除。改出参请直接改 _lead_dict。

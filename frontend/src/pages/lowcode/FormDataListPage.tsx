@@ -34,6 +34,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import {
   DRAWING_FORM_LAYOUT, applyDrawingFormLayout,
   resolveListExpandDetails, resolveListColumnIds,
+  resolveListColumnWidths, resolveListColumnLabels, resolveListFullText,
 } from '@/constants/drawingFormLayout'
 import { getPersonLabelMap } from '@/components/lowcode/fields/PersonField'
 import { getDeptNameMap } from '@/components/lowcode/fields/DeptField'
@@ -224,15 +225,22 @@ function flattenInstancesByDetails(
   return out
 }
 
-/** 列表「单号」：business_no → 流水/编号类字段 */
+/** 列表「流水号」：只用 serial_no / 真正的流水号，绝不拿设计卡号顶替 */
 function recordListNo(r: FormInstance, fields: FieldDefinition[]): string {
-  if (r.business_no) return r.business_no
-  const preferred = fields.find((f) => f.type === 'auto_number')
-    || fields.find((f) => /(?:^|_)(?:serial_no|payment_no|sn)$/.test(f.id))
-    || fields.find((f) => /号$/.test(f.label || '') && (f.type === 'text' || f.type === 'auto_number'))
-  if (preferred) {
-    const v = r.form_data?.[preferred.id]
+  const data = r.form_data || {}
+  if (data.serial_no != null && data.serial_no !== '') return String(data.serial_no)
+  const serialField = fields.find((f) => f.id === 'serial_no')
+    || fields.find((f) => f.type === 'auto_number' && /流水号/.test(f.label || '') && !/设计卡/.test(f.label || ''))
+  if (serialField) {
+    const v = data[serialField.id]
     if (v != null && v !== '') return String(v)
+  }
+  // business_no 若与设计卡号相同，说明历史误把卡号写入业务编号，列表不展示为流水号
+  if (r.business_no) {
+    const card = data.design_card_no
+    if (card == null || card === '' || String(card) !== String(r.business_no)) {
+      return r.business_no
+    }
   }
   return '—'
 }
@@ -283,18 +291,19 @@ function optionTagColor(label: string): string {
 
 function linkText(text: string): ReactNode {
   if (!text || text === '—') return '—'
-  return <span className="text-primary cursor-default">{text}</span>
+  return <span className="text-primary cursor-default truncate inline-block max-w-full align-bottom" title={text}>{text}</span>
 }
 
 function joinLinks(parts: string[]): ReactNode {
   const clean = parts.filter(Boolean)
   if (!clean.length) return '—'
+  const full = clean.join('，')
   return (
-    <span>
+    <span className="truncate inline-block max-w-full align-bottom" title={full}>
       {clean.map((t, i) => (
         <span key={`${t}-${i}`}>
           {i > 0 ? '，' : ''}
-          {linkText(t)}
+          <span className="text-primary cursor-default">{t}</span>
         </span>
       ))}
     </span>
@@ -365,14 +374,14 @@ function ListMediaCell({ value, image }: { value: unknown; image?: boolean }) {
   }
 
   return (
-    <Space size={2} direction="vertical" style={{ maxWidth: 160 }}>
-      {atts.slice(0, 2).map((a) => (
-        <a key={a.id} className="text-xs truncate block" onClick={() => open(a.id)} title={a.name}>
+    <Space size={2} direction="vertical" className="max-w-full">
+      {atts.slice(0, 3).map((a) => (
+        <a key={a.id} className="text-xs truncate block max-w-full" onClick={() => open(a.id)} title={a.name}>
           <PaperClipOutlined className="mr-1 text-orange-500" />
           {a.name}
         </a>
       ))}
-      {atts.length > 2 ? <span className="text-slate-400 text-xs">+{atts.length - 2} 个文件</span> : null}
+      {atts.length > 3 ? <span className="text-slate-400 text-xs">+{atts.length - 3} 个文件</span> : null}
     </Space>
   )
 }
@@ -541,6 +550,8 @@ export default function FormDataListPage({
   const fillPath = fillPathProp
     || (isModule ? `${location.pathname.replace(/\/$/, '')}/fill` : `/lowcode/forms/${id}/fill`)
   const drawingLayout = templateCode ? DRAWING_FORM_LAYOUT[templateCode] : undefined
+  const listColLabels = useMemo(() => resolveListColumnLabels(templateCode) || {}, [templateCode])
+  const listFieldTitle = (f: FieldDefinition) => listColLabels[f.id] || f.label
   const expandDetails = useMemo(
     () => resolveListExpandDetails(schemaFields, templateCode),
     [schemaFields, templateCode],
@@ -599,10 +610,10 @@ export default function FormDataListPage({
   const colMeta: ColMeta[] = useMemo(
     () => allColFields.map((f) => ({
       key: f.id,
-      title: f.label,
+      title: listColLabels[f.id] || f.label,
       optIn: !defaultColIdSet.has(f.id),
     })),
-    [allColFields, defaultColIdSet],
+    [allColFields, defaultColIdSet, listColLabels],
   )
 
   const buildQueryParams = useCallback(() => {
@@ -641,9 +652,9 @@ export default function FormDataListPage({
           exclude,
           preferred,
         )
-        // 单号列由表格左侧固定展示时，业务列里不再重复 auto_number
+        // 左侧固定「流水号」列已展示 serial_no；设计卡号等其它 auto_number 仍应出现在业务列
         const defaultIds = defaults
-          .filter((f) => f.type !== 'auto_number')
+          .filter((f) => f.id !== 'serial_no')
           .map((f) => f.id)
         setDefaultColIds(defaultIds.length ? defaultIds : defaults.map((f) => f.id))
         setAllColFields(filterListableFields(fs, exclude))
@@ -679,6 +690,7 @@ export default function FormDataListPage({
   useEffect(() => {
     if (!items.length || !colFields.length) return
     const personIds: string[] = []
+    const deptIds: string[] = []
     const projectIds: string[] = []
     const contractIds: string[] = []
     const customerIds: string[] = []
@@ -688,6 +700,9 @@ export default function FormDataListPage({
     for (const f of mapFields) {
       if (f.type === 'person' || f.type === 'person_multi') {
         for (const row of items) personIds.push(...collectIds(row.form_data?.[f.id]))
+      }
+      if (f.type === 'department' || f.type === 'department_multi') {
+        for (const row of items) deptIds.push(...collectIds(row.form_data?.[f.id]))
       }
       if (f.type === 'project') {
         for (const row of items) projectIds.push(...collectIds(row.form_data?.[f.id]))
@@ -711,10 +726,13 @@ export default function FormDataListPage({
     }
     let alive = true
     ;(async () => {
+      const projectLabelMode = mapFields.some(
+        (f) => f.type === 'project' && !!(f.props as { prefer_code?: boolean } | undefined)?.prefer_code,
+      ) ? 'code' as const : 'default' as const
       const [users, depts, projects, contracts, customers] = await Promise.all([
         personIds.length ? getPersonLabelMap(personIds) : Promise.resolve({}),
-        needDept ? getDeptNameMap() : Promise.resolve({}),
-        projectIds.length ? getProjectLabelMap(projectIds) : Promise.resolve({}),
+        needDept ? getDeptNameMap(deptIds) : Promise.resolve({}),
+        projectIds.length ? getProjectLabelMap(projectIds, projectLabelMode) : Promise.resolve({}),
         contractIds.length ? getContractLabelMap(contractIds) : Promise.resolve({}),
         customerIds.length ? getCustomerLabelMap(customerIds) : Promise.resolve({}),
       ])
@@ -902,6 +920,8 @@ export default function FormDataListPage({
   }
 
   const canPrintScheme = templateCode === 'scheme_management'
+    || templateCode === 'drawing_requisition'
+    || templateCode === 'install_drawing_notice'
   const canEditRecord = (status?: string | null) =>
     status === 'draft' || status === 'rejected'
 
@@ -939,27 +959,42 @@ export default function FormDataListPage({
     <Button size="small" type="link" onClick={() => openView(r.id, true)}>查看</Button>
   )
 
+  const listColWidths = useMemo(() => resolveListColumnWidths(templateCode) || {}, [templateCode])
+  const listFullText = useMemo(() => resolveListFullText(templateCode), [templateCode])
+
   const colWidth = (f: FieldDefinition) => {
+    if (listColWidths[f.id]) return listColWidths[f.id]
     if (f.type === 'file' || f.type === 'image') return 140
-    if (f.type === 'datetime' || f.type === 'date') return 130
+    if (f.type === 'datetime' || f.type === 'date') return listFullText ? 170 : 130
     if (f.type === 'person' || f.type === 'department'
-      || f.type === 'person_multi' || f.type === 'department_multi') return 110
-    if (f.type === 'customer' || f.type === 'contract') return 160
-    if (f.type === 'textarea' || /要求|备注|路线/.test(f.label || '')) return 180
-    return 140
+      || f.type === 'person_multi' || f.type === 'department_multi') {
+      return listFullText ? 160 : 110
+    }
+    if (f.type === 'customer' || f.type === 'contract') return listFullText ? 220 : 160
+    if (f.type === 'textarea' || /要求|备注|路线|事由|名称/.test(f.label || '')) {
+      return listFullText ? 240 : 180
+    }
+    return listFullText ? 160 : 140
+  }
+
+  /** 列内裁剪防串列；悬停 title 看全文（对齐简道云：加宽 + 不盖住邻列） */
+  const cellEllipsis = (f: FieldDefinition) => {
+    if (f.type === 'file' || f.type === 'image') return false
+    return { showTitle: true } as const
   }
 
   const listNoCol = {
-    title: '单号',
+    title: '流水号',
     key: 'business_no',
-    width: 140,
-    ellipsis: true as const,
+    width: listFullText ? 120 : 140,
+    ellipsis: { showTitle: true } as const,
     fixed: 'left' as const,
     render: (_: unknown, row: FormInstance | DetailFlatRow) => {
       const rec = expandDetails.length ? (row as DetailFlatRow).record : (row as FormInstance)
+      const no = recordListNo(rec, schemaFields)
       return (
-        <a className="font-mono text-primary" onClick={() => openView(rec.id, true)}>
-          {recordListNo(rec, schemaFields)}
+        <a className="font-mono text-primary" title={no} onClick={() => openView(rec.id, true)}>
+          {no}
         </a>
       )
     },
@@ -971,10 +1006,10 @@ export default function FormDataListPage({
     children: cols.map((c) => ({
       title: c.label,
       key: `${df.id}.${c.id}`,
-      ellipsis: true as const,
+      ellipsis: { showTitle: true } as const,
       width: c.type === 'number' || c.type === 'amount' ? 90
-        : c.type === 'datetime' || c.type === 'date' ? 120
-          : 130,
+        : c.type === 'datetime' || c.type === 'date' ? (listFullText ? 170 : 120)
+          : (listFullText ? 160 : 130),
       render: (_: unknown, row: FormInstance | DetailFlatRow) => {
         const dr = (row as DetailFlatRow).detailRows?.[df.id]
           ?? ((df.id === expandDetail?.id) ? (row as DetailFlatRow).detailRow : null)
@@ -994,17 +1029,19 @@ export default function FormDataListPage({
           }),
         },
         ...colFields.map((f) => ({
-          title: f.label,
+          title: listFieldTitle(f),
           key: f.id,
-          ellipsis: !(f.type === 'file' || f.type === 'image') as boolean,
+          ellipsis: cellEllipsis(f),
           width: colWidth(f),
-          onCell: (row: FormInstance | DetailFlatRow) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
+          onCell: (row: FormInstance | DetailFlatRow) => ({
+            rowSpan: (row as DetailFlatRow).rowSpan,
+          }),
           render: (_: unknown, row: FormInstance | DetailFlatRow) =>
             cellNode(f, (row as DetailFlatRow).record.form_data?.[f.id], nameMaps),
         })),
         ...detailGroupCols,
         {
-          title: '状态', key: 'status', width: 90, fixed: 'right' as const,
+          title: '流程状态', key: 'status', width: 100, fixed: 'right' as const,
           onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
           render: (_: unknown, row) => {
             const s = (row as DetailFlatRow).record.status || ''
@@ -1023,33 +1060,55 @@ export default function FormDataListPage({
         // 通用填报入口保留标题；侧栏业务模块以业务列为主（对齐简道云数据管理）
         ...(!isModule ? [
           {
-            title: '标题', dataIndex: 'title', key: 'title', width: 160, ellipsis: true as const,
+            title: '标题', dataIndex: 'title', key: 'title', width: 160,
+            ellipsis: { showTitle: true } as const,
             render: (v: string) => v || '—',
           },
         ] : []),
         ...colFields.map((f) => ({
-          title: f.label, key: f.id,
-          ellipsis: !(f.type === 'file' || f.type === 'image') as boolean,
+          title: listFieldTitle(f), key: f.id,
+          ellipsis: cellEllipsis(f),
           width: colWidth(f),
           render: (_: unknown, r: FormInstance | DetailFlatRow) =>
             cellNode(f, (r as FormInstance).form_data?.[f.id], nameMaps),
         })),
         {
-          title: '状态', dataIndex: 'status', key: 'status', width: 90, fixed: 'right' as const,
+          title: '流程状态', dataIndex: 'status', key: 'status', width: 100, fixed: 'right' as const,
           render: (s: string) => {
             const t = STATUS_TAG[s] || { color: 'default', text: s }
             return <Tag color={t.color}>{t.text}</Tag>
           },
         },
         {
-          title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 160, fixed: 'right' as const,
+          title: '提交时间', dataIndex: 'created_at', key: 'created_at',
+          width: listFullText ? 178 : 160,
+          ellipsis: { showTitle: true } as const,
+          fixed: listFullText ? undefined : ('right' as const),
           render: (v: string) => (v ? formatCellDateTime(v, true) : '—'),
         },
+        ...(listFullText ? [{
+          title: '更新时间',
+          key: 'updated_at',
+          width: 178,
+          ellipsis: { showTitle: true } as const,
+          render: (_: unknown, r: FormInstance | DetailFlatRow) => {
+            const v = (r as FormInstance & { updated_at?: string }).updated_at
+              || (r as FormInstance).created_at
+            return v ? formatCellDateTime(v, true) : '—'
+          },
+        }] : []),
         {
           title: '操作', key: 'op', width: 72, fixed: 'right' as const,
           render: (_: unknown, r: FormInstance | DetailFlatRow) => renderOps(r as FormInstance),
         },
       ]
+
+  const tableScrollX = useMemo(() => {
+    const biz = colFields.reduce((n, f) => n + colWidth(f), 0)
+    const detail = detailColsCount ? 120 * detailColsCount + 80 : 0
+    const fixed = listFullText ? 120 + 100 + 178 + 178 + 72 : 140 + 90 + 160 + 72
+    return Math.max(1200, biz + detail + fixed + 40)
+  }, [colFields, detailColsCount, listFullText, listColWidths])
 
   const showFlowPane = !!wfDetail || (
     !!viewRec && ['submitted', 'running', 'completed', 'rejected'].includes(viewRec.status || '')
@@ -1127,12 +1186,7 @@ export default function FormDataListPage({
           columns={columns}
           dataSource={(flatRows || items) as (FormInstance | DetailFlatRow)[]}
           size="small"
-          scroll={{
-            x: Math.max(
-              1200,
-              140 * colFields.length + (detailColsCount ? 120 * detailColsCount + 200 : 0) + 280,
-            ),
-          }}
+          scroll={{ x: tableScrollX }}
           pagination={{
             current: pageNo,
             total,

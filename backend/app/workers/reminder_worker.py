@@ -639,6 +639,26 @@ async def check_expiring_guarantees(db: AsyncSession) -> int:
 CN_TZ = timezone(timedelta(hours=8))  # 北京时间（同步时间按北京时间解释）
 
 
+async def check_lead_180d_reactivation(db: AsyncSession) -> int:
+    """线索收录/袭击满 180 天后自动重激活（北京时间每日配置时刻跑一次）。"""
+    from app.domains.lead import reactivation as react_svc
+
+    now_cn = datetime.now(CN_TZ)
+    if not react_svc.should_run_daily_scan(now_cn):
+        return 0
+    try:
+        n = await react_svc.scan_and_activate(db)
+        react_svc.mark_daily_scan_done(now_cn)
+        return n
+    except Exception as e:
+        logger.warning("Lead 180d reactivation scan failed: %s", e)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        return 0
+
+
 async def check_dingtalk_auto_sync(db: AsyncSession) -> int:
     """钉钉通讯录定时同步：到达配置的每日同步时间(北京时间)且当天未同步过，则跑一次部门+用户同步。"""
     from app.domains.admin.models import IntegrationEndpoint
@@ -735,15 +755,18 @@ async def run_once():
         dingtalk_synced = await check_dingtalk_auto_sync(db)
         if dingtalk_synced:
             logger.info("DingTalk auto-sync ran for %d tenant(s)", dingtalk_synced)
+        lead_reactivated = await check_lead_180d_reactivation(db)
+        if lead_reactivated:
+            logger.info("Lead 180d reactivation activated %d lead(s)", lead_reactivated)
         total = (stale + payments + sla + lc_timeouts + contracts + followups + pool_released + reports
-                 + overdue_payments + overdue_receivables + expiring_guarantees)
+                 + overdue_payments + overdue_receivables + expiring_guarantees + lead_reactivated)
         if total > 0:
             logger.info(
                 f"Reminders sent: stale_projects={stale}, upcoming_payments={payments}, "
                 f"sla_violations={sla}, lc_workflow_timeouts={lc_timeouts}, expiring_contracts={contracts}, "
                 f"followups={followups}, pool_released={pool_released}, reports={reports}, "
                 f"overdue_payments={overdue_payments}, overdue_receivables={overdue_receivables}, "
-                f"expiring_guarantees={expiring_guarantees}"
+                f"expiring_guarantees={expiring_guarantees}, lead_reactivated={lead_reactivated}"
             )
         cleanup_total = audit_cleanup + notif_cleanup + session_cleanup + deleted_cleanup + outbox_cleanup + inactive_sessions
         if cleanup_total > 0:

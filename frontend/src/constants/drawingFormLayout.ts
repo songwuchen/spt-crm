@@ -20,9 +20,17 @@ export type DrawingFormLayoutSpec = {
   listExpandDetails?: string[]
   /**
    * 列表默认展示列（字段 id，顺序即列序）。对齐简道云「数据管理」扫视列；
-   * 未配置时列表页走启发式。单号列由列表页单独置顶，此处可省略 serial_no。
+   * 未配置时列表页走启发式。流水号列由列表页单独置顶，此处可省略 serial_no。
    */
   listColumns?: string[]
+  /** 列表列宽（px）；未配则走列表页默认 */
+  listColumnWidths?: Record<string, number>
+  /** 列表列标题覆盖（如 project_no →「项目号」） */
+  listColumnLabels?: Record<string, string>
+  /**
+   * 列表单元格不截断省略号，横向滚动看全（对齐简道云数据管理）。
+   */
+  listFullText?: boolean
   /** 明细子列展示上限（默认 8；产品明细可调高） */
   listDetailMaxCols?: number
 }
@@ -30,103 +38,196 @@ export type DrawingFormLayoutSpec = {
 export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
   drawing_requisition: {
     contentMaxWidth: 1080,
+    // 对齐简道云数据管理列序（已去掉订货人/设计人文本、是否解密*）
     listColumns: [
-      'contract_no', 'product_model', 'apply_datetime', 'department',
-      'applicant', 'order_person', 'drawing_type', 'apply_reason',
+      'apply_datetime', 'department', 'applicant', 'involve_std_drawing',
+      'order_person', 'contract_no', 'apply_reason',
+      'designer', 'product_model', 'transfer_channel', 'need_decrypt',
+      'drawing_type', 'attachment_name', 'attachments', 'images',
+      'design_dispatch', 'transfer_packaging_users', 'design_assignees',
+      'offices', 'order_date', 'need_gm_approval',
     ],
+    listFullText: true,
+    listColumnWidths: {
+      apply_datetime: 118,
+      department: 200,
+      applicant: 88,
+      involve_std_drawing: 130,
+      order_person: 88,
+      contract_no: 240,
+      apply_reason: 240,
+      designer: 88,
+      product_model: 120,
+      transfer_channel: 120,
+      need_decrypt: 96,
+      drawing_type: 110,
+      attachment_name: 220,
+      attachments: 120,
+      images: 120,
+      design_dispatch: 100,
+      transfer_packaging_users: 140,
+      design_assignees: 160,
+      offices: 200,
+      order_date: 118,
+      need_gm_approval: 150,
+    },
     sections: [
       {
-        title: '基本信息',
+        title: '基本信息（创建时填写）',
         fieldIds: [
-          'apply_datetime', 'department', 'applicant', 'involve_std_drawing',
-          'order_person', 'order_person_text', 'contract_no', 'apply_reason',
-          'designer', 'designer_text', 'product_model',
+          'serial_no', 'apply_datetime', 'department', 'applicant', 'involve_std_drawing',
+          'order_person', 'contract_no', 'apply_reason',
+          'designer', 'product_model',
         ],
       },
       {
-        title: '图纸传递与解密',
-        fieldIds: ['transfer_channel', 'need_decrypt', 'need_decrypt_note', 'paper_print_tip'],
+        title: '图纸传递与解密（创建时填写）',
+        fieldIds: ['transfer_channel', 'need_decrypt', 'paper_print_tip'],
       },
       {
-        title: '图纸与附件',
+        title: '图纸与附件（创建时填写）',
         fieldIds: ['drawing_type', 'attachment_name', 'attachments', 'images'],
       },
       {
-        title: '设计分派',
+        title: '设计分派（审批时填写）',
         fieldIds: [
           'design_dispatch', 'transfer_packaging_users', 'design_assignees',
           'offices', 'order_date', 'need_gm_approval',
         ],
       },
     ],
+    // span = 简道云 lineWidth × 2
     spans: {
-      apply_reason: 24, paper_print_tip: 24, attachments: 24, images: 24,
+      serial_no: 6, apply_datetime: 6, department: 6, applicant: 6, involve_std_drawing: 6,
+      order_person: 6, contract_no: 6,
+      apply_reason: 24,
+      designer: 6, product_model: 12,
+      transfer_channel: 8, need_decrypt: 8, paper_print_tip: 24,
+      drawing_type: 8, attachment_name: 24, attachments: 12, images: 12,
+      design_dispatch: 6, transfer_packaging_users: 6, design_assignees: 6,
+      offices: 6, order_date: 12, need_gm_approval: 12,
     },
   },
   install_drawing_notice: {
     contentMaxWidth: 1100,
+    // 对齐简道云数据管理扫视列；加宽 + 全文横向滚，避免公司名/事项被截成 …
     listColumns: [
-      'customer_name', 'matter', 'apply_datetime', 'department',
-      'applicant', 'order_person', 'sales_person', 'design_card_no',
+      'apply_datetime', 'is_new_project', 'project_no', 'sales_person',
+      'customer_name', 'matter', 'department', 'applicant', 'order_person',
+      'dept_code', 'design_card_no', 'drawing_issue_type',
     ],
+    listFullText: true,
+    listColumnLabels: {
+      project_no: '项目号',
+      design_card_no: '设计卡号',
+    },
+    listColumnWidths: {
+      apply_datetime: 118,
+      is_new_project: 110,
+      project_no: 160,
+      sales_person: 96,
+      customer_name: 280,
+      matter: 280,
+      department: 220,
+      applicant: 96,
+      order_person: 96,
+      dept_code: 88,
+      design_card_no: 150,
+      drawing_issue_type: 120,
+    },
+    // 分区对齐简道云 separator + 发起/审批 optAuth（创建隐藏审批段标题）
     sections: [
       {
-        title: '基本信息',
+        title: '基本信息（创建时填写）',
         fieldIds: [
-          'apply_datetime', 'project_no', 'is_new_project', 'sales_person',
-          'customer_name', 'matter', 'applicant', 'department', 'order_person',
-          'order_person_text', 'dept_code', 'is_xiaomeng', 'design_card_no',
+          'serial_no', 'apply_datetime', 'is_new_project', 'project_no',
+          'sales_person', 'customer_name', 'matter',
+          'applicant', 'department', 'order_person',
+          'dept_code', 'is_xiaomeng', 'design_card_no',
         ],
       },
       {
-        title: '下图与领图',
+        title: '图纸领取信息（创建时填写）',
         fieldIds: [
           'drawing_issue_type', 'drawing_types', 'need_decrypt', 'pickup_purpose',
-          'apply_or_change', 'apply_reason_star', 'biz_feedback', 'lose_bid_reason',
+          'apply_or_change', 'apply_reason_star',
         ],
       },
       {
-        title: '安装图通知单及设计卡',
+        title: '安装图通知单及设计卡（创建时填写）',
         fieldIds: [
           'card_date', 'pre_designers', 'require_draw_date', 'product_model',
+          'pre_designer_text',
+          'scheme_detail', 'install_env',
+          'install_position', 'foundation_drawing', 'install_method',
+          'scheme_material', 'non_scheme_material',
+          'attention', 'attachment_names', 'attachments_no_image', 'images',
         ],
       },
       {
-        title: '出方案与安装条件',
+        title: '业务反馈（审批时填写）',
+        fieldIds: ['biz_feedback', 'lose_bid_reason'],
+      },
+      {
+        title: '设计分派（审批时填写）',
         fieldIds: [
-          'scheme_detail', 'install_env', 'install_position', 'foundation_drawing',
-          'install_method', 'scheme_material', 'non_scheme_material',
+          'design_dispatch', 'transfer_packaging_users', 'design_assignees',
+          'need_submit_drawing', 'offices_multi', 'order_date', 'transfer_sw_lwt',
         ],
       },
       {
-        title: '附件与设计分派',
+        title: '打分信息（审批时填写）',
         fieldIds: [
-          'attachment_names', 'attachments', 'attachments_no_image', 'design_dispatch',
-          'transfer_packaging_users', 'design_assignees', 'need_submit_drawing',
-          'offices_multi', 'order_date', 'transfer_sw_lwt',
-        ],
-      },
-      {
-        title: '评价打分（审批填写）',
-        fieldIds: [
-          'score_attitude', 'score_progress', 'score_skill', 'score_total',
-          'score_date', 'remark', 'attention',
+          'score_attitude', 'score_progress', 'score_skill',
+          'remark', 'score_total', 'score_date',
         ],
       },
     ],
+    // span = 简道云 lineWidth × 2
     spans: {
-      scheme_detail: 24, install_env: 24, scheme_material: 24, non_scheme_material: 24,
-      change_scheme: 24, apply_or_change: 24, apply_reason_star: 24, remark: 24, attention: 24,
-      attachments: 24, attachments_no_image: 24,
+      serial_no: 6, apply_datetime: 6, is_new_project: 12, project_no: 12,
+      sales_person: 12, customer_name: 12, matter: 12,
+      applicant: 6, department: 6, order_person: 6,
+      dept_code: 6, is_xiaomeng: 6, design_card_no: 6,
+      drawing_issue_type: 12, drawing_types: 24, need_decrypt: 6, pickup_purpose: 16,
+      apply_or_change: 24, apply_reason_star: 24,
+      biz_feedback: 12, lose_bid_reason: 12,
+      card_date: 6, pre_designers: 6, require_draw_date: 6, product_model: 6,
+      pre_designer_text: 6,
+      scheme_detail: 24, install_env: 24, change_scheme: 24,
+      scheme_material: 24, non_scheme_material: 24,
+      install_position: 8, foundation_drawing: 8, install_method: 8,
+      attention: 24, attachment_names: 24,
+      attachments_no_image: 8, images: 8,
+      design_dispatch: 12, transfer_packaging_users: 6, design_assignees: 6,
+      need_submit_drawing: 12, offices_multi: 12, order_date: 8, transfer_sw_lwt: 8,
+      score_attitude: 12, score_progress: 12, score_skill: 12,
+      remark: 12, score_total: 12, score_date: 12,
     },
   },
   // 方案管理：scheme_type 分流；独有字段靠规则显隐，布局按类型分区列出
   scheme_management: {
     contentMaxWidth: 1100,
     listColumns: [
-      'scheme_type', 'related_customer', 'contract_no', 'apply_datetime',
-      'department', 'applicant', 'order_person', 'product_model',
+      'scheme_type', 'related_customer', 'related_project', 'contract_no',
+      'customer_name', 'matter', 'apply_datetime',
+      'department', 'applicant', 'order_person', 'product_model', 'design_card_no',
     ],
+    listFullText: true,
+    listColumnWidths: {
+      scheme_type: 140,
+      related_customer: 220,
+      related_project: 220,
+      contract_no: 220,
+      customer_name: 280,
+      matter: 280,
+      apply_datetime: 118,
+      department: 220,
+      applicant: 96,
+      order_person: 96,
+      product_model: 140,
+      design_card_no: 150,
+    },
     sections: [
       {
         title: '方案类型',
@@ -606,6 +707,21 @@ export function resolveListColumnIds(templateCode?: string): string[] | undefine
   if (!templateCode) return undefined
   const cols = DRAWING_FORM_LAYOUT[templateCode]?.listColumns
   return cols?.length ? cols : undefined
+}
+
+export function resolveListColumnWidths(templateCode?: string): Record<string, number> | undefined {
+  if (!templateCode) return undefined
+  return DRAWING_FORM_LAYOUT[templateCode]?.listColumnWidths
+}
+
+export function resolveListColumnLabels(templateCode?: string): Record<string, string> | undefined {
+  if (!templateCode) return undefined
+  return DRAWING_FORM_LAYOUT[templateCode]?.listColumnLabels
+}
+
+export function resolveListFullText(templateCode?: string): boolean {
+  if (!templateCode) return false
+  return !!DRAWING_FORM_LAYOUT[templateCode]?.listFullText
 }
 
 /** 解析列表应展开的明细表（可多个，对齐简道云多子表横向分组） */

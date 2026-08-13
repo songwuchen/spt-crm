@@ -79,12 +79,16 @@ export const PROJECT_ACTIVITY_OPTIONS = [
 
 export const REPORT_PROJECT_STATUS_OPTIONS = [
   { label: '进行中', value: '进行中' },
+  { label: '暂缓', value: '暂缓' },
   { label: '暂停', value: '暂停' },
   { label: '取消', value: '取消' },
   { label: '落标', value: '落标' },
   { label: '中标', value: '中标' },
   { label: '已签合同', value: '已签合同' },
 ]
+
+/** 重激活选这些结果则结束本轮，不再进情报审批 */
+export const REACTIVATION_CLOSE_STATUSES = ['暂缓', '暂停', '取消', '落标']
 
 export const DEFAULT_LEAD_SOURCES = [
   { label: '展会', value: 'expo' },

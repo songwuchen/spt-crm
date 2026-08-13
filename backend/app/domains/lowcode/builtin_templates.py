@@ -447,31 +447,49 @@ def _apply_drawing_jdy_fields() -> None:
                 ]
             defs.append(clean)
         # 新设计卡号：对齐简道云「部门编号-yyyyMMdd+两位日序（按部门编号分序列）」
+        # 流水号与设计卡号相互独立，不可混用
         if t["key"] in ("scheme_management", "install_drawing_notice"):
             from app.domains.lowcode.dept_code import (
-                apply_design_card_serial_rules, apply_scheme_serial_no_field,
+                apply_design_card_serial_rules,
+                apply_install_drawing_serial_no_field,
+                apply_scheme_serial_no_field,
             )
             apply_design_card_serial_rules(defs)
             if t["key"] == "scheme_management":
                 apply_scheme_serial_no_field(defs)
+            else:
+                apply_install_drawing_serial_no_field(defs)
             from app.domains.lowcode.base_lookups import patch_scheme_material_columns
             patch_scheme_material_columns(defs)
-        # 安装图仍保留业务打分；方案管理已去掉三项分数
+        # 合同图纸领用：流水号 / 默认值 / 合同关联 / 去掉文本桩
+        if t["key"] == "drawing_requisition":
+            from app.domains.lowcode.drawing_requisition_fields import (
+                apply_drawing_requisition_fields,
+            )
+            apply_drawing_requisition_fields(defs)
+        # 安装图：创建/审批阶段 + 业务打分（方案管理已去掉三项分数）
         if t["key"] == "install_drawing_notice":
-            from app.domains.lowcode.biz_score import apply_biz_score_field_defs
-            apply_biz_score_field_defs(defs)
+            from app.domains.lowcode.install_drawing_notice_fields import (
+                apply_install_drawing_notice_fields,
+            )
+            apply_install_drawing_notice_fields(defs)
         if t["key"] == "prod_card_supplement":
             from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_contract_pick_fields
             apply_prod_card_contract_pick_fields(defs)
         if t["key"] == "payment_registration":
             from app.domains.lowcode.payment_registration_fields import apply_payment_registration_fields
             apply_payment_registration_fields(defs)
-        # 永久删除：前期沟通的设计员（文本）；方案管理去掉业务打分字段
+        # 永久删除：文本桩字段（保留选人）；方案管理去掉业务打分字段
         drop_ids = {"pre_designer_text"}
+        if t["key"] == "drawing_requisition":
+            drop_ids |= {"order_person_text", "designer_text", "need_decrypt_note"}
+        if t["key"] == "install_drawing_notice":
+            drop_ids |= {"order_person_text"}
         if t["key"] == "scheme_management":
             drop_ids |= {
                 "score_attitude", "score_progress", "score_skill",
                 "score_total", "score_date",
+                "order_person_text", "designer_text",
             }
             for f in defs:
                 if not isinstance(f, dict):
@@ -504,6 +522,9 @@ def _apply_drawing_jdy_fields() -> None:
             if r.get("target_field_id") not in drop_ids
             and not (set(r.get("target_field_ids") or []) & drop_ids)
         ]
+        if t["key"] in ("scheme_management", "install_drawing_notice"):
+            from app.domains.lowcode.base_lookups import remap_scheme_material_rule_triggers
+            remap_scheme_material_rule_triggers(rules)
         t["field_definitions"] = defs
         t["name"] = pack.get("name") or t["name"]
         t["rule_definitions"] = rules

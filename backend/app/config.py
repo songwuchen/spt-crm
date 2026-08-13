@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     AI_THINKING: str = "auto"      # auto/off,仅对支持 enable_thinking 的供应商生效
     REDIS_URL: str = ""
     MAX_EXPORT_ROWS: int = 5000
+    # 线索 180 天重激活：计时天数；每日扫描时刻(北京时间 HH:MM)；跳过申报人待办的姓名(逗号分隔，如张贺)
+    LEAD_REACTIVATION_DAYS: int = 180
+    LEAD_REACTIVATION_SCAN_TIME: str = "09:00"
+    LEAD_REACT_SKIP_REPORTER_NAMES: str = "张贺"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

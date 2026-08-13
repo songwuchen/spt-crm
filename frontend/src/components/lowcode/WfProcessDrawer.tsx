@@ -22,7 +22,7 @@ import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
-import { isSchemeManagementForm, printSchemeInstance } from '@/pages/drawing/schemePrint'
+import { canPrintDrawingDocument, printSchemeInstance } from '@/pages/drawing/schemePrint'
 
 const { Text, Title } = Typography
 
@@ -212,7 +212,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     || detail?.flow_steps?.find((s) => s.is_current)?.node_name
     || '审批'
   const isLeadIntel = detail?.biz_type === 'lead' && canAct && !!effectiveTaskId && !!detail?.biz_id
-  const canPrintScheme = isSchemeManagementForm(fields, formData, detail?.process_name)
+  const canPrintScheme = canPrintDrawingDocument(fields, formData, detail?.process_name)
 
   const handlePrintScheme = async () => {
     try {

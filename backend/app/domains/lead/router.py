@@ -94,6 +94,15 @@ def _lead_dict(l, products=None, dept_names=None) -> dict:
         "site_visit": getattr(l, "site_visit", None),
         "report_project_status": getattr(l, "report_project_status", None),
         "assess_remark": getattr(l, "assess_remark", None),
+        "cycle_anchor_at": (
+            l.cycle_anchor_at.isoformat() if getattr(l, "cycle_anchor_at", None) else None
+        ),
+        "reactivation_status": getattr(l, "reactivation_status", None) or "none",
+        "reactivation_notified_at": (
+            l.reactivation_notified_at.isoformat()
+            if getattr(l, "reactivation_notified_at", None) else None
+        ),
+        "reactivation_round": getattr(l, "reactivation_round", None) or 0,
         "converted_customer_id": l.converted_customer_id,
         "remark": l.remark,
         # 扩展字段值必须回传：strip_entity_dicts 依赖它做字段级权限裁剪，前端编辑表单也据此
@@ -427,6 +436,34 @@ async def intel_review_lead(
         opinion=payload.opinion,
         assess_remark=payload.assess_remark,
     )
+    products = await service.list_lead_products(db, tenant_id, l.id)
+    return await ok_entity(
+        db, tenant_id, "lead",
+        _lead_dict(l, products, await _lead_department_names(db, tenant_id, [l])),
+        current_user.get("roles"),
+    )
+
+
+class LeadReactivationBody(BaseModel):
+    project_recent: Optional[str] = None
+    follow_progress: Optional[str] = None
+    site_visit: Optional[str] = None
+    report_project_status: str
+
+
+@router.post("/{lead_id}/reactivation/submit")
+async def submit_lead_reactivation(
+    lead_id: str,
+    body: LeadReactivationBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("lead:edit")),
+):
+    """180 天重激活：申报人/填表人提交项目近况与结果。"""
+    from app.domains.lead.schemas import LeadReactivationSubmitIn
+    from app.domains.lead import reactivation as react_svc
+    payload = LeadReactivationSubmitIn(**body.model_dump())
+    l = await react_svc.submit_reactivation(db, tenant_id, lead_id, current_user, payload)
     products = await service.list_lead_products(db, tenant_id, l.id)
     return await ok_entity(
         db, tenant_id, "lead",

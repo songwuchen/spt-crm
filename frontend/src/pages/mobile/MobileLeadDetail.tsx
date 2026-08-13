@@ -111,6 +111,9 @@ export default function MobileLeadDetail() {
       content: (
         <div>
           <p className="mb-2">将此线索转化为客户？转化后线索状态将变为「已转化」。</p>
+          <p className="mb-2 text-slate-500 text-sm">
+            需要出方案报价请确认转化商机；如为拟建项目，目前不需要出方案报价，请不要转化为商机。
+          </p>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" defaultChecked onChange={(e) => { createOpp = e.target.checked }} />
             同时创建商机
@@ -227,7 +230,9 @@ export default function MobileLeadDetail() {
       {reviewApproved && canOperate && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 mb-3">
           <div className="text-sm font-bold text-emerald-700">信息情报部已收录</div>
-          <div className="text-sm text-slate-600 mt-1">请确认是否转商机：可转化为客户并同时创建商机，也可先跟进再转化。</div>
+          <div className="text-sm text-slate-600 mt-1">
+            需要出方案报价请确认转化商机；如为拟建项目，目前不需要出方案报价，请不要转化为商机。
+          </div>
           <button onClick={handleQualify}
             className="mt-2 w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold">
             确认是否转商机

@@ -71,6 +71,14 @@ class Lead(TenantScopedBase):
     # 报备「项目状态」，与 status(new/following/…) 正交
     report_project_status: Mapped[str | None] = mapped_column(String(50))
     assess_remark: Mapped[str | None] = mapped_column(Text)  # 评估区备注2
+    # ---- 180 天循环重激活（收录/袭击后计时）----
+    # cycle_anchor_at: 本轮计时起点；收录/袭击后重置
+    cycle_anchor_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    # none=计时中 / awaiting_reporter=待申报人 / awaiting_filler=待填表人 /
+    # pending_review=已交情报审 / closed=暂缓·取消·落标结束（不再自动重激活）
+    reactivation_status: Mapped[str] = mapped_column(String(20), default="none", index=True)
+    reactivation_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reactivation_round: Mapped[int] = mapped_column(Integer, default=0)
     score: Mapped[int] = mapped_column(Integer, default=0)
     converted_customer_id: Mapped[str | None] = mapped_column(String(36))
     remark: Mapped[str | None] = mapped_column(Text)

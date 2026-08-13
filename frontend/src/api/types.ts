@@ -38,6 +38,10 @@ export interface UserInfo {
   permissions: string[]
   /** 账号由系统代建（钉钉同步）且用户从未设过自己的密码——改密时无需填原密码 */
   must_change_password?: boolean
+  /** 主部门（填报 default_current_dept） */
+  department_id?: string
+  department_ids?: string[]
+  department_name?: string
 }
 
 export interface Customer {
@@ -222,6 +226,11 @@ export interface Lead {
   site_visit?: string | null
   report_project_status?: string | null
   assess_remark?: string | null
+  cycle_anchor_at?: string | null
+  /** none / awaiting_reporter / awaiting_filler / pending_review / closed */
+  reactivation_status?: string | null
+  reactivation_notified_at?: string | null
+  reactivation_round?: number
   created_at: string
   updated_at: string
 }

@@ -13,6 +13,7 @@ def test_apply_biz_score_field_defs():
         {"id": "score_skill", "type": "number", "label": "专业技能分数", "required": True},
         {"id": "score_total", "type": "number", "label": "总分"},
         {"id": "score_date", "type": "datetime", "label": "打分日期"},
+        {"id": "remark", "type": "textarea", "label": "备注", "required": True},
         {"id": "department", "type": "department", "label": "部门", "available_on_create": True},
     ]
     apply_biz_score_field_defs(fields)
@@ -25,6 +26,9 @@ def test_apply_biz_score_field_defs():
     total = next(f for f in fields if f["id"] == "score_total")
     assert total["type"] == "formula"
     assert "SUM" in (total.get("props") or {}).get("formula", "")
+    remark = next(f for f in fields if f["id"] == "remark")
+    assert remark["available_on_create"] is False
+    assert remark["required"] is False
     assert fields[-1]["available_on_create"] is True  # untouched
 
 

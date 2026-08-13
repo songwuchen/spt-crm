@@ -31,6 +31,10 @@ class UserInfo(BaseModel):
     permissions: List[str] = []
     # 前端据此隐藏「当前密码」输入框并提示用户先设置自己的密码
     must_change_password: bool = False
+    # 所属部门（填报表单 default_current_dept）
+    department_id: Optional[str] = None
+    department_ids: List[str] = []
+    department_name: Optional[str] = None
 
 
 class ChangePasswordRequest(BaseModel):

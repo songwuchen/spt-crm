@@ -88,23 +88,32 @@ export default function FormFillPage({
     })()
   }, [id])
 
-  // 用户信息晚于 schema 加载时，补填 default_current_user 人员字段
+  // 用户信息晚于 schema 加载时，补填 default_current_user / default_current_dept
   useEffect(() => {
     if (!currentUser?.id || !fields.length) return
     setValue((prev) => {
       let changed = false
       const next = { ...prev }
+      const primaryDept = currentUser.department_id
+        || currentUser.department_ids?.[0]
       for (const f of fields) {
         const props = (f.props || {}) as Record<string, unknown>
-        if (!props.default_current_user) continue
-        if (f.type !== 'person' && f.type !== 'person_multi') continue
-        if (next[f.id] != null && next[f.id] !== '') continue
-        next[f.id] = f.type === 'person_multi' ? [currentUser.id] : currentUser.id
-        changed = true
+        if (props.default_current_user && (f.type === 'person' || f.type === 'person_multi')) {
+          if (next[f.id] == null || next[f.id] === '') {
+            next[f.id] = f.type === 'person_multi' ? [currentUser.id] : currentUser.id
+            changed = true
+          }
+        }
+        if (props.default_current_dept && (f.type === 'department' || f.type === 'department_multi') && primaryDept) {
+          if (next[f.id] == null || next[f.id] === '' || (Array.isArray(next[f.id]) && !(next[f.id] as unknown[]).length)) {
+            next[f.id] = f.type === 'department_multi' ? [primaryDept] : primaryDept
+            changed = true
+          }
+        }
       }
       return changed ? next : prev
     })
-  }, [currentUser?.id, fields])
+  }, [currentUser?.id, currentUser?.department_id, currentUser?.department_ids, fields])
 
   // 关联商机 / 关联客户 → 回填公司名称（对齐合同登记：选商机带客户，选客户回填名称）
   const relatedProjectId = value.related_project == null || value.related_project === ''

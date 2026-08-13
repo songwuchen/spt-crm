@@ -32,6 +32,19 @@ DESIGN_CARD_SERIAL_RULES: list[dict[str, Any]] = [
     },
 ]
 
+# 安装图设计通知「流水号」对齐简道云 sn：yyyyMMdd + 4 位序号（不重置）
+INSTALL_DRAWING_SERIAL_NO_RULES: list[dict[str, Any]] = [
+    {"type": "date", "format": "yyyyMMdd", "date_field": "apply_datetime"},
+    {
+        "type": "counter",
+        "digits": 4,
+        "fixed": True,
+        "initial_value": 4175,
+        "reset_period": "none",
+        "date_field": "apply_datetime",
+    },
+]
+
 # 方案管理「流水号」对齐简道云：
 # - 有合同号(领用 requisition)：yyyyMMdd + 2 位日序（每日重置）→ 如 2026080804
 # - 无合同号(安装图 install)：yyyyMMdd + 4 位序号（不重置）→ 如 202608056380
@@ -240,6 +253,10 @@ def apply_design_card_serial_rules(field_defs: list[dict[str, Any]]) -> None:
         if not isinstance(fd, dict) or fd.get("id") != "design_card_no":
             continue
         fd["type"] = "auto_number"
+        # 禁止与流水号混淆
+        lab = str(fd.get("label") or "")
+        if not lab or "流水" in lab:
+            fd["label"] = "新设计卡号"
         props = dict(fd.get("props") or {}) if isinstance(fd.get("props"), dict) else {}
         props["serial_rules"] = [dict(r) for r in DESIGN_CARD_SERIAL_RULES]
         fd["props"] = props
@@ -273,3 +290,34 @@ def apply_scheme_serial_no_field(field_defs: list[dict[str, Any]]) -> None:
     existing["props"] = props
     existing["available_on_create"] = True
     existing["fill_stage"] = "initiator"
+
+
+def apply_install_drawing_serial_no_field(field_defs: list[dict[str, Any]]) -> None:
+    """确保安装图设计通知有独立 serial_no（流水号），勿与 design_card_no 混用。"""
+    defs = field_defs if isinstance(field_defs, list) else []
+    existing = next((f for f in defs if isinstance(f, dict) and f.get("id") == "serial_no"), None)
+    if existing is None:
+        existing = {
+            "id": "serial_no",
+            "type": "auto_number",
+            "label": "流水号",
+            "available_on_create": True,
+            "fill_stage": "initiator",
+            "form_editable": False,
+            "description": "对齐简道云：yyyyMMdd + 四位序号（不重置），与设计卡号无关。",
+        }
+        defs.insert(0, existing)
+    existing["type"] = "auto_number"
+    existing["label"] = "流水号"
+    existing["form_editable"] = False
+    existing["available_on_create"] = True
+    existing["fill_stage"] = "initiator"
+    props = dict(existing.get("props") or {}) if isinstance(existing.get("props"), dict) else {}
+    props["serial_rules"] = [dict(r) for r in INSTALL_DRAWING_SERIAL_NO_RULES]
+    existing["props"] = props
+    # 设计卡号字段必须保留自己的 label
+    for fd in defs:
+        if isinstance(fd, dict) and fd.get("id") == "design_card_no":
+            lab = str(fd.get("label") or "")
+            if not lab or "流水" in lab:
+                fd["label"] = "新设计卡号"

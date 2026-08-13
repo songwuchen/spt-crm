@@ -17,7 +17,9 @@ import PersonField, {
   filterDeptIdsFromValues, shouldFilterByDeptFields, type PickableScope,
 } from './fields/PersonField'
 import DeptField from './fields/DeptField'
-import ProjectField from './fields/ProjectField'
+import ProjectField, {
+  fetchInstallNoticeProjectFill, INSTALL_NOTICE_PROJECT_FILL_CLEAR,
+} from './fields/ProjectField'
 import ContractField, {
   fetchProdCardContractFill, PROD_CARD_FILL_CLEAR,
 } from './fields/ContractField'
@@ -48,10 +50,12 @@ const SUPPORTED = new Set([
 ])
 
 // 这些类型自行渲染只读态(名称/URL 需异步解析或富媒体展示),不走通用 ReadonlyValue。
+// auto_number / formula 必须自渲：否则 form_editable=false 时会掉进 ReadonlyValue，
+// 流水号预览（serialPreview）永远显示成「—」。
 const SELF_RENDER_READONLY = new Set([
   'detail_table', 'person', 'person_multi', 'department', 'department_multi', 'file', 'image',
   'address', 'cascade', 'rich_text', 'signature', 'project', 'contract', 'customer',
-  'tech_agreement_review',
+  'tech_agreement_review', 'auto_number', 'formula',
 ])
 
 const GROUP_TYPES = new Set(['tab_group', 'collapse_section'])
@@ -303,19 +307,49 @@ function FieldWidget({
     case 'department':
     case 'department_multi': {
       const scopeCode = (field.props as { pickable_scope?: PickableScope } | undefined)?.pickable_scope?.scope_code
+      // 方案管理「科室」历史版本曾标成单选 department，但共同场景值为 id 数组
+      const asMulti = field.type === 'department_multi' || Array.isArray(value)
       return (
         <DeptField
           value={value}
           onChange={onChange}
-          multi={field.type === 'department_multi'}
+          multi={asMulti}
           readonly={readonly}
           placeholder={ph}
           scopeCode={scopeCode}
         />
       )
     }
-    case 'project':
-      return <ProjectField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
+    case 'project': {
+      const props = (field.props || {}) as {
+        prefer_code?: boolean
+        project_fill?: 'install_notice'
+      }
+      const fillMode = props.project_fill
+      return (
+        <ProjectField
+          value={value}
+          readonly={readonly}
+          placeholder={ph}
+          preferCode={!!props.prefer_code}
+          onChange={(v) => {
+            if (!fillMode || !onPatch) {
+              onChange(v)
+              return
+            }
+            if (!v) {
+              const cleared: Record<string, unknown> = { [field.id]: undefined }
+              for (const k of INSTALL_NOTICE_PROJECT_FILL_CLEAR) cleared[k] = undefined
+              onPatch(cleared)
+              return
+            }
+            void fetchInstallNoticeProjectFill(v).then((fill) => {
+              onPatch({ [field.id]: v, ...fill })
+            }).catch(() => onChange(v))
+          }}
+        />
+      )
+    }
     case 'contract': {
       const props = (field.props || {}) as {
         filter_by_department_field?: string
