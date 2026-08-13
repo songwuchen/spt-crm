@@ -108,12 +108,22 @@ describe('MobileCustomerForm', () => {
     expect(screen.getByText('邮编')).toBeInTheDocument()
   })
 
-  it('填入客户名后可提交', async () => {
+  it('填入客户名后可存草稿', async () => {
     render(<MobileCustomerForm />)
     fireEvent.change(screen.getByPlaceholderText('请输入客户名称'), { target: { value: '测试客户' } })
-    fireEvent.click(screen.getByText('创建'))
+    fireEvent.click(screen.getByText('存草稿'))
     await waitFor(() => expect(customerCreate).toHaveBeenCalled())
-    expect(customerCreate.mock.calls[0][0]).toMatchObject({ name: '测试客户' })
+    expect(customerCreate.mock.calls[0][0]).toMatchObject({ name: '测试客户', as_draft: true })
+  })
+
+  it('填入客户名后可提交审批', async () => {
+    render(<MobileCustomerForm />)
+    fireEvent.change(screen.getByPlaceholderText('请输入客户名称'), { target: { value: '测试客户' } })
+    fireEvent.click(screen.getByText('提交审批'))
+    await waitFor(() => expect(customerCreate).toHaveBeenCalled())
+    const payload = customerCreate.mock.calls[0][0] as Record<string, unknown>
+    expect(payload).toMatchObject({ name: '测试客户' })
+    expect(payload).not.toHaveProperty('as_draft')
   })
 })
 
