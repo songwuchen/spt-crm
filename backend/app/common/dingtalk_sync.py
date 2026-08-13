@@ -290,6 +290,78 @@ async def fetch_users_by_dept(token: str, dept_id: int) -> list[dict]:
     return users
 
 
+async def _apply_dept_managers_from_dingtalk(
+    db: AsyncSession,
+    tenant_id: str,
+    token: str,
+    dt_depts: list[dict],
+    dt_to_local: dict[int, str],
+    progress_cb: ProgressCb = None,
+) -> int:
+    """按钉钉部门详情 manager_userid_list 写本地 departments.leader_id。
+
+    匹配规则：钉钉 userid == 本地 User.username（用户同步建号即用 userid）。
+    返回本次更新的部门数。
+    """
+    if not dt_depts or not dt_to_local:
+        return 0
+
+    sem = asyncio.Semaphore(_DT_CONCURRENCY)
+
+    async def _fetch(dt: dict) -> tuple[int, dict]:
+        async with sem:
+            try:
+                return int(dt["id"]), await fetch_dept_detail(token, int(dt["id"]))
+            except Exception as e:
+                logger.warning(f"获取部门 {dt.get('id')} 主管失败: {e}")
+                return int(dt.get("id") or 0), {}
+
+    total = len(dt_depts)
+    done = 0
+    if progress_cb:
+        await progress_cb("同步部门主管", done, total)
+    chunk_size = _DT_CONCURRENCY * 4
+    results: list[tuple[int, dict]] = []
+    for i in range(0, total, chunk_size):
+        chunk = dt_depts[i : i + chunk_size]
+        chunk_results = await asyncio.gather(*(_fetch(d) for d in chunk))
+        results.extend(chunk_results)
+        done += len(chunk)
+        if progress_cb:
+            await progress_cb("同步部门主管", done, total)
+
+    existing = (await db.execute(
+        select(Department).where(Department.tenant_id == tenant_id)
+    )).scalars().all()
+    by_id = {d.id: d for d in existing}
+
+    leader_updated = 0
+    for dt_id, detail in results:
+        local_dept_id = dt_to_local.get(dt_id)
+        if not local_dept_id or not detail:
+            continue
+        manager_list: list[str] = detail.get("manager_userid_list") or []
+        if not manager_list:
+            continue
+        first_manager_userid = manager_list[0]
+        leader = (await db.execute(
+            select(User).where(
+                User.tenant_id == tenant_id,
+                User.username == first_manager_userid,
+            )
+        )).scalar_one_or_none()
+        if not leader:
+            continue
+        local_dept = by_id.get(local_dept_id)
+        if local_dept and local_dept.leader_id != leader.id:
+            local_dept.leader_id = leader.id
+            leader_updated += 1
+
+    if leader_updated:
+        await db.commit()
+    return leader_updated
+
+
 # ─────────────── Sync: Departments ───────────────
 
 async def sync_departments(
@@ -407,54 +479,9 @@ async def sync_departments(
     # Sync leaders: parallel fetch of dept detail, then sequential DB update
     leader_updated = 0
     if sync_leaders:
-        sem = asyncio.Semaphore(_DT_CONCURRENCY)
-
-        async def _fetch(dt: dict) -> tuple[int, dict]:
-            async with sem:
-                try:
-                    return int(dt["id"]), await fetch_dept_detail(token, int(dt["id"]))
-                except Exception as e:
-                    logger.warning(f"获取部门 {dt.get('id')} 主管失败: {e}")
-                    return int(dt.get("id") or 0), {}
-
-        total = len(dt_depts)
-        done = 0
-        if progress_cb:
-            await progress_cb("同步部门主管", done, total)
-        # Gather in chunks so we can report progress periodically
-        chunk_size = _DT_CONCURRENCY * 4
-        results: list[tuple[int, dict]] = []
-        for i in range(0, total, chunk_size):
-            chunk = dt_depts[i : i + chunk_size]
-            chunk_results = await asyncio.gather(*(_fetch(d) for d in chunk))
-            results.extend(chunk_results)
-            done += len(chunk)
-            if progress_cb:
-                await progress_cb("同步部门主管", done, total)
-
-        for dt_id, detail in results:
-            local_dept_id = dt_to_local.get(dt_id)
-            if not local_dept_id or not detail:
-                continue
-            manager_list: list[str] = detail.get("manager_userid_list") or []
-            if not manager_list:
-                continue
-            first_manager_userid = manager_list[0]
-            leader = (await db.execute(
-                select(User).where(
-                    User.tenant_id == tenant_id,
-                    User.username == first_manager_userid,
-                )
-            )).scalar_one_or_none()
-            if not leader:
-                continue
-            local_dept = next((d for d in existing if d.id == local_dept_id), None)
-            if local_dept and local_dept.leader_id != leader.id:
-                local_dept.leader_id = leader.id
-                leader_updated += 1
-
-        if leader_updated:
-            await db.commit()
+        leader_updated = await _apply_dept_managers_from_dingtalk(
+            db, tenant_id, token, dt_depts, dt_to_local, progress_cb=progress_cb,
+        )
 
     return {
         "created": created,
@@ -481,7 +508,8 @@ async def sync_users(
     Matching: mobile phone number → local User.phone
     New users get default_password (must be changed on first login).
     Department memberships are synced.
-    Dept leaders are set via isLeaderInDepts field.
+    Dept leaders are set from listbypage `isLeader` (and isLeaderInDepts if present),
+    then backfilled via department detail manager_userid_list after users exist.
 
     Returns: { created, updated, skipped, failed: [{userid, reason}], total }
     """
@@ -528,28 +556,55 @@ async def sync_users(
     # Serial fetch of 100+ depts took ~4 min in prod; gather drops this to ~20s.
     sem = asyncio.Semaphore(_DT_CONCURRENCY)
 
-    async def _fetch_dept_users(dd: dict) -> list[dict]:
+    async def _fetch_dept_users(dd: dict) -> tuple[int, list[dict]]:
         async with sem:
             try:
-                return await fetch_users_by_dept(token, dd["id"])
+                did = int(dd["id"])
+            except (KeyError, TypeError, ValueError):
+                return 0, []
+            try:
+                return did, await fetch_users_by_dept(token, did)
             except Exception as e:
-                logger.warning(f"跳过部门 {dd['id']} 用户同步: {e}")
-                return []
+                logger.warning(f"跳过部门 {did} 用户同步: {e}")
+                return did, []
 
     total_depts = len(dt_depts)
     done_depts = 0
     all_dt_users: dict[str, dict] = {}
+    # listbypage 返回的是当前部门维度的 isLeader(bool)，不是 isLeaderInDepts；
+    # 同一人在多部门会出现多次，需按「userid → 其担任主管的部门 id 集合」累积。
+    leader_dept_ids_by_user: dict[str, set[int]] = {}
     if progress_cb:
         await progress_cb("拉取部门成员", done_depts, total_depts)
     chunk_size = _DT_CONCURRENCY * 4
     for i in range(0, total_depts, chunk_size):
         chunk = dt_depts[i : i + chunk_size]
         chunk_results = await asyncio.gather(*(_fetch_dept_users(dd) for dd in chunk))
-        for users in chunk_results:
+        for did, users in chunk_results:
             for u in users:
                 uid = u.get("userid", "")
-                if uid and uid not in all_dt_users:
+                if not uid:
+                    continue
+                if uid not in all_dt_users:
                     all_dt_users[uid] = u
+                # 部门用户详情接口：isLeader 表示是否为本部门主管
+                if did and u.get("isLeader"):
+                    leader_dept_ids_by_user.setdefault(uid, set()).add(did)
+                # 用户详情才有的 isLeaderInDepts（若将来换接口仍兼容）
+                raw = u.get("isLeaderInDepts")
+                if isinstance(raw, str):
+                    try:
+                        raw = json.loads(raw)
+                    except Exception:
+                        raw = {}
+                if isinstance(raw, dict):
+                    for k, v in raw.items():
+                        if not v:
+                            continue
+                        try:
+                            leader_dept_ids_by_user.setdefault(uid, set()).add(int(k))
+                        except (TypeError, ValueError):
+                            pass
         done_depts += len(chunk)
         if progress_cb:
             await progress_cb("拉取部门成员", done_depts, total_depts)
@@ -580,13 +635,17 @@ async def sync_users(
             is_active: bool = dt_user.get("active", True)
             dt_dept_ids: list[int] = dt_user.get("department", [])
 
-            # Parse isLeaderInDepts (may be dict or JSON string)
+            # Parse isLeaderInDepts (may be dict or JSON string) — 用户详情接口才稳定有
             is_leader_raw = dt_user.get("isLeaderInDepts", {})
             if isinstance(is_leader_raw, str):
                 try:
                     is_leader_raw = json.loads(is_leader_raw)
                 except Exception:
                     is_leader_raw = {}
+            if not isinstance(is_leader_raw, dict):
+                is_leader_raw = {}
+            # listbypage 累积的本部门 isLeader
+            leader_from_list = leader_dept_ids_by_user.get(userid) or set()
 
             # Match to local user
             local_user: Optional[User] = None
@@ -666,7 +725,11 @@ async def sync_users(
                         user_id=local_user.id, department_id=local_dept_id,
                     ))
                     # Check if this user is a leader in this dept
-                    if is_leader_raw.get(str(dt_did)) or is_leader_raw.get(dt_did):
+                    if (
+                        is_leader_raw.get(str(dt_did))
+                        or is_leader_raw.get(dt_did)
+                        or dt_did in leader_from_list
+                    ):
                         dept_leaders[local_dept_id] = local_user.id
 
         except Exception as e:
@@ -680,7 +743,7 @@ async def sync_users(
 
     await db.commit()
 
-    # Apply dept leaders
+    # Apply dept leaders collected from user list (isLeader / isLeaderInDepts)
     leader_updated = 0
     if dept_leaders:
         depts = (await db.execute(
@@ -696,6 +759,16 @@ async def sync_users(
                 leader_updated += 1
         if leader_updated:
             await db.commit()
+
+    # 兜底：用部门详情 manager_userid_list 再补一轮。
+    # 推荐流程是「先部门后用户」，首次同步部门时本地还没有 userid→用户，主管会全空；
+    # 用户落库后再按钉钉 userid(=CRM username) 匹配主管即可补齐。
+    if progress_cb:
+        await progress_cb("补全部门主管", 0, len(dt_depts))
+    extra_leaders = await _apply_dept_managers_from_dingtalk(
+        db, tenant_id, token, dt_depts, dt_to_local_dept or {}, progress_cb=progress_cb,
+    )
+    leader_updated += extra_leaders
 
     # 依「部门→角色」规则给同步进来的用户自动补角色(仅新增，不覆盖已有角色)
     roles_added = 0

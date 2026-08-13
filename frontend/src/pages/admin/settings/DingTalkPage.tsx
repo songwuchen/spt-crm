@@ -424,7 +424,7 @@ export default function DingTalkPage() {
           <SyncOutlined className="text-emerald-500 text-lg" />
           <span className="font-bold text-slate-800">数据同步</span>
         </div>
-        <p className="text-sm text-slate-400 mb-5">建议先同步部门，再同步用户（用户同步时会自动关联部门和设置主管）</p>
+        <p className="text-sm text-slate-400 mb-5">建议先同步部门，再同步用户。用户同步结束后会自动按钉钉主管补齐部门负责人。</p>
 
         {/* Sync Departments */}
         <div className="border border-slate-100 rounded-lg p-4 mb-4">
