@@ -7,48 +7,48 @@ from app.domains.lead.reactivation import (
     REACT_AWAITING_REPORTER,
     _resolve_assignee,
     mark_cycle_reset,
+    normalize_config,
     should_skip_reporter,
 )
 
 
-def test_skip_reporter_by_name(monkeypatch):
-    monkeypatch.setattr(
-        "app.domains.lead.reactivation.settings.LEAD_REACT_SKIP_REPORTER_NAMES",
-        "张贺,其他人",
-    )
+def test_normalize_config_days_and_names():
+    cfg = normalize_config({"days": 30, "scan_time": "9:30", "skip_reporter_names": "甲, 乙"})
+    assert cfg["days"] == 30
+    assert cfg["scan_time"] == "09:30"
+    assert cfg["skip_reporter_names"] == ["甲", "乙"]
+    assert cfg["enabled"] is True
+
+
+def test_skip_reporter_by_name():
+    cfg = {"skip_reporter_names": ["张贺", "其他人"]}
     lead = SimpleNamespace(reporter_name="张贺", owner_name="甲", created_by_name="乙")
-    assert should_skip_reporter(lead) is True
+    assert should_skip_reporter(lead, cfg) is True
     lead2 = SimpleNamespace(reporter_name="李四", owner_name="张贺", created_by_name="张贺")
-    assert should_skip_reporter(lead2) is False
+    assert should_skip_reporter(lead2, cfg) is False
 
 
-def test_resolve_assignee_skips_to_filler(monkeypatch):
-    monkeypatch.setattr(
-        "app.domains.lead.reactivation.settings.LEAD_REACT_SKIP_REPORTER_NAMES",
-        "张贺",
-    )
+def test_resolve_assignee_skips_to_filler():
+    cfg = {"skip_reporter_names": ["张贺"]}
     lead = SimpleNamespace(
         reporter_id="r1", reporter_name="张贺",
         created_by_id="c1", created_by_name="填表人",
         owner_id="o1", owner_name="负责人",
     )
-    uid, name, status = _resolve_assignee(lead, prefer_filler=False)
+    uid, name, status = _resolve_assignee(lead, prefer_filler=False, cfg=cfg)
     assert uid == "c1"
     assert name == "填表人"
     assert status == REACT_AWAITING_FILLER
 
 
-def test_resolve_assignee_normal_reporter(monkeypatch):
-    monkeypatch.setattr(
-        "app.domains.lead.reactivation.settings.LEAD_REACT_SKIP_REPORTER_NAMES",
-        "张贺",
-    )
+def test_resolve_assignee_normal_reporter():
+    cfg = {"skip_reporter_names": ["张贺"]}
     lead = SimpleNamespace(
         reporter_id="r1", reporter_name="王五",
         created_by_id="c1", created_by_name="填表人",
         owner_id="o1", owner_name="负责人",
     )
-    uid, name, status = _resolve_assignee(lead, prefer_filler=False)
+    uid, name, status = _resolve_assignee(lead, prefer_filler=False, cfg=cfg)
     assert uid == "r1"
     assert status == REACT_AWAITING_REPORTER
 

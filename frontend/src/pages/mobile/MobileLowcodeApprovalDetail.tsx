@@ -22,6 +22,7 @@ function bizEntityPath(bizType?: string | null, bizId?: string | null, bizRefId?
   if (!bizType || !bizId) return null
   const map: Record<string, string> = {
     lead: `/m/leads/${bizId}`,
+    customer: `/m/customers/${bizId}`,
     order: `/m/orders/${bizId}`,
     service_ticket: `/m/service-tickets/${bizId}`,
     contract_review: `/m/contract-reviews/${bizId}`,
@@ -225,7 +226,11 @@ export default function MobileLowcodeApprovalDetail() {
       {!fields.length && bizEntries.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
           <div className="text-sm font-bold text-slate-500 mb-2">
-            {detail.biz_type === 'lead' ? '申报信息（创建时填写）' : '业务信息'}
+            {detail.biz_type === 'lead'
+              ? '申报信息（创建时填写）'
+              : detail.biz_type === 'customer'
+                ? '客户信息'
+                : '业务信息'}
           </div>
           <div className="space-y-2">
             {bizEntries.map(([k, v]) => (
@@ -241,6 +246,11 @@ export default function MobileLowcodeApprovalDetail() {
       {detail.biz_type === 'lead' && detail.biz_id && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
           <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
+        </div>
+      )}
+      {detail.biz_type === 'customer' && detail.biz_id && (
+        <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
+          <AttachmentPanel bizType="customer" bizId={detail.biz_id} title="附件" compact />
         </div>
       )}
       <div className={canAct ? 'mb-3' : ''}>

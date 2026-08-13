@@ -115,30 +115,40 @@ export default function UiSettingsTab() {
               <div className={groupHidden ? 'opacity-40 pointer-events-none' : ''}>
                 {group.items.map((item) => {
                   const isProtected = PROTECTED_MENU_KEYS.includes(item.key)
-                  return (
-                    <div key={item.key} className="flex items-center gap-3 px-4 py-2 border-b border-slate-100 last:border-b-0">
-                      <Icon name={item.icon} className="text-slate-300 text-base" />
-                      <span className="text-sm text-slate-600 w-24 shrink-0">{t(item.labelKey)}</span>
+                  const rows = item.children?.length
+                    ? [{ ...item, _child: false as const }, ...item.children.map((c) => ({ ...c, _child: true as const }))]
+                    : [{ ...item, _child: false as const }]
+                  return rows.map((row) => (
+                    <div
+                      key={row.key}
+                      className={`flex items-center gap-3 px-4 py-2 border-b border-slate-100 last:border-b-0 ${row._child ? 'pl-10 bg-slate-50/60' : ''}`}
+                    >
+                      <Icon name={row.icon} className="text-slate-300 text-base" />
+                      <span className="text-sm text-slate-600 w-28 shrink-0 truncate">
+                        {row._child ? `↳ ${t(row.labelKey)}` : t(row.labelKey)}
+                      </span>
                       <Input
                         size="small"
-                        value={aliases[item.key] ?? ''}
+                        value={aliases[row.key] ?? ''}
                         maxLength={64}
-                        placeholder={`别名（默认：${t(item.labelKey)}）`}
+                        placeholder={`别名（默认：${t(row.labelKey)}）`}
                         className="flex-1 !max-w-xs"
-                        onChange={(e) => setAlias(item.key, e.target.value)}
+                        onChange={(e) => setAlias(row.key, e.target.value)}
                       />
                       <div className="flex items-center gap-2 ml-auto">
                         <span className="text-[12px] text-slate-400">隐藏</span>
                         <Switch
                           size="small"
-                          disabled={isProtected}
-                          checked={hidden.has(item.key)}
-                          onChange={(c) => toggleHidden(item.key, c)}
+                          disabled={isProtected && !row._child}
+                          checked={hidden.has(row.key)}
+                          onChange={(c) => toggleHidden(row.key, c)}
                         />
-                        {isProtected && <span className="text-[13px] text-amber-500 whitespace-nowrap">不可隐藏</span>}
+                        {isProtected && !row._child && (
+                          <span className="text-[13px] text-amber-500 whitespace-nowrap">不可隐藏</span>
+                        )}
                       </div>
                     </div>
-                  )
+                  ))
                 })}
               </div>
             </div>

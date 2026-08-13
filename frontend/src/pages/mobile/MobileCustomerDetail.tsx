@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import MobileIcon from '@/components/MobileIcon'
 import { useParams, useNavigate } from 'react-router-dom'
-import { message } from 'antd'
+import { message, Modal } from 'antd'
 import { customerApi } from '@/api/customer'
 import { contactApi } from '@/api/contact'
 import { activityApi } from '@/api/activity'
@@ -9,6 +9,7 @@ import { industryFallback } from '@/api/types'
 import { useDataDict } from '@/hooks/useDataDict'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { formatRegion } from '@/utils/address'
+import { customerReviewStatusConfig } from '@/constants/labels'
 
 interface CustomerInfo {
   id: string; name: string; customer_code?: string; short_name?: string
@@ -16,6 +17,8 @@ interface CustomerInfo {
   province?: string; city?: string; district?: string; region_code?: string
   website?: string; owner_name?: string; source?: string; level?: string
   status: string; remark?: string; created_at: string
+  review_status?: string; reject_reason?: string | null
+  need_info_distribute?: boolean | null; is_foreign_trade?: boolean | null
 }
 
 interface Contact {
@@ -47,12 +50,18 @@ export default function MobileCustomerDetail() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [tab, setTab] = useState<'info' | 'contacts' | 'activities'>('info')
+  const [submitting, setSubmitting] = useState(false)
   const { options: industryOpts } = useDataDict('industry', industryFallback)
   const industryMap = Object.fromEntries(industryOpts.map((o) => [o.value, o.label]))
 
-  useEffect(() => {
+  const loadCustomer = () => {
     if (!id) return
     customerApi.get(id).then((r: any) => setCustomer(r.data)).catch(() => message.error('加载失败'))
+  }
+
+  useEffect(() => {
+    if (!id) return
+    loadCustomer()
     contactApi.list(id).then((r: any) => setContacts(r.data || [])).catch(() => {})
     activityApi.list('customer', id).then((r: any) => setActivities(r.data || [])).catch(() => {})
   }, [id])
@@ -60,6 +69,31 @@ export default function MobileCustomerDetail() {
   if (!customer) return <div className="text-center py-12 text-slate-400">加载中...</div>
 
   const lc = levelColors[customer.level || ''] || levelColors.D
+  const reviewStatus = customer.review_status || 'approved'
+  const reviewCfg = reviewStatus !== 'approved' ? customerReviewStatusConfig[reviewStatus] : null
+  const canSubmitApproval = reviewStatus === 'draft'
+
+  const handleSubmitApproval = () => {
+    if (!id) return
+    Modal.confirm({
+      title: '提交审批',
+      content: '确认提交该客户进入客户信息审批？',
+      okText: '提交审批',
+      onOk: async () => {
+        setSubmitting(true)
+        try {
+          await customerApi.submitReview(id)
+          message.success('已提交审批')
+          loadCustomer()
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          message.error(msg || '提交失败')
+        } finally {
+          setSubmitting(false)
+        }
+      },
+    })
+  }
 
   return (
     <div>
@@ -78,6 +112,28 @@ export default function MobileCustomerDetail() {
           </span>
         )}
       </div>
+
+      {reviewCfg && (
+        <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-3 mb-4`}>
+          <div className={`text-sm font-bold ${reviewCfg.text}`}>{reviewCfg.label}</div>
+          <div className="text-[12px] text-slate-600 mt-1">
+            {reviewStatus === 'draft' && '完善后可提交客户信息审批'}
+            {reviewStatus === 'pending' && '审批进行中，请稍候'}
+            {reviewStatus === 'rejected' && (
+              <>驳回为终态{customer.reject_reason ? `：${customer.reject_reason}` : ''}</>
+            )}
+          </div>
+          {canSubmitApproval && (
+            <button
+              disabled={submitting}
+              onClick={handleSubmitApproval}
+              className="mt-2 w-full py-2 rounded-lg text-sm font-bold text-white bg-primary disabled:opacity-50"
+            >
+              {submitting ? '提交中...' : '提交审批'}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Quick Stats */}
       <div className="grid grid-cols-3 gap-2 mb-4">

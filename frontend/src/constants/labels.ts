@@ -24,7 +24,8 @@ export const taskStatusColorsApproval: Record<string, string> = {
 }
 export const approvalBizTypeLabels: Record<string, string> = {
   quote_version: '报价审批', contract_version: '合同审批', change_request: '变更审批', solution: '方案审批',
-  lead: '信息情报部审批', contract_review: '合同评审', tech_agreement_review: '技术协议评审',
+  lead: '信息情报部审批', customer: '客户信息审批',
+  contract_review: '合同评审', tech_agreement_review: '技术协议评审',
   // 表单绑定流（无 biz_type 时前端用 process_name 兜底，此处做短标签）
   drawing_requisition: '图纸领用',
   install_drawing_notice: '安装图通知',
@@ -81,13 +82,21 @@ export const ticketStatusColors: Record<string, string> = {
 }
 
 // --- Lead review (情报审批 / 提交审核流程) ---
-// review_status: draft=草稿 · pending=待审 · approved=收录(可转化) · rejected=回退 · attacked=袭击(不可转化)
+// review_status: draft=草稿 · pending=待审 · approved=收录(可转化) · rejected=驳回(终态) · attacked=袭击(不可转化)
 export const leadReviewStatusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
   draft: { label: '草稿', bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' },
   pending: { label: '待审', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' },
   approved: { label: '收录', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
-  rejected: { label: '回退', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100' },
+  rejected: { label: '已驳回', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100' },
   attacked: { label: '袭击', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100' },
+}
+
+/** 客户信息审批态（对齐简道云客户信息流） */
+export const customerReviewStatusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  draft: { label: '草稿', bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' },
+  pending: { label: '审批中', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' },
+  approved: { label: '已通过', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
+  rejected: { label: '已驳回', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100' },
 }
 
 export const customerNewnessLabels: Record<string, string> = {

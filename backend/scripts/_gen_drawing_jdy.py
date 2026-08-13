@@ -757,8 +757,10 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
         if r.get("target") in cc_ids and not r.get("always"):
             r["always"] = True
 
-    # 简道云同源多出边：默认 if/else 互斥组；含「工艺包装」的分叉为多条件并行
-    # （新乡单∥人选含李海春可同时进第二研究院安排+工艺包装），标 fork=parallel、不设互斥。
+    # 简道云同源多出边：默认 if/else 互斥组。
+    # 「工艺包装」分叉也走互斥，且工艺包装优先：有包装人选时先包装，
+    # 再经「工艺包装→研究院安排」进入第二研究安排（对齐实单 2026030301）；
+    # 无包装时才按设计单分派直达第二研究院安排。勿标 fork=parallel。
     name_by_id = {n["id"]: (n.get("name") or "") for n in nodes}
     by_src: dict[str, list] = {}
     for r in routes:
@@ -768,18 +770,31 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
     for src, outs in by_src.items():
         if len(outs) < 2:
             continue
-        if any(name_by_id.get(r.get("target") or "") == "工艺包装" for r in outs):
-            for r in outs:
-                r.pop("exclusive_group", None)
-                r["fork"] = "parallel"
-            notes.append(
-                f"节点「{src}」含工艺包装分叉：{len(outs)} 条出边标并行(fork=parallel)"
-            )
-            continue
         gid = f"ex_{src}"
         for r in outs:
+            r.pop("fork", None)
             r["exclusive_group"] = gid
-        notes.append(f"节点「{src}」{len(outs)} 条出边已标互斥组 {gid}")
+        # 互斥组内按连线顺序取第一条命中：工艺包装优先于研究安排/else
+        outs_sorted = sorted(outs, key=lambda r: (
+            0 if name_by_id.get(r.get("target") or "") == "工艺包装" else
+            1 if r.get("condition") else 2
+        ))
+        # 保持 routes 相对顺序：用排序后的 outs 替换该源原出边块
+        new_routes: list = []
+        replaced = False
+        for r in routes:
+            if r.get("always") or r.get("source") != src:
+                new_routes.append(r)
+                continue
+            if not replaced:
+                new_routes.extend(outs_sorted)
+                replaced = True
+        routes[:] = new_routes
+        pack = any(name_by_id.get(r.get("target") or "") == "工艺包装" for r in outs_sorted)
+        notes.append(
+            f"节点「{src}」{len(outs_sorted)} 条出边已标互斥组 {gid}"
+            + ("（含工艺包装优先）" if pack else "")
+        )
 
     sources = {r["source"] for r in routes}
     for n in nodes:

@@ -381,6 +381,7 @@ function DesignerInner() {
     contract_version: '合同版本（登记运营）',
     contract_review: '合同评审会签',
     lead: '线索',
+    customer: '客户信息',
     order: '订单',
     quote_version: '报价单',
     service_ticket: '售后工单',

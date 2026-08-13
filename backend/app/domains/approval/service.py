@@ -268,6 +268,20 @@ async def _build_policy_context(db: AsyncSession, tenant_id: str, biz_type: str,
                 context["owner_id"] = ld.owner_id
                 context["reporter_id"] = ld.reporter_id
                 context["department_id"] = ld.department_id
+        elif biz_type == "customer":
+            from app.domains.customer.models import Customer
+            cu = (await db.execute(
+                select(Customer).where(Customer.id == biz_id, Customer.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if cu:
+                context["owner_id"] = cu.owner_id
+                context["department_id"] = cu.department_id
+                context["is_foreign_trade"] = cu.is_foreign_trade
+                context["need_info_distribute"] = getattr(cu, "need_info_distribute", None)
+                context["is_smart_filing"] = cu.is_smart_filing
+                context["industry"] = cu.industry
+                context["level"] = cu.level
+                context["source"] = cu.source
         # solution: no condition fields — always matches (approver-only policy)
     except Exception as e:
         logger.warning("Build policy context failed for %s/%s: %s", biz_type, biz_id, e)
@@ -1512,6 +1526,144 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
                         try:
                             from app.domains.lowcode.service import get_entity_fields
                             for fd in await get_entity_fields(db, tenant_id, "lead"):
+                                fid = fd.get("id") or fd.get("field_key")
+                                if fid:
+                                    label_map[fid] = fd.get("label") or fd.get("title") or fid
+                        except Exception:
+                            label_map = {}
+                    for k, v in cf.items():
+                        if v is None or v == "" or v == []:
+                            continue
+                        if isinstance(v, (list, dict)):
+                            import json as _json
+                            try:
+                                v = _json.dumps(v, ensure_ascii=False)
+                            except Exception:
+                                v = str(v)
+                        _put(label_map.get(k, k), v)
+        elif biz_type == "customer":
+            # 客户信息审批：无自定义表单，靠 biz_detail 铺申报字段供审批人审阅。
+            from app.domains.customer.models import Customer
+            cu = (await db.execute(
+                select(Customer).where(Customer.id == biz_id, Customer.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if cu:
+                def _put(label: str, val) -> None:
+                    if val is None:
+                        return
+                    if isinstance(val, bool):
+                        detail[label] = "是" if val else "否"
+                        return
+                    s = str(val).strip() if not isinstance(val, (int, float)) else str(val)
+                    if s == "" or s == "None":
+                        return
+                    detail[label] = s if not isinstance(val, (int, float)) else val
+
+                async def _dict_label(dict_type: str, code: str | None) -> str | None:
+                    if not code:
+                        return None
+                    try:
+                        from app.domains.admin.models import DataDictionary
+                        lab = (await db.execute(
+                            select(DataDictionary.dict_label).where(
+                                DataDictionary.tenant_id == tenant_id,
+                                DataDictionary.dict_type == dict_type,
+                                DataDictionary.dict_code == code,
+                                DataDictionary.is_deleted == False,  # noqa: E712
+                            ).limit(1)
+                        )).scalar_one_or_none()
+                        return lab or code
+                    except Exception:
+                        return code
+
+                def _yn(v) -> str | None:
+                    if v is True:
+                        return "是"
+                    if v is False:
+                        return "否"
+                    return None
+
+                rev_labels = {
+                    "draft": "草稿", "pending": "审批中",
+                    "approved": "已通过", "rejected": "已驳回",
+                }
+
+                _put("客户编号", cu.customer_code)
+                _put("客户名称", cu.name)
+                _put("客户简称", cu.short_name)
+                _put("是否智能化客户信息备案", _yn(getattr(cu, "is_smart_filing", None)))
+                _put("是否外贸客户", _yn(getattr(cu, "is_foreign_trade", None)))
+                _put("信息分发-客户", _yn(getattr(cu, "need_info_distribute", None)))
+                _put("所属行业", await _dict_label("industry", cu.industry))
+                _put("客户类型", cu.level)
+                _put("客户性质", getattr(cu, "customer_nature", None))
+                _put("客户关系", getattr(cu, "customer_relation", None))
+                _put("主联系人职位", getattr(cu, "primary_contact_title", None))
+                _put("客户工资及保险情况", getattr(cu, "wage_insurance_status", None))
+                if getattr(cu, "registered_capital", None) is not None:
+                    _put("注册资金（万元）", float(cu.registered_capital))
+                if getattr(cu, "paid_in_capital", None) is not None:
+                    _put("实缴资本（万元）", float(cu.paid_in_capital))
+                _put("成立年份", getattr(cu, "founded_year", None))
+                _put("母公司或者控股公司情况及性质说明", getattr(cu, "parent_company_note", None))
+                loc = " / ".join([p for p in (cu.province, cu.city, cu.district) if p])
+                _put("省市区", loc or None)
+                _put("详细地址", cu.address)
+                _put("国家/地区", cu.region)
+                _put("国别", getattr(cu, "country", None))
+                _put("客户代码", getattr(cu, "foreign_customer_code", None))
+                _put("外贸客户类型", getattr(cu, "foreign_customer_type", None))
+                _put("关注产品", getattr(cu, "focus_product", None))
+                _put("邮箱", getattr(cu, "customer_email", None))
+                _put("主页", cu.website)
+                mp = getattr(cu, "main_products_json", None)
+                if isinstance(mp, list) and mp:
+                    _put("主营产品", "、".join(str(x) for x in mp if x))
+                src_lab = await _dict_label("customer_source", cu.source)
+                _put("客户来源", src_lab if cu.source else None)
+                _put("业务员", cu.owner_name)
+                _put("业务部门", getattr(cu, "department_name", None))
+                _put("录入人", cu.created_by_name)
+                _put("企业法人", getattr(cu, "legal_person", None))
+                _put("企业员工人数", getattr(cu, "headcount", None))
+                _put("所属行业分类", getattr(cu, "smart_industry_category", None))
+                _put("年运行天数", getattr(cu, "annual_run_days", None))
+                _put("占地面积", getattr(cu, "floor_area", None))
+                _put("企业财务状况", getattr(cu, "financial_status", None))
+                _put("企业经营状况", getattr(cu, "business_status", None))
+                _put("年用电量", getattr(cu, "annual_power_usage", None))
+                _put("日运营小时数", getattr(cu, "daily_operate_hours", None))
+                _put("是否公司客户", _yn(getattr(cu, "is_company_customer", None)))
+                _put("纳税人识别号", getattr(cu, "taxpayer_id", None))
+                _put("地址电话", getattr(cu, "invoice_address_phone", None))
+                _put("开户行帐号", getattr(cu, "bank_account", None))
+                if getattr(cu, "budget_amount", None) is not None:
+                    _put("客户预算(元)", f"¥{float(cu.budget_amount):,.2f}")
+                if getattr(cu, "expected_purchase_date", None):
+                    _put("预计采购时间", str(cu.expected_purchase_date))
+                _put("核心需求", getattr(cu, "demand", None))
+                _put("备注", cu.remark)
+                rs = getattr(cu, "review_status", None)
+                if rs:
+                    _put("审核状态", rev_labels.get(rs, rs))
+                _put("驳回原因", getattr(cu, "reject_reason", None))
+
+                cf = cu.custom_fields_json if isinstance(cu.custom_fields_json, dict) else None
+                if cf:
+                    label_map: dict[str, str] = {}
+                    try:
+                        from app.domains.admin.models import CustomFieldDef
+                        rows = (await db.execute(
+                            select(CustomFieldDef.field_key, CustomFieldDef.field_label).where(
+                                CustomFieldDef.tenant_id == tenant_id,
+                                CustomFieldDef.entity_type == "customer",
+                            )
+                        )).all()
+                        label_map = {k: (lab or k) for k, lab in rows}
+                    except Exception:
+                        try:
+                            from app.domains.lowcode.service import get_entity_fields
+                            for fd in await get_entity_fields(db, tenant_id, "customer"):
                                 fid = fd.get("id") or fd.get("field_key")
                                 if fid:
                                     label_map[fid] = fd.get("label") or fd.get("title") or fid

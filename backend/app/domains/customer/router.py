@@ -77,6 +77,10 @@ def _customer_dict(c, tenant_rules: dict | None = None, pools=None) -> dict:
         "address": c.address, "website": c.website,
         "owner_id": c.owner_id, "owner_name": c.owner_name,
         "source": c.source, "level": c.level, "status": c.status,
+        "review_status": getattr(c, "review_status", None) or "approved",
+        "review_flow_id": getattr(c, "review_flow_id", None),
+        "reject_reason": getattr(c, "reject_reason", None),
+        "need_info_distribute": getattr(c, "need_info_distribute", None),
         "tags_json": c.tags_json, "remark": c.remark, "custom_fields_json": c.custom_fields_json,
         # 商机要素 / 采购意向
         "intent_level": c.intent_level, "key_contact_id": c.key_contact_id,
@@ -172,7 +176,7 @@ async def create_customer(
 ):
     if to_pool:
         # Strip any owner the form might have included and post-mark as pool.
-        body = body.model_copy(update={"owner_id": None})
+        body = body.model_copy(update={"owner_id": None, "as_draft": True})
     c = await service.create_customer(db, tenant_id, body, current_user)
     if to_pool:
         # create_customer always assigns an owner (creator fallback) — flip it to pool state.
@@ -184,6 +188,8 @@ async def create_customer(
         c.pool_source = "self_built"
         c.pool_entered_at = datetime.now(timezone.utc)
         c.pool_id = await service._route_pool_id(db, tenant_id, c)
+        c.review_status = "approved"  # 公海入库不走客户信息审批
+        c.review_flow_id = None
         await db.commit()
         await db.refresh(c)
     return await ok_entity(db, tenant_id, "customer", _customer_dict(c), current_user.get("roles"))
@@ -1350,6 +1356,22 @@ async def update_customer(
 ):
     c = await service.update_customer(db, tenant_id, customer_id, body, current_user)
     return await ok_entity(db, tenant_id, "customer", _customer_dict(c, await _tenant_pool_rules(db, tenant_id), await service.list_active_pools(db, tenant_id)), current_user.get("roles"))
+
+
+@router.post("/{customer_id}/submit_review")
+async def submit_customer_review(
+    customer_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("customer:edit")),
+):
+    """草稿客户提交客户信息审批。"""
+    c = await service.resubmit_customer_review(db, tenant_id, customer_id, current_user)
+    return await ok_entity(
+        db, tenant_id, "customer",
+        _customer_dict(c, await _tenant_pool_rules(db, tenant_id), await service.list_active_pools(db, tenant_id)),
+        current_user.get("roles"),
+    )
 
 
 # ==================== 区域公海配置 (customer_pools) ====================

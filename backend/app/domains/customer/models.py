@@ -32,6 +32,13 @@ class Customer(TenantScopedBase):
     source: Mapped[str | None] = mapped_column(String(100))
     level: Mapped[str | None] = mapped_column(String(50))  # A/B/C/D
     status: Mapped[str] = mapped_column(String(50), default="active")  # active / inactive
+    # 客户信息审批（对齐简道云客户信息流）：
+    # draft=草稿未提交, pending=审批中, approved=已通过, rejected=驳回终态
+    review_status: Mapped[str] = mapped_column(String(20), default="approved", index=True)
+    review_flow_id: Mapped[str | None] = mapped_column(String(36))
+    reject_reason: Mapped[str | None] = mapped_column(Text)
+    # 信息分发开关（简道云 _widget_1702105473914）→ 走「信息分发→跟进确认→财务」分支
+    need_info_distribute: Mapped[bool | None] = mapped_column(Boolean)
     tags_json: Mapped[dict | None] = mapped_column(JSON)
     remark: Mapped[str | None] = mapped_column(Text)
     custom_fields_json: Mapped[dict | None] = mapped_column(JSON)

@@ -234,10 +234,13 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     # 报备时间：未传则默认当前时间
     from app.database import utcnow
     reported_at = payload.pop("reported_at", None) or utcnow()
+    # 外部指定项目号（开放平台/简道云）优先；否则走 CRM 自增规则
+    external_code = (payload.pop("lead_code", None) or "").strip() or None
+    lead_code = external_code or await generate_code(db, tenant_id, "lead")
 
     lead = Lead(
         id=generate_uuid(), tenant_id=tenant_id,
-        lead_code=await generate_code(db, tenant_id, "lead"),
+        lead_code=lead_code,
         reporter_id=reporter_id, reporter_name=reporter_name,
         owner_id=owner_id, owner_name=owner_name,
         reported_at=reported_at,
@@ -362,6 +365,13 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
         raise BusinessException(code=LEAD_ALREADY_QUALIFIED, message="已转化的线索不可编辑")
     if lead.status == "discarded":
         raise BusinessException(code=LEAD_ALREADY_DISCARDED, message="已废弃的线索不可编辑")
+    from app.common.error_codes import VALIDATION_ERROR
+    # 情报驳回终态：不可再改申报/跟进内容（重激活改写走 reactivation 专用接口）
+    if getattr(lead, "review_status", None) == "rejected":
+        raise BusinessException(
+            code=VALIDATION_ERROR,
+            message="线索已被驳回，项目不可再报备，不可继续编辑或跟进",
+        )
     from app.domains.lowcode.edit_lock import assert_lead_editable
     await assert_lead_editable(db, tenant_id, lead.id, getattr(lead, "review_status", None))
     payload = data.model_dump(exclude_unset=True)
@@ -376,16 +386,15 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
             db, tenant_id, "lead", payload["custom_fields_json"], lead.custom_fields_json, user.get("roles"))
         await validate_entity_custom_fields(
             db, tenant_id, "lead", payload["custom_fields_json"], user.get("roles"),
-            skip_required=(getattr(lead, "review_status", None) in ("draft", "rejected")))
+            skip_required=(getattr(lead, "review_status", None) == "draft"))
     # 原生字段策略：必填只校验本次提交携带的字段，避免批量改派/废弃被历史数据卡住；
-    # 草稿/回退后的「存草稿」跳过必填，提交审批时由 resubmit_lead_review 全量校验。
+    # 草稿「存草稿」跳过必填，提交审批时由 resubmit_lead_review 全量校验。
     payload = await enforce_native_field_policy(
         db, tenant_id, "lead", payload, lead, user.get("roles"),
         required_scope="payload",
-        skip_required=(getattr(lead, "review_status", None) in ("draft", "rejected")))
+        skip_required=(getattr(lead, "review_status", None) == "draft"))
     # 审核门禁：未通过审核的线索不可经编辑直接置为「已转化」(移动端转化走 update)
     if payload.get("status") == "qualified" and getattr(lead, "review_status", "approved") != "approved":
-        from app.common.error_codes import VALIDATION_ERROR
         raise BusinessException(code=VALIDATION_ERROR, message="线索尚未通过审核，无法转化")
     # When owner / reporter changes, refresh display names to match
     reassigned_to = None
@@ -438,6 +447,8 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         status = getattr(lead, "review_status", None)
         if status == "attacked":
             raise BusinessException(code=VALIDATION_ERROR, message="线索已标记为袭击，无法转化为客户")
+        if status == "rejected":
+            raise BusinessException(code=VALIDATION_ERROR, message="线索已被驳回，项目不可再报备，无法转化为客户")
         raise BusinessException(code=VALIDATION_ERROR, message="线索尚未通过审核，无法转化")
 
     # Create customer from lead — carry over geographic fields so sales keeps context on conversion
@@ -610,15 +621,20 @@ async def discard_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
 
 
 async def resubmit_lead_review(db: AsyncSession, tenant_id: str, lead_id: str, user: dict) -> Lead:
-    """草稿或被回退的线索提交 / 重新提交内勤审核。"""
+    """草稿线索提交内勤审核。情报驳回为终态，不可再走此入口重提。"""
     from app.common.error_codes import VALIDATION_ERROR
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, validate_entity_custom_fields,
     )
     lead = await get_lead(db, tenant_id, lead_id, user)
     rs = getattr(lead, "review_status", None)
-    if rs not in ("draft", "rejected"):
-        raise BusinessException(code=VALIDATION_ERROR, message="仅草稿或被回退的线索可提交审核")
+    if rs == "rejected":
+        raise BusinessException(
+            code=VALIDATION_ERROR,
+            message="线索已被驳回，项目不可再报备，请勿继续跟进或重新提交",
+        )
+    if rs != "draft":
+        raise BusinessException(code=VALIDATION_ERROR, message="仅草稿线索可提交审核")
 
     # 提交审批时按当前落库值全量校验必填（存草稿阶段已放宽）
     await enforce_native_field_policy(
@@ -678,7 +694,7 @@ async def intel_review_lead(
 
     - include → 工作流 approve，review_status=approved（可转化）
     - attack → 工作流 approve 后覆盖为 attacked（不可转化）
-    - return → 工作流 reject，回写 reject_reason
+    - return → 工作流 reject，review_status=rejected（终态：不可再报备/跟进；重激活待办除外）
     - draft → 只落业务字段，不结束待办
     """
     from app.common.error_codes import VALIDATION_ERROR, FORBIDDEN, BUSINESS_ERROR, NOT_FOUND

@@ -46,7 +46,8 @@ class Lead(TenantScopedBase):
     status: Mapped[str] = mapped_column(String(50), default="new")  # new / following / qualified / discarded
     # 审核态（提交审核流程）：
     # draft=草稿未提交, approved=免审/收录（可转化）, pending=待审,
-    # rejected=回退, attacked=袭击（流程结束但不可转化）。
+    # rejected=驳回终态（项目报不上、不可再跟进/再提交；重激活待办改写除外）,
+    # attacked=袭击（流程结束但不可转化）。
     # 与 status 正交：status 表达销售进程，review_status 是申报审核门禁。
     review_status: Mapped[str] = mapped_column(String(20), default="approved", index=True)
     # 关联的审批流 id。2026-07-19 线索审核切到扩展平台工作流引擎后，新数据存的是

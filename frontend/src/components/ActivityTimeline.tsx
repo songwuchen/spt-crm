@@ -34,9 +34,11 @@ interface Props {
   defaultContactName?: string
   /** Called after a record is successfully created. */
   onCreated?: () => void
+  /** 为 false 时隐藏「添加记录」（如线索已驳回终态）。默认 true。 */
+  allowCreate?: boolean
 }
 
-export default function ActivityTimeline({ bizType, bizId, customerId, openCreateSignal, defaultContactName, onCreated }: Props) {
+export default function ActivityTimeline({ bizType, bizId, customerId, openCreateSignal, defaultContactName, onCreated, allowCreate = true }: Props) {
   const [items, setItems] = useState<ActivityItem[]>([])
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({
@@ -59,12 +61,13 @@ export default function ActivityTimeline({ bizType, bizId, customerId, openCreat
 
   // Parent-triggered open (e.g. lead 开始跟进): open the modal prefilled with entity context.
   useEffect(() => {
+    if (!allowCreate) return
     if (openCreateSignal && openCreateSignal > 0) {
       setForm({ activity_type: 'note', subject: '', content: '', contact_id: '', contact_name: defaultContactName || '', next_follow_date: '' })
       setMentionIds([])
       setModal(true)
     }
-  }, [openCreateSignal]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [openCreateSignal, allowCreate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load contacts for customer-related entities
   useEffect(() => {
@@ -121,9 +124,11 @@ export default function ActivityTimeline({ bizType, bizId, customerId, openCreat
           <Icon name="auto_awesome" className="text-sm mr-1" />
           AI 总结
         </Button>
-        <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setModal(true)}>
-          添加记录
-        </Button>
+        {allowCreate && (
+          <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setModal(true)}>
+            添加记录
+          </Button>
+        )}
       </div>
 
       {/* AI Summary Panel */}

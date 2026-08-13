@@ -19,6 +19,8 @@ REGISTRY: dict[str, dict[str, str]] = {
     "order": {"table": "orders", "status_col": "status", "approved": "confirmed", "rejected": "cancelled"},
     "lead": {"table": "leads", "status_col": "review_status", "approved": "approved", "rejected": "rejected",
              "withdrawn": "pending", "submitted": "pending", "reason_col": "reject_reason"},
+    "customer": {"table": "customers", "status_col": "review_status", "approved": "approved", "rejected": "rejected",
+                 "withdrawn": "draft", "submitted": "pending", "reason_col": "reject_reason"},
     "service_ticket": {"table": "service_tickets", "status_col": "status", "approved": "processing", "rejected": "rejected",
                        "withdrawn": "draft", "submitted": "submitted"},
     "quote_version": {"table": "quote_versions", "status_col": "status", "approved": "approved", "rejected": "rejected",

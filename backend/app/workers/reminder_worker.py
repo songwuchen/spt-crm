@@ -640,16 +640,11 @@ CN_TZ = timezone(timedelta(hours=8))  # 北京时间（同步时间按北京时�
 
 
 async def check_lead_180d_reactivation(db: AsyncSession) -> int:
-    """线索收录/袭击满 180 天后自动重激活（北京时间每日配置时刻跑一次）。"""
+    """线索收录/袭击满 N 天后自动重激活（天数/时刻/跳过名单见系统设置，按租户）。"""
     from app.domains.lead import reactivation as react_svc
 
-    now_cn = datetime.now(CN_TZ)
-    if not react_svc.should_run_daily_scan(now_cn):
-        return 0
     try:
-        n = await react_svc.scan_and_activate(db)
-        react_svc.mark_daily_scan_done(now_cn)
-        return n
+        return await react_svc.scan_and_activate(db)
     except Exception as e:
         logger.warning("Lead 180d reactivation scan failed: %s", e)
         try:

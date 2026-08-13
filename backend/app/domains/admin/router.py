@@ -218,6 +218,36 @@ async def update_pool_rules(body: dict, tenant_id: str = Depends(get_tenant_id),
     return ok(body)
 
 
+# ==================== Tenant: Lead 180d Reactivation ====================
+
+@router.get("/api/admin/v1/tenant/lead_reactivation")
+async def get_lead_reactivation(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    """线索重激活规则（天数 / 扫描时刻 / 跳过申报人名单）。"""
+    from app.domains.lead import reactivation as react_svc
+    cfg = await react_svc.get_tenant_config(db, tenant_id)
+    return ok({
+        "enabled": cfg.get("enabled", True),
+        "days": cfg.get("days", 180),
+        "scan_time": cfg.get("scan_time", "09:00"),
+        "skip_reporter_names": cfg.get("skip_reporter_names") or [],
+    })
+
+
+@router.put("/api/admin/v1/tenant/lead_reactivation")
+async def update_lead_reactivation(
+    body: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("role:manage")),
+):
+    from app.domains.lead import reactivation as react_svc
+    return ok(await react_svc.save_tenant_config(db, tenant_id, body or {}))
+
+
 # ==================== System Health ====================
 
 @router.get("/api/admin/v1/system/health")

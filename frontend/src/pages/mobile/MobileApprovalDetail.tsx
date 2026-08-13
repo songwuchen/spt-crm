@@ -17,6 +17,7 @@ const bizTypeLabels: Record<string, string> = {
   change_request: '变更审批',
   solution: '方案审批',
   lead: '信息情报部审批',
+  customer: '客户信息审批',
 }
 
 const bizTypeIcons: Record<string, string> = {

@@ -1,0 +1,603 @@
+{
+  "app": "56ca77ce1efc301d279b8a4d",
+  "entry": "5c6f5b7ed6ff36235a34e66d",
+  "title": "客户信息",
+  "wrapper_field_count": 58,
+  "layout_field_count": 0,
+  "fields": [
+    {
+      "name": "_widget_1692323789695",
+      "label": "客户编号",
+      "type": "sn",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667981138982",
+      "label": "日期时间",
+      "type": "datetime",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061395",
+      "label": "是否智能化客户信息备案",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "是",
+        "否"
+      ]
+    },
+    {
+      "name": "_widget_1667897249539",
+      "label": "是否外贸客户",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "是",
+        "否"
+      ]
+    },
+    {
+      "name": "_widget_1550801790532",
+      "label": "客户名称",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1551421199691",
+      "label": "注册资金（万元）",
+      "type": "number",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1563241281600",
+      "label": "实缴资本（万元）",
+      "type": "number",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1551421199707",
+      "label": "成立年份",
+      "type": "datetime",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1563241281630",
+      "label": "地址",
+      "type": "address",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1574409842018",
+      "label": "母公司或者控股公司情况及性质说明",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1551421199771",
+      "label": "所属行业",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "工业升级",
+        "循环经济",
+        "基建民生",
+        "技术改造",
+        "其他"
+      ]
+    },
+    {
+      "name": "_widget_1551421199720",
+      "label": "客户性质",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "一般民企",
+        "国企控股",
+        "国有企业",
+        "上市公司",
+        "其他"
+      ]
+    },
+    {
+      "name": "_widget_1551421199747",
+      "label": "客户关系",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "直接关系",
+        "间接关系"
+      ]
+    },
+    {
+      "name": "_widget_1647328668474",
+      "label": "客户类型",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ]
+    },
+    {
+      "name": "_widget_1554344295175",
+      "label": "主联系人职位",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "一般员工",
+        "主管级别",
+        "部门经理级别",
+        "副总经理级别",
+        "总经理及董事长级别"
+      ]
+    },
+    {
+      "name": "_widget_1575182943140",
+      "label": "客户工资及保险情况",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "正常",
+        "正常有拖欠",
+        "非正常"
+      ]
+    },
+    {
+      "name": "_widget_1551422869504",
+      "label": "联系人明细",
+      "type": "subform",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "联系人",
+        "所在部门",
+        "职位",
+        "电话"
+      ]
+    },
+    {
+      "name": "_widget_1667288061399",
+      "label": "国外客户信息",
+      "type": "separator",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667897249538",
+      "label": "国家/地区",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667897249205",
+      "label": "业务员",
+      "type": "user",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667897249207",
+      "label": "客户简称*",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667897249218",
+      "label": "客户代码",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667200058647",
+      "label": "国别*",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667897249258",
+      "label": "客户类型*",
+      "type": "combo",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "合作客户",
+        "潜在客户",
+        "合作供应商",
+        "潜在供应商",
+        "合作货贷商",
+        "验货公司",
+        "合作会展商",
+        "合作推广商",
+        "潜在推广商",
+        "潜在货代商"
+      ]
+    },
+    {
+      "name": "_widget_1667897249303",
+      "label": "关注产品",
+      "type": "combo",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "旋振筛",
+        "检验筛",
+        "振动筛",
+        "高幅筛",
+        "熔剂筛",
+        "节肢筛",
+        "圆振筛",
+        "直线筛",
+        "球团筛",
+        "香蕉筛",
+        "弧形筛",
+        "脱泥脱介筛",
+        "轻型筛",
+        "落砂机",
+        "给料机",
+        "输送机",
+        "破碎机",
+        "破碎筛分生产线",
+        "备件",
+        "其他"
+      ]
+    },
+    {
+      "name": "_widget_1667897249305",
+      "label": "客户来源",
+      "type": "combo",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "电话",
+        "展会",
+        "阿里",
+        "QQ",
+        "TQ",
+        "ETW",
+        "GM",
+        "Trade2cn",
+        "Tradekey",
+        "Direct Industry",
+        "搜索",
+        "康帕斯",
+        "2014阿布扎比",
+        "Bauma-2014上海",
+        "LINKEDIN",
+        "Bauma-2014-India",
+        "其他"
+      ]
+    },
+    {
+      "name": "_widget_1667200058649",
+      "label": "邮箱*",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667897249391",
+      "label": "主页",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667897249287",
+      "label": "主营产品",
+      "type": "checkboxgroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "冶金",
+        "煤炭",
+        "矿山",
+        "焦化",
+        "电力",
+        "食品",
+        "医药",
+        "化工",
+        "砂石骨料，制砂",
+        "水处理"
+      ]
+    },
+    {
+      "name": "_widget_1667897249229",
+      "label": "联系人信息",
+      "type": "subform",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "联系人姓名",
+        "邮件地址",
+        "职位",
+        "联系人电话",
+        "传真",
+        "联系人生日",
+        "QQ",
+        "MSN",
+        "Skype",
+        "旺旺号码",
+        "快件地址",
+        "备注",
+        "状态"
+      ]
+    },
+    {
+      "name": "_widget_1667288061378",
+      "label": "智能化项目客户信息备案信息",
+      "type": "separator",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061379",
+      "label": "企业法人",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061382",
+      "label": "企业员工人数",
+      "type": "number",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061392",
+      "label": "公司负责对接人",
+      "type": "user",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061381",
+      "label": "公司负责对接人（辅助）",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1702428618530",
+      "label": "业务部门",
+      "type": "dept",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061380",
+      "label": "所属行业分类",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061384",
+      "label": "年运行天数",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061385",
+      "label": "占地面积",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061386",
+      "label": "企业财务状况",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061387",
+      "label": "企业经营状况",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061388",
+      "label": "年用电量",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061389",
+      "label": "日运营小时数",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1667288061390",
+      "label": "企业组织架构图",
+      "type": "image",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1563267441261",
+      "label": "开票信息",
+      "type": "separator",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1563267441269",
+      "label": "纳税人识别号",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1563267441285",
+      "label": "地址电话",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1563267441315",
+      "label": "开户行帐号",
+      "type": "text",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1563440544239",
+      "label": "是否公司客户",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "是",
+        "否"
+      ]
+    },
+    {
+      "name": "_widget_1725603196094",
+      "label": "其他",
+      "type": "separator",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1702108611956",
+      "label": "是否跟进",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "是",
+        "否"
+      ]
+    },
+    {
+      "name": "_widget_1702108846109",
+      "label": "跟进状态",
+      "type": "number",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1702108846210",
+      "label": "辅助",
+      "type": "number",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "_widget_1702105473914",
+      "label": "信息分发-客户（231209增加辅助）",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "是",
+        "否"
+      ]
+    },
+    {
+      "name": "_widget_1702105473916",
+      "label": "信息来源（231209增加辅助）",
+      "type": "radiogroup",
+      "required": false,
+      "kind": "field",
+      "options": [
+        "经理分配",
+        "信息情报部分配",
+        "自己获取"
+      ]
+    },
+    {
+      "name": "creator",
+      "label": "提交人",
+      "type": "user",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "createTime",
+      "label": "提交时间",
+      "type": "datetime",
+      "required": false,
+      "kind": "field",
+      "options": null
+    },
+    {
+      "name": "updateTime",
+      "label": "更新时间",
+      "type": "datetime",
+      "required": false,
+      "kind": "field",
+      "options": null
+    }
+  ],
+  "layout": []
+}

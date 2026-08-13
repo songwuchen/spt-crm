@@ -1,21 +1,24 @@
 import { useState, useEffect, useRef } from 'react'
 import { Tag, Button, Space, Table, Modal, Form, Input, Select, Switch, Spin, Tabs, Popover, message, AutoComplete } from 'antd'
 import { PlusOutlined as PlusIcon } from '@ant-design/icons'
-import { EditOutlined, PlusOutlined, DeleteOutlined, MergeCellsOutlined } from '@ant-design/icons'
+import { EditOutlined, PlusOutlined, DeleteOutlined, MergeCellsOutlined, AuditOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
 import { contactApi } from '@/api/contact'
 import { projectApi } from '@/api/project'
 import { roleApi } from '@/api/user'
+import { workflowApi } from '@/api/lowcodeWorkflow'
+import type { WfInstanceDetail } from '@/types/lowcode'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import AiAnalysisButton from '@/components/ai/AiAnalysisButton'
 import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
+import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import ChangeHistory from '@/components/ChangeHistory'
 import type { Customer, Contact, OpportunityProject, CustomerReport } from '@/api/types'
 import { sourceLabels, stageLabels, stageColors } from '@/api/types'
-import { opportunityStatusMap, quoteStatusLabels, contractStatusLabels, orderStatusLabels, tenderStatusLabels, ticketStatusLabels, ticketTypeLabels, ticketPriorityLabels, intentLevelColors, intentLevelLabels, matchLevelLabels, poolSourceLabels } from '@/constants/labels'
+import { opportunityStatusMap, quoteStatusLabels, contractStatusLabels, orderStatusLabels, tenderStatusLabels, ticketStatusLabels, ticketTypeLabels, ticketPriorityLabels, intentLevelColors, intentLevelLabels, matchLevelLabels, poolSourceLabels, customerReviewStatusConfig } from '@/constants/labels'
 import type { ColumnsType } from 'antd/es/table'
 import client from '@/api/client'
 import { downloadFile } from '@/utils/download'
@@ -133,6 +136,10 @@ export default function CustomerDetail() {
   const [mergeTargetId, setMergeTargetId] = useState<string | undefined>()
   const [health, setHealth] = useState<{ score: number; grade: string; breakdown: Record<string, { score: number; max: number; detail: string }> } | null>(null)
   const [report, setReport] = useState<CustomerReport | null>(null)
+  const [wfInstance, setWfInstance] = useState<WfInstanceDetail | null>(null)
+  const [reviewInFlight, setReviewInFlight] = useState(false)
+  const [wfCommenting, setWfCommenting] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const customerSelect = useRemoteSelect(async (kw) => {
     const r = await customerApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
@@ -148,6 +155,16 @@ export default function CustomerDetail() {
   const fetchRelations = async () => { const res = await customerApi.listRelations(id!); setRelations(res.data) }
   const fetchShares = async () => { const res = await customerApi.listShares(id!); setShares(res.data) }
   const fetchStats = async () => { const res = await customerApi.stats(id!); setStats(res.data) }
+  const loadWf = async (bizId: string) => {
+    try {
+      const res = await workflowApi.byBiz({ biz_type: 'customer', biz_id: bizId })
+      setWfInstance(res.data || null)
+      setReviewInFlight(res.data?.status === 'running')
+    } catch {
+      setWfInstance(null)
+      setReviewInFlight(false)
+    }
+  }
   const fetchProjects = async () => {
     const res = await projectApi.list({ pageNo: 1, pageSize: 100, customer_id: id })
     setProjects(res.data.items)
@@ -163,6 +180,7 @@ export default function CustomerDetail() {
     let cancelled = false
     const load = async () => {
       fetchCustomer(); fetchContacts(); fetchRelations(); fetchShares(); fetchStats(); fetchProjects(); fetchTickets()
+      void loadWf(id)
       customerApi.health(id).then(r => { if (!cancelled) setHealth(r.data) }).catch(() => {})
       customerApi.report(id).then((r) => { if (!cancelled) setReport(r.data) }).catch(() => {})
       customerApi.list({ pageNo: 1, pageSize: 100 }).then((r) => { if (!cancelled) setAllCustomers(r.data.items) }).catch(() => {})
@@ -170,6 +188,40 @@ export default function CustomerDetail() {
     load()
     return () => { cancelled = true }
   }, [id])
+
+  const handleWfComment = async (content: string) => {
+    if (!wfInstance?.id || !id) return
+    setWfCommenting(true)
+    try {
+      await workflowApi.comment(wfInstance.id, content)
+      await loadWf(id)
+    } finally {
+      setWfCommenting(false)
+    }
+  }
+
+  const handleSubmitApproval = () => {
+    if (!id) return
+    Modal.confirm({
+      title: '提交审批',
+      content: '确认提交该客户进入客户信息审批？提交后可在「流程动态」查看进度。',
+      okText: '提交审批',
+      onOk: async () => {
+        setSubmitting(true)
+        try {
+          await customerApi.submitReview(id)
+          message.success('已提交审批')
+          await fetchCustomer()
+          await loadWf(id)
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          message.error(msg || '提交审核失败')
+        } finally {
+          setSubmitting(false)
+        }
+      },
+    })
+  }
 
   const handleContactSubmit = async () => {
     const values = { ...(await form.validateFields()), custom_fields_json: contactCustomFields }
@@ -247,6 +299,14 @@ export default function CustomerDetail() {
   )
 
   const levelColors: Record<string, string> = { A: 'red', B: 'orange', C: 'blue', D: 'default' }
+  const reviewStatus = customer.review_status || 'approved'
+  const reviewCfg = reviewStatus !== 'approved' ? customerReviewStatusConfig[reviewStatus] : null
+  const canSubmitApproval = reviewStatus === 'draft'
+  const canEditCustomer = !reviewInFlight && reviewStatus !== 'rejected'
+  const reviewBannerIcon =
+    reviewStatus === 'pending' ? 'hourglass_top'
+      : reviewStatus === 'draft' ? 'edit_note'
+        : 'gpp_bad'
 
   return (
     <div>
@@ -269,6 +329,12 @@ export default function CustomerDetail() {
                     {customer.status === 'active' ? '活跃' : '不活跃'}
                   </span>
                 </div>
+                {reviewCfg && (
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[12px] font-bold uppercase border ${reviewCfg.bg} ${reviewCfg.text} ${reviewCfg.border}`}>
+                    <Icon name={reviewBannerIcon} className="text-sm" />
+                    {reviewCfg.label}
+                  </span>
+                )}
               </div>
               {/* Tags */}
               <div className="flex items-center gap-1 flex-wrap mt-1">
@@ -316,7 +382,14 @@ export default function CustomerDetail() {
           </div>
           <Space>
             <AiAnalysisButton bizType="customer" bizId={id!} />
-            <Button icon={<EditOutlined />} onClick={() => navigate(`/customers/${id}/edit`)}>编辑</Button>
+            {canEditCustomer && (
+              <Button icon={<EditOutlined />} onClick={() => navigate(`/customers/${id}/edit`)}>编辑</Button>
+            )}
+            {canSubmitApproval && (
+              <Button type="primary" icon={<AuditOutlined />} loading={submitting} onClick={handleSubmitApproval}>
+                提交审批
+              </Button>
+            )}
             {customer.status !== 'pool' && (
               <Button onClick={() => {
                 Modal.confirm({
@@ -343,6 +416,32 @@ export default function CustomerDetail() {
           </Space>
         </div>
       </div>
+
+      {reviewCfg && (
+        <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-4 mb-6 flex items-start gap-3`}>
+          <Icon name={reviewBannerIcon} className={`${reviewCfg.text}`} />
+          <div className="flex-1">
+            <div className={`text-sm font-bold ${reviewCfg.text}`}>
+              {reviewStatus === 'draft' && '客户草稿未提交'}
+              {reviewStatus === 'pending' && '客户信息审批中'}
+              {reviewStatus === 'rejected' && '客户信息已驳回'}
+            </div>
+            <div className="text-sm text-slate-600 mt-1">
+              {reviewStatus === 'draft' && '完善信息后提交审批，可在「流程动态」查看进度。'}
+              {reviewStatus === 'pending' && '审批通过后可继续维护客户主数据。'}
+              {reviewStatus === 'rejected' && (
+                <>
+                  驳回为终态，不可重新提交。
+                  {customer.reject_reason ? ` 驳回原因：${customer.reject_reason}` : ''}
+                </>
+              )}
+            </div>
+          </div>
+          {canSubmitApproval && (
+            <Button size="small" type="primary" loading={submitting} onClick={handleSubmitApproval}>提交审批</Button>
+          )}
+        </div>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-4 gap-4 mb-6">
@@ -460,6 +559,11 @@ export default function CustomerDetail() {
                         <InfoField label="日期时间" value={customer.created_at ? new Date(customer.created_at).toLocaleString('zh-CN') : undefined} />
                         <InfoField label="是否智能化客户信息备案" value={yn(customer.is_smart_filing)} />
                         <InfoField label="是否外贸客户" value={yn(customer.is_foreign_trade)} />
+                        <InfoField label="信息分发-客户" value={yn(customer.need_info_distribute)} />
+                        <InfoField
+                          label="审核状态"
+                          value={customerReviewStatusConfig[reviewStatus]?.label || reviewStatus}
+                        />
                       </DetailSection>
 
                       <div className="mb-4">
@@ -824,6 +928,30 @@ export default function CustomerDetail() {
                   children: (
                     <div className="py-4">
                       <AttachmentPanel bizType="customer" bizId={id!} />
+                    </div>
+                  ),
+                },
+                {
+                  key: 'workflow',
+                  label: <span className="font-semibold">流程动态</span>,
+                  children: (
+                    <div className="py-4" style={{ minHeight: 360 }}>
+                      {wfInstance ? (
+                        <div className="rounded-xl border border-slate-200 overflow-hidden" style={{ height: 480 }}>
+                          <WfFlowDynamics
+                            steps={wfInstance.flow_steps || []}
+                            comments={wfInstance.comments || []}
+                            onSubmitComment={handleWfComment}
+                            commenting={wfCommenting}
+                          />
+                        </div>
+                      ) : (
+                        <div className="text-center py-12 text-slate-400 text-sm">
+                          {reviewStatus === 'draft'
+                            ? '提交审批后将在此显示流程进度'
+                            : '暂无流程动态'}
+                        </div>
+                      )}
                     </div>
                   ),
                 },

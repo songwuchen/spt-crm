@@ -102,7 +102,7 @@ export default function LeadForm() {
   const [reviewStatus, setReviewStatus] = useState<string | undefined>()
   const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const isEdit = !!id
-  const canSubmitApproval = !isEdit || reviewStatus === 'draft' || reviewStatus === 'rejected'
+  const canSubmitApproval = !isEdit || reviewStatus === 'draft'
   usePageTitle(isEdit ? '编辑线索' : '新建线索')
 
   const sourceDict = useDataDict('lead_source', DEFAULT_LEAD_SOURCES)
@@ -123,12 +123,21 @@ export default function LeadForm() {
           navigate(`/leads/${id}`, { replace: true })
           return
         }
+        if (d.review_status === 'rejected' || d.review_status === 'attacked') {
+          message.warning(
+            d.review_status === 'rejected'
+              ? '线索已被驳回，项目不可再报备，不可继续编辑'
+              : '袭击状态的线索不可编辑申报信息',
+          )
+          navigate(`/leads/${id}`, { replace: true })
+          return
+        }
         if (d.review_status === 'pending') {
           try {
             const { workflowApi } = await import('@/api/lowcodeWorkflow')
             const wf = await workflowApi.byBiz({ biz_type: 'lead', biz_id: id! })
             if (wf.data?.status === 'running') {
-              message.warning('审核中的线索不可编辑，驳回后可由发起人修改再提交')
+              message.warning('审核中的线索不可编辑')
               navigate(`/leads/${id}`, { replace: true })
               return
             }
@@ -468,7 +477,7 @@ export default function LeadForm() {
 
             <div className="mt-4 mb-2 rounded-lg border border-amber-100 bg-amber-50/80 px-3 py-2 text-xs text-amber-800">
               <span className="font-semibold">审批时填写（请勿在此页填写）：</span>
-              客户类型（新/老）、项目最终状态（待审/收录/回退/袭击）、回退原因、备注2 —
+              客户类型（新/老）、项目最终状态（待审/收录/驳回/袭击）、驳回原因、备注2 —
               由信息情报部在审批待办中完成。
             </div>
 

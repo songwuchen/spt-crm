@@ -97,6 +97,11 @@ export const settingsApi = {
   updatePoolRules: (data: Record<string, unknown>) =>
     client.put('/api/admin/v1/tenant/pool_rules', data),
 
+  // Lead 180d reactivation
+  getLeadReactivation: () => client.get('/api/admin/v1/tenant/lead_reactivation'),
+  updateLeadReactivation: (data: Record<string, unknown>) =>
+    client.put('/api/admin/v1/tenant/lead_reactivation', data),
+
   // Report schedules
   getReportSchedules: () => client.get('/api/admin/v1/tenant/report_schedules'),
   updateReportSchedules: (data: Array<Record<string, unknown>>) =>

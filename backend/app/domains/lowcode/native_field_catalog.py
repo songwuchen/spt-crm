@@ -258,6 +258,8 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
            options=[{"value": True, "label": "是"}, {"value": False, "label": "否"}]),
         _f("is_foreign_trade", "是否外贸客户", "radio",
            options=[{"value": True, "label": "是"}, {"value": False, "label": "否"}]),
+        _f("need_info_distribute", "信息分发-客户", "radio",
+           options=[{"value": True, "label": "是"}, {"value": False, "label": "否"}]),
         # ---- 基本信息（始终可见）----
         _f("name", "客户名称", system_required=True),
         _f("customer_code", "客户编号"),

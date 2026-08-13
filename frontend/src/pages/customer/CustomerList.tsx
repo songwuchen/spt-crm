@@ -8,7 +8,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { customerApi } from '@/api/customer'
 import type { Customer } from '@/api/types'
 import { sourceLabels } from '@/api/types'
-import { intentLevelColors, intentLevelShortLabels } from '@/constants/labels'
+import { intentLevelColors, intentLevelShortLabels, customerReviewStatusConfig } from '@/constants/labels'
 import type { ColumnsType } from 'antd/es/table'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { t } from '@/locales'
@@ -181,63 +181,105 @@ export default function CustomerList() {
     fetchData(1, keyword, industry, regionCode, regionName)
   }
 
-  const levelColors: Record<string, string> = {
-    A: 'bg-red-100 text-red-700 border-red-200',
-    B: 'bg-amber-100 text-amber-700 border-amber-200',
-    C: 'bg-blue-100 text-blue-700 border-blue-200',
-    D: 'bg-slate-100 text-slate-600 border-slate-200',
+  const dash = <span className="text-slate-300">-</span>
+  const ynTag = (v: boolean | null | undefined) => {
+    if (v == null) return dash
+    return v
+      ? <Tag color="red" className="m-0">是</Tag>
+      : <Tag color="orange" className="m-0">否</Tag>
   }
+  const textCell = (v: unknown) => (v != null && String(v) !== '' ? <span className="text-sm text-slate-700">{String(v)}</span> : dash)
+  const numCell = (v: number | null | undefined) => (
+    v != null ? <span className="text-sm text-slate-700 tabular-nums">{Number(v).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</span> : dash
+  )
 
   const columns: ColumnsType<Customer> = [
-    { title: t('customer.name'), key: 'name', width: 240,
+    // —— 对齐简道云「客户信息」列表主列 ——
+    { title: '客户编号', dataIndex: 'customer_code', key: 'customer_code', width: 140, fixed: 'left',
+      render: (v) => v ? <span className="text-sm font-mono text-slate-600">{v}</span> : dash },
+    { title: '日期时间', dataIndex: 'created_at', key: 'created_at', width: 110,
+      render: (v) => v ? <span className="text-sm text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : dash },
+    { title: '智能化备案', dataIndex: 'is_smart_filing', key: 'is_smart_filing', width: 100,
+      render: (v: boolean | null) => ynTag(v) },
+    { title: '外贸客户', dataIndex: 'is_foreign_trade', key: 'is_foreign_trade', width: 90,
+      render: (v: boolean | null) => ynTag(v) },
+    { title: t('customer.name'), key: 'name', width: 240, fixed: 'left',
       render: (_, record) => (
         <div className="flex items-center gap-3">
           <Monogram name={record.name} />
-          <div>
-            <a onClick={() => navigate(`/customers/${record.id}`)} className="text-sm font-bold text-slate-900 hover:text-primary">
+          <div className="min-w-0">
+            <a onClick={() => navigate(`/customers/${record.id}`)} className="text-sm font-bold text-slate-900 hover:text-primary block truncate">
               {record.name}
             </a>
-            {record.short_name && <div className="text-[13px] text-slate-400">{record.short_name}</div>}
+            {record.short_name && <div className="text-[13px] text-slate-400 truncate">{record.short_name}</div>}
           </div>
         </div>
       ),
     },
-    { title: t('customer.industry'), dataIndex: 'industry', width: 120,
-      render: (v) => v ? (industryMap[v] || v) : <span className="text-slate-300">-</span> },
-    { title: t('customer.level'), dataIndex: 'scale_level', width: 80, responsive: ['lg'],
-      render: (v) => v || <span className="text-slate-300">-</span> },
-    { title: t('customer.region'), key: 'region', width: 150,
+    { title: '注册资金(万)', dataIndex: 'registered_capital', key: 'registered_capital', width: 110, align: 'right',
+      render: (v: number | null) => numCell(v) },
+    { title: '实缴资本(万)', dataIndex: 'paid_in_capital', key: 'paid_in_capital', width: 110, align: 'right',
+      render: (v: number | null) => numCell(v) },
+    { title: '成立年份', dataIndex: 'founded_year', key: 'founded_year', width: 90,
+      render: (v) => textCell(v) },
+    { title: '地址', key: 'address', width: 180,
       render: (_: unknown, record: Customer) => {
-        const label = formatRegion(record)
-        return label ? <span className="text-sm text-slate-700">{label}</span> : <span className="text-slate-300">-</span>
+        const loc = [formatRegion(record), record.address].filter(Boolean).join(' ')
+        return loc
+          ? <Tooltip title={loc}><span className="text-sm text-slate-700 line-clamp-2">{loc}</span></Tooltip>
+          : dash
       },
     },
-    { title: t('customer.level'), dataIndex: 'level', width: 90,
+    { title: '母公司/控股说明', dataIndex: 'parent_company_note', key: 'parent_company_note', width: 160,
+      render: (v: string) => v
+        ? <Tooltip title={v}><span className="text-sm text-slate-700 line-clamp-2">{v}</span></Tooltip>
+        : dash },
+    { title: t('customer.industry'), dataIndex: 'industry', key: 'industry', width: 120,
+      render: (v) => v ? (industryMap[v] || v) : dash },
+    { title: '客户性质', dataIndex: 'customer_nature', key: 'customer_nature', width: 110,
+      render: (v) => v ? <Tag className="m-0">{v}</Tag> : dash },
+    { title: '客户关系', dataIndex: 'customer_relation', key: 'customer_relation', width: 100,
+      render: (v) => v ? <Tag className="m-0">{v}</Tag> : dash },
+    { title: '客户类型', dataIndex: 'level', key: 'level', width: 90,
       render: (v: string, record: Customer) => (
-        <EditableCell value={v} type="select" placeholder={t('customer.level')}
+        <EditableCell value={v} type="select" placeholder="A/B/C/D"
           options={[{ label: 'A', value: 'A' }, { label: 'B', value: 'B' }, { label: 'C', value: 'C' }, { label: 'D', value: 'D' }]}
           onSave={async (val) => { await customerApi.update(record.id, { level: val }); fetchData() }} />
       ),
     },
-    { title: '采购意向', dataIndex: 'intent_level', width: 92, responsive: ['lg'],
-      render: (v: string) => v
-        ? <Tag color={intentLevelColors[v] || 'default'} className="m-0">{intentLevelShortLabels[v] || v}</Tag>
-        : <span className="text-slate-300">-</span>,
-    },
-    { title: t('lead.source'), dataIndex: 'source', width: 100, responsive: ['lg'],
-      render: (v) => v ? (sourceLabels[v] || v) : <span className="text-slate-300">-</span> },
-    { title: t('customer.status'), dataIndex: 'status', width: 80,
+    { title: '主联系人职位', dataIndex: 'primary_contact_title', key: 'primary_contact_title', width: 130,
+      render: (v) => textCell(v) },
+    { title: '工资及保险', dataIndex: 'wage_insurance_status', key: 'wage_insurance_status', width: 110,
+      render: (v) => v ? <Tag color={v === '正常' ? 'red' : 'default'} className="m-0">{v}</Tag> : dash },
+    { title: '业务员', dataIndex: 'owner_name', key: 'owner_name', width: 100,
+      render: (v) => textCell(v) },
+    { title: '客户简称', dataIndex: 'short_name', key: 'short_name', width: 120,
+      render: (v) => textCell(v) },
+    { title: '客户来源', dataIndex: 'source', key: 'source', width: 100,
+      render: (v) => v ? (sourceLabels[v] || v) : dash },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 80,
       render: (v) => (
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${v === 'active' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-          <span className="text-sm font-medium text-slate-600">{v === 'active' ? '活跃' : '不活跃'}</span>
+          <span className="text-sm font-medium text-slate-600">{v === 'active' ? '在用' : '停用'}</span>
         </div>
       ),
     },
-    { title: '跟进状态', key: 'idle', width: 112, responsive: ['lg'],
+    { title: '审核态', dataIndex: 'review_status', key: 'review_status', width: 96,
+      render: (v: string) => {
+        const rs = v || 'approved'
+        const cfg = customerReviewStatusConfig[rs] || customerReviewStatusConfig.approved
+        return (
+          <span className={`inline-flex px-2 py-0.5 rounded text-[12px] font-bold border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+            {cfg.label}
+          </span>
+        )
+      },
+    },
+    { title: '跟进', key: 'idle', width: 112,
       render: (_: unknown, record: Customer) => {
         const d = record.idle_days
-        if (d == null) return <span className="text-slate-300">-</span>
+        if (d == null) return dash
         const recycleAt = record.expected_recycle_at ? new Date(record.expected_recycle_at) : null
         const overdue = recycleAt ? recycleAt.getTime() < Date.now() : d >= 30
         const cls = overdue ? 'text-rose-600 font-semibold' : d >= 14 ? 'text-amber-600' : 'text-slate-500'
@@ -248,17 +290,65 @@ export default function CustomerList() {
           : <span className={`text-sm ${cls}`}>{label}</span>
       },
     },
-    { title: '标签', dataIndex: 'tags_json', width: 150, responsive: ['lg'],
+
+    // —— 默认隐藏，列设置可调出（外贸 / 开票 / 智能化备案等）——
+    { title: '国家/地区', dataIndex: 'country', key: 'country', width: 100, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '客户代码', dataIndex: 'foreign_customer_code', key: 'foreign_customer_code', width: 110, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '外贸客户类型', dataIndex: 'foreign_customer_type', key: 'foreign_customer_type', width: 110, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '关注产品', dataIndex: 'focus_product', key: 'focus_product', width: 110, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '邮箱', dataIndex: 'customer_email', key: 'customer_email', width: 160, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '主页', dataIndex: 'website', key: 'website', width: 140, __optIn: true as any,
+      render: (v: string) => v
+        ? <a href={v.startsWith('http') ? v : `https://${v}`} target="_blank" rel="noreferrer" className="text-sm text-primary truncate block max-w-[130px]">{v}</a>
+        : dash },
+    { title: '主营产品', dataIndex: 'main_products_json', key: 'main_products_json', width: 140, __optIn: true as any,
+      render: (v: string[] | null) => Array.isArray(v) && v.length
+        ? <div className="flex gap-1 flex-wrap">{v.slice(0, 3).map((p) => <Tag key={p} className="m-0 text-[12px]">{p}</Tag>)}{v.length > 3 && <span className="text-[12px] text-slate-400">+{v.length - 3}</span>}</div>
+        : dash },
+    { title: '企业法人', dataIndex: 'legal_person', key: 'legal_person', width: 100, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '员工人数', dataIndex: 'headcount', key: 'headcount', width: 90, align: 'right', __optIn: true as any,
+      render: (v: number | null) => numCell(v) },
+    { title: '业务部门', dataIndex: 'department_name', key: 'department_name', width: 120, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '行业分类', dataIndex: 'smart_industry_category', key: 'smart_industry_category', width: 120, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '年运行天数', dataIndex: 'annual_run_days', key: 'annual_run_days', width: 100, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '占地面积', dataIndex: 'floor_area', key: 'floor_area', width: 100, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '年用电量', dataIndex: 'annual_power_usage', key: 'annual_power_usage', width: 100, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '日运营小时', dataIndex: 'daily_operate_hours', key: 'daily_operate_hours', width: 100, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '是否公司客户', dataIndex: 'is_company_customer', key: 'is_company_customer', width: 110, __optIn: true as any,
+      render: (v: boolean | null) => ynTag(v) },
+    { title: '纳税人识别号', dataIndex: 'taxpayer_id', key: 'taxpayer_id', width: 180, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '开票地址电话', dataIndex: 'invoice_address_phone', key: 'invoice_address_phone', width: 160, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '开户行帐号', dataIndex: 'bank_account', key: 'bank_account', width: 160, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '规模等级', dataIndex: 'scale_level', key: 'scale_level', width: 90, __optIn: true as any,
+      render: (v) => textCell(v) },
+    { title: '采购意向', dataIndex: 'intent_level', key: 'intent_level', width: 92, __optIn: true as any,
+      render: (v: string) => v
+        ? <Tag color={intentLevelColors[v] || 'default'} className="m-0">{intentLevelShortLabels[v] || v}</Tag>
+        : dash },
+    { title: '标签', dataIndex: 'tags_json', key: 'tags_json', width: 150, __optIn: true as any,
       render: (v: string[]) => v?.length ? (
         <div className="flex gap-1 flex-wrap">{v.slice(0, 3).map((tag) => <Tag key={tag} className="text-[12px] m-0">{tag}</Tag>)}{v.length > 3 && <span className="text-[12px] text-slate-400">+{v.length - 3}</span>}</div>
-      ) : <span className="text-slate-300">-</span>,
-    },
-    { title: t('common.owner'), dataIndex: 'owner_name', width: 100,
-      render: (v) => v || <span className="text-slate-300">-</span> },
-    { title: '结单', dataIndex: 'won_deal_count', width: 64, responsive: ['xl'], align: 'center',
+      ) : dash },
+    { title: '结单', dataIndex: 'won_deal_count', key: 'won_deal_count', width: 64, align: 'center', __optIn: true as any,
       render: (v: number) => v ? <span className="font-semibold text-emerald-600">{v}</span> : <span className="text-slate-300">0</span> },
-    { title: t('common.createdAt'), dataIndex: 'created_at', width: 110, responsive: ['xl'],
-      render: (v) => v ? <span className="text-sm text-slate-500">{new Date(v).toLocaleDateString('zh-CN')}</span> : '-' },
+    { title: '录入人', dataIndex: 'created_by_name', key: 'created_by_name', width: 100, __optIn: true as any,
+      render: (v) => textCell(v) },
+
     { title: '', key: 'actions', width: 150, fixed: 'right',
       render: (_, record) => (
         <Space size={0}>

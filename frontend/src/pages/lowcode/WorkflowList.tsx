@@ -21,6 +21,7 @@ const STATUS_TAG: Record<string, { color: string; text: string }> = {
 const BIZ_TYPE_LABEL: Record<string, string> = {
   order: '订单',
   lead: '线索',
+  customer: '客户信息',
   service_ticket: '售后工单',
   quote_version: '报价单',
   contract_version: '合同版本（登记运营）',
@@ -33,6 +34,7 @@ const BIZ_TYPE_LABEL: Record<string, string> = {
 const BIZ_TYPE_OPTIONS = [
   { label: '订单', value: 'order' },
   { label: '线索', value: 'lead' },
+  { label: '客户信息', value: 'customer' },
   { label: '售后工单', value: 'service_ticket' },
   { label: '报价单', value: 'quote_version' },
   { label: '合同版本（登记运营 / 签署前）', value: 'contract_version' },

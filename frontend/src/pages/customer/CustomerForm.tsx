@@ -180,8 +180,11 @@ export default function CustomerForm() {
     owner_name?: string; match_type?: string; match_phone?: string; match_contact?: string
   }[]>([])
   const dupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [reviewStatus, setReviewStatus] = useState<string | undefined>()
 
   const isForeignTrade = Form.useWatch('is_foreign_trade', form)
+  const canSubmitApproval = !toPool && (!isEdit || reviewStatus === 'draft')
+  const editLocked = isEdit && reviewStatus === 'rejected'
 
   const checkDuplicates = useCallback((name?: string, phone?: string) => {
     if (dupTimerRef.current) clearTimeout(dupTimerRef.current)
@@ -202,11 +205,29 @@ export default function CustomerForm() {
 
   useEffect(() => {
     if (id) {
-      customerApi.get(id).then((res) => {
+      customerApi.get(id).then(async (res) => {
         const d: Record<string, unknown> = { ...res.data }
+        const rs = res.data.review_status as string | undefined
+        if (rs === 'rejected') {
+          message.warning('客户信息已被驳回，不可继续编辑或重新提交')
+          navigate(`/customers/${id}`, { replace: true })
+          return
+        }
+        if (rs === 'pending') {
+          try {
+            const { workflowApi } = await import('@/api/lowcodeWorkflow')
+            const wf = await workflowApi.byBiz({ biz_type: 'customer', biz_id: id! })
+            if (wf.data?.status === 'running') {
+              message.warning('审批中的客户不可编辑')
+              navigate(`/customers/${id}`, { replace: true })
+              return
+            }
+          } catch { /* 无流程则允许编辑 */ }
+        }
         if (d.expected_purchase_date) d.expected_purchase_date = dayjs(d.expected_purchase_date as string)
         form.setFieldsValue(d)
         setCustomFields((res.data.custom_fields_json as Record<string, unknown>) || {})
+        setReviewStatus(rs)
         if (res.data.created_at) {
           setCreatedAtDisplay(dayjs(res.data.created_at as string).format('YYYY-MM-DD'))
         }
@@ -265,11 +286,13 @@ export default function CustomerForm() {
     }
   }
 
-  const onFinish = async (values: Record<string, unknown>) => {
-    const cfError = customFieldsRef.current?.validate()
-    if (cfError) {
-      message.error(cfError)
-      return
+  const onFinish = async (values: Record<string, unknown>, andSubmit: boolean) => {
+    if (andSubmit) {
+      const cfError = customFieldsRef.current?.validate()
+      if (cfError) {
+        message.error(cfError)
+        return
+      }
     }
     setLoading(true)
     try {
@@ -284,11 +307,33 @@ export default function CustomerForm() {
       let customerId = id
       if (isEdit) {
         await customerApi.update(id!, payload)
-        message.success('客户已更新')
-      } else {
-        const res = await customerApi.create(payload, toPool)
+        if (andSubmit && canSubmitApproval) {
+          try {
+            await customerApi.submitReview(id!)
+            message.success('已提交审批，请在详情页查看流程动态')
+          } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+            message.warning(msg || '已保存，但提交审批失败，请到详情页重新提交')
+            navigate(`/customers/${id}`)
+            return
+          }
+        } else {
+          message.success(canSubmitApproval ? '已存为草稿' : '客户已更新')
+        }
+      } else if (toPool) {
+        const res = await customerApi.create(payload, true)
         customerId = res.data.id
-        message.success(toPool ? '已新建到公海' : '客户已创建')
+        message.success('已新建到公海')
+      } else if (andSubmit) {
+        const res = await customerApi.create(payload)
+        customerId = res.data.id
+        message.success(res?.data?.review_status === 'pending'
+          ? '已提交审批，等待审核'
+          : '客户已创建')
+      } else {
+        const res = await customerApi.create({ ...payload, as_draft: true })
+        customerId = res.data.id
+        message.success('已存为草稿')
       }
       if (customerId && (hasContactContent(contactRows) || initialContactIds.length)) {
         await syncContacts(customerId)
@@ -301,12 +346,38 @@ export default function CustomerForm() {
         else if (ok) setOrgChartPending([])
       }
       clearDraft()
-      navigate(toPool ? '/customers/pool' : '/customers')
+      navigate(toPool ? '/customers/pool' : (customerId ? `/customers/${customerId}` : '/customers'))
     } catch {
       message.error('保存失败，请重试')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSave = async (andSubmit: boolean) => {
+    if (editLocked) {
+      message.warning(reviewStatus === 'rejected'
+        ? '客户信息已被驳回，不可编辑'
+        : '审批中不可编辑，请到详情页查看流程')
+      return
+    }
+    let values: Record<string, unknown>
+    try {
+      if (andSubmit || !canSubmitApproval) {
+        values = await form.validateFields()
+      } else {
+        await form.validateFields(['name'])
+        values = form.getFieldsValue(true)
+      }
+    } catch (err: unknown) {
+      const fields = (err as { errorFields?: { name: (string | number)[]; errors: string[] }[] })?.errorFields || []
+      const first = fields[0]?.errors?.[0]
+      message.warning(first || (andSubmit ? '请完善必填项后再提交' : '请填写客户名称后再存草稿'))
+      const name = fields[0]?.name
+      if (name?.length) form.scrollToField(name)
+      return
+    }
+    await onFinish(values, andSubmit)
   }
 
   const ownerField = !toPool ? (
@@ -318,18 +389,21 @@ export default function CustomerForm() {
   return (
     <div>
       <h2 className="text-xl font-semibold mb-4">{isEdit ? '编辑客户' : '新建客户'}</h2>
+      {!toPool && !isEdit && (
+        <p className="text-sm text-slate-500 mb-3">可先存草稿，完善后提交客户信息审批；驳回后不可再提交。</p>
+      )}
       <Card>
         <FieldPolicyProvider entityType="customer" form={form} customFieldValues={customFields}>
           <Form
             form={form}
             layout="vertical"
-            onFinish={onFinish}
             onValuesChange={markDirty}
             className="max-w-6xl"
-            initialValues={{ is_foreign_trade: false, is_smart_filing: false }}
+            initialValues={{ is_foreign_trade: false, is_smart_filing: false, need_info_distribute: false }}
+            disabled={editLocked}
           >
-            {/* 顶栏 4 列：编号 | 日期 | 智能化 | 外贸 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4">
+            {/* 顶栏：编号 | 日期 | 智能化 | 外贸 | 信息分发 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-x-4">
               <PolicyItem name="customer_code" label="客户编号">
                 <Input placeholder="自动生成无需填写" disabled={!isEdit} readOnly={!isEdit} />
               </PolicyItem>
@@ -340,6 +414,9 @@ export default function CustomerForm() {
                 <Radio.Group options={YES_NO} />
               </PolicyItem>
               <PolicyItem name="is_foreign_trade" label="是否外贸客户" rules={[{ required: true, message: '请选择' }]}>
+                <Radio.Group options={YES_NO} />
+              </PolicyItem>
+              <PolicyItem name="need_info_distribute" label="信息分发-客户" rules={[{ required: true, message: '请选择' }]}>
                 <Radio.Group options={YES_NO} />
               </PolicyItem>
             </div>
@@ -639,8 +716,17 @@ export default function CustomerForm() {
               <CustomFieldsPanel ref={customFieldsRef} entityType="customer" values={customFields} onChange={setCustomFields} />
             </div>
             <Form.Item>
-              <Button type="primary" htmlType="submit" loading={loading}>保存</Button>
-              <Button className="ml-2" onClick={() => navigate('/customers')}>取消</Button>
+              {toPool ? (
+                <Button type="primary" loading={loading} onClick={() => void handleSave(false)}>保存到公海</Button>
+              ) : canSubmitApproval ? (
+                <>
+                  <Button type="primary" loading={loading} onClick={() => void handleSave(true)}>提交审批</Button>
+                  <Button className="ml-2" loading={loading} onClick={() => void handleSave(false)}>存草稿</Button>
+                </>
+              ) : (
+                <Button type="primary" loading={loading} disabled={editLocked} onClick={() => void handleSave(false)}>保存</Button>
+              )}
+              <Button className="ml-2" onClick={() => navigate(toPool ? '/customers/pool' : '/customers')}>取消</Button>
             </Form.Item>
           </Form>
         </FieldPolicyProvider>

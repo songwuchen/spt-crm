@@ -204,7 +204,7 @@ export default function MobileLeadDetail() {
             />
             {reviewStatus === 'draft' && '草稿未提交'}
             {reviewStatus === 'pending' && '待内勤审核'}
-            {reviewStatus === 'rejected' && '已回退'}
+            {reviewStatus === 'rejected' && '已驳回'}
             {reviewStatus === 'attacked' && '已标记袭击'}
           </div>
           {reviewStatus === 'draft' && (
@@ -212,13 +212,14 @@ export default function MobileLeadDetail() {
           )}
           {reviewStatus === 'rejected' && (
             <div className="text-sm text-slate-600 mt-1">
-              {lead.reject_reason ? `回退原因：${lead.reject_reason}` : '请修改后重新提交审核。'}
+              项目不可再报备，请勿继续跟进。
+              {lead.reject_reason ? ` 驳回原因：${lead.reject_reason}` : ''}
             </div>
           )}
           {reviewStatus === 'attacked' && (
             <div className="text-sm text-slate-600 mt-1">袭击状态不可转化为客户。</div>
           )}
-          {(reviewStatus === 'draft' || reviewStatus === 'rejected') && (
+          {reviewStatus === 'draft' && (
             <button onClick={handleResubmit}
               className="mt-2 w-full py-2 bg-primary text-white rounded-lg text-sm font-bold">
               提交审批

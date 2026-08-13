@@ -1,0 +1,1162 @@
+{
+  "success": true,
+  "data": {
+    "fields": [
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "客户编号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1692323789695",
+        "type": "sn"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "日期时间",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667981138982",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "是否智能化客户信息备案",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061395",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "是否外贸客户",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667897249539",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "客户名称",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1550801790532",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "注册资金（万元）",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1551421199691",
+        "type": "number"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "实缴资本（万元）",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1563241281600",
+        "type": "number"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "成立年份",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "name": "_widget_1551421199707",
+        "type": "datetime",
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "地址",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1563241281630",
+        "type": "address"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "母公司或者控股公司情况及性质说明",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1574409842018",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "所属行业",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1551421199771",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "工业升级",
+            "text": "工业升级"
+          },
+          {
+            "value": "循环经济",
+            "text": "循环经济"
+          },
+          {
+            "value": "基建民生",
+            "text": "基建民生"
+          },
+          {
+            "value": "技术改造",
+            "text": "技术改造"
+          },
+          {
+            "value": "其他",
+            "text": "其他"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "客户性质",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1551421199720",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "一般民企",
+            "text": "一般民企"
+          },
+          {
+            "value": "国企控股",
+            "text": "国企控股"
+          },
+          {
+            "value": "国有企业",
+            "text": "国有企业"
+          },
+          {
+            "value": "上市公司",
+            "text": "上市公司"
+          },
+          {
+            "value": "其他",
+            "text": "其他"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "客户关系",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1551421199747",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "直接关系",
+            "text": "直接关系"
+          },
+          {
+            "value": "间接关系",
+            "text": "间接关系"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "客户类型",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1647328668474",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "A",
+            "text": "A"
+          },
+          {
+            "value": "B",
+            "text": "B"
+          },
+          {
+            "value": "C",
+            "text": "C"
+          },
+          {
+            "value": "D",
+            "text": "D"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "主联系人职位",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1554344295175",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "一般员工",
+            "text": "一般员工"
+          },
+          {
+            "value": "主管级别",
+            "text": "主管级别"
+          },
+          {
+            "value": "部门经理级别",
+            "text": "部门经理级别"
+          },
+          {
+            "value": "副总经理级别",
+            "text": "副总经理级别"
+          },
+          {
+            "value": "总经理及董事长级别",
+            "text": "总经理及董事长级别"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "客户工资及保险情况",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1575182943140",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "正常",
+            "text": "正常"
+          },
+          {
+            "value": "正常有拖欠",
+            "text": "正常有拖欠"
+          },
+          {
+            "value": "非正常",
+            "text": "非正常"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "联系人明细",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1551422869504",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "联系人",
+            "labelHidden": false,
+            "name": "_widget_1551422869633",
+            "type": "text",
+            "subform": "_widget_1551422869504"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "所在部门",
+            "labelHidden": false,
+            "name": "_widget_1551422869657",
+            "type": "text",
+            "subform": "_widget_1551422869504"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "职位",
+            "labelHidden": false,
+            "name": "_widget_1551422869672",
+            "type": "combo",
+            "subform": "_widget_1551422869504",
+            "items": [
+              {
+                "value": "一般员工",
+                "text": "一般员工"
+              },
+              {
+                "value": "主管级别",
+                "text": "主管级别"
+              },
+              {
+                "value": "部门经理级别",
+                "text": "部门经理级别"
+              },
+              {
+                "value": "副总经理级别",
+                "text": "副总经理级别"
+              },
+              {
+                "value": "总经理及董事长级别",
+                "text": "总经理及董事长级别"
+              }
+            ],
+            "colorEnable": false
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "电话",
+            "labelHidden": false,
+            "name": "_widget_1551422869689",
+            "type": "text",
+            "subform": "_widget_1551422869504"
+          }
+        ]
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "国外客户信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1667288061399",
+        "type": "separator"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "国家/地区",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667897249538",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "业务员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667897249205",
+        "type": "user"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "客户简称*",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667897249207",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "客户代码",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667897249218",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "国别*",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667200058647",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "客户类型*",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667897249258",
+        "type": "combo",
+        "items": [
+          {
+            "value": "合作客户",
+            "text": "合作客户"
+          },
+          {
+            "value": "潜在客户",
+            "text": "潜在客户"
+          },
+          {
+            "value": "合作供应商",
+            "text": "合作供应商"
+          },
+          {
+            "value": "潜在供应商",
+            "text": "潜在供应商"
+          },
+          {
+            "value": "合作货贷商",
+            "text": "合作货贷商"
+          },
+          {
+            "value": "验货公司",
+            "text": "验货公司"
+          },
+          {
+            "value": "合作会展商",
+            "text": "合作会展商"
+          },
+          {
+            "value": "合作推广商",
+            "text": "合作推广商"
+          },
+          {
+            "value": "潜在推广商",
+            "text": "潜在推广商"
+          },
+          {
+            "value": "潜在货代商",
+            "text": "潜在货代商"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "关注产品",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667897249303",
+        "type": "combo",
+        "items": [
+          {
+            "value": "旋振筛",
+            "text": "旋振筛"
+          },
+          {
+            "value": "检验筛",
+            "text": "检验筛"
+          },
+          {
+            "value": "振动筛",
+            "text": "振动筛"
+          },
+          {
+            "value": "高幅筛",
+            "text": "高幅筛"
+          },
+          {
+            "value": "熔剂筛",
+            "text": "熔剂筛"
+          },
+          {
+            "value": "节肢筛",
+            "text": "节肢筛"
+          },
+          {
+            "value": "圆振筛",
+            "text": "圆振筛"
+          },
+          {
+            "value": "直线筛",
+            "text": "直线筛"
+          },
+          {
+            "value": "球团筛",
+            "text": "球团筛"
+          },
+          {
+            "value": "香蕉筛",
+            "text": "香蕉筛"
+          },
+          {
+            "value": "弧形筛",
+            "text": "弧形筛"
+          },
+          {
+            "value": "脱泥脱介筛",
+            "text": "脱泥脱介筛"
+          },
+          {
+            "value": "轻型筛",
+            "text": "轻型筛"
+          },
+          {
+            "value": "落砂机",
+            "text": "落砂机"
+          },
+          {
+            "value": "给料机",
+            "text": "给料机"
+          },
+          {
+            "value": "输送机",
+            "text": "输送机"
+          },
+          {
+            "value": "破碎机",
+            "text": "破碎机"
+          },
+          {
+            "value": "破碎筛分生产线",
+            "text": "破碎筛分生产线"
+          },
+          {
+            "value": "备件",
+            "text": "备件"
+          },
+          {
+            "value": "其他",
+            "text": "其他"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "客户来源",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667897249305",
+        "type": "combo",
+        "items": [
+          {
+            "value": "电话",
+            "text": "电话"
+          },
+          {
+            "value": "展会",
+            "text": "展会"
+          },
+          {
+            "value": "阿里",
+            "text": "阿里"
+          },
+          {
+            "value": "QQ",
+            "text": "QQ"
+          },
+          {
+            "value": "TQ",
+            "text": "TQ"
+          },
+          {
+            "value": "ETW",
+            "text": "ETW"
+          },
+          {
+            "value": "GM",
+            "text": "GM"
+          },
+          {
+            "value": "Trade2cn",
+            "text": "Trade2cn"
+          },
+          {
+            "value": "Tradekey",
+            "text": "Tradekey"
+          },
+          {
+            "value": "Direct Industry",
+            "text": "Direct Industry"
+          },
+          {
+            "value": "搜索",
+            "text": "搜索"
+          },
+          {
+            "value": "康帕斯",
+            "text": "康帕斯"
+          },
+          {
+            "value": "2014阿布扎比",
+            "text": "2014阿布扎比"
+          },
+          {
+            "value": "Bauma-2014上海",
+            "text": "Bauma-2014上海"
+          },
+          {
+            "value": "LINKEDIN",
+            "text": "LINKEDIN"
+          },
+          {
+            "value": "Bauma-2014-India",
+            "text": "Bauma-2014-India"
+          },
+          {
+            "value": "其他",
+            "text": "其他"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "邮箱*",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667200058649",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "主页",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1667897249391",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "主营产品",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1667897249287",
+        "type": "checkboxgroup",
+        "items": [
+          {
+            "value": "冶金",
+            "text": "冶金"
+          },
+          {
+            "value": "煤炭",
+            "text": "煤炭"
+          },
+          {
+            "value": "矿山",
+            "text": "矿山"
+          },
+          {
+            "value": "焦化",
+            "text": "焦化"
+          },
+          {
+            "value": "电力",
+            "text": "电力"
+          },
+          {
+            "value": "食品",
+            "text": "食品"
+          },
+          {
+            "value": "医药",
+            "text": "医药"
+          },
+          {
+            "value": "化工",
+            "text": "化工"
+          },
+          {
+            "value": "砂石骨料，制砂",
+            "text": "砂石骨料，制砂"
+          },
+          {
+            "value": "水处理",
+            "text": "水处理"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "联系人信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1667897249229",
+        "type": "subform",
+        "pc_sticky_column": {
+          "enable": false,
+          "limit": 1
+        },
+        "items": [
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "联系人姓名",
+            "labelHidden": false,
+            "name": "_widget_1667897249231",
+            "type": "text",
+            "subform": "_widget_1667897249229"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "邮件地址",
+            "labelHidden": false,
+            "name": "_widget_1667897249232",
+            "type": "text",
+            "subform": "_widget_1667897249229",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "职位",
+            "labelHidden": false,
+            "name": "_widget_1667897249233",
+            "type": "text",
+            "subform": "_widget_1667897249229",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "联系人电话",
+            "labelHidden": false,
+            "name": "_widget_1667897249234",
+            "type": "text",
+            "subform": "_widget_1667897249229",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "传真",
+            "labelHidden": false,
+            "name": "_widget_1667897249235",
+            "type": "text",
+            "subform": "_widget_1667897249229",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "联系人生日",
+            "labelHidden": false,
+            "name": "_widget_1667897249236",
+            "type": "text",
+            "subform": "_widget_1667897249229",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "QQ",
+            "labelHidden": false,
+            "name": "_widget_1667897249237",
+            "type": "text",
+            "subform": "_widget_1667897249229",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "MSN",
+            "labelHidden": false,
+            "name": "_widget_1667897249238",
+            "type": "text",
+            "subform": "_widget_1667897249229",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "Skype",
+            "labelHidden": false,
+            "name": "_widget_1667897249239",
+            "type": "text",
+            "subform": "_widget_1667897249229",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "旺旺号码",
+            "labelHidden": false,
+            "name": "_widget_1667897249240",
+            "type": "text",
+            "subform": "_widget_1667897249229",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "快件地址",
+            "labelHidden": false,
+            "name": "_widget_1667897249241",
+            "type": "text",
+            "subform": "_widget_1667897249229",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "备注",
+            "labelHidden": false,
+            "name": "_widget_1667897249242",
+            "type": "text",
+            "subform": "_widget_1667897249229",
+            "fieldWidth": "custom"
+          },
+          {
+            "id": "5c6f5b7ed6ff36235a34e66d",
+            "form": "5c6f5b7ed6ff36235a34e66d",
+            "text": "状态",
+            "labelHidden": false,
+            "name": "_widget_1667897249243",
+            "type": "radiogroup",
+            "subform": "_widget_1667897249229",
+            "items": [
+              {
+                "value": "在用",
+                "text": "在用"
+              },
+              {
+                "value": "停用",
+                "text": "停用"
+              }
+            ],
+            "colorEnable": false,
+            "fieldWidth": "custom"
+          }
+        ]
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "智能化项目客户信息备案信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1667288061378",
+        "type": "separator"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "企业法人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061379",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "企业员工人数",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061382",
+        "type": "number"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "公司负责对接人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061392",
+        "type": "user"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "公司负责对接人（辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061381",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "业务部门",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1702428618530",
+        "type": "dept"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "所属行业分类",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061380",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "年运行天数",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061384",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "占地面积",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061385",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "企业财务状况",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061386",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "企业经营状况",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061387",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "年用电量",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061388",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "日运营小时数",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1667288061389",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "企业组织架构图",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1667288061390",
+        "type": "image"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "开票信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1563267441261",
+        "type": "separator"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "纳税人识别号",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1563267441269",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "地址电话",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1563267441285",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "开户行帐号",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1563267441315",
+        "type": "text"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "是否公司客户",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "name": "_widget_1563440544239",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": true
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "其他",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "name": "_widget_1725603196094",
+        "type": "separator"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "是否跟进",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1702108611956",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "跟进状态",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1702108846109",
+        "type": "number"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "辅助",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1702108846210",
+        "type": "number"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "信息分发-客户（231209增加辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1702105473914",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "是",
+            "text": "是"
+          },
+          {
+            "value": "否",
+            "text": "否"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "text": "信息来源（231209增加辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "name": "_widget_1702105473916",
+        "type": "radiogroup",
+        "items": [
+          {
+            "value": "经理分配",
+            "text": "经理分配"
+          },
+          {
+            "value": "信息情报部分配",
+            "text": "信息情报部分配"
+          },
+          {
+            "value": "自己获取",
+            "text": "自己获取"
+          }
+        ],
+        "colorEnable": false
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "name": "creator",
+        "type": "user",
+        "text": "提交人"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "name": "createTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "提交时间"
+      },
+      {
+        "id": "5c6f5b7ed6ff36235a34e66d",
+        "form": "5c6f5b7ed6ff36235a34e66d",
+        "name": "updateTime",
+        "type": "datetime",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "text": "更新时间"
+      }
+    ]
+  }
+}

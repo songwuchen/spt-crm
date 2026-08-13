@@ -384,7 +384,7 @@ export default function LeadList() {
       },
     },
     {
-      title: '回退原因', dataIndex: 'reject_reason', key: 'reject_reason', width: 140,
+      title: '驳回原因', dataIndex: 'reject_reason', key: 'reject_reason', width: 140,
       render: (v: string) => v
         ? <span className="text-sm text-slate-600 line-clamp-2" title={v}>{v}</span>
         : emptyCell(),

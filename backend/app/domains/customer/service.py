@@ -12,6 +12,86 @@ from app.domains.audit.service import log_action
 from app.common.code_generator import generate_code
 
 
+CUSTOMER_DEFAULT_FLOW_CODE = "SYS_CUSTOMER_INFO"
+
+
+async def submit_customer_review(db: AsyncSession, tenant_id: str, customer: Customer, user: dict):
+    """提交客户信息审批（对齐简道云客户信息流）。"""
+    from app.domains.lowcode.workflow_service import ensure_default_definition, start_for_biz
+
+    title = f"客户信息审批: {(customer.customer_code + ' ') if customer.customer_code else ''}{customer.name}"
+    await ensure_default_definition(
+        db, tenant_id, biz_type="customer", code=CUSTOMER_DEFAULT_FLOW_CODE, name="客户信息审批",
+        approver_rule={
+            "type": "specified_user", "value": "03303022525221387032", "exclude_initiator": True,
+        },
+        multi_mode="or_sign", empty_strategy="auto_approve",
+    )
+    return await start_for_biz(db, tenant_id, "customer", customer.id, user, title=title)
+
+
+async def _apply_customer_review_flow(
+    db: AsyncSession, tenant_id: str, customer: Customer, inst, user: dict,
+) -> None:
+    """把审核流程发起结果落到客户上。"""
+    if inst is None:
+        customer.review_status = "approved"
+        customer.reject_reason = None
+        await db.commit()
+        return
+    if inst.status != "running":
+        await db.refresh(customer)
+    customer.review_flow_id = inst.id
+    await db.commit()
+
+
+async def resubmit_customer_review(
+    db: AsyncSession, tenant_id: str, customer_id: str, user: dict,
+) -> Customer:
+    """草稿客户提交审核。驳回为终态，不可再提。"""
+    customer = await get_customer(db, tenant_id, customer_id, user)
+    rs = getattr(customer, "review_status", None)
+    if rs == "rejected":
+        raise BusinessException(
+            code=VALIDATION_ERROR,
+            message="客户信息已被驳回，不可重新提交",
+        )
+    if rs != "draft":
+        raise BusinessException(code=VALIDATION_ERROR, message="仅草稿客户可提交审批")
+
+    from app.domains.lowcode.field_permission import (
+        enforce_native_field_policy, validate_entity_custom_fields,
+    )
+    await enforce_native_field_policy(
+        db, tenant_id, "customer", {}, customer, user.get("roles"), required_scope="all")
+    await validate_entity_custom_fields(
+        db, tenant_id, "customer", getattr(customer, "custom_fields_json", None) or {},
+        user.get("roles"),
+        context={"name": customer.name, "customer_code": customer.customer_code},
+    )
+
+    customer.review_status = "pending"
+    customer.reject_reason = None
+    await db.commit()
+    try:
+        inst = await submit_customer_review(db, tenant_id, customer, user)
+    except Exception as e:
+        await db.rollback()
+        customer = await get_customer(db, tenant_id, customer_id)
+        customer.review_status = "draft"
+        await db.commit()
+        raise BusinessException(code=VALIDATION_ERROR, message=f"提交审批失败: {e}") from e
+    await _apply_customer_review_flow(db, tenant_id, customer, inst, user)
+    await db.refresh(customer)
+    await log_action(
+        db, tenant_id=tenant_id, user_id=user["sub"],
+        user_name=user.get("real_name") or user.get("username"),
+        action="submit_review", resource_type="customer", resource_id=customer.id,
+        summary=f"提交客户信息审批: {customer.name}",
+    )
+    return customer
+
+
 # ==================== 采购意向 / 归属 / 冗余指标 helpers ====================
 
 # 采购意向类别（友商「客户类别」）推档：距今天数 → A/B/C/D，独立于价值等级 level。
@@ -195,6 +275,7 @@ async def get_customer(
 
 async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate, user: dict) -> Customer:
     dump = data.model_dump()
+    as_draft = bool(dump.pop("as_draft", False))
     # 字段级权限：丢弃用户对不可编辑/隐藏扩展字段的写入
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
@@ -202,14 +283,16 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
     dump["custom_fields_json"] = await sanitize_entity_write(
         db, tenant_id, "customer", dump.get("custom_fields_json"), None, user.get("roles"))
     await validate_entity_custom_fields(
-        db, tenant_id, "customer", dump["custom_fields_json"], user.get("roles"), context=dump)
+        db, tenant_id, "customer", dump["custom_fields_json"], user.get("roles"),
+        context=dump, skip_required=as_draft)
     # 业务员目录默认必填：校验前先落到创建人，避免公海新建（前端传空）被策略误拦；
     # 公海路由在 create 之后仍会清空 owner。
     if not dump.get("owner_id"):
         dump["owner_id"] = user.get("sub")
     # 原生字段策略：读取侧已按角色隐藏/脱敏，写入侧必须对称拦截，
     # 否则拿到 "***" 的用户一提交就会把真实值覆盖掉
-    dump = await enforce_native_field_policy(db, tenant_id, "customer", dump, None, user.get("roles"))
+    dump = await enforce_native_field_policy(
+        db, tenant_id, "customer", dump, None, user.get("roles"), skip_required=as_draft)
     if not dump.get("customer_code"):
         dump["customer_code"] = await generate_code(db, tenant_id, "customer")
     # Resolve owner_name from owner_id if provided; default to creator
@@ -235,6 +318,7 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
         created_by_name=_uname,
         updated_by_id=user.get("sub"),
         updated_by_name=_uname,
+        review_status="draft" if as_draft else "pending",
         **dump,
     )
     db.add(customer)
@@ -245,6 +329,25 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
     await db.commit()
     await db.refresh(customer)
 
+    if not as_draft:
+        try:
+            inst = await submit_customer_review(db, tenant_id, customer, user)
+        except Exception:
+            await db.rollback()
+            customer = await get_customer(db, tenant_id, customer.id)
+            customer.review_status = "draft"
+            await db.commit()
+            await db.refresh(customer)
+            await log_action(
+                db, tenant_id=tenant_id, user_id=user["sub"],
+                user_name=user.get("real_name") or user.get("username"),
+                action="create", resource_type="customer", resource_id=customer.id,
+                summary=f"创建客户(审批发起失败已存草稿): {customer.name}",
+            )
+            return customer
+        await _apply_customer_review_flow(db, tenant_id, customer, inst, user)
+        await db.refresh(customer)
+
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="create", resource_type="customer", resource_id=customer.id,
                      summary=f"创建客户: {customer.name}")
@@ -253,6 +356,14 @@ async def create_customer(db: AsyncSession, tenant_id: str, data: CustomerCreate
 
 async def update_customer(db: AsyncSession, tenant_id: str, customer_id: str, data: CustomerUpdate, user: dict) -> Customer:
     customer = await get_customer(db, tenant_id, customer_id, user)
+    rs = getattr(customer, "review_status", None) or "approved"
+    if rs == "rejected":
+        raise BusinessException(
+            code=VALIDATION_ERROR,
+            message="客户信息已被驳回，不可继续编辑或重新提交",
+        )
+    from app.domains.lowcode.edit_lock import assert_customer_editable
+    await assert_customer_editable(db, tenant_id, customer.id, rs)
     update_data = data.model_dump(exclude_unset=True)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
     from app.domains.lowcode.field_permission import (

@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
-import { menuGroups, PROTECTED_MENU_KEYS } from '@/config/menus'
+import { menuGroups, PROTECTED_MENU_KEYS, flattenMenuItems, type MenuItem } from '@/config/menus'
 import { t } from '@/locales'
 import { useApprovalPendingCount } from '@/hooks/useApprovalPendingCount'
 
@@ -9,7 +10,7 @@ import Icon from '@/components/Icon'
 
 /** 侧栏高亮：按菜单项 key 最长前缀匹配；无匹配时不高亮（勿回落到工作台）。 */
 function getSelectedKey(pathname: string): string {
-  const keys = menuGroups.flatMap((g) => g.items.map((i) => i.key))
+  const keys = flattenMenuItems().map((i) => i.key)
   let best = ''
   let bestLen = 0
   for (const key of keys) {
@@ -27,6 +28,24 @@ function getSelectedKey(pathname: string): string {
   return best
 }
 
+function permOk(item: MenuItem, hasPermission: (p: string) => boolean): boolean {
+  if (!item.permission) return true
+  if (Array.isArray(item.permission)) return item.permission.some((p) => hasPermission(p))
+  return hasPermission(item.permission)
+}
+
+function isItemVisible(
+  item: MenuItem,
+  hasPermission: (p: string) => boolean,
+  hiddenSet: Set<string>,
+): boolean {
+  if (hiddenSet.has(item.key) && !PROTECTED_MENU_KEYS.includes(item.key)) return false
+  if (item.children?.length) {
+    return item.children.some((c) => isItemVisible(c, hasPermission, hiddenSet))
+  }
+  return permOk(item, hasPermission)
+}
+
 export default function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -40,6 +59,23 @@ export default function Sidebar() {
   const hiddenSet = new Set(hiddenMenus)
   const brandName = systemName || 'SPT-CRM'
 
+  const [openSubs, setOpenSubs] = useState<Record<string, boolean>>({})
+
+  // 当前路由落在某子菜单下时自动展开
+  useEffect(() => {
+    for (const g of menuGroups) {
+      for (const item of g.items) {
+        if (!item.children?.length) continue
+        if (item.children.some((c) => c.key === selectedKey)) {
+          setOpenSubs((prev) => (prev[item.key] ? prev : { ...prev, [item.key]: true }))
+        }
+      }
+    }
+  }, [selectedKey])
+
+  const toggleSub = (key: string) =>
+    setOpenSubs((prev) => ({ ...prev, [key]: !prev[key] }))
+
   return (
     <div className="sidebar-root">
       {/* Logo */}
@@ -51,30 +87,61 @@ export default function Sidebar() {
       {/* Menu Groups */}
       <div className="sidebar-menu">
         {menuGroups.map((group) => {
-          // 整组被隐藏 → 跳过
           if (hiddenSet.has(group.key)) return null
-          const visibleItems = group.items.filter((item) => {
-            const permOk = !item.permission
-              || (Array.isArray(item.permission)
-                ? item.permission.some((p) => hasPermission(p))
-                : hasPermission(item.permission))
-            if (permOk) {
-              // 系统配置入口永不隐藏，避免管理员锁死
-              return !hiddenSet.has(item.key) || PROTECTED_MENU_KEYS.includes(item.key)
-            }
-            return false
-          })
+          const visibleItems = group.items.filter((item) => isItemVisible(item, hasPermission, hiddenSet))
           if (visibleItems.length === 0) return null
           return (
             <div key={group.key} className="sidebar-group">
               <div className="sidebar-group-title">{menuAliases[group.key] || t(group.titleKey)}</div>
               <nav className="sidebar-group-nav">
                 {visibleItems.map((item) => {
+                  if (item.children?.length) {
+                    const kids = item.children.filter((c) => isItemVisible(c, hasPermission, hiddenSet))
+                    if (kids.length === 0) return null
+                    const opened = !!openSubs[item.key]
+                    const childActive = kids.some((c) => c.key === selectedKey)
+                    return (
+                      <div key={item.key} className="sidebar-sub">
+                        <button
+                          type="button"
+                          onClick={() => toggleSub(item.key)}
+                          className={`sidebar-item sidebar-item--parent ${childActive ? 'sidebar-item--parent-active' : ''}`}
+                        >
+                          <Icon name={item.icon} className="sidebar-item-icon" />
+                          <span className="sidebar-item-label">{menuAliases[item.key] || t(item.labelKey)}</span>
+                          <Icon
+                            name={opened ? 'expand_less' : 'expand_more'}
+                            className="sidebar-item-chevron"
+                          />
+                        </button>
+                        {opened && (
+                          <div className="sidebar-sub-nav">
+                            {kids.map((child) => {
+                              const isActive = selectedKey === child.key
+                              return (
+                                <button
+                                  key={child.key}
+                                  type="button"
+                                  onClick={() => navigate(child.key)}
+                                  className={`sidebar-item sidebar-item--child ${isActive ? 'sidebar-item--active' : ''}`}
+                                >
+                                  <Icon name={child.icon} className="sidebar-item-icon" />
+                                  <span className="sidebar-item-label">{menuAliases[child.key] || t(child.labelKey)}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+
                   const isActive = selectedKey === item.key
                   const badge = item.key === '/approvals' ? approvalPendingCount : 0
                   return (
                     <button
                       key={item.key}
+                      type="button"
                       onClick={() => navigate(item.key)}
                       className={`sidebar-item ${isActive ? 'sidebar-item--active' : ''}`}
                     >
@@ -180,6 +247,17 @@ export default function Sidebar() {
           flex-direction: column;
           gap: 2px;
         }
+        .sidebar-sub-nav {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          margin: 2px 0 6px 18px;
+          padding: 4px 0 4px 10px;
+          border-left: 2px solid #e2e8f0;
+        }
+        .dark .sidebar-sub-nav {
+          border-left-color: #334155;
+        }
 
         /* ── Menu Item ── */
         .sidebar-item {
@@ -195,6 +273,16 @@ export default function Sidebar() {
           transition: all 0.15s ease;
           font-family: inherit;
         }
+        .sidebar-item--child {
+          padding: 8px 10px;
+          gap: 10px;
+        }
+        .sidebar-item--child .sidebar-item-icon {
+          font-size: 18px !important;
+        }
+        .sidebar-item--child .sidebar-item-label {
+          font-size: 13px;
+        }
         .sidebar-item-icon {
           font-size: 20px !important;
           line-height: 1;
@@ -205,6 +293,11 @@ export default function Sidebar() {
           flex: 1;
           text-align: left;
           min-width: 0;
+        }
+        .sidebar-item-chevron {
+          font-size: 18px !important;
+          opacity: 0.7;
+          flex-shrink: 0;
         }
         .sidebar-item-badge {
           margin-left: auto;
@@ -240,6 +333,13 @@ export default function Sidebar() {
         .dark .sidebar-item:not(.sidebar-item--active):hover {
           background: #1e293b;
           color: #e2e8f0;
+        }
+        .sidebar-item--parent-active:not(.sidebar-item--active) {
+          color: #137fec;
+          font-weight: 600;
+        }
+        .sidebar-item--parent-active .sidebar-item-label {
+          font-weight: 600;
         }
 
         /* Active state */

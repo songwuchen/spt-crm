@@ -118,7 +118,7 @@ app.add_middleware(
 # --- Middleware (order: outermost first) ---
 app.add_middleware(TraceMiddleware)
 app.add_middleware(TenantMiddleware)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=120)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.RATE_LIMIT_PER_MINUTE)
 app.add_middleware(OpenApiCallLogMiddleware)
 
 

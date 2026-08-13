@@ -37,6 +37,7 @@ export function bizEntityPath(
   const p = mobile ? '/m' : ''
   const map: Record<string, string> = {
     lead: `${p}/leads/${bizId}`,
+    customer: `${p}/customers/${bizId}`,
     order: `${p}/orders/${bizId}`,
     service_ticket: `${p}/service-tickets/${bizId}`,
     contract_review: `${p}/contract-reviews/${bizId}`,
@@ -296,11 +297,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     ? '合同登记信息'
                     : detail.biz_type === 'lead'
                       ? '申报信息（创建时填写）'
-                      : detail.biz_type === 'contract_review'
-                        ? '合同评审信息'
-                        : detail.biz_type === 'tech_agreement_review'
-                          ? '技术协议评审信息'
-                          : '业务信息'}
+                      : detail.biz_type === 'customer'
+                        ? '客户信息'
+                        : detail.biz_type === 'contract_review'
+                          ? '合同评审信息'
+                          : detail.biz_type === 'tech_agreement_review'
+                            ? '技术协议评审信息'
+                            : '业务信息'}
                 </div>
                 {fields.length ? (
                   <FormRenderer
@@ -335,7 +338,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       <div
                         key={k}
                         className={`flex gap-2 text-sm min-w-0 ${
-                          ['备注1（线索内容）', '备注：请示部门经理的结果', '详细地址', '回退原因', '备注2', '操作意见', '备注'].includes(k)
+                          ['备注1（线索内容）', '备注：请示部门经理的结果', '详细地址', '回退原因', '备注2', '操作意见', '备注', '核心需求', '母公司或者控股公司情况及性质说明'].includes(k)
                             ? 'sm:col-span-2'
                             : ''
                         }`}
@@ -353,6 +356,11 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                 {detail.biz_type === 'lead' && detail.biz_id && (
                   <div className="mt-4">
                     <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
+                  </div>
+                )}
+                {detail.biz_type === 'customer' && detail.biz_id && (
+                  <div className="mt-4">
+                    <AttachmentPanel bizType="customer" bizId={detail.biz_id} title="附件" compact />
                   </div>
                 )}
                 {detail.biz_type === 'tech_agreement_review' && detail.biz_id && (
@@ -407,12 +415,12 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                         buttonStyle="solid"
                         options={[
                           { value: 'include', label: '收录' },
-                          { value: 'return', label: '回退' },
+                          { value: 'return', label: '驳回' },
                           { value: 'attack', label: '袭击' },
                         ]}
                       />
                       {leadFinalStatus === 'return' && (
-                        <div className="mt-2 text-xs text-amber-700">回退须在上方填写「回退原因」</div>
+                        <div className="mt-2 text-xs text-amber-700">驳回须在上方填写原因；驳回后不可再报备</div>
                       )}
                     </div>
                   )}

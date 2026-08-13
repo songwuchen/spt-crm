@@ -1,0 +1,2347 @@
+{
+  "_id": "5c6f5b7eddb1a55eae1d7716",
+  "appId": "56ca77ce1efc301d279b8a4d",
+  "entryId": "5c6f5b7ed6ff36235a34e66d",
+  "name": "客户信息",
+  "content": {
+    "items": [
+      {
+        "description": "",
+        "label": "客户编号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "type": "sn",
+          "widgetName": "_widget_1692323789695",
+          "rules": [
+            {
+              "type": "fixedChars",
+              "chars": "C-"
+            },
+            {
+              "format": "yyyyMMdd",
+              "formatType": "custom",
+              "type": "createTime"
+            },
+            {
+              "type": "incNumber",
+              "digitsNum": 3,
+              "fixedLength": true,
+              "resetDuration": "day",
+              "startValue": 1
+            }
+          ],
+          "enable": false
+        }
+      },
+      {
+        "description": "",
+        "label": "日期时间",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "datetime",
+          "widgetName": "_widget_1667981138982",
+          "format": "yyyy-MM-dd",
+          "value": "today",
+          "rely": null
+        }
+      },
+      {
+        "description": "",
+        "label": "是否智能化客户信息备案",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1667288061395",
+          "items": [
+            {
+              "value": "是",
+              "text": "是",
+              "color": "#FA5353",
+              "selected": false
+            },
+            {
+              "value": "否",
+              "text": "否",
+              "color": "#F5C13C",
+              "selected": false
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": "",
+        "label": "是否外贸客户",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1667897249539",
+          "items": [
+            {
+              "value": "是",
+              "text": "是",
+              "color": "#FA5353",
+              "selected": false
+            },
+            {
+              "value": "否",
+              "text": "否",
+              "color": "#F5C13C",
+              "selected": false
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": "",
+        "label": "客户名称",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1550801790532",
+          "repeatRemind": "此项内容已存在，不允许重复提交",
+          "noRepeat": true
+        }
+      },
+      {
+        "description": null,
+        "label": "注册资金（万元）",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "number",
+          "widgetName": "_widget_1551421199691",
+          "displayMode": "number",
+          "precision": 2,
+          "thousandsSeparator": false
+        }
+      },
+      {
+        "description": null,
+        "label": "实缴资本（万元）",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "number",
+          "widgetName": "_widget_1563241281600",
+          "displayMode": "number",
+          "precision": 2,
+          "thousandsSeparator": false
+        }
+      },
+      {
+        "description": null,
+        "label": "成立年份",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "datetime",
+          "widgetName": "_widget_1551421199707",
+          "format": "yyyy-MM-dd"
+        }
+      },
+      {
+        "description": null,
+        "label": "地址",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "address",
+          "widgetName": "_widget_1563241281630",
+          "needDetail": true,
+          "addressLevel": 3,
+          "enableIntegrityCheck": true,
+          "value": {
+            "detail": ""
+          }
+        }
+      },
+      {
+        "description": null,
+        "label": "母公司或者控股公司情况及性质说明",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1574409842018"
+        }
+      },
+      {
+        "description": null,
+        "label": "所属行业",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1551421199771",
+          "items": [
+            {
+              "text": "工业升级",
+              "value": "工业升级",
+              "color": "#EB5050"
+            },
+            {
+              "text": "循环经济",
+              "value": "循环经济",
+              "color": "#F0A800"
+            },
+            {
+              "text": "基建民生",
+              "value": "基建民生",
+              "color": "#46C26F"
+            },
+            {
+              "text": "技术改造",
+              "value": "技术改造",
+              "color": "#A2C204"
+            },
+            {
+              "text": "其他",
+              "value": "其他",
+              "color": "#00AED1"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": null,
+        "label": "客户性质",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1551421199720",
+          "items": [
+            {
+              "text": "一般民企",
+              "value": "一般民企",
+              "color": "#EB5050"
+            },
+            {
+              "text": "国企控股",
+              "value": "国企控股",
+              "color": "#F0A800"
+            },
+            {
+              "text": "国有企业",
+              "value": "国有企业",
+              "color": "#46C26F"
+            },
+            {
+              "text": "上市公司",
+              "value": "上市公司",
+              "color": "#A2C204"
+            },
+            {
+              "text": "其他",
+              "value": "其他",
+              "isOther": true
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": null,
+        "label": "客户关系",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1551421199747",
+          "items": [
+            {
+              "text": "直接关系",
+              "value": "直接关系",
+              "color": "#EB5050"
+            },
+            {
+              "text": "间接关系",
+              "value": "间接关系",
+              "color": "#F0A800"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": null,
+        "label": "客户类型",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1647328668474",
+          "items": [
+            {
+              "text": "A",
+              "value": "A",
+              "color": "#FA5353"
+            },
+            {
+              "text": "B",
+              "value": "B",
+              "color": "#F5C13C"
+            },
+            {
+              "text": "C",
+              "value": "C",
+              "color": "#2FCD6E"
+            },
+            {
+              "text": "D",
+              "value": "D",
+              "color": "#3F8CFF"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": null,
+        "label": "主联系人职位",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1554344295175",
+          "items": [
+            {
+              "text": "一般员工",
+              "value": "一般员工",
+              "color": "#EB5050"
+            },
+            {
+              "text": "主管级别",
+              "value": "主管级别",
+              "color": "#F0A800"
+            },
+            {
+              "text": "部门经理级别",
+              "value": "部门经理级别",
+              "color": "#46C26F"
+            },
+            {
+              "text": "副总经理级别",
+              "value": "副总经理级别",
+              "color": "#A2C204"
+            },
+            {
+              "text": "总经理及董事长级别",
+              "value": "总经理及董事长级别",
+              "color": "#00AED1"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": null,
+        "label": "客户工资及保险情况",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1575182943140",
+          "items": [
+            {
+              "text": "正常",
+              "value": "正常",
+              "color": "#EB5050"
+            },
+            {
+              "text": "正常有拖欠",
+              "value": "正常有拖欠",
+              "color": "#F0A800"
+            },
+            {
+              "text": "非正常",
+              "value": "非正常",
+              "color": "#46C26F"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": null,
+        "label": "联系人明细",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": false,
+          "enable": false,
+          "allowBlank": true,
+          "type": "subform",
+          "widgetName": "_widget_1551422869504",
+          "subform_create": false,
+          "subform_insert": false,
+          "subform_edit": false,
+          "subform_delete": false,
+          "pc_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_view_style": "vertical",
+          "items": [
+            {
+              "label": "联系人",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1551422869633"
+              }
+            },
+            {
+              "label": "所在部门",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1551422869657"
+              }
+            },
+            {
+              "label": "职位",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "combo",
+                "widgetName": "_widget_1551422869672",
+                "colorEnable": false,
+                "items": [
+                  {
+                    "text": "一般员工",
+                    "value": "一般员工"
+                  },
+                  {
+                    "text": "主管级别",
+                    "value": "主管级别"
+                  },
+                  {
+                    "text": "部门经理级别",
+                    "value": "部门经理级别"
+                  },
+                  {
+                    "text": "副总经理级别",
+                    "value": "副总经理级别"
+                  },
+                  {
+                    "text": "总经理及董事长级别",
+                    "value": "总经理及董事长级别"
+                  }
+                ]
+              }
+            },
+            {
+              "label": "电话",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1551422869689"
+              }
+            }
+          ],
+          "quick_fill": true
+        }
+      },
+      {
+        "description": "",
+        "label": "国外客户信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1667288061399",
+          "lineStyle": "style1",
+          "lineColor": "#00897F",
+          "labelColor": "#FFFFFF"
+        }
+      },
+      {
+        "description": "",
+        "label": "国家/地区",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667897249538"
+        }
+      },
+      {
+        "description": "",
+        "label": "业务员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "user",
+          "widgetName": "_widget_1667897249205",
+          "limit": {
+            "departs": [
+              "56ca5b8af97e80434fc06128",
+              "56ca5b8af97e80434fc06126",
+              "56ca5b8af97e80434fc0611b",
+              "5a9fa0ada21496c4066c2c4c",
+              "59dc5c5f0b18743912395106",
+              "56ca5b8af97e80434fc06124",
+              "65d397f47d6f29a2ffe03fea"
+            ]
+          }
+        }
+      },
+      {
+        "description": "",
+        "label": "客户简称*",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667897249207",
+          "regexType": "",
+          "value": null,
+          "rely": {
+            "widgets": [
+              "_widget_1550801790532"
+            ],
+            "formula": {
+              "type": "formula",
+              "text": "公式",
+              "formula": "LEFT($_widget_1550801790532#,4)"
+            }
+          }
+        }
+      },
+      {
+        "description": "",
+        "label": "客户代码",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667897249218"
+        }
+      },
+      {
+        "description": "",
+        "label": "国别*",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667200058647"
+        }
+      },
+      {
+        "description": "",
+        "label": "客户类型*",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "combo",
+          "widgetName": "_widget_1667897249258",
+          "colorEnable": false,
+          "items": [
+            {
+              "value": "合作客户",
+              "text": "合作客户"
+            },
+            {
+              "value": "潜在客户",
+              "text": "潜在客户"
+            },
+            {
+              "value": "合作供应商",
+              "text": "合作供应商"
+            },
+            {
+              "value": "潜在供应商",
+              "text": "潜在供应商",
+              "color": "#3F8CFF"
+            },
+            {
+              "value": "合作货贷商",
+              "text": "合作货贷商",
+              "color": "#D144F4"
+            },
+            {
+              "value": "验货公司",
+              "text": "验货公司",
+              "color": "#656565"
+            },
+            {
+              "value": "合作会展商",
+              "text": "合作会展商",
+              "color": "#FF9D8D"
+            },
+            {
+              "value": "合作推广商",
+              "text": "合作推广商",
+              "color": "#A5C71C"
+            },
+            {
+              "value": "潜在推广商",
+              "text": "潜在推广商",
+              "color": "#00C7C7"
+            },
+            {
+              "value": "潜在货代商",
+              "text": "潜在货代商",
+              "color": "#7957FF"
+            }
+          ]
+        }
+      },
+      {
+        "description": "",
+        "label": "关注产品",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "combo",
+          "widgetName": "_widget_1667897249303",
+          "colorEnable": false,
+          "items": [
+            {
+              "value": "旋振筛",
+              "text": "旋振筛"
+            },
+            {
+              "value": "检验筛",
+              "text": "检验筛"
+            },
+            {
+              "value": "振动筛",
+              "text": "振动筛"
+            },
+            {
+              "value": "高幅筛",
+              "text": "高幅筛",
+              "color": "#3F8CFF"
+            },
+            {
+              "value": "熔剂筛",
+              "text": "熔剂筛",
+              "color": "#D144F4"
+            },
+            {
+              "value": "节肢筛",
+              "text": "节肢筛",
+              "color": "#656565"
+            },
+            {
+              "value": "圆振筛",
+              "text": "圆振筛",
+              "color": "#FF9D8D"
+            },
+            {
+              "value": "直线筛",
+              "text": "直线筛",
+              "color": "#A5C71C"
+            },
+            {
+              "value": "球团筛",
+              "text": "球团筛",
+              "color": "#00C7C7"
+            },
+            {
+              "value": "香蕉筛",
+              "text": "香蕉筛",
+              "color": "#7957FF"
+            },
+            {
+              "value": "弧形筛",
+              "text": "弧形筛",
+              "color": "#F24BAF"
+            },
+            {
+              "value": "脱泥脱介筛",
+              "text": "脱泥脱介筛",
+              "color": "#B3B3B3"
+            },
+            {
+              "value": "轻型筛",
+              "text": "轻型筛",
+              "color": "#FA5353"
+            },
+            {
+              "value": "落砂机",
+              "text": "落砂机",
+              "color": "#F5C13C"
+            },
+            {
+              "value": "给料机",
+              "text": "给料机",
+              "color": "#2FCD6E"
+            },
+            {
+              "value": "输送机",
+              "text": "输送机",
+              "color": "#3F8CFF"
+            },
+            {
+              "value": "破碎机",
+              "text": "破碎机",
+              "color": "#D144F4"
+            },
+            {
+              "value": "破碎筛分生产线",
+              "text": "破碎筛分生产线",
+              "color": "#656565"
+            },
+            {
+              "value": "备件",
+              "text": "备件",
+              "color": "#FF9D8D"
+            },
+            {
+              "text": "其他",
+              "value": "其他",
+              "isOther": true
+            }
+          ]
+        }
+      },
+      {
+        "description": "",
+        "label": "客户来源",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "combo",
+          "widgetName": "_widget_1667897249305",
+          "colorEnable": false,
+          "items": [
+            {
+              "value": "电话",
+              "text": "电话",
+              "color": "#FA5353"
+            },
+            {
+              "value": "展会",
+              "text": "展会",
+              "color": "#F5C13C"
+            },
+            {
+              "value": "阿里",
+              "text": "阿里",
+              "color": "#2FCD6E"
+            },
+            {
+              "value": "QQ",
+              "text": "QQ",
+              "color": "#3F8CFF"
+            },
+            {
+              "value": "TQ",
+              "text": "TQ",
+              "color": "#D144F4"
+            },
+            {
+              "value": "ETW",
+              "text": "ETW",
+              "color": "#656565"
+            },
+            {
+              "value": "GM",
+              "text": "GM",
+              "color": "#FF9D8D"
+            },
+            {
+              "value": "Trade2cn",
+              "text": "Trade2cn",
+              "color": "#A5C71C"
+            },
+            {
+              "value": "Tradekey",
+              "text": "Tradekey",
+              "color": "#00C7C7"
+            },
+            {
+              "value": "Direct Industry",
+              "text": "Direct Industry",
+              "color": "#7957FF"
+            },
+            {
+              "value": "搜索",
+              "text": "搜索",
+              "color": "#F24BAF"
+            },
+            {
+              "value": "康帕斯",
+              "text": "康帕斯",
+              "color": "#B3B3B3"
+            },
+            {
+              "value": "2014阿布扎比",
+              "text": "2014阿布扎比",
+              "color": "#FA5353"
+            },
+            {
+              "value": "Bauma-2014上海",
+              "text": "Bauma-2014上海",
+              "color": "#F5C13C"
+            },
+            {
+              "value": "LINKEDIN",
+              "text": "LINKEDIN",
+              "color": "#2FCD6E"
+            },
+            {
+              "value": "Bauma-2014-India",
+              "text": "Bauma-2014-India",
+              "color": "#3F8CFF"
+            },
+            {
+              "text": "其他",
+              "value": "其他",
+              "isOther": true
+            }
+          ]
+        }
+      },
+      {
+        "description": "",
+        "label": "邮箱*",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667200058649",
+          "regexType": "email"
+        }
+      },
+      {
+        "description": "",
+        "label": "主页",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667897249391",
+          "regexType": "email"
+        }
+      },
+      {
+        "description": "",
+        "label": "主营产品",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "checkboxgroup",
+          "widgetName": "_widget_1667897249287",
+          "items": [
+            {
+              "value": "冶金",
+              "text": "冶金",
+              "color": "#EB5050"
+            },
+            {
+              "value": "煤炭",
+              "text": "煤炭",
+              "color": "#F0A800"
+            },
+            {
+              "value": "矿山",
+              "text": "矿山",
+              "color": "#46C26F"
+            },
+            {
+              "value": "焦化",
+              "text": "焦化",
+              "color": "#A2C204"
+            },
+            {
+              "value": "电力",
+              "text": "电力",
+              "color": "#00AED1"
+            },
+            {
+              "value": "食品",
+              "text": "食品",
+              "color": "#5865F5"
+            },
+            {
+              "value": "医药",
+              "text": "医药",
+              "color": "#C643E0"
+            },
+            {
+              "value": "化工",
+              "text": "化工",
+              "color": "#F0437D"
+            },
+            {
+              "value": "砂石骨料，制砂",
+              "text": "砂石骨料，制砂",
+              "color": "#FA8118"
+            },
+            {
+              "value": "水处理",
+              "text": "水处理",
+              "color": "#D6C504"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true,
+          "allowAddOptions": false
+        }
+      },
+      {
+        "description": "",
+        "label": "联系人信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "subform",
+          "widgetName": "_widget_1667897249229",
+          "subform_create": true,
+          "subform_insert": true,
+          "subform_edit": true,
+          "subform_delete": true,
+          "pc_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_view_style": "vertical",
+          "items": [
+            {
+              "label": "联系人姓名",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "text",
+                "widgetName": "_widget_1667897249231"
+              }
+            },
+            {
+              "label": "邮件地址",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "text",
+                "widgetName": "_widget_1667897249232",
+                "fieldWidth": "custom",
+                "customWidth": 274
+              }
+            },
+            {
+              "label": "职位",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1667897249233",
+                "fieldWidth": "custom",
+                "customWidth": 130
+              }
+            },
+            {
+              "label": "联系人电话",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "text",
+                "widgetName": "_widget_1667897249234",
+                "fieldWidth": "custom",
+                "customWidth": 151,
+                "regexType": "mobile"
+              }
+            },
+            {
+              "label": "传真",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1667897249235",
+                "fieldWidth": "custom",
+                "customWidth": 151
+              }
+            },
+            {
+              "label": "联系人生日",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1667897249236",
+                "fieldWidth": "custom",
+                "customWidth": 151
+              }
+            },
+            {
+              "label": "QQ",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1667897249237",
+                "fieldWidth": "custom",
+                "customWidth": 115
+              }
+            },
+            {
+              "label": "MSN",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1667897249238",
+                "fieldWidth": "custom",
+                "customWidth": 112
+              }
+            },
+            {
+              "label": "Skype",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1667897249239",
+                "fieldWidth": "custom",
+                "customWidth": 112
+              }
+            },
+            {
+              "label": "旺旺号码",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1667897249240",
+                "fieldWidth": "custom",
+                "customWidth": 112
+              }
+            },
+            {
+              "label": "快件地址",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1667897249241",
+                "fieldWidth": "custom",
+                "customWidth": 112
+              }
+            },
+            {
+              "label": "备注",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1667897249242",
+                "fieldWidth": "custom",
+                "customWidth": 112
+              }
+            },
+            {
+              "label": "状态",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "radiogroup",
+                "widgetName": "_widget_1667897249243",
+                "fieldWidth": "custom",
+                "customWidth": 112,
+                "items": [
+                  {
+                    "value": "在用",
+                    "text": "在用",
+                    "selected": true
+                  },
+                  {
+                    "value": "停用",
+                    "text": "停用",
+                    "selected": false
+                  }
+                ],
+                "layout": "vertical",
+                "colorEnable": false
+              }
+            }
+          ],
+          "value": [
+            {
+              "_widget_1667897249231": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249232": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249233": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249234": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249235": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249236": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249237": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249238": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249239": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249240": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249241": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249242": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1667897249243": {
+                "data": "在用",
+                "widgetType": "radiogroup"
+              },
+              "_widget_1746578409478": {
+                "data": "",
+                "widgetType": "text"
+              }
+            }
+          ],
+          "quick_fill": true
+        }
+      },
+      {
+        "description": "",
+        "label": "智能化项目客户信息备案信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1667288061378",
+          "lineStyle": "style1",
+          "lineColor": "#00897F",
+          "labelColor": "#FFFFFF"
+        }
+      },
+      {
+        "description": "",
+        "label": "企业法人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1667288061379"
+        }
+      },
+      {
+        "description": "",
+        "label": "企业员工人数",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "number",
+          "widgetName": "_widget_1667288061382",
+          "displayMode": "number",
+          "precision": null,
+          "thousandsSeparator": false,
+          "maxNumber": null,
+          "minNumber": null
+        }
+      },
+      {
+        "description": "",
+        "label": "公司负责对接人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "user",
+          "widgetName": "_widget_1667288061392"
+        }
+      },
+      {
+        "description": "",
+        "label": "公司负责对接人（辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667288061381",
+          "value": null,
+          "rely": {
+            "widgets": [
+              "_widget_1667288061392"
+            ],
+            "formula": {
+              "type": "formula",
+              "text": "公式",
+              "formula": "TEXTUSER($_widget_1667288061392#,'name')"
+            }
+          }
+        }
+      },
+      {
+        "description": "",
+        "label": "业务部门",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "dept",
+          "widgetName": "_widget_1702428618530",
+          "value": {
+            "_id": "110000000000000000000001",
+            "name": "当前用户所处部门"
+          },
+          "valueOption": 0
+        }
+      },
+      {
+        "description": "",
+        "label": "所属行业分类",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1667288061380"
+        }
+      },
+      {
+        "description": "",
+        "label": "年运行天数",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667288061384"
+        }
+      },
+      {
+        "description": "",
+        "label": "占地面积",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667288061385"
+        }
+      },
+      {
+        "description": "",
+        "label": "企业财务状况",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667288061386"
+        }
+      },
+      {
+        "description": "",
+        "label": "企业经营状况",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667288061387"
+        }
+      },
+      {
+        "description": "",
+        "label": "年用电量",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667288061388"
+        }
+      },
+      {
+        "description": "",
+        "label": "日运营小时数",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1667288061389"
+        }
+      },
+      {
+        "description": "",
+        "label": "企业组织架构图",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "image",
+          "widgetName": "_widget_1667288061390",
+          "maxFileCount": 10,
+          "compressed": true,
+          "onlyCamera": false,
+          "watermark": false,
+          "showStyle": "list"
+        }
+      },
+      {
+        "description": null,
+        "label": "开票信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1563267441261",
+          "lineStyle": "style1",
+          "lineColor": "#00897F",
+          "labelColor": "#FFFFFF"
+        }
+      },
+      {
+        "description": null,
+        "label": "纳税人识别号",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "hint": "一些特殊客户（个人、政府、海外），可以填无",
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1563267441269"
+        }
+      },
+      {
+        "description": null,
+        "label": "地址电话",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1563267441285"
+        }
+      },
+      {
+        "description": null,
+        "label": "开户行帐号",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1563267441315"
+        }
+      },
+      {
+        "description": "<p>公司客户是签订合同的客户，未形成合同的填否</p>",
+        "label": "是否公司客户",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1563440544239",
+          "items": [
+            {
+              "text": "是",
+              "value": "是",
+              "color": "#EB5050"
+            },
+            {
+              "text": "否",
+              "value": "否",
+              "color": "#F0A800"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": null,
+        "label": "其他",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1725603196094",
+          "lineStyle": "style1",
+          "lineColor": "#00897F",
+          "labelColor": "#FFFFFF"
+        }
+      },
+      {
+        "description": "",
+        "label": "是否跟进",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "radiogroup",
+          "widgetName": "_widget_1702108611956",
+          "items": [
+            {
+              "text": "是",
+              "value": "是",
+              "selected": false
+            },
+            {
+              "text": "否",
+              "value": "否",
+              "selected": true
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": false
+        }
+      },
+      {
+        "description": "",
+        "label": "跟进状态",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "number",
+          "widgetName": "_widget_1702108846109",
+          "displayMode": "number",
+          "precision": null,
+          "thousandsSeparator": false,
+          "maxNumber": null,
+          "minNumber": null,
+          "value": 0
+        }
+      },
+      {
+        "description": "",
+        "label": "辅助",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "number",
+          "widgetName": "_widget_1702108846210",
+          "displayMode": "number",
+          "precision": null,
+          "thousandsSeparator": false,
+          "maxNumber": null,
+          "minNumber": null,
+          "value": 1
+        }
+      },
+      {
+        "description": "",
+        "label": "信息分发-客户（231209增加辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "radiogroup",
+          "widgetName": "_widget_1702105473914",
+          "items": [
+            {
+              "value": "是",
+              "text": "是",
+              "color": "#EB5050",
+              "selected": false
+            },
+            {
+              "value": "否",
+              "text": "否",
+              "color": "#F0A800",
+              "selected": false
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": false
+        }
+      },
+      {
+        "description": "",
+        "label": "信息来源（231209增加辅助）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "radiogroup",
+          "widgetName": "_widget_1702105473916",
+          "items": [
+            {
+              "value": "经理分配",
+              "text": "经理分配",
+              "color": "#EB5050"
+            },
+            {
+              "value": "信息情报部分配",
+              "text": "信息情报部分配",
+              "color": "#F0A800"
+            },
+            {
+              "value": "自己获取",
+              "text": "自己获取",
+              "color": "#46C26F"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": false
+        }
+      }
+    ],
+    "type": "form",
+    "layout_fields": [],
+    "field_layout": [
+      "_widget_1692323789695",
+      "_widget_1667981138982",
+      "_widget_1667288061395",
+      "_widget_1667897249539",
+      "_widget_1550801790532",
+      "_widget_1551421199691",
+      "_widget_1563241281600",
+      "_widget_1551421199707",
+      "_widget_1563241281630",
+      "_widget_1574409842018",
+      "_widget_1551421199771",
+      "_widget_1551421199720",
+      "_widget_1551421199747",
+      "_widget_1647328668474",
+      "_widget_1554344295175",
+      "_widget_1575182943140",
+      "_widget_1551422869504",
+      "_widget_1667288061399",
+      "_widget_1667897249538",
+      "_widget_1667897249205",
+      "_widget_1667897249207",
+      "_widget_1667897249218",
+      "_widget_1667200058647",
+      "_widget_1667897249258",
+      "_widget_1667897249303",
+      "_widget_1667897249305",
+      "_widget_1667200058649",
+      "_widget_1667897249391",
+      "_widget_1667897249287",
+      "_widget_1667897249229",
+      "_widget_1667288061378",
+      "_widget_1667288061379",
+      "_widget_1667288061382",
+      "_widget_1667288061392",
+      "_widget_1667288061381",
+      "_widget_1702428618530",
+      "_widget_1667288061380",
+      "_widget_1667288061384",
+      "_widget_1667288061385",
+      "_widget_1667288061386",
+      "_widget_1667288061387",
+      "_widget_1667288061388",
+      "_widget_1667288061389",
+      "_widget_1667288061390",
+      "_widget_1563267441261",
+      "_widget_1563267441269",
+      "_widget_1563267441285",
+      "_widget_1563267441315",
+      "_widget_1563440544239",
+      "_widget_1725603196094",
+      "_widget_1702108611956",
+      "_widget_1702108846109",
+      "_widget_1702108846210",
+      "_widget_1702105473914",
+      "_widget_1702105473916"
+    ],
+    "validators": [],
+    "preSubmitActions": [],
+    "submitRule": 3,
+    "widget_submit_rules": {},
+    "fieldShowRules": [
+      {
+        "filter": {
+          "cond": [
+            {
+              "field": "_widget_1667288061395",
+              "type": "text",
+              "method": "in",
+              "value": [
+                "是"
+              ],
+              "hasEmpty": false
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1667288061378",
+          "_widget_1667288061379",
+          "_widget_1667288061382",
+          "_widget_1667288061380",
+          "_widget_1667288061384",
+          "_widget_1667288061385",
+          "_widget_1667288061386",
+          "_widget_1667288061387",
+          "_widget_1667288061388",
+          "_widget_1667288061389",
+          "_widget_1667288061390"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "type": "text",
+              "method": "in",
+              "value": [
+                "否"
+              ],
+              "hasEmpty": true,
+              "field": "_widget_1667897249539"
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1551421199720",
+          "_widget_1551421199691",
+          "_widget_1563241281600",
+          "_widget_1551421199747",
+          "_widget_1647328668474",
+          "_widget_1551421199707",
+          "_widget_1554344295175",
+          "_widget_1575182943140",
+          "_widget_1574409842018",
+          "_widget_1551422869504",
+          "_widget_1563267441261",
+          "_widget_1563267441269",
+          "_widget_1563267441285",
+          "_widget_1563267441315",
+          "_widget_1563440544239"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "type": "text",
+              "method": "eq",
+              "value": [
+                "是"
+              ],
+              "field": "_widget_1667897249539"
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1667288061399",
+          "_widget_1667897249538",
+          "_widget_1667897249205",
+          "_widget_1667897249207",
+          "_widget_1667897249218",
+          "_widget_1667200058647",
+          "_widget_1667897249258",
+          "_widget_1667897249303",
+          "_widget_1667897249305",
+          "_widget_1667200058649",
+          "_widget_1667897249391",
+          "_widget_1667897249287",
+          "_widget_1667897249229"
+        ]
+      }
+    ],
+    "subformFieldShowRules": {},
+    "layout": "grid-2"
+  },
+  "attr": {
+    "showFields": [
+      "label",
+      "_widget_1692323789695",
+      "_widget_1667981138982",
+      "_widget_1667288061395",
+      "_widget_1667897249539",
+      "_widget_1550801790532",
+      "_widget_1551421199691",
+      "_widget_1563241281600",
+      "_widget_1551421199707",
+      "_widget_1563241281630",
+      "_widget_1574409842018",
+      "_widget_1551421199771",
+      "_widget_1551421199720",
+      "_widget_1551421199747",
+      "_widget_1647328668474",
+      "_widget_1554344295175",
+      "_widget_1575182943140",
+      "_widget_1551422869504._widget_1551422869633",
+      "_widget_1551422869504._widget_1551422869657",
+      "_widget_1551422869504._widget_1551422869672",
+      "_widget_1551422869504._widget_1551422869689",
+      "_widget_1667897249538",
+      "_widget_1667897249205",
+      "_widget_1667897249207",
+      "_widget_1667897249218",
+      "_widget_1667200058647",
+      "_widget_1667897249258",
+      "_widget_1667897249303",
+      "_widget_1667897249305",
+      "_widget_1667200058649",
+      "_widget_1667897249391",
+      "_widget_1667897249287",
+      "_widget_1667897249229._widget_1667897249231",
+      "_widget_1667897249229._widget_1667897249232",
+      "_widget_1667897249229._widget_1667897249233",
+      "_widget_1667897249229._widget_1667897249234",
+      "_widget_1667897249229._widget_1667897249235",
+      "_widget_1667897249229._widget_1667897249236",
+      "_widget_1667897249229._widget_1667897249237",
+      "_widget_1667897249229._widget_1667897249238",
+      "_widget_1667897249229._widget_1667897249239",
+      "_widget_1667897249229._widget_1667897249240",
+      "_widget_1667897249229._widget_1667897249241",
+      "_widget_1667897249229._widget_1667897249242",
+      "_widget_1667897249229._widget_1667897249243",
+      "_widget_1667288061379",
+      "_widget_1667288061382",
+      "_widget_1667288061392",
+      "_widget_1667288061381",
+      "_widget_1702428618530",
+      "_widget_1667288061380",
+      "_widget_1667288061384",
+      "_widget_1667288061385",
+      "_widget_1667288061386",
+      "_widget_1667288061387",
+      "_widget_1667288061388",
+      "_widget_1667288061389",
+      "_widget_1667288061390",
+      "_widget_1563267441269",
+      "_widget_1563267441285",
+      "_widget_1563267441315",
+      "_widget_1563440544239",
+      "_widget_1702108611956",
+      "_widget_1702108846109",
+      "_widget_1702108846210",
+      "_widget_1702105473914",
+      "_widget_1702105473916",
+      "creator",
+      "createTime",
+      "updateTime",
+      "flowState",
+      "chargers"
+    ],
+    "showFieldsMeta": {
+      "rowCheck": {
+        "width": 35
+      },
+      "_widget_1550801790532": {
+        "width": 489
+      },
+      "_widget_1551421199771": {
+        "width": 107
+      },
+      "_widget_1551421199720": {
+        "width": 309
+      },
+      "_widget_1551421199691": {
+        "width": 150
+      },
+      "_widget_1551421199707": {
+        "width": 97
+      },
+      "_widget_1551421199747": {
+        "width": 85
+      },
+      "_widget_1550801790535": {
+        "width": 150
+      },
+      "_widget_1551422869633": {
+        "subform": "_widget_1551422869504",
+        "width": 77
+      },
+      "_widget_1551422869657": {
+        "subform": "_widget_1551422869504",
+        "width": 91
+      },
+      "_widget_1551422869672": {
+        "subform": "_widget_1551422869504",
+        "width": 82
+      },
+      "_widget_1551422869689": {
+        "subform": "_widget_1551422869504",
+        "width": 113
+      },
+      "creator": {
+        "width": 150
+      },
+      "createTime": {
+        "width": 150
+      },
+      "updateTime": {
+        "width": 150
+      },
+      "_widget_1692323789695": {
+        "width": 120
+      },
+      "label": {
+        "width": 305
+      },
+      "_widget_1667200058649": {
+        "width": 496
+      }
+    },
+    "isPublic": false,
+    "isQuery": false,
+    "hasExtParams": false,
+    "extParams": [],
+    "hasCoop": false,
+    "hasFlow": true,
+    "hasCache": true,
+    "flow": {
+      "designVer": [],
+      "flowVer": "3",
+      "verId": 3,
+      "versions": [
+        {
+          "ver": "1"
+        },
+        {
+          "ver": "2",
+          "hasManagerChainNode": false,
+          "theme": 1
+        },
+        {
+          "ver": "3",
+          "hasManagerChainNode": false,
+          "theme": 2
+        }
+      ]
+    },
+    "parent": "5cd22a8027eedd529db328aa",
+    "comment": {
+      "enable": false,
+      "channels": [
+        "site"
+      ]
+    },
+    "mobileLayout": {
+      "label": {
+        "layout": "vertical"
+      },
+      "description": {
+        "visible": true
+      }
+    },
+    "pcLayout": {
+      "label": {
+        "layout": "vertical"
+      },
+      "description": {
+        "visible": true
+      },
+      "input": {
+        "width": "normal"
+      }
+    },
+    "formEvents": [],
+    "submit_btn": {},
+    "draft_btn": {},
+    "maxWidgetCount": 500,
+    "quick_edit_status": "open",
+    "authGroupDisplayMode": 2,
+    "isPublicData": false,
+    "publicOptAuth": {}
+  },
+  "is_system_form": false,
+  "dataPermOperations": [
+    {
+      "value": "flow_read",
+      "text": "查看"
+    },
+    {
+      "value": "flow_create",
+      "text": "添加"
+    },
+    {
+      "value": "flow_copy",
+      "text": "复制"
+    },
+    {
+      "value": "flow_update",
+      "text": "编辑"
+    },
+    {
+      "value": "flow_delete",
+      "text": "删除"
+    },
+    {
+      "value": "flow_transfer",
+      "text": "调整流程负责人"
+    },
+    {
+      "value": "flow_close",
+      "text": "结束流程"
+    },
+    {
+      "value": "flow_activate",
+      "text": "激活流程"
+    },
+    {
+      "value": "flow_batch_print",
+      "text": "批量打印"
+    },
+    {
+      "value": "flow_batch_update",
+      "text": "批量修改"
+    },
+    {
+      "value": "flow_export",
+      "text": "导出"
+    },
+    {
+      "value": "flow_import",
+      "text": "导入"
+    }
+  ],
+  "optAuthConfigPerm": {
+    "_widget_1692323789695": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1667981138982": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061395": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667897249539": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1550801790532": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1551421199691": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1563241281600": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1551421199707": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1563241281630": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1574409842018": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1551421199771": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1551421199720": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1551421199747": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1647328668474": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1554344295175": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1575182943140": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1551422869504": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061399": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1667897249538": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667897249205": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667897249207": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667897249218": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667200058647": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667897249258": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667897249303": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667897249305": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667200058649": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667897249391": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667897249287": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667897249229": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061378": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1667288061379": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061382": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061392": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061381": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1702428618530": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061380": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061384": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061385": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061386": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061387": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061388": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061389": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1667288061390": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1563267441261": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1563267441269": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1563267441285": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1563267441315": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1563440544239": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1725603196094": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1702108611956": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1702108846109": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1702108846210": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1702105473914": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1702105473916": {
+      "visible": true,
+      "editable": true
+    }
+  },
+  "printList": [
+    {
+      "id": "system",
+      "name": "系统打印"
+    }
+  ],
+  "canSearchAllFields": false,
+  "relationshipList": [],
+  "syncFields": {}
+}

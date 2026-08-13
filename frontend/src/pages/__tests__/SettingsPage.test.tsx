@@ -41,6 +41,8 @@ vi.mock('@/api/settings', () => ({
     auditVerify: vi.fn(),
     getPoolRules: vi.fn(),
     updatePoolRules: vi.fn(),
+    getLeadReactivation: vi.fn(),
+    updateLeadReactivation: vi.fn(),
     getReportSchedules: vi.fn(),
     updateReportSchedules: vi.fn(),
     getUiSettings: vi.fn(),
@@ -107,6 +109,9 @@ describe('SettingsPage', () => {
     ;(settingsApi.backupStats as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} })
     ;(settingsApi.backupDownloadUrl as ReturnType<typeof vi.fn>).mockReturnValue('/api/v1/admin/backup')
     ;(settingsApi.getPoolRules as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} })
+    ;(settingsApi.getLeadReactivation as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { enabled: true, days: 180, scan_time: '09:00', skip_reporter_names: ['张贺'] },
+    })
     ;(settingsApi.getReportSchedules as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] })
     ;(settingsApi.getUiSettings as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { system_name: null, menu_aliases: {}, hidden_menus: [] } })
     ;(settingsApi.updateUiSettings as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { system_name: null, menu_aliases: {}, hidden_menus: [] } })

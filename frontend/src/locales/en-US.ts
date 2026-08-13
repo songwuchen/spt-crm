@@ -66,7 +66,7 @@ const enUS = {
     groupMasterData: 'Master Data',
     groupFinance: 'Finance',
     groupProductService: 'Products & Service',
-    groupDrawings: 'Drawings',
+    groupDrawings: 'Scheme Management',
     groupInbox: 'Approvals & Alerts',
     groupOps: 'Operations',
     groupLowcode: 'Platform',

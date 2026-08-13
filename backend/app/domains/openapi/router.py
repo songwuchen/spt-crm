@@ -475,7 +475,36 @@ async def create_customer(
     ctx: OpenApiContext = Depends(require_scope("crm.customer.write")),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a customer (unassigned/public pool). Requires ``Idempotency-Key``."""
+    """Create or upsert a customer (unassigned/public pool). Requires ``Idempotency-Key``.
+
+    Same key + same body → replay stored response.
+    Same key + different body (e.g. 简道云回刷补字段) → update the original
+    customer instead of ``409 CRM_IDEMPOTENCY_CONFLICT``.
+    When ``customer_code`` matches an existing tenant customer → update that row.
+    """
+    import hashlib
+    from app.domains.openapi.idempotency import _lookup, run_idempotent
+
+    key = request.headers.get("Idempotency-Key")
+    if key:
+        raw = await request.body()
+        req_hash = hashlib.sha256(
+            (request.method + "\n" + request.url.path + "\n").encode() + (raw or b"")
+        ).hexdigest()
+        existing = await _lookup(db, ctx.tenant_id, ctx.app_key, key)
+        if (
+            existing
+            and existing.status == "completed"
+            and existing.request_hash != req_hash
+        ):
+            customer_id = (existing.response_json or {}).get("id")
+            if customer_id:
+                data = await service.update_customer_from_openapi(db, ctx, customer_id, body)
+                existing.request_hash = req_hash
+                existing.response_json = data
+                await db.commit()
+                return _ok(request, {**data, "idempotent_update": True})
+
     async def producer():
         return await service.create_customer_from_openapi(db, ctx, body)
     return _ok(request, await run_idempotent(db, ctx, request, producer))

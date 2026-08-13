@@ -75,10 +75,15 @@ class LeadCreate(BaseModel):
     site_visit: Optional[str] = Field(None, max_length=500)
     report_project_status: Optional[str] = Field(None, max_length=50)
     assess_remark: Optional[str] = Field(None, max_length=2000)
+    # 评估区（简道云审批填写）
+    customer_newness: Optional[LeadCustomerNewness] = None  # new / old
+    reject_reason: Optional[str] = Field(None, max_length=2000)
     products: Optional[List[LeadProductIn]] = None
     custom_fields_json: Optional[dict] = None
     # True=仅落库不启审（存草稿）；False/默认=创建后自动提交情报审批
     as_draft: bool = False
+    # 外部指定项目号（如简道云「项目编号」）；有值则跳过 CRM 自增规则。
+    lead_code: Optional[str] = Field(None, max_length=64)
 
     @field_validator("contact_email")
     @classmethod
@@ -134,8 +139,12 @@ class LeadUpdate(BaseModel):
     site_visit: Optional[str] = Field(None, max_length=500)
     report_project_status: Optional[str] = Field(None, max_length=50)
     assess_remark: Optional[str] = Field(None, max_length=2000)
+    customer_newness: Optional[LeadCustomerNewness] = None
+    reject_reason: Optional[str] = Field(None, max_length=2000)
     products: Optional[List[LeadProductIn]] = None
     custom_fields_json: Optional[dict] = None
+    # 开放平台补全/更正项目号（如简道云「项目编号」）
+    lead_code: Optional[str] = Field(None, max_length=64)
 
     @field_validator("contact_email")
     @classmethod
@@ -144,7 +153,7 @@ class LeadUpdate(BaseModel):
 
 
 class LeadIntelReviewIn(BaseModel):
-    """情报审批裁定：收录 / 袭击 / 回退 / 暂存。"""
+    """情报审批裁定：收录 / 袭击 / 驳回 / 暂存。"""
     decision: LeadIntelDecision
     task_id: str = Field(..., min_length=1, max_length=36)
     customer_newness: Optional[LeadCustomerNewness] = None
@@ -157,7 +166,7 @@ class LeadIntelReviewIn(BaseModel):
         if self.decision in ("include", "attack", "return") and not self.customer_newness:
             raise ValueError("请选择客户类型（新/老）")
         if self.decision == "return" and not (self.return_reason or "").strip():
-            raise ValueError("回退须填写回退原因")
+            raise ValueError("驳回须填写驳回原因")
         return self
 
 

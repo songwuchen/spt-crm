@@ -546,8 +546,9 @@ async def test_intel_attack_blocks_qualify(client, db, lead_intel_user):
 
 @pytest.mark.asyncio
 async def test_intel_return_writes_reason(client, db, lead_intel_user):
-    """回退 → rejected + reject_reason。"""
+    """回退 → rejected + reject_reason，且不可再提交审核。"""
     from app.domains.lead import service as lead_svc
+    from app.common.exceptions import BusinessException
 
     _ = client
     initiator = await _admin_user(db)
@@ -563,6 +564,20 @@ async def test_intel_return_writes_reason(client, db, lead_intel_user):
     )
     assert lead.review_status == "rejected"
     assert lead.reject_reason == "资料不全"
+
+    with pytest.raises(BusinessException) as ei:
+        await lead_svc.resubmit_lead_review(
+            db, DEMO_TENANT, lead_id,
+            {"sub": initiator["sub"], "real_name": "发起人", "username": "u", "roles": ["admin"]},
+        )
+    assert "驳回" in ei.value.message
+
+    with pytest.raises(BusinessException) as ei2:
+        await lead_svc.qualify_lead(
+            db, DEMO_TENANT, lead_id,
+            {"sub": initiator["sub"], "real_name": "发起人", "username": "u"},
+        )
+    assert "驳回" in ei2.value.message
 
 
 @pytest.mark.asyncio

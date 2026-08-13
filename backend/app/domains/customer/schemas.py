@@ -7,6 +7,7 @@ class CustomerJdyFields(BaseModel):
     """简道云客户信息对齐字段。"""
     is_smart_filing: Optional[bool] = None
     is_foreign_trade: Optional[bool] = None
+    need_info_distribute: Optional[bool] = None
     registered_capital: Optional[float] = None
     paid_in_capital: Optional[float] = None
     founded_year: Optional[int] = Field(None, ge=1800, le=2100)
@@ -36,6 +37,7 @@ class CustomerJdyFields(BaseModel):
 
 class CustomerCreate(CustomerJdyFields):
     name: str = Field(..., min_length=1, max_length=200)
+    as_draft: bool = False  # True=仅存草稿不发起客户信息审批
     customer_code: Optional[str] = Field(None, max_length=64)
     short_name: Optional[str] = Field(None, max_length=100)
     industry: Optional[str] = None
@@ -147,6 +149,9 @@ class CustomerOut(CustomerJdyFields):
     source: Optional[str] = None
     level: Optional[str] = None
     status: str
+    review_status: Optional[str] = None
+    review_flow_id: Optional[str] = None
+    reject_reason: Optional[str] = None
     tags_json: Optional[Union[dict, list]] = None
     custom_fields_json: Optional[dict] = None
     remark: Optional[str] = None

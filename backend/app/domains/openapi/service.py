@@ -6,7 +6,7 @@ to the DTO layer before leaving the process.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -581,6 +581,29 @@ async def resolve_reporter_id(
     )
 
 
+async def resolve_created_by(
+    db: AsyncSession, tenant_id: str, *, created_by_id: str | None, created_by_name: str | None,
+) -> tuple[str | None, str | None]:
+    """Resolve 填表人 → (user_id, display_name).
+
+    Name is kept even when CRM has no matching user, so UI shows 简道云填表人
+    instead of「开放平台」.
+    """
+    from app.domains.auth.models import User as AuthUser
+
+    name = (created_by_name or "").strip() or None
+    uid = await resolve_user_id(
+        db, tenant_id, user_id=created_by_id, user_name=name, field_label="created_by",
+    )
+    if uid:
+        u = (await db.execute(
+            select(AuthUser).where(AuthUser.id == uid, AuthUser.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        display = (u.real_name or u.username) if u else name
+        return uid, display or name
+    return None, name
+
+
 # 简道云申报信息「客户类型」常见简称 / 历史写法 → 字典码（与 seed_lead_dicts 对齐）。
 _CUSTOMER_TYPE_ALIASES = {
     "终端-央企国企": "terminal_soe",
@@ -643,9 +666,43 @@ async def resolve_customer_type(db: AsyncSession, tenant_id: str, raw: str | Non
     return text
 
 
+_CATEGORY_ALIASES = {
+    "自报": "self_reported",
+    "分发": "distributed",
+    "self_reported": "self_reported",
+    "distributed": "distributed",
+}
+_COUNTRY_TYPE_ALIASES = {
+    "国内": "domestic",
+    "国外": "overseas",
+    "domestic": "domestic",
+    "overseas": "overseas",
+}
+_NEWNESS_ALIASES = {
+    "新": "new",
+    "老": "old",
+    "新客户": "new",
+    "老客户": "old",
+    "new": "new",
+    "old": "old",
+}
+
+
+def _normalize_alias(raw: str | None, aliases: dict[str, str]) -> str | None:
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    return aliases.get(text) or aliases.get(text.replace(" ", ""))
+
+
 async def _resolve_lead_write_payload(db: AsyncSession, ctx, data) -> dict:
     """Shared open-API lead field resolution (dept / owner / reporter names → ids)."""
     payload = data.model_dump(exclude_unset=True)
+    # Keep pydantic step objects for import_lead_flow_history (model_dump would nest dicts).
+    if getattr(data, "flow_history", None) is not None:
+        payload["flow_history"] = list(data.flow_history)
     dept_name = payload.pop("department_name", None)
     raw_dept_id = payload.pop("department_id", None)
     resolved_dept = await resolve_department_id(
@@ -673,11 +730,380 @@ async def _resolve_lead_write_payload(db: AsyncSession, ctx, data) -> dict:
     if resolved_reporter:
         payload["reporter_id"] = resolved_reporter
 
+    # 填表人：不进 LeadCreate（由 create_lead 伪用户占位），解析后单独回写。
+    filler_name = payload.pop("created_by_name", None)
+    raw_filler_id = payload.pop("created_by_id", None)
+    filler_id, filler_display = await resolve_created_by(
+        db, ctx.tenant_id, created_by_id=raw_filler_id, created_by_name=filler_name,
+    )
+    if filler_id or filler_display:
+        payload["_filler_id"] = filler_id
+        payload["_filler_name"] = filler_display
+
+    if "lead_code" in payload:
+        code = (payload.get("lead_code") or "").strip()
+        if code:
+            payload["lead_code"] = code[:64]
+        else:
+            payload.pop("lead_code", None)
+
     if "customer_type" in payload:
         payload["customer_type"] = await resolve_customer_type(
             db, ctx.tenant_id, payload.get("customer_type"),
         )
+    if "category" in payload:
+        payload["category"] = _normalize_alias(payload.get("category"), _CATEGORY_ALIASES)
+        if payload.get("category") is None:
+            payload.pop("category", None)
+    if "country_type" in payload:
+        payload["country_type"] = _normalize_alias(payload.get("country_type"), _COUNTRY_TYPE_ALIASES)
+        if payload.get("country_type") is None:
+            payload.pop("country_type", None)
+        if payload.get("country_type") != "overseas":
+            payload["country_name"] = None
+    if "customer_newness" in payload:
+        payload["customer_newness"] = _normalize_alias(
+            payload.get("customer_newness"), _NEWNESS_ALIASES,
+        )
+        if payload.get("customer_newness") is None:
+            payload.pop("customer_newness", None)
+    # 项目编号误写入「其他备注」时清掉（历史映射）
+    code = (payload.get("lead_code") or "").strip()
+    remark = payload.get("remark")
+    if code and isinstance(remark, str) and remark.strip() == code:
+        payload["remark"] = None
+    elif code and "remark" not in payload:
+        # 幂等补全项目号时，若库里备注仍是项目号，下面 update 路径再处理
+        pass
+    if "reject_reason" in payload:
+        rr = (payload.get("reject_reason") or "").strip()
+        if rr:
+            payload["reject_reason"] = rr
+        else:
+            payload.pop("reject_reason", None)
     return payload
+
+
+# 简道云「项目最终状态」→ CRM review_status
+_REVIEW_STATUS_ALIASES = {
+    "收录": "approved",
+    "袭击": "attacked",
+    "回退": "rejected",
+    "待审": "draft",
+    "approved": "approved",
+    "attacked": "attacked",
+    "rejected": "rejected",
+    "draft": "draft",
+}
+_EXTERNAL_REVIEWED = frozenset({"approved", "attacked", "rejected"})
+
+# 简道云 finishAction / 按钮文案 → CRM WfTaskActionLog.action
+_FLOW_ACTION_ALIASES = {
+    "forward": "approve",
+    "submit": "submit",
+    "reject": "reject",
+    "back": "reject",
+    "return": "return",
+    "cc": "comment",
+    "auto": "auto_approve",
+    "提交": "submit",
+    "发起": "submit",
+    "通过": "approve",
+    "同意": "approve",
+    "收录": "approve",
+    "袭击": "approve",
+    "收录/袭击": "approve",
+    "驳回": "reject",
+    "回退": "reject",
+    "approve": "approve",
+    "approved": "approve",
+}
+_JDY_IMPORT_BIZ_NO = "jdy-import"
+
+
+def normalize_review_status(raw: str | None) -> str | None:
+    """Map JianDaoYun 项目最终状态 / English code → CRM review_status."""
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    return _REVIEW_STATUS_ALIASES.get(text) or _REVIEW_STATUS_ALIASES.get(text.replace(" ", ""))
+
+
+def _normalize_flow_action(raw: str | None) -> str:
+    if not raw:
+        return "approve"
+    text = str(raw).strip()
+    if not text:
+        return "approve"
+    mapped = _FLOW_ACTION_ALIASES.get(text) or _FLOW_ACTION_ALIASES.get(text.lower())
+    if mapped:
+        return mapped
+    # 「收录/袭击」等复合文案
+    for key, val in _FLOW_ACTION_ALIASES.items():
+        if key in text:
+            return val
+    return "approve"
+
+
+def _flow_step_get(step, key: str, default=None):
+    """Accept OpenFlowHistoryStep or plain dict (idempotent update path)."""
+    if isinstance(step, dict):
+        return step.get(key, default)
+    return getattr(step, key, default)
+
+
+async def _delete_wf_instance_tree(db: AsyncSession, tenant_id: str, instance_id: str) -> None:
+    from app.domains.lowcode.workflow_models import (
+        WfProcessInstance, WfNodeInstance, WfTaskInstance,
+        WfTaskActionLog, WfProcessComment, WfProcessCc,
+    )
+    for model in (WfTaskActionLog, WfProcessComment, WfProcessCc, WfTaskInstance, WfNodeInstance):
+        rows = (await db.execute(select(model).where(
+            model.process_instance_id == instance_id,
+            model.tenant_id == tenant_id,
+        ))).scalars().all()
+        for row in rows:
+            await db.delete(row)
+    inst = await db.get(WfProcessInstance, instance_id)
+    if inst and inst.tenant_id == tenant_id:
+        await db.delete(inst)
+
+
+async def import_lead_flow_history(db: AsyncSession, ctx, lead, steps) -> str | None:
+    """把简道云流程动态落成已结束的 CRM 流程实例，供线索详情「流程动态」展示。"""
+    from app.domains.lead.service import LEAD_DEFAULT_FLOW_CODE
+
+    title = f"简道云流程: {(lead.lead_code + ' ') if lead.lead_code else ''}{lead.title}"
+    initiator_id = lead.reporter_id or lead.owner_id or ctx.app_id
+    inst_id = await _import_jdy_flow_history(
+        db, ctx,
+        biz_type="lead",
+        biz_id=lead.id,
+        title=title,
+        flow_code=LEAD_DEFAULT_FLOW_CODE,
+        flow_name="信息情报部审批",
+        initiator_id=initiator_id,
+        department_id=lead.department_id,
+        steps=steps,
+        approver_rule={"type": "specified_role", "value": "lead_intel", "exclude_initiator": True},
+    )
+    if inst_id:
+        lead.review_flow_id = inst_id
+        await db.commit()
+        await db.refresh(lead)
+    return inst_id
+
+
+async def import_customer_flow_history(db: AsyncSession, ctx, customer, steps) -> str | None:
+    """把简道云客户信息流程动态落成已结束实例，供客户详情「流程动态」展示。"""
+    from app.domains.customer.service import CUSTOMER_DEFAULT_FLOW_CODE
+
+    code = getattr(customer, "customer_code", None) or ""
+    title = f"简道云流程: {(code + ' ') if code else ''}{customer.name}"
+    initiator_id = customer.owner_id or customer.created_by_id or ctx.app_id
+    inst_id = await _import_jdy_flow_history(
+        db, ctx,
+        biz_type="customer",
+        biz_id=customer.id,
+        title=title,
+        flow_code=CUSTOMER_DEFAULT_FLOW_CODE,
+        flow_name="客户信息审批",
+        initiator_id=initiator_id,
+        department_id=customer.department_id,
+        steps=steps,
+        approver_rule={
+            "type": "specified_user", "value": "03303022525221387032", "exclude_initiator": True,
+        },
+    )
+    if inst_id:
+        customer.review_flow_id = inst_id
+        await db.commit()
+        await db.refresh(customer)
+    return inst_id
+
+
+async def _import_jdy_flow_history(
+    db: AsyncSession, ctx, *,
+    biz_type: str,
+    biz_id: str,
+    title: str,
+    flow_code: str,
+    flow_name: str,
+    initiator_id: str | None,
+    department_id: str | None,
+    steps,
+    approver_rule: dict | None = None,
+) -> str | None:
+    """Shared JianDaoYun → CRM completed WF import (lead / customer)."""
+    if not steps:
+        return None
+    from app.domains.auth.models import User
+    from app.domains.lowcode.workflow_models import (
+        WfProcessDefinition, WfProcessInstance, WfNodeInstance,
+        WfTaskInstance, WfTaskActionLog,
+    )
+    from app.domains.lowcode.workflow_service import (
+        ensure_default_definition, _published_version,
+    )
+    from app.database import utcnow
+
+    rule = approver_rule or {
+        "type": "specified_role", "value": "admin", "exclude_initiator": True,
+    }
+    await ensure_default_definition(
+        db, ctx.tenant_id, biz_type=biz_type, code=flow_code, name=flow_name,
+        approver_rule=rule,
+        multi_mode="or_sign", empty_strategy="auto_approve",
+    )
+    d = (await db.execute(select(WfProcessDefinition).where(
+        WfProcessDefinition.tenant_id == ctx.tenant_id,
+        WfProcessDefinition.biz_type == biz_type,
+        WfProcessDefinition.status == "published",
+        WfProcessDefinition.is_deleted == False,  # noqa: E712
+    ).order_by(
+        WfProcessDefinition.sort_order.asc(), WfProcessDefinition.created_at.asc()
+    ).limit(1))).scalar_one_or_none()
+    if not d:
+        return None
+    version = await _published_version(db, ctx.tenant_id, d.id)
+    if not version:
+        return None
+
+    olds = (await db.execute(select(WfProcessInstance).where(
+        WfProcessInstance.tenant_id == ctx.tenant_id,
+        WfProcessInstance.biz_type == biz_type,
+        WfProcessInstance.biz_id == biz_id,
+        WfProcessInstance.business_no == _JDY_IMPORT_BIZ_NO,
+    ))).scalars().all()
+    for old in olds:
+        await _delete_wf_instance_tree(db, ctx.tenant_id, old.id)
+
+    name_cache: dict[str, str] = {}
+
+    async def resolve_actor(name: str | None) -> tuple[str, str | None]:
+        display = (name or "").strip() or None
+        if not display:
+            return ctx.app_id, None
+        if display in name_cache:
+            return name_cache[display], display
+        u = (await db.execute(select(User).where(
+            User.tenant_id == ctx.tenant_id,
+            User.is_active == True,  # noqa: E712
+            or_(User.real_name == display, User.username == display),
+        ).limit(1))).scalar_one_or_none()
+        uid = u.id if u else ctx.app_id
+        name_cache[display] = uid
+        return uid, display
+
+    _epoch = datetime.min.replace(tzinfo=timezone.utc)
+
+    def _step_key(s):
+        t = _flow_step_get(s, "started_at") or _flow_step_get(s, "completed_at")
+        if t is None:
+            return _epoch
+        if getattr(t, "tzinfo", None) is None:
+            return t.replace(tzinfo=timezone.utc)
+        return t
+
+    ordered = sorted(steps, key=_step_key)
+    has_reject = False
+    times = []
+    for s in ordered:
+        if _flow_step_get(s, "started_at"):
+            times.append(_flow_step_get(s, "started_at"))
+        if _flow_step_get(s, "completed_at"):
+            times.append(_flow_step_get(s, "completed_at"))
+        act = _normalize_flow_action(_flow_step_get(s, "action"))
+        if act in ("reject", "auto_reject", "return"):
+            has_reject = True
+
+    started_at = min(times) if times else utcnow()
+    completed_at = max(times) if times else utcnow()
+    flow_status = "rejected" if has_reject else "completed"
+
+    inst = WfProcessInstance(
+        id=generate_uuid(),
+        tenant_id=ctx.tenant_id,
+        process_definition_id=d.id,
+        process_version_id=version.id,
+        biz_type=biz_type,
+        biz_id=biz_id,
+        business_no=_JDY_IMPORT_BIZ_NO,
+        title=title[:200],
+        initiator_id=initiator_id or ctx.app_id,
+        initiator_dept_id=department_id,
+        status=flow_status,
+        started_at=started_at,
+        completed_at=completed_at,
+        is_test=False,
+    )
+    db.add(inst)
+    await db.flush()
+
+    for idx, step in enumerate(ordered):
+        node_name = (_flow_step_get(step, "node_name") or "").strip() or f"节点{idx + 1}"
+        action = _normalize_flow_action(_flow_step_get(step, "action"))
+        opinion = (_flow_step_get(step, "opinion") or "").strip() or None
+        raw_action = (_flow_step_get(step, "action") or "").strip()
+        if raw_action and raw_action not in _FLOW_ACTION_ALIASES and action == "approve":
+            opinion = f"{raw_action}" + (f"；{opinion}" if opinion else "")
+        node_status = "rejected" if action in ("reject", "auto_reject", "return") else "completed"
+        node_type = "start" if idx == 0 and ("递呈" in node_name or "发起" in node_name) else "approval"
+        handler_name = _flow_step_get(step, "handler_name")
+        actor_id, actor_name = await resolve_actor(handler_name)
+        n_started = _flow_step_get(step, "started_at") or _flow_step_get(step, "completed_at") or started_at
+        n_completed = _flow_step_get(step, "completed_at") or _flow_step_get(step, "started_at") or completed_at
+
+        node = WfNodeInstance(
+            id=generate_uuid(),
+            tenant_id=ctx.tenant_id,
+            process_instance_id=inst.id,
+            node_def_id=f"jdy_import_{idx}",
+            node_type=node_type,
+            node_name=node_name[:128],
+            status=node_status,
+            config={},
+            started_at=n_started,
+            completed_at=n_completed,
+        )
+        db.add(node)
+        await db.flush()
+
+        task = WfTaskInstance(
+            id=generate_uuid(),
+            tenant_id=ctx.tenant_id,
+            process_instance_id=inst.id,
+            node_instance_id=node.id,
+            assignee_id=actor_id,
+            status=node_status,
+            opinion=opinion,
+            action_at=n_completed,
+            version=1,
+            task_order=0,
+        )
+        db.add(task)
+        await db.flush()
+
+        log_action = action
+        if node_type == "start" and action == "approve":
+            log_action = "submit"
+        db.add(WfTaskActionLog(
+            id=generate_uuid(),
+            tenant_id=ctx.tenant_id,
+            process_instance_id=inst.id,
+            node_instance_id=node.id,
+            task_instance_id=task.id,
+            actor_id=actor_id,
+            actor_name=actor_name or handler_name,
+            action=log_action,
+            opinion=opinion,
+            extra={"source": "jdy", "raw_action": raw_action or None},
+        ))
+
+    await db.flush()
+    return inst.id
 
 
 async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
@@ -687,16 +1113,42 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
     If ``owner_id`` / ``owner_name`` resolve to a CRM user, the lead is assigned to
     that user (简道云「申报人」→ CRM 负责人). Otherwise it is left in the open pool.
     ``reporter_*`` maps the same JianDaoYun申报人 onto CRM 报备人 when provided.
+
+    ``review_status``：简道云已审（收录/袭击/回退）时免 CRM 内审直接落终态；
+    待审/未传仍落草稿，便于幂等补全。
     """
     from app.domains.lead.service import create_lead
     from app.domains.lead.schemas import LeadCreate
     from app.domains.openapi.dto import lead_to_dto
 
     payload = await _resolve_lead_write_payload(db, ctx, data)
-    # 开放平台多为幂等回放/补全：先落草稿不启审，便于紧接着 update；需审核时由业务侧提交
-    lead = await create_lead(
-        db, ctx.tenant_id, LeadCreate(**{**payload, "as_draft": True}), _pseudo_user(ctx),
-    )
+    flow_history = payload.pop("flow_history", None) or getattr(data, "flow_history", None)
+    review_status = normalize_review_status(payload.pop("review_status", None))
+    externally_reviewed = review_status in _EXTERNAL_REVIEWED
+    filler_id = payload.pop("_filler_id", None)
+    filler_name = payload.pop("_filler_name", None)
+
+    if externally_reviewed:
+        # 免启 CRM 情报审；模型默认 approved，袭击/回退再覆盖
+        lead = await create_lead(
+            db, ctx.tenant_id,
+            LeadCreate(**{**payload, "as_draft": False}),
+            _pseudo_user(ctx),
+            auto_review=False,
+        )
+        if review_status != "approved":
+            lead.review_status = review_status
+        if review_status in ("approved", "attacked"):
+            from app.domains.lead.reactivation import mark_cycle_reset
+            mark_cycle_reset(lead)
+        await db.commit()
+        await db.refresh(lead)
+    else:
+        lead = await create_lead(
+            db, ctx.tenant_id,
+            LeadCreate(**{**payload, "as_draft": True}),
+            _pseudo_user(ctx),
+        )
     # create_lead defaults owner to the creator (here the app id) when none resolved;
     # de-own into the pool only in that case.
     if lead.owner_id == ctx.app_id:
@@ -710,6 +1162,23 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
         lead.reporter_name = None
         await db.commit()
         await db.refresh(lead)
+    # 填表人：覆盖开放平台伪创建人
+    if filler_id or filler_name:
+        lead.created_by_id = filler_id
+        lead.created_by_name = filler_name
+        await db.commit()
+        await db.refresh(lead)
+    if flow_history:
+        await import_lead_flow_history(db, ctx, lead, flow_history)
+    # 历史误把项目编号写入 remark：与 lead_code 相同时清掉
+    if (
+        getattr(lead, "remark", None)
+        and getattr(lead, "lead_code", None)
+        and str(lead.remark).strip() == str(lead.lead_code).strip()
+    ):
+        lead.remark = None
+        await db.commit()
+        await db.refresh(lead)
     return lead_to_dto(lead)
 
 
@@ -719,17 +1188,49 @@ async def update_lead_from_openapi(db: AsyncSession, ctx, lead_id: str, data) ->
     Only resolved department / owner / reporter ids and reported_at (plus other
     provided scalar fields) are written; unresolved names do not clear existing
     assignments.
+
+    ``review_status``：仅允许从 draft 晋升为外部终态（收录/袭击/回退）；
+    不降级、不动 pending（尊重 CRM 内审）。
     """
     from app.domains.lead.service import update_lead
     from app.domains.lead.schemas import LeadUpdate
     from app.domains.openapi.dto import lead_to_dto
 
     payload = await _resolve_lead_write_payload(db, ctx, data)
+    flow_history = payload.pop("flow_history", None) or getattr(data, "flow_history", None)
+    review_status = normalize_review_status(payload.pop("review_status", None))
+    filler_id = payload.pop("_filler_id", None)
+    filler_name = payload.pop("_filler_name", None)
     # Don't blank owner/dept when name resolution fails on a backfill replay.
     for k in ("department_id", "owner_id", "reporter_id"):
         if k in payload and not payload[k]:
             payload.pop(k)
     lead = await update_lead(db, ctx.tenant_id, lead_id, LeadUpdate(**payload), _pseudo_user(ctx))
+    if review_status in _EXTERNAL_REVIEWED and getattr(lead, "review_status", None) == "draft":
+        lead.review_status = review_status
+        if review_status in ("approved", "attacked"):
+            from app.domains.lead.reactivation import mark_cycle_reset
+            mark_cycle_reset(lead)
+        await db.commit()
+        await db.refresh(lead)
+    # 幂等补全填表人：覆盖开放平台占位，或写入此前缺失的填表人
+    if filler_id or filler_name:
+        cur = getattr(lead, "created_by_id", None)
+        if (not cur) or cur == ctx.app_id or filler_id:
+            lead.created_by_id = filler_id or (None if cur == ctx.app_id else cur)
+            lead.created_by_name = filler_name or lead.created_by_name
+            await db.commit()
+            await db.refresh(lead)
+    if flow_history:
+        await import_lead_flow_history(db, ctx, lead, flow_history)
+    if (
+        getattr(lead, "remark", None)
+        and getattr(lead, "lead_code", None)
+        and str(lead.remark).strip() == str(lead.lead_code).strip()
+    ):
+        lead.remark = None
+        await db.commit()
+        await db.refresh(lead)
     return lead_to_dto(lead)
 
 
@@ -761,16 +1262,269 @@ async def create_activity_from_openapi(db: AsyncSession, ctx, data) -> dict:
     return activity_to_dto(act)
 
 
+def _coerce_bool_cn(v) -> bool | None:
+    """Normalize 是/否 / true/false / 1/0 into bool; empty → None."""
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        return v
+    text = str(v).strip().lower()
+    if not text:
+        return None
+    if text in ("是", "true", "1", "yes", "y"):
+        return True
+    if text in ("否", "false", "0", "no", "n"):
+        return False
+    return None
+
+
+def _coerce_float(v) -> float | None:
+    if v is None or v == "":
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    text = str(v).strip().replace(",", "")
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _coerce_int(v) -> int | None:
+    if v is None or v == "":
+        return None
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, int):
+        return v
+    if isinstance(v, float):
+        return int(v)
+    text = str(v).strip()
+    if not text:
+        return None
+    # 成立年份常为 ISO datetime（简道云 datetime 控件）
+    if len(text) >= 4 and text[:4].isdigit() and (len(text) == 4 or text[4] in "-T /"):
+        try:
+            return int(text[:4])
+        except ValueError:
+            pass
+    try:
+        return int(float(text.replace(",", "")))
+    except ValueError:
+        return None
+
+
+def _coerce_main_products(v) -> list | None:
+    if v is None or v == "":
+        return None
+    if isinstance(v, list):
+        return v
+    text = str(v).strip()
+    if not text:
+        return None
+    if text.startswith("["):
+        import json
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+    # checkbox flatten: "A, B, C"
+    parts = [p.strip() for p in text.replace("，", ",").split(",") if p.strip()]
+    return parts or None
+
+
+async def _resolve_customer_write_payload(db: AsyncSession, ctx, data) -> dict:
+    """Normalize open-API customer fields; resolve owner/dept names → ids."""
+    payload = data.model_dump(exclude_unset=True)
+    # Keep pydantic step objects for import_customer_flow_history.
+    if getattr(data, "flow_history", None) is not None:
+        payload["flow_history"] = list(data.flow_history)
+
+    dept_name = payload.pop("department_name", None)
+    raw_dept_id = payload.pop("department_id", None)
+    resolved_dept = await resolve_department_id(
+        db, ctx.tenant_id, department_id=raw_dept_id, department_name=dept_name,
+    )
+    if resolved_dept:
+        payload["_department_id"] = resolved_dept
+    if dept_name and str(dept_name).strip():
+        payload["_department_name"] = str(dept_name).strip()
+
+    owner_name = payload.pop("owner_name", None)
+    raw_owner_id = payload.pop("owner_id", None)
+    resolved_owner = await resolve_owner_id(
+        db, ctx.tenant_id, owner_id=raw_owner_id, owner_name=owner_name,
+    )
+    if resolved_owner:
+        payload["owner_id"] = resolved_owner
+
+    if "customer_code" in payload:
+        code = (payload.get("customer_code") or "").strip()
+        if code:
+            payload["customer_code"] = code[:100]
+        else:
+            payload.pop("customer_code", None)
+
+    for key in (
+        "is_smart_filing", "is_foreign_trade", "is_company_customer",
+        "need_info_distribute", "as_draft",
+    ):
+        if key in payload:
+            coerced = _coerce_bool_cn(payload.get(key))
+            if coerced is None and key == "as_draft":
+                payload[key] = True  # openapi 默认免启 CRM 内审
+            elif coerced is None:
+                payload.pop(key, None)
+            else:
+                payload[key] = coerced
+
+    for key in ("registered_capital", "paid_in_capital"):
+        if key in payload:
+            coerced = _coerce_float(payload.get(key))
+            if coerced is None:
+                payload.pop(key, None)
+            else:
+                payload[key] = coerced
+
+    if "founded_year" in payload:
+        year = _coerce_int(payload.get("founded_year"))
+        if year is None or year < 1800 or year > 2100:
+            payload.pop("founded_year", None)
+        else:
+            payload["founded_year"] = year
+
+    if "headcount" in payload:
+        hc = _coerce_int(payload.get("headcount"))
+        if hc is None:
+            payload.pop("headcount", None)
+        else:
+            payload["headcount"] = hc
+
+    if "main_products_json" in payload:
+        products = _coerce_main_products(payload.get("main_products_json"))
+        if products is None:
+            payload.pop("main_products_json", None)
+        else:
+            payload["main_products_json"] = products
+
+    # region 兜底：有省市区但未传 region 时拼接
+    if not payload.get("region"):
+        parts = [payload.get("province"), payload.get("city"), payload.get("district")]
+        joined = "".join(p for p in parts if p)
+        if joined:
+            payload["region"] = joined
+
+    return payload
+
+
+async def _apply_customer_department(customer, payload: dict) -> bool:
+    """Write explicit 业务部门 when resolved; returns whether mutated."""
+    dept_id = payload.pop("_department_id", None)
+    dept_name = payload.pop("_department_name", None)
+    changed = False
+    if dept_id and customer.department_id != dept_id:
+        customer.department_id = dept_id
+        changed = True
+    if dept_name and customer.department_name != dept_name:
+        customer.department_name = dept_name
+        changed = True
+    return changed
+
+
+async def _find_customer_by_code(db: AsyncSession, tenant_id: str, customer_code: str):
+    from app.domains.customer.models import Customer
+    return (await db.execute(
+        select(Customer).where(
+            Customer.tenant_id == tenant_id,
+            Customer.customer_code == customer_code,
+            Customer.is_deleted == False,  # noqa: E712
+        )
+    )).scalar_one_or_none()
+
+
 async def create_customer_from_openapi(db: AsyncSession, ctx, data) -> dict:
-    """Create a customer (unassigned/public pool) via the internal service."""
+    """Create or upsert a customer via the internal service.
+
+    When ``customer_code`` is non-empty and already exists for the tenant, update
+    that row instead of inserting a duplicate (简道云客户编号 sn).
+
+    默认 ``as_draft=True``：不启 CRM「客户信息审批」（简道云侧已审）；导入
+    ``flow_history`` 后落成已结束流程并标 ``review_status=approved``。
+    """
     from app.domains.customer.service import create_customer
     from app.domains.customer.schemas import CustomerCreate
     from app.domains.openapi.dto import customer_to_dto
-    payload = data.model_dump(exclude_unset=True)
-    customer = await create_customer(db, ctx.tenant_id, CustomerCreate(**payload), _pseudo_user(ctx))
+
+    payload = await _resolve_customer_write_payload(db, ctx, data)
+    flow_history = payload.pop("flow_history", None) or getattr(data, "flow_history", None)
+    code = (payload.get("customer_code") or "").strip()
+    if code:
+        existing = await _find_customer_by_code(db, ctx.tenant_id, code)
+        if existing:
+            return await update_customer_from_openapi(db, ctx, existing.id, data)
+
+    dept_id = payload.pop("_department_id", None)
+    dept_name = payload.pop("_department_name", None)
+    # 开放平台默认免启 CRM 内审；仅显式 as_draft=false 才走待审提交
+    if "as_draft" not in payload:
+        payload["as_draft"] = True
+    customer = await create_customer(
+        db, ctx.tenant_id, CustomerCreate(**payload), _pseudo_user(ctx),
+    )
     if customer.owner_id == ctx.app_id:
         customer.owner_id = None
         customer.owner_name = "开放平台（待分配）"
+        await db.commit()
+        await db.refresh(customer)
+    if dept_id or dept_name:
+        if await _apply_customer_department(
+            customer, {"_department_id": dept_id, "_department_name": dept_name},
+        ):
+            await db.commit()
+            await db.refresh(customer)
+    if flow_history:
+        await import_customer_flow_history(db, ctx, customer, flow_history)
+    # 简道云同步进来的客户视为已审（除非仍在 CRM pending 且未带流程）
+    if payload.get("as_draft", True) and getattr(customer, "review_status", None) in (
+        None, "draft", "pending",
+    ):
+        customer.review_status = "approved"
+        await db.commit()
+        await db.refresh(customer)
+    return customer_to_dto(customer)
+
+
+async def update_customer_from_openapi(db: AsyncSession, ctx, customer_id: str, data) -> dict:
+    """Update an existing open-API customer (idempotent replay / code upsert)."""
+    from app.domains.customer.service import update_customer
+    from app.domains.customer.schemas import CustomerUpdate
+    from app.domains.openapi.dto import customer_to_dto
+
+    payload = await _resolve_customer_write_payload(db, ctx, data)
+    flow_history = payload.pop("flow_history", None) or getattr(data, "flow_history", None)
+    payload.pop("as_draft", None)  # CustomerUpdate 无 as_draft
+    dept_id = payload.pop("_department_id", None)
+    dept_name = payload.pop("_department_name", None)
+    # Don't blank owner when name resolution fails on a backfill replay.
+    if "owner_id" in payload and not payload["owner_id"]:
+        payload.pop("owner_id")
+    customer = await update_customer(
+        db, ctx.tenant_id, customer_id, CustomerUpdate(**payload), _pseudo_user(ctx),
+    )
+    if dept_id or dept_name:
+        if await _apply_customer_department(
+            customer, {"_department_id": dept_id, "_department_name": dept_name},
+        ):
+            await db.commit()
+            await db.refresh(customer)
+    if flow_history:
+        await import_customer_flow_history(db, ctx, customer, flow_history)
+    if getattr(customer, "review_status", None) in (None, "draft", "pending"):
+        customer.review_status = "approved"
         await db.commit()
         await db.refresh(customer)
     return customer_to_dto(customer)

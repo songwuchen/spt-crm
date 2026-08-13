@@ -12,6 +12,7 @@ import ApprovalPolicyModal from './ApprovalPolicyModal'
 import FileStorageTab from './FileStorageTab'
 import AiModelTab from './AiModelTab'
 import UiSettingsTab from './UiSettingsTab'
+import LeadReactivationTab from './LeadReactivationTab'
 import GateRulesEditor, { type GateRule, validateGateRules } from '@/components/GateRulesEditor'
 import DataView from '@/components/DataView'
 
@@ -441,6 +442,10 @@ export default function SettingsPage() {
           {
             key: 'ui_settings', label: '界面设置',
             children: <UiSettingsTab />,
+          },
+          {
+            key: 'lead_reactivation', label: '线索重激活',
+            children: <LeadReactivationTab />,
           },
           {
             key: 'margin', label: '毛利红线',

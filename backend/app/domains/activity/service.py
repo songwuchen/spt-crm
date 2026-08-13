@@ -209,6 +209,19 @@ async def _sync_customer_last_activity(db: AsyncSession, tenant_id: str, custome
 async def create_activity(db: AsyncSession, tenant_id: str, data: ActivityCreate, user: dict) -> Activity:
     # 写入侧同样要挡：否则能往看不见的客户名下塞跟进记录，还会顺带改写它的「最新跟进」冗余
     await assert_biz_object_visible(db, tenant_id, user, data.biz_type, data.biz_id, label="该业务对象")
+    if data.biz_type == "lead":
+        from sqlalchemy import select as sa_select
+        from app.common.error_codes import VALIDATION_ERROR
+        from app.common.exceptions import BusinessException
+        from app.domains.lead.models import Lead
+        lead = (await db.execute(
+            sa_select(Lead).where(Lead.id == data.biz_id, Lead.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if lead and getattr(lead, "review_status", None) == "rejected":
+            raise BusinessException(
+                code=VALIDATION_ERROR,
+                message="线索已被驳回，项目不可再报备，不可继续跟进",
+            )
     activity = Activity(
         id=generate_uuid(), tenant_id=tenant_id,
         created_by_id=user["sub"],

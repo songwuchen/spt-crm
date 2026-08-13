@@ -401,7 +401,7 @@ async def submit_lead_review(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("lead:edit")),
 ):
-    """草稿或被回退的线索提交 / 重新提交内勤审核。"""
+    """草稿线索提交内勤审核（驳回为终态，不可由此重提）。"""
     l = await service.resubmit_lead_review(db, tenant_id, lead_id, current_user)
     products = await service.list_lead_products(db, tenant_id, l.id)
     return await ok_entity(db, tenant_id, "lead", _lead_dict(l, products), current_user.get("roles"))

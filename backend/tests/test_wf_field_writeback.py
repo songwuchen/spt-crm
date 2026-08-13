@@ -103,8 +103,8 @@ def test_contract_version_default_has_ops_field_perms():
     assert any(p["field"] == "accept_date" and p["access"] == "editable" for p in fin_fp)
 
 
-def test_strip_packaging_fork_exclusive_groups():
-    from app.domains.lowcode.workflow_service import strip_packaging_fork_exclusive_groups
+def test_fix_packaging_fork_serial_priority():
+    from app.domains.lowcode.workflow_service import fix_packaging_fork_serial_priority
 
     nodes = [
         {"id": "n5", "name": "研究院安排", "type": "approval"},
@@ -113,21 +113,64 @@ def test_strip_packaging_fork_exclusive_groups():
         {"id": "n20", "name": "工艺包装", "type": "approval"},
     ]
     routes = [
-        {"id": "r11", "source": "n5", "target": "n6", "exclusive_group": "ex_n5"},
+        {"id": "r11", "source": "n5", "target": "n6", "fork": "parallel"},
         {
-            "id": "r14", "source": "n5", "target": "n8", "exclusive_group": "ex_n5",
+            "id": "r14", "source": "n5", "target": "n8", "fork": "parallel",
             "condition": {"field": "design_dispatch", "operator": "in", "value": ["新乡单"]},
         },
         {
-            "id": "r30", "source": "n5", "target": "n20", "exclusive_group": "ex_n5",
+            "id": "r30", "source": "n5", "target": "n20", "fork": "parallel",
             "condition": {"field": "transfer_packaging_users", "operator": "in", "value": ["x"]},
         },
     ]
-    assert strip_packaging_fork_exclusive_groups(nodes, routes) is True
+    assert fix_packaging_fork_serial_priority(nodes, routes) is True
     for r in routes:
-        assert r.get("exclusive_group") is None
-        assert r.get("fork") == "parallel"
-    assert strip_packaging_fork_exclusive_groups(nodes, routes) is False
+        assert r.get("fork") is None
+        assert r.get("exclusive_group") == "ex_n5"
+    # 工艺包装排在互斥组最前（优先命中）
+    n5_outs = [r for r in routes if r["source"] == "n5"]
+    assert n5_outs[0]["target"] == "n20"
+    assert fix_packaging_fork_serial_priority(nodes, routes) is False
+
+
+def test_next_targets_packaging_exclusive_priority():
+    """有工艺包装人选时只进包装，不并行进第二研究院安排。"""
+    from types import SimpleNamespace
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    nodes = [
+        {"id": "n5", "name": "研究院安排", "type": "approval"},
+        {"id": "n6", "name": "图纸领取", "type": "approval"},
+        {"id": "n8", "name": "研究院安排", "type": "approval"},
+        {"id": "n20", "name": "工艺包装", "type": "approval"},
+    ]
+    routes = [
+        {
+            "id": "r30", "source": "n5", "target": "n20", "exclusive_group": "ex_n5",
+            "condition": {"field": "transfer_packaging_users", "operator": "is_not_empty"},
+        },
+        {
+            "id": "r14", "source": "n5", "target": "n8", "exclusive_group": "ex_n5",
+            "condition": {"field": "design_dispatch", "operator": "in", "value": ["共同"]},
+        },
+        {"id": "r11", "source": "n5", "target": "n6", "exclusive_group": "ex_n5"},
+        {"id": "r_pack", "source": "n20", "target": "n8",
+         "condition": {"field": "__always", "operator": "is_empty"}},
+    ]
+    ver = SimpleNamespace(node_definitions=nodes, route_definitions=routes)
+    eng = WorkflowEngine(None, "t1")
+    # 两边条件都真 → 只命中工艺包装
+    targets = eng._next_targets(ver, "n5", {
+        "transfer_packaging_users": ["u1"],
+        "design_dispatch": "共同",
+    })
+    assert targets == ["n20"]
+    # 无包装、有共同 → 直达第二研究院安排
+    targets2 = eng._next_targets(ver, "n5", {"design_dispatch": "共同"})
+    assert targets2 == ["n8"]
+    # 都无 → else 图纸领取
+    targets3 = eng._next_targets(ver, "n5", {})
+    assert targets3 == ["n6"]
 
 
 def test_next_targets_always_cc_does_not_steal_else():

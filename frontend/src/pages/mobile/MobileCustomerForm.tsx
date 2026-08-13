@@ -37,14 +37,22 @@ export default function MobileCustomerForm() {
   const currentUser = useAuthStore((s) => s.user)
   const userSelect = useUserSelect()
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (andSubmit: boolean) => {
     let values: Record<string, any>
-    try { values = await form.validateFields() } catch (e) { reportFirstFormError(e, message.error); return }
-    const cfError = customFieldsRef.current?.validate()
-    if (cfError) { message.error(cfError); return }
+    try {
+      if (andSubmit) values = await form.validateFields()
+      else {
+        await form.validateFields(['name'])
+        values = form.getFieldsValue(true)
+      }
+    } catch (e) { reportFirstFormError(e, message.error); return }
+    if (andSubmit) {
+      const cfError = customFieldsRef.current?.validate()
+      if (cfError) { message.error(cfError); return }
+    }
     setLoading(true)
     try {
-      await customerApi.create({
+      const payload = {
         ...values,
         name: (values.name || '').trim(),
         expected_purchase_date: values.expected_purchase_date
@@ -54,9 +62,14 @@ export default function MobileCustomerForm() {
         district: region.district || undefined,
         region_code: region.regionCode || undefined,
         custom_fields_json: customFields,
-      })
-      message.success('客户创建成功')
-      navigate('/m/customers')
+      }
+      const res = andSubmit
+        ? await customerApi.create(payload)
+        : await customerApi.create({ ...payload, as_draft: true })
+      message.success(andSubmit
+        ? (res?.data?.review_status === 'pending' ? '已提交审批' : '客户已创建')
+        : '已存为草稿')
+      navigate(res?.data?.id ? `/m/customers/${res.data.id}` : '/m/customers')
     } catch { message.error('创建失败') } finally { setLoading(false) }
   }
 
@@ -75,6 +88,7 @@ export default function MobileCustomerForm() {
             level: 'C',
             is_foreign_trade: false,
             is_smart_filing: false,
+            need_info_distribute: false,
             owner_id: currentUser?.id,
           }}
         >
@@ -92,6 +106,9 @@ export default function MobileCustomerForm() {
               <Select className="w-full" options={YES_NO} />
             </MField>
           </div>
+          <MField name="need_info_distribute" label="信息分发-客户">
+            <Select className="w-full" options={YES_NO} />
+          </MField>
           <MField name="short_name" label="简称">
             <Input placeholder="简称" className={inputCls} />
           </MField>
@@ -246,9 +263,13 @@ export default function MobileCustomerForm() {
           className="flex-1 py-2.5 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 bg-white">
           取消
         </button>
-        <button onClick={handleSubmit} disabled={loading}
+        <button onClick={() => void handleSubmit(false)} disabled={loading}
+          className="flex-1 py-2.5 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 bg-white disabled:opacity-50">
+          {loading ? '保存中...' : '存草稿'}
+        </button>
+        <button onClick={() => void handleSubmit(true)} disabled={loading}
           className="flex-1 py-2.5 rounded-lg text-sm font-bold text-white bg-primary disabled:opacity-50">
-          {loading ? '保存中...' : '创建'}
+          {loading ? '提交中...' : '提交审批'}
         </button>
       </div>
     </div>

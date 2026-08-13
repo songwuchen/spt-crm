@@ -25,8 +25,9 @@ EDITABLE_STATUSES: dict[str, frozenset[str]] = {
     }),
     "form_instance": frozenset({"draft", "rejected"}),
     "order": frozenset({"draft"}),
-    # 线索见 assert_lead_editable（withdrawn 回写 pending）
-    "lead": frozenset({"rejected"}),
+    # 线索见 assert_lead_editable；客户见 assert_customer_editable（驳回终态）
+    "lead": frozenset({"draft"}),
+    "customer": frozenset({"draft"}),
 }
 
 _LOCK_MSG = "审批中或已提交的单据不可编辑，驳回后可由发起人修改再提交"
@@ -76,20 +77,46 @@ async def assert_biz_editable(
 async def assert_lead_editable(
     db: AsyncSession, tenant_id: str, lead_id: str, review_status: str | None,
 ) -> None:
-    """线索：running 必锁；draft/rejected 可编辑；pending 仅在无 running（撤回后）可编辑。
+    """线索：running 必锁；仅 draft 可整单编辑；pending 仅在无 running（撤回后）可编辑。
 
+    rejected 为情报驳回终态（不可再报备/跟进），由 update_lead 拦截。
     approved/attacked 等由 update_lead 既有门禁处理，此处不额外拦截「未进审」的 approved。
     """
     running = await has_running_process(db, tenant_id, "lead", lead_id)
     if running:
         raise BusinessException(code=VALIDATION_ERROR, message=_LOCK_MSG)
     rs = review_status or "approved"
-    if rs in ("draft", "rejected"):
+    if rs == "draft":
         return
     if rs == "pending":
         # 无 running：撤回后回写 pending，允许修改再提交
         return
+    if rs == "rejected":
+        raise BusinessException(
+            code=VALIDATION_ERROR,
+            message="线索已被驳回，项目不可再报备，不可继续编辑或跟进",
+        )
     # approved / attacked / 其它：不因审批锁拦截（转化/废弃另有校验）
+
+
+async def assert_customer_editable(
+    db: AsyncSession, tenant_id: str, customer_id: str, review_status: str | None,
+) -> None:
+    """客户：running 必锁；draft 可整单编辑；pending 仅无 running（撤回后）可编辑。
+
+    rejected 为驳回终态；approved 可继续维护主数据（变更再审另议）。
+    """
+    running = await has_running_process(db, tenant_id, "customer", customer_id)
+    if running:
+        raise BusinessException(code=VALIDATION_ERROR, message=_LOCK_MSG)
+    rs = review_status or "approved"
+    if rs in ("draft", "pending", "approved"):
+        return
+    if rs == "rejected":
+        raise BusinessException(
+            code=VALIDATION_ERROR,
+            message="客户信息已被驳回，不可继续编辑或重新提交",
+        )
 
 
 async def assert_contract_record_editable(

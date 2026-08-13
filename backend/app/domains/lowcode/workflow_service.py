@@ -306,6 +306,18 @@ BIZ_DEFAULT_SPECS: list[dict] = [
         "multi_mode": "or_sign",
         "empty_strategy": "auto_approve",
     },
+    {
+        "biz_type": "customer",
+        "code": "SYS_CUSTOMER_INFO",
+        "name": "客户信息审批",
+        "approver_rule": {
+            "type": "specified_user",
+            "value": "03303022525221387032",  # 刘金花（财务，默认兜底单节点用不到完整图）
+            "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
 ]
 
 
@@ -766,14 +778,14 @@ def _drawing_flow_has_cc_end_bug(nodes: list | None, routes: list | None) -> boo
 
 
 def _source_is_jdy_parallel_fork(outs: list) -> bool:
-    """简道云多条件可并行分叉（如研究院安排→工艺包装∥第二研究院安排），勿强补互斥组。"""
+    """显式标了 fork=parallel 的同源分叉（工艺包装串行优先不走此标记）。"""
     return any(isinstance(o, dict) and o.get("fork") == "parallel" for o in outs)
 
 
 def _flow_missing_exclusive_groups(routes: list | None) -> bool:
     """同源多出边未标 exclusive_group 时，画布像一条直线、引擎也可能不按 if/else 选路。
 
-    标了 ``fork=parallel`` 的分叉（对齐简道云多条件并行）故意不设互斥组，跳过。
+    标了 ``fork=parallel`` 的分叉故意不设互斥组，跳过。
     """
     by_src: dict[str, list] = {}
     for r in routes or []:
@@ -793,10 +805,14 @@ def _flow_missing_exclusive_groups(routes: list | None) -> bool:
     return False
 
 
-def strip_packaging_fork_exclusive_groups(
+def fix_packaging_fork_serial_priority(
     nodes: list | None, routes: list | None,
 ) -> bool:
-    """去掉「→工艺包装」同源分叉上的 exclusive_group，并标 fork=parallel。"""
+    """工艺包装分叉改为互斥且包装优先（对齐简道云实单，非并行）。
+
+    有「转新乡、工艺包装」人选 → 先「工艺包装」，再经包装节点出边进第二「研究院安排」；
+    无包装人选、设计单分派命中 → 直达第二研究院安排；否则 else。
+    """
     by_id = {
         n["id"]: n for n in (nodes or [])
         if isinstance(n, dict) and n.get("id")
@@ -810,17 +826,42 @@ def strip_packaging_fork_exclusive_groups(
             pack_sources.add(str(r.get("source") or ""))
     if not pack_sources:
         return False
+
     changed = False
-    for r in routes or []:
-        if not isinstance(r, dict) or r.get("always"):
+    name_by_id = {i: (n.get("name") or "") for i, n in by_id.items()}
+    for src in pack_sources:
+        outs = [
+            r for r in (routes or [])
+            if isinstance(r, dict) and not r.get("always") and str(r.get("source") or "") == src
+        ]
+        if len(outs) < 2:
             continue
-        if str(r.get("source") or "") not in pack_sources:
-            continue
-        if r.get("exclusive_group") is not None:
-            r.pop("exclusive_group", None)
-            changed = True
-        if r.get("fork") != "parallel":
-            r["fork"] = "parallel"
+        gid = f"ex_{src}"
+        for r in outs:
+            if r.get("fork") is not None:
+                r.pop("fork", None)
+                changed = True
+            if r.get("exclusive_group") != gid:
+                r["exclusive_group"] = gid
+                changed = True
+        outs_sorted = sorted(outs, key=lambda r: (
+            0 if name_by_id.get(r.get("target") or "") == "工艺包装" else
+            1 if r.get("condition") else 2
+        ))
+        if outs != outs_sorted:
+            new_routes: list = []
+            replaced = False
+            for r in routes or []:
+                if not isinstance(r, dict):
+                    new_routes.append(r)
+                    continue
+                if r.get("always") or str(r.get("source") or "") != src:
+                    new_routes.append(r)
+                    continue
+                if not replaced:
+                    new_routes.extend(outs_sorted)
+                    replaced = True
+            routes[:] = new_routes  # type: ignore[index]
             changed = True
     return changed
 
@@ -952,6 +993,51 @@ def _cc_node(nid: str, name: str, approver_rule: dict) -> dict:
 
 def _and_cond(*parts: dict) -> dict:
     return {"rel": "and", "cond": list(parts)}
+
+
+CUSTOMER_INFO_DEFAULT_DESC = (
+    "系统默认（对齐简道云客户信息）："
+    "外贸=是 → 外贸客户审批(王玲玲)；"
+    "信息分发=是 → 信息分发(业务员) → 跟进确认 → 财务审批(刘金花)；"
+    "否则 → 财务审批。可在流程管理中继续改。"
+)
+
+
+def _customer_info_flow_graph() -> tuple[list[dict], list[dict]]:
+    """客户信息默认图：互斥三分支（外贸 / 信息分发串行 / 默认财务）。"""
+    u_fin = _JDY_REG_USER["finance_maint"]  # 刘金花
+    u_export = _JDY_REVIEW_USER["export"]  # 王玲玲
+    foreign_yes = {"field": "is_foreign_trade", "operator": "in", "value": [True, "是"]}
+    dist_yes = {"field": "need_info_distribute", "operator": "in", "value": [True, "是"]}
+    nodes: list[dict] = [
+        {"id": "start", "type": "start", "name": "发起"},
+        _user_approval_node("approval_foreign", "外贸客户审批", u_export),
+        _field_person_approval_node("approval_distribute", "信息分发-客户", "owner_id"),
+        _field_person_approval_node("approval_follow", "跟进确认", "owner_id"),
+        _user_approval_node("approval_finance", "财务审批", u_fin),
+        {"id": "end", "type": "end", "name": "结束"},
+    ]
+    # exclusive_group：同组按顺序互斥，命中第一条；else 边放最后且无条件
+    g = "g_customer_start"
+    routes: list[dict] = [
+        {
+            "id": "r_start_foreign", "source": "start", "target": "approval_foreign",
+            "exclusive_group": g, "condition": _and_cond(foreign_yes),
+        },
+        {
+            "id": "r_start_dist", "source": "start", "target": "approval_distribute",
+            "exclusive_group": g, "condition": _and_cond(dist_yes),
+        },
+        {
+            "id": "r_start_finance", "source": "start", "target": "approval_finance",
+            "exclusive_group": g,
+        },
+        {"id": "r_foreign_end", "source": "approval_foreign", "target": "end"},
+        {"id": "r_dist_follow", "source": "approval_distribute", "target": "approval_follow"},
+        {"id": "r_follow_finance", "source": "approval_follow", "target": "approval_finance"},
+        {"id": "r_finance_end", "source": "approval_finance", "target": "end"},
+    ]
+    return nodes, routes
 
 
 # 简道云合同登记 chargers → CRM username（按 real_name 匹配本地用户）
@@ -1826,19 +1912,19 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"无合同号总工按 need_gm 走总经理审批({form_code})",
         )
         return
-    # 工艺包装分叉：简道云多条件并行，去掉误加的 exclusive_group
+    # 工艺包装分叉：互斥 + 包装优先（对齐简道云实单；纠正曾误标的 parallel）
     if topology_ok and form_code in (
         "drawing_requisition", "install_drawing_notice", "scheme_management",
     ):
         import copy
         patched_routes = copy.deepcopy(version.route_definitions or [])
-        if strip_packaging_fork_exclusive_groups(
+        if fix_packaging_fork_serial_priority(
             version.node_definitions, patched_routes,
         ):
             await _publish_system_default_upgrade(
                 db, tenant_id, d, version,
                 version.node_definitions, patched_routes,
-                DRAWING_FORM_FLOW_DESC, f"工艺包装分叉改为并行({form_code})",
+                DRAWING_FORM_FLOW_DESC, f"工艺包装分叉改为互斥优先({form_code})",
             )
             return
     # 仅缺互斥组：在现有 CRM 条件上补 exclusive_group，避免用生成图覆盖已 remap 的部门/人员
@@ -2015,6 +2101,9 @@ async def ensure_default_definition(
     elif biz_type == "tech_agreement_review":
         nodes, routes = _tech_agreement_flow_graph()
         description = TECH_AGREEMENT_DEFAULT_DESC
+    elif biz_type == "customer":
+        nodes, routes = _customer_info_flow_graph()
+        description = CUSTOMER_INFO_DEFAULT_DESC
     else:
         nodes, routes = _default_flow_graph(
             name, approver_rule, multi_mode, empty_strategy, with_owner_cc=with_owner_cc,

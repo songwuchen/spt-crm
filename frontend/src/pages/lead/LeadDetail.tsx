@@ -266,11 +266,12 @@ export default function LeadDetail() {
     (reactStatus === 'awaiting_reporter'
       ? [lead.reporter_id, lead.owner_id, lead.created_by_id].includes(currentUser.id)
       : [lead.created_by_id, lead.reporter_id, lead.owner_id].includes(currentUser.id))
-  const canEditLead = canOperate && !reviewInFlight
-  const canSubmitApproval = canOperate && (reviewStatus === 'draft' || reviewStatus === 'rejected')
+  const canEditLead = canOperate && !reviewInFlight && reviewStatus !== 'rejected' && reviewStatus !== 'attacked'
+  const canSubmitApproval = canOperate && reviewStatus === 'draft'
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
   const s = statusConfig[lead.status] || statusConfig.new
+  const allowFollowActivity = canOperate && reviewStatus !== 'rejected'
 
   const currentStepIdx = lead.status === 'discarded' ? -1 : qualifySteps.findIndex((st) => st.key === lead.status)
 
@@ -431,13 +432,18 @@ export default function LeadDetail() {
             <div className={`text-sm font-bold ${reviewCfg.text}`}>
               {reviewStatus === 'draft' && '线索草稿未提交'}
               {reviewStatus === 'pending' && '线索待信息情报部内勤审核'}
-              {reviewStatus === 'rejected' && '线索已回退'}
+              {reviewStatus === 'rejected' && '线索已驳回'}
               {reviewStatus === 'attacked' && '线索已标记为袭击'}
             </div>
             <div className="text-sm text-slate-600 mt-1">
               {reviewStatus === 'draft' && '完善申报信息后提交审批，可在右侧查看流程动态。'}
               {reviewStatus === 'pending' && '审核收录后方可转化为客户。'}
-              {reviewStatus === 'rejected' && (lead.reject_reason ? `回退原因：${lead.reject_reason}` : '请根据反馈修改线索信息后重新提交审核。')}
+              {reviewStatus === 'rejected' && (
+                <>
+                  项目不可再报备，请勿继续跟进。
+                  {lead.reject_reason ? ` 驳回原因：${lead.reject_reason}` : ''}
+                </>
+              )}
               {reviewStatus === 'attacked' && '袭击状态不可转化为客户。'}
             </div>
           </div>
@@ -753,7 +759,7 @@ export default function LeadDetail() {
                           <span className="text-[13px] font-semibold">评估信息（审批时填写）</span>
                         </div>
                         <p className="mb-3 text-xs text-slate-400">
-                          由信息情报部在审批待办中填写：新/老客户、最终状态、回退原因、备注2
+                          由信息情报部在审批待办中填写：新/老客户、最终状态、驳回原因、备注2
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
@@ -771,7 +777,7 @@ export default function LeadDetail() {
                                 const finalLabels: Record<string, { label: string; cls: string }> = {
                                   draft: { label: '草稿', cls: 'text-slate-500' },
                                   approved: { label: '收录', cls: 'text-emerald-600' },
-                                  rejected: { label: '回退', cls: 'text-red-600' },
+                                  rejected: { label: '已驳回', cls: 'text-red-600' },
                                   pending: { label: '待审', cls: 'text-amber-600' },
                                   attacked: { label: '袭击', cls: 'text-orange-600' },
                                 }
@@ -780,7 +786,7 @@ export default function LeadDetail() {
                               })()}
                             </div>
                             {reviewStatus === 'rejected' && lead.reject_reason && (
-                              <div className="mt-2 text-xs text-red-500 leading-relaxed">回退原因：{lead.reject_reason}</div>
+                              <div className="mt-2 text-xs text-red-500 leading-relaxed">驳回原因：{lead.reject_reason}</div>
                             )}
                           </div>
                           <div className="sm:col-span-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
@@ -828,7 +834,8 @@ export default function LeadDetail() {
                   children: (
                     <div className="py-4">
                       <ActivityTimeline bizType="lead" bizId={id!} openCreateSignal={followUpSignal}
-                        defaultContactName={lead.contact_name} onCreated={handleFollowUpCreated} />
+                        defaultContactName={lead.contact_name} onCreated={handleFollowUpCreated}
+                        allowCreate={allowFollowActivity} />
                     </div>
                   ),
                 },

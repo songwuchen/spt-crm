@@ -1,14 +1,16 @@
 // 菜单注册表 —— 侧边栏与「界面设置」共用的单一数据源。
 // 别名/隐藏均以下列 key 为存储键：
 //   - 分组 key：group:xxx
-//   - 菜单项 key：路由路径（如 /customers）
+//   - 菜单项 key：路由路径（如 /customers）或子菜单容器（如 submenu:solutions）
 
 export interface MenuItem {
-  key: string          // 路由路径，同时作为别名/隐藏的存储键
+  key: string          // 路由路径 / 子菜单容器 key，同时作为别名/隐藏的存储键
   icon: string         // Material Symbols 图标名
   labelKey: string     // i18n 文案 key（默认名）
   /** 单个权限，或任一命中即可 */
   permission?: string | string[]
+  /** 嵌套子菜单（仅一层）；有 children 时自身不跳转路由 */
+  children?: MenuItem[]
 }
 
 export interface MenuGroup {
@@ -19,6 +21,18 @@ export interface MenuGroup {
 
 // 系统配置入口不可隐藏，防止管理员把自己锁死在外面（后端亦会强制剔除）
 export const PROTECTED_MENU_KEYS = ['/admin/settings']
+
+/** 展平所有可路由菜单项（含子菜单），用于选中态匹配 */
+export function flattenMenuItems(groups: MenuGroup[] = menuGroups): MenuItem[] {
+  const out: MenuItem[] = []
+  for (const g of groups) {
+    for (const item of g.items) {
+      if (item.children?.length) out.push(...item.children)
+      else out.push(item)
+    }
+  }
+  return out
+}
 
 export const menuGroups: MenuGroup[] = [
   {
@@ -45,7 +59,16 @@ export const menuGroups: MenuGroup[] = [
     titleKey: 'nav.groupDeals',
     items: [
       { key: '/opportunities', icon: 'rocket_launch', labelKey: 'nav.opportunities', permission: 'project:view' },
-      { key: '/solutions', icon: 'lightbulb', labelKey: 'nav.solutions', permission: 'form_data:view' },
+      {
+        key: 'submenu:solutions',
+        icon: 'lightbulb',
+        labelKey: 'nav.solutions',
+        children: [
+          { key: '/contract-drawing-maps', icon: 'map', labelKey: 'nav.contractDrawingMaps', permission: 'form_data:view' },
+          { key: '/drawing-requisitions', icon: 'draft', labelKey: 'nav.drawingRequisitions', permission: 'form_data:view' },
+          { key: '/install-drawing-notices', icon: 'architecture', labelKey: 'nav.installDrawingNotices', permission: 'form_data:view' },
+        ],
+      },
       { key: '/quotes', icon: 'sell', labelKey: 'nav.quotes', permission: 'form_data:view' },
       { key: '/pricing-checklists', icon: 'request_quote', labelKey: 'nav.pricingChecklists', permission: 'form_data:view' },
       { key: '/contracts', icon: 'contract', labelKey: 'nav.contracts', permission: 'contract:view' },
@@ -95,15 +118,6 @@ export const menuGroups: MenuGroup[] = [
       { key: '/cs-correspondences', icon: 'mail', labelKey: 'nav.csCorrespondences', permission: 'form_data:view' },
       { key: '/measurements', icon: 'monitoring', labelKey: 'nav.measurements', permission: 'service:view' },
       { key: '/equipment-profile', icon: 'precision_manufacturing', labelKey: 'nav.equipmentProfile', permission: 'customer:view' },
-    ],
-  },
-  {
-    key: 'group:drawings',
-    titleKey: 'nav.groupDrawings',
-    items: [
-      { key: '/contract-drawing-maps', icon: 'map', labelKey: 'nav.contractDrawingMaps', permission: 'form_data:view' },
-      { key: '/drawing-requisitions', icon: 'draft', labelKey: 'nav.drawingRequisitions', permission: 'form_data:view' },
-      { key: '/install-drawing-notices', icon: 'architecture', labelKey: 'nav.installDrawingNotices', permission: 'form_data:view' },
     ],
   },
   {

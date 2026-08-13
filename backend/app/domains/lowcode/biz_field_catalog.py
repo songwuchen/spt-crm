@@ -108,6 +108,26 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         {"id": "reporter_id", "label": "申报人", "type": "person"},
         {"id": "department_id", "label": "部门", "type": "department"},
     ],
+    "customer": [
+        {"id": "owner_id", "label": "业务员", "type": "person"},
+        {"id": "department_id", "label": "业务部门", "type": "department"},
+        {
+            "id": "is_foreign_trade", "label": "是否外贸客户", "type": "yes_no",
+            "options": [{"value": True, "label": "是"}, {"value": False, "label": "否"}],
+        },
+        {
+            "id": "need_info_distribute", "label": "信息分发-客户", "type": "yes_no",
+            "options": [{"value": True, "label": "是"}, {"value": False, "label": "否"}],
+        },
+        {
+            "id": "is_smart_filing", "label": "是否智能化备案", "type": "yes_no",
+            "options": [{"value": True, "label": "是"}, {"value": False, "label": "否"}],
+        },
+        {"id": "industry", "label": "所属行业", "type": "text"},
+        {"id": "level", "label": "客户类型", "type": "text"},
+        {"id": "source", "label": "客户来源", "type": "text"},
+        {"id": "name", "label": "客户名称", "type": "text"},
+    ],
     "solution": [
         {"id": "solution_no", "label": "方案编号", "type": "text"},
         {"id": "status", "label": "状态", "type": "text"},

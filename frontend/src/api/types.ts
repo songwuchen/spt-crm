@@ -84,6 +84,10 @@ export interface Customer {
   // 对齐简道云「客户信息」
   is_smart_filing?: boolean | null
   is_foreign_trade?: boolean | null
+  need_info_distribute?: boolean | null
+  review_status?: string
+  review_flow_id?: string
+  reject_reason?: string
   registered_capital?: number | null
   paid_in_capital?: number | null
   founded_year?: number | null

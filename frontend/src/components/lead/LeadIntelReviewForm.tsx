@@ -91,7 +91,7 @@ export default function LeadIntelReviewForm({
       return
     }
     if (decision === 'return' && !payload.return_reason) {
-      message.warning('回退须填写回退原因')
+      message.warning('驳回须填写驳回原因')
       return
     }
     setLoading(true)
@@ -102,7 +102,7 @@ export default function LeadIntelReviewForm({
         ...payload,
       })
       const labels: Record<IntelDecision, string> = {
-        include: '已收录', attack: '已标记袭击', return: '已回退', draft: '已暂存',
+        include: '已收录', attack: '已标记袭击', return: '已驳回（不可再报备）', draft: '已暂存',
       }
       message.success(labels[decision])
       onDone(decision)
@@ -121,7 +121,7 @@ export default function LeadIntelReviewForm({
   }
 
   const primaryLabel =
-    finalStatus === 'return' ? '回退'
+    finalStatus === 'return' ? '驳回'
       : finalStatus === 'attack' ? '袭击'
         : '收录'
 
@@ -138,13 +138,13 @@ export default function LeadIntelReviewForm({
         options={[
           { value: 'pending', label: '待审', disabled: true },
           { value: 'include', label: '收录' },
-          { value: 'return', label: '回退' },
+          { value: 'return', label: '驳回' },
           { value: 'attack', label: '袭击' },
         ]}
       />
       {actionsOnly && finalStatus === 'return' && (
         <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1.5">
-          请在上方「本节点填写」中填写回退原因
+          驳回后流程结束，项目不可再报备；请在上方「本节点填写」中填写驳回原因
         </div>
       )}
     </div>
@@ -201,13 +201,13 @@ export default function LeadIntelReviewForm({
       {finalStatus === 'return' && (
         <div>
           <div className="text-sm font-medium text-slate-700 mb-2">
-            <span className="text-red-500 mr-0.5">*</span>回退原因
+            <span className="text-red-500 mr-0.5">*</span>驳回原因
           </div>
           <Input.TextArea
             rows={compact ? 2 : 3}
             value={returnReason}
             onChange={(e) => setReturnReason(e.target.value)}
-            placeholder="请填写回退原因"
+            placeholder="请填写驳回原因（驳回后不可再报备/跟进）"
           />
         </div>
       )}
