@@ -479,11 +479,29 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
             remark_parts.append(f"预算: {lead.budget_range}")
         if lead.remark:
             remark_parts.append(lead.remark)
-        # 转化商机：沿用线索数字段并加 PRJ- 前缀；无编号则按商机规则生成
+        # 转化商机：优先 PRJ-{线索号}；若已被占用（线索/商机各自月序独立，易撞号）则按商机规则生成
+        async def _project_code_taken(code: str) -> bool:
+            return (
+                await db.execute(
+                    select(OpportunityProject.id).where(
+                        OpportunityProject.tenant_id == tenant_id,
+                        OpportunityProject.project_code == code,
+                        OpportunityProject.is_deleted == False,  # noqa: E712
+                    ).limit(1)
+                )
+            ).scalar_one_or_none() is not None
+
         if lead.lead_code and not str(lead.lead_code).upper().startswith("PRJ-"):
-            project_code = f"PRJ-{lead.lead_code}"
+            candidate = f"PRJ-{str(lead.lead_code).strip()}"
+            project_code = (
+                candidate
+                if not await _project_code_taken(candidate)
+                else await generate_code(db, tenant_id, "project")
+            )
         else:
             project_code = lead.lead_code or await generate_code(db, tenant_id, "project")
+            if project_code and await _project_code_taken(project_code):
+                project_code = await generate_code(db, tenant_id, "project")
         project = OpportunityProject(
             id=generate_uuid(), tenant_id=tenant_id,
             project_code=project_code,
