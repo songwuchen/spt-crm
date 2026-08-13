@@ -59,6 +59,10 @@ class OpenLeadCreate(BaseModel):
     demand_summary: Optional[str] = Field(None, max_length=2000)
     industry: Optional[str] = Field(None, max_length=100)
     region: Optional[str] = Field(None, max_length=200)
+    province: Optional[str] = Field(None, max_length=50)
+    city: Optional[str] = Field(None, max_length=50)
+    district: Optional[str] = Field(None, max_length=50)
+    region_code: Optional[str] = Field(None, max_length=12)
     budget_range: Optional[str] = Field(None, max_length=100)
     remark: Optional[str] = Field(None, max_length=2000)
     # 客户类型：字典码或中文标签（简道云申报信息）；服务端归一为 dict_code。
@@ -94,6 +98,9 @@ class OpenLeadCreate(BaseModel):
     reporter_name: Optional[str] = Field(None, max_length=100)
     # 报备时间：简道云申报时间 / createTime；ISO 8601。
     reported_at: Optional[datetime] = None
+    # 列表「提交时间/更新时间」：有值时覆盖 CRM 系统时间（推送数据优先）。
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     # 填表人（CRM created_by_*）：简道云「填表人」；勿落成开放平台伪用户。
     created_by_id: Optional[str] = Field(None, max_length=36)
     created_by_name: Optional[str] = Field(None, max_length=100)
@@ -179,6 +186,9 @@ class OpenCustomerCreate(BaseModel):
     daily_operate_hours: Optional[str] = Field(None, max_length=50)
     # 开放平台写入默认不启 CRM 客户信息审批（简道云侧已审）；可显式传 false。
     as_draft: Optional[Union[bool, str]] = True
+    # 有值时覆盖 CRM 系统创建/更新时间（推送数据优先）。
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     # 简道云流程动态 → CRM 详情「流程动态」
     flow_history: Optional[List[OpenFlowHistoryStep]] = None
 

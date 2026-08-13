@@ -289,3 +289,33 @@ async def test_create_lead_imports_jdy_flow_history(db):
                 await _delete_wf_instance_tree(db, TENANT, old.id)
             await db.execute(delete(Lead).where(Lead.id == lead_id, Lead.tenant_id == TENANT))
             await db.commit()
+
+
+async def test_create_lead_from_openapi_uses_pushed_timestamps(db):
+    """推送 created_at/updated_at 时覆盖 CRM 系统时间。"""
+    ctx = _Ctx()
+    title = f"LOCAL-LEAD-TS-{uuid.uuid4().hex[:8]}"
+    lead_id = None
+    created = datetime(2026, 6, 7, 4, 2, 47, tzinfo=timezone.utc)
+    updated = datetime(2026, 6, 8, 10, 0, 0, tzinfo=timezone.utc)
+    try:
+        dto = await create_lead_from_openapi(
+            db, ctx,
+            OpenLeadCreate(
+                title=title,
+                company_name="UT Co",
+                source="test",
+                created_at=created,
+                updated_at=updated,
+            ),
+        )
+        lead_id = dto["id"]
+        assert dto.get("created_at", "").startswith("2026-06-07T04:02:47")
+        assert dto.get("updated_at", "").startswith("2026-06-08T10:00:00")
+        row = (await db.execute(select(Lead).where(Lead.id == lead_id))).scalar_one()
+        assert row.created_at == created
+        assert row.updated_at == updated
+    finally:
+        if lead_id:
+            await db.execute(delete(Lead).where(Lead.id == lead_id, Lead.tenant_id == TENANT))
+            await db.commit()

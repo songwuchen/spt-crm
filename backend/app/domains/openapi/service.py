@@ -781,7 +781,39 @@ async def _resolve_lead_write_payload(db: AsyncSession, ctx, data) -> dict:
             payload["reject_reason"] = rr
         else:
             payload.pop("reject_reason", None)
+    # 地址：有省市区但未传 region 时拼接（对齐客户 OpenAPI）
+    if not payload.get("region"):
+        parts = [payload.get("province"), payload.get("city"), payload.get("district")]
+        joined = "".join(p for p in parts if p)
+        if joined:
+            payload["region"] = joined
+    # 系统时间字段不进 LeadCreate/LeadUpdate；末尾由 _apply_pushed_timestamps 覆盖。
+    created_at = payload.pop("created_at", None)
+    updated_at = payload.pop("updated_at", None)
+    if created_at is not None:
+        payload["_created_at"] = created_at
+    if updated_at is not None:
+        payload["_updated_at"] = updated_at
     return payload
+
+
+async def _apply_pushed_timestamps(db: AsyncSession, entity, payload: dict) -> bool:
+    """用推送的 created_at/updated_at 覆盖 CRM 系统时间（有值才写）。"""
+    created_at = payload.pop("_created_at", None)
+    updated_at = payload.pop("_updated_at", None)
+    if created_at is None and updated_at is None:
+        return False
+    changed = False
+    if created_at is not None and getattr(entity, "created_at", None) != created_at:
+        entity.created_at = created_at
+        changed = True
+    if updated_at is not None and getattr(entity, "updated_at", None) != updated_at:
+        entity.updated_at = updated_at
+        changed = True
+    if changed:
+        await db.commit()
+        await db.refresh(entity)
+    return changed
 
 
 # 简道云「项目最终状态」→ CRM review_status
@@ -1127,6 +1159,9 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
     externally_reviewed = review_status in _EXTERNAL_REVIEWED
     filler_id = payload.pop("_filler_id", None)
     filler_name = payload.pop("_filler_name", None)
+    pushed_ts = {
+        k: payload.pop(k) for k in ("_created_at", "_updated_at") if k in payload
+    }
 
     if externally_reviewed:
         # 免启 CRM 情报审；模型默认 approved，袭击/回退再覆盖
@@ -1179,6 +1214,7 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
         lead.remark = None
         await db.commit()
         await db.refresh(lead)
+    await _apply_pushed_timestamps(db, lead, pushed_ts)
     return lead_to_dto(lead)
 
 
@@ -1201,6 +1237,9 @@ async def update_lead_from_openapi(db: AsyncSession, ctx, lead_id: str, data) ->
     review_status = normalize_review_status(payload.pop("review_status", None))
     filler_id = payload.pop("_filler_id", None)
     filler_name = payload.pop("_filler_name", None)
+    pushed_ts = {
+        k: payload.pop(k) for k in ("_created_at", "_updated_at") if k in payload
+    }
     # Don't blank owner/dept when name resolution fails on a backfill replay.
     for k in ("department_id", "owner_id", "reporter_id"):
         if k in payload and not payload[k]:
@@ -1231,6 +1270,7 @@ async def update_lead_from_openapi(db: AsyncSession, ctx, lead_id: str, data) ->
         lead.remark = None
         await db.commit()
         await db.refresh(lead)
+    await _apply_pushed_timestamps(db, lead, pushed_ts)
     return lead_to_dto(lead)
 
 
@@ -1418,6 +1458,14 @@ async def _resolve_customer_write_payload(db: AsyncSession, ctx, data) -> dict:
         if joined:
             payload["region"] = joined
 
+    # 系统时间不进 CustomerCreate/Update；末尾 _apply_pushed_timestamps 覆盖。
+    created_at = payload.pop("created_at", None)
+    updated_at = payload.pop("updated_at", None)
+    if created_at is not None:
+        payload["_created_at"] = created_at
+    if updated_at is not None:
+        payload["_updated_at"] = updated_at
+
     return payload
 
 
@@ -1469,6 +1517,9 @@ async def create_customer_from_openapi(db: AsyncSession, ctx, data) -> dict:
 
     dept_id = payload.pop("_department_id", None)
     dept_name = payload.pop("_department_name", None)
+    pushed_ts = {
+        k: payload.pop(k) for k in ("_created_at", "_updated_at") if k in payload
+    }
     # 开放平台默认免启 CRM 内审；仅显式 as_draft=false 才走待审提交
     if "as_draft" not in payload:
         payload["as_draft"] = True
@@ -1495,6 +1546,7 @@ async def create_customer_from_openapi(db: AsyncSession, ctx, data) -> dict:
         customer.review_status = "approved"
         await db.commit()
         await db.refresh(customer)
+    await _apply_pushed_timestamps(db, customer, pushed_ts)
     return customer_to_dto(customer)
 
 
@@ -1509,6 +1561,9 @@ async def update_customer_from_openapi(db: AsyncSession, ctx, customer_id: str, 
     payload.pop("as_draft", None)  # CustomerUpdate 无 as_draft
     dept_id = payload.pop("_department_id", None)
     dept_name = payload.pop("_department_name", None)
+    pushed_ts = {
+        k: payload.pop(k) for k in ("_created_at", "_updated_at") if k in payload
+    }
     # Don't blank owner when name resolution fails on a backfill replay.
     if "owner_id" in payload and not payload["owner_id"]:
         payload.pop("owner_id")
@@ -1527,6 +1582,7 @@ async def update_customer_from_openapi(db: AsyncSession, ctx, customer_id: str, 
         customer.review_status = "approved"
         await db.commit()
         await db.refresh(customer)
+    await _apply_pushed_timestamps(db, customer, pushed_ts)
     return customer_to_dto(customer)
 
 
