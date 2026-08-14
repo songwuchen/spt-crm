@@ -31,7 +31,7 @@ export default function AddressField({ value, onChange, readonly, placeholder, s
     <div className="space-y-2">
       <RegionCascader
         value={val}
-        placeholder={placeholder || '选择省/市/区县'}
+        placeholder={placeholder || '选择省/市/区县（含台湾/香港/澳门/海外）'}
         onChange={(r) => onChange?.({ ...val, ...r })}
       />
       {showDetail && (

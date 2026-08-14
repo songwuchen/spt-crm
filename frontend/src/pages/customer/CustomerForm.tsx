@@ -480,7 +480,10 @@ export default function CustomerForm() {
               <Form.Item
                 noStyle
                 shouldUpdate={(prev, curr) =>
-                  prev.province !== curr.province || prev.city !== curr.city || prev.district !== curr.district
+                  prev.province !== curr.province
+                  || prev.city !== curr.city
+                  || prev.district !== curr.district
+                  || prev.is_foreign_trade !== curr.is_foreign_trade
                 }
               >
                 {({ getFieldValue, setFieldsValue }) => (
@@ -490,6 +493,11 @@ export default function CustomerForm() {
                       city: getFieldValue('city'),
                       district: getFieldValue('district'),
                     }}
+                    placeholder={
+                      isForeignTrade
+                        ? '海外客户请选：海外 / 其它 / 其它（也可选台湾/香港/澳门）'
+                        : '选择省/市/区县'
+                    }
                     onChange={(v) => {
                       setFieldsValue({
                         province: v.province, city: v.city, district: v.district, region_code: v.regionCode,

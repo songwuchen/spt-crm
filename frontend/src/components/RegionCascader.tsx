@@ -50,7 +50,9 @@ function getOptions(): CascaderOption[] {
   return cachedOptions
 }
 
-export default function RegionCascader({ value, onChange, placeholder = '选择省/市/区县', disabled, allowClear = true }: Props) {
+export default function RegionCascader({
+  value, onChange, placeholder = '选择省/市/区县（含海外）', disabled, allowClear = true,
+}: Props) {
   const options = useMemo(getOptions, [])
 
   const cascaderValue = useMemo(() => {
