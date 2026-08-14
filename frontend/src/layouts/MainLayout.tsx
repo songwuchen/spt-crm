@@ -168,7 +168,16 @@ export default function MainLayout() {
     setUserLoading(true)
     authApi.me().then((res) => {
       if (res.data) setUser(res.data)
-    }).catch(() => {
+    }).catch((err: unknown) => {
+      // StrictMode / 路由切换会取消 in-flight 请求；取消不是鉴权失败，不能清会话
+      const canceled =
+        (err as { code?: string; name?: string })?.code === 'ERR_CANCELED'
+        || (err as { name?: string })?.name === 'CanceledError'
+        || (err as { name?: string })?.name === 'AbortError'
+      if (canceled) {
+        setUserLoading(false)
+        return
+      }
       logout()
       loginWithRedirect()
     })

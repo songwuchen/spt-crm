@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { AxiosRequestConfig } from 'axios'
 import { message } from 'antd'
 
 function clearAuthAndRedirect() {
@@ -9,6 +10,28 @@ function clearAuthAndRedirect() {
     useAuthStore.getState().logout()
   })
   window.location.href = '/login'
+}
+
+/** Bearer token that was actually sent on this request (if any). */
+function requestAccessToken(config?: AxiosRequestConfig | null): string | null {
+  const raw = config?.headers?.Authorization ?? (config?.headers as any)?.authorization
+  if (typeof raw !== 'string') return null
+  const m = /^Bearer\s+(.+)$/i.exec(raw.trim())
+  return m ? m[1] : null
+}
+
+/**
+ * Only wipe the session when the failing request used the *current* access token
+ * (or had no token while we also have none). Late 401/refresh failures from a
+ * previous session must not clear a token that was just written by login —
+ * that race is what makes wm.fourier.net.cn "登录成功 → 立刻退出".
+ */
+function shouldClearAuthForConfig(config?: AxiosRequestConfig | null): boolean {
+  const current = localStorage.getItem('access_token')
+  const used = requestAccessToken(config)
+  if (!current) return true
+  if (!used) return false
+  return used === current
 }
 
 const client = axios.create({
@@ -65,7 +88,7 @@ client.interceptors.response.use(
               throw new Error('refresh failed')
             })
             .catch(() => {
-              clearAuthAndRedirect()
+              if (shouldClearAuthForConfig(response.config)) clearAuthAndRedirect()
               return Promise.reject(new Error('登录已过期'))
             })
             .finally(() => { isRefreshing = false })
@@ -81,7 +104,7 @@ client.interceptors.response.use(
       }
 
       if (data.code === 40100 && !response.config.url?.includes('/auth/login')) {
-        clearAuthAndRedirect()
+        if (shouldClearAuthForConfig(response.config)) clearAuthAndRedirect()
       }
 
       // 登录多租户冲突：把可选租户交给登录页，不在此弹通用 toast
@@ -138,7 +161,7 @@ client.interceptors.response.use(
             throw new Error('refresh failed')
           })
           .catch(() => {
-            clearAuthAndRedirect()
+            if (shouldClearAuthForConfig(error.config)) clearAuthAndRedirect()
             return Promise.reject(new Error('登录已过期'))
           })
           .finally(() => { isRefreshing = false })
@@ -153,7 +176,7 @@ client.interceptors.response.use(
     }
 
     if ((code === 40100 || error.response?.status === 401) && !error.config?.url?.includes('/auth/login')) {
-      clearAuthAndRedirect()
+      if (shouldClearAuthForConfig(error.config)) clearAuthAndRedirect()
     }
 
     // 登录多租户冲突（HTTP 401 + business code）

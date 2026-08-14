@@ -62,22 +62,34 @@ export default function Login() {
     }
     sessionStorage.removeItem('dt_oauth_state')
 
+    // StrictMode / 重复 effect 会用同一 code 打两次 callback，第二次失败会把已登录会话踢回 /login
+    const exchangeKey = `dt_oauth_exchanging:${code}`
+    if (sessionStorage.getItem(exchangeKey)) return
+    sessionStorage.setItem(exchangeKey, '1')
+
     // Exchange code for JWT
     setDtLoading(true)
     const redirectUri = `${window.location.origin}/login`
+    let cancelled = false
     authApi.dingtalkCallback({ code, redirect_uri: redirectUri, state: state ?? undefined })
       .then(res => {
+        if (cancelled) return
         setAuth(res.data.access_token, res.data.refresh_token)
         message.success('钉钉登录成功')
         navigate(redirectTo, { replace: true })
       })
       .catch((err: any) => {
+        if (cancelled) return
+        sessionStorage.removeItem(exchangeKey)
         const msg = err?.response?.data?.message || '钉钉登录失败，请使用账号密码登录'
         message.error(msg)
         // Clean up the ?code param so user can try password login
         navigate('/login', { replace: true })
       })
-      .finally(() => setDtLoading(false))
+      .finally(() => {
+        if (!cancelled) setDtLoading(false)
+      })
+    return () => { cancelled = true }
   }, [searchParams])
 
   // 钉钉容器内自动免登：无需扫码/密码，静默用 requestAuthCode 换取 CRM token。
