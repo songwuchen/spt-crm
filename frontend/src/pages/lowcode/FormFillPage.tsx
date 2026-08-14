@@ -126,8 +126,9 @@ export default function FormFillPage({
   useEffect(() => {
     if (!fields.length || !relatedProjectId) return
     const hasCustomer = fields.some((f) => f.id === 'related_customer')
-    const hasName = fields.some((f) => f.id === 'customer_name')
-    if (!hasCustomer && !hasName) return
+    const nameField = fields.find((f) => f.id === 'customer_name')
+    if (!hasCustomer && !nameField) return
+    const nameIsCustomerPicker = nameField?.type === 'customer'
 
     let alive = true
     ;(async () => {
@@ -149,9 +150,15 @@ export default function FormFillPage({
             next.related_customer = cid
             changed = true
           }
-          if (hasName && cname && next.customer_name !== cname) {
-            next.customer_name = cname
-            changed = true
+          // 报价管理 customer_name 为客户选择器：回填客户 id；方案管理等为文本：回填名称
+          if (nameField) {
+            if (nameIsCustomerPicker && cid && next.customer_name !== cid) {
+              next.customer_name = cid
+              changed = true
+            } else if (!nameIsCustomerPicker && cname && next.customer_name !== cname) {
+              next.customer_name = cname
+              changed = true
+            }
           }
           return changed ? next : prev
         })
@@ -164,7 +171,9 @@ export default function FormFillPage({
 
   useEffect(() => {
     if (!fields.length || !relatedCustomerId) return
-    if (!fields.some((f) => f.id === 'customer_name')) return
+    const nameField = fields.find((f) => f.id === 'customer_name')
+    // 仅文本型公司名称需要从关联客户回填；客户选择器本身已是 id
+    if (!nameField || nameField.type === 'customer') return
 
     let alive = true
     ;(async () => {

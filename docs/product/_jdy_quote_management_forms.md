@@ -4,10 +4,11 @@
 
 - **builtin key**: `quote_management`
 - **路由**: `/quotes`
-- **字段数（去噪后）**: 16
+- **字段数（去噪后）**: 17
 - **必填字段**: 3
 - **流程节点数（CRM）**: 20 / 连线 35
 - **流水号**: `HJ` + yyyyMMdd + 三位日序
+- **CRM 扩展**: `related_project`（关联商机，可选，非简道云原字段）
 
 | slug | 标签 | type | 必填 | jdy_widget |
 |------|------|------|------|------------|
@@ -15,6 +16,7 @@
 | department | 部门 | department | 是 | `_widget_1584171854303` |
 | sales_person | 业务员 | person | 是 | `_widget_1584171854327` |
 | ref_contract_no | 参考合同号 | text |  | `_widget_1584171854451` |
+| related_project | 关联商机 | project |  | （CRM 扩展，可选；选中可回填客户） |
 | customer_name | 客户名称 | customer | 是 | `_widget_1584171854467` |
 | card_contract_no | 下卡合同号 | text |  | `_widget_1703483758901` |
 | customer_category | 客户类别 | radio |  | `_widget_1584171854483` |

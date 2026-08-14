@@ -447,7 +447,7 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
     contentMaxWidth: 1080,
     listExpandDetail: 'price_lines',
     listColumns: [
-      'customer_name', 'sales_person', 'department', 'price_type',
+      'related_project', 'customer_name', 'sales_person', 'department', 'price_type',
       'customer_category', 'ref_contract_no', 'need_purchase',
     ],
     sections: [
@@ -455,7 +455,8 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
         title: '基本信息',
         fieldIds: [
           'serial_no', 'department', 'sales_person', 'ref_contract_no',
-          'customer_name', 'card_contract_no', 'customer_category', 'price_type',
+          'related_project', 'customer_name', 'card_contract_no',
+          'customer_category', 'price_type',
         ],
       },
       {
@@ -473,7 +474,8 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
     ],
     spans: {
       serial_no: 6, department: 6, sales_person: 6, ref_contract_no: 6,
-      customer_name: 12, card_contract_no: 6, customer_category: 6, price_type: 6,
+      related_project: 12, customer_name: 12, card_contract_no: 6,
+      customer_category: 6, price_type: 6,
       price_lines: 24,
       need_purchase: 6, purchaser: 6,
       inquiry_attachments: 8, cost_attachments: 8, inquiry_images: 8,

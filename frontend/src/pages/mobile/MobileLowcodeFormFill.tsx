@@ -94,8 +94,9 @@ export default function MobileLowcodeFormFill() {
   useEffect(() => {
     if (!fields.length || !relatedProjectId) return
     const hasCustomer = fields.some((f) => f.id === 'related_customer')
-    const hasName = fields.some((f) => f.id === 'customer_name')
-    if (!hasCustomer && !hasName) return
+    const nameField = fields.find((f) => f.id === 'customer_name')
+    if (!hasCustomer && !nameField) return
+    const nameIsCustomerPicker = nameField?.type === 'customer'
     let alive = true
     ;(async () => {
       try {
@@ -116,9 +117,14 @@ export default function MobileLowcodeFormFill() {
             next.related_customer = cid
             changed = true
           }
-          if (hasName && cname && next.customer_name !== cname) {
-            next.customer_name = cname
-            changed = true
+          if (nameField) {
+            if (nameIsCustomerPicker && cid && next.customer_name !== cid) {
+              next.customer_name = cid
+              changed = true
+            } else if (!nameIsCustomerPicker && cname && next.customer_name !== cname) {
+              next.customer_name = cname
+              changed = true
+            }
           }
           return changed ? next : prev
         })
@@ -129,7 +135,8 @@ export default function MobileLowcodeFormFill() {
 
   useEffect(() => {
     if (!fields.length || !relatedCustomerId) return
-    if (!fields.some((f) => f.id === 'customer_name')) return
+    const nameField = fields.find((f) => f.id === 'customer_name')
+    if (!nameField || nameField.type === 'customer') return
     let alive = true
     ;(async () => {
       try {

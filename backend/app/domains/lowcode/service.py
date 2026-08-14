@@ -319,14 +319,8 @@ async def sync_builtin_form_fields(
         from app.domains.lowcode.invoice_application_fields import apply_invoice_application_fields
         apply_invoice_application_fields(want)
     if key == "quote_management":
-        # 客户类别/价格类型：创建隐藏、部门审批可填（非必填）；勿被旧租户 required 覆盖
-        for fd in want:
-            if not isinstance(fd, dict):
-                continue
-            if fd.get("id") in ("customer_category", "price_type"):
-                fd["required"] = False
-                fd["available_on_create"] = False
-                fd["fill_stage"] = "approver"
+        from app.domains.lowcode.quote_management_fields import apply_quote_management_fields
+        apply_quote_management_fields(want)
     if key == "drawing_requisition":
         from app.domains.lowcode.drawing_requisition_fields import (
             apply_drawing_requisition_fields,

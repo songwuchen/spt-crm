@@ -82,6 +82,11 @@ def main():
         print("fields", len(ids), "has serial_no=", "serial_no" in ids, "sample=", ids[:8])
         if "serial_no" not in ids or "price_lines" not in ids:
             print("WARN missing expected fields")
+        rp = next((f for f in fields if f.get("id") == "related_project"), None)
+        if not rp or rp.get("type") != "project" or rp.get("required"):
+            print("FAIL related_project missing or required=", rp)
+            sys.exit(1)
+        print("related_project ok required=", rp.get("required"))
 
         dept_id, _dept_name = pick_dept(c, h)
         custs = ok(c.get("/api/v1/lc/pickable-customers", headers=h, params={"keyword": ""}), "customers")
