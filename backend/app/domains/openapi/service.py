@@ -967,8 +967,14 @@ async def _import_jdy_flow_history(
     department_id: str | None,
     steps,
     approver_rule: dict | None = None,
+    flow_finished: bool | None = None,
 ) -> str | None:
-    """Shared JianDaoYun → CRM completed WF import (lead / customer)."""
+    """Shared JianDaoYun → CRM WF import (lead / customer / contract_version).
+
+    ``flow_finished``:
+      - True / None → 已结束（rejected 或 completed；None 兼容历史调用）
+      - False → 进行中（status=running，供合同列表「审批中」）
+    """
     if not steps:
         return None
     from app.domains.auth.models import User
@@ -1052,8 +1058,16 @@ async def _import_jdy_flow_history(
             has_reject = True
 
     started_at = min(times) if times else utcnow()
-    completed_at = max(times) if times else utcnow()
-    flow_status = "rejected" if has_reject else "completed"
+    finished = True if flow_finished is None else bool(flow_finished)
+    if has_reject:
+        flow_status = "rejected"
+        completed_at = max(times) if times else utcnow()
+    elif finished:
+        flow_status = "completed"
+        completed_at = max(times) if times else utcnow()
+    else:
+        flow_status = "running"
+        completed_at = None
 
     inst = WfProcessInstance(
         id=generate_uuid(),
@@ -1086,7 +1100,7 @@ async def _import_jdy_flow_history(
         handler_name = _flow_step_get(step, "handler_name")
         actor_id, actor_name = await resolve_actor(handler_name)
         n_started = _flow_step_get(step, "started_at") or _flow_step_get(step, "completed_at") or started_at
-        n_completed = _flow_step_get(step, "completed_at") or _flow_step_get(step, "started_at") or completed_at
+        n_completed = _flow_step_get(step, "completed_at") or _flow_step_get(step, "started_at") or n_started
 
         node = WfNodeInstance(
             id=generate_uuid(),
@@ -1136,6 +1150,28 @@ async def _import_jdy_flow_history(
 
     await db.flush()
     return inst.id
+
+
+async def import_contract_version_flow_history(
+    db: AsyncSession, ctx, version: ContractVersion, contract: Contract, steps,
+    flow_finished: bool | None = None,
+) -> str | None:
+    """Import JianDaoYun 合同登记流程 onto the current contract_version."""
+    if not steps:
+        return None
+    title = f"{contract.contract_no or ''} {version.title or ''}".strip() or "合同登记"
+    return await _import_jdy_flow_history(
+        db, ctx,
+        biz_type="contract_version",
+        biz_id=version.id,
+        title=title,
+        flow_code="contract_version_approval",
+        flow_name="合同版本审批",
+        initiator_id=contract.created_by_id or ctx.app_id,
+        department_id=contract.department_id,
+        steps=steps,
+        flow_finished=flow_finished,
+    )
 
 
 async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
@@ -1728,8 +1764,8 @@ async def _apply_openapi_contract_fields(db: AsyncSession, tenant_id: str, contr
 
 async def _update_contract_version_from_openapi(
     db: AsyncSession, tenant_id: str, contract: Contract, data,
-) -> None:
-    """Update current version title and optional key_clauses from OpenAPI intake."""
+) -> ContractVersion | None:
+    """Update current version title / key_clauses / version_status from OpenAPI intake."""
     version = (await db.execute(
         select(ContractVersion).where(
             ContractVersion.tenant_id == tenant_id,
@@ -1738,11 +1774,29 @@ async def _update_contract_version_from_openapi(
         ).limit(1)
     )).scalar_one_or_none()
     if not version:
-        return
+        return None
     if data.title:
         version.title = data.title
     if getattr(data, "key_clauses_json", None) is not None:
         version.key_clauses_json = data.key_clauses_json
+    vs = getattr(data, "version_status", None)
+    if vs:
+        version.status = vs
+    return version
+
+
+async def _apply_contract_flow_from_openapi(
+    db: AsyncSession, ctx, contract: Contract, version: ContractVersion | None, data,
+) -> None:
+    """Import JianDaoYun flow_history onto contract_version when provided."""
+    steps = getattr(data, "flow_history", None)
+    if not steps or version is None:
+        return
+    # Keep pydantic step objects for import (same as lead/customer).
+    await import_contract_version_flow_history(
+        db, ctx, version, contract, list(steps),
+        flow_finished=getattr(data, "flow_finished", None),
+    )
 
 
 async def _update_contract_version_title(
@@ -1767,7 +1821,8 @@ async def update_contract_from_openapi(db: AsyncSession, ctx, contract: Contract
     from app.domains.openapi.dto import contract_to_dto
 
     await _apply_openapi_contract_fields(db, ctx.tenant_id, contract, data)
-    await _update_contract_version_from_openapi(db, ctx.tenant_id, contract, data)
+    version = await _update_contract_version_from_openapi(db, ctx.tenant_id, contract, data)
+    await _apply_contract_flow_from_openapi(db, ctx, contract, version, data)
     await db.commit()
     await db.refresh(contract)
     await log_action(
@@ -1843,8 +1898,10 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         contract_id=contract.id, version_no=1,
         title=data.title or "V1",
         key_clauses_json=getattr(data, "key_clauses_json", None),
+        status=getattr(data, "version_status", None) or "draft",
     )
     db.add(version)
+    await _apply_contract_flow_from_openapi(db, ctx, contract, version, data)
     try:
         await db.commit()
     except IntegrityError:
@@ -1872,6 +1929,291 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         summary=f"开放平台创建合同: {contract.contract_no}",
     )
     return contract_to_dto(contract)
+
+
+# ============================================================ writes (low-code forms)
+_OPENAPI_FORM_CODES = frozenset({
+    "drawing_requisition",
+    "install_drawing_notice",
+})
+_FILE_FIELD_TYPES = frozenset({"file", "image"})
+
+
+def _file_field_to_att_refs(val) -> list[dict]:
+    """JianDaoYun file/image → CRM [{id,name}] refs until binary sync exists.
+
+    Frontend FileField / list cells require {id, name}. Plain name strings are
+    invisible (filtered by missing id). Use jdy-meta: prefix for name-only refs.
+    """
+    if val in (None, "", [], {}):
+        return []
+    if isinstance(val, str):
+        s = val.strip()
+        # JSON-encoded list from middleware as=json
+        if s.startswith("[") or s.startswith("{"):
+            try:
+                import json as _json
+                return _file_field_to_att_refs(_json.loads(s))
+            except Exception:
+                pass
+        return [{"id": f"jdy-meta:{s}", "name": s, "metaOnly": True}] if s else []
+    items = val if isinstance(val, list) else [val]
+    refs: list[dict] = []
+    seen: set[str] = set()
+    for it in items:
+        name = ""
+        if isinstance(it, str):
+            name = it.strip()
+        elif isinstance(it, dict):
+            # already normalized
+            existing_id = it.get("id")
+            existing_name = it.get("name") or it.get("fileName") or it.get("filename")
+            if existing_id and existing_name and str(existing_id).startswith("jdy-meta:"):
+                key = str(existing_name)
+                if key not in seen:
+                    seen.add(key)
+                    refs.append({
+                        "id": str(existing_id),
+                        "name": str(existing_name),
+                        "metaOnly": True,
+                    })
+                continue
+            name = str(existing_name or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        refs.append({"id": f"jdy-meta:{name}", "name": name, "metaOnly": True})
+    return refs
+
+
+async def _normalize_openapi_form_data(
+    db: AsyncSession, tenant_id: str, field_defs: list, form_data: dict,
+) -> dict:
+    """Resolve person/department names → UUIDs; keep file fields as name-only refs (no binary)."""
+    out = dict(form_data or {})
+    for fd in field_defs or []:
+        if not isinstance(fd, dict):
+            continue
+        fid = fd.get("id")
+        if not fid or fid not in out:
+            continue
+        ftype = fd.get("type") or ""
+        if ftype in _FILE_FIELD_TYPES:
+            out[fid] = _file_field_to_att_refs(out.get(fid))
+            if not out[fid]:
+                out.pop(fid, None)
+            continue
+        val = out.get(fid)
+        if val in (None, "", [], {}):
+            continue
+        # auto_number / text serials may arrive as JSON numbers from JianDaoYun
+        if ftype in ("auto_number", "text", "textarea") and isinstance(val, (int, float)) and not isinstance(val, bool):
+            out[fid] = str(int(val)) if float(val).is_integer() else str(val)
+            val = out[fid]
+        if ftype in ("person", "user"):
+            if isinstance(val, str):
+                uid = await resolve_user_id(db, tenant_id, user_id=None, user_name=val, field_label=fid)
+                if uid:
+                    out[fid] = uid
+            elif isinstance(val, dict):
+                name = val.get("name") or val.get("username") or val.get("id")
+                uid = await resolve_user_id(
+                    db, tenant_id,
+                    user_id=val.get("id") if isinstance(val.get("id"), str) else None,
+                    user_name=str(name) if name else None,
+                    field_label=fid,
+                )
+                if uid:
+                    out[fid] = uid
+        elif ftype in ("person_multi",):
+            items = val if isinstance(val, list) else [val]
+            resolved = []
+            for item in items:
+                if isinstance(item, str):
+                    uid = await resolve_user_id(db, tenant_id, user_id=None, user_name=item, field_label=fid)
+                    if uid:
+                        resolved.append(uid)
+                elif isinstance(item, dict):
+                    name = item.get("name") or item.get("username") or item.get("id")
+                    uid = await resolve_user_id(
+                        db, tenant_id,
+                        user_id=item.get("id") if isinstance(item.get("id"), str) else None,
+                        user_name=str(name) if name else None,
+                        field_label=fid,
+                    )
+                    if uid:
+                        resolved.append(uid)
+            if resolved:
+                out[fid] = resolved
+        elif ftype == "department":
+            if isinstance(val, str):
+                did = await resolve_department_id(
+                    db, tenant_id, department_id=None, department_name=val,
+                )
+                if did:
+                    out[fid] = did
+            elif isinstance(val, dict):
+                name = val.get("name") or val.get("id")
+                did = await resolve_department_id(
+                    db, tenant_id,
+                    department_id=val.get("id") if isinstance(val.get("id"), str) else None,
+                    department_name=str(name) if name else None,
+                )
+                if did:
+                    out[fid] = did
+        elif ftype == "department_multi":
+            items = val if isinstance(val, list) else [val]
+            resolved = []
+            for item in items:
+                if isinstance(item, str):
+                    did = await resolve_department_id(
+                        db, tenant_id, department_id=None, department_name=item,
+                    )
+                    if did:
+                        resolved.append(did)
+                elif isinstance(item, dict):
+                    name = item.get("name") or item.get("id")
+                    did = await resolve_department_id(
+                        db, tenant_id,
+                        department_id=item.get("id") if isinstance(item.get("id"), str) else None,
+                        department_name=str(name) if name else None,
+                    )
+                    if did:
+                        resolved.append(did)
+            if resolved:
+                out[fid] = resolved
+        elif ftype == "detail_table" and isinstance(val, list):
+            cols = {c.get("id"): c for c in (fd.get("detail_table_columns") or []) if isinstance(c, dict) and c.get("id")}
+            if not cols:
+                continue
+            remapped = []
+            for row in val:
+                if not isinstance(row, dict):
+                    continue
+                nr = dict(row)
+                for cid, cfd in cols.items():
+                    if cid not in nr:
+                        continue
+                    ctype = cfd.get("type") or ""
+                    cv = nr[cid]
+                    if ctype == "person" and isinstance(cv, str):
+                        uid = await resolve_user_id(db, tenant_id, user_id=None, user_name=cv, field_label=cid)
+                        if uid:
+                            nr[cid] = uid
+                    elif ctype == "person" and isinstance(cv, dict):
+                        name = cv.get("name") or cv.get("username")
+                        uid = await resolve_user_id(
+                            db, tenant_id, user_id=cv.get("id"), user_name=str(name) if name else None, field_label=cid,
+                        )
+                        if uid:
+                            nr[cid] = uid
+                remapped.append(nr)
+            out[fid] = remapped
+    return out
+
+
+async def _find_form_instance_by_external_key(
+    db: AsyncSession, tenant_id: str, template_id: str, external_key: str,
+):
+    from app.domains.lowcode.models import FormInstance
+    return (await db.execute(
+        select(FormInstance).where(
+            FormInstance.tenant_id == tenant_id,
+            FormInstance.template_id == template_id,
+            FormInstance.is_deleted == False,  # noqa: E712
+            FormInstance.form_data["_external_key"].as_string() == external_key,
+        ).limit(1)
+    )).scalar_one_or_none()
+
+
+def _form_instance_to_openapi_dto(inst) -> dict:
+    return {
+        "id": inst.id,
+        "template_id": inst.template_id,
+        "title": inst.title,
+        "status": inst.status,
+        "business_no": inst.business_no,
+        "external_key": (inst.form_data or {}).get("_external_key"),
+        "created_at": inst.created_at.isoformat() if getattr(inst, "created_at", None) else None,
+        "updated_at": inst.updated_at.isoformat() if getattr(inst, "updated_at", None) else None,
+    }
+
+
+async def create_form_instance_from_openapi(db: AsyncSession, ctx, data) -> dict:
+    """Create or update a low-code form instance pushed by middleware."""
+    from app.domains.lowcode import service as lc_service
+    from app.domains.lowcode import schemas as lc_schemas
+    from app.domains.lowcode.field_permission import SYSTEM_ROLE
+    from app.domains.openapi.errors import OpenApiException, CRM_VALIDATION_ERROR
+
+    code = (data.template_code or "").strip()
+    if code not in _OPENAPI_FORM_CODES:
+        raise OpenApiException(
+            CRM_VALIDATION_ERROR,
+            f"unsupported template_code: {code}",
+            http_status=422,
+            details={"allowed": sorted(_OPENAPI_FORM_CODES)},
+        )
+    external_key = (data.external_key or "").strip()
+    if not external_key:
+        raise OpenApiException(CRM_VALIDATION_ERROR, "external_key is required", http_status=422)
+
+    tpl = await lc_service.get_template_by_code(db, ctx.tenant_id, code)
+    if not tpl:
+        # Try ensure builtin once
+        try:
+            await lc_service.ensure_builtin_form(db, ctx.tenant_id, code, {
+                "sub": ctx.app_id, "username": "openapi", "real_name": "开放平台",
+            })
+        except Exception:
+            pass
+        tpl = await lc_service.get_template_by_code(db, ctx.tenant_id, code)
+    if not tpl:
+        raise OpenApiException(
+            CRM_VALIDATION_ERROR,
+            f"form template {code} not found; ensure builtin templates on CRM first",
+            http_status=422,
+        )
+
+    published = await lc_service._get_published_version(db, ctx.tenant_id, tpl.id)
+    field_defs = (published.field_definitions if published else []) or []
+
+    form_data = dict(data.form_data or {})
+    form_data["_external_key"] = external_key
+    form_data["_external_source"] = "jdy"
+    form_data = await _normalize_openapi_form_data(db, ctx.tenant_id, field_defs, form_data)
+
+    user = {
+        "sub": ctx.app_id,
+        "username": f"openapi:{ctx.app_key}",
+        "real_name": "开放平台",
+        "roles": [SYSTEM_ROLE],
+        "dept_id": None,
+    }
+
+    existing = await _find_form_instance_by_external_key(db, ctx.tenant_id, tpl.id, external_key)
+    if existing:
+        upd = lc_schemas.FormInstanceUpdate(
+            title=data.title,
+            remark=data.remark,
+            form_data=form_data,
+        )
+        inst = await lc_service.update_instance(db, ctx.tenant_id, existing.id, upd, user)
+        return {**_form_instance_to_openapi_dto(inst), "upsert": "updated"}
+
+    create = lc_schemas.FormInstanceCreate(
+        template_id=tpl.id,
+        title=data.title,
+        remark=data.remark,
+        form_data=form_data,
+        as_draft=bool(data.as_draft),
+    )
+    # Prefer applicant as initiator when resolved
+    applicant = form_data.get("applicant")
+    if isinstance(applicant, str) and applicant:
+        user["sub"] = applicant
+    inst = await lc_service.create_instance(db, ctx.tenant_id, create, user)
+    return {**_form_instance_to_openapi_dto(inst), "upsert": "created"}
 
 
 # ============================================================ webhook ops

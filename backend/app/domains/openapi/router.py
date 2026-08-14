@@ -20,7 +20,7 @@ from app.domains.openapi.auth import get_openapi_context, require_scope, OpenApi
 from app.domains.openapi.errors import OpenApiException, CRM_NOT_FOUND
 from app.domains.openapi.schemas import (
     OpenLeadCreate, OpenActivityCreate, OpenCustomerCreate, OpenServiceTicketCreate,
-    OpenOrderCreate, OpenOrderStatusUpdate, OpenContractCreate,
+    OpenOrderCreate, OpenOrderStatusUpdate, OpenContractCreate, OpenFormInstanceUpsert,
 )
 from app.domains.openapi.idempotency import run_idempotent
 
@@ -550,6 +550,23 @@ async def create_contract(
     """
     async def producer():
         return await service.create_contract_from_openapi(db, ctx, body)
+    return _ok(request, await run_idempotent(db, ctx, request, producer))
+
+
+@router.post("/form-instances")
+async def upsert_form_instance(
+    request: Request, body: OpenFormInstanceUpsert,
+    ctx: OpenApiContext = Depends(require_scope("crm.form.write")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create or upsert a low-code form instance (图纸领用 / 安装图设计通知等).
+
+    Upsert key: ``template_code`` + ``external_key`` (简道云 data_id). Default
+    ``as_draft=true`` avoids re-triggering CRM approval on historical sync.
+    Requires ``Idempotency-Key``.
+    """
+    async def producer():
+        return await service.create_form_instance_from_openapi(db, ctx, body)
     return _ok(request, await run_idempotent(db, ctx, request, producer))
 
 

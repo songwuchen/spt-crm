@@ -1402,6 +1402,9 @@ async def update_instance(
                 raise BusinessException(code=VALIDATION_ERROR, message=err)
         inst.form_data = form_data
         inst.amount = _extract_amount(form_data, field_defs)
+        biz = _pick_business_no(form_data, field_defs)
+        if biz:
+            inst.business_no = biz
 
     await db.commit()
     await db.refresh(inst)

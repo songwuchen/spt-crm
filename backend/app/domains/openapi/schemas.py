@@ -23,11 +23,13 @@ ALL_SCOPES = [
     "crm.service.write",
     "crm.order.write",
     "crm.contract.write",
+    "crm.form.write",
 ]
 
 _ACTIVITY_BIZ_TYPES = {"customer", "project", "lead"}
 _ORDER_STATUSES = {"draft", "confirmed", "producing", "shipped", "completed", "cancelled"}
 _CONTRACT_STATUSES = {"draft", "signed", "terminated"}
+_CONTRACT_VERSION_STATUSES = {"draft", "submitted", "approved", "rejected", "signed"}
 
 
 class OpenFlowHistoryStep(BaseModel):
@@ -268,6 +270,12 @@ class OpenContractCreate(BaseModel):
     key_clauses_json: Optional[dict | list] = None
     registration_json: Optional[dict] = None
     custom_fields: Optional[dict] = None
+    # 当前版本审批态：驱动合同列表「草稿/审批中/待签署/已驳回」展示。
+    version_status: Optional[str] = Field(None, max_length=16)
+    # 简道云流程动态；导入到 contract_version 流程实例（详情「流程动态」）。
+    flow_history: Optional[List[OpenFlowHistoryStep]] = None
+    # 简道云流程是否已结束；False=进行中（实例 status=running）。缺省按步骤推断为已结束。
+    flow_finished: Optional[bool] = None
 
     @field_validator("status")
     @classmethod
@@ -275,6 +283,28 @@ class OpenContractCreate(BaseModel):
         if v is not None and v not in _CONTRACT_STATUSES:
             raise ValueError(f"status must be one of {sorted(_CONTRACT_STATUSES)}")
         return v
+
+    @field_validator("version_status")
+    @classmethod
+    def _check_version_status(cls, v):
+        if v is not None and v not in _CONTRACT_VERSION_STATUSES:
+            raise ValueError(f"version_status must be one of {sorted(_CONTRACT_VERSION_STATUSES)}")
+        return v
+
+
+class OpenFormInstanceUpsert(BaseModel):
+    """Upsert a low-code form instance (e.g. 合同图纸领用 / 安装图设计通知).
+
+    Intended for middleware push from 简道云. Upsert key: tenant + template_code +
+    ``external_key`` (stored in form_data._external_key). Default ``as_draft=true``
+    so historical sync does not re-trigger CRM approval.
+    """
+    template_code: str = Field(..., min_length=1, max_length=64)
+    external_key: str = Field(..., min_length=1, max_length=128)
+    title: Optional[str] = Field(None, max_length=255)
+    remark: Optional[str] = Field(None, max_length=2000)
+    as_draft: bool = True
+    form_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class OpenOrderStatusUpdate(BaseModel):

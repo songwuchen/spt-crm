@@ -5,8 +5,13 @@ import {
   CloseCircleFilled, PaperClipOutlined, QrcodeOutlined,
 } from '@ant-design/icons'
 import { attachmentApi } from '@/api/attachment'
+import {
+  isMetaOnlyAttachmentId,
+  normalizeFileFieldValue,
+  type FileFieldAtt,
+} from '@/utils/fileFieldValue'
 
-interface Att { id: string; name: string }
+type Att = FileFieldAtt
 
 const FILE_MAX = 50 * 1024 * 1024
 const IMAGE_MAX = 20 * 1024 * 1024
@@ -49,7 +54,7 @@ export default function FileField({
   readonly?: boolean
   downloadDenied?: boolean
 }) {
-  const atts: Att[] = Array.isArray(value) ? (value as Att[]) : []
+  const atts: Att[] = normalizeFileFieldValue(value)
   const attsRef = useRef(atts)
   attsRef.current = atts
   const [urls, setUrls] = useState<Record<string, string>>({})
@@ -70,6 +75,7 @@ export default function FileField({
     ;(async () => {
       const next: Record<string, string> = {}
       for (const a of atts) {
+        if (a.metaOnly || isMetaOnlyAttachmentId(a.id)) continue
         if (urls[a.id]) { next[a.id] = urls[a.id]; continue }
         try { next[a.id] = await attachmentApi.getUrl(a.id, false) } catch { /* ignore */ }
       }
@@ -81,6 +87,10 @@ export default function FileField({
   const openFile = async (id: string, download = false) => {
     if (downloadDenied) {
       message.warning('无权限查看附件')
+      return
+    }
+    if (isMetaOnlyAttachmentId(id)) {
+      message.info('暂无文件实体，仅同步了简道云文件名')
       return
     }
     try {

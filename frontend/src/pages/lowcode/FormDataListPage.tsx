@@ -25,6 +25,10 @@ import { lowcodeApi } from '@/api/lowcode'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { attachmentApi } from '@/api/attachment'
 import { downloadFile } from '@/utils/download'
+import {
+  isMetaOnlyAttachmentId,
+  normalizeFileFieldValue,
+} from '@/utils/fileFieldValue'
 import type { FieldDefinition, FormRule, FormInstance, WfInstanceDetail } from '@/types/lowcode'
 import FormRenderer, { findRequiredError, scrollToLcField, deriveRolePerms } from '@/components/lowcode/FormRenderer'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
@@ -311,10 +315,7 @@ function joinLinks(parts: string[]): ReactNode {
 }
 
 function ListMediaCell({ value, image }: { value: unknown; image?: boolean }) {
-  type Att = { id: string; name: string }
-  const atts: Att[] = Array.isArray(value)
-    ? (value as Att[]).filter((a) => a && a.id)
-    : []
+  const atts = normalizeFileFieldValue(value)
   const [urls, setUrls] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -323,6 +324,7 @@ function ListMediaCell({ value, image }: { value: unknown; image?: boolean }) {
     ;(async () => {
       const next: Record<string, string> = {}
       for (const a of atts.slice(0, 3)) {
+        if (a.metaOnly || isMetaOnlyAttachmentId(a.id)) continue
         try { next[a.id] = await attachmentApi.getUrl(a.id, false) } catch { /* ignore */ }
       }
       if (alive) setUrls(next)
@@ -333,6 +335,10 @@ function ListMediaCell({ value, image }: { value: unknown; image?: boolean }) {
   if (!atts.length) return <span>—</span>
 
   const open = async (id: string) => {
+    if (isMetaOnlyAttachmentId(id)) {
+      message.info('暂无文件实体，仅同步了简道云文件名')
+      return
+    }
     try {
       window.open(await attachmentApi.getUrl(id, !image), '_blank')
     } catch {
@@ -401,8 +407,9 @@ function cellText(field: FieldDefinition, v: unknown, maps?: NameMaps): string {
   if (field.type === 'detail_table') return `${(v as unknown[]).length} 行`
   if (field.type === 'amount') return `¥${Number(v).toFixed(2)}`
   if (field.type === 'file' || field.type === 'image') {
-    const n = Array.isArray(v) ? v.length : 0
-    return n ? `${n} 个` : '—'
+    const atts = normalizeFileFieldValue(v)
+    if (!atts.length) return '—'
+    return atts.map((a) => a.name).join('，')
   }
   if (field.type === 'department' || field.type === 'department_multi') {
     if (typeof v === 'object' && v !== null && 'name' in (v as object) && !Array.isArray(v)) {
