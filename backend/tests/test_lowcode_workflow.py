@@ -81,13 +81,18 @@ async def test_default_lead_flow_is_provisioned_and_published(client: AsyncClien
     ))).scalars().first()
     assert v is not None
     approval = [n for n in v.node_definitions if n.get("type") == "approval"]
-    assert len(approval) == 1
-    rule = approval[0]["approver_rule"]
+    assert len(approval) == 2, "情报审批 + 业务员确认是否转商机"
+    intel = next(n for n in approval if (n.get("approver_rule") or {}).get("value") == "lead_intel")
+    confirm = next(n for n in approval if n.get("id") == "approval_owner_confirm"
+                   or "转商机" in (n.get("name") or ""))
+    rule = intel["approver_rule"]
     assert rule["type"] == "specified_role" and rule["value"] == "lead_intel"
     # 排除提交人本人，保持与旧实现一致（旧实现 exclude_user_id=提交人）
     assert rule.get("exclude_initiator") is True
     # 无审批人时自动通过，避免线索卡在 pending 无法转化
-    assert approval[0]["empty_strategy"] == "auto_approve"
+    assert intel["empty_strategy"] == "auto_approve"
+    assert confirm["type"] == "approval"
+    assert (confirm.get("approver_rule") or {}).get("type") == "form_field_person"
 
 
 @pytest.mark.asyncio

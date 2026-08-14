@@ -11,8 +11,10 @@ async def test_list_leads(client: AsyncClient, auth_headers: dict):
 
 
 async def test_lead_crud(client: AsyncClient, auth_headers: dict):
+    # as_draft：提交后会启审并可能卡在「业务员确认」待办，整单不可编辑
     resp = await client.post("/api/v1/leads", headers=auth_headers, json={
         "title": "测试线索_自动化", "company_name": "测试公司", "source": "website",
+        "as_draft": True,
     })
     data = resp.json()
     assert data["code"] == 0
@@ -40,6 +42,7 @@ async def test_lead_custom_fields_survive_read_and_edit(client: AsyncClient, aut
     cf = {"f_industry_note": "选矿", "f_visit_count": 3}
     lid = (await client.post("/api/v1/leads", headers=h, json={
         "title": "扩展字段线索", "company_name": "扩展字段公司", "custom_fields_json": cf,
+        "as_draft": True,
     })).json()["data"]["id"]
 
     # 详情与列表都应回传扩展字段值

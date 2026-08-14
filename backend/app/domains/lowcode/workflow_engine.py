@@ -235,6 +235,27 @@ class WorkflowEngine:
         ld = await self.db.get(Lead, inst.biz_id)
         return bool(ld and getattr(ld, "review_status", None) == "attacked")
 
+    async def _mark_lead_approved_after_intel(self, inst: WfProcessInstance, node) -> None:
+        """情报节点通过/空审跳过后立刻 approved（流程可能还要走业务员确认）。
+
+        与 intel_review_lead(include) 对齐：不能等整单 writeback，否则转化门禁一直卡 pending。
+        同时清空旧驳回原因，避免详情页残留上一轮文案。
+        """
+        if inst.biz_type != "lead" or not inst.biz_id:
+            return
+        if not self._is_lead_intel_task_node(node):
+            return
+        if await self._lead_is_attacked(inst):
+            return
+        from app.domains.lead.models import Lead
+        ld = await self.db.get(Lead, inst.biz_id)
+        if not ld:
+            return
+        if getattr(ld, "review_status", None) == "pending":
+            ld.review_status = "approved"
+        ld.reject_reason = None
+        await self.db.flush()
+
     def _queue(self, kind: str, *args) -> None:
         self._notify.append((kind, *args))
 
@@ -573,6 +594,7 @@ class WorkflowEngine:
             # 通知发起人，否则单据会在无人知情的情况下被自动置为已通过(历史上的静默缺陷)。
             self._log(inst.id, None, None, {"sub": "system"}, "auto_approve", "无审批人,自动通过")
             self._queue("empty_auto_approved", node_name, inst)
+            await self._mark_lead_approved_after_intel(inst, node)
             await self._advance(inst, version, node["id"], ctx)
             return
 
@@ -853,9 +875,11 @@ class WorkflowEngine:
         self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
 
         if action == "reject":
-            # 驳回意见随流程结束回写到业务表(如 leads.reject_reason)；并给发起人修订待办
+            # 驳回意见随流程结束回写到业务表(如 leads.reject_reason)
             await self._reject_flow(inst, reason=opinion)
-            await self._create_initiator_revise_todo(inst, reason=opinion)
+            # 线索情报驳回为终态（不可再报备），不发发起人修订待办；其它业务仍可改后再提
+            if inst.biz_type != "lead":
+                await self._create_initiator_revise_todo(inst, reason=opinion)
             await self.db.commit()
             await self.flush_notifications(inst)
             await self._audit(inst, actor, "reject")
@@ -1171,6 +1195,7 @@ class WorkflowEngine:
             ni.status = "completed"
             ni.completed_at = _now()
             await self.db.flush()
+            await self._mark_lead_approved_after_intel(inst, ni)
             await self._advance(inst, version, ni.node_def_id, ctx)
 
     async def _return_to_node(self, inst, version, target: dict, ctx) -> None:
