@@ -8,6 +8,8 @@ import type { WfTodoItem } from '@/types/lowcode'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
+import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
+import { useAuthStore } from '@/stores/authStore'
 
 interface LeadItem {
   id: string; lead_code: string; title: string; company_name: string | null
@@ -45,6 +47,7 @@ export default function MobileLeadDetail() {
   usePageTitle('线索详情')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const canEditLead = useAuthStore((s) => s.hasPermission('lead:edit'))
   const [lead, setLead] = useState<LeadItem | null>(null)
   const [myTask, setMyTask] = useState<WfTodoItem | null>(null)
   const [editModal, setEditModal] = useState(false)
@@ -165,8 +168,36 @@ export default function MobileLeadDetail() {
         <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${st.color}`}>{st.label}</span>
       </div>
 
-      {/* 待我情报审批 */}
-      {myTask && (
+      {/* 待我审批 */}
+      {myTask && isLeadOwnerConfirmNode(myTask.node_name) && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 mb-3">
+          <div className="text-sm font-bold text-slate-900 mb-1">请确认是否转商机</div>
+          <div className="text-sm text-slate-500 mb-3">信息情报部已处理，请确认后通过</div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              className="h-10 rounded-lg bg-primary text-white text-sm font-bold border-0"
+              onClick={async () => {
+                try {
+                  await workflowApi.act(myTask.task_id, { action: 'approve', opinion: '确认' })
+                  message.success('已确认'); setMyTask(null); loadLead()
+                } catch { message.error('处理失败') }
+              }}
+            >通过</button>
+            <button
+              type="button"
+              className="h-10 rounded-lg bg-red-50 text-red-600 text-sm font-bold border-0"
+              onClick={async () => {
+                try {
+                  await workflowApi.act(myTask.task_id, { action: 'reject', opinion: '暂不转化' })
+                  message.success('已驳回'); setMyTask(null); loadLead()
+                } catch { message.error('处理失败') }
+              }}
+            >驳回</button>
+          </div>
+        </div>
+      )}
+      {myTask && !isLeadOwnerConfirmNode(myTask.node_name) && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 mb-3">
           <div className="text-sm font-bold text-slate-900 mb-2">信息情报部审批</div>
           <LeadIntelReviewForm
@@ -336,11 +367,13 @@ export default function MobileLeadDetail() {
       {/* Action Buttons — 已转化/已废弃不可再编辑 */}
       {lead.status !== 'qualified' && lead.status !== 'discarded' && (
       <div className="mt-4 flex gap-2">
+        {canEditLead && (
         <button onClick={openEdit}
           className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1">
           <MobileIcon name="edit" style={{ fontSize: 16 }} />
           编辑
         </button>
+        )}
         {lead.status === 'new' && (
           <button onClick={() => handleStatusChange('following')}
             className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold">

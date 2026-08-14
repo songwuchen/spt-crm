@@ -178,6 +178,17 @@ STANDARD_ROLES = [
         ],
     },
     {
+        # 一线业务员：只看本人线索，收录后确认是否转商机（对齐简道云「业务员确认是否转商机」）
+        "code": "salesperson", "name": "业务员", "scope": "self",
+        "desc": "业务员:仅看本人线索/客户/商机;收录后确认是否转化为客户与商机",
+        "perms": [
+            "customer:view", "customer:create",
+            "contact:view", "contact:create",
+            "lead:view", "lead:qualify",
+            "project:view", "project:create",
+        ],
+    },
+    {
         "code": "sales_manager", "name": "销售主管", "scope": "dept", "lowcode_admin": True,
         "desc": "本部门子树销售数据 + 审批 + 提成查看",
         "perms": [

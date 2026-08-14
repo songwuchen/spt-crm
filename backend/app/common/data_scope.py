@@ -8,6 +8,7 @@ Data visibility scope filter.
 
 `resolve_owner_scope` 返回可见 owner_id 列表（None 表示不限）。
 `apply_data_scope` 在 owner 范围之外，额外并入「创建人/共享/项目成员」等可见性（用于商机）。
+线索草稿（review_status=draft）仅负责人/创建人可见，即使 data_scope=all 也不放开。
 
 列表之外还必须守住「单对象」入口：`assert_in_scope` / `assert_project_child_in_scope`
 是 `apply_data_scope` / `apply_project_child_scope` 的单行版本，判定口径必须与列表一致，
@@ -57,6 +58,40 @@ async def managed_department_ids(
         subtree_dept_ids_select(tenant_id, root_ids, paths)
     )).scalars().all())
     return list({*root_ids, *child_ids})
+
+
+def lead_draft_privacy_clause(model, user_id: str | None):
+    """草稿线索隐私：仅负责人或创建人可见（对 data_scope=all 同样生效）。
+
+    非草稿 / review_status 为空：不额外限制。
+    返回 SQLAlchemy 条件；user_id 为空时返回恒假（不可见任何草稿行，
+    且非草稿仍可见 —— 用 is_distinct_from 表达）。
+    """
+    if not hasattr(model, "review_status"):
+        return None
+    mine = []
+    if hasattr(model, "owner_id"):
+        mine.append(model.owner_id == user_id)
+    if hasattr(model, "created_by_id"):
+        mine.append(model.created_by_id == user_id)
+    if not mine or not user_id:
+        # 无身份：只能看非草稿
+        return model.review_status.is_distinct_from("draft")
+    return or_(
+        model.review_status.is_distinct_from("draft"),
+        *mine,
+    )
+
+
+def _lead_draft_is_mine(obj, user_id: str | None) -> bool:
+    """单对象：草稿是否属于当前用户（负责人或创建人）。"""
+    if not user_id:
+        return False
+    if getattr(obj, "owner_id", None) == user_id:
+        return True
+    if getattr(obj, "created_by_id", None) == user_id:
+        return True
+    return False
 
 
 async def resolve_owner_scope(db: AsyncSession, user: dict, tenant_id: str | None = None) -> list[str] | None:
@@ -307,9 +342,18 @@ async def is_in_scope(
     判定口径与 `apply_data_scope` 保持一致：owner 在范围内 / 本人创建 / 指派给本人 /
     ACL 共享 / （商机）本人是项目成员。另外「公海」记录（status='pool'，无归属）对全员开放，
     否则 客户公海 页面会整个失效。
+
+    线索草稿（review_status=draft）例外：仅负责人或创建人可见，即使 data_scope=all
+    也不能看别人的未提交草稿。
     """
     if obj is None:
         return False
+
+    # 草稿隐私优先于 all 范围放行
+    if biz_type == "lead" or getattr(obj, "__tablename__", "") == "leads":
+        if getattr(obj, "review_status", None) == "draft":
+            return _lead_draft_is_mine(obj, user.get("sub"))
+
     scope = await resolve_owner_scope(db, user, tenant_id)
     if scope is None:  # 管理员 / data_scope=all
         return True
@@ -451,56 +495,64 @@ async def apply_data_scope(
     model,
     biz_type: str,
 ) -> Select:
-    """按数据范围过滤查询（商机等用，含创建人/共享/项目成员的额外可见性）。"""
+    """按数据范围过滤查询（商机等用，含创建人/共享/项目成员的额外可见性）。
+
+    线索草稿始终仅负责人/创建人可见，不受 data_scope=all 放开。
+    """
     scope = await resolve_owner_scope(db, user, tenant_id)
-    if scope is None:
-        return query  # 管理员 / all：不限
-
     user_id = user.get("sub", "")
-    conditions = []
 
-    # 1. owner 在可见范围内（self=本人、dept=部门子树成员）
-    if hasattr(model, "owner_id"):
-        conditions.append(model.owner_id.in_(scope))
+    if scope is not None:
+        conditions = []
 
-    # 2. 本人创建
-    if hasattr(model, "created_by_id"):
-        conditions.append(model.created_by_id == user_id)
+        # 1. owner 在可见范围内（self=本人、dept=部门子树成员）
+        if hasattr(model, "owner_id"):
+            conditions.append(model.owner_id.in_(scope))
 
-    # 3. ACL 共享
-    try:
-        from app.domains.customer.models import AclShare
-        shared_biz_ids_q = select(AclShare.biz_id).where(
-            AclShare.tenant_id == tenant_id,
-            AclShare.biz_type == biz_type,
-            or_(
-                AclShare.shared_to_id == user_id,
-                AclShare.shared_to_type == "all",
-            ),
-        )
-        conditions.append(model.id.in_(shared_biz_ids_q))
-    except (ImportError, Exception):
-        pass
+        # 2. 本人创建
+        if hasattr(model, "created_by_id"):
+            conditions.append(model.created_by_id == user_id)
 
-    # 3b. 项目成员：作为成员参与的商机可见
-    try:
-        if getattr(model, "__tablename__", "") == "opportunity_projects":
-            from app.domains.project.models import ProjectMember
-            member_pids_q = select(ProjectMember.project_id).where(
-                ProjectMember.tenant_id == tenant_id,
-                ProjectMember.user_id == user_id,
+        # 3. ACL 共享
+        try:
+            from app.domains.customer.models import AclShare
+            shared_biz_ids_q = select(AclShare.biz_id).where(
+                AclShare.tenant_id == tenant_id,
+                AclShare.biz_type == biz_type,
+                or_(
+                    AclShare.shared_to_id == user_id,
+                    AclShare.shared_to_type == "all",
+                ),
             )
-            conditions.append(model.id.in_(member_pids_q))
-    except (ImportError, Exception):
-        pass
+            conditions.append(model.id.in_(shared_biz_ids_q))
+        except (ImportError, Exception):
+            pass
 
-    # 4. 线索：负责业务部门（含子树）内的记录可见，与 owner 范围 OR
-    if biz_type == "lead" and hasattr(model, "department_id") and user_id:
-        managed = await managed_department_ids(db, tenant_id, user_id)
-        if managed:
-            conditions.append(model.department_id.in_(managed))
+        # 3b. 项目成员：作为成员参与的商机可见
+        try:
+            if getattr(model, "__tablename__", "") == "opportunity_projects":
+                from app.domains.project.models import ProjectMember
+                member_pids_q = select(ProjectMember.project_id).where(
+                    ProjectMember.tenant_id == tenant_id,
+                    ProjectMember.user_id == user_id,
+                )
+                conditions.append(model.id.in_(member_pids_q))
+        except (ImportError, Exception):
+            pass
 
-    if conditions:
-        query = query.where(or_(*conditions))
+        # 4. 线索：负责业务部门（含子树）内的记录可见，与 owner 范围 OR
+        if biz_type == "lead" and hasattr(model, "department_id") and user_id:
+            managed = await managed_department_ids(db, tenant_id, user_id)
+            if managed:
+                conditions.append(model.department_id.in_(managed))
+
+        if conditions:
+            query = query.where(or_(*conditions))
+
+    # 草稿隐私：对 all / dept / self 一律生效
+    if biz_type == "lead":
+        draft_clause = lead_draft_privacy_clause(model, user_id)
+        if draft_clause is not None:
+            query = query.where(draft_clause)
 
     return query

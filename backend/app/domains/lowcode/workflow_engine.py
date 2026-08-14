@@ -37,6 +37,10 @@ from app.domains.lowcode.models import FormInstance
 
 logger = logging.getLogger("spt_crm.lowcode.workflow_engine")
 
+# 发起人「修改并重新提交」虚拟节点（撤回/驳回/退回发起人后进入待办）
+REVISE_NODE_DEF_ID = "__initiator_revise__"
+REVISE_NODE_NAME = "修改并重新提交"
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -123,7 +127,94 @@ class WorkflowEngine:
         # 整次 submit/act 复用组织快照，避免每个节点新建 Resolver 重复加载全量部门/用户
         self._approver_resolver = ApproverResolver(db, tenant_id)
 
+    async def _has_downstream_approval(self, process_instance_id: str) -> bool:
+        """下一节点（或任一审批节点）已有人审批通过 → 不可撤回。"""
+        row = (await self.db.execute(
+            select(WfTaskInstance.id).where(
+                WfTaskInstance.process_instance_id == process_instance_id,
+                WfTaskInstance.status == "approved",
+            ).limit(1)
+        )).scalar_one_or_none()
+        return row is not None
+
+    async def _cancel_initiator_revise_todos(self, process_instance_id: str) -> None:
+        tasks = (await self.db.execute(
+            select(WfTaskInstance).where(
+                WfTaskInstance.process_instance_id == process_instance_id,
+                WfTaskInstance.status == "pending",
+            )
+        )).scalars().all()
+        if not tasks:
+            return
+        ni_ids = {t.node_instance_id for t in tasks if t.node_instance_id}
+        revise_nis = set()
+        if ni_ids:
+            for ni in (await self.db.execute(
+                select(WfNodeInstance).where(WfNodeInstance.id.in_(ni_ids))
+            )).scalars().all():
+                if ni.node_type == "revise" or ni.node_def_id == REVISE_NODE_DEF_ID:
+                    revise_nis.add(ni.id)
+                    ni.status = "cancelled"
+                    ni.completed_at = _now()
+        done_ids = []
+        for t in tasks:
+            if t.node_instance_id in revise_nis:
+                t.status = "cancelled"
+                t.action_at = _now()
+                done_ids.append(t.id)
+        if done_ids:
+            self._queue("todos_done", done_ids)
+
+    async def _create_initiator_revise_todo(
+        self, inst: WfProcessInstance, *, reason: str | None = None,
+    ) -> None:
+        """撤回/驳回/退回发起人后：给发起人一条「修改并重新提交」待办。"""
+        if not inst.initiator_id:
+            return
+        await self._cancel_initiator_revise_todos(inst.id)
+        now = _now()
+        ni = WfNodeInstance(
+            id=generate_uuid(),
+            tenant_id=self.tenant_id,
+            process_instance_id=inst.id,
+            node_def_id=REVISE_NODE_DEF_ID,
+            node_type="revise",
+            node_name=REVISE_NODE_NAME,
+            status="running",
+            config={"reason": reason} if reason else {},
+            started_at=now,
+        )
+        self.db.add(ni)
+        await self.db.flush()
+        task = WfTaskInstance(
+            id=generate_uuid(),
+            tenant_id=self.tenant_id,
+            process_instance_id=inst.id,
+            node_instance_id=ni.id,
+            assignee_id=inst.initiator_id,
+            status="pending",
+        )
+        self.db.add(task)
+        await self.db.flush()
+        self._queue("tasks_created", [task.id], inst)
+
     # ---------- 通知(延迟到提交后下发) ----------
+
+    @staticmethod
+    def _is_lead_intel_task_node(node_inst) -> bool:
+        """是否信息情报部审批节点（需走收录/袭击/回退）。业务员确认节点返回 False。"""
+        if not node_inst:
+            return True
+        name = (getattr(node_inst, "node_name", None) or "").strip()
+        nid = getattr(node_inst, "node_def_id", None) or ""
+        if nid in ("cc_owner", "approval_owner_confirm"):
+            return False
+        if "转商机" in name or "确认转化" in name:
+            return False
+        if "情报" in name or name in ("线索审核", "内勤审批"):
+            return True
+        # 默认：线索流其它审批节点仍按情报闸门保护
+        return True
 
     def _queue(self, kind: str, *args) -> None:
         self._notify.append((kind, *args))
@@ -603,14 +694,41 @@ class WorkflowEngine:
             opinion = f"{opinion}（代理审批）"
 
         inst = await self.db.get(WfProcessInstance, task.process_instance_id)
-        if not inst or inst.status != "running":
+        if not inst:
+            raise BusinessException(code=BUSINESS_ERROR, message="流程不存在")
+
+        # 发起人修订待办：流程已撤回/驳回，点「重新提交」走 resubmit
+        node_inst = await self.db.get(WfNodeInstance, task.node_instance_id)
+        is_revise = bool(
+            node_inst and (node_inst.node_type == "revise" or node_inst.node_def_id == REVISE_NODE_DEF_ID)
+        )
+        if is_revise:
+            if inst.status not in ("withdrawn", "rejected"):
+                raise BusinessException(code=BUSINESS_ERROR, message="当前状态不可重新提交")
+            if action not in ("approve", "resubmit"):
+                raise BusinessException(code=VALIDATION_ERROR, message="修订待办请修改后重新提交")
+            task.status = "approved"
+            task.opinion = opinion or "重新提交"
+            task.action_at = _now()
+            task.version += 1
+            if node_inst:
+                node_inst.status = "completed"
+                node_inst.completed_at = _now()
+            self._log(inst.id, task.node_instance_id, task.id, actor, "resubmit", opinion)
+            self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
+            await self.db.flush()
+            await self.resubmit(inst.id, actor)
+            return
+
+        if inst.status != "running":
             raise BusinessException(code=BUSINESS_ERROR, message="流程已结束")
 
-        # 线索审核必须走情报裁定（收录/袭击/回退/暂存），禁止审批中心裸通过/驳回绕过必填
+        # 线索审核：信息情报部节点必须走情报裁定；「业务员确认是否转商机」允许普通通过/驳回
         if (
             inst.biz_type == "lead"
             and action in ("approve", "reject")
             and not allow_lead_intel
+            and self._is_lead_intel_task_node(node_inst)
         ):
             raise BusinessException(
                 code=VALIDATION_ERROR,
@@ -656,10 +774,23 @@ class WorkflowEngine:
             return
 
         if action == "return":
-            # 退回到指定审批节点：作废当前待办/节点，重新激活目标节点，流程仍进行中
+            # 退回发起人：结束流程并生成发起人修订待办；退回审批节点：流程仍进行中
+            if (return_to or "") == "__initiator__":
+                task.status = "returned"
+                task.opinion = opinion
+                task.action_at = _now()
+                task.version += 1
+                self._log(inst.id, task.node_instance_id, task.id, actor, "return", opinion)
+                self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
+                await self._reject_flow(inst, reason=opinion)
+                await self._create_initiator_revise_todo(inst, reason=opinion)
+                await self.db.commit()
+                await self.flush_notifications(inst)
+                await self._audit(inst, actor, "return")
+                return
             target = self._nodes_by_id(version).get(return_to or "")
             if not target or target.get("type") != "approval":
-                raise BusinessException(code=VALIDATION_ERROR, message="退回目标必须是有效的审批节点")
+                raise BusinessException(code=VALIDATION_ERROR, message="退回目标必须是有效的审批节点或发起人")
             task.status = "returned"
             task.opinion = opinion
             task.action_at = _now()
@@ -680,8 +811,9 @@ class WorkflowEngine:
         self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
 
         if action == "reject":
-            # 驳回意见随流程结束回写到业务表(如 leads.reject_reason)
+            # 驳回意见随流程结束回写到业务表(如 leads.reject_reason)；并给发起人修订待办
             await self._reject_flow(inst, reason=opinion)
+            await self._create_initiator_revise_todo(inst, reason=opinion)
             await self.db.commit()
             await self.flush_notifications(inst)
             await self._audit(inst, actor, "reject")
@@ -1124,6 +1256,8 @@ class WorkflowEngine:
             raise BusinessException(code=FORBIDDEN, message="仅发起人可撤回")
         if inst.status != "running":
             raise BusinessException(code=BUSINESS_ERROR, message="流程已结束,无法撤回")
+        if await self._has_downstream_approval(inst.id):
+            raise BusinessException(code=BUSINESS_ERROR, message="下一节点已审批，无法撤回")
         tasks = (await self.db.execute(
             select(WfTaskInstance).where(
                 WfTaskInstance.process_instance_id == inst.id,
@@ -1147,6 +1281,8 @@ class WorkflowEngine:
         # 被撤回而作废的待办，完结其钉钉待办并通知当前审批人（对齐旧引擎 withdraw_flow）。
         self._queue("todos_done", [t.id for t in tasks])
         self._queue("withdrawn", current_assignees, actor, inst)
+        # 发起人待办：修改后再次提交
+        await self._create_initiator_revise_todo(inst)
         from app.domains.lowcode import wf_notify
         await wf_notify.enqueue_wf_event(self.db, self.tenant_id, "workflow.withdrawn", inst)
         await self.db.commit()
@@ -1167,6 +1303,9 @@ class WorkflowEngine:
             raise BusinessException(code=FORBIDDEN, message="仅发起人可重新发起")
         if inst.status not in ("withdrawn", "rejected"):
             raise BusinessException(code=BUSINESS_ERROR, message="仅已撤回或已驳回的流程可重新发起")
+
+        # 清掉发起人修订待办（若从「我发起的」直接重提，也可能仍挂着）
+        await self._cancel_initiator_revise_todos(inst.id)
 
         # 防重：同一表单/业务已有进行中流程则直接返回
         if inst.form_instance_id:

@@ -54,9 +54,19 @@ export default function MobileLowcodeApprovals() {
                 className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 cursor-pointer active:bg-slate-50">
                 <div className="flex items-center justify-between gap-2">
                   <h4 className="text-sm font-bold text-slate-900 truncate">{t.title || '(无标题)'}</h4>
-                  {t.on_behalf_of && <span className="text-[12px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 shrink-0">代 {t.delegator_name || '委托人'}</span>}
+                  {t.task_kind === 'revise' ? (
+                    <span className="text-[12px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 shrink-0">待重提</span>
+                  ) : t.on_behalf_of ? (
+                    <span className="text-[12px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 shrink-0">代 {t.delegator_name || '委托人'}</span>
+                  ) : null}
                 </div>
-                <div className="text-sm text-slate-400 mt-1">{t.business_no || '—'} · {t.created_at ? t.created_at.slice(0, 10) : ''}</div>
+                <div className="text-sm text-slate-400 mt-1">
+                  {t.task_kind === 'revise'
+                    ? '待修改并重新提交'
+                    : (t.node_name || t.business_no || '—')}
+                  {' · '}
+                  {t.created_at ? t.created_at.slice(0, 10) : ''}
+                </div>
               </div>
             ))}
           </div>

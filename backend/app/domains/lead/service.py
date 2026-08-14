@@ -786,10 +786,12 @@ async def intel_review_lead(
 
     # include / attack：先落字段再 approve（情报裁定放行引擎拦截）
     # 引擎会按节点 field_perms 校验必填；须把评估字段一并传入 field_updates
+    # 流程可能继续走到「业务员确认」节点，故收录须立刻写 approved，不能等流程整单结束 writeback。
     lead.reject_reason = None
     if decision == "attack":
-        # 先写成 attacked，writeback 通过时保留，抄送文案据此区分「不可转化」
         lead.review_status = "attacked"
+    else:
+        lead.review_status = "approved"
     await db.commit()
     await WorkflowEngine(db, tenant_id).act(
         task_id, user, "approve", opinion=opinion,
@@ -804,6 +806,11 @@ async def intel_review_lead(
 
     if decision == "attack" and lead.review_status != "attacked":
         lead.review_status = "attacked"
+        await db.commit()
+        await db.refresh(lead)
+    elif decision == "include" and lead.review_status != "approved":
+        # 防御：若中间 writeback 被其它状态覆盖
+        lead.review_status = "approved"
         await db.commit()
         await db.refresh(lead)
 

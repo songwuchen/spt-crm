@@ -1557,11 +1557,42 @@ TECH_AGREEMENT_DEFAULT_DESC = (
 )
 
 
+# 线索第二节点：业务员确认是否转商机（审批，非抄送）
+_LEAD_OWNER_CONFIRM_NODE_ID = "approval_owner_confirm"
+_LEAD_OWNER_CONFIRM_LEGACY_IDS = frozenset({"cc_owner", "approval_owner_confirm"})
+# 简道云「申报信息」对齐文案
+_LEAD_JDY_START = "递呈信息"
+_LEAD_JDY_APPROVAL = "信息情报部审批"
+_LEAD_JDY_CC = "业务员确认是否转商机"
+_LEAD_JDY_END = "流程结束"
+_LEAD_LEGACY_START = {"发起", "开始", "start"}
+_LEAD_LEGACY_APPROVAL = {"线索审核", "内勤审批", "审批"}
+_LEAD_LEGACY_CC = {"通知业务员确认转化", "抄送", "CC", "抄送业务员"}
+_LEAD_LEGACY_END = {"结束", "end"}
+
+
+def _lead_owner_confirm_node() -> dict:
+    """情报通过后：负责人审批确认（待办需点通过/驳回，不再秒完的抄送）。"""
+    return {
+        "id": _LEAD_OWNER_CONFIRM_NODE_ID,
+        "type": "approval",
+        "name": "业务员确认是否转商机",
+        "approver_rule": {"type": "form_field_person", "value": "owner_id"},
+        "multi_mode": "or_sign",
+        # 无负责人时终止，避免再被 auto_approve 静默跳过
+        "empty_strategy": "terminate",
+    }
+
+
 def _default_flow_graph(
     name: str, approver_rule: dict, multi_mode: str, empty_strategy: str,
     *, with_owner_cc: bool = False,
 ) -> tuple[list[dict], list[dict]]:
-    """系统兜底流程节点图。with_owner_cc=True 时对齐简道云「申报信息」文案并抄送负责人。"""
+    """系统兜底流程节点图。
+
+    with_owner_cc=True（线索）：对齐简道云「申报信息」
+    递呈信息 → 信息情报部审批 → 业务员确认是否转商机(审批) → 流程结束
+    """
     start_name = "递呈信息" if with_owner_cc else "发起"
     end_name = "流程结束" if with_owner_cc else "结束"
     approval_node: dict = {
@@ -1584,13 +1615,11 @@ def _default_flow_graph(
         {"id": "r_start", "source": "start", "target": "approval_1"},
     ]
     if with_owner_cc:
-        nodes.append({
-            "id": "cc_owner", "type": "cc", "name": "业务员确认是否转商机",
-            "approver_rule": {"type": "form_field_person", "value": "owner_id"},
-        })
+        confirm = _lead_owner_confirm_node()
+        nodes.append(confirm)
         nodes.append({"id": "end", "type": "end", "name": end_name})
-        routes.append({"id": "r_cc", "source": "approval_1", "target": "cc_owner"})
-        routes.append({"id": "r_end", "source": "cc_owner", "target": "end"})
+        routes.append({"id": "r_confirm", "source": "approval_1", "target": confirm["id"]})
+        routes.append({"id": "r_end", "source": confirm["id"], "target": "end"})
     else:
         nodes.append({"id": "end", "type": "end", "name": end_name})
         routes.append({"id": "r_end", "source": "approval_1", "target": "end"})
@@ -2055,6 +2084,7 @@ async def ensure_default_definition(
                 db, tenant_id, sys_def, name, approver_rule, multi_mode, empty_strategy,
             )
             await _upgrade_lead_intel_field_perms_if_needed(db, tenant_id, sys_def)
+            await _upgrade_lead_owner_confirm_to_approval_if_needed(db, tenant_id, sys_def)
 
     if biz_type == "contract_version":
         sys_def = (await db.execute(select(WfProcessDefinition).where(
@@ -2160,13 +2190,43 @@ async def ensure_default_definition(
 
 
 def _flow_has_owner_cc(nodes: list | None) -> bool:
+    """是否已有「业务员确认是否转商机」节点（历史抄送或现行审批均可）。"""
     for n in nodes or []:
-        if n.get("type") != "cc":
-            continue
+        nid = n.get("id")
+        name = (n.get("name") or "").strip()
         rule = n.get("approver_rule") or (n.get("config") or {}).get("approver_rule") or {}
-        if rule.get("type") == "form_field_person" and rule.get("value") == "owner_id":
+        is_owner_rule = (
+            rule.get("type") == "form_field_person" and rule.get("value") == "owner_id"
+        )
+        if nid in _LEAD_OWNER_CONFIRM_LEGACY_IDS:
             return True
-        if n.get("id") == "cc_owner":
+        if name in (_LEAD_JDY_CC, "通知业务员确认转化") and (
+            n.get("type") in ("cc", "approval") or is_owner_rule
+        ):
+            return True
+        if n.get("type") == "cc" and is_owner_rule:
+            return True
+        if n.get("type") == "approval" and is_owner_rule and (
+            "转商机" in name or "确认转化" in name
+        ):
+            return True
+    return False
+
+
+def _flow_owner_confirm_is_approval(nodes: list | None) -> bool:
+    """负责人确认节点是否已是审批（而非秒完的抄送）。"""
+    for n in nodes or []:
+        if n.get("type") != "approval":
+            continue
+        nid = n.get("id")
+        name = (n.get("name") or "").strip()
+        rule = n.get("approver_rule") or (n.get("config") or {}).get("approver_rule") or {}
+        is_owner_rule = (
+            rule.get("type") == "form_field_person" and rule.get("value") == "owner_id"
+        )
+        if nid in _LEAD_OWNER_CONFIRM_LEGACY_IDS and is_owner_rule:
+            return True
+        if is_owner_rule and ("转商机" in name or name == _LEAD_JDY_CC):
             return True
     return False
 
@@ -2467,15 +2527,92 @@ async def _upgrade_default_owner_cc_if_needed(
     )
 
 
-# 简道云「申报信息」对齐文案：递呈信息 → 信息情报部审批 → 业务员确认是否转商机 → 流程结束
-_LEAD_JDY_START = "递呈信息"
-_LEAD_JDY_APPROVAL = "信息情报部审批"
-_LEAD_JDY_CC = "业务员确认是否转商机"
-_LEAD_JDY_END = "流程结束"
-_LEAD_LEGACY_START = {"发起", "开始", "start"}
-_LEAD_LEGACY_APPROVAL = {"线索审核", "内勤审批", "审批"}
-_LEAD_LEGACY_CC = {"通知业务员确认转化", "抄送", "CC", "抄送业务员"}
-_LEAD_LEGACY_END = {"结束", "end"}
+async def _upgrade_lead_owner_confirm_to_approval_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition,
+) -> None:
+    """把线索流里「业务员确认是否转商机」从抄送升级为审批节点。
+
+    仅改系统兜底简单拓扑；已是审批则跳过。
+    """
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    if d.code != "SYS_LEAD_REVIEW":
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+    if _flow_owner_confirm_is_approval(version.node_definitions):
+        return
+
+    nodes = list(version.node_definitions or [])
+    routes = list(version.route_definitions or [])
+    types = {n.get("type") for n in nodes}
+    approvals = [n for n in nodes if n.get("type") == "approval"]
+    ccs = [n for n in nodes if n.get("type") == "cc"]
+
+    # 仅处理：唯一情报审批 + 一条负责人抄送（或尚无第二节点）
+    if not (types <= {"start", "approval", "end", "cc"} and len(approvals) == 1):
+        return
+    if len(ccs) > 1:
+        return
+
+    confirm = _lead_owner_confirm_node()
+    if len(ccs) == 1:
+        cc = ccs[0]
+        rule = dict(cc.get("approver_rule") or (cc.get("config") or {}).get("approver_rule") or {})
+        name = (cc.get("name") or "").strip()
+        is_ownerish = (
+            cc.get("id") in _LEAD_OWNER_CONFIRM_LEGACY_IDS
+            or name in (_LEAD_JDY_CC, *_LEAD_LEGACY_CC)
+            or (rule.get("type") == "form_field_person" and rule.get("value") in (None, "", "owner_id"))
+            or rule.get("type") in (None, "", "creator")
+        )
+        if not is_ownerish:
+            return
+        old_id = cc.get("id")
+        new_nodes = []
+        for n in nodes:
+            if n.get("id") == old_id:
+                new_nodes.append(confirm)
+            else:
+                new_nodes.append(n)
+        new_routes = []
+        for r in routes:
+            rr = dict(r)
+            if rr.get("source") == old_id:
+                rr["source"] = confirm["id"]
+            if rr.get("target") == old_id:
+                rr["target"] = confirm["id"]
+            new_routes.append(rr)
+    elif len(ccs) == 0 and types <= {"start", "approval", "end"}:
+        # 无确认节点：整图换成带审批确认的默认图，保留情报节点配置
+        name = approvals[0].get("name") or _LEAD_JDY_APPROVAL
+        rule = approvals[0].get("approver_rule") or {"type": "specified_role", "value": "lead_intel"}
+        mode = approvals[0].get("multi_mode") or "or_sign"
+        empty = approvals[0].get("empty_strategy") or "auto_approve"
+        new_nodes, new_routes = _default_flow_graph(
+            name, rule, mode, empty, with_owner_cc=True,
+        )
+        old_ap = approvals[0]
+        for n in new_nodes:
+            if n.get("id") == "approval_1" or (
+                n.get("type") == "approval" and n.get("id") != confirm["id"]
+            ):
+                for k in ("approver_rule", "multi_mode", "empty_strategy", "timeout", "field_perms", "name"):
+                    if old_ap.get(k) is not None:
+                        n[k] = old_ap[k]
+                break
+    else:
+        return
+
+    await _publish_system_default_upgrade(
+        db, tenant_id, d, version, new_nodes, new_routes,
+        "系统默认流程（业务员确认是否转商机：抄送→审批）",
+        "线索业务员确认改审批",
+    )
+
+
+# 简道云「申报信息」对齐文案（常量已上移至 _default_flow_graph 旁）
 
 
 async def _upgrade_lead_jdy_labels_if_needed(
@@ -3003,11 +3140,15 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
     # 节点名：列表展示「待审：财务审核」
     node_ids = {t.node_instance_id for t in tasks if t.node_instance_id}
     node_name_map: dict[str, str] = {}
+    node_type_map: dict[str, str] = {}
     if node_ids:
         ni_rows = (await db.execute(
-            select(WfNodeInstance.id, WfNodeInstance.node_name).where(WfNodeInstance.id.in_(node_ids))
+            select(WfNodeInstance.id, WfNodeInstance.node_name, WfNodeInstance.node_type).where(
+                WfNodeInstance.id.in_(node_ids)
+            )
         )).all()
         node_name_map = {r[0]: (r[1] or "审批") for r in ni_rows}
+        node_type_map = {r[0]: (r[2] or "") for r in ni_rows}
 
     # 流程定义名：表单绑定流常无 biz_type，用流程名作类型/标题兜底
     def_ids = {i.process_definition_id for i in insts.values() if i and i.process_definition_id}
@@ -3050,10 +3191,17 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
             "initiator_name": name_map.get(inst.initiator_id) if inst else None,
             "process_status": inst.status if inst else None,
             "node_name": node_name_map.get(t.node_instance_id) if t.node_instance_id else None,
+            "node_type": node_type_map.get(t.node_instance_id) if t.node_instance_id else None,
+            "task_kind": (
+                "revise"
+                if (t.node_instance_id and node_type_map.get(t.node_instance_id) == "revise")
+                else "approve"
+            ),
             # 承载的业务单据：调用方据此把待办关联回业务详情页(如线索详情页的内联审批卡)
             "biz_type": inst.biz_type if inst else None,
             "biz_id": inst.biz_id if inst else None,
             "biz_ref_id": biz_ref_id,
+            "form_instance_id": inst.form_instance_id if inst else None,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "action_at": t.action_at.isoformat() if t.action_at else None,
             # 代理审批：非本人被指派的待办 = 代办，标注委托人
@@ -3311,8 +3459,11 @@ async def get_instance_detail(
     ).order_by(WfProcessComment.created_at.asc()))).scalars().all()
     version = await db.get(WfProcessDefinitionVersion, inst.process_version_id)
     approval_nodes = [
-        {"id": n.get("id"), "name": n.get("name") or "审批"}
-        for n in (version.node_definitions if version else []) if n.get("type") == "approval"
+        {"id": "__initiator__", "name": "退回发起人（修改后重提）"},
+        *[
+            {"id": n.get("id"), "name": n.get("name") or "审批"}
+            for n in (version.node_definitions if version else []) if n.get("type") == "approval"
+        ],
     ]
     # 业务单据审批（线索/报价等）没有 form_instance：把业务关键字段塞进 biz_detail，
     # 供审批中心抽屉展示；否则审批人只能看到「无关联表单」。
@@ -3504,8 +3655,12 @@ async def _resolve_current_task_for_viewer(
     """若 viewer 对本实例有 pending 待办，返回节点可填字段配置与当前值。
 
     并行会签时同一人可能有多条待办：传入 task_id 时优先解析该任务，避免填错节点字段。
+    撤回/驳回后的发起人修订待办（node_type=revise）同样返回，供编辑后重新提交。
     """
-    if not viewer_id or inst.status != "running":
+    if not viewer_id:
+        return None
+    allow_revise = inst.status in ("withdrawn", "rejected")
+    if inst.status != "running" and not allow_revise:
         return None
     assignees = [viewer_id]
     try:
@@ -3532,37 +3687,45 @@ async def _resolve_current_task_for_viewer(
 
     node_inst = await db.get(WfNodeInstance, pending.node_instance_id)
     node_def_id = node_inst.node_def_id if node_inst else None
+    node_type = (node_inst.node_type if node_inst else None) or ""
+    is_revise = node_type == "revise" or node_def_id == "__initiator_revise__"
+    if allow_revise and not is_revise:
+        return None
+
     nodes = {n.get("id"): n for n in (version.node_definitions if version else [])}
     node = nodes.get(node_def_id or "") or {}
-    field_perms = parse_field_perms(node)
-    # 在途单钉死旧 process_version：把最新已发布同名节点的 required 合并进来（如财务核价.need_purchase）
-    try:
-        latest_pub = await _published_version(db, tenant_id, inst.process_definition_id)
-        if latest_pub and (not version or latest_pub.id != version.id):
-            by_id = {
-                n.get("id"): n for n in (latest_pub.node_definitions or [])
-                if isinstance(n, dict) and n.get("id")
-            }
-            by_name = {
-                n.get("name"): n for n in (latest_pub.node_definitions or [])
-                if isinstance(n, dict) and n.get("name")
-            }
-            latest_node = by_id.get(node_def_id or "") or by_name.get(node.get("name") or "")
-            if latest_node:
-                latest_req = {
-                    p["field"] for p in parse_field_perms(latest_node)
-                    if p.get("access") == "required"
+    if is_revise:
+        node = {"name": (node_inst.node_name if node_inst else None) or "修改并重新提交"}
+        field_perms: list = []
+    else:
+        field_perms = parse_field_perms(node)
+        try:
+            latest_pub = await _published_version(db, tenant_id, inst.process_definition_id)
+            if latest_pub and (not version or latest_pub.id != version.id):
+                by_id = {
+                    n.get("id"): n for n in (latest_pub.node_definitions or [])
+                    if isinstance(n, dict) and n.get("id")
                 }
-                if latest_req:
-                    field_perms = [
-                        {**p, "access": "required"} if p.get("field") in latest_req else p
-                        for p in field_perms
-                    ]
-    except Exception:
-        pass
+                by_name = {
+                    n.get("name"): n for n in (latest_pub.node_definitions or [])
+                    if isinstance(n, dict) and n.get("name")
+                }
+                latest_node = by_id.get(node_def_id or "") or by_name.get(node.get("name") or "")
+                if latest_node:
+                    latest_req = {
+                        p["field"] for p in parse_field_perms(latest_node)
+                        if p.get("access") == "required"
+                    }
+                    if latest_req:
+                        field_perms = [
+                            {**p, "access": "required"} if p.get("field") in latest_req else p
+                            for p in field_perms
+                        ]
+        except Exception:
+            pass
+
     field_ids = [p["field"] for p in field_perms]
     catalog = {f["id"]: f for f in get_catalog(inst.biz_type or "")}
-    # 表单绑定流：用实例/模板字段定义补全控件类型（biz_field_catalog 无表单字段）
     published_by_id: dict = {}
     if inst.form_instance_id:
         from app.domains.lowcode.models import FormInstance
@@ -3585,10 +3748,14 @@ async def _resolve_current_task_for_viewer(
         for fd in form_defs:
             if isinstance(fd, dict) and fd.get("id") and fd["id"] not in catalog:
                 catalog[fd["id"]] = fd
+        # 修订待办：整单可编辑，返回全部表单字段
+        if is_revise and form_defs:
+            field_ids = [fd["id"] for fd in form_defs if isinstance(fd, dict) and fd.get("id")]
+            field_perms = [{"field": fid, "access": "editable"} for fid in field_ids]
+
     field_meta = []
     for fid in field_ids:
         meta = dict(catalog.get(fid) or {"id": fid, "label": fid, "type": "text"})
-        # 实例快照可能落后：pickable_scope 等以已发布模板为准，避免审批人选为空
         pub = published_by_id.get(fid)
         if isinstance(pub, dict):
             if pub.get("type"):
@@ -3598,7 +3765,6 @@ async def _resolve_current_task_for_viewer(
                 props = dict(meta.get("props") or {})
                 props["pickable_scope"] = pub_props["pickable_scope"]
                 meta["props"] = props
-        # 设计指派/设计人：审批详情也不再按科室联动过滤（兼容服务器旧已发布模板）
         if fid in ("design_assignees", "designer"):
             props = dict(meta.get("props") or {})
             scope = props.get("pickable_scope")
@@ -3619,7 +3785,7 @@ async def _resolve_current_task_for_viewer(
         if isinstance(meta.get("props"), dict) and meta["props"]:
             item["props"] = meta["props"]
         field_meta.append(item)
-    # 把人选范围依赖的科室等字段一并读出（即使本节点不可编辑），便于按科室收窄人选
+
     value_ids = list(field_ids)
     for item in field_meta:
         scope = (item.get("props") or {}).get("pickable_scope") if isinstance(item.get("props"), dict) else None
@@ -3633,9 +3799,12 @@ async def _resolve_current_task_for_viewer(
     return {
         "task_id": pending.id,
         "node_id": node_def_id,
-        "node_name": node.get("name") or "审批",
+        "node_name": (node_inst.node_name if is_revise and node_inst else None)
+            or node.get("name") or "审批",
+        "node_type": node_type or ("revise" if is_revise else None),
+        "task_kind": "revise" if is_revise else "approve",
         "field_perms": field_perms,
-        "opinion_required": bool(node.get("opinion_required")),
+        "opinion_required": False if is_revise else bool(node.get("opinion_required")),
         "field_meta": field_meta,
         "field_values": field_values,
     }

@@ -107,9 +107,14 @@ def _child_scope_where(model, tenant_id: str, user: dict, scope: list[str] | Non
 
 async def _lead_scope_where(db: AsyncSession, tenant_id: str, user: dict, scope: list[str] | None) -> list:
     """线索可见条件，口径对齐 apply_data_scope(Lead, "lead")。"""
-    if scope is None:
-        return []
+    from app.common.data_scope import lead_draft_privacy_clause, managed_department_ids
+
     uid = user.get("sub", "")
+    draft_privacy = lead_draft_privacy_clause(Lead, uid)
+
+    if scope is None:
+        return [draft_privacy] if draft_privacy is not None else []
+
     conds = [Lead.owner_id.in_(scope), Lead.created_by_id == uid]
     try:
         from app.domains.customer.models import AclShare
@@ -121,13 +126,15 @@ async def _lead_scope_where(db: AsyncSession, tenant_id: str, user: dict, scope:
     except Exception:
         pass
     try:
-        from app.common.data_scope import managed_department_ids
         managed = await managed_department_ids(db, tenant_id, uid)
         if managed:
             conds.append(Lead.department_id.in_(managed))
     except Exception:
         pass
-    return [or_(*conds)]
+    visibility = or_(*conds)
+    if draft_privacy is not None:
+        return [and_(visibility, draft_privacy)]
+    return [visibility]
 
 
 async def _ticket_scope_where(db: AsyncSession, tenant_id: str, user: dict) -> list:

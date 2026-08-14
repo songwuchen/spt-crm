@@ -238,6 +238,8 @@ export interface WfCurrentTask {
   task_id: string
   node_id?: string | null
   node_name?: string
+  node_type?: string | null
+  task_kind?: 'approve' | 'revise' | string
   field_perms: WfFieldPerm[]
   opinion_required?: boolean
   field_meta: {
@@ -296,11 +298,15 @@ export interface WfTodoItem {
   process_status?: string
   /** 当前待办节点名，如「财务审核」 */
   node_name?: string | null
+  node_type?: string | null
+  /** approve=普通审批；revise=撤回/驳回后待修改重提 */
+  task_kind?: 'approve' | 'revise' | string
   // 承载的业务单据（线索/合同/订单…），用于把待办关联回业务详情页
   biz_type?: string | null
   biz_id?: string | null
   /** 合同版本等：指向父单据 id（如 contract_id），便于跳转详情 */
   biz_ref_id?: string | null
+  form_instance_id?: string | null
   created_at?: string
   action_at?: string
   on_behalf_of?: boolean       // 代理审批：该待办由本人代委托人处理

@@ -908,16 +908,27 @@ async def withdraw_flow(db: AsyncSession, tenant_id: str, flow_id: str, reason: 
     if flow.submitted_by_id != user["sub"]:
         raise BusinessException(code=BUSINESS_ERROR, message="只有发起人可以撤回审批")
 
+    tasks = await get_flow_tasks(db, tenant_id, flow.id)
+    if any(t.status == "approved" for t in tasks):
+        raise BusinessException(code=BUSINESS_ERROR, message="下一节点已审批，无法撤回")
+
     flow.status = "withdrawn"
 
     # Cancel all pending/waiting tasks
-    tasks = await get_flow_tasks(db, tenant_id, flow.id)
     current_assignees = []
     for t in tasks:
         if t.status in ("pending", "waiting"):
             if t.status == "pending":
                 current_assignees.append(t.assignee_id)
             t.status = "cancelled"
+
+    # 业务单据回写可再编辑状态（与低代码撤回一致）
+    try:
+        from app.domains.lowcode.wf_biz_writeback import writeback
+        if flow.biz_type and flow.biz_id:
+            await writeback(db, tenant_id, flow.biz_type, flow.biz_id, "withdrawn")
+    except Exception as e:
+        logger.warning("legacy withdraw writeback failed: %s", e)
 
     # Outbox event (before commit)
     await _enqueue_approval_event(db, tenant_id, "approval.withdrawn", flow, {"reason": reason})

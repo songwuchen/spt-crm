@@ -32,6 +32,9 @@ export interface UnifiedPendingItem {
   /** 新引擎的流程实例 id（旧引擎为 flow id），用于跳详情 */
   instanceId?: string
   createdAt?: string
+  /** 发起人修订待办（撤回/驳回/退回后修改再提交） */
+  taskKind?: 'approve' | 'revise'
+  formInstanceId?: string | null
 }
 
 export interface UnifiedPendingResult {
@@ -93,14 +96,20 @@ export async function fetchUnifiedPending(): Promise<UnifiedPendingResult> {
         engine: 'wf',
         title: it.title || it.process_name || it.business_no || '审批',
         subtitle: [
-          it.initiator_name ? `${it.initiator_name} 发起` : '',
-          it.node_name ? `待审：${it.node_name}` : '',
+          it.task_kind === 'revise'
+            ? '待修改并重新提交'
+            : (it.initiator_name ? `${it.initiator_name} 发起` : ''),
+          it.task_kind === 'revise'
+            ? (it.process_status === 'withdrawn' ? '已撤回' : it.process_status === 'rejected' ? '已驳回/退回' : '')
+            : (it.node_name ? `待审：${it.node_name}` : ''),
           it.on_behalf_of && it.delegator_name ? `代 ${it.delegator_name}` : '',
         ].filter(Boolean).join(' · '),
         bizType: it.biz_type || it.process_name || null,
         bizId: it.biz_id,
         instanceId: it.process_instance_id,
         createdAt: it.created_at,
+        taskKind: it.task_kind === 'revise' ? 'revise' : 'approve',
+        formInstanceId: it.form_instance_id || null,
       })
     }
   }
@@ -115,6 +124,9 @@ export async function decideUnified(
   comment?: string,
 ): Promise<void> {
   if (item.engine === 'wf') {
+    if (item.taskKind === 'revise') {
+      throw new Error('修订待办请打开详情修改后重新提交')
+    }
     await workflowApi.act(item.taskId, { action, opinion: comment })
   } else {
     await approvalApi.decide(item.taskId, {

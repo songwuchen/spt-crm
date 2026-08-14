@@ -17,6 +17,7 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { canPrintDrawingDocument, printSchemeInstance } from '@/pages/drawing/schemePrint'
+import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
 
 function bizEntityPath(bizType?: string | null, bizId?: string | null, bizRefId?: string | null): string | null {
   if (!bizType || !bizId) return null
@@ -88,8 +89,15 @@ export default function MobileLowcodeApprovalDetail() {
   // 仅当后端确认「当前登录人仍有待办」才可操作；URL 里的 task 只作加载提示，
   // 不能单独决定 canAct（已办深链会带上已完成的 task_id，流程若仍 running 会误露出操作区）。
   const effectiveTaskId = detail?.current_task?.task_id || null
-  const canAct = !!effectiveTaskId && detail?.status === 'running'
+  const isReviseTask = detail?.current_task?.task_kind === 'revise'
+    || detail?.current_task?.node_type === 'revise'
+  const canAct = !!effectiveTaskId && (detail?.status === 'running' || isReviseTask)
+  const isLeadOwnerConfirm = detail?.biz_type === 'lead' && isLeadOwnerConfirmNode(
+    detail?.current_task?.node_name,
+    detail?.current_task?.node_id,
+  )
   const isLeadIntel = detail?.biz_type === 'lead' && canAct && !!detail?.biz_id && !!effectiveTaskId
+    && !isReviseTask && !isLeadOwnerConfirm
   const bizPath = detail ? bizEntityPath(detail.biz_type, detail.biz_id, detail.biz_ref_id) : null
   const bizEntries = detail?.biz_detail ? Object.entries(detail.biz_detail) : []
 
@@ -102,7 +110,7 @@ export default function MobileLowcodeApprovalDetail() {
       message.error('请选择退回的目标节点'); return
     }
     const ct = detail?.current_task
-    if (action === 'approve' && ct) {
+    if (action === 'approve' && ct && !isReviseTask) {
       if (ct.opinion_required && !opinion.trim()) {
         message.error('请填写审批意见'); return
       }
@@ -120,6 +128,15 @@ export default function MobileLowcodeApprovalDetail() {
     }
     setBusy(true)
     try {
+      if (isReviseTask && (action === 'approve' || action === 'resubmit')) {
+        if (detail?.form_instance_id) {
+          const nextData = { ...formData, ...fieldUpdates }
+          await lowcodeApi.updateInstance(detail.form_instance_id, { form_data: nextData })
+        }
+        await workflowApi.act(effectiveTaskId, { action: 'resubmit', opinion: opinion.trim() || undefined })
+        message.success('已重新提交'); nav('/m/approvals')
+        return
+      }
       const updates = (ct?.field_perms || []).length
         ? Object.fromEntries((ct!.field_perms || []).map((p) => [p.field, fieldUpdates[p.field]]))
         : undefined
@@ -183,7 +200,9 @@ export default function MobileLowcodeApprovalDetail() {
           <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full shrink-0 ${st.cls}`}>{st.text}</span>
         </div>
         {detail.current_task?.node_name && (
-          <div className="text-sm text-slate-500 mt-2">当前节点：{detail.current_task.node_name}</div>
+          <div className="text-sm text-slate-500 mt-2">
+            {isReviseTask ? '请修改后重新提交' : `当前节点：${detail.current_task.node_name}`}
+          </div>
         )}
         {(canPrintScheme || bizPath) && (
           <div className="mt-3 flex gap-2">
@@ -211,11 +230,17 @@ export default function MobileLowcodeApprovalDetail() {
 
       {fields.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3">
-          <div className="text-sm font-bold text-slate-500 mb-2">表单内容</div>
+          <div className="text-sm font-bold text-slate-500 mb-2">
+            {isReviseTask ? '请修改表单后重新提交' : '表单内容'}
+          </div>
           <FormRenderer
             fields={fields}
-            mode="readonly"
-            value={formData}
+            mode={isReviseTask ? 'edit' : 'readonly'}
+            value={isReviseTask ? { ...formData, ...fieldUpdates } : formData}
+            onChange={isReviseTask ? ((v) => {
+              setFormData(v)
+              setFieldUpdates(v)
+            }) : undefined}
             rules={detail.form_rules || []}
             applyFieldPerms={false}
             detailLayout="cards"
@@ -316,6 +341,19 @@ export default function MobileLowcodeApprovalDetail() {
 
       {canAct && !isLeadIntel && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3 max-h-[60vh] overflow-y-auto z-30" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
+          {isReviseTask ? (
+            <>
+              <div className="text-sm text-slate-500 mb-2">修改内容后提交，将重新进入审批流程</div>
+              <button
+                onClick={() => act('resubmit')}
+                disabled={busy}
+                className="w-full h-11 rounded-xl bg-primary text-white font-bold border-0 disabled:opacity-60"
+              >
+                保存并重新提交
+              </button>
+            </>
+          ) : (
+            <>
           {detail.current_task && (detail.current_task.field_perms?.length ?? 0) > 0 && (
             <ApproveFieldForm
               currentTask={detail.current_task}
@@ -391,6 +429,8 @@ export default function MobileLowcodeApprovalDetail() {
                 收起
               </button>
             </div>
+          )}
+            </>
           )}
         </div>
       )}

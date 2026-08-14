@@ -81,6 +81,7 @@ export default function LeadList() {
   const navigate = useNavigate()
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const canDeleteLead = hasPermission('lead:delete')
+  const canEditLead = hasPermission('lead:edit')
   const [searchParams, setSearchParams] = useSearchParams()
   const [data, setData] = useState<Lead[]>([])
   const [total, setTotal] = useState(0)
@@ -437,7 +438,7 @@ export default function LeadList() {
       render: (_, record) => (
         <Space size={0}>
           <a onClick={() => navigate(`/leads/${record.id}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
-          {record.status !== 'qualified' && record.status !== 'discarded' && (
+          {canEditLead && record.status !== 'qualified' && record.status !== 'discarded' && (
             <a onClick={() => navigate(`/leads/${record.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
           )}
           {canDeleteLead && (
