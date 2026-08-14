@@ -19,6 +19,7 @@ import DepartmentSelect from '@/components/DepartmentSelect'
 import dayjs from 'dayjs'
 import { t } from '@/locales'
 import { formatRegion } from '@/utils/address'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 import Icon from '@/components/Icon'
 const { RangePicker } = DatePicker
@@ -78,6 +79,8 @@ function customerTypeTone(value: string): string {
 export default function LeadList() {
   usePageTitle(t('lead.title'))
   const navigate = useNavigate()
+  const hasPermission = useAuthStore((s) => s.hasPermission)
+  const canDeleteLead = hasPermission('lead:delete')
   const [searchParams, setSearchParams] = useSearchParams()
   const [data, setData] = useState<Lead[]>([])
   const [total, setTotal] = useState(0)
@@ -437,17 +440,19 @@ export default function LeadList() {
           {record.status !== 'qualified' && record.status !== 'discarded' && (
             <a onClick={() => navigate(`/leads/${record.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
           )}
-          <a className="text-sm font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
-            Modal.confirm({
-              title: t('common.confirmDelete'), content: t('lead.deleteConfirm', { name: record.title }),
-              okType: 'danger',
-              onOk: async () => {
-                await leadApi.delete(record.id)
-                message.success(t('lead.deleted'))
-                fetchData()
-              },
-            })
-          }}>{t('common.delete')}</a>
+          {canDeleteLead && (
+            <a className="text-sm font-bold uppercase tracking-widest px-2 text-rose-500 hover:text-rose-600" onClick={() => {
+              Modal.confirm({
+                title: t('common.confirmDelete'), content: t('lead.deleteConfirm', { name: record.title }),
+                okType: 'danger',
+                onOk: async () => {
+                  await leadApi.delete(record.id)
+                  message.success(t('lead.deleted'))
+                  fetchData()
+                },
+              })
+            }}>{t('common.delete')}</a>
+          )}
         </Space>
       ),
     },
@@ -514,7 +519,9 @@ export default function LeadList() {
           <Space>
             <Button size="small" onClick={() => { assignForm.resetFields(); setAssignModal(true) }}>{t('lead.batchAssign')}</Button>
             <Button size="small" onClick={handleBatchConvert}>{t('lead.batchConvert')}</Button>
-            <Button size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>{t('common.batchDelete')}</Button>
+            {canDeleteLead && (
+              <Button size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>{t('common.batchDelete')}</Button>
+            )}
             <Button size="small" onClick={() => setSelectedRowKeys([])}>{t('common.cancelSelect')}</Button>
           </Space>
         </div>
