@@ -201,20 +201,39 @@ class WorkflowEngine:
     # ---------- 通知(延迟到提交后下发) ----------
 
     @staticmethod
+    def _is_lead_owner_confirm_node(node) -> bool:
+        """是否「业务员确认是否转商机」节点（审批或历史抄送）。"""
+        if not node:
+            return False
+        nid = getattr(node, "node_def_id", None) or (node.get("id") if isinstance(node, dict) else None) or ""
+        name = (
+            getattr(node, "node_name", None)
+            or (node.get("name") if isinstance(node, dict) else None)
+            or ""
+        ).strip()
+        if nid in ("cc_owner", "approval_owner_confirm"):
+            return True
+        return "转商机" in name or "确认转化" in name
+
+    @staticmethod
     def _is_lead_intel_task_node(node_inst) -> bool:
         """是否信息情报部审批节点（需走收录/袭击/回退）。业务员确认节点返回 False。"""
         if not node_inst:
             return True
+        if WorkflowEngine._is_lead_owner_confirm_node(node_inst):
+            return False
         name = (getattr(node_inst, "node_name", None) or "").strip()
-        nid = getattr(node_inst, "node_def_id", None) or ""
-        if nid in ("cc_owner", "approval_owner_confirm"):
-            return False
-        if "转商机" in name or "确认转化" in name:
-            return False
         if "情报" in name or name in ("线索审核", "内勤审批"):
             return True
         # 默认：线索流其它审批节点仍按情报闸门保护
         return True
+
+    async def _lead_is_attacked(self, inst: WfProcessInstance) -> bool:
+        if inst.biz_type != "lead" or not inst.biz_id:
+            return False
+        from app.domains.lead.models import Lead
+        ld = await self.db.get(Lead, inst.biz_id)
+        return bool(ld and getattr(ld, "review_status", None) == "attacked")
 
     def _queue(self, kind: str, *args) -> None:
         self._notify.append((kind, *args))
@@ -517,6 +536,29 @@ class WorkflowEngine:
             ).limit(1)
         )).scalar_one_or_none() if self.db is not None else None
         if existing:
+            return
+
+        # 线索袭击：不可转化，跳过「业务员确认是否转商机」待办，改为知会负责人后直通结束
+        if (
+            inst.biz_type == "lead"
+            and self._is_lead_owner_confirm_node(node)
+            and await self._lead_is_attacked(inst)
+        ):
+            users = await self._resolve_approvers(version, node, ctx)
+            ni = WfNodeInstance(
+                id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
+                node_def_id=node["id"], node_type="approval",
+                node_name=node.get("name") or "业务员确认是否转商机",
+                status="completed", config={"skipped": "attacked"},
+                started_at=_now(), completed_at=_now(),
+            )
+            self.db.add(ni)
+            await self.db.flush()
+            self._log(inst.id, ni.id, None, {"sub": "system"}, "auto_skip",
+                      "线索已标记袭击，跳过业务员确认")
+            if users:
+                self._queue("cc_notified", list(users), node.get("name") or "业务员确认是否转商机", inst)
+            await self._advance(inst, version, node["id"], ctx)
             return
 
         approvers = await self._resolve_approvers(version, node, ctx)

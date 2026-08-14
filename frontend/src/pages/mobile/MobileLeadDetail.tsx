@@ -9,7 +9,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 interface LeadItem {
   id: string; lead_code: string; title: string; company_name: string | null
