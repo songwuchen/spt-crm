@@ -10,7 +10,7 @@ from app.database import generate_uuid
 from app.common.dept_tree import LIKE_ESCAPE, escape_like, subtree_dept_ids_select
 from app.common.exceptions import BusinessException
 from app.common.error_codes import NOT_FOUND, DUPLICATE_ENTRY
-from app.domains.organization.models import Department, UserDepartment, DeptRoleRule
+from app.domains.organization.models import Department, UserDepartment, DeptRoleRule, UserManagedDepartment
 from app.domains.auth.models import User, Role, UserRole, RolePermission, Permission
 from app.domains.organization.schemas import (
     DepartmentCreate, DepartmentUpdate, UserCreate, UserUpdate, RoleCreate, GrantPermissions,
@@ -210,6 +210,7 @@ async def list_users(
 async def _validate_role_dept_ids(
     db: AsyncSession, tenant_id: str,
     role_ids: list[str] | None, department_ids: list[str] | None,
+    *, managed_department_ids: list[str] | None = None,
 ) -> None:
     """Ensure every role/department id belongs to this tenant before linking it to a user.
 
@@ -224,11 +225,16 @@ async def _validate_role_dept_ids(
         invalid = set(role_ids) - valid
         if invalid:
             raise BusinessException(message=f"角色不存在或不属于当前租户: {', '.join(invalid)}")
+    check_depts: set[str] = set()
     if department_ids:
+        check_depts.update(department_ids)
+    if managed_department_ids:
+        check_depts.update(managed_department_ids)
+    if check_depts:
         valid = set((await db.execute(
-            select(Department.id).where(Department.id.in_(department_ids), Department.tenant_id == tenant_id)
+            select(Department.id).where(Department.id.in_(check_depts), Department.tenant_id == tenant_id)
         )).scalars().all())
-        invalid = set(department_ids) - valid
+        invalid = check_depts - valid
         if invalid:
             raise BusinessException(message=f"部门不存在或不属于当前租户: {', '.join(invalid)}")
 
@@ -240,7 +246,10 @@ async def create_user(db: AsyncSession, tenant_id: str, data: UserCreate) -> Use
     if existing:
         raise BusinessException(code=DUPLICATE_ENTRY, message=f"用户名 {data.username} 已存在")
 
-    await _validate_role_dept_ids(db, tenant_id, data.role_ids, data.department_ids)
+    await _validate_role_dept_ids(
+        db, tenant_id, data.role_ids, data.department_ids,
+        managed_department_ids=data.managed_department_ids,
+    )
 
     user = User(
         id=generate_uuid(), tenant_id=tenant_id,
@@ -253,6 +262,9 @@ async def create_user(db: AsyncSession, tenant_id: str, data: UserCreate) -> Use
         db.add(UserRole(id=generate_uuid(), tenant_id=tenant_id, user_id=user.id, role_id=rid))
     for did in data.department_ids:
         db.add(UserDepartment(id=generate_uuid(), tenant_id=tenant_id, user_id=user.id, department_id=did))
+    for did in data.managed_department_ids:
+        db.add(UserManagedDepartment(
+            id=generate_uuid(), tenant_id=tenant_id, user_id=user.id, department_id=did))
 
     try:
         await db.commit()
@@ -278,8 +290,12 @@ async def update_user(db: AsyncSession, tenant_id: str, user_id: str, data: User
     update_data = data.model_dump(exclude_unset=True)
     role_ids = update_data.pop("role_ids", None)
     department_ids = update_data.pop("department_ids", None)
+    managed_department_ids = update_data.pop("managed_department_ids", None)
 
-    await _validate_role_dept_ids(db, tenant_id, role_ids, department_ids)
+    await _validate_role_dept_ids(
+        db, tenant_id, role_ids, department_ids,
+        managed_department_ids=managed_department_ids,
+    )
 
     for field, val in update_data.items():
         setattr(user, field, val)
@@ -301,6 +317,15 @@ async def update_user(db: AsyncSession, tenant_id: str, user_id: str, data: User
         await db.execute(delete(UserDepartment).where(UserDepartment.user_id == user_id, UserDepartment.tenant_id == tenant_id))
         for did in department_ids:
             db.add(UserDepartment(id=generate_uuid(), tenant_id=tenant_id, user_id=user_id, department_id=did))
+
+    if managed_department_ids is not None:
+        await db.execute(delete(UserManagedDepartment).where(
+            UserManagedDepartment.user_id == user_id,
+            UserManagedDepartment.tenant_id == tenant_id,
+        ))
+        for did in managed_department_ids:
+            db.add(UserManagedDepartment(
+                id=generate_uuid(), tenant_id=tenant_id, user_id=user_id, department_id=did))
 
     await db.commit()
     await db.refresh(user)

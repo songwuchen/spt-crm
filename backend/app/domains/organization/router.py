@@ -110,6 +110,12 @@ async def list_users(
             "phone": u.phone, "email": u.email, "is_active": u.is_active,
             "roles": [ur.role.code for ur in u.user_roles],
             "departments": [ud.department.name for ud in u.user_departments],
+            "managed_departments": [
+                md.department.name for md in (u.user_managed_departments or []) if md.department
+            ],
+            "managed_department_ids": [
+                md.department_id for md in (u.user_managed_departments or [])
+            ],
         })
     return ok({"items": user_list, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 

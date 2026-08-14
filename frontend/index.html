@@ -10,18 +10,32 @@
     <meta name="theme-color" content="#1677ff" />
     <title>SPT-CRM</title>
     <script>
-      /* 发版后旧缓存指向已删除 chunk 时，自动清 SW/Cache 并重载（无需用户开无痕） */
+      /* 发版后旧缓存 / 错误协议导致 chunk 404 时，自动清 SW·Cache 并重载 */
       (function () {
         var KEY = 'spt_chunk_recover_at';
+        var host = location.hostname || '';
+
+        /* 域名必须走 HTTPS（39281）；http://link:39281 会半残加载 */
+        try {
+          if (location.protocol === 'http:'
+              && (host === 'link.fourier.net.cn'
+                  || host === 'wm.fourier.net.cn'
+                  || host === 'wm-platform.fourier.net.cn')) {
+            location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+            return;
+          }
+        } catch (e) {}
+
         function isChunkErr(msg) {
           msg = String(msg || '');
           return /Failed to fetch dynamically imported module/i.test(msg)
             || /error loading dynamically imported module/i.test(msg)
             || /Loading chunk [\d]+ failed/i.test(msg)
-            || /ChunkLoadError/i.test(msg);
+            || /ChunkLoadError/i.test(msg)
+            || /Loading CSS chunk/i.test(msg);
         }
         function recover(msg) {
-          if (!isChunkErr(msg)) return;
+          if (msg && !isChunkErr(msg) && msg.indexOf('script:') !== 0 && msg.indexOf('link:') !== 0) return;
           var last = Number(sessionStorage.getItem(KEY) || 0);
           if (Date.now() - last < 15000) return;
           sessionStorage.setItem(KEY, String(Date.now()));
@@ -48,7 +62,6 @@
         }
         // PC 域名：主动注销历史 SW，避免继续喂旧 JS
         try {
-          var host = location.hostname || '';
           if (host !== 'link.fourier.net.cn' && navigator.serviceWorker) {
             navigator.serviceWorker.getRegistrations().then(function (rs) {
               (rs || []).forEach(function (r) { r.unregister(); });
@@ -61,6 +74,16 @@
           }
         } catch (e) {}
         window.addEventListener('error', function (e) {
+          var t = e && e.target;
+          // 入口 vendor-*.js 404 时 React 起不来，必须在这里拦 script/link 失败
+          if (t && t.tagName === 'SCRIPT' && t.src) {
+            recover('script:' + t.src);
+            return;
+          }
+          if (t && t.tagName === 'LINK' && t.href && /stylesheet/i.test(t.rel || '')) {
+            recover('link:' + t.href);
+            return;
+          }
           recover((e && (e.message || (e.error && e.error.message))) || '');
         }, true);
         window.addEventListener('unhandledrejection', function (e) {

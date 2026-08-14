@@ -18,6 +18,7 @@ export function isChunkLoadError(err: unknown): boolean {
     || /error loading dynamically imported module/i.test(msg)
     || /Loading chunk [\d]+ failed/i.test(msg)
     || /ChunkLoadError/i.test(msg)
+    || /Loading CSS chunk/i.test(msg)
   )
 }
 

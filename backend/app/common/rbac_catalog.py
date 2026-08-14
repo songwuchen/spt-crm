@@ -212,8 +212,8 @@ STANDARD_ROLES = [
         ],
     },
     {
-        "code": "lead_intel", "name": "信息情报部内勤", "scope": "all",
-        "desc": "线索审核/分发:审核业务员提交的线索;自身单条录入或Excel导入免审",
+        "code": "lead_intel", "name": "信息情报部内勤", "scope": "self",
+        "desc": "线索审核/分发:仅看本人负责业务部门的线索;自身录入或导入可走审核流",
         "perms": [
             "customer:view",
             "lead:view", "lead:create", "lead:edit", "lead:review",

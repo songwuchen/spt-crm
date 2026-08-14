@@ -29,6 +29,9 @@ class User(TenantScopedBase):
     user_departments: Mapped[list["UserDepartment"]] = relationship(
         "UserDepartment", back_populates="user", lazy="selectin"
     )
+    user_managed_departments: Mapped[list["UserManagedDepartment"]] = relationship(
+        "UserManagedDepartment", back_populates="user", lazy="selectin"
+    )
 
 
 class Role(TenantScopedBase):

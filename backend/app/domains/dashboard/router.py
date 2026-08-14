@@ -105,7 +105,7 @@ def _child_scope_where(model, tenant_id: str, user: dict, scope: list[str] | Non
     return [or_(*conds)]
 
 
-def _lead_scope_where(tenant_id: str, user: dict, scope: list[str] | None) -> list:
+async def _lead_scope_where(db: AsyncSession, tenant_id: str, user: dict, scope: list[str] | None) -> list:
     """线索可见条件，口径对齐 apply_data_scope(Lead, "lead")。"""
     if scope is None:
         return []
@@ -118,6 +118,13 @@ def _lead_scope_where(tenant_id: str, user: dict, scope: list[str] | None) -> li
             AclShare.biz_type == "lead",
             or_(AclShare.shared_to_id == uid, AclShare.shared_to_type == "all"),
         )))
+    except Exception:
+        pass
+    try:
+        from app.common.data_scope import managed_department_ids
+        managed = await managed_department_ids(db, tenant_id, uid)
+        if managed:
+            conds.append(Lead.department_id.in_(managed))
     except Exception:
         pass
     return [or_(*conds)]
@@ -177,7 +184,7 @@ async def stats(
     now = datetime.now(timezone.utc)
     scope = await _scope_owner_ids(db, tenant_id, _user)
     cust_where = await _customer_scope_where(db, tenant_id, _user)
-    lead_where = _lead_scope_where(tenant_id, _user, scope)
+    lead_where = await _lead_scope_where(db, tenant_id, _user, scope)
     proj_where = _project_scope_where(tenant_id, _user, scope)
 
     customer_total = (await db.execute(
@@ -344,7 +351,7 @@ async def trends(
 
     scope = await _scope_owner_ids(db, tenant_id, _user)
     cust_where = await _customer_scope_where(db, tenant_id, _user)
-    lead_where = _lead_scope_where(tenant_id, _user, scope)
+    lead_where = await _lead_scope_where(db, tenant_id, _user, scope)
     proj_where = _project_scope_where(tenant_id, _user, scope)
 
     def _month_filter(model_cls, date_col, y, m, scope_where=()):
@@ -1128,6 +1135,7 @@ async def global_search(
     scope = await _scope_owner_ids(db, tenant_id, _user)
     visible_cust_ids = await visible_customer_ids_select(db, tenant_id, _user)  # None=不限
     cust_where = [] if visible_cust_ids is None else [Customer.id.in_(visible_cust_ids)]
+    lead_where = await _lead_scope_where(db, tenant_id, _user, scope)
 
     # Customers
     rows = (await db.execute(
@@ -1145,7 +1153,7 @@ async def global_search(
         select(Lead.id, Lead.lead_code, Lead.title, Lead.company_name, Lead.contact_name).where(
             Lead.tenant_id == tenant_id,
             or_(Lead.title.ilike(keyword), Lead.company_name.ilike(keyword), Lead.contact_name.ilike(keyword), Lead.lead_code.ilike(keyword)),
-            *_lead_scope_where(tenant_id, _user, scope),
+            *lead_where,
         ).limit(LIMIT)
     )).all()
     for r in rows:

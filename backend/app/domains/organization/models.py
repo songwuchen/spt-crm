@@ -33,6 +33,26 @@ class UserDepartment(TenantScopedBase):
     department: Mapped["Department"] = relationship(lazy="selectin")
 
 
+class UserManagedDepartment(TenantScopedBase):
+    """用户负责的业务部门（与组织编制 user_departments 分离）。
+
+    线索内勤等角色按此表收窄可见范围：只能看 Lead.department_id 落在负责部门
+   （含子树）内的线索，而不是看全租户。
+    """
+    __tablename__ = "user_managed_departments"
+
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    department_id: Mapped[str] = mapped_column(String(36), ForeignKey("departments.id"), nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="user_managed_departments")
+    department: Mapped["Department"] = relationship(lazy="selectin")
+
+    __table_args__ = (
+        Index("uq_user_managed_dept", "tenant_id", "user_id", "department_id", unique=True),
+        Index("ix_user_managed_dept_user", "tenant_id", "user_id"),
+    )
+
+
 class DeptRoleRule(TenantScopedBase):
     """部门 → 角色 自动分配规则。
 

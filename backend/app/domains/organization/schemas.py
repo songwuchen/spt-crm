@@ -39,6 +39,8 @@ class UserCreate(BaseModel):
     email: Optional[str] = None
     role_ids: List[str] = []
     department_ids: List[str] = []
+    # 负责业务部门：线索内勤等按此收窄可见范围（与编制部门分离）
+    managed_department_ids: List[str] = []
 
 
 class UserUpdate(BaseModel):
@@ -48,6 +50,7 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     role_ids: Optional[List[str]] = None
     department_ids: Optional[List[str]] = None
+    managed_department_ids: Optional[List[str]] = None
 
 
 class UserBulkRoles(BaseModel):
@@ -66,6 +69,8 @@ class UserOut(BaseModel):
     is_active: bool
     roles: List[str] = []
     departments: List[str] = []
+    managed_departments: List[str] = []
+    managed_department_ids: List[str] = []
 
     model_config = {"from_attributes": True}
 

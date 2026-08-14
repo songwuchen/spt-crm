@@ -1,5 +1,8 @@
 """数据范围（角色 data_scope）核心逻辑单测。"""
-from app.common.data_scope import scoped_owners, resolve_owner_scope
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+from app.common.data_scope import scoped_owners, resolve_owner_scope, is_in_scope, managed_department_ids
 
 
 def test_scoped_owners_all_scope():
@@ -25,3 +28,34 @@ async def test_resolve_owner_scope_admin_bypass():
     assert await resolve_owner_scope(None, {"sub": "u1", "permissions": ["data:view_all"]}) is None
     assert await resolve_owner_scope(None, {"sub": "u1", "permissions": ["*"]}) is None
     assert await resolve_owner_scope(None, {"sub": "u1", "roles": ["super_admin"]}) is None
+
+
+async def test_is_in_scope_lead_managed_department(monkeypatch):
+    """线索：department_id 落在负责业务部门内即可见（即使 owner 不是本人）。"""
+    lead = SimpleNamespace(
+        id="L1", owner_id="other", created_by_id="other",
+        department_id="dept-yejin", __tablename__="leads", status="new",
+    )
+    user = {"sub": "intel1", "roles": ["lead_intel"], "permissions": []}
+
+    async def fake_resolve(*_a, **_k):
+        return ["intel1"]  # self scope
+
+    async def fake_managed(*_a, **_k):
+        return ["dept-yejin", "dept-yejin-child"]
+
+    monkeypatch.setattr("app.common.data_scope.resolve_owner_scope", fake_resolve)
+    monkeypatch.setattr("app.common.data_scope.managed_department_ids", fake_managed)
+
+    assert await is_in_scope(MagicMock(), "t1", user, lead, "lead") is True
+
+    lead_other = SimpleNamespace(
+        id="L2", owner_id="other", created_by_id="other",
+        department_id="dept-jingxi", __tablename__="leads", status="new",
+    )
+    assert await is_in_scope(MagicMock(), "t1", user, lead_other, "lead") is False
+
+
+async def test_managed_department_ids_empty_user():
+    assert await managed_department_ids(MagicMock(), "t1", None) == []
+    assert await managed_department_ids(MagicMock(), "t1", "") == []

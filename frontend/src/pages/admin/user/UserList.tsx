@@ -13,6 +13,8 @@ interface UserItem {
   id: string; username: string; real_name: string
   phone?: string; email?: string; is_active: boolean
   roles: string[]; departments: string[]
+  managed_departments?: string[]
+  managed_department_ids?: string[]
 }
 
 function flattenDeptTree(depts: Department[]): { id: string; name: string }[] {
@@ -56,6 +58,14 @@ export default function UserList() {
   const [form] = Form.useForm()
   // 部门树加载后就不再变，按引用缓存，避免每次输入关键字都递归重建整棵树
   const deptTreeData = useMemo(() => toTreeData(deptTree), [deptTree])
+  const roleLabelByCode = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const r of roles) {
+      if (!r.code) continue
+      m.set(r.code, r.name ? `${r.name}（${r.code}）` : r.code)
+    }
+    return m
+  }, [roles])
 
   // Import state
   const [importModal, setImportModal] = useState(false)
@@ -237,12 +247,12 @@ export default function UserList() {
     { title: '邮箱', dataIndex: 'email', width: 180, responsive: ['xl'] as any,
       render: (v: string) => v || <span className="text-slate-300">-</span>,
     },
-    { title: '角色', dataIndex: 'roles', width: 160,
+    { title: '角色', dataIndex: 'roles', width: 220,
       render: (v: string[]) => v.length > 0 ? (
         <div className="flex flex-wrap gap-1">
           {v.map((r) => (
-            <span key={r} className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold bg-primary/10 text-primary border border-primary/20">
-              {r}
+            <span key={r} className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold bg-primary/10 text-primary border border-primary/20" title={r}>
+              {roleLabelByCode.get(r) || r}
             </span>
           ))}
         </div>
@@ -253,6 +263,17 @@ export default function UserList() {
         <div className="flex flex-wrap gap-1">
           {v.map((d) => (
             <span key={d} className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+              {d}
+            </span>
+          ))}
+        </div>
+      ) : <span className="text-slate-300">-</span>,
+    },
+    { title: '负责业务部门', dataIndex: 'managed_departments', width: 180, responsive: ['xl'] as any,
+      render: (v: string[] | undefined) => (v && v.length > 0) ? (
+        <div className="flex flex-wrap gap-1">
+          {v.map((d) => (
+            <span key={d} className="inline-flex px-2 py-0.5 rounded text-[12px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
               {d}
             </span>
           ))}
@@ -277,6 +298,7 @@ export default function UserList() {
               is_active: record.is_active,
               role_ids: roles.filter((r) => record.roles.includes(r.code)).map((r) => r.id),
               department_ids: deptFlat.filter((d) => record.departments.includes(d.name)).map((d) => d.id),
+              managed_department_ids: record.managed_department_ids || [],
             })
             setModal(true)
           }}>编辑</a>
@@ -344,7 +366,7 @@ export default function UserList() {
             style={{ width: 160 }}
             value={filterRoleId}
             onChange={(v) => { setFilterRoleId(v); setPageNo(1); fetchData(1, { role_id: v }) }}
-            options={roles.map((r) => ({ label: r.name, value: r.id }))}
+            options={roles.map((r) => ({ label: r.name ? `${r.name}（${r.code}）` : r.code, value: r.id }))}
           />
           <TreeSelect
             placeholder="部门"
@@ -410,7 +432,7 @@ export default function UserList() {
           <Form.Item name="email" label="邮箱"><Input placeholder="请输入邮箱" /></Form.Item>
           <Form.Item name="role_ids" label="角色">
             <Select mode="multiple" placeholder="选择角色"
-              options={roles.map((r) => ({ label: r.name, value: r.id }))} />
+              options={roles.map((r) => ({ label: r.name ? `${r.name}（${r.code}）` : r.code, value: r.id }))} />
           </Form.Item>
           <Form.Item name="department_ids" label="部门">
             <TreeSelect
@@ -419,6 +441,21 @@ export default function UserList() {
               placeholder="选择部门"
               treeDefaultExpandAll
               allowClear
+            />
+          </Form.Item>
+          <Form.Item
+            name="managed_department_ids"
+            label="负责业务部门"
+            extra="线索内勤按此范围查看线索（如只负责冶金矿山则看不到精细筛分）。与上方「部门」编制无关。"
+          >
+            <TreeSelect
+              treeData={deptTreeData}
+              multiple
+              placeholder="选择负责的业务部门"
+              treeDefaultExpandAll
+              allowClear
+              showSearch
+              treeNodeFilterProp="title"
             />
           </Form.Item>
           {editingUser && (
@@ -573,7 +610,7 @@ export default function UserList() {
             <div className="text-sm font-medium text-slate-700 mb-1.5">角色</div>
             <Select mode="multiple" placeholder="选择角色" className="w-full"
               value={bulkRoleIds} onChange={setBulkRoleIds}
-              options={roles.map((r) => ({ label: r.name, value: r.id }))} />
+              options={roles.map((r) => ({ label: r.name ? `${r.name}（${r.code}）` : r.code, value: r.id }))} />
             {bulkMode === 'replace' && bulkRoleIds.length === 0 && (
               <div className="text-[12px] text-amber-600 mt-1">提示：覆盖模式下不选角色，将清空所选用户的全部角色。</div>
             )}

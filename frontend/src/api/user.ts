@@ -10,6 +10,8 @@ interface UserItem {
   is_active: boolean
   roles: string[]
   departments: string[]
+  managed_departments?: string[]
+  managed_department_ids?: string[]
 }
 
 export const userApi = {

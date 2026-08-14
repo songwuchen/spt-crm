@@ -29,6 +29,36 @@ def _is_admin(user: dict) -> bool:
     return "*" in perms or "data:view_all" in perms or "admin" in roles or "super_admin" in roles
 
 
+async def managed_department_ids(
+    db: AsyncSession, tenant_id: str, user_id: str | None,
+) -> list[str]:
+    """用户「负责业务部门」及其下级部门 id（空列表表示未配置）。
+
+    与组织编制 user_departments 分离：内勤挂在信息情报部，但负责的是精细筛分/
+    冶金矿山等销售事业部线索。
+    """
+    if not user_id:
+        return []
+    from app.domains.organization.models import Department, UserManagedDepartment
+
+    root_ids = list((await db.execute(
+        select(UserManagedDepartment.department_id).where(
+            UserManagedDepartment.user_id == user_id,
+            UserManagedDepartment.tenant_id == tenant_id,
+        )
+    )).scalars().all())
+    if not root_ids:
+        return []
+    paths = list((await db.execute(
+        select(Department.path).where(
+            Department.id.in_(root_ids), Department.tenant_id == tenant_id)
+    )).scalars().all())
+    child_ids = list((await db.execute(
+        subtree_dept_ids_select(tenant_id, root_ids, paths)
+    )).scalars().all())
+    return list({*root_ids, *child_ids})
+
+
 async def resolve_owner_scope(db: AsyncSession, user: dict, tenant_id: str | None = None) -> list[str] | None:
     """返回当前用户可见数据的 owner_id 集合；None 表示不限（可见全部）。"""
     if _is_admin(user):
@@ -334,6 +364,14 @@ async def is_in_scope(
     except Exception:
         pass
 
+    # 线索：业务部门落在本人「负责业务部门」内
+    if biz_type == "lead" or getattr(obj, "__tablename__", "") == "leads":
+        dept_id = getattr(obj, "department_id", None)
+        if dept_id and uid:
+            managed = await managed_department_ids(db, tenant_id, uid)
+            if dept_id in managed:
+                return True
+
     return False
 
 
@@ -455,6 +493,12 @@ async def apply_data_scope(
             conditions.append(model.id.in_(member_pids_q))
     except (ImportError, Exception):
         pass
+
+    # 4. 线索：负责业务部门（含子树）内的记录可见，与 owner 范围 OR
+    if biz_type == "lead" and hasattr(model, "department_id") and user_id:
+        managed = await managed_department_ids(db, tenant_id, user_id)
+        if managed:
+            conditions.append(model.department_id.in_(managed))
 
     if conditions:
         query = query.where(or_(*conditions))
