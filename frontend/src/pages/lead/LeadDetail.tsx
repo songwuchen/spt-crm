@@ -19,6 +19,7 @@ import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import { formatRegion } from '@/utils/address'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
+import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
 
 import Icon from '@/components/Icon'
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
@@ -83,6 +84,7 @@ export default function LeadDetail() {
   const currentUser = useAuthStore((s) => s.user)
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const canDeleteLead = hasPermission('lead:delete')
+  const hasLeadEdit = hasPermission('lead:edit')
   const customerTypeDict = useDataDict('customer_type')
   const industryDict = useDataDict('industry')
 
@@ -268,7 +270,7 @@ export default function LeadDetail() {
     (reactStatus === 'awaiting_reporter'
       ? [lead.reporter_id, lead.owner_id, lead.created_by_id].includes(currentUser.id)
       : [lead.created_by_id, lead.reporter_id, lead.owner_id].includes(currentUser.id))
-  const canEditLead = canOperate && !reviewInFlight && reviewStatus !== 'rejected' && reviewStatus !== 'attacked'
+  const canEditLead = hasLeadEdit && canOperate && !reviewInFlight && reviewStatus !== 'rejected' && reviewStatus !== 'attacked'
   const canSubmitApproval = canOperate && reviewStatus === 'draft'
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
@@ -398,14 +400,45 @@ export default function LeadDetail() {
         )}
       </div>
 
-      {/* 待我情报审批 */}
-      {myTask && (
+      {/* 待我审批：情报四态 or 业务员确认 */}
+      {myTask && isLeadOwnerConfirmNode(myTask.node_name) && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            <Icon name="approval" className="text-amber-600" />
+            <div>
+              <div className="text-sm font-bold text-slate-900">请确认是否转商机</div>
+              <div className="text-sm text-slate-500">信息情报部已处理，请确认后通过；暂不转化可驳回</div>
+            </div>
+          </div>
+          <Space>
+            <Button type="primary" onClick={async () => {
+              try {
+                await workflowApi.act(myTask.task_id, { action: 'approve', opinion: '确认' })
+                message.success('已确认')
+                setMyTask(null)
+                void fetchLead()
+                if (id) void loadWf(id)
+              } catch { message.error('处理失败') }
+            }}>通过</Button>
+            <Button danger onClick={async () => {
+              try {
+                await workflowApi.act(myTask.task_id, { action: 'reject', opinion: '暂不转化' })
+                message.success('已驳回')
+                setMyTask(null)
+                void fetchLead()
+                if (id) void loadWf(id)
+              } catch { message.error('处理失败') }
+            }}>驳回</Button>
+          </Space>
+        </div>
+      )}
+      {myTask && !isLeadOwnerConfirmNode(myTask.node_name) && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <Icon name="approval" className="text-primary" />
             <div>
               <div className="text-sm font-bold text-slate-900">该线索待您审批</div>
-              <div className="text-sm text-slate-500">{myTask.title || '信息情报部审批'}</div>
+              <div className="text-sm text-slate-500">{myTask.node_name || myTask.title || '信息情报部审批'}</div>
             </div>
           </div>
           <LeadIntelReviewForm
@@ -624,6 +657,12 @@ export default function LeadDetail() {
                         <div className="mt-4">
                           <EntityCustomFields entityType="lead" value={lead.custom_fields_json || {}} readOnly />
                         </div>
+                        <div className="mt-4">
+                          <div className="relative mb-3 flex items-center overflow-hidden rounded-sm bg-teal-600 px-3 py-2 text-white">
+                            <span className="text-[13px] font-semibold">附件</span>
+                          </div>
+                          <AttachmentPanel bizType="lead" bizId={id!} />
+                        </div>
                       </div>
 
                       <div>
@@ -840,15 +879,6 @@ export default function LeadDetail() {
                       <ActivityTimeline bizType="lead" bizId={id!} openCreateSignal={followUpSignal}
                         defaultContactName={lead.contact_name} onCreated={handleFollowUpCreated}
                         allowCreate={allowFollowActivity} />
-                    </div>
-                  ),
-                },
-                {
-                  key: 'attachments',
-                  label: <span className="font-semibold">附件</span>,
-                  children: (
-                    <div className="py-4">
-                      <AttachmentPanel bizType="lead" bizId={id!} />
                     </div>
                   ),
                 },

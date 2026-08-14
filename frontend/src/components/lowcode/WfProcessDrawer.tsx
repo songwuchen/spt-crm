@@ -23,6 +23,7 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { canPrintDrawingDocument, printSchemeInstance } from '@/pages/drawing/schemePrint'
+import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
 
 const { Text, Title } = Typography
 
@@ -158,14 +159,16 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
 
   // URL/调用方传入的 taskId 仅作加载提示；能否操作以 current_task 为准（已办任务 id 不能误开操作区）
   const effectiveTaskId = detail?.current_task?.task_id || null
-  const canAct = !!effectiveTaskId && detail?.status === 'running'
+  const isReviseTask = detail?.current_task?.task_kind === 'revise'
+    || detail?.current_task?.node_type === 'revise'
+  const canAct = !!effectiveTaskId && (detail?.status === 'running' || isReviseTask)
 
   const act = async (action: string) => {
     if (!effectiveTaskId) return
     if (action === 'transfer' && !transferTo) return message.error('请选择转交接收人')
     if (action === 'return' && !returnTo) return message.error('请选择退回的目标节点')
     const ct = detail?.current_task
-    if (action === 'approve' && ct) {
+    if (action === 'approve' && ct && !isReviseTask) {
       if (ct.opinion_required && !opinion.trim()) return message.error('请填写审批意见')
       const miss = missingRequiredFields(ct.field_perms, fieldUpdates, {
         rules: detail?.form_rules,
@@ -181,6 +184,16 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     }
     setBusy(true)
     try {
+      // 修订待办：先保存表单再重新提交
+      if (isReviseTask && (action === 'approve' || action === 'resubmit')) {
+        if (detail?.form_instance_id) {
+          const nextData = { ...formData, ...fieldUpdates }
+          await lowcodeApi.updateInstance(detail.form_instance_id, { form_data: nextData })
+        }
+        await workflowApi.act(effectiveTaskId, { action: 'resubmit', opinion: opinion.trim() || undefined })
+        message.success('已重新提交'); onDone(); onClose()
+        return
+      }
       const updates = (ct?.field_perms || []).length
         ? Object.fromEntries((ct!.field_perms || []).map((p) => [p.field, fieldUpdates[p.field]]))
         : undefined
@@ -212,7 +225,12 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const currentNode = detail?.current_task?.node_name
     || detail?.flow_steps?.find((s) => s.is_current)?.node_name
     || '审批'
+  const isLeadOwnerConfirm = detail?.biz_type === 'lead' && isLeadOwnerConfirmNode(
+    detail?.current_task?.node_name,
+    detail?.current_task?.node_id,
+  )
   const isLeadIntel = detail?.biz_type === 'lead' && canAct && !!effectiveTaskId && !!detail?.biz_id
+    && !isReviseTask && !isLeadOwnerConfirm
   const canPrintScheme = canPrintDrawingDocument(fields, formData, detail?.process_name)
 
   const handlePrintScheme = async () => {
@@ -264,7 +282,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     {detail.title || detail.business_no || '(无标题)'}
                   </Title>
                   <div className="mt-2 inline-flex items-center gap-2 rounded-md bg-blue-50 text-blue-700 px-2.5 py-1 text-sm font-medium">
-                    当前节点：{currentNode}
+                    {isReviseTask ? '请修改后重新提交' : `当前节点：${currentNode}`}
                   </div>
                 </div>
                 <Space size="small" wrap className="shrink-0">
@@ -283,7 +301,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       icon={<FileTextOutlined />}
                       onClick={() => { onClose(); navigate(bizPath) }}
                     >
-                      {contract ? '打开合同页' : '查看完整单据'}
+                      {contract ? '打开合同页' : isReviseTask ? '去修改单据' : '查看完整单据'}
                     </Button>
                   )}
                 </Space>
@@ -305,11 +323,20 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                             ? '技术协议评审信息'
                             : '业务信息'}
                 </div>
+                {detail.biz_type === 'lead' && detail.biz_id && (
+                  <div className="mb-4">
+                    <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
+                  </div>
+                )}
                 {fields.length ? (
                   <FormRenderer
                     fields={fields}
-                    mode="readonly"
-                    value={formData}
+                    mode={isReviseTask ? 'edit' : 'readonly'}
+                    value={isReviseTask ? { ...formData, ...fieldUpdates } : formData}
+                    onChange={isReviseTask ? ((v) => {
+                      setFormData(v)
+                      setFieldUpdates(v)
+                    }) : undefined}
                     rules={detail.form_rules || []}
                     applyFieldPerms={false}
                   />
@@ -352,11 +379,6 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                   </div>
                 ) : (
                   <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
-                )}
-                {detail.biz_type === 'lead' && detail.biz_id && (
-                  <div className="mt-4">
-                    <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
-                  </div>
                 )}
                 {detail.biz_type === 'customer' && detail.biz_id && (
                   <div className="mt-4">
@@ -467,6 +489,20 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       }}
                     />
                   </div>
+                ) : isReviseTask ? (
+                  <div className="px-5 py-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      type="primary"
+                      icon={<CheckCircleOutlined />}
+                      loading={busy}
+                      onClick={() => act('resubmit')}
+                    >
+                      保存并重新提交
+                    </Button>
+                    <Text type="secondary" className="text-xs">
+                      修改表单内容后提交，将重新进入审批流程
+                    </Text>
+                  </div>
                 ) : (
                   <div className="px-5 py-3 flex flex-wrap items-center gap-2">
                     <Button
@@ -509,7 +545,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     </Button>
                   </div>
                 )}
-                {!isLeadIntel && moreOpen && (
+                {!isLeadIntel && !isReviseTask && moreOpen && (
                   <div className="px-5 pb-3 space-y-2 border-t border-dashed border-slate-100 pt-3">
                     <Space wrap>
                       <div style={{ width: 220 }}>

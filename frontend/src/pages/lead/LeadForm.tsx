@@ -221,7 +221,14 @@ export default function LeadForm() {
         message.success('已存为草稿')
       }
       if (leadId && pendingFiles.length > 0) {
-        await flushPendingAttachments(leadId, [{ bizType: 'lead', files: pendingFiles }])
+        const { ok, fail } = await flushPendingAttachments(leadId, [{ bizType: 'lead', files: pendingFiles }])
+        if (fail > 0 && ok === 0) {
+          message.error(`线索已保存，但 ${fail} 个附件上传失败，请到详情页重新上传`)
+        } else if (fail > 0) {
+          message.warning(`已上传 ${ok} 个附件，另有 ${fail} 个失败，请到详情页重试`)
+        } else if (ok > 0) {
+          message.success(`已上传 ${ok} 个附件`)
+        }
       }
       navigate(leadId ? `/leads/${leadId}` : '/leads')
     } catch {

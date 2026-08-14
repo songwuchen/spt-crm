@@ -97,7 +97,7 @@ function PendingDropZone({
         <p className="ant-upload-text text-sm">
           {isImage ? '拖拽或点击选择图片，单张建议 20MB 以内' : '拖拽或点击选择文件'}
         </p>
-        <p className="ant-upload-hint text-xs text-slate-400">保存后自动上传到本客户</p>
+        <p className="ant-upload-hint text-xs text-slate-400">保存后自动上传到本单据</p>
       </Upload.Dragger>
       {files.length > 0 && (
         <ul className="mt-2 space-y-1">
@@ -204,6 +204,7 @@ function AttachmentPanelBound({
       setList(res.data || [])
     } catch {
       setList([])
+      if (!compact) message.error('附件列表加载失败，请刷新重试')
     } finally {
       setLoading(false)
     }
