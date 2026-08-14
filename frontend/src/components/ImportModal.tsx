@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Modal, Upload, Button, Table, Tag, Alert, message, Steps, Select, Tooltip } from 'antd'
+import { Modal, Upload, Button, Table, Tag, Alert, message, Steps, Select, Input, Tabs } from 'antd'
 import { InboxOutlined, DownloadOutlined } from '@ant-design/icons'
 
 interface ImportModalProps {
@@ -11,6 +11,11 @@ interface ImportModalProps {
   templateUrl?: string
   title?: string
   expectedHeaders?: string[]
+  /** 是否显示列映射下拉（列很多时建议关闭） */
+  showColumnMapping?: boolean
+  /** 是否支持从 Excel 复制粘贴 */
+  allowPaste?: boolean
+  templateFileName?: string
 }
 
 interface PreviewData {
@@ -20,11 +25,34 @@ interface PreviewData {
   errors?: Record<number, string>
 }
 
+function parsePasteText(text: string): string[][] {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+    .filter((l) => l.trim().length > 0)
+  return lines.map((line) => {
+    // Excel 复制多为 Tab；也兼容逗号
+    if (line.includes('\t')) return line.split('\t').map((c) => c.trim())
+    return line.split(',').map((c) => c.trim().replace(/^"|"$/g, ''))
+  })
+}
+
+function rowsToCsvFile(rows: string[][], fileName = 'paste.csv'): File {
+  const escape = (c: string) => {
+    if (/[",\n]/.test(c)) return `"${c.replace(/"/g, '""')}"`
+    return c
+  }
+  const csv = rows.map((r) => r.map(escape).join(',')).join('\n')
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+  return new File([blob], fileName, { type: 'text/csv' })
+}
+
 export default function ImportModal({
   open, onClose, onSuccess,
   previewUrl, importUrl, templateUrl,
   title = '导入数据',
   expectedHeaders,
+  showColumnMapping = true,
+  allowPaste = true,
+  templateFileName = 'import_template.xlsx',
 }: ImportModalProps) {
   const [step, setStep] = useState(0)
   const [file, setFile] = useState<File | null>(null)
@@ -34,6 +62,8 @@ export default function ImportModal({
   const [result, setResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null)
   const [fieldMapping, setFieldMapping] = useState<Record<number, number>>({})
   const [skipErrors, setSkipErrors] = useState(true)
+  const [pasteText, setPasteText] = useState('')
+  const [inputTab, setInputTab] = useState<'upload' | 'paste'>('upload')
 
   const reset = () => {
     setStep(0)
@@ -44,6 +74,8 @@ export default function ImportModal({
     setImporting(false)
     setFieldMapping({})
     setSkipErrors(true)
+    setPasteText('')
+    setInputTab('upload')
   }
 
   const handleClose = () => {
@@ -65,8 +97,7 @@ export default function ImportModal({
       const json = await res.json()
       if (json.code === 0) {
         setPreview(json.data)
-        // Auto-map columns by matching header names
-        if (expectedHeaders && json.data.headers) {
+        if (showColumnMapping && expectedHeaders && json.data.headers) {
           const mapping: Record<number, number> = {}
           expectedHeaders.forEach((eh, ei) => {
             const matchIdx = json.data.headers.findIndex(
@@ -87,13 +118,37 @@ export default function ImportModal({
     }
   }
 
+  const handlePastePreview = () => {
+    const rows = parsePasteText(pasteText)
+    if (rows.length === 0) {
+      message.warning('请先粘贴表格数据（可从 Excel 复制）')
+      return
+    }
+    let finalRows = rows
+    // 无表头时：用期望列名补第一行
+    if (expectedHeaders?.length) {
+      const first = rows[0].map((c) => c.trim())
+      const looksLikeHeader = expectedHeaders.some((h) => first.includes(h))
+        || first.some((c) => ['项目名称', '标题', '客户名称', '公司名称'].includes(c))
+      if (!looksLikeHeader) {
+        finalRows = [expectedHeaders, ...rows]
+      }
+    }
+    void handlePreview(rowsToCsvFile(finalRows))
+  }
+
   const handleImport = async () => {
-    if (!file) return
+    if (!file || !preview) return
     setImporting(true)
     try {
+      let upload = file
+      if (skipErrors && (errSet.size > 0 || dupSet.size > 0)) {
+        const validRows = preview.rows.filter((_, i) => !errSet.has(i) && !dupSet.has(i))
+        upload = rowsToCsvFile([preview.headers, ...validRows], file.name.endsWith('.csv') ? file.name : 'import.csv')
+      }
       const formData = new FormData()
-      formData.append('file', file)
-      if (Object.keys(fieldMapping).length > 0) {
+      formData.append('file', upload)
+      if (showColumnMapping && Object.keys(fieldMapping).length > 0) {
         formData.append('field_mapping', JSON.stringify(fieldMapping))
       }
       formData.append('skip_errors', String(skipErrors))
@@ -104,7 +159,11 @@ export default function ImportModal({
       })
       const json = await res.json()
       if (json.code === 0) {
-        setResult(json.data)
+        setResult({
+          created: json.data.created ?? 0,
+          skipped: json.data.skipped ?? 0,
+          errors: json.data.errors ?? [],
+        })
         setStep(2)
         onSuccess()
       } else {
@@ -117,12 +176,25 @@ export default function ImportModal({
     }
   }
 
+  const downloadTemplate = () => {
+    if (!templateUrl) return
+    const token = localStorage.getItem('access_token')
+    const a = document.createElement('a')
+    fetch(templateUrl, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.blob())
+      .then((blob) => {
+        a.href = URL.createObjectURL(blob)
+        a.download = templateFileName
+        a.click()
+        URL.revokeObjectURL(a.href)
+      })
+      .catch(() => message.error('模板下载失败'))
+  }
+
   const dupSet = new Set(preview?.duplicates || [])
   const errMap = preview?.errors || {}
   const errSet = new Set(Object.keys(errMap).map(Number))
 
-  // Leading status column: shows the per-row error reason (or 重复/可导入) so users
-  // can see *why* a row failed instead of just a red highlight.
   const statusColumn = (errSet.size > 0 || dupSet.size > 0)
     ? [{
         title: '状态',
@@ -137,11 +209,12 @@ export default function ImportModal({
       }]
     : []
 
+  const useMapping = Boolean(showColumnMapping && expectedHeaders)
   const columns = [...statusColumn, ...(preview?.headers.map((h, i) => ({
     title: () => (
       <div className="space-y-1">
         <div className="text-sm font-bold truncate">{h}</div>
-        {expectedHeaders && (
+        {useMapping && (
           <Select size="small" className="w-full" allowClear
             placeholder="映射到..."
             value={Object.entries(fieldMapping).find(([, v]) => v === i)?.[0] != null
@@ -149,19 +222,18 @@ export default function ImportModal({
               : undefined}
             onChange={(targetIdx) => {
               const next = { ...fieldMapping }
-              // Remove existing mapping to this column
               Object.entries(next).forEach(([k, v]) => { if (v === i) delete next[Number(k)] })
               if (targetIdx != null) next[targetIdx] = i
               setFieldMapping(next)
             }}
-            options={expectedHeaders.map((eh, ei) => ({ label: eh, value: ei }))}
+            options={expectedHeaders!.map((eh, ei) => ({ label: eh, value: ei }))}
           />
         )}
       </div>
     ),
     dataIndex: String(i),
     key: String(i),
-    width: expectedHeaders ? 150 : 120,
+    width: useMapping ? 150 : 120,
     ellipsis: true,
     render: (v: string, record: any) => {
       const hasErr = record._err
@@ -191,48 +263,82 @@ export default function ImportModal({
     >
       <Steps current={step} size="small" className="mb-6"
         items={[
-          { title: '上传文件' },
-          { title: '字段映射 + 预览' },
+          { title: '上传 / 粘贴' },
+          { title: '预览确认' },
           { title: '导入结果' },
         ]}
       />
 
       {step === 0 && (
         <div>
-          {expectedHeaders && (
-            <Alert type="info" showIcon className="mb-4"
-              message={
-                <div className="flex items-center justify-between">
-                  <span>文件格式要求：第一行为表头，期望列：{expectedHeaders.join('、')}</span>
-                  {templateUrl && (
-                    <Button size="small" icon={<DownloadOutlined />} type="link"
-                      onClick={() => {
-                        const token = localStorage.getItem('access_token')
-                        const a = document.createElement('a')
-                        fetch(templateUrl, { headers: { Authorization: `Bearer ${token}` } })
-                          .then(r => r.blob())
-                          .then(blob => {
-                            a.href = URL.createObjectURL(blob)
-                            a.download = 'import_template.xlsx'
-                            a.click()
-                            URL.revokeObjectURL(a.href)
-                          })
-                      }}
-                    >下载模板</Button>
-                  )}
-                </div>
-              }
+          <Alert type="info" showIcon className="mb-4"
+            message={
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {expectedHeaders
+                    ? `第一行为表头。建议先下载模板填写，或从 Excel 复制后粘贴。`
+                    : '第一行为表头，从第二行开始为数据。'}
+                </span>
+                {templateUrl && (
+                  <Button size="small" icon={<DownloadOutlined />} type="link" onClick={downloadTemplate}>
+                    下载模板
+                  </Button>
+                )}
+              </div>
+            }
+          />
+          {allowPaste ? (
+            <Tabs
+              activeKey={inputTab}
+              onChange={(k) => setInputTab(k as 'upload' | 'paste')}
+              items={[
+                {
+                  key: 'upload',
+                  label: '上传文件',
+                  children: (
+                    <Upload.Dragger
+                      accept=".xlsx,.xls,.csv"
+                      showUploadList={false}
+                      beforeUpload={(f) => { void handlePreview(f); return false }}
+                    >
+                      <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                      <p className="ant-upload-text">点击或拖拽文件到此处</p>
+                      <p className="ant-upload-hint">支持 .xlsx / .xls / .csv</p>
+                    </Upload.Dragger>
+                  ),
+                },
+                {
+                  key: 'paste',
+                  label: '粘贴数据',
+                  children: (
+                    <div className="space-y-3">
+                      <Input.TextArea
+                        rows={10}
+                        value={pasteText}
+                        onChange={(e) => setPasteText(e.target.value)}
+                        placeholder={'从 Excel 复制单元格后粘贴到此处（含表头）。\n例如：项目名称\t来源\t公司名称\n某某项目\t自报\t示例公司'}
+                      />
+                      <div className="flex justify-end">
+                        <Button type="primary" loading={loading} onClick={handlePastePreview}>
+                          解析并预览
+                        </Button>
+                      </div>
+                    </div>
+                  ),
+                },
+              ]}
             />
+          ) : (
+            <Upload.Dragger
+              accept=".xlsx,.xls,.csv"
+              showUploadList={false}
+              beforeUpload={(f) => { void handlePreview(f); return false }}
+            >
+              <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+              <p className="ant-upload-text">点击或拖拽文件到此处</p>
+              <p className="ant-upload-hint">支持 .xlsx / .xls / .csv 格式</p>
+            </Upload.Dragger>
           )}
-          <Upload.Dragger
-            accept=".xlsx,.xls,.csv"
-            showUploadList={false}
-            beforeUpload={(f) => { handlePreview(f); return false }}
-          >
-            <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-            <p className="ant-upload-text">点击或拖拽文件到此处</p>
-            <p className="ant-upload-hint">支持 .xlsx / .xls / .csv 格式</p>
-          </Upload.Dragger>
           {loading && <div className="text-center mt-4 text-slate-500">解析中...</div>}
         </div>
       )}
@@ -261,7 +367,7 @@ export default function ImportModal({
             columns={columns}
             dataSource={dataSource}
             rowKey="_key"
-            scroll={{ x: columns.length * (expectedHeaders ? 150 : 120), y: 320 }}
+            scroll={{ x: Math.max(columns.length * (useMapping ? 150 : 120), 600), y: 320 }}
             pagination={false}
             rowClassName={(record) => {
               if (record._err) return 'bg-red-50'

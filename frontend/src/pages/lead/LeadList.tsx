@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Button, Input, Space, Select, Modal, Upload, Form, DatePicker, message } from 'antd'
+import { Button, Input, Space, Select, Modal, Form, DatePicker, message } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
@@ -16,6 +16,7 @@ import { useListView } from '@/hooks/useListView'
 import { usePageSize } from '@/hooks/usePageSize'
 import ListToolbar from '@/components/list/ListToolbar'
 import DepartmentSelect from '@/components/DepartmentSelect'
+import ImportModal from '@/components/ImportModal'
 import dayjs from 'dayjs'
 import { t } from '@/locales'
 import { formatRegion } from '@/utils/address'
@@ -132,6 +133,7 @@ export default function LeadList() {
   const setDateField = (v: string) => updateParams({ date_field: v === 'created_at' ? undefined : v, page: undefined })
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [assignModal, setAssignModal] = useState(false)
+  const [importModal, setImportModal] = useState(false)
   const [assignForm] = Form.useForm()
   const userSelect = useUserSelect()
   const [reload, setReload] = useState(0)
@@ -473,27 +475,9 @@ export default function LeadList() {
           <p className="text-sm text-slate-500 mt-0.5">{t('lead.subtitle')}</p>
         </div>
         <Space wrap>
-          <Button icon={<DownloadOutlined />} onClick={() => downloadFile('/api/v1/leads/import/template', 'lead_import_template.xlsx')}>
-            {t('common.template')}
+          <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>
+            {t('common.import')}
           </Button>
-          <Upload accept=".xlsx,.xls" showUploadList={false} customRequest={async ({ file }) => {
-            const formData = new FormData()
-            formData.append('file', file as File)
-            try {
-              const token = localStorage.getItem('access_token')
-              const res = await fetch('/api/v1/leads/import/excel', {
-                method: 'POST', body: formData,
-                headers: { Authorization: `Bearer ${token}` },
-              })
-              const json = await res.json()
-              if (json.code === 0) {
-                message.success(`导入成功: ${json.data.created} 条${json.data.errors?.length ? `, ${json.data.errors.length} 条失败` : ''}`)
-                fetchData()
-              } else { message.error(json.message || '导入失败') }
-            } catch { message.error('导入失败') }
-          }}>
-            <Button icon={<UploadOutlined />}>{t('common.import')}</Button>
-          </Upload>
           <Button icon={<DownloadOutlined />} onClick={() => {
             const qs = new URLSearchParams()
             if (keyword) qs.set('keyword', keyword)
@@ -660,6 +644,24 @@ export default function LeadList() {
         </Form>
         <p className="text-sm text-slate-400">{t('lead.assignTo', { count: selectedRowKeys.length })}</p>
       </Modal>
+
+      <ImportModal
+        open={importModal}
+        onClose={() => setImportModal(false)}
+        onSuccess={() => { setReload((r) => r + 1); fetchData() }}
+        previewUrl="/api/v1/leads/import/preview"
+        importUrl="/api/v1/leads/import/excel"
+        templateUrl="/api/v1/leads/import/template"
+        templateFileName="lead_import_template.xlsx"
+        title="导入线索"
+        showColumnMapping={false}
+        expectedHeaders={[
+          '项目名称', '来源', '公司名称', '客户类型', '国别', '国家', '省', '市', '区县', '详细地址',
+          '是否内部冲突', '备注：请示部门经理的结果', '行业', '委托状态', '委托开具日期', '委托期限',
+          '部门', '申报人', '申报时间', '负责人', '项目动态', '备注1（线索内容）',
+          '联系人', '联系电话', '联系邮箱', '线索来源', '业务日期', '备注',
+        ]}
+      />
     </div>
   )
 }

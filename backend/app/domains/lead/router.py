@@ -4,34 +4,23 @@ from fastapi import APIRouter, Depends, Query, Header as FastAPIHeader, UploadFi
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import Optional
-from openpyxl import load_workbook
-import io
 
 from app.dependencies import get_db, get_tenant_id, require_permissions
 from app.common.schemas import ok
-from app.common.export import build_excel, build_template, excel_response
+from app.common.export import build_excel, build_excel_multi, excel_response
 from app.domains.lead import service
+from app.domains.lead.import_excel import (
+    LEAD_IMPORT_HEADERS,
+    lead_import_guide_rows,
+    lead_import_sample_row,
+    map_header_row,
+    parse_upload_rows,
+    row_to_payload,
+    rows_for_preview,
+)
 from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
 
 router = APIRouter(prefix="/api/v1/leads", tags=["线索管理"])
-
-# 导入列（顺序即模板列顺序）；与线索列表字段保持一致 (issue #95)：
-# 增加「客户类型」「类别」两列，覆盖列表中可录入的业务字段。
-LEAD_IMPORT_HEADERS = ["标题", "公司名称", "联系人", "联系电话", "邮箱", "来源",
-                       "客户类型", "行业", "类别", "地区", "业务日期", "负责人"]
-
-# 类别列既接受编码(self_reported/distributed)也接受中文标签
-_CATEGORY_BY_LABEL = {
-    "自报": "self_reported", "自拓": "self_reported", "self_reported": "self_reported",
-    "分发": "distributed", "分配": "distributed", "distributed": "distributed",
-}
-
-
-def _norm_category(v):
-    """把类别单元格归一化为编码；无法识别则返回 None（避免整行导入失败）。"""
-    if v is None or str(v).strip() == "":
-        return None
-    return _CATEGORY_BY_LABEL.get(str(v).strip())
 
 
 def _product_dict(p) -> dict:
@@ -258,26 +247,15 @@ async def export_leads_excel(
 async def download_lead_import_template(
     _user=Depends(require_permissions("lead:create")),
 ):
-    """下载线索导入模板（列与线索列表字段保持一致，issue #95）。"""
-    sample = [["某某设备采购线索", "示例科技有限公司", "张三", "13800000000",
-               "zhangsan@example.com", "展会", "企业客户", "机械制造", "自报",
-               "上海市浦东新区", "2026-07-01", "李四"]]
-    buf = build_template("线索导入模板", LEAD_IMPORT_HEADERS, sample)
+    """下载线索导入模板（对齐申报表单必填/常用字段；含填写说明页）。"""
+    buf = build_excel_multi([
+        ("线索导入", LEAD_IMPORT_HEADERS, [lead_import_sample_row()]),
+        ("填写说明", ["字段", "说明", "示例/可选值"], lead_import_guide_rows()),
+    ])
     return excel_response(buf, "lead_import_template.xlsx")
 
 
-def _parse_date_cell(v):
-    """把 Excel 日期单元格(datetime/date/字符串)归一化为 date，无法解析则返回 None。"""
-    if v is None or v == "":
-        return None
-    if hasattr(v, "date") and not isinstance(v, str):  # datetime
-        return v.date()
-    if isinstance(v, date):
-        return v
-    return str(v).strip()  # 交给 Pydantic 解析 "YYYY-MM-DD"
-
-
-async def _resolve_owner_id(db: AsyncSession, tenant_id: str, name):
+async def _resolve_user_id(db: AsyncSession, tenant_id: str, name):
     """按姓名(real_name 或 username)在租户内匹配用户，返回 user_id；匹配不到返回 None。"""
     if not name or not str(name).strip():
         return None
@@ -290,6 +268,77 @@ async def _resolve_owner_id(db: AsyncSession, tenant_id: str, name):
     return u.id if u else None
 
 
+async def _resolve_department_id(db: AsyncSession, tenant_id: str, name):
+    """按部门名称精确匹配（未删）。"""
+    if not name or not str(name).strip():
+        return None
+    from sqlalchemy import select
+    from app.domains.organization.models import Department
+    nm = str(name).strip()
+    d = (await db.execute(select(Department).where(
+        Department.tenant_id == tenant_id,
+        Department.name == nm,
+    ))).scalars().first()
+    return d.id if d else None
+
+
+async def _validate_lead_import_row(
+    db: AsyncSession, tenant_id: str, raw: dict,
+) -> str | None:
+    """预览/导入共用的行级校验，返回错误文案；通过返回 None。"""
+    if not raw.get("title"):
+        return "项目名称不能为空"
+    dept_name = raw.get("department_name")
+    if dept_name:
+        if not await _resolve_department_id(db, tenant_id, dept_name):
+            return f"找不到部门「{dept_name}」，请填写系统中的部门全名"
+    reporter_name = raw.get("reporter_name")
+    if reporter_name:
+        if not await _resolve_user_id(db, tenant_id, reporter_name):
+            return f"找不到申报人「{reporter_name}」"
+    owner_name = raw.get("owner_name")
+    if owner_name:
+        if not await _resolve_user_id(db, tenant_id, owner_name):
+            return f"找不到负责人「{owner_name}」"
+    return None
+
+
+@router.post("/import/preview")
+async def import_leads_preview(
+    file: UploadFile = File(...),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("lead:create")),
+):
+    """解析 Excel/CSV，返回表头、行数据与行级错误（不落库）。"""
+    content = await file.read()
+    all_rows = parse_upload_rows(content, file.filename)
+    headers, data_rows = rows_for_preview(all_rows)
+    if not headers:
+        return ok({"headers": [], "rows": [], "duplicates": [], "errors": {}})
+
+    colmap = map_header_row(all_rows[0] if all_rows else ())
+    errors: dict[int, str] = {}
+    if "title" not in colmap:
+        return ok({
+            "headers": headers,
+            "rows": data_rows,
+            "duplicates": [],
+            "errors": {0: "未识别表头「项目名称」或「标题」，请下载最新导入模板"},
+        })
+
+    preview_i = 0
+    for row in all_rows[1:]:
+        if not row or all(c is None or str(c).strip() == "" for c in row):
+            continue
+        raw = row_to_payload(row, colmap)
+        err = await _validate_lead_import_row(db, tenant_id, raw)
+        if err:
+            errors[preview_i] = err
+        preview_i += 1
+
+    return ok({"headers": headers, "rows": data_rows, "duplicates": [], "errors": errors})
+
 @router.post("/import/excel")
 async def import_leads_excel(
     file: UploadFile = File(...),
@@ -297,45 +346,69 @@ async def import_leads_excel(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("lead:create")),
 ):
-    """Import leads from Excel. Columns: 标题, 公司名称, 联系人, 联系电话, 邮箱, 来源, 客户类型, 行业, 类别, 地区, 业务日期, 负责人"""
+    """从 Excel/CSV 导入线索并提交情报审批。按表头映射字段，兼容旧版短模板。"""
     from app.domains.lead.schemas import LeadCreate
     content = await file.read()
-    wb = load_workbook(io.BytesIO(content), read_only=True)
-    ws = wb.active
-    rows = list(ws.iter_rows(min_row=2, values_only=True))
+    all_rows = parse_upload_rows(content, file.filename)
+    if not all_rows:
+        return ok({"created": 0, "skipped": 0, "errors": ["空文件"]})
+
+    header = all_rows[0]
+    colmap = map_header_row(header or ())
+    if "title" not in colmap:
+        return ok({"created": 0, "skipped": 0, "errors": [
+            "未识别表头「项目名称」或「标题」，请下载最新导入模板",
+        ]})
+
     created = 0
-    errors = []
-
-    def cell(row, i):
-        return row[i] if len(row) > i and row[i] not in (None, "") else None
-
-    for idx, row in enumerate(rows, 2):
-        if not row or not row[0]:
+    errors: list[str] = []
+    create_fields = set(LeadCreate.model_fields)
+    for idx, row in enumerate(all_rows[1:], 2):
+        if not row or all(c is None or str(c).strip() == "" for c in row):
             continue
         try:
-            owner_id = await _resolve_owner_id(db, tenant_id, cell(row, 11))
+            raw = row_to_payload(row, colmap)
+            title = raw.pop("title", None)
+            if not title:
+                continue
+            dept_name = raw.pop("department_name", None)
+            reporter_name = raw.pop("reporter_name", None)
+            owner_name = raw.pop("owner_name", None)
+            err = await _validate_lead_import_row(db, tenant_id, {
+                "title": title,
+                "department_name": dept_name,
+                "reporter_name": reporter_name,
+                "owner_name": owner_name,
+            })
+            if err:
+                raise ValueError(err)
+            department_id = await _resolve_department_id(db, tenant_id, dept_name)
+            reporter_id = await _resolve_user_id(db, tenant_id, reporter_name)
+            owner_id = await _resolve_user_id(db, tenant_id, owner_name)
+
+            company = raw.get("company_name") or title
+            skip = {
+                "company_name", "source", "title",
+                "department_id", "reporter_id", "owner_id",
+            }
+            kwargs = {
+                k: v for k, v in raw.items()
+                if k in create_fields and k not in skip
+            }
             data = LeadCreate(
-                title=str(row[0]).strip(),
-                # company_name is required; fall back to the title when the column is blank
-                company_name=str(row[1]).strip() if cell(row, 1) else str(row[0]).strip(),
-                contact_name=str(row[2]).strip() if cell(row, 2) else None,
-                contact_phone=str(row[3]).strip() if cell(row, 3) else None,
-                contact_email=str(row[4]).strip() if cell(row, 4) else None,
-                source=str(row[5]).strip() if cell(row, 5) else "import",
-                customer_type=str(row[6]).strip() if cell(row, 6) else None,
-                industry=str(row[7]).strip() if cell(row, 7) else None,
-                category=_norm_category(cell(row, 8)),
-                region=str(row[9]).strip() if cell(row, 9) else None,
-                biz_date=_parse_date_cell(cell(row, 10)),
+                title=title,
+                company_name=company,
+                department_id=department_id,
+                reporter_id=reporter_id,
                 owner_id=owner_id,
+                source=raw.get("source") or "import",
+                **kwargs,
             )
             await service.create_lead(db, tenant_id, data, current_user)
             created += 1
         except Exception as e:
-            errors.append(f"第{idx}行: {str(e)[:80]}")
-    wb.close()
-    return ok({"created": created, "errors": errors})
-
+            errors.append(f"第{idx}行: {str(e)[:120]}")
+    return ok({"created": created, "skipped": 0, "errors": errors})
 
 @router.post("")
 async def create_lead(
