@@ -51,16 +51,25 @@ export default function MobileLayout() {
     authApi.me()
       .then((res) => { if (res.data) setUser(res.data) })
       .catch((err: unknown) => {
+        const ax = err as { code?: string; name?: string; response?: { status?: number } }
         const canceled =
-          (err as { code?: string; name?: string })?.code === 'ERR_CANCELED'
-          || (err as { name?: string })?.name === 'CanceledError'
-          || (err as { name?: string })?.name === 'AbortError'
+          ax.code === 'ERR_CANCELED'
+          || ax.name === 'CanceledError'
+          || ax.name === 'AbortError'
         if (canceled) {
           setUserLoading(false)
           return
         }
-        logout()
-        loginWithRedirect()
+        if (!ax.response) {
+          setUserLoading(false)
+          return
+        }
+        if (ax.response.status === 401) {
+          logout()
+          loginWithRedirect()
+          return
+        }
+        setUserLoading(false)
       })
   }, [token])
 

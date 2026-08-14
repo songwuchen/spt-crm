@@ -13,6 +13,7 @@ import '@fontsource/inter/800.css'
 import '@fontsource/inter/900.css'
 import App from './App'
 import { theme } from './config/theme'
+import { currentZone } from './config/zone'
 import './index.css'
 
 dayjs.locale('zh-cn')
@@ -25,11 +26,24 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>,
 )
 
-// Register Service Worker for offline support (mobile)
+// Service Worker：仅移动端域名做离线缓存。
+// PC 域名（wm.*）若启用 SW，在自签证书下会劫持 /api 请求并 cache-first 旧 JS，
+// 表现为「钉钉登录成功 → 网络异常 → 退回登录页」。
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // SW registration failed, offline mode not available
-    })
+    const zone = currentZone()
+    if (zone === 'mobile') {
+      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {})
+      return
+    }
+    // web / platform / IP：注销遗留 SW 并清缓存，避免旧版本卡住
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      regs.forEach((r) => { void r.unregister() })
+    }).catch(() => {})
+    if (window.caches) {
+      caches.keys().then((keys) => {
+        keys.forEach((k) => { void caches.delete(k) })
+      }).catch(() => {})
+    }
   })
 }

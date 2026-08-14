@@ -1,30 +1,17 @@
 /**
  * Service Worker for SPT-CRM mobile offline support.
- * Caches static assets and API responses for offline access.
+ *
+ * IMPORTANT:
+ * - Do NOT intercept /api/* (auth headers + self-signed HTTPS break SW fetch).
+ * - Do NOT cache HTML (otherwise deploys stay invisible until hard-reset).
+ * - Hashed static assets may be cached; bump CACHE_NAME on behavior changes.
  */
 
-const CACHE_NAME = 'spt-crm-v1'
-const API_CACHE = 'spt-crm-api-v1'
-
-// Static assets to precache
-const PRECACHE_URLS = [
-  '/',
-  '/index.html',
-]
-
-// API paths to cache with network-first strategy
-const CACHEABLE_API_PATHS = [
-  '/api/v1/customers',
-  '/api/v1/service_tickets',
-  '/api/v1/notifications',
-]
+const CACHE_NAME = 'spt-crm-static-v3'
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
-  )
+  // Activate updated SW immediately so clients leave a broken v1/v2 behind.
+  event.waitUntil(self.skipWaiting())
 })
 
 self.addEventListener('activate', (event) => {
@@ -32,49 +19,40 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((names) =>
       Promise.all(
         names
-          .filter((name) => name !== CACHE_NAME && name !== API_CACHE)
-          .map((name) => caches.delete(name))
-      )
-    ).then(() => self.clients.claim())
+          // Drop every previous cache (including old API caches).
+          .filter((name) => name !== CACHE_NAME)
+          .map((name) => caches.delete(name)),
+      ),
+    ).then(() => self.clients.claim()),
   )
 })
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
 
-  // Only handle GET requests
+  // Never touch API / WS / OpenAPI — browser handles TLS trust & Authorization.
+  if (
+    url.pathname.startsWith('/api/')
+    || url.pathname.startsWith('/ws/')
+    || url.pathname.startsWith('/openapi/')
+    || url.pathname === '/health'
+  ) {
+    return
+  }
+
+  // Only cache immutable hashed static assets; HTML always goes to network.
   if (event.request.method !== 'GET') return
+  if (!url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|woff2?|ttf|eot|ico)$/)) return
 
-  // API requests: network-first, fallback to cache
-  if (CACHEABLE_API_PATHS.some((path) => url.pathname.startsWith(path))) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const cloned = response.clone()
-            caches.open(API_CACHE).then((cache) => cache.put(event.request, cloned))
-          }
-          return response
-        })
-        .catch(() => caches.match(event.request))
-    )
-    return
-  }
-
-  // Static assets: cache-first
-  if (url.pathname.match(/\.(js|css|png|jpg|svg|woff2?)$/)) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => {
-        if (cached) return cached
-        return fetch(event.request).then((response) => {
-          if (response.ok) {
-            const cloned = response.clone()
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned))
-          }
-          return response
-        })
-      })
-    )
-    return
-  }
+  event.respondWith(
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(event.request)
+      if (cached) return cached
+      const response = await fetch(event.request)
+      if (response.ok) {
+        cache.put(event.request, response.clone())
+      }
+      return response
+    }).catch(() => fetch(event.request)),
+  )
 })

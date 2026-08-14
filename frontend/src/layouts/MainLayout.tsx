@@ -170,16 +170,26 @@ export default function MainLayout() {
       if (res.data) setUser(res.data)
     }).catch((err: unknown) => {
       // StrictMode / 路由切换会取消 in-flight 请求；取消不是鉴权失败，不能清会话
+      const ax = err as { code?: string; name?: string; response?: { status?: number } }
       const canceled =
-        (err as { code?: string; name?: string })?.code === 'ERR_CANCELED'
-        || (err as { name?: string })?.name === 'CanceledError'
-        || (err as { name?: string })?.name === 'AbortError'
+        ax.code === 'ERR_CANCELED'
+        || ax.name === 'CanceledError'
+        || ax.name === 'AbortError'
       if (canceled) {
         setUserLoading(false)
         return
       }
-      logout()
-      loginWithRedirect()
+      // 无 HTTP 响应 = 网络/证书/Service Worker 干扰，保留登录态，避免「登录成功立刻退出」
+      if (!ax.response) {
+        setUserLoading(false)
+        return
+      }
+      if (ax.response.status === 401) {
+        logout()
+        loginWithRedirect()
+        return
+      }
+      setUserLoading(false)
     })
     // 拉取界面个性化设置（系统显示名 / 菜单别名 / 隐藏）
     loadUiSettings()
