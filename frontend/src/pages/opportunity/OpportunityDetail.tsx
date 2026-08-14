@@ -539,6 +539,22 @@ export default function OpportunityDetail() {
               </div>
               <div className="flex items-center gap-4 text-sm text-slate-500">
                 <span className="font-mono text-sm text-slate-400">#{project.project_code}</span>
+                {project.lead_code && (
+                  <span className="flex items-center gap-1">
+                    线索
+                    {project.lead_id ? (
+                      <button
+                        type="button"
+                        className="font-mono text-sm text-blue-600 hover:underline"
+                        onClick={() => navigate(`/leads/${project.lead_id}`)}
+                      >
+                        #{project.lead_code}
+                      </button>
+                    ) : (
+                      <span className="font-mono text-sm text-slate-400">#{project.lead_code}</span>
+                    )}
+                  </span>
+                )}
                 {customer && (
                   <span className="flex items-center gap-1">
                     <Icon name="business" className="text-sm" /> {customer.name}

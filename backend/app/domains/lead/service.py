@@ -490,7 +490,7 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
             remark_parts.append(f"预算: {lead.budget_range}")
         if lead.remark:
             remark_parts.append(lead.remark)
-        # 转化商机：优先 PRJ-{线索号}；冲突则生成。
+        # 转化商机：商机号按商机规则生成（PRJ-YYYYMM###）；线索号写入 lead_code 保留溯源。
         # 注意：uq_project_tenant_code 含软删行，占用检查不可过滤 is_deleted。
         async def _project_code_taken(code: str) -> bool:
             return (
@@ -502,26 +502,21 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
                 )
             ).scalar_one_or_none() is not None
 
-        async def _alloc_project_code(preferred: str | None) -> str:
-            if preferred and not await _project_code_taken(preferred):
-                return preferred
+        async def _alloc_project_code() -> str:
             for _ in range(64):
                 code = await generate_code(db, tenant_id, "project")
                 if not await _project_code_taken(code):
                     return code
             raise BusinessException(message="商机编号生成失败，请重试")
 
-        preferred: str | None = None
-        if lead.lead_code and not str(lead.lead_code).upper().startswith("PRJ-"):
-            preferred = f"PRJ-{str(lead.lead_code).strip()}"
-        elif lead.lead_code:
-            preferred = str(lead.lead_code).strip()
-        project_code = await _alloc_project_code(preferred)
+        project_code = await _alloc_project_code()
         project = OpportunityProject(
             id=generate_uuid(), tenant_id=tenant_id,
             project_code=project_code,
             name=lead.title or lead.company_name or "新商机",
             customer_id=customer.id, stage_code="S1",
+            lead_id=lead.id,
+            lead_code=lead.lead_code,
             # 直接同步线索与商机重复的字段，避免转化后重复录入 (issue #94)
             biz_date=lead.biz_date,
             owner_id=lead.owner_id, owner_name=lead.owner_name,

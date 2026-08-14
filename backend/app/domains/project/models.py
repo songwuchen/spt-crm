@@ -32,6 +32,9 @@ class OpportunityProject(TenantScopedBase):
     uses_idle_equipment: Mapped[bool | None] = mapped_column(Boolean)
     payment_method: Mapped[str | None] = mapped_column(String(64))
     custom_fields_json: Mapped[dict | None] = mapped_column(JSON)
+    # 线索转化来源：商机号走 generate_code(project)；线索号单独保留便于溯源
+    lead_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    lead_code: Mapped[str | None] = mapped_column(String(64), index=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
 

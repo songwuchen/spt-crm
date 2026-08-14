@@ -47,6 +47,8 @@ async def _resolve_owner_id(db: AsyncSession, tenant_id: str, name):
 def _project_dict(p, customer_name: str | None = None, delivery: tuple | None = None) -> dict:
     return {
         "id": p.id, "project_code": p.project_code,
+        "lead_id": getattr(p, "lead_id", None),
+        "lead_code": getattr(p, "lead_code", None),
         "customer_id": p.customer_id, "customer_name": customer_name, "name": p.name,
         "stage_code": p.stage_code,
         "amount_expect": float(p.amount_expect) if p.amount_expect is not None else None,

@@ -363,6 +363,7 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
     ],
     "project": [
         _f("name", "商机名称", system_required=True),
+        _f("lead_code", "来源线索编号", form_editable=False, available_on_create=False),
         _f("amount_expect", "预期金额", "amount"),
         _f("probability", "赢单概率", "number"),
         _f("close_date_expect", "预计成交日期", "date"),

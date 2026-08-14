@@ -127,11 +127,18 @@ async def test_qualify_with_create_opportunity_carries_context(client: AsyncClie
     assert pid, "勾选后应创建商机"
     assert res["data"].get("project_code")
 
-    # 商机应关联到新客户，并带入需求摘要
+    lead = (await client.get(f"/api/v1/leads/{lid}", headers=h)).json()["data"]
+    lead_code = lead["lead_code"]
+
+    # 商机应关联到新客户，并带入需求摘要；编号走商机规则，同时保留来源线索号
     proj = (await client.get(f"/api/v1/projects/{pid}", headers=h)).json()["data"]
     assert proj["customer_id"] == cid
     assert proj["stage_code"] == "S1"
     assert (proj.get("key_requirements_json") or {}).get("summary") == "需要 3 台大型直线振动筛，含保函"
+    assert proj["project_code"] != f"PRJ-{lead_code}"
+    assert proj["project_code"].startswith("PRJ-")
+    assert proj.get("lead_id") == lid
+    assert proj.get("lead_code") == lead_code
 
     await client.delete(f"/api/v1/projects/{pid}", headers=h)
     await client.delete(f"/api/v1/customers/{cid}", headers=h)

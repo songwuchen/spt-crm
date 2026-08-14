@@ -160,6 +160,10 @@ async def me(current_user: dict = Depends(get_current_user), db: AsyncSession = 
         if not dept_name and getattr(ud, "department", None) is not None:
             dept_name = getattr(ud.department, "name", None)
 
+    # 权限/角色以库为准，避免角色调整后仍读 JWT 里的旧清单（编辑按钮等前端门控会错）
+    permissions = await get_user_permissions(db, user.id, user.tenant_id)
+    roles = await get_user_roles(db, user.id, user.tenant_id)
+
     info = UserInfo(
         id=user.id,
         tenant_id=user.tenant_id,
@@ -168,8 +172,8 @@ async def me(current_user: dict = Depends(get_current_user), db: AsyncSession = 
         phone=user.phone,
         email=user.email,
         avatar=user.avatar,
-        roles=current_user.get("roles", []),
-        permissions=current_user.get("permissions", []),
+        roles=roles,
+        permissions=permissions,
         must_change_password=bool(user.must_change_password),
         department_id=dept_ids[0] if dept_ids else None,
         department_ids=dept_ids,

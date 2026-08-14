@@ -10,6 +10,7 @@ import { useSwipe } from '@/hooks/useSwipe'
 
 interface ProjectInfo {
   id: string; name: string; project_code: string; stage_code: string; status: string
+  lead_id?: string | null; lead_code?: string | null
   amount_expect?: number; probability?: number; risk_level?: string
   owner_name?: string; customer_name?: string; customer_id?: string
   created_at: string; expected_close_date?: string
@@ -65,7 +66,18 @@ export default function MobileOpportunityDetail() {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-extrabold text-slate-900 truncate">{project.name}</h1>
-          <span className="text-[12px] font-mono text-slate-400">{project.project_code}</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="text-[12px] font-mono text-slate-400">{project.project_code}</span>
+            {project.lead_code && (
+              <button
+                type="button"
+                className="text-[12px] font-mono text-blue-600"
+                onClick={() => project.lead_id && navigate(`/m/leads/${project.lead_id}`)}
+              >
+                线索 {project.lead_code}
+              </button>
+            )}
+          </div>
         </div>
         <span className={`px-2 py-0.5 rounded text-[12px] font-bold border ${sc}`}>
           {project.stage_code} {stageLabels[project.stage_code]}

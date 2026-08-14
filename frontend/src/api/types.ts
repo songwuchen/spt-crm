@@ -289,6 +289,8 @@ export interface AuditLog {
 export interface OpportunityProject {
   id: string
   project_code: string
+  lead_id?: string | null
+  lead_code?: string | null
   customer_id?: string
   customer_name?: string
   name: string

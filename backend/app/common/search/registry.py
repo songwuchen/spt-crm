@@ -114,6 +114,7 @@ def _build_registry() -> dict:
 
     reg["project"] = ResourceSchema("project", "商机", [
         TextField("project_code", "商机编号", Project.project_code),
+        TextField("lead_code", "来源线索编号", Project.lead_code),
         TextField("name", "商机名称", Project.name),
         RelationField("customer_id", "客户", Project.customer_id, option_source="customers"),
         EnumField("stage_code", "阶段", Project.stage_code, options=_STAGE_OPTS),
