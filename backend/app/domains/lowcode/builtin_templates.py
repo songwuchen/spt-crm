@@ -485,6 +485,11 @@ def _apply_drawing_jdy_fields() -> None:
         if t["key"] == "quote_management":
             from app.domains.lowcode.quote_management_fields import apply_quote_management_fields
             apply_quote_management_fields(defs)
+        if t["key"] == "pricing_checklist_hjqd":
+            _FINANCE_DOWNLOAD = ["finance", "finance_manager"]
+            for f in defs:
+                if isinstance(f, dict) and f.get("id") in ("attachments", "images"):
+                    f["download_roles"] = list(_FINANCE_DOWNLOAD)
         # 永久删除：文本桩字段（保留选人）；方案管理去掉业务打分字段
         drop_ids = {"pre_designer_text"}
         if t["key"] == "drawing_requisition":

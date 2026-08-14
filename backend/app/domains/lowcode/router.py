@@ -948,14 +948,21 @@ async def export_form_instances(
         db, tenant_id, template_id, keyword=keyword, status=status, owner_ids=scope,
         filters=filters, limit=_EXPORT_ROW_CAP,
     )
-    # 字段级权限：导出列同样剔除对该用户隐藏的字段
-    from app.domains.lowcode.field_permission import field_visible
+    # 字段级权限：导出列同样剔除对该用户隐藏的字段；附件无下载权则导出空
+    from app.domains.lowcode.field_permission import field_visible, filter_read
     _roles = set(_user.get("roles") or [])
     data_fields = [fd for fd in field_defs if fd.get("id") and field_visible(fd, _roles)]
     headers = ["业务编号", "标题", "状态", "创建时间"] + [fd.get("label") or fd.get("id") for fd in data_fields]
     data_rows = []
+    uid = _user.get("sub")
     for inst in rows:
-        fd_data = inst.form_data or {}
+        is_creator = bool(uid and (
+            uid == getattr(inst, "created_by", None)
+            or uid == getattr(inst, "initiator_id", None)
+        ))
+        _, fd_data = filter_read(
+            field_defs, inst.form_data or {}, _roles, is_creator=is_creator,
+        )
         line = [
             inst.business_no or "", inst.title or "",
             _INST_STATUS_LABELS.get(inst.status, inst.status or ""),

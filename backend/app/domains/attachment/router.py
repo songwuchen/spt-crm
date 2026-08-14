@@ -326,6 +326,8 @@ async def get_download_url(
         db, tenant_id, attachment_id, None if via_wf else current_user,
     )
     _check_secrecy(att, current_user)
+    from app.domains.lowcode.field_permission import assert_form_field_attachment_download
+    await assert_form_field_attachment_download(db, tenant_id, attachment_id, current_user)
     storage_type = att.storage_backend or "local"
     inline = not download
 
@@ -370,6 +372,8 @@ async def download(
         db, tenant_id, attachment_id, None if via_wf else current_user,
     )
     _check_secrecy(att, current_user)
+    from app.domains.lowcode.field_permission import assert_form_field_attachment_download
+    await assert_form_field_attachment_download(db, tenant_id, attachment_id, current_user)
 
     storage_type = att.storage_backend or "local"
     media_type = att.content_type or "application/octet-stream"

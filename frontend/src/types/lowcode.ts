@@ -36,11 +36,15 @@ export interface FieldDefinition {
   span?: number // 栅格: 6/8/12/24, 默认 24
   // 字段级权限(角色 code)。空/缺省 = 不限制。递进：隐藏 > 脱敏 > 只读。
   // visible_roles: 谁可见; unmask_roles: 谁可见明文(其余人得 "***"); edit_roles: 谁可编辑。
+  // download_roles: 谁可预览/下载附件(仅 file/image；空=可见即可打开；本单发起人始终可)。
   visible_roles?: string[] | null
   unmask_roles?: string[] | null
   edit_roles?: string[] | null
+  download_roles?: string[] | null
   masked?: boolean // 后端读取时对已脱敏字段的标记
   readonly?: boolean // 后端 get_instance 对不可编辑字段的标记(只读渲染)
+  /** 后端读裁剪：当前用户无权打开该附件字段 */
+  download_denied?: boolean
   // 原生字段(业务表内置列，如线索的 industry)标记。其值存业务列而非 custom_fields_json，
   // 设计器里不可删除/改类型；system_required 为真时连「必填」也不可改（列本身 NOT NULL）。
   native?: boolean

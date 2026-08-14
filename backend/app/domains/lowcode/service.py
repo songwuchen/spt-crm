@@ -518,6 +518,11 @@ async def sync_builtin_form_fields(
                 )
             )
         ]
+    if key == "pricing_checklist_hjqd":
+        # 核价清单附件仅财务可打开；ensure/sync 强制回写，避免旧版本缺配置
+        for fd in want:
+            if isinstance(fd, dict) and fd.get("id") in ("attachments", "images"):
+                fd["download_roles"] = ["finance", "finance_manager"]
     same_fields = _field_defs_fingerprint(current) == _field_defs_fingerprint(want)
     same_rules = _rules_fingerprint(current_rules) == _rules_fingerprint(want_rules)
     if same_fields and same_rules:
@@ -1074,7 +1079,7 @@ async def create_instance(
     field_defs = published.field_definitions or []
     user_name = user.get("real_name") or user.get("username") or ""
     # 字段级权限：丢弃用户对不可编辑/隐藏字段的写入（后端权威边界）
-    raw = sanitize_write(data.form_data, None, field_defs, user.get("roles"))
+    raw = sanitize_write(data.form_data, None, field_defs, user.get("roles"), is_creator=True)
     form_data = compute_formula_fields(dict(raw or {}), field_defs, user_name)
     from app.domains.lowcode.dept_code import fill_dept_code_in_form_data
     form_data = await fill_dept_code_in_form_data(db, tenant_id, form_data, field_defs, user)
@@ -1152,12 +1157,25 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
             rule_defs = version.rule_definitions or []
 
     out = schemas.FormInstanceOut.model_validate(inst).model_dump()
-    # 字段级权限：按查看者角色剔除隐藏字段(定义+值)，不可编辑字段标记 readonly
-    field_defs, out["form_data"] = filter_read(field_defs, out.get("form_data"), (user or {}).get("roles"))
+    # 字段级权限：按查看者角色剔除隐藏字段(定义+值)，不可编辑字段标记 readonly；
+    # 附件 download_roles 以已发布模板为准（避免提交快照缺配置被绕过）。
+    is_creator = bool(user and inst.created_by and user.get("sub") == inst.created_by)
+    published_acl = await _get_published_version(db, tenant_id, inst.template_id)
+    if published_acl and published_acl.field_definitions:
+        field_defs = _overlay_download_acl(field_defs, published_acl.field_definitions)
+    field_defs, out["form_data"] = filter_read(
+        field_defs, out.get("form_data"), (user or {}).get("roles"),
+        is_creator=is_creator,
+    )
     out["field_definitions"] = field_defs
     out["rule_definitions"] = rule_defs
     return out
 
+
+def _overlay_download_acl(snapshot: list, published: list) -> list:
+    """把已发布模板上的 download_roles 叠到实例字段快照上。"""
+    from app.domains.lowcode.field_permission import _overlay_download_roles
+    return _overlay_download_roles(snapshot, published)
 
 _FIELD_ID_RE = re.compile(r"^[a-zA-Z0-9_]{1,64}$")
 _FILTER_OPS = frozenset({
@@ -1369,7 +1387,10 @@ async def update_instance(
         field_defs = (version.field_definitions if version else inst.field_definitions) or []
         user_name = user.get("real_name") or user.get("username") or ""
         # 字段级权限：不可编辑字段保留原值，忽略用户改动（后端权威边界）
-        raw = sanitize_write(data.form_data, inst.form_data, field_defs, user.get("roles"))
+        raw = sanitize_write(
+            data.form_data, inst.form_data, field_defs, user.get("roles"),
+            is_creator=bool(inst.created_by and user.get("sub") == inst.created_by),
+        )
         form_data = compute_formula_fields(dict(raw), field_defs, user_name)
         from app.domains.lowcode.dept_code import fill_dept_code_in_form_data
         form_data = await fill_dept_code_in_form_data(db, tenant_id, form_data, field_defs, user)
@@ -1412,7 +1433,10 @@ async def submit_instance(
     user_name = user.get("real_name") or user.get("username") or ""
 
     raw_in = data.form_data if data.form_data is not None else (inst.form_data or {})
-    raw = sanitize_write(raw_in, inst.form_data, field_defs, user.get("roles"))
+    raw = sanitize_write(
+        raw_in, inst.form_data, field_defs, user.get("roles"),
+        is_creator=bool(inst.created_by and user.get("sub") == inst.created_by),
+    )
     form_data = compute_formula_fields(dict(raw or {}), field_defs, user_name)
     from app.domains.lowcode.dept_code import fill_dept_code_in_form_data
     form_data = await fill_dept_code_in_form_data(db, tenant_id, form_data, field_defs, user)

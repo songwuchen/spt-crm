@@ -894,7 +894,7 @@ function FieldProps({ field, roleOptions, personScopeOptions, deptScopeOptions, 
 
       <Divider style={{ margin: '6px 0' }} />
       <Button size="small" block onClick={() => setPermOpen(true)}>
-        字段权限{(field.visible_roles?.length || field.unmask_roles?.length || field.edit_roles?.length) ? ' ●' : ''}
+        字段权限{(field.visible_roles?.length || field.unmask_roles?.length || field.edit_roles?.length || field.download_roles?.length) ? ' ●' : ''}
       </Button>
 
       <Modal title="字段权限" open={permOpen} footer={<Button type="primary" onClick={() => setPermOpen(false)}>完成</Button>} onCancel={() => setPermOpen(false)} destroyOnClose>
@@ -914,9 +914,16 @@ function FieldProps({ field, roleOptions, personScopeOptions, deptScopeOptions, 
             <Select mode="multiple" allowClear style={{ width: '100%' }} placeholder="仅这些角色能看到真实值"
               value={field.unmask_roles || []} options={roleOptions} onChange={(v) => onPatch({ unmask_roles: v.length ? v : null })} />
           </div>
+          {(field.type === 'file' || field.type === 'image') && (
+            <div>
+              <div style={{ marginBottom: 4, fontSize: 13 }}>可下载/打开角色<Text type="secondary" style={{ marginLeft: 6, fontSize: 12 }}>留空=可见即可打开;非空仅名单内角色+本单发起人</Text></div>
+              <Select mode="multiple" allowClear style={{ width: '100%' }} placeholder="仅这些角色可预览/下载附件"
+                value={field.download_roles || []} options={roleOptions} onChange={(v) => onPatch({ download_roles: v.length ? v : null })} />
+            </div>
+          )}
           <Text type="secondary" style={{ fontSize: 12 }}>
             说明: 优先级 隐藏 &gt; 脱敏 &gt; 只读；被脱敏的字段一律不可编辑。
-            后端按登录者角色在列表/详情/导出上强制裁剪，设计器预览不受限。
+            附件另可配「可下载/打开角色」。后端按登录者角色在列表/详情/导出上强制裁剪，设计器预览不受限。
           </Text>
         </div>
       </Modal>

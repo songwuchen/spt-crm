@@ -20,7 +20,7 @@ from typing import Any
 # 租户可覆盖的属性白名单。id/type 不在其中 —— 它们决定了字段与业务列的绑定关系。
 OVERRIDABLE_KEYS = {
     "label", "placeholder", "description", "required", "span",
-    "visible_roles", "unmask_roles", "edit_roles", "props",
+    "visible_roles", "unmask_roles", "edit_roles", "download_roles", "props",
     # 下拉/单选/多选选项：设计器可改，发布后业务页与 FormRenderer 同口径
     "options",
     # 填写阶段：发起可见 vs 仅审批填写（对齐简道云 optAuth）

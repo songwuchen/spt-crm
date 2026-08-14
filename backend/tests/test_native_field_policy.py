@@ -267,7 +267,7 @@ def test_all_field_permission_keys_are_overridable():
     界面上看着配好了，实际一点也不生效。
     """
     from app.domains.lowcode.native_field_catalog import OVERRIDABLE_KEYS
-    for key in ("visible_roles", "unmask_roles", "edit_roles"):
+    for key in ("visible_roles", "unmask_roles", "edit_roles", "download_roles"):
         assert key in OVERRIDABLE_KEYS, f"{key} 未列入 OVERRIDABLE_KEYS，租户配置会被丢弃"
 
 

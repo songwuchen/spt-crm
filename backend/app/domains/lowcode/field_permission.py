@@ -1,11 +1,13 @@
-"""字段级权限：按角色控制字段的「可见 / 脱敏 / 可编辑」。
+"""字段级权限：按角色控制字段的「可见 / 脱敏 / 可编辑 / 附件下载」。
 
 规则挂在 FieldDefinition 上（值均为角色 code，空/缺省 = 不限制）：
 - visible_roles 非空且用户无交集 → 字段对该用户隐藏（读取时连定义带值一并剔除）；
 - unmask_roles 非空且用户无交集 → 字段脱敏（值替换为 MASK_VALUE，定义仍在，标记 masked）；
-- edit_roles   非空且用户无交集 → 字段只读（写入时忽略其新值，保留原值）。
+- edit_roles   非空且用户无交集 → 字段只读（写入时忽略其新值，保留原值）；
+- download_roles 非空且用户无交集 → file/image 字段读时清空附件 ID（标记 download_denied），
+  预览/下载 API 另行强制；本单发起人始终可下载。
 
-三者是递进的：隐藏 > 脱敏 > 只读。被脱敏的字段一律不可编辑 —— 用户看不到真实值，
+前三者是递进的：隐藏 > 脱敏 > 只读。被脱敏的字段一律不可编辑 —— 用户看不到真实值，
 让他提交等于用 "***" 覆盖真数据。
 
 后端是权威边界：读取剔除/脱敏字段值、写入丢弃不可编辑字段的改动；前端 FormRenderer
@@ -19,6 +21,8 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from app.common.field_mask import MASK_VALUE
+
+_FILE_FIELD_TYPES = frozenset({"file", "image"})
 
 # 「系统主体」哨兵角色：服务端到服务端的调用方（开放平台、后台任务）没有用户角色可评。
 #
@@ -76,10 +80,36 @@ def field_editable(fd: dict[str, Any], roles: set[str]) -> bool:
     return bool(roles & set(er))
 
 
+def is_file_field(fd: dict[str, Any]) -> bool:
+    return (fd.get("type") or "") in _FILE_FIELD_TYPES
+
+
+def field_downloadable(
+    fd: dict[str, Any], roles: set[str], *, is_creator: bool = False,
+) -> bool:
+    """file/image 是否允许预览/下载。非附件字段恒为 True。
+
+    download_roles 空/缺省 = 不限制；本单发起人与系统主体始终可下载。
+    """
+    if not is_file_field(fd):
+        return True
+    if SYSTEM_ROLE in roles or is_creator:
+        return True
+    dr = fd.get("download_roles")
+    if not dr:
+        return True
+    return bool(roles & set(dr))
+
+
 def has_any_field_permission(field_defs: list[dict[str, Any]] | None) -> bool:
     """是否有任一字段配置了字段级权限（无则可完全跳过裁剪，零开销）。"""
     for fd in field_defs or []:
-        if fd.get("visible_roles") or fd.get("edit_roles") or fd.get("unmask_roles"):
+        if (
+            fd.get("visible_roles")
+            or fd.get("edit_roles")
+            or fd.get("unmask_roles")
+            or fd.get("download_roles")
+        ):
             return True
     return False
 
@@ -88,9 +118,11 @@ def filter_read(
     field_defs: list[dict[str, Any]] | None,
     form_data: dict[str, Any] | None,
     user_roles: Iterable[str] | None,
+    *,
+    is_creator: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """读取时裁剪：隐藏字段连定义带值剔除；脱敏字段值换成 "***" 并标记 masked；
-    不可编辑字段标记 readonly=True。"""
+    不可编辑字段标记 readonly=True；无下载权的附件字段清空值并标记 download_denied。"""
     defs = field_defs or []
     data = dict(form_data or {})
     if not has_any_field_permission(defs):
@@ -108,6 +140,11 @@ def filter_read(
             fd = {**fd, "masked": True}
         if not field_editable(fd, roles):
             fd = {**fd, "readonly": True}
+        if not field_downloadable(fd, roles, is_creator=is_creator):
+            fid = fd.get("id")
+            if fid is not None:
+                data[fid] = []
+            fd = {**fd, "download_denied": True, "readonly": True}
         out_defs.append(fd)
     return out_defs, data
 
@@ -117,8 +154,13 @@ def sanitize_write(
     prior: dict[str, Any] | None,
     field_defs: list[dict[str, Any]] | None,
     user_roles: Iterable[str] | None,
+    *,
+    is_creator: bool = False,
 ) -> dict[str, Any]:
-    """写入时裁剪：不可编辑（含隐藏）字段丢弃用户新值，保留原值（新建时原值为空→移除）。"""
+    """写入时裁剪：不可编辑（含隐藏）字段丢弃用户新值，保留原值（新建时原值为空→移除）。
+
+    无附件下载权者即使字段可编辑，也不得改写 file/image 值（防提交空数组清掉附件）。
+    """
     result = dict(incoming or {})
     defs = field_defs or []
     if not has_any_field_permission(defs):
@@ -126,7 +168,11 @@ def sanitize_write(
     roles = _roleset(user_roles)
     prior = prior or {}
     for fd in defs:
-        if field_editable(fd, roles):
+        editable = field_editable(fd, roles)
+        if editable and (
+            not is_file_field(fd)
+            or field_downloadable(fd, roles, is_creator=is_creator)
+        ):
             continue
         fid = fd.get("id")
         if fid in prior:
@@ -405,3 +451,121 @@ async def strip_entity_dicts(db, tenant_id: str, entity_type: str, dicts, user_r
                         if k in d:
                             d[k] = MASK_VALUE
     return dicts
+
+
+def iter_attachment_ids_in_value(val: Any) -> list[str]:
+    """从 file/image 字段值中收集附件 id。"""
+    out: list[str] = []
+    if isinstance(val, list):
+        for item in val:
+            if isinstance(item, dict) and item.get("id"):
+                out.append(str(item["id"]))
+            elif isinstance(item, str) and item:
+                out.append(item)
+    elif isinstance(val, dict) and val.get("id"):
+        out.append(str(val["id"]))
+    elif isinstance(val, str) and val:
+        out.append(val)
+    return out
+
+
+def _overlay_download_roles(snapshot: list, published: list) -> list:
+    pub_by = {
+        f["id"]: f for f in (published or [])
+        if isinstance(f, dict) and f.get("id")
+    }
+    out: list = []
+    for f in snapshot or []:
+        if not isinstance(f, dict):
+            continue
+        m = dict(f)
+        p = pub_by.get(m.get("id"))
+        if p is not None and "download_roles" in p:
+            m["download_roles"] = p.get("download_roles")
+        out.append(m)
+    return out
+
+
+async def assert_form_field_attachment_download(
+    db,
+    tenant_id: str,
+    attachment_id: str,
+    current_user: dict,
+) -> None:
+    """若附件挂在配置了 download_roles 的低代码 file/image 字段上，强制校验。
+
+    未命中任何受控表单字段时直接放行（仍由 attachment:download / 业务可见性约束）。
+    """
+    from sqlalchemy import String, cast, select
+
+    from app.common.error_codes import FORBIDDEN
+    from app.common.exceptions import BusinessException
+    from app.domains.lowcode.models import FormInstance, FormTemplateVersion
+
+    roles = _roleset(current_user.get("roles"))
+    if SYSTEM_ROLE in roles:
+        return
+
+    uid = current_user.get("sub")
+    rows = (await db.execute(
+        select(FormInstance).where(
+            FormInstance.tenant_id == tenant_id,
+            FormInstance.is_deleted == False,  # noqa: E712
+            cast(FormInstance.form_data, String).contains(attachment_id),
+        ).limit(20)
+    )).scalars().all()
+    if not rows:
+        return
+
+    pub_cache: dict[str, list] = {}
+
+    async def _published_defs(template_id: str) -> list:
+        if template_id in pub_cache:
+            return pub_cache[template_id]
+        ver = (await db.execute(
+            select(FormTemplateVersion).where(
+                FormTemplateVersion.tenant_id == tenant_id,
+                FormTemplateVersion.template_id == template_id,
+                FormTemplateVersion.status == "published",
+            ).order_by(FormTemplateVersion.version_number.desc()).limit(1)
+        )).scalar_one_or_none()
+        defs = (ver.field_definitions if ver else None) or []
+        pub_cache[template_id] = defs
+        return defs
+
+    controlled = False
+    allowed = False
+    for inst in rows:
+        data = inst.form_data or {}
+        snap = list(inst.field_definitions or [])
+        published = await _published_defs(inst.template_id)
+        if published:
+            snap = _overlay_download_roles(snap, published) if snap else list(published)
+            if not snap:
+                snap = list(published)
+        is_creator = bool(
+            uid and (
+                uid == getattr(inst, "created_by", None)
+                or uid == getattr(inst, "initiator_id", None)
+            )
+        )
+        for fd in snap:
+            if not isinstance(fd, dict) or not is_file_field(fd):
+                continue
+            fid = fd.get("id")
+            if not fid:
+                continue
+            ids = iter_attachment_ids_in_value(data.get(fid))
+            if attachment_id not in ids:
+                continue
+            if not fd.get("download_roles"):
+                continue
+            controlled = True
+            if field_downloadable(fd, roles, is_creator=is_creator):
+                allowed = True
+                break
+        if allowed:
+            break
+
+    if controlled and not allowed:
+        raise BusinessException(code=FORBIDDEN, message="无权查看该附件")

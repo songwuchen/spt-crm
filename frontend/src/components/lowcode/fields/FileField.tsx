@@ -41,12 +41,13 @@ function filesFromClipboard(data: DataTransfer | null | undefined): File[] {
 }
 
 export default function FileField({
-  value, onChange, image, readonly,
+  value, onChange, image, readonly, downloadDenied,
 }: {
   value: unknown
   onChange: (v: unknown) => void
   image?: boolean
   readonly?: boolean
+  downloadDenied?: boolean
 }) {
   const atts: Att[] = Array.isArray(value) ? (value as Att[]) : []
   const attsRef = useRef(atts)
@@ -64,7 +65,7 @@ export default function FileField({
     : '拖拽或单击后粘贴文件，单个50MB以内'
 
   useEffect(() => {
-    if (!image) return
+    if (!image || downloadDenied) return
     let alive = true
     ;(async () => {
       const next: Record<string, string> = {}
@@ -75,9 +76,13 @@ export default function FileField({
       if (alive) setUrls(next)
     })()
     return () => { alive = false }
-  }, [image, JSON.stringify(atts.map((a) => a.id))]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [image, downloadDenied, JSON.stringify(atts.map((a) => a.id))]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openFile = async (id: string, download = false) => {
+    if (downloadDenied) {
+      message.warning('无权限查看附件')
+      return
+    }
     try {
       const u = await attachmentApi.getUrl(id, download)
       window.open(u, '_blank')
@@ -87,6 +92,10 @@ export default function FileField({
   }
 
   const uploadOne = async (file: File) => {
+    if (downloadDenied) {
+      message.warning('无权限上传附件')
+      return
+    }
     if (image && !file.type.startsWith('image/')) {
       message.warning('请选择图片文件')
       return
@@ -115,7 +124,7 @@ export default function FileField({
 
   // 聚焦虚线区后，窗口级监听粘贴（截图走 items，比 div.onPaste 更稳）
   useEffect(() => {
-    if (!focused || readonly) return
+    if (!focused || readonly || downloadDenied) return
     const onPaste = (e: ClipboardEvent) => {
       const files = filesFromClipboard(e.clipboardData)
       if (!files.length) return
@@ -126,7 +135,11 @@ export default function FileField({
     window.addEventListener('paste', onPaste, true)
     return () => window.removeEventListener('paste', onPaste, true)
     // uploadMany 经 attsRef，无需列入依赖
-  }, [focused, readonly, image]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [focused, readonly, downloadDenied, image]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (downloadDenied) {
+    return <div className="pt-1 text-slate-400 text-sm">无权限查看附件</div>
+  }
 
   if (readonly) {
     if (!atts.length) return <div className="pt-1 text-slate-400">—</div>

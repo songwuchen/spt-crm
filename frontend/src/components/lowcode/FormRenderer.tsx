@@ -256,6 +256,7 @@ function FieldWidget({
 }) {
   const opts = field.options || []
   const ph = field.placeholder
+  const downloadDenied = !!field.download_denied
 
   if (!SUPPORTED.has(field.type)) {
     // 高级字段类型占位(后续切片接入): 只读展示已有值
@@ -430,9 +431,9 @@ function FieldWidget({
     case 'customer':
       return <CustomerField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
     case 'file':
-      return <FileField value={value} onChange={onChange} readonly={readonly} />
+      return <FileField value={value} onChange={onChange} readonly={readonly} downloadDenied={downloadDenied} />
     case 'image':
-      return <FileField value={value} onChange={onChange} image readonly={readonly} />
+      return <FileField value={value} onChange={onChange} image readonly={readonly} downloadDenied={downloadDenied} />
     case 'address':
       return (
         <AddressField
