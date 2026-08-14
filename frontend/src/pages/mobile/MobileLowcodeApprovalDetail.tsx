@@ -11,6 +11,7 @@ import type { WfInstanceDetail, FieldDefinition } from '@/types/lowcode'
 import FormRenderer from '@/components/lowcode/FormRenderer'
 import ApproveFieldForm, { missingRequiredFields } from '@/components/lowcode/ApproveFieldForm'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
+import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import AttachmentPanel from '@/components/AttachmentPanel'
@@ -339,7 +340,27 @@ export default function MobileLowcodeApprovalDetail() {
         </div>
       )}
 
-      {canAct && !isLeadIntel && (
+      {canAct && isLeadOwnerConfirm && detail.biz_id && effectiveTaskId && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3 max-h-[60vh] overflow-y-auto z-30" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
+          <div className="text-sm font-bold text-slate-700 mb-1">操作意见</div>
+          <Input.TextArea
+            rows={2}
+            placeholder="选填"
+            value={opinion}
+            onChange={(e) => setOpinion(e.target.value)}
+            style={{ marginBottom: 8 }}
+          />
+          <LeadOwnerConfirmActions
+            compact
+            leadId={detail.biz_id}
+            taskId={effectiveTaskId}
+            opinion={opinion}
+            onDone={() => nav('/m/approvals')}
+          />
+        </div>
+      )}
+
+      {canAct && !isLeadIntel && !isLeadOwnerConfirm && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3 max-h-[60vh] overflow-y-auto z-30" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
           {isReviseTask ? (
             <>

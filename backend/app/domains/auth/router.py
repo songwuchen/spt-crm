@@ -106,7 +106,7 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
 
 @router.post("/refresh")
 async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
-    from app.domains.auth.models import LoginSession
+    from app.domains.auth.models import LoginSession, User
 
     payload = decode_token(body.refresh_token, expected_type="refresh")
     user_id = payload["sub"]
@@ -124,13 +124,23 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
         # Update last active
         session.last_active_at = datetime.now(timezone.utc)
 
+    user = (await db.execute(
+        select(User).where(User.id == user_id, User.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not user or not user.is_active:
+        raise BusinessException(code=40100, message="用户不存在或已停用，请重新登录")
+
     permissions = await get_user_permissions(db, user_id, tenant_id)
     roles = await get_user_roles(db, user_id, tenant_id)
 
     new_jti = old_jti or generate_jti()
+    # 必须带回 username/real_name：否则刷新后 access token 缺姓名，
+    # 线索「填表人」等依赖 JWT 展示名的写入会落空。
     new_payload = {
         "sub": user_id,
         "tenant_id": tenant_id,
+        "username": user.username,
+        "real_name": user.real_name,
         "permissions": permissions,
         "roles": roles,
     }

@@ -380,10 +380,12 @@ export default function LeadList() {
       render: (v: string) => {
         const rcfg = leadReviewStatusConfig[v || 'pending'] || leadReviewStatusConfig.pending
         const tone =
-          v === 'approved' ? 'amber'
-            : v === 'rejected' ? 'teal'
-              : v === 'attacked' ? 'orange'
-                : 'amber'
+          v === 'draft' ? 'slate'
+            : v === 'pending' ? 'amber'
+              : v === 'approved' ? 'green'
+                : v === 'rejected' ? 'red'
+                  : v === 'attacked' ? 'orange'
+                    : 'slate'
         return <JdyTag text={rcfg.label} tone={tone} />
       },
     },

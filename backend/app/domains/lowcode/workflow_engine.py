@@ -559,7 +559,7 @@ class WorkflowEngine:
         if existing:
             return
 
-        # 线索袭击：不可转化，跳过「业务员确认是否转商机」待办，改为知会负责人后直通结束
+        # 线索袭击：不可转化，跳过「业务员确认是否转商机」待办，改为知会申报人后直通结束
         if (
             inst.biz_type == "lead"
             and self._is_lead_owner_confirm_node(node)
@@ -875,6 +875,14 @@ class WorkflowEngine:
         self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
 
         if action == "reject":
+            node_inst = await self.db.get(WfNodeInstance, task.node_instance_id)
+            # 业务员「暂不转商机」：结束流程但保留情报收录态，勿把线索回写成 rejected（不可再报备）
+            if inst.biz_type == "lead" and self._is_lead_owner_confirm_node(node_inst):
+                await self._complete_instance(inst, "completed", reason=opinion or "暂不转商机")
+                await self.db.commit()
+                await self.flush_notifications(inst)
+                await self._audit(inst, actor, "reject")
+                return
             # 驳回意见随流程结束回写到业务表(如 leads.reject_reason)
             await self._reject_flow(inst, reason=opinion)
             # 线索情报驳回为终态（不可再报备），不发发起人修订待办；其它业务仍可改后再提

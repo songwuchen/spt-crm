@@ -79,7 +79,7 @@ async def notify_lead_review_approved(
     db: AsyncSession, tenant_id: str, *, lead_id: str, lead_title: str,
     owner_id: str, lead_code: str | None = None,
 ):
-    """线索内勤审核通过后，推送给负责人（业务员），由其自行决定是否转化客户/商机。"""
+    """线索内勤审核通过后，推送给申报人（业务员），由其确认是否转化客户/商机。"""
     if not owner_id:
         return
     code = f"「{lead_code}」" if lead_code else ""

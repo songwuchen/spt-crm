@@ -93,6 +93,7 @@ async def test_default_lead_flow_is_provisioned_and_published(client: AsyncClien
     assert intel["empty_strategy"] == "auto_approve"
     assert confirm["type"] == "approval"
     assert (confirm.get("approver_rule") or {}).get("type") == "form_field_person"
+    assert (confirm.get("approver_rule") or {}).get("value") == "reporter_id"
 
 
 @pytest.mark.asyncio

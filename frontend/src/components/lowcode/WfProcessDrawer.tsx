@@ -18,6 +18,7 @@ import ApproveFieldForm, { missingRequiredFields } from '@/components/lowcode/Ap
 import PersonField from '@/components/lowcode/fields/PersonField'
 import ContractRegistrationReadonly from '@/components/lowcode/ContractRegistrationReadonly'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
+import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
@@ -488,6 +489,21 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                         onClose()
                       }}
                     />
+                  </div>
+                ) : isLeadOwnerConfirm ? (
+                  <div className="px-5 py-3 space-y-3">
+                    <LeadOwnerConfirmActions
+                      leadId={detail.biz_id!}
+                      taskId={effectiveTaskId!}
+                      opinion={opinion}
+                      onDone={() => {
+                        onDone()
+                        onClose()
+                      }}
+                    />
+                    <Button size="small" type="link" className="!px-0" onClick={() => setMoreOpen((v) => !v)}>
+                      {moreOpen ? '收起转交' : '转交他人处理'}
+                    </Button>
                   </div>
                 ) : isReviseTask ? (
                   <div className="px-5 py-3 flex flex-wrap items-center gap-2">

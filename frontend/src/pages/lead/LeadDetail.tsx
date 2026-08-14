@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import { formatRegion } from '@/utils/address'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
+import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
 
@@ -403,33 +404,15 @@ export default function LeadDetail() {
       {/* 待我审批：情报四态 or 业务员确认 */}
       {myTask && isLeadOwnerConfirmNode(myTask.node_name) && (
         <div className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 mb-6">
-          <div className="flex items-center gap-3 mb-3">
-            <Icon name="approval" className="text-amber-600" />
-            <div>
-              <div className="text-sm font-bold text-slate-900">请确认是否转商机</div>
-              <div className="text-sm text-slate-500">信息情报部已处理，请确认后通过；暂不转化可驳回</div>
-            </div>
-          </div>
-          <Space>
-            <Button type="primary" onClick={async () => {
-              try {
-                await workflowApi.act(myTask.task_id, { action: 'approve', opinion: '确认' })
-                message.success('已确认')
-                setMyTask(null)
-                void fetchLead()
-                if (id) void loadWf(id)
-              } catch { message.error('处理失败') }
-            }}>通过</Button>
-            <Button danger onClick={async () => {
-              try {
-                await workflowApi.act(myTask.task_id, { action: 'reject', opinion: '暂不转化' })
-                message.success('已驳回')
-                setMyTask(null)
-                void fetchLead()
-                if (id) void loadWf(id)
-              } catch { message.error('处理失败') }
-            }}>驳回</Button>
-          </Space>
+          <LeadOwnerConfirmActions
+            leadId={id!}
+            taskId={myTask.task_id}
+            onDone={() => {
+              setMyTask(null)
+              void fetchLead()
+              if (id) void loadWf(id)
+            }}
+          />
         </div>
       )}
       {myTask && !isLeadOwnerConfirmNode(myTask.node_name) && (

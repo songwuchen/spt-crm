@@ -827,17 +827,18 @@ async def _on_approval_completed(db: AsyncSession, tenant_id: str, flow: Approva
                 ld.review_status = "approved"
                 ld.reject_reason = None
                 updated = True
-                # 旧引擎路径：同样推送给负责人
-                if ld.owner_id and ld.status not in ("qualified", "discarded"):
+                # 旧引擎路径：推送给申报人（业务员）
+                recipient = ld.reporter_id or ld.owner_id
+                if recipient and ld.status not in ("qualified", "discarded"):
                     try:
                         from app.common.auto_notify import notify_lead_review_approved
                         await notify_lead_review_approved(
                             db, tenant_id,
                             lead_id=ld.id, lead_title=ld.title or "线索",
-                            owner_id=ld.owner_id, lead_code=ld.lead_code,
+                            owner_id=recipient, lead_code=ld.lead_code,
                         )
                     except Exception as ne:
-                        logger.warning("lead owner notify on legacy approve failed: %s", ne)
+                        logger.warning("lead reporter notify on legacy approve failed: %s", ne)
         if updated:
             await db.commit()
     except Exception as e:

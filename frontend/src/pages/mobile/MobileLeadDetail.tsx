@@ -8,6 +8,7 @@ import type { WfTodoItem } from '@/types/lowcode'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
+import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
 import { useAuthStore } from '@/stores/useAuthStore'
 
@@ -171,30 +172,12 @@ export default function MobileLeadDetail() {
       {/* 待我审批 */}
       {myTask && isLeadOwnerConfirmNode(myTask.node_name) && (
         <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 mb-3">
-          <div className="text-sm font-bold text-slate-900 mb-1">请确认是否转商机</div>
-          <div className="text-sm text-slate-500 mb-3">信息情报部已处理，请确认后通过</div>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              className="h-10 rounded-lg bg-primary text-white text-sm font-bold border-0"
-              onClick={async () => {
-                try {
-                  await workflowApi.act(myTask.task_id, { action: 'approve', opinion: '确认' })
-                  message.success('已确认'); setMyTask(null); loadLead()
-                } catch { message.error('处理失败') }
-              }}
-            >通过</button>
-            <button
-              type="button"
-              className="h-10 rounded-lg bg-red-50 text-red-600 text-sm font-bold border-0"
-              onClick={async () => {
-                try {
-                  await workflowApi.act(myTask.task_id, { action: 'reject', opinion: '暂不转化' })
-                  message.success('已驳回'); setMyTask(null); loadLead()
-                } catch { message.error('处理失败') }
-              }}
-            >驳回</button>
-          </div>
+          <LeadOwnerConfirmActions
+            compact
+            leadId={id!}
+            taskId={myTask.task_id}
+            onDone={() => { setMyTask(null); loadLead() }}
+          />
         </div>
       )}
       {myTask && !isLeadOwnerConfirmNode(myTask.node_name) && (

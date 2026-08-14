@@ -231,6 +231,9 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     # 负责人：表单可选；未选则默认当前用户
     owner_id, owner_name = await _resolve_user_display(
         db, tenant_id, payload.pop("owner_id", None), fallback=user)
+    # 填表人 = 创建人：JWT 刷新后可能缺 real_name/username，必须回落查库
+    created_by_id, created_by_name = await _resolve_user_display(
+        db, tenant_id, user.get("sub"), fallback=user)
     # 报备时间：未传则默认当前时间
     from app.database import utcnow
     reported_at = payload.pop("reported_at", None) or utcnow()
@@ -244,8 +247,8 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
         reporter_id=reporter_id, reporter_name=reporter_name,
         owner_id=owner_id, owner_name=owner_name,
         reported_at=reported_at,
-        created_by_id=user["sub"],
-        created_by_name=user.get("real_name") or user.get("username"),
+        created_by_id=created_by_id,
+        created_by_name=created_by_name,
         **payload,
     )
     lead.score = _compute_score(lead)
@@ -323,13 +326,13 @@ async def _apply_review_flow(db: AsyncSession, tenant_id: str, lead: Lead, inst,
 
 
 async def _notify_owner_review_passed(tenant_id: str, lead: Lead) -> None:
-    """审核通过后推送给线索负责人（独立 session，失败不影响主流程）。
+    """审核通过后推送给申报人/业务员（独立 session，失败不影响主流程）。
 
     仅用于「流程起不来、免审放行」等引擎 finished 通知不会触发的路径；
     正常审批通过由 wf_notify.notify_flow_finished 统一推送，避免重复。
     """
-    owner_id = getattr(lead, "owner_id", None)
-    if not owner_id or getattr(lead, "status", None) in ("qualified", "discarded"):
+    recipient_id = getattr(lead, "reporter_id", None) or getattr(lead, "owner_id", None)
+    if not recipient_id or getattr(lead, "status", None) in ("qualified", "discarded"):
         return
     try:
         from app.database import async_session_factory
@@ -341,12 +344,12 @@ async def _notify_owner_review_passed(tenant_id: str, lead: Lead) -> None:
                 db, tenant_id,
                 lead_id=lead.id,
                 lead_title=lead.title or "线索",
-                owner_id=owner_id,
+                owner_id=recipient_id,
                 lead_code=lead.lead_code,
             )
             try:
                 await dispatch_todo(
-                    db, tenant_id, owner_id,
+                    db, tenant_id, recipient_id,
                     f"信息情报部已收录，请确认是否转商机: {lead.title or ''}",
                     "信息情报部审批已收录，请打开线索详情确认是否转化为客户/商机。",
                     link=f"/leads/{lead.id}",

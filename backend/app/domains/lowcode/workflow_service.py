@@ -1571,15 +1571,27 @@ _LEAD_LEGACY_CC = {"通知业务员确认转化", "抄送", "CC", "抄送业务�
 _LEAD_LEGACY_END = {"结束", "end"}
 
 
+# 业务员确认节点人员字段：申报人=业务员；历史误绑过负责人 owner_id
+_LEAD_CONFIRM_PERSON_FIELDS = frozenset({"reporter_id", "owner_id"})
+
+
+def _is_lead_confirm_person_rule(rule: dict | None) -> bool:
+    rule = rule or {}
+    return (
+        rule.get("type") == "form_field_person"
+        and rule.get("value") in _LEAD_CONFIRM_PERSON_FIELDS
+    )
+
+
 def _lead_owner_confirm_node() -> dict:
-    """情报通过后：负责人审批确认（待办需点通过/驳回，不再秒完的抄送）。"""
+    """情报通过后：申报人（业务员）审批确认是否转商机（非填表人/负责人）。"""
     return {
         "id": _LEAD_OWNER_CONFIRM_NODE_ID,
         "type": "approval",
         "name": "业务员确认是否转商机",
-        "approver_rule": {"type": "form_field_person", "value": "owner_id"},
+        "approver_rule": {"type": "form_field_person", "value": "reporter_id"},
         "multi_mode": "or_sign",
-        # 无负责人时终止，避免再被 auto_approve 静默跳过
+        # 无申报人时终止，避免再被 auto_approve 静默跳过
         "empty_strategy": "terminate",
     }
 
@@ -2085,6 +2097,7 @@ async def ensure_default_definition(
             )
             await _upgrade_lead_intel_field_perms_if_needed(db, tenant_id, sys_def)
             await _upgrade_lead_owner_confirm_to_approval_if_needed(db, tenant_id, sys_def)
+            await _upgrade_lead_confirm_reporter_if_needed(db, tenant_id, sys_def)
 
     if biz_type == "contract_version":
         sys_def = (await db.execute(select(WfProcessDefinition).where(
@@ -2195,18 +2208,16 @@ def _flow_has_owner_cc(nodes: list | None) -> bool:
         nid = n.get("id")
         name = (n.get("name") or "").strip()
         rule = n.get("approver_rule") or (n.get("config") or {}).get("approver_rule") or {}
-        is_owner_rule = (
-            rule.get("type") == "form_field_person" and rule.get("value") == "owner_id"
-        )
+        is_confirm_rule = _is_lead_confirm_person_rule(rule)
         if nid in _LEAD_OWNER_CONFIRM_LEGACY_IDS:
             return True
         if name in (_LEAD_JDY_CC, "通知业务员确认转化") and (
-            n.get("type") in ("cc", "approval") or is_owner_rule
+            n.get("type") in ("cc", "approval") or is_confirm_rule
         ):
             return True
-        if n.get("type") == "cc" and is_owner_rule:
+        if n.get("type") == "cc" and is_confirm_rule:
             return True
-        if n.get("type") == "approval" and is_owner_rule and (
+        if n.get("type") == "approval" and is_confirm_rule and (
             "转商机" in name or "确认转化" in name
         ):
             return True
@@ -2214,19 +2225,34 @@ def _flow_has_owner_cc(nodes: list | None) -> bool:
 
 
 def _flow_owner_confirm_is_approval(nodes: list | None) -> bool:
-    """负责人确认节点是否已是审批（而非秒完的抄送）。"""
+    """业务员确认节点是否已是审批（而非秒完的抄送）。"""
     for n in nodes or []:
         if n.get("type") != "approval":
             continue
         nid = n.get("id")
         name = (n.get("name") or "").strip()
         rule = n.get("approver_rule") or (n.get("config") or {}).get("approver_rule") or {}
-        is_owner_rule = (
-            rule.get("type") == "form_field_person" and rule.get("value") == "owner_id"
-        )
-        if nid in _LEAD_OWNER_CONFIRM_LEGACY_IDS and is_owner_rule:
+        is_confirm_rule = _is_lead_confirm_person_rule(rule)
+        if nid in _LEAD_OWNER_CONFIRM_LEGACY_IDS and (
+            is_confirm_rule or not rule
+        ):
             return True
-        if is_owner_rule and ("转商机" in name or name == _LEAD_JDY_CC):
+        if is_confirm_rule and ("转商机" in name or name == _LEAD_JDY_CC):
+            return True
+    return False
+
+
+def _flow_confirm_uses_reporter(nodes: list | None) -> bool:
+    """确认节点是否已绑申报人 reporter_id。"""
+    for n in nodes or []:
+        if n.get("type") != "approval":
+            continue
+        nid = n.get("id")
+        name = (n.get("name") or "").strip()
+        rule = n.get("approver_rule") or (n.get("config") or {}).get("approver_rule") or {}
+        if rule.get("type") != "form_field_person" or rule.get("value") != "reporter_id":
+            continue
+        if nid in _LEAD_OWNER_CONFIRM_LEGACY_IDS or "转商机" in name or name == _LEAD_JDY_CC:
             return True
     return False
 
@@ -2455,7 +2481,7 @@ async def _upgrade_default_owner_cc_if_needed(
     """系统兜底线索流补齐「审批通过 → 抄送负责人」。
 
     - 仍是 start→审批→结束：发布含抄送节点的新版本
-    - 已有唯一抄送但指向发起人(creator)等占位规则：改为表单人员字段 owner_id
+    - 已有唯一抄送但指向发起人(creator)等占位规则：改为表单人员字段 reporter_id（申报人）
     - 租户已自配其它抄送/复杂拓扑：不改动
     """
     if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
@@ -2501,7 +2527,7 @@ async def _upgrade_default_owner_cc_if_needed(
                     "抄送", "CC", "通知业务员确认转化",
                 ):
                     nn["name"] = "业务员确认是否转商机"
-                nn["approver_rule"] = {"type": "form_field_person", "value": "owner_id"}
+                nn["approver_rule"] = {"type": "form_field_person", "value": "reporter_id"}
                 new_nodes.append(nn)
             else:
                 new_nodes.append(n)
@@ -2564,7 +2590,7 @@ async def _upgrade_lead_owner_confirm_to_approval_if_needed(
         is_ownerish = (
             cc.get("id") in _LEAD_OWNER_CONFIRM_LEGACY_IDS
             or name in (_LEAD_JDY_CC, *_LEAD_LEGACY_CC)
-            or (rule.get("type") == "form_field_person" and rule.get("value") in (None, "", "owner_id"))
+            or (rule.get("type") == "form_field_person" and rule.get("value") in (None, "", "owner_id", "reporter_id"))
             or rule.get("type") in (None, "", "creator")
         )
         if not is_ownerish:
@@ -2612,6 +2638,58 @@ async def _upgrade_lead_owner_confirm_to_approval_if_needed(
     )
 
 
+async def _upgrade_lead_confirm_reporter_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition,
+) -> None:
+    """业务员确认节点审批人：负责人 owner_id → 申报人 reporter_id。
+
+    业务含义：申报人是业务员，由其确认是否转商机；填表人/负责人不一定是业务员。
+    """
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    if d.code != "SYS_LEAD_REVIEW":
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+    if _flow_confirm_uses_reporter(version.node_definitions):
+        return
+
+    nodes = list(version.node_definitions or [])
+    changed = False
+    new_nodes: list[dict] = []
+    for n in nodes:
+        nn = dict(n)
+        nid = nn.get("id")
+        name = (nn.get("name") or "").strip()
+        rule = dict(nn.get("approver_rule") or (nn.get("config") or {}).get("approver_rule") or {})
+        is_confirm = (
+            nid in _LEAD_OWNER_CONFIRM_LEGACY_IDS
+            or name in (_LEAD_JDY_CC, "通知业务员确认转化")
+            or (
+                nn.get("type") in ("approval", "cc")
+                and _is_lead_confirm_person_rule(rule)
+                and ("转商机" in name or "确认转化" in name)
+            )
+        )
+        if is_confirm and rule.get("type") == "form_field_person" and rule.get("value") != "reporter_id":
+            nn["approver_rule"] = {**rule, "type": "form_field_person", "value": "reporter_id"}
+            changed = True
+        elif is_confirm and rule.get("type") in (None, "", "creator"):
+            nn["approver_rule"] = {"type": "form_field_person", "value": "reporter_id"}
+            changed = True
+        new_nodes.append(nn)
+
+    if not changed:
+        return
+
+    await _publish_system_default_upgrade(
+        db, tenant_id, d, version, new_nodes, list(version.route_definitions or []),
+        "系统默认流程（业务员确认：审批人=申报人）",
+        "线索业务员确认绑申报人",
+    )
+
+
 # 简道云「申报信息」对齐文案（常量已上移至 _default_flow_graph 旁）
 
 
@@ -2644,8 +2722,10 @@ async def _upgrade_lead_jdy_labels_if_needed(
     if len(ccs) == 1:
         cc = ccs[0]
         rule = dict(cc.get("approver_rule") or (cc.get("config") or {}).get("approver_rule") or {})
-        # 非 owner 抄送则视为租户定制，不改文案以免误导
-        if rule.get("type") == "form_field_person" and rule.get("value") not in (None, "", "owner_id"):
+        # 非申报人/负责人字段抄送则视为租户定制，不改文案以免误导
+        if rule.get("type") == "form_field_person" and rule.get("value") not in (
+            None, "", "owner_id", "reporter_id",
+        ):
             return
         if rule.get("type") not in (None, "", "creator", "form_field_person"):
             if not (rule.get("type") == "specified_user" and not rule.get("value")):
@@ -2673,7 +2753,7 @@ async def _upgrade_lead_jdy_labels_if_needed(
                 changed = True
         elif ntype == "cc" and (cur in _LEAD_LEGACY_CC or not cur):
             nn["name"] = _LEAD_JDY_CC
-            nn["approver_rule"] = {"type": "form_field_person", "value": "owner_id"}
+            nn["approver_rule"] = {"type": "form_field_person", "value": "reporter_id"}
             changed = True
         new_nodes.append(nn)
 

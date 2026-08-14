@@ -184,7 +184,8 @@ async def get_user_permissions(db: AsyncSession, user_id: str, tenant_id: str) -
     )
     result = await db.execute(query)
     role_perms = result.scalars().all()
-    perms = list({rp.permission.code for rp in role_perms})
+    # 迁移/脏数据可能导致 permission_id 悬空，relationship 为 None；跳过避免登录 500
+    perms = list({rp.permission.code for rp in role_perms if rp.permission is not None})
     await cache_set(cache_key, perms, ttl=300)
     return perms
 
