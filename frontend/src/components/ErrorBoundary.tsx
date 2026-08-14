@@ -1,6 +1,7 @@
 import { Component } from 'react'
 import type { ReactNode, ErrorInfo } from 'react'
 import { Button, Result } from 'antd'
+import { isChunkLoadError, recoverFromStaleChunks } from '@/utils/chunkRecover'
 
 interface Props {
   children: ReactNode
@@ -84,6 +85,8 @@ export default class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('ErrorBoundary caught:', error, info.componentStack)
     reportError(error, info.componentStack ?? undefined)
+    // 发版后旧 chunk 404：自动清缓存重载，避免全员手动开无痕
+    if (isChunkLoadError(error) && recoverFromStaleChunks(error)) return
   }
 
   handleReset = () => {
@@ -91,18 +94,24 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReload = () => {
+    if (this.state.error && recoverFromStaleChunks(this.state.error)) return
     window.location.reload()
   }
 
   render() {
     if (this.state.hasError) {
+      const chunkErr = this.state.error ? isChunkLoadError(this.state.error) : false
       return (
         <div className="flex items-center justify-center min-h-[400px] p-8">
           <Result
             status="error"
-            title="页面出错了"
-            subTitle={this.state.error?.message || '发生了未知错误，请尝试刷新页面'}
-            extra={[
+            title={chunkErr ? '系统已更新' : '页面出错了'}
+            subTitle={
+              chunkErr
+                ? '正在清理浏览器旧缓存并刷新，请稍候…'
+                : (this.state.error?.message || '发生了未知错误，请尝试刷新页面')
+            }
+            extra={chunkErr ? null : [
               <Button key="retry" type="primary" onClick={this.handleReset}>
                 重试
               </Button>,

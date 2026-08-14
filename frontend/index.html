@@ -9,6 +9,66 @@
     <meta name="description" content="SPT-CRM 客户关系管理系统 — 客户、线索、商机、报价、合同全流程管理" />
     <meta name="theme-color" content="#1677ff" />
     <title>SPT-CRM</title>
+    <script>
+      /* 发版后旧缓存指向已删除 chunk 时，自动清 SW/Cache 并重载（无需用户开无痕） */
+      (function () {
+        var KEY = 'spt_chunk_recover_at';
+        function isChunkErr(msg) {
+          msg = String(msg || '');
+          return /Failed to fetch dynamically imported module/i.test(msg)
+            || /error loading dynamically imported module/i.test(msg)
+            || /Loading chunk [\d]+ failed/i.test(msg)
+            || /ChunkLoadError/i.test(msg);
+        }
+        function recover(msg) {
+          if (!isChunkErr(msg)) return;
+          var last = Number(sessionStorage.getItem(KEY) || 0);
+          if (Date.now() - last < 15000) return;
+          sessionStorage.setItem(KEY, String(Date.now()));
+          var jobs = [];
+          try {
+            if (navigator.serviceWorker) {
+              jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+                return Promise.all((rs || []).map(function (r) { return r.unregister(); }));
+              }));
+            }
+          } catch (e) {}
+          try {
+            if (window.caches) {
+              jobs.push(caches.keys().then(function (keys) {
+                return Promise.all((keys || []).map(function (k) { return caches.delete(k); }));
+              }));
+            }
+          } catch (e) {}
+          Promise.all(jobs).finally(function () {
+            var u = new URL(location.href);
+            u.searchParams.set('_nocache', String(Date.now()));
+            location.replace(u.toString());
+          });
+        }
+        // PC 域名：主动注销历史 SW，避免继续喂旧 JS
+        try {
+          var host = location.hostname || '';
+          if (host !== 'link.fourier.net.cn' && navigator.serviceWorker) {
+            navigator.serviceWorker.getRegistrations().then(function (rs) {
+              (rs || []).forEach(function (r) { r.unregister(); });
+            });
+            if (window.caches) {
+              caches.keys().then(function (keys) {
+                (keys || []).forEach(function (k) { caches.delete(k); });
+              });
+            }
+          }
+        } catch (e) {}
+        window.addEventListener('error', function (e) {
+          recover((e && (e.message || (e.error && e.error.message))) || '');
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) {
+          var r = e && e.reason;
+          recover((r && r.message) || r || '');
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

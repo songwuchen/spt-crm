@@ -1,10 +1,47 @@
-import { lazy, Suspense } from 'react'
-import { createBrowserRouter, redirect, Navigate, useLocation } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { createBrowserRouter, redirect, Navigate, useLocation, useRouteError, isRouteErrorResponse } from 'react-router-dom'
 import { Spin } from 'antd'
 import MainLayout from '@/layouts/MainLayout'
 import MobileLayout from '@/layouts/MobileLayout'
 import PermissionGuard from '@/components/PermissionGuard'
 import { currentZone } from '@/config/zone'
+import { isChunkLoadError, recoverFromStaleChunks } from '@/utils/chunkRecover'
+
+function RouteError() {
+  const err = useRouteError()
+  const message = isRouteErrorResponse(err)
+    ? `${err.status} ${err.statusText}`
+    : (err as Error)?.message || String(err)
+
+  useEffect(() => {
+    recoverFromStaleChunks(err)
+  }, [err])
+
+  if (isChunkLoadError(err) || /Failed to fetch dynamically imported module/i.test(message)) {
+    return (
+      <div className="flex items-center justify-center min-h-screen text-slate-600 text-sm">
+        系统已更新，正在清理缓存并刷新…
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-3 p-8">
+      <div className="text-lg font-bold text-slate-800">Unexpected Application Error!</div>
+      <div className="text-sm text-red-500 max-w-xl break-all">{message}</div>
+      <button
+        type="button"
+        className="px-4 py-2 rounded bg-primary text-white text-sm"
+        onClick={() => { if (!recoverFromStaleChunks(err)) window.location.reload() }}
+      >
+        刷新页面
+      </button>
+    </div>
+  )
+}
+
+function Lazy({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<Spin className="flex justify-center mt-20" />}>{children}</Suspense>
+}
 
 const Login = lazy(() => import('@/pages/auth/Login'))
 const Dashboard = lazy(() => import('@/pages/dashboard/Dashboard'))
@@ -120,10 +157,6 @@ const ContractList = lazy(() => import('@/pages/contract/ContractList'))
 const DashboardSnapshot = lazy(() => import('@/pages/dashboard/DashboardSnapshot'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
-function Lazy({ children }: { children: React.ReactNode }) {
-  return <Suspense fallback={<Spin className="flex justify-center mt-20" />}>{children}</Suspense>
-}
-
 function Guard({ permission, children }: { permission: string | string[]; children: React.ReactNode }) {
   return <Lazy><PermissionGuard permission={permission}>{children}</PermissionGuard></Lazy>
 }
@@ -145,11 +178,13 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Lazy><Login /></Lazy>,
+    errorElement: <RouteError />,
   },
   {
     path: '/',
     element: <MainLayout />,
     loader: webZoneLoader,
+    errorElement: <RouteError />,
     children: [
       { index: true, element: <ZoneEntry /> },
       { path: 'customers', element: <Guard permission="customer:view"><CustomerList /></Guard> },
@@ -278,6 +313,7 @@ export const router = createBrowserRouter([
   {
     path: '/m',
     element: <MobileLayout />,
+    errorElement: <RouteError />,
     children: [
       // 移动端每条路由的权限与上面对应的桌面端路由保持一致；桌面端未设卡口的
       // (工作台/审批/通知/日历/任务/我的/搜索) 这里同样不设，避免两端行为分叉。
@@ -317,5 +353,5 @@ export const router = createBrowserRouter([
       { path: 'lowcode/approvals/:id', element: <Lazy><MobileLowcodeApprovalDetail /></Lazy> },
     ],
   },
-  { path: '*', element: <Lazy><NotFound /></Lazy> },
+  { path: '*', element: <Lazy><NotFound /></Lazy>, errorElement: <RouteError /> },
 ])

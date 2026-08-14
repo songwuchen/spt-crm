@@ -14,6 +14,7 @@ import '@fontsource/inter/900.css'
 import App from './App'
 import { theme } from './config/theme'
 import { currentZone } from './config/zone'
+import { markChunkRecoverSuccess, recoverFromStaleChunks, isChunkLoadError } from './utils/chunkRecover'
 import './index.css'
 
 dayjs.locale('zh-cn')
@@ -25,6 +26,16 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ConfigProvider>
   </React.StrictMode>,
 )
+
+// App boot succeeded — allow a future deploy to auto-recover again.
+markChunkRecoverSuccess()
+
+// Catch late chunk failures (lazy routes) that bubble as unhandled rejections
+window.addEventListener('unhandledrejection', (e) => {
+  if (isChunkLoadError(e.reason) && recoverFromStaleChunks(e.reason)) {
+    e.preventDefault()
+  }
+})
 
 // Service Worker：仅移动端域名做离线缓存。
 // PC 域名（wm.*）若启用 SW，在自签证书下会劫持 /api 请求并 cache-first 旧 JS，
