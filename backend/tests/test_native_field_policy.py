@@ -527,12 +527,22 @@ async def test_partial_update_skips_untouched_required_fields(
 ):
     """批量改派这类局部更新，不应因历史数据缺少「后来才设为必填」的字段而失败。
 
-    用草稿测字段策略：收录后整单内容已锁，不能再靠「点过业务员确认」做正文编辑。
+    收录后整单内容已锁；草稿 PUT 又会 skip_required。故用「无 running 的 pending」
+    （等同撤回后再改）测 payload 范围必填：局部更新放行、显式留空仍拦。
     """
+    import app.database as db_module
+    from sqlalchemy import select
+    from app.domains.lead.models import Lead
+
     h = auth_headers
     lid = (await client.post("/api/v1/leads", headers=h, json={
         "title": "历史线索", "company_name": "老公司", "as_draft": True,
     })).json()["data"]["id"]
+
+    async with db_module.async_session_factory() as db:
+        lead = (await db.execute(select(Lead).where(Lead.id == lid))).scalar_one()
+        lead.review_status = "pending"
+        await db.commit()
 
     await _publish_lead_native_override(client, h, [
         {"id": "industry", "native": True, "required": True, "label": "行业", "type": "select"},
