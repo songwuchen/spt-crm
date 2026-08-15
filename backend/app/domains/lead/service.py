@@ -389,9 +389,12 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
         content_keys.add("products")
     rs = getattr(lead, "review_status", None) or "approved"
     if content_keys:
-        # 收录后申报/跟进字段均不可改；互动记录走 activity 接口，不经此闸门
-        from app.domains.lowcode.edit_lock import assert_lead_editable
-        await assert_lead_editable(db, tenant_id, lead.id, rs)
+        # 收录后申报/跟进字段均不可改；互动记录走 activity 接口，不经此闸门。
+        # 开放平台（SYSTEM_ROLE）幂等回放/补全简道云历史数据须绕过此锁。
+        from app.domains.lowcode.field_permission import is_system_principal
+        if not is_system_principal(user.get("roles")):
+            from app.domains.lowcode.edit_lock import assert_lead_editable
+            await assert_lead_editable(db, tenant_id, lead.id, rs)
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
