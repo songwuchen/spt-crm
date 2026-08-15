@@ -508,7 +508,7 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
             remark_parts.append(f"预算: {lead.budget_range}")
         if lead.remark:
             remark_parts.append(lead.remark)
-        # 转化商机：商机号按商机规则生成（PRJ-YYYYMM###）；线索号写入 lead_code 保留溯源。
+        # 转化商机：商机号按商机规则生成（PRJYYYYMM###）；线索号写入 lead_code 保留溯源。
         # 注意：uq_project_tenant_code 含软删行，占用检查不可过滤 is_deleted。
         async def _project_code_taken(code: str) -> bool:
             return (

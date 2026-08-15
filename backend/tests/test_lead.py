@@ -135,8 +135,9 @@ async def test_qualify_with_create_opportunity_carries_context(client: AsyncClie
     assert proj["customer_id"] == cid
     assert proj["stage_code"] == "S1"
     assert (proj.get("key_requirements_json") or {}).get("summary") == "需要 3 台大型直线振动筛，含保函"
-    assert proj["project_code"] != f"PRJ-{lead_code}"
-    assert proj["project_code"].startswith("PRJ-")
+    assert proj["project_code"] != f"PRJ{lead_code}"
+    assert proj["project_code"].startswith("PRJ")
+    assert "-" not in proj["project_code"]
     assert proj.get("lead_id") == lid
     assert proj.get("lead_code") == lead_code
 

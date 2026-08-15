@@ -9,7 +9,7 @@ Usage:
     code = await generate_code(db, tenant_id, "QT")   # -> QT-20260311-0001
     code = await generate_code(db, tenant_id, "INV")   # -> INV-20260311-0001
     # 技术协议评审对齐简道云 HTJSXY：HTJSXY-2026031101（日期后无连字符、2 位日序）
-    # 线索项目号：202608001；商机：PRJ-202608001（年月 + 3 位月序）
+    # 线索项目号：202608001；商机：PRJ202608001（年月 + 3 位月序，前缀无连字符）
 """
 from datetime import datetime, timedelta, timezone
 
@@ -43,7 +43,7 @@ class CodeSequence(Base):
 PREFIXES = {
     "customer":       "CUS",
     "lead":           "",  # 项目号：202608001
-    "project":        "PRJ",  # 商机：PRJ-202608001（规则同线索，带前缀）
+    "project":        "PRJ",  # 商机：PRJ202608001（规则同线索，带前缀无连字符）
     "quote":          "QT",
     "contract":       "CT",
     "invoice":        "INV",
@@ -75,6 +75,11 @@ DATE_SEQ_SEP: dict[str, str] = {
     "project": "",
 }
 
+# 字母前缀与日期体之间的连接符（默认 "-"）；商机 PRJ202608001 → ""
+PREFIX_BODY_SEP: dict[str, str] = {
+    "project": "",
+}
+
 # date_key 格式（默认按日 YYYYMMDD）；线索/商机按月 YYYYMM
 DATE_KEY_FMT: dict[str, str] = {
     "lead": "%Y%m",
@@ -98,7 +103,7 @@ async def generate_code(db: AsyncSession, tenant_id: str, biz_type: str, prefix:
         prefix: Override prefix (uses PREFIXES[biz_type] if not given)
 
     Returns:
-        Code string like "INV-20260311-0001"、"HTJSXY-2026031101"、线索 "202608001"、商机 "PRJ-202608001"
+        Code string like "INV-20260311-0001"、"HTJSXY-2026031101"、线索 "202608001"、商机 "PRJ202608001"
     """
     display_pfx = PREFIXES.get(biz_type, biz_type.upper()) if prefix is None else prefix
     seq_pfx = _SEQ_PREFIX_ALIAS.get(biz_type, display_pfx) if prefix is None else prefix
@@ -136,5 +141,6 @@ async def generate_code(db: AsyncSession, tenant_id: str, biz_type: str, prefix:
     await db.flush()
     body = f"{date_key}{sep}{next_seq:0{digits}d}"
     if display_pfx:
-        return f"{display_pfx}-{body}"
+        psep = PREFIX_BODY_SEP.get(biz_type, "-")
+        return f"{display_pfx}{psep}{body}"
     return body
