@@ -6,6 +6,7 @@ from app.domains.lead.reactivation import (
     REACT_AWAITING_FILLER,
     REACT_AWAITING_REPORTER,
     _resolve_assignee,
+    lead_confirm_assignee_id,
     mark_cycle_reset,
     normalize_config,
     should_skip_reporter,
@@ -26,6 +27,20 @@ def test_skip_reporter_by_name():
     assert should_skip_reporter(lead, cfg) is True
     lead2 = SimpleNamespace(reporter_name="李四", owner_name="张贺", created_by_name="张贺")
     assert should_skip_reporter(lead2, cfg) is False
+
+
+def test_lead_confirm_assignee_skips_to_filler():
+    cfg = {"skip_reporter_names": ["张贺"]}
+    lead = SimpleNamespace(
+        reporter_id="r1", reporter_name="张贺",
+        created_by_id="c1", owner_id="o1",
+    )
+    assert lead_confirm_assignee_id(lead, cfg) == "c1"
+    normal = SimpleNamespace(
+        reporter_id="r1", reporter_name="王五",
+        created_by_id="c1", owner_id="o1",
+    )
+    assert lead_confirm_assignee_id(normal, cfg) == "r1"
 
 
 def test_resolve_assignee_skips_to_filler():

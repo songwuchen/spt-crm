@@ -34,8 +34,8 @@ export default function LeadOwnerConfirmActions({
     try {
       const op = (opinion || '').trim()
         || (kind === 'convert' ? '确认转商机' : '暂不转商机')
-      await workflowApi.act(taskId, { action: 'approve', opinion: op })
 
+      // 先转化再过流程：避免「流程已完成但商机未建」的半成功态
       if (kind === 'convert') {
         try {
           const res = await leadApi.qualify(leadId, createOpp)
@@ -49,15 +49,19 @@ export default function LeadOwnerConfirmActions({
           if (msg?.includes('已转化')) {
             message.success(msg)
           } else {
-            message.warning(msg || '流程已确认，但转化失败，请到线索详情重试')
+            message.error(msg || '转化失败（请确认账号有「转化线索」权限），流程未提交')
+            return
           }
         }
-      } else {
+      }
+
+      await workflowApi.act(taskId, { action: 'approve', opinion: op })
+      if (kind !== 'convert') {
         message.success('已确认暂不转商机；线索保持收录，之后可在详情转化')
       }
       onDone?.(kind)
     } catch {
-      message.error('处理失败')
+      message.error(kind === 'convert' ? '已转化，但流程确认失败，请刷新后重试流程' : '处理失败')
     } finally {
       setBusy(false)
     }

@@ -45,7 +45,7 @@ export default function MobileNotifications() {
   // 点击通知：标记已读并跳转到对应的移动端详情页
   const handleOpen = (n: NotificationItem) => {
     if (!n.is_read) handleMarkRead(n.id)
-    const target = notificationTarget(n.biz_type, n.biz_id)
+    const target = notificationTarget(n.biz_type, n.biz_id, n.type)
     if (target) navigate(target)
   }
 

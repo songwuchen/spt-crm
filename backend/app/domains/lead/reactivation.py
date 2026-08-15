@@ -152,12 +152,22 @@ def skip_reporter_names(cfg: dict | None = None) -> set[str]:
 
 
 def should_skip_reporter(lead: Lead, cfg: dict | None = None) -> bool:
-    """申报人姓名在跳过名单（如张贺）时，重激活不进申报人待办。"""
+    """申报人姓名在跳过名单（如张贺）时：重激活 / 转商机确认不进申报人待办。"""
     names = skip_reporter_names(cfg)
     if not names:
         return False
     name = (lead.reporter_name or "").strip()
     return bool(name and name in names)
+
+
+def lead_confirm_assignee_id(lead: Lead, cfg: dict | None = None) -> str | None:
+    """「确认是否转商机」待办指派人。
+
+    默认申报人；申报人在跳过名单（如张贺）时改派填表人；均无则回退负责人。
+    """
+    if should_skip_reporter(lead, cfg):
+        return lead.created_by_id or lead.reporter_id or lead.owner_id
+    return lead.reporter_id or lead.owner_id or lead.created_by_id
 
 
 def mark_cycle_reset(lead: Lead, *, now: datetime | None = None) -> None:

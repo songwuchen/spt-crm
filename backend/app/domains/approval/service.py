@@ -267,6 +267,7 @@ async def _build_policy_context(db: AsyncSession, tenant_id: str, biz_type: str,
                 # 可视化流程「表单人员/部门字段」抄送、条件分支用
                 context["owner_id"] = ld.owner_id
                 context["reporter_id"] = ld.reporter_id
+                context["created_by_id"] = ld.created_by_id
                 context["department_id"] = ld.department_id
         elif biz_type == "customer":
             from app.domains.customer.models import Customer

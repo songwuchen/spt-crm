@@ -2667,6 +2667,7 @@ async def _upgrade_lead_confirm_reporter_if_needed(
     """业务员确认节点审批人：负责人 owner_id → 申报人 reporter_id。
 
     业务含义：申报人是业务员，由其确认是否转商机；填表人/负责人不一定是业务员。
+    例外：申报人在跳过名单（如张贺）时，引擎激活节点会改派填表人 created_by_id。
     """
     if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
         return

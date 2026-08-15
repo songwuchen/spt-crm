@@ -18,7 +18,7 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { canPrintDrawingDocument, printSchemeInstance } from '@/pages/drawing/schemePrint'
-import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
+import { isLeadOwnerConfirmNode, isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
 
 function bizEntityPath(bizType?: string | null, bizId?: string | null, bizRefId?: string | null): string | null {
   if (!bizType || !bizId) return null
@@ -99,6 +99,20 @@ export default function MobileLowcodeApprovalDetail() {
   )
   const isLeadIntel = detail?.biz_type === 'lead' && canAct && !!detail?.biz_id && !!effectiveTaskId
     && !isReviseTask && !isLeadOwnerConfirm
+
+  // 线索修订：跳到申报编辑页（与第一次报项目同体验）
+  useEffect(() => {
+    if (!detail) return
+    const ct = detail.current_task
+    if (
+      detail.biz_type === 'lead'
+      && detail.biz_id
+      && ct?.task_id
+      && isLeadReviseTodo({ taskKind: ct.task_kind, nodeType: ct.node_type, nodeName: ct.node_name })
+    ) {
+      nav(leadReviseEditPath(detail.biz_id, ct.task_id, true), { replace: true })
+    }
+  }, [detail, nav])
   const bizPath = detail ? bizEntityPath(detail.biz_type, detail.biz_id, detail.biz_ref_id) : null
   const bizEntries = detail?.biz_detail ? Object.entries(detail.biz_detail) : []
 

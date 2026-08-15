@@ -24,7 +24,7 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { canPrintDrawingDocument, printSchemeInstance } from '@/pages/drawing/schemePrint'
-import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
+import { isLeadOwnerConfirmNode, isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
 
 const { Text, Title } = Typography
 
@@ -157,6 +157,21 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅随抽屉打开/实例切换重载
   }, [open, instanceId, taskId])
+
+  // 线索修订待办：关闭抽屉，跳到与首次申报相同的编辑页
+  useEffect(() => {
+    if (!open || !detail) return
+    const ct = detail.current_task
+    const revise = isLeadReviseTodo({
+      taskKind: ct?.task_kind,
+      nodeType: ct?.node_type,
+      nodeName: ct?.node_name,
+    })
+    if (detail.biz_type === 'lead' && detail.biz_id && revise && ct?.task_id) {
+      onClose()
+      navigate(leadReviseEditPath(detail.biz_id, ct.task_id))
+    }
+  }, [open, detail, navigate, onClose])
 
   // URL/调用方传入的 taskId 仅作加载提示；能否操作以 current_task 为准（已办任务 id 不能误开操作区）
   const effectiveTaskId = detail?.current_task?.task_id || null

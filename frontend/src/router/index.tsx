@@ -336,6 +336,7 @@ export const router = createBrowserRouter([
       { path: 'calendar', element: <Lazy><MobileCalendar /></Lazy> },
       { path: 'leads', element: <Guard permission="lead:view"><MobileLeads /></Guard> },
       { path: 'leads/new', element: <Guard permission="lead:create"><MobileLeadForm /></Guard> },
+      { path: 'leads/:id/edit', element: <Guard permission="lead:edit"><LeadForm /></Guard> },
       { path: 'leads/:id', element: <Guard permission="lead:view"><MobileLeadDetail /></Guard> },
       { path: 'tasks', element: <Lazy><MobileTasks /></Lazy> },
       // 桌面端 follow-ups 用 customer:view

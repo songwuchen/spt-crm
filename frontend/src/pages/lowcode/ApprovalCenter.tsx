@@ -12,6 +12,7 @@ import type { WfTodoItem } from '@/types/lowcode'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import { bizEntityPath, useWfProcessDrawer } from '@/components/lowcode/WfProcessDrawer'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
+import { isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
 
 const { Title, Text } = Typography
 
@@ -70,10 +71,22 @@ function TodoTab({ active, autoOpen }: {
     { title: '发起时间', dataIndex: 'created_at', render: (v: string) => fmtTime(v) },
     { title: '操作', key: 'op', width: 160, render: (_: unknown, r: WfTodoItem) => {
       const path = bizEntityPath(r.biz_type, r.biz_id, r.biz_ref_id)
+      const reviseLead = r.biz_type === 'lead' && r.biz_id && isLeadReviseTodo({
+        taskKind: r.task_kind, nodeType: r.node_type, nodeName: r.node_name,
+      })
       return (
         <Space size={4}>
-          <Button size="small" type="primary" onClick={() => openWith(r.process_instance_id, r.task_id)}>处理</Button>
-          {path && <Button size="small" type="link" onClick={() => navigate(path)}>单据</Button>}
+          <Button
+            size="small"
+            type="primary"
+            onClick={() => {
+              if (reviseLead) navigate(leadReviseEditPath(r.biz_id!, r.task_id))
+              else openWith(r.process_instance_id, r.task_id)
+            }}
+          >
+            {reviseLead ? '去修改' : '处理'}
+          </Button>
+          {path && !reviseLead && <Button size="small" type="link" onClick={() => navigate(path)}>单据</Button>}
         </Space>
       )
     } },

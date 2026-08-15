@@ -12,6 +12,7 @@ import { workflowApi, type WfAgent } from '@/api/lowcodeWorkflow'
 import { useWfProcessDrawer } from '@/components/lowcode/WfProcessDrawer'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
+import { leadReviseEditPath } from '@/utils/leadWorkflow'
 import client from '@/api/client'
 import { useAuthStore } from '@/stores/useAuthStore'
 import type { ApprovalFlowItem } from '@/api/types'
@@ -169,21 +170,39 @@ export default function ApprovalCenter() {
 
   useEffect(() => { fetchData() }, [])
 
-  // 深链：通知/钉钉 → /approvals?wf=实例id 或 ?flow=旧引擎流程id；亦兼容 location.state
+  // 深链：?tab=cc → 抄送我的；通知/钉钉 → ?wf= / ?flow=
   useEffect(() => {
     const st = (location.state || {}) as { openInstanceId?: string; openTaskId?: string; openFlowId?: string }
+    const tab = searchParams.get('tab')
     const wfId = searchParams.get('wf') || st.openInstanceId || null
     const flowId = searchParams.get('flow') || st.openFlowId || null
     const taskId = searchParams.get('task') || st.openTaskId || null
-    if (!wfId && !flowId) return
+
+    if (tab === 'cc' || tab === 'mine' || tab === 'done' || tab === 'pending' || tab === 'agents') {
+      const mapped = tab === 'pending' ? 'pending' : tab
+      setActiveTab(mapped)
+      if (mapped === 'cc') void loadCc()
+      if (mapped === 'mine') void loadMine()
+      if (mapped === 'done') void loadDone()
+      if (mapped === 'agents') void loadAgents()
+    }
+
+    if (!wfId && !flowId) {
+      // 仅切 tab 的深链：应用后清掉 query，避免刷新/返回时反复抢焦点
+      if (searchParams.has('tab')) {
+        const next = new URLSearchParams(searchParams)
+        next.delete('tab')
+        setSearchParams(next, { replace: true })
+      }
+      return
+    }
 
     if (wfId) openWfDrawer(wfId, taskId)
     else if (flowId) openDetail(flowId)
 
-    // 清掉查询参数 / state，避免刷新反复弹开
-    if (searchParams.has('wf') || searchParams.has('flow') || searchParams.has('task')) {
+    if (searchParams.has('wf') || searchParams.has('flow') || searchParams.has('task') || searchParams.has('tab')) {
       const next = new URLSearchParams(searchParams)
-      next.delete('wf'); next.delete('flow'); next.delete('task')
+      next.delete('wf'); next.delete('flow'); next.delete('task'); next.delete('tab')
       setSearchParams(next, { replace: true })
     }
     if (st.openInstanceId || st.openFlowId) {
@@ -193,6 +212,11 @@ export default function ApprovalCenter() {
   }, [location.state, searchParams])
 
   const openWfHandle = (item: UnifiedPendingItem) => {
+    // 线索撤回修订：进申报编辑页（与第一次报项目同页），不进审批抽屉
+    if (item.engine === 'wf' && item.taskKind === 'revise' && item.bizType === 'lead' && item.bizId) {
+      navigate(leadReviseEditPath(item.bizId, item.taskId))
+      return
+    }
     if (!item.instanceId) {
       message.warning('缺少流程实例，无法打开')
       return

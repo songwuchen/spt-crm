@@ -25,7 +25,7 @@ EDITABLE_STATUSES: dict[str, frozenset[str]] = {
     }),
     "form_instance": frozenset({"draft", "rejected"}),
     "order": frozenset({"draft"}),
-    # 线索：仅 draft（及无 running 的 pending，见 assert_lead_editable）；收录后不可改
+    # 线索：draft / 无 running 的 pending 可改申报；收录后整单不可改（互动记录走 activity）
     "lead": frozenset({"draft"}),
     "customer": frozenset({"draft"}),
 }
@@ -77,11 +77,10 @@ async def assert_biz_editable(
 async def assert_lead_editable(
     db: AsyncSession, tenant_id: str, lead_id: str, review_status: str | None,
 ) -> None:
-    """线索内容锁：running 必锁；仅 draft / 无 running 的 pending 可整单编辑。
+    """线索整单内容锁：running 必锁；仅 draft / 无 running 的 pending 可改申报。
 
-    - rejected：情报驳回终态，不可再改
-    - approved（收录）/ attacked：流程已结束，申报与跟进内容不可再改
-      （转化/废弃/改派等运维字段由 update_lead 单独豁免，不经本闸）
+    - rejected / attacked：终态，不可改申报
+    - approved：收录后不可改申报/跟进字段；详情「动态」添加记录走 activity，不经本函数
     """
     running = await has_running_process(db, tenant_id, "lead", lead_id)
     if running:
@@ -105,7 +104,7 @@ async def assert_lead_editable(
     if rs == "approved":
         raise BusinessException(
             code=VALIDATION_ERROR,
-            message="线索已收录，不可再编辑；如需变更请走重激活或转化流程",
+            message="线索已收录，不可再编辑",
         )
     raise BusinessException(code=VALIDATION_ERROR, message=_LOCK_MSG)
 

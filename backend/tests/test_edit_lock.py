@@ -119,7 +119,7 @@ async def test_assert_lead_rejected_locked():
 
 @pytest.mark.asyncio
 async def test_assert_lead_approved_locked():
-    """收录后不可再改申报/跟进内容。"""
+    """收录后整单不可编辑（详情动态添加记录不经本闸门）。"""
     db = MagicMock()
     with patch(
         "app.domains.lowcode.edit_lock.has_running_process",
@@ -129,6 +129,7 @@ async def test_assert_lead_approved_locked():
         with pytest.raises(BusinessException) as ei:
             await assert_lead_editable(db, "t1", "l1", "approved")
         assert "收录" in ei.value.message
+        assert "不可再编辑" in ei.value.message
 
 
 @pytest.mark.asyncio

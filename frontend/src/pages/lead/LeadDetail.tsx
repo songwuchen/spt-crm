@@ -20,7 +20,7 @@ import { formatRegion } from '@/utils/address'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
-import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
+import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadIntelTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
 
 import Icon from '@/components/Icon'
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
@@ -208,6 +208,31 @@ export default function LeadDetail() {
     })
   }
 
+  const handleResubmitRevise = () => {
+    if (!id || !myTask?.task_id) return
+    Modal.confirm({
+      title: '重新提交',
+      content: '确认修改无误后重新提交信息情报部审批？',
+      okText: '重新提交',
+      onOk: async () => {
+        setSubmitting(true)
+        try {
+          await workflowApi.act(myTask.task_id, { action: 'resubmit' })
+          message.success('已重新提交')
+          setMyTask(null)
+          await fetchLead()
+          await loadWf(id)
+          await fetchMyApproval()
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          message.error(msg || '重新提交失败')
+        } finally {
+          setSubmitting(false)
+        }
+      },
+    })
+  }
+
   const handleDiscard = () => {
     Modal.confirm({
       title: '确认废弃',
@@ -271,14 +296,27 @@ export default function LeadDetail() {
     (reactStatus === 'awaiting_reporter'
       ? [lead.reporter_id, lead.owner_id, lead.created_by_id].includes(currentUser.id)
       : [lead.created_by_id, lead.reporter_id, lead.owner_id].includes(currentUser.id))
-  // 仅草稿 / 撤回后的待审可整单编辑；收录后不可改（转化/跟进状态另入口）
+  // 仅草稿 / 撤回后的待审可整单编辑；收录后不可改（详情「动态」仍可添加互动记录）
   const canEditLead = hasLeadEdit && canOperate && !reviewInFlight
     && (reviewStatus === 'draft' || reviewStatus === 'pending')
   const canSubmitApproval = canOperate && reviewStatus === 'draft'
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
   const s = statusConfig[lead.status] || statusConfig.new
+  // 驳回终态不可再跟进；收录后仍可在详情动态里「添加记录」
   const allowFollowActivity = canOperate && reviewStatus !== 'rejected'
+  const isReviseTask = !!myTask && isLeadReviseTodo({
+    taskKind: myTask.task_kind,
+    nodeType: myTask.node_type,
+    nodeName: myTask.node_name,
+  })
+  const isIntelTask = !!myTask && isLeadIntelTodo({
+    bizType: 'lead',
+    nodeName: myTask.node_name,
+    nodeType: myTask.node_type,
+    taskKind: myTask.task_kind,
+  })
+  const isOwnerConfirmTask = !!myTask && isLeadOwnerConfirmNode(myTask.node_name)
 
   const currentStepIdx = lead.status === 'discarded' ? -1 : qualifySteps.findIndex((st) => st.key === lead.status)
 
@@ -335,7 +373,11 @@ export default function LeadDetail() {
             {canOperate && (
               <>
                 {canEditLead && (
-                  <Button icon={<EditOutlined />} onClick={() => navigate(`/leads/${id}/edit`)}>编辑</Button>
+                  <Button icon={<EditOutlined />} onClick={() => navigate(
+                    isReviseTask && myTask
+                      ? leadReviseEditPath(id!, myTask.task_id)
+                      : `/leads/${id}/edit`,
+                  )}>编辑</Button>
                 )}
                 {canSubmitApproval && (
                   <Button type="primary" icon={<AuditOutlined />} loading={submitting} onClick={handleSubmitApproval}>
@@ -403,12 +445,12 @@ export default function LeadDetail() {
         )}
       </div>
 
-      {/* 待我审批：情报四态 or 业务员确认 */}
-      {myTask && isLeadOwnerConfirmNode(myTask.node_name) && (
+      {/* 待我处理：修订重提 / 情报四态 / 业务员确认 */}
+      {isOwnerConfirmTask && (
         <div className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 mb-6">
           <LeadOwnerConfirmActions
             leadId={id!}
-            taskId={myTask.task_id}
+            taskId={myTask!.task_id}
             onDone={() => {
               setMyTask(null)
               void fetchLead()
@@ -417,18 +459,43 @@ export default function LeadDetail() {
           />
         </div>
       )}
-      {myTask && !isLeadOwnerConfirmNode(myTask.node_name) && (
+      {isReviseTask && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-6 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Icon name="edit_note" className="text-amber-600" />
+            <div>
+              <div className="text-sm font-bold text-amber-800">请修改后重新提交</div>
+              <div className="text-sm text-slate-600 mt-1">
+                流程已撤回，请像新建时一样完善申报信息，确认无误后再提交审批。评估结论仍由信息情报部在审批时填写。
+              </div>
+            </div>
+          </div>
+          <Space>
+            {canEditLead && (
+              <Button icon={<EditOutlined />} onClick={() => navigate(
+                isReviseTask && myTask
+                  ? leadReviseEditPath(id!, myTask.task_id)
+                  : `/leads/${id}/edit`,
+              )}>编辑</Button>
+            )}
+            <Button type="primary" icon={<AuditOutlined />} loading={submitting} onClick={handleResubmitRevise}>
+              重新提交
+            </Button>
+          </Space>
+        </div>
+      )}
+      {isIntelTask && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <Icon name="approval" className="text-primary" />
             <div>
               <div className="text-sm font-bold text-slate-900">该线索待您审批</div>
-              <div className="text-sm text-slate-500">{myTask.node_name || myTask.title || '信息情报部审批'}</div>
+              <div className="text-sm text-slate-500">{myTask?.node_name || myTask?.title || '信息情报部审批'}</div>
             </div>
           </div>
           <LeadIntelReviewForm
             leadId={id!}
-            taskId={myTask.task_id}
+            taskId={myTask!.task_id}
             initialNewness={lead.customer_newness}
             initialOpinion={lead.review_opinion}
             initialReturnReason={lead.reject_reason}
@@ -446,8 +513,8 @@ export default function LeadDetail() {
         </div>
       )}
 
-      {/* Review status banner */}
-      {reviewCfg && (
+      {/* Review status banner：修订中用上方「请修改后重新提交」，不再叠「待审」条 */}
+      {reviewCfg && !isReviseTask && (
         <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-4 mb-6 flex items-start gap-3`}>
           <Icon name={reviewBannerIcon} className={`${reviewCfg.text}`} />
           <div className="flex-1">
@@ -483,7 +550,7 @@ export default function LeadDetail() {
             <div>
               <div className="text-sm font-bold text-emerald-700">信息情报部已收录</div>
               <div className="text-sm text-slate-600 mt-1">
-                需要出方案报价请确认转化商机；如为拟建项目，目前不需要出方案报价，请不要转化为商机。
+                需要出方案报价请确认转化商机；如为拟建项目，目前不需要出方案报价，请不要转化为商机。可在「动态」中继续添加互动记录。
               </div>
             </div>
           </div>
@@ -782,6 +849,8 @@ export default function LeadDetail() {
                         </div>
                       </div>
 
+                      {/* 评估结论：仅情报已裁定后展示；草稿/待审/撤回修订时与新建一致不展示 */}
+                      {(reviewApproved || reviewStatus === 'rejected' || reviewStatus === 'attacked') && (
                       <div>
                         <div className="relative mb-3 flex items-center overflow-hidden rounded-sm bg-teal-600 px-3 py-2 text-white">
                           <span className="text-[13px] font-semibold">评估信息（审批时填写）</span>
@@ -829,6 +898,7 @@ export default function LeadDetail() {
                           )}
                         </div>
                       </div>
+                      )}
 
                       {lead.remark && (
                         <div>

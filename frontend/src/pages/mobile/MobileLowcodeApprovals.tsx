@@ -7,6 +7,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import type { WfTodoItem } from '@/types/lowcode'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
+import { isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
 
 type MineItem = { id: string; title?: string; status: string; created_at?: string }
 
@@ -50,8 +51,19 @@ export default function MobileLowcodeApprovals() {
         todo.length ? (
           <div className="space-y-3">
             {todo.map((t) => (
-              <div key={t.task_id} onClick={() => nav(`/m/lowcode/approvals/${t.process_instance_id}?task=${t.task_id}`)}
-                className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 cursor-pointer active:bg-slate-50">
+              <div
+                key={t.task_id}
+                onClick={() => {
+                  if (t.biz_type === 'lead' && t.biz_id && isLeadReviseTodo({
+                    taskKind: t.task_kind, nodeType: t.node_type, nodeName: t.node_name,
+                  })) {
+                    nav(leadReviseEditPath(t.biz_id, t.task_id, true))
+                    return
+                  }
+                  nav(`/m/lowcode/approvals/${t.process_instance_id}?task=${t.task_id}`)
+                }}
+                className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 cursor-pointer active:bg-slate-50"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <h4 className="text-sm font-bold text-slate-900 truncate">{t.title || '(无标题)'}</h4>
                   {t.task_kind === 'revise' ? (

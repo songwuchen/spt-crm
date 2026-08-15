@@ -164,20 +164,46 @@ async def send_dingtalk_work_notification(
     token: str, agent_id: str, userid_list: list[str],
     title: str, content: str,
     pc_url: str | None = None, app_url: str | None = None,
+    *,
+    head_text: str | None = None,
+    form: list[dict[str, str]] | None = None,
+    author: str | None = None,
 ) -> bool:
     """发送钉钉「工作通知」给指定用户。
 
-    有链接时用 OA 卡片，PC/移动端分别跳转（pc_message_url / message_url，各自包深链），
-    从而 PC 钉钉点开走 PC 域名、手机钉钉点开走移动域名并可免登；无链接则退回文本。
+    有链接时用 OA 卡片（对齐简道云：标题 + 字段表 + 作者 + 点卡片查看详情），
+    PC/移动端分别跳转；无链接则退回文本。
     """
     if not token or not agent_id or not userid_list:
         return False
     if pc_url or app_url:
+        body: dict[str, Any] = {
+            "title": (title or "通知")[:100],
+            "content": (content or "")[:500],
+        }
+        # 简道云抄送卡：key/value 表单行（如 来款日期 / 单位名称）
+        if form:
+            rows = []
+            for item in form[:8]:
+                k = str(item.get("key") or "").strip()
+                v = str(item.get("value") or "").strip()
+                if not k and not v:
+                    continue
+                if k and not k.endswith(":"):
+                    k = f"{k}:"
+                rows.append({"key": k[:20], "value": v[:40]})
+            if rows:
+                body["form"] = rows
+        if author:
+            body["author"] = author[:64]
         msg = {"msgtype": "oa", "oa": {
             "message_url": _to_app_deeplink(app_url or pc_url),
             "pc_message_url": _to_workbench_link(pc_url or app_url),
-            "head": {"bgcolor": "FF00C48F", "text": (title or "通知")[:16]},
-            "body": {"title": title[:100], "content": content[:500]},
+            "head": {
+                "bgcolor": "FF2681FF",
+                "text": (head_text or "威猛云")[:16],
+            },
+            "body": body,
         }}
     else:
         msg = {"msgtype": "text", "text": {"content": f"{title}\n{content}"}}
@@ -319,7 +345,7 @@ async def dispatch_todo(
     db: AsyncSession, tenant_id: str, assignee_user_id: str,
     title: str, content: str, link: str | None = None, mobile_link: str | None = None,
 ) -> dict[str, Any]:
-    """把"待办"推送给指定负责人（钉钉工作通知 + 创建钉钉待办）。
+    """把「待审批」推送给指定负责人（钉钉工作通知 + 创建钉钉待办）。
 
     需要租户配置了钉钉企业应用（dingtalk 集成的 auth_config_json 含 app_key/app_secret/agent_id），
     且该负责人在 CRM 中填了手机号（用于匹配钉钉账号）。未配置或匹配不到时安全跳过（站内通知已兜底）。
@@ -361,6 +387,54 @@ async def dispatch_todo(
         results["todo"] = bool(todo_id)
         results["todo_id"] = todo_id
         results["union_id"] = union_id
+    return results
+
+
+async def dispatch_cc_notify(
+    db: AsyncSession, tenant_id: str, recipient_user_id: str,
+    title: str, content: str, link: str | None = None, mobile_link: str | None = None,
+    *,
+    head_text: str | None = None,
+    form: list[dict[str, str]] | None = None,
+    author: str | None = None,
+) -> dict[str, Any]:
+    """抄送知悉：只发钉钉「工作通知」OA 卡（简道云样式），不创建钉钉待办。
+
+    与 dispatch_todo（审批待办）区分：抄送只需知悉，不应在钉钉待办列表挂一条需处理任务。
+    返回 {work_notification: bool}。
+    """
+    results: dict[str, Any] = {"work_notification": False}
+    if not recipient_user_id:
+        return results
+    config = await _dingtalk_app_config(db, tenant_id)
+    if not config:
+        return results
+    token = await get_dingtalk_token(config["app_key"], config["app_secret"])
+    if not token:
+        return results
+
+    from app.domains.auth.models import User
+    user = (await db.execute(
+        select(User).where(User.id == recipient_user_id, User.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not user or not user.phone:
+        logger.info("dispatch_cc_notify skipped: recipient %s has no phone", recipient_user_id)
+        return results
+
+    userid = await get_dingtalk_userid_by_mobile(token, user.phone)
+    if not userid:
+        return results
+
+    pc_url = _abs_url(config, link, mobile=False)
+    app_url = _abs_url(config, mobile_link or link, mobile=True)
+    brand = head_text or (config.get("app_display_name") or config.get("corp_name") or "威猛云")
+    results["work_notification"] = await send_dingtalk_work_notification(
+        token, config["agent_id"], [userid], title, content,
+        pc_url=pc_url, app_url=app_url,
+        head_text=str(brand)[:16],
+        form=form,
+        author=author,
+    )
     return results
 
 

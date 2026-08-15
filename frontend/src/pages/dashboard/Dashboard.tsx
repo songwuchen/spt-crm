@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { fetchUnifiedPending, decideUnified } from '@/api/unifiedApprovals'
 import type { UnifiedPendingItem } from '@/api/unifiedApprovals'
+import { leadReviseEditPath } from '@/utils/leadWorkflow'
 import { TrendChart, CollectionChart, RevenueChart, WinLossChart, FunnelChartPanel, LeaderboardChart, ContractExpiryPanel } from './DashboardCharts'
 
 import Icon from '@/components/Icon'
@@ -605,14 +606,25 @@ export default function Dashboard() {
                           <div className="text-sm text-slate-500">{item.subtitle || '待处理'}</div>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => handleApprove(item)}
-                            className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-sm font-bold hover:bg-emerald-600 transition-colors">
-                            通过
-                          </button>
-                          <button onClick={() => handleReject(item)}
-                            className="px-3 py-1.5 bg-white text-red-500 border border-red-200 rounded-lg text-sm font-bold hover:bg-red-50 transition-colors">
-                            驳回
-                          </button>
+                          {item.taskKind === 'revise' && item.bizType === 'lead' && item.bizId ? (
+                            <button
+                              onClick={() => navigate(leadReviseEditPath(item.bizId!, item.taskId))}
+                              className="px-3 py-1.5 bg-primary text-white rounded-lg text-sm font-bold hover:opacity-90 transition-colors"
+                            >
+                              去修改
+                            </button>
+                          ) : (
+                            <>
+                              <button onClick={() => handleApprove(item)}
+                                className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-sm font-bold hover:bg-emerald-600 transition-colors">
+                                通过
+                              </button>
+                              <button onClick={() => handleReject(item)}
+                                className="px-3 py-1.5 bg-white text-red-500 border border-red-200 rounded-lg text-sm font-bold hover:bg-red-50 transition-colors">
+                                驳回
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}

@@ -109,7 +109,7 @@ export default function NotificationCenter() {
       notificationApi.markRead([item.id])
       setItems(prev => prev.map(n => n.id === item.id ? { ...n, is_read: true } : n))
     }
-    const target = notificationTarget(item.biz_type, item.biz_id)
+    const target = notificationTarget(item.biz_type, item.biz_id, item.type)
     if (target) navigate(target)
   }
 

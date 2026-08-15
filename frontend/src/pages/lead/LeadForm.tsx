@@ -3,9 +3,10 @@ import {
   type ReactElement, type ReactNode,
 } from 'react'
 import { Form, Input, Select, Button, DatePicker, Radio, message } from 'antd'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { leadApi } from '@/api/lead'
+import { workflowApi } from '@/api/lowcodeWorkflow'
 import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider, PolicyItem, useFieldPolicy } from '@/components/lowcode/FieldPolicy'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -95,6 +96,11 @@ function ChoiceOptionsBridge({
 export default function LeadForm() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const leadBase = location.pathname.startsWith('/m/') ? '/m/leads' : '/leads'
+  const [searchParams] = useSearchParams()
+  const reviseTaskId = searchParams.get('reviseTask') || undefined
+  const isReviseMode = !!reviseTaskId
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
@@ -102,8 +108,9 @@ export default function LeadForm() {
   const [reviewStatus, setReviewStatus] = useState<string | undefined>()
   const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const isEdit = !!id
-  const canSubmitApproval = !isEdit || reviewStatus === 'draft'
-  usePageTitle(isEdit ? '编辑线索' : '新建线索')
+  // 撤回修订：与新建一样可「提交」；草稿可提交审批
+  const canSubmitApproval = !isEdit || reviewStatus === 'draft' || isReviseMode
+  usePageTitle(isReviseMode ? '修改并重新提交' : isEdit ? '编辑线索' : '新建线索')
 
   const sourceDict = useDataDict('lead_source', DEFAULT_LEAD_SOURCES)
   const industryDict = useDataDict('industry', INDUSTRY_OPTIONS)
@@ -120,7 +127,7 @@ export default function LeadForm() {
         const d = res.data as unknown as Record<string, unknown>
         if (d.status === 'qualified' || d.status === 'discarded') {
           message.warning(d.status === 'qualified' ? '已转化的线索不可编辑' : '已废弃的线索不可编辑')
-          navigate(`/leads/${id}`, { replace: true })
+          navigate(`${leadBase}/${id}`, { replace: true })
           return
         }
         if (d.review_status === 'rejected' || d.review_status === 'attacked' || d.review_status === 'approved') {
@@ -129,21 +136,24 @@ export default function LeadForm() {
               ? '线索已被驳回，项目不可再报备，不可继续编辑'
               : d.review_status === 'attacked'
                 ? '袭击状态的线索不可编辑申报信息'
-                : '线索已收录，不可再编辑',
+                : '线索已收录，不可再编辑；请在详情「动态」中添加互动记录',
           )
-          navigate(`/leads/${id}`, { replace: true })
+          navigate(`${leadBase}/${id}`, { replace: true })
           return
         }
         if (d.review_status === 'pending') {
-          try {
-            const { workflowApi } = await import('@/api/lowcodeWorkflow')
-            const wf = await workflowApi.byBiz({ biz_type: 'lead', biz_id: id! })
-            if (wf.data?.status === 'running') {
-              message.warning('审核中的线索不可编辑')
-              navigate(`/leads/${id}`, { replace: true })
-              return
-            }
-          } catch { /* 无流程则允许编辑 */ }
+          // 修订待办：流程已撤回，允许像新建一样改申报
+          if (!isReviseMode) {
+            try {
+              const { workflowApi: wf } = await import('@/api/lowcodeWorkflow')
+              const wfRes = await wf.byBiz({ biz_type: 'lead', biz_id: id! })
+              if (wfRes.data?.status === 'running') {
+                message.warning('审核中的线索不可编辑')
+                navigate(`${leadBase}/${id}`, { replace: true })
+                return
+              }
+            } catch { /* 无流程则允许编辑 */ }
+          }
         }
         form.setFieldsValue({
           ...d,
@@ -173,7 +183,7 @@ export default function LeadForm() {
         reporterSelect.setInitialOption({ label, value: currentUser.id })
       }
     }
-  }, [id, currentUser])
+  }, [id, currentUser, isReviseMode])
 
   const onFinish = async (values: Record<string, unknown>, andSubmit: boolean) => {
     // 提交审批才校验扩展必填；存草稿只落库
@@ -198,18 +208,28 @@ export default function LeadForm() {
       let leadId = id
       if (isEdit) {
         await leadApi.update(id!, payload)
-        if (andSubmit && canSubmitApproval) {
+        if (andSubmit && isReviseMode && reviseTaskId) {
+          try {
+            await workflowApi.act(reviseTaskId, { action: 'resubmit' })
+            message.success('已重新提交审批，请在详情页查看流程动态')
+          } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+            message.warning(msg || '已保存，但重新提交失败，请到详情页重试')
+            navigate(`${leadBase}/${id}`)
+            return
+          }
+        } else if (andSubmit && canSubmitApproval && !isReviseMode) {
           try {
             await leadApi.submitReview(id!)
             message.success('已提交审批，请在详情页查看流程动态')
           } catch (err: unknown) {
             const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
             message.warning(msg || '已保存，但提交审批失败，请到详情页重新提交')
-            navigate(`/leads/${id}`)
+            navigate(`${leadBase}/${id}`)
             return
           }
         } else {
-          message.success(canSubmitApproval ? '已存为草稿' : '线索已更新')
+          message.success(isReviseMode ? '已保存修改' : canSubmitApproval ? '已存为草稿' : '线索已更新')
         }
       } else if (andSubmit) {
         const res = await leadApi.create(payload)
@@ -232,7 +252,7 @@ export default function LeadForm() {
           message.success(`已上传 ${ok} 个附件`)
         }
       }
-      navigate(leadId ? `/leads/${leadId}` : '/leads')
+      navigate(leadId ? `${leadBase}/${leadId}` : leadBase)
     } catch {
       message.error('保存失败，请重试')
     } finally {
@@ -267,12 +287,14 @@ export default function LeadForm() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
-          {isEdit ? '编辑线索' : '新建线索'}
+          {isReviseMode ? '修改并重新提交' : isEdit ? '编辑线索' : '新建线索'}
         </h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          {isEdit
-            ? '编辑申报信息与跟进反馈；评估结论请在情报审批中填写'
-            : '填写申报信息后可存草稿，或直接提交审批由信息情报部填写评估结论'}
+          {isReviseMode
+            ? '流程已撤回：请像第一次报项目一样完善申报信息，确认后重新提交审批（评估结论仍由信息情报部填写）'
+            : isEdit
+              ? '编辑申报信息与跟进反馈；评估结论请在情报审批中填写'
+              : '填写申报信息后可存草稿，或直接提交审批由信息情报部填写评估结论'}
         </p>
       </div>
 
@@ -522,9 +544,11 @@ export default function LeadForm() {
             <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-slate-100">
               {canSubmitApproval ? (
                 <>
-                  <Button loading={loading} onClick={() => void handleSave(false)}>存草稿</Button>
+                  <Button loading={loading} onClick={() => void handleSave(false)}>
+                    {isReviseMode ? '仅保存' : '存草稿'}
+                  </Button>
                   <Button type="primary" loading={loading} onClick={() => void handleSave(true)} className="font-bold">
-                    提交审批
+                    {isReviseMode ? '重新提交' : '提交审批'}
                   </Button>
                 </>
               ) : (
@@ -532,10 +556,12 @@ export default function LeadForm() {
                   保存
                 </Button>
               )}
-              <Button onClick={() => navigate('/leads')}>取消</Button>
+              <Button onClick={() => navigate(isEdit ? `${leadBase}/${id}` : leadBase)}>取消</Button>
               {canSubmitApproval && (
                 <span className="text-xs text-slate-400">
-                  「提交审批」会校验必填项并发起情报审核；「存草稿」只需填写项目名称，可稍后补全再提交。
+                  {isReviseMode
+                    ? '「重新提交」会校验必填项并回到情报审批；「仅保存」可稍后继续改。'
+                    : '「提交审批」会校验必填项并发起情报审核；「存草稿」只需填写项目名称，可稍后补全再提交。'}
                 </span>
               )}
             </div>

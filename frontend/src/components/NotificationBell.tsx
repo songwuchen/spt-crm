@@ -97,7 +97,7 @@ export default function NotificationBell() {
     }
     setOpen(false)
 
-    const target = notificationTarget(item.biz_type, item.biz_id)
+    const target = notificationTarget(item.biz_type, item.biz_id, item.type)
     if (target) navigate(target)
   }
 

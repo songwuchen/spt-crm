@@ -9,7 +9,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
-import { isLeadOwnerConfirmNode } from '@/utils/leadWorkflow'
+import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadIntelTodo } from '@/utils/leadWorkflow'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 interface LeadItem {
@@ -158,8 +158,34 @@ export default function MobileLeadDetail() {
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
   const canOperate = lead.status !== 'qualified' && lead.status !== 'discarded'
+  // 仅草稿/待审可改申报；收录后不可编辑（互动记录另入口）
   const canEditContent = canEditLead && canOperate
     && (reviewStatus === 'draft' || reviewStatus === 'pending')
+  const isReviseTask = !!myTask && isLeadReviseTodo({
+    taskKind: myTask.task_kind,
+    nodeType: myTask.node_type,
+    nodeName: myTask.node_name,
+  })
+  const isIntelTask = !!myTask && isLeadIntelTodo({
+    bizType: 'lead',
+    nodeName: myTask.node_name,
+    nodeType: myTask.node_type,
+    taskKind: myTask.task_kind,
+  })
+  const isOwnerConfirmTask = !!myTask && isLeadOwnerConfirmNode(myTask.node_name)
+
+  const handleResubmitRevise = async () => {
+    if (!id || !myTask?.task_id) return
+    try {
+      await workflowApi.act(myTask.task_id, { action: 'resubmit' })
+      message.success('已重新提交')
+      setMyTask(null)
+      loadLead()
+      loadMyTask()
+    } catch {
+      message.error('重新提交失败')
+    }
+  }
 
   return (
     <div>
@@ -171,24 +197,44 @@ export default function MobileLeadDetail() {
         <span className={`px-2 py-0.5 rounded text-[12px] font-bold ${st.color}`}>{st.label}</span>
       </div>
 
-      {/* 待我审批 */}
-      {myTask && isLeadOwnerConfirmNode(myTask.node_name) && (
+      {/* 待我处理：修订 / 情报 / 业务员确认 */}
+      {isOwnerConfirmTask && (
         <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 mb-3">
           <LeadOwnerConfirmActions
             compact
             leadId={id!}
-            taskId={myTask.task_id}
+            taskId={myTask!.task_id}
             onDone={() => { setMyTask(null); loadLead() }}
           />
         </div>
       )}
-      {myTask && !isLeadOwnerConfirmNode(myTask.node_name) && (
+      {isReviseTask && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 mb-3">
+          <div className="text-sm font-bold text-amber-800">请修改后重新提交</div>
+          <div className="text-sm text-slate-600 mt-1">
+            流程已撤回，请像新建时一样完善申报信息后再提交。评估由情报审批时填写。
+          </div>
+          <div className="mt-2 flex gap-2">
+            {canEditContent && (
+              <button onClick={openEdit}
+                className="flex-1 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-bold">
+                编辑
+              </button>
+            )}
+            <button onClick={handleResubmitRevise}
+              className="flex-1 py-2 bg-primary text-white rounded-lg text-sm font-bold">
+              重新提交
+            </button>
+          </div>
+        </div>
+      )}
+      {isIntelTask && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 mb-3">
           <div className="text-sm font-bold text-slate-900 mb-2">信息情报部审批</div>
           <LeadIntelReviewForm
             compact
             leadId={id!}
-            taskId={myTask.task_id}
+            taskId={myTask!.task_id}
             initialNewness={lead.customer_newness}
             initialOpinion={lead.review_opinion}
             initialReturnReason={lead.reject_reason}
@@ -206,7 +252,7 @@ export default function MobileLeadDetail() {
       )}
 
       {/* Review status banner */}
-      {reviewCfg && (
+      {reviewCfg && !isReviseTask && (
         <div className={`rounded-xl border ${reviewCfg.border} ${reviewCfg.bg} p-3 mb-3`}>
           <div className={`flex items-center gap-1.5 text-sm font-bold ${reviewCfg.text}`}>
             <MobileIcon

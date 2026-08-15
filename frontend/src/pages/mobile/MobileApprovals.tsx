@@ -1,6 +1,6 @@
 // 移动端审批中心：能力对齐 PC /approvals（待办/发起/已办/抄送/代理/历史/统计）。
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DatePicker, Input, Modal, Select, message } from 'antd'
 import dayjs from 'dayjs'
 import MobileIcon from '@/components/MobileIcon'
@@ -16,6 +16,7 @@ import {
 import type { ApprovalFlowItem } from '@/api/types'
 import { approvalBizTypeLabels, approvalStatusLabels } from '@/constants/labels'
 import { WF_STATUS } from '@/utils/lowcodeWorkflowLabels'
+import { leadReviseEditPath } from '@/utils/leadWorkflow'
 
 type TabKey = 'pending' | 'mine' | 'done' | 'cc' | 'agents' | 'all' | 'stats'
 
@@ -82,6 +83,7 @@ function fmtTime(v?: string) {
 export default function MobileApprovals() {
   usePageTitle('审批中心')
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const userId = useAuthStore((s) => s.user?.id)
 
   const [tab, setTab] = useState<TabKey>('pending')
@@ -111,7 +113,11 @@ export default function MobileApprovals() {
   const [agentRange, setAgentRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null)
   const [agentNote, setAgentNote] = useState('')
 
-  const openDetail = useCallback((engine: 'legacy' | 'wf', instanceId: string, taskId?: string) => {
+  const openDetail = useCallback((engine: 'legacy' | 'wf', instanceId: string, taskId?: string, item?: UnifiedPendingItem) => {
+    if (item?.engine === 'wf' && item.taskKind === 'revise' && item.bizType === 'lead' && item.bizId) {
+      navigate(leadReviseEditPath(item.bizId, item.taskId, true))
+      return
+    }
     if (!instanceId) {
       message.warning('缺少流程实例，无法打开')
       return
@@ -186,6 +192,31 @@ export default function MobileApprovals() {
   }, [])
 
   useEffect(() => { void loadPending() }, [loadPending])
+
+  // 深链：通知抄送 → ?tab=cc&wf=实例id
+  useEffect(() => {
+    const qTab = searchParams.get('tab') as TabKey | null
+    const wfId = searchParams.get('wf')
+    const taskId = searchParams.get('task') || undefined
+    if (qTab && TABS.some((t) => t.key === qTab)) {
+      setTab(qTab)
+      if (qTab === 'cc') void loadCc()
+      if (qTab === 'mine') void loadMine()
+      if (qTab === 'done') void loadDone()
+      if (qTab === 'agents') void loadAgents()
+      if (qTab === 'stats') void loadStats()
+      if (qTab === 'all') void loadAllFlows()
+    }
+    if (wfId) {
+      openDetail('wf', wfId, taskId)
+    }
+    if (searchParams.has('tab') || searchParams.has('wf') || searchParams.has('task')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('tab'); next.delete('wf'); next.delete('task')
+      setSearchParams(next, { replace: true })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const onTabChange = (key: TabKey) => {
     setTab(key)
@@ -400,7 +431,7 @@ export default function MobileApprovals() {
                         setSelectedKeys((prev) => prev.includes(item.key) ? prev.filter((k) => k !== item.key) : [...prev, item.key])
                         return
                       }
-                      openDetail(item.engine, item.instanceId || '', item.taskId)
+                      openDetail(item.engine, item.instanceId || '', item.taskId, item)
                     }}
                   >
                     <div className="flex items-start gap-3">

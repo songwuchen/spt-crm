@@ -96,8 +96,8 @@ async def notify_tasks_created(
                     await send_notification(
                         db=db, tenant_id=tenant_id, recipient_id=t.assignee_id,
                         type="approval_pending",
-                        title=f"您有新的审批待处理: {title}",
-                        content=f"{initiator} 提交了审批请求",
+                        title=f"【待审批】{title}",
+                        content=f"{initiator} 提交了审批请求，请尽快处理。",
                         biz_type=NOTIFY_BIZ_TYPE, biz_id=inst_id,
                         sender_name=initiator or None,
                     )
@@ -108,8 +108,8 @@ async def notify_tasks_created(
                 try:
                     res = await dispatch_todo(
                         db, tenant_id, t.assignee_id,
-                        f"审批待处理: {title}",
-                        f"{initiator} 提交了审批，请尽快处理。",
+                        f"【待审批】{title}",
+                        f"{initiator} 提交了审批，请打开处理。",
                         link=f"/approvals?wf={inst_id}&task={t.id}",
                         mobile_link=f"/m/lowcode/approvals/{inst_id}?task={t.id}",
                     )
@@ -158,80 +158,174 @@ async def complete_todos(tenant_id: str, task_ids: list[str]) -> None:
         logger.warning("wf complete_todos failed: %s", e)
 
 
+def _fmt_cc_author(name: str | None) -> str:
+    """简道云抄送卡页脚：发起人 + 时分，如「炎蕊蕊 10:45」。"""
+    from datetime import datetime
+    now = datetime.now().strftime("%H:%M")
+    who = (name or "").strip() or "系统"
+    return f"{who} {now}"
+
+
+def _biz_detail_to_form(detail: dict | None, *, limit: int = 4) -> list[dict[str, str]]:
+    """把业务摘要 dict 转成钉钉 OA form 行。"""
+    rows: list[dict[str, str]] = []
+    if not detail:
+        return rows
+    for k, v in detail.items():
+        if v is None or v == "" or v == "-":
+            continue
+        rows.append({"key": str(k), "value": str(v)})
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+async def _cc_process_name(db: AsyncSession, inst: WfProcessInstance) -> str:
+    """流程展示名（对齐简道云「收款登记流程」）：优先流程定义名，其次实例标题。"""
+    try:
+        from app.domains.lowcode.workflow_models import WfProcessDefinition
+        dfn_id = getattr(inst, "process_definition_id", None)
+        if dfn_id:
+            dfn = await db.get(WfProcessDefinition, dfn_id)
+            if dfn and (dfn.name or "").strip():
+                return dfn.name.strip()
+    except Exception:
+        pass
+    return (getattr(inst, "title", None) or getattr(inst, "biz_type", None) or "流程").strip()
+
+
+async def _cc_form_fields(db: AsyncSession, tenant_id: str, inst: WfProcessInstance) -> list[dict[str, str]]:
+    """抄送卡字段摘要：业务单据用 biz_detail；表单流取若干展示字段。"""
+    # 业务单据
+    if getattr(inst, "biz_type", None) and getattr(inst, "biz_id", None):
+        try:
+            from app.domains.approval.service import _resolve_biz_detail
+            detail = await _resolve_biz_detail(db, tenant_id, inst.biz_type, inst.biz_id) or {}
+            # 线索优先挑简道云常见三列
+            if inst.biz_type == "lead":
+                prefer = ("项目名称", "公司名称", "申报人", "申报时间", "项目编号", "行业")
+                ordered: dict = {}
+                for k in prefer:
+                    if k in detail and detail[k] not in (None, "", "-"):
+                        ordered[k] = detail[k]
+                for k, v in detail.items():
+                    if k not in ordered:
+                        ordered[k] = v
+                return _biz_detail_to_form(ordered, limit=4)
+            return _biz_detail_to_form(detail, limit=4)
+        except Exception as e:
+            logger.debug("cc form from biz_detail failed: %s", e)
+
+    # 表单实例
+    fid = getattr(inst, "form_instance_id", None)
+    if not fid:
+        return []
+    try:
+        from app.domains.lowcode.models import FormInstance
+        fi = await db.get(FormInstance, fid)
+        if not fi or not isinstance(fi.form_data, dict):
+            return []
+        data = fi.form_data
+        labels: dict[str, str] = {}
+        for fd in (fi.field_definitions or []):
+            if isinstance(fd, dict) and fd.get("id"):
+                labels[str(fd["id"])] = str(fd.get("label") or fd.get("title") or fd["id"])
+        rows: list[dict[str, str]] = []
+        for fid_k, val in data.items():
+            if val in (None, "", [], {}):
+                continue
+            if isinstance(val, (list, dict)):
+                continue
+            label = labels.get(str(fid_k), str(fid_k))
+            rows.append({"key": label, "value": str(val)})
+            if len(rows) >= 4:
+                break
+        return rows
+    except Exception as e:
+        logger.debug("cc form from form_instance failed: %s", e)
+        return []
+
+
 async def notify_cc_users(
     tenant_id: str, inst: WfProcessInstance, user_ids: list[str], node_name: str | None = None,
 ) -> None:
-    """抄送节点激活后通知被抄送人（站内 + 钉钉待办）。
+    """抄送节点激活后通知被抄送人（站内 + 钉钉 OA 卡，对齐简道云抄送样式，不建钉钉待办）。
 
-    业务单据（如线索）深链到业务详情，便于业务员直接处理；自定义表单流仍进审批中心。
-    线索抄送给负责人时，文案引导其自行确认是否转化客户/商机。
+    钉钉卡片：头「威猛云」+ 标题「抄送：「流程名」有新的流程处理结果抄送给你」
+    + 关键字段表 + 发起人时分；点击整卡查看详情。
     """
     if not user_ids:
         return
     try:
         from app.domains.notification.service import send_notification
-        from app.common.msg_integration import dispatch_todo
+        from app.common.msg_integration import dispatch_cc_notify
 
         skip_external = _skip_external_notify()
         async with _own_session() as db:
-            title = inst.title or inst.biz_type or "流程"
-            node_label = node_name or "抄送"
+            process_name = await _cc_process_name(db, inst)
+            initiator = await _user_name(db, tenant_id, getattr(inst, "initiator_id", None))
+            author = _fmt_cc_author(initiator)
+            form_rows = await _cc_form_fields(db, tenant_id, inst)
+
+            # 简道云同款主标题
+            ding_title = f"抄送：「{process_name}」有新的流程处理结果抄送给你"
+            # OA content 作兜底；有 form 时钉钉优先展示 form
+            ding_content = "请点击查看详情"
+            if form_rows:
+                ding_content = "\n".join(
+                    f"{r['key']}{'' if r['key'].endswith(':') else ':'} {r['value']}"
+                    for r in form_rows
+                )
+
+            # 站内通知统一走 approval_cc + wf_instance，与审批中心「抄送我的」(wf_process_cc) 对齐
             ntype = "approval_cc"
             biz_type = NOTIFY_BIZ_TYPE
             biz_id = inst.id
-            link = f"/approvals?wf={inst.id}"
-            mobile_link = f"/m/lowcode/approvals/{inst.id}"
-            content = f"流程「{title}」已抄送您（节点：{node_label}），请知悉。"
+            link = f"/approvals?tab=cc&wf={inst.id}"
+            mobile_link = f"/m/approvals?tab=cc&wf={inst.id}"
+            station_title = ding_title
+            station_content = ding_content
 
             if inst.biz_type == "lead" and inst.biz_id:
                 from app.domains.lead.models import Lead
                 ld = (await db.execute(select(Lead).where(
                     Lead.id == inst.biz_id, Lead.tenant_id == tenant_id,
                 ))).scalar_one_or_none()
-                lead_title = (ld.title if ld else None) or title
-                lead_code = (ld.lead_code if ld else None) or ""
-                code = f"「{lead_code}」" if lead_code else ""
+                lead_title = (ld.title if ld else None) or process_name
                 attacked = bool(ld and getattr(ld, "review_status", None) == "attacked")
-                ntype = "lead_review_approved"
-                biz_type = "lead"
-                biz_id = inst.biz_id
-                link = f"/leads/{inst.biz_id}"
-                mobile_link = f"/m/leads/{inst.biz_id}"
                 if attacked:
-                    title = f"线索已标记袭击: {lead_title}"
-                    content = (
-                        f"线索{code}「{lead_title}」经情报审批已标记为袭击，"
-                        f"不可转化为客户/商机，请知悉。"
+                    station_title = f"线索已标记袭击: {lead_title}"
+                    station_content = (
+                        f"线索「{lead_title}」经情报审批已标记为袭击，不可转化为客户/商机，请知悉。"
                     )
                 else:
-                    title = f"{node_label}: {lead_title}"
-                    content = (
-                        f"线索{code}「{lead_title}」相关流程已抄送您（节点：{node_label}）。"
-                        f"请打开线索详情，自行选择是否转化为客户/商机。"
+                    station_title = ding_title
+                    station_content = (
+                        f"线索「{lead_title}」相关流程已抄送您。"
+                        f"请打开审批中心「抄送我的」查看；可自行选择是否转化为客户/商机。"
                     )
-            elif inst.biz_type and inst.biz_id:
-                # 其它业务单据：深链尽量落到业务侧（通知路由已覆盖常见类型）
-                biz_type = inst.biz_type
-                biz_id = inst.biz_id
 
             for uid in user_ids:
                 try:
                     await send_notification(
                         db=db, tenant_id=tenant_id, recipient_id=uid,
-                        type=ntype, title=title, content=content,
+                        type=ntype, title=station_title, content=station_content,
                         biz_type=biz_type, biz_id=biz_id,
+                        sender_name=initiator or None,
                     )
                 except Exception as e:
                     logger.warning("wf cc send_notification failed: %s", e)
                 if skip_external:
                     continue
                 try:
-                    await dispatch_todo(
-                        db, tenant_id, uid, title, content,
+                    await dispatch_cc_notify(
+                        db, tenant_id, uid, ding_title, ding_content,
                         link=link, mobile_link=mobile_link,
+                        form=form_rows or None,
+                        author=author,
                     )
                 except Exception as e:
-                    logger.warning("wf cc dispatch_todo failed: %s", e)
+                    logger.warning("wf cc dispatch_cc_notify failed: %s", e)
             await db.commit()
     except Exception as e:
         logger.warning("wf notify_cc_users failed: %s", e)

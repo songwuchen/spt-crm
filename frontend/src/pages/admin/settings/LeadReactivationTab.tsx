@@ -140,7 +140,7 @@ export default function LeadReactivationTab() {
         <div>
           <label className="text-sm font-medium text-slate-700 mb-2 block">跳过申报人待办（按姓名）</label>
           <p className="text-xs text-slate-400 mb-2">
-            名单中的申报人重激活时不进本人待办，直接给对应填表人（如张贺）
+            名单中的申报人：180 天重激活与「确认是否转商机」均不进本人待办，改派填表人（如张贺）
           </p>
           <div className="space-y-2">
             {form.skip_reporter_names.map((name, i) => (

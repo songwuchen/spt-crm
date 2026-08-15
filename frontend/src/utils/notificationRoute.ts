@@ -12,10 +12,28 @@ import { currentZone } from '@/config/zone'
  * biz_type has no dedicated detail page (caller then just marks it read).
  *
  * 审批类：桌面端带查询参数，审批中心据此打开对应抽屉/详情（不再只落到空列表）。
+ * 抄送类：落到审批中心「抄送我的」，并可带 wf= 打开对应流程。
  */
-export function notificationTarget(bizType?: string, bizId?: string): string | null {
+export function notificationTarget(
+  bizType?: string,
+  bizId?: string,
+  notifType?: string,
+): string | null {
   const mobile = currentZone() === 'mobile'
   const p = mobile ? '/m' : ''
+
+  // 流程抄送 → 审批中心「抄送我的」（与 wf_process_cc 列表对齐）
+  if (notifType === 'approval_cc') {
+    if (mobile) {
+      return bizId
+        ? `/m/approvals?tab=cc&wf=${encodeURIComponent(bizId)}`
+        : '/m/approvals?tab=cc'
+    }
+    return bizId
+      ? `/approvals?tab=cc&wf=${encodeURIComponent(bizId)}`
+      : '/approvals?tab=cc'
+  }
+
   switch (bizType) {
     case 'approval_flow':
     case 'approval':
@@ -23,6 +41,7 @@ export function notificationTarget(bizType?: string, bizId?: string): string | n
       if (mobile) return bizId ? `/m/approvals/${bizId}` : '/m/approvals'
       return bizId ? `/approvals?flow=${encodeURIComponent(bizId)}` : '/approvals'
     case 'wf_instance':
+    case 'workflow':
       // 新工作流：移动端进 lowcode 详情；桌面端 ?wf= 打开流程抽屉
       if (mobile) return bizId ? `/m/lowcode/approvals/${bizId}` : '/m/lowcode/approvals'
       return bizId ? `/approvals?wf=${encodeURIComponent(bizId)}` : '/approvals'

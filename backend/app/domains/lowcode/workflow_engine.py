@@ -217,9 +217,13 @@ class WorkflowEngine:
 
     @staticmethod
     def _is_lead_intel_task_node(node_inst) -> bool:
-        """是否信息情报部审批节点（需走收录/袭击/回退）。业务员确认节点返回 False。"""
+        """是否信息情报部审批节点（需走收录/袭击/回退）。业务员确认 / 修订待办返回 False。"""
         if not node_inst:
             return True
+        ntype = getattr(node_inst, "node_type", None) or ""
+        ndef = getattr(node_inst, "node_def_id", None) or ""
+        if ntype == "revise" or ndef == REVISE_NODE_DEF_ID:
+            return False
         if WorkflowEngine._is_lead_owner_confirm_node(node_inst):
             return False
         name = (getattr(node_inst, "node_name", None) or "").strip()
@@ -234,6 +238,35 @@ class WorkflowEngine:
         from app.domains.lead.models import Lead
         ld = await self.db.get(Lead, inst.biz_id)
         return bool(ld and getattr(ld, "review_status", None) == "attacked")
+
+    async def _redirect_lead_confirm_if_skip_reporter(
+        self, inst: WfProcessInstance, approvers: list[str],
+    ) -> list[str]:
+        """申报人在跳过名单（如张贺）时，转商机确认改派填表人。"""
+        if not inst.biz_id or not self.db:
+            return approvers
+        from app.domains.lead.models import Lead
+        from app.domains.lead.reactivation import (
+            get_tenant_config,
+            lead_confirm_assignee_id,
+            should_skip_reporter,
+        )
+
+        ld = await self.db.get(Lead, inst.biz_id)
+        if not ld:
+            return approvers
+        cfg = await get_tenant_config(self.db, self.tenant_id)
+        if not should_skip_reporter(ld, cfg):
+            return approvers
+        uid = (lead_confirm_assignee_id(ld, cfg) or "").strip()
+        if not uid:
+            return approvers
+        if approvers != [uid]:
+            self._log(
+                inst.id, None, None, {"sub": "system"}, "lead_confirm_redirect",
+                f"申报人「{ld.reporter_name or ''}」跳过，转商机确认改派填表人",
+            )
+        return [uid]
 
     async def _mark_lead_approved_after_intel(self, inst: WfProcessInstance, node) -> None:
         """情报节点通过/空审跳过后立刻 approved（流程可能还要走业务员确认）。
@@ -602,6 +635,7 @@ class WorkflowEngine:
             and await self._lead_is_attacked(inst)
         ):
             users = await self._resolve_approvers(version, node, ctx)
+            users = await self._redirect_lead_confirm_if_skip_reporter(inst, users)
             ni = WfNodeInstance(
                 id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
                 node_def_id=node["id"], node_type="approval",
@@ -619,6 +653,8 @@ class WorkflowEngine:
             return
 
         approvers = await self._resolve_approvers(version, node, ctx)
+        if inst.biz_type == "lead" and self._is_lead_owner_confirm_node(node):
+            approvers = await self._redirect_lead_confirm_if_skip_reporter(inst, approvers)
         if not approvers:
             strategy = node.get("empty_strategy") or (node.get("config") or {}).get("empty_strategy") or "auto_approve"
             node_name = node.get("name") or "审批"
