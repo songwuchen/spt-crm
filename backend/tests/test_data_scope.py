@@ -1,9 +1,10 @@
-"""数据范围（角色 data_scope）核心逻辑单测。"""
+"""数据范围（角色 data_scope + 按模块 scope_by_resource）核心逻辑单测。"""
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from app.common.data_scope import (
     scoped_owners, resolve_owner_scope, is_in_scope, managed_department_ids,
+    _effective_scope, normalize_scope_by_resource,
 )
 
 
@@ -24,12 +25,54 @@ def test_scoped_owners_restricted():
     assert scoped_owners("zzz", scope) == []
 
 
+def test_effective_scope_override():
+    assert _effective_scope("dept", {"customer": "all"}, "customer") == "all"
+    assert _effective_scope("dept", {"customer": "all"}, "lead") == "dept"
+    assert _effective_scope("dept", None, "customer") == "dept"
+    assert _effective_scope("self", {"lead": "bogus"}, "lead") == "self"
+    assert _effective_scope(None, {}, None) == "self"
+
+
+def test_normalize_scope_by_resource():
+    assert normalize_scope_by_resource({"customer": "all", "lead": "x", 1: "all"}) == {"customer": "all"}
+    assert normalize_scope_by_resource({"unknown_mod": "all", "quote": "dept"}) == {"quote": "dept"}
+    assert normalize_scope_by_resource(None) == {}
+
+
 async def test_resolve_owner_scope_admin_bypass():
     # 管理员 / data:view_all / * 均不受限（不触库，db 传 None 也安全）
     assert await resolve_owner_scope(None, {"sub": "u1", "roles": ["admin"]}) is None
     assert await resolve_owner_scope(None, {"sub": "u1", "permissions": ["data:view_all"]}) is None
     assert await resolve_owner_scope(None, {"sub": "u1", "permissions": ["*"]}) is None
     assert await resolve_owner_scope(None, {"sub": "u1", "roles": ["super_admin"]}) is None
+
+
+async def test_resolve_owner_scope_per_module():
+    """同角色默认 dept + customer=all：客户不限，线索仍部门成员。"""
+    user = {"sub": "u-mkt", "roles": ["mkt_support"], "permissions": [], "tenant_id": "t1"}
+    calls = {"n": 0}
+
+    async def fake_execute(_stmt):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return SimpleNamespace(all=lambda: [("dept", {"customer": "all"})])
+        if calls["n"] == 2:
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: ["d1"]))
+        if calls["n"] == 3:
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: ["/d1/"]))
+        if calls["n"] == 4:
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: ["u-mkt", "u-peer"]))
+
+    db = MagicMock()
+    db.execute = AsyncMock(side_effect=fake_execute)
+
+    assert await resolve_owner_scope(db, user, "t1", biz_type="customer") is None
+
+    calls["n"] = 0
+    lead_scope = await resolve_owner_scope(db, user, "t1", biz_type="lead")
+    assert lead_scope is not None
+    assert set(lead_scope) >= {"u-mkt", "u-peer"}
 
 
 async def test_is_in_scope_lead_managed_department(monkeypatch):

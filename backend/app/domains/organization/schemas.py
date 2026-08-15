@@ -89,12 +89,15 @@ class RoleCreate(BaseModel):
     name: str
     description: Optional[str] = None
     data_scope: Optional[str] = None  # self / dept / all
+    # 按模块覆盖：customer / lead / project → self|dept|all
+    scope_by_resource: Optional[dict[str, str]] = None
 
 
 class RoleUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     data_scope: Optional[str] = None  # self / dept / all
+    scope_by_resource: Optional[dict[str, str]] = None
 
 
 class RoleOut(BaseModel):
@@ -104,6 +107,7 @@ class RoleOut(BaseModel):
     description: Optional[str] = None
     is_system: bool
     data_scope: Optional[str] = None
+    scope_by_resource: Optional[dict[str, str]] = None
     permissions: List[str] = []
 
     model_config = {"from_attributes": True}

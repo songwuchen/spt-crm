@@ -44,9 +44,11 @@ router = APIRouter(prefix="/api/v1/dashboard", tags=["工作台"])
 # visible_customer_ids_select，保证「聚合里算得到的，点开也读得到」。
 
 
-async def _scope_owner_ids(db: AsyncSession, tenant_id: str, user: dict) -> list[str] | None:
-    """本次请求可见的 owner_id 集合；None 表示不限。每个接口只解析一次后向下透传。"""
-    return await resolve_owner_scope(db, user, tenant_id)
+async def _scope_owner_ids(
+    db: AsyncSession, tenant_id: str, user: dict, biz_type: str | None = None,
+) -> list[str] | None:
+    """本次请求可见的 owner_id 集合；None 表示不限。可按模块传入 biz_type。"""
+    return await resolve_owner_scope(db, user, tenant_id, biz_type=biz_type)
 
 
 def _project_scope_where(tenant_id: str, user: dict, scope: list[str] | None) -> list:
@@ -189,10 +191,11 @@ async def stats(
     _user=Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc)
-    scope = await _scope_owner_ids(db, tenant_id, _user)
+    lead_scope = await _scope_owner_ids(db, tenant_id, _user, "lead")
+    proj_scope = await _scope_owner_ids(db, tenant_id, _user, "project")
     cust_where = await _customer_scope_where(db, tenant_id, _user)
-    lead_where = await _lead_scope_where(db, tenant_id, _user, scope)
-    proj_where = _project_scope_where(tenant_id, _user, scope)
+    lead_where = await _lead_scope_where(db, tenant_id, _user, lead_scope)
+    proj_where = _project_scope_where(tenant_id, _user, proj_scope)
 
     customer_total = (await db.execute(
         select(func.count(Customer.id)).where(Customer.tenant_id == tenant_id, *cust_where)
@@ -234,15 +237,15 @@ async def stats(
 
     quote_total = (await db.execute(
         select(func.count(Quote.id)).where(
-            Quote.tenant_id == tenant_id, *_child_scope_where(Quote, tenant_id, _user, scope))
+            Quote.tenant_id == tenant_id, *_child_scope_where(Quote, tenant_id, _user, proj_scope))
     )).scalar() or 0
 
     solution_total = (await db.execute(
         select(func.count(Solution.id)).where(
-            Solution.tenant_id == tenant_id, *_child_scope_where(Solution, tenant_id, _user, scope))
+            Solution.tenant_id == tenant_id, *_child_scope_where(Solution, tenant_id, _user, proj_scope))
     )).scalar() or 0
 
-    milestone_where = _child_scope_where(DeliveryMilestone, tenant_id, _user, scope)
+    milestone_where = _child_scope_where(DeliveryMilestone, tenant_id, _user, proj_scope)
     milestone_total = (await db.execute(
         select(func.count(DeliveryMilestone.id)).where(
             DeliveryMilestone.tenant_id == tenant_id, *milestone_where)
@@ -258,20 +261,20 @@ async def stats(
 
     invoice_total = (await db.execute(
         select(func.count(Invoice.id)).where(
-            Invoice.tenant_id == tenant_id, *_child_scope_where(Invoice, tenant_id, _user, scope))
+            Invoice.tenant_id == tenant_id, *_child_scope_where(Invoice, tenant_id, _user, proj_scope))
     )).scalar() or 0
 
     payment_received = (await db.execute(
         select(func.coalesce(func.sum(PaymentRecord.amount), 0)).where(
             PaymentRecord.tenant_id == tenant_id,
-            *_child_scope_where(PaymentRecord, tenant_id, _user, scope),
+            *_child_scope_where(PaymentRecord, tenant_id, _user, proj_scope),
         )
     )).scalar() or 0
 
     change_total = (await db.execute(
         select(func.count(ChangeRequest.id)).where(
             ChangeRequest.tenant_id == tenant_id,
-            *_child_scope_where(ChangeRequest, tenant_id, _user, scope))
+            *_child_scope_where(ChangeRequest, tenant_id, _user, proj_scope))
     )).scalar() or 0
 
     # 工单有 customer_id/project_id/assigned_to_id/created_by_id 四个归属维度，
@@ -292,12 +295,13 @@ async def stats(
 
     # 动态/AI 任务只记 created_by_id，按「本人产生的记录」计数即可；
     # 受限用户看自己的活动量，不限范围的用户仍是全租户口径。
-    activity_where = [] if scope is None else [Activity.created_by_id == _user.get("sub")]
+    activity_scope = await _scope_owner_ids(db, tenant_id, _user)
+    activity_where = [] if activity_scope is None else [Activity.created_by_id == _user.get("sub")]
     activity_total = (await db.execute(
         select(func.count(Activity.id)).where(Activity.tenant_id == tenant_id, *activity_where)
     )).scalar() or 0
 
-    ai_where = [] if scope is None else [AiTask.created_by_id == _user.get("sub")]
+    ai_where = [] if activity_scope is None else [AiTask.created_by_id == _user.get("sub")]
     ai_task_total = (await db.execute(
         select(func.count(AiTask.id)).where(AiTask.tenant_id == tenant_id, *ai_where)
     )).scalar() or 0
@@ -313,7 +317,7 @@ async def stats(
 
     contract_total = (await db.execute(
         select(func.count(Contract.id)).where(
-            Contract.tenant_id == tenant_id, *_child_scope_where(Contract, tenant_id, _user, scope))
+            Contract.tenant_id == tenant_id, *_child_scope_where(Contract, tenant_id, _user, proj_scope))
     )).scalar() or 0
 
     return ok({
@@ -356,10 +360,11 @@ async def trends(
         prev_month += 12
         prev_year -= 1
 
-    scope = await _scope_owner_ids(db, tenant_id, _user)
+    lead_scope = await _scope_owner_ids(db, tenant_id, _user, "lead")
+    proj_scope = await _scope_owner_ids(db, tenant_id, _user, "project")
     cust_where = await _customer_scope_where(db, tenant_id, _user)
-    lead_where = await _lead_scope_where(db, tenant_id, _user, scope)
-    proj_where = _project_scope_where(tenant_id, _user, scope)
+    lead_where = await _lead_scope_where(db, tenant_id, _user, lead_scope)
+    proj_where = _project_scope_where(tenant_id, _user, proj_scope)
 
     def _month_filter(model_cls, date_col, y, m, scope_where=()):
         col = getattr(model_cls, date_col)

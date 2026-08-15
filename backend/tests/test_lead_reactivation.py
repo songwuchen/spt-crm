@@ -84,3 +84,13 @@ def test_mark_cycle_reset():
     assert lead.cycle_anchor_at is not None
     assert lead.reactivation_status == "none"
     assert lead.reactivation_notified_at is None
+
+
+def test_scan_doc_uses_exact_day_not_backlog():
+    """扫描应对齐简道云：满 N 天当天触发，避免 ≥N 天一次扫出数万积压。"""
+    import inspect
+    from app.domains.lead import reactivation as mod
+    src = inspect.getsource(mod.scan_and_activate)
+    assert "target_date" in src
+    assert "Asia/Shanghai" in src
+    assert "anchor <=" not in src.replace("anchor_cn_date == target_date", "")

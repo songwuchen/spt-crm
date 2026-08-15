@@ -1,8 +1,10 @@
 """线索 180 天循环重激活。
 
-收录/袭击后从 cycle_anchor_at 起满 N 天 → 申报人待办填写近况；
-暂缓/取消/落标 → 结束本轮；否则 → 填表人确认 → 信息情报部审批；
-再收录/袭击后重新计时。张贺等配置姓名跳过申报人，直接给填表人。
+计时锚点 cycle_anchor_at 对齐简道云「申报时间」：收录状态下，
+自该日期起满 N 天的当天上午（可配）触发激活流程——不是「≥N 天」积压全扫。
+触发后：申报人待办填写近况；暂缓/取消/落标 → 结束本轮；
+否则 → 填表人确认 → 信息情报部审批；再收录/袭击后重新计时。
+张贺等配置姓名跳过申报人，直接给填表人。
 """
 from __future__ import annotations
 
@@ -345,8 +347,11 @@ async def scan_and_activate(db: AsyncSession, *, limit: int = 200) -> int:
             if not _tenant_due_for_scan(cfg, now_cn):
                 continue
             days = reactivation_days(cfg)
-            cutoff = utcnow() - timedelta(days=days)
+            # 对齐简道云：「申报时间」满 N 天的当天 09:00 触发（日历日相等，非 ≤ 积压）
+            target_date = now_cn.date() - timedelta(days=days)
             anchor = func.coalesce(Lead.cycle_anchor_at, Lead.reported_at, Lead.created_at)
+            # timestamptz → 北京时间日期
+            anchor_cn_date = func.date(func.timezone("Asia/Shanghai", anchor))
             q = (
                 select(Lead)
                 .where(
@@ -356,7 +361,7 @@ async def scan_and_activate(db: AsyncSession, *, limit: int = 200) -> int:
                     Lead.review_status.in_(("approved", "attacked")),
                     or_(Lead.reactivation_status == REACT_NONE, Lead.reactivation_status.is_(None)),
                     anchor.is_not(None),
-                    anchor <= cutoff,
+                    anchor_cn_date == target_date,
                 )
                 .order_by(anchor.asc())
                 .limit(limit)

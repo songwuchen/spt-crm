@@ -66,7 +66,7 @@ async def list_solutions(
         q = q.where(clause)
         cq = cq.where(clause)
     from app.common.data_scope import apply_project_child_scope
-    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Solution)
+    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Solution, biz_type="solution")
     total = (await db.execute(cq)).scalar() or 0
     order = resolve_sort("solution", sort_by, sort_order, Solution.created_at.desc())
     items = (await db.execute(

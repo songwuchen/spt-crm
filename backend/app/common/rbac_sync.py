@@ -153,8 +153,11 @@ async def apply(db, tenant_id, *, mode="additive", create_missing_roles=True) ->
 
     for c in creates:
         rd = _ROLE_BY_CODE[c["code"]]
-        role = Role(id=generate_uuid(), tenant_id=tenant_id, code=rd["code"], name=rd["name"],
-                    description=rd.get("desc"), data_scope=rd["scope"], is_system=False)
+        role = Role(
+            id=generate_uuid(), tenant_id=tenant_id, code=rd["code"], name=rd["name"],
+            description=rd.get("desc"), data_scope=rd["scope"], is_system=False,
+            scope_by_resource=dict(rd.get("scope_by_resource") or {}),
+        )
         db.add(role)
         await db.flush()
         roles[rd["code"]] = role
@@ -177,12 +180,28 @@ async def apply(db, tenant_id, *, mode="additive", create_missing_roles=True) ->
                     RolePermission.role_id == roles[rcode].id,
                     RolePermission.permission_id.in_(ids),
                 ))
-        # Realign role name/description/data_scope to the catalog.
+        # Realign role name/description/data_scope/scope_by_resource to the catalog.
         for rcode in meta_updates:
             role, rd = roles[rcode], _ROLE_BY_CODE[rcode]
             role.name = rd["name"]
             role.description = rd.get("desc")
             role.data_scope = rd["scope"]
+            role.scope_by_resource = dict(rd.get("scope_by_resource") or {})
+    else:
+        # additive：目录声明的模块范围只补缺失键，不覆盖租户已手工改过的明细
+        for rcode, role in roles.items():
+            rd = _ROLE_BY_CODE.get(rcode)
+            want = (rd or {}).get("scope_by_resource") or {}
+            if not want:
+                continue
+            cur = dict(role.scope_by_resource or {})
+            changed = False
+            for k, v in want.items():
+                if k not in cur:
+                    cur[k] = v
+                    changed = True
+            if changed:
+                role.scope_by_resource = cur
 
     await db.flush()
     return {
@@ -232,7 +251,7 @@ async def sync_all_tenants_additive(db, perms_by_code=None) -> dict:
 
 
 # 业务流程依赖、需在租户内保证存在的角色（不做全量标准同步）
-BUSINESS_ROLE_CODES = ("room_leader",)
+BUSINESS_ROLE_CODES = ("room_leader", "mkt_support")
 
 
 async def ensure_business_roles(
@@ -256,9 +275,20 @@ async def ensure_business_roles(
     }
     created: list[str] = []
     for code in want:
-        if code in existing:
-            continue
         rd = _ROLE_BY_CODE[code]
+        if code in existing:
+            role = existing[code]
+            want_sbr = dict(rd.get("scope_by_resource") or {})
+            if want_sbr:
+                cur = dict(role.scope_by_resource or {})
+                changed = False
+                for k, v in want_sbr.items():
+                    if k not in cur:
+                        cur[k] = v
+                        changed = True
+                if changed:
+                    role.scope_by_resource = cur
+            continue
         role = Role(
             id=generate_uuid(),
             tenant_id=tenant_id,
@@ -266,6 +296,7 @@ async def ensure_business_roles(
             name=rd["name"],
             description=rd.get("desc"),
             data_scope=rd["scope"],
+            scope_by_resource=dict(rd.get("scope_by_resource") or {}),
             is_system=False,
         )
         db.add(role)

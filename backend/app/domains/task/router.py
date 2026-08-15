@@ -50,7 +50,7 @@ async def _load_task(db: AsyncSession, tenant_id: str, task_id: str, user: dict)
     uid = user.get("sub")
     if t.assignee_id == uid or t.created_by_id == uid:
         return t
-    scope = await resolve_owner_scope(db, user, tenant_id)
+    scope = await resolve_owner_scope(db, user, tenant_id, biz_type="task")
     if scope is None or (t.assignee_id and t.assignee_id in scope):
         return t
     raise BusinessException(code=FORBIDDEN, message="无权访问该任务（不在您的数据范围内）")
@@ -59,7 +59,7 @@ async def _load_task(db: AsyncSession, tenant_id: str, task_id: str, user: dict)
 async def _scope_clause(db: AsyncSession, tenant_id: str, user: dict):
     """批量操作的范围约束；None 表示不限（管理员 / data_scope=all）。"""
     from app.common.data_scope import resolve_owner_scope
-    scope = await resolve_owner_scope(db, user, tenant_id)
+    scope = await resolve_owner_scope(db, user, tenant_id, biz_type="task")
     if scope is None:
         return None
     uid = user.get("sub")
@@ -102,7 +102,7 @@ async def list_tasks(
         # 显式按人筛选不能越权：assignee_id 必须落在自己的数据范围内，否则
         # 传个别人的 id 就绕过了默认的「只看自己」，把他的任务全列出来。
         from app.common.data_scope import resolve_owner_scope, scoped_owners
-        scope = await resolve_owner_scope(db, current_user, tenant_id)
+        scope = await resolve_owner_scope(db, current_user, tenant_id, biz_type="task")
         allowed = scoped_owners(assignee_id, scope)
         if allowed:
             q = q.where(UserTask.assignee_id.in_(allowed))

@@ -67,7 +67,7 @@ async def get_quote(db: AsyncSession, tenant_id: str, quote_id: str, user: dict 
     if not q:
         raise BusinessException(code=NOT_FOUND, message="报价不存在")
     from app.common.data_scope import assert_project_child_in_scope
-    await assert_project_child_in_scope(db, tenant_id, user, q, label="该报价")
+    await assert_project_child_in_scope(db, tenant_id, user, q, label="该报价", biz_type="quote")
     return q
 
 

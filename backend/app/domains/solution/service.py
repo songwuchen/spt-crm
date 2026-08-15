@@ -25,7 +25,7 @@ async def list_solutions_by_project(db: AsyncSession, tenant_id: str, project_id
     # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机下的全部方案
     if user is not None:
         from app.common.data_scope import apply_project_child_scope
-        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, Solution)
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, Solution, biz_type="solution")
     result = await db.execute(q.order_by(Solution.created_at.desc()))
     return result.scalars().all()
 
@@ -41,7 +41,7 @@ async def get_solution(db: AsyncSession, tenant_id: str, solution_id: str, user:
     if not s:
         raise BusinessException(code=NOT_FOUND, message="方案不存在")
     from app.common.data_scope import assert_project_child_in_scope
-    await assert_project_child_in_scope(db, tenant_id, user, s, label="该方案")
+    await assert_project_child_in_scope(db, tenant_id, user, s, label="该方案", biz_type="solution")
     return s
 
 

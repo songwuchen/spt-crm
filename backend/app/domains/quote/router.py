@@ -106,7 +106,7 @@ async def list_quotes(
         q = q.where(clause)
         cq = cq.where(clause)
     from app.common.data_scope import apply_project_child_scope
-    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Quote)
+    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Quote, biz_type="quote")
     total = (await db.execute(cq)).scalar() or 0
     order = resolve_sort_from_schema(search_schema, sort_by, sort_order, Quote.created_at.desc())
     quotes = (await db.execute(

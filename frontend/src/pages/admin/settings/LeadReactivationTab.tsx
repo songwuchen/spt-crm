@@ -94,8 +94,9 @@ export default function LeadReactivationTab() {
   return (
     <div className="pb-6 max-w-lg">
       <p className="text-sm text-slate-500 mb-4">
-        线索经信息情报部「收录」或「袭击」后，满设定天数自动重激活：通知申报人更新近况；
-        暂缓/取消/落标结束本轮，其他结果经填表人后再次进入情报审批。保存后对本租户立即生效。
+        对齐简道云：按「申报时间」满设定天数的当天扫描触发重激活（非积压全扫）。
+        通知申报人更新近况；暂缓/取消/落标结束本轮，其他结果经填表人后再次进入情报审批。
+        保存后对本租户立即生效。
       </p>
 
       <div className="space-y-5">
@@ -121,7 +122,9 @@ export default function LeadReactivationTab() {
             addonAfter="天"
             disabled={!form.enabled}
           />
-          <p className="text-xs text-slate-400 mt-1">自最近一次收录/袭击起算，默认 180 天</p>
+          <p className="text-xs text-slate-400 mt-1">
+            对齐简道云「申报时间」：满设定天数的当天扫描触发（非积压全扫），默认 180 天
+          </p>
         </div>
 
         <div>

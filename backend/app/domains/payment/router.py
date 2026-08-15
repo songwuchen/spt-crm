@@ -304,7 +304,7 @@ async def list_all_plans(
         count_q = count_q.where(flt)
 
     from app.common.data_scope import apply_project_child_scope
-    q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, PaymentPlan)
+    q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, PaymentPlan, biz_type="payment")
     total = (await db.execute(count_q)).scalar() or 0
     rows = (await db.execute(
         q.order_by(PaymentPlan.due_date.asc())
@@ -365,7 +365,7 @@ async def list_all_records(
         count_q = count_q.where(clause)
 
     from app.common.data_scope import apply_project_child_scope
-    q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, PaymentRecord)
+    q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, PaymentRecord, biz_type="payment")
     total = (await db.execute(count_q)).scalar() or 0
     order = resolve_sort_from_schema(search_schema, sort_by, sort_order, PaymentRecord.received_date.desc())
     rows = (await db.execute(
@@ -415,7 +415,7 @@ async def list_all_invoices(
         count_q = count_q.where(flt)
 
     from app.common.data_scope import apply_project_child_scope
-    q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, Invoice)
+    q, count_q = await apply_project_child_scope(q, count_q, db, tenant_id, current_user, Invoice, biz_type="payment")
     total = (await db.execute(count_q)).scalar() or 0
     rows = (await db.execute(
         q.order_by(Invoice.created_at.desc())
@@ -452,7 +452,7 @@ async def export_payments_excel(
         .outerjoin(OpportunityProject, OpportunityProject.id == PaymentPlan.project_id)
         .where(PaymentPlan.tenant_id == tenant_id)
     )
-    plan_q, _ = await apply_project_child_scope(plan_q, plan_q, db, tenant_id, _user, PaymentPlan)
+    plan_q, _ = await apply_project_child_scope(plan_q, plan_q, db, tenant_id, _user, PaymentPlan, biz_type="payment")
     plan_rows = (await db.execute(
         plan_q.order_by(PaymentPlan.due_date.asc()).limit(settings.MAX_EXPORT_ROWS)
     )).all()
@@ -462,7 +462,7 @@ async def export_payments_excel(
         .outerjoin(OpportunityProject, OpportunityProject.id == PaymentRecord.project_id)
         .where(PaymentRecord.tenant_id == tenant_id)
     )
-    rec_q, _ = await apply_project_child_scope(rec_q, rec_q, db, tenant_id, _user, PaymentRecord)
+    rec_q, _ = await apply_project_child_scope(rec_q, rec_q, db, tenant_id, _user, PaymentRecord, biz_type="payment")
     rec_rows = (await db.execute(
         rec_q.order_by(PaymentRecord.received_date.desc()).limit(settings.MAX_EXPORT_ROWS)
     )).all()

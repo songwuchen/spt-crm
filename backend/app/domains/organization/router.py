@@ -272,6 +272,7 @@ async def list_roles(
             "id": r.id, "code": r.code, "name": r.name,
             "description": r.description, "is_system": r.is_system,
             "data_scope": r.data_scope or "self",
+            "scope_by_resource": r.scope_by_resource or {},
             "permissions": [rp.permission.code for rp in r.role_permissions],
             "member_count": counts.get(r.id, 0),
         })
@@ -298,7 +299,11 @@ async def update_role(
     _user=Depends(require_permissions("role:manage")),
 ):
     role = await service.update_role(db, tenant_id, role_id, body)
-    return ok({"id": role.id, "code": role.code, "name": role.name, "data_scope": role.data_scope})
+    return ok({
+        "id": role.id, "code": role.code, "name": role.name,
+        "data_scope": role.data_scope,
+        "scope_by_resource": role.scope_by_resource or {},
+    })
 
 
 @router.delete("/roles/{role_id}")

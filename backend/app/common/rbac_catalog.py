@@ -243,6 +243,22 @@ STANDARD_ROLES = [
         ],
     },
     {
+        # 市场技术支持中心：默认本部门；客户主数据需看全部（scope_by_resource）
+        "code": "mkt_support", "name": "市场技术支持中心", "scope": "dept",
+        "scope_by_resource": {"customer": "all"},
+        "desc": "市场技术支持:本部门业务数据;客户信息可看全部",
+        "perms": [
+            "customer:view", "customer:create", "customer:edit",
+            "contact:view", "contact:create", "contact:edit",
+            "lead:view", "lead:create", "lead:edit",
+            "project:view", "project:create", "project:edit",
+            "quote:view", "quote:edit",
+            "contract:view", "contract_review:view",
+            "tech_agreement_review:view",
+            "product:view", "tender:view",
+        ],
+    },
+    {
         "code": "design_engineer", "name": "方案设计工程师", "scope": "self",
         "desc": "研究院/技术/工艺:方案 + 技术变更;靠 assignee 看到被指派的商机",
         "perms": [

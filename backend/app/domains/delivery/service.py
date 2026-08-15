@@ -18,7 +18,7 @@ async def list_order_links(db: AsyncSession, tenant_id: str, project_id: str, us
     # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机的 ERP 关联
     if user is not None:
         from app.common.data_scope import apply_project_child_scope
-        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, ErpOrderLink)
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, ErpOrderLink, biz_type="delivery")
     result = await db.execute(q.order_by(ErpOrderLink.created_at.desc()))
     return result.scalars().all()
 
@@ -48,7 +48,7 @@ async def delete_order_link(db: AsyncSession, tenant_id: str, link_id: str, user
     if not link:
         raise BusinessException(code=NOT_FOUND, message="订单关联不存在")
     from app.common.data_scope import assert_project_child_in_scope
-    await assert_project_child_in_scope(db, tenant_id, user, link, label="该订单关联")
+    await assert_project_child_in_scope(db, tenant_id, user, link, label="该订单关联", biz_type="delivery")
     await db.delete(link)
     await db.commit()
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
@@ -65,7 +65,7 @@ async def list_milestones(db: AsyncSession, tenant_id: str, project_id: str, use
     # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机的交付计划
     if user is not None:
         from app.common.data_scope import apply_project_child_scope
-        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, DeliveryMilestone)
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, DeliveryMilestone, biz_type="delivery")
     result = await db.execute(q.order_by(DeliveryMilestone.sort_order, DeliveryMilestone.created_at))
     return result.scalars().all()
 
@@ -81,7 +81,7 @@ async def get_milestone(db: AsyncSession, tenant_id: str, milestone_id: str, use
     if not ms:
         raise BusinessException(code=NOT_FOUND, message="里程碑不存在")
     from app.common.data_scope import assert_project_child_in_scope
-    await assert_project_child_in_scope(db, tenant_id, user, ms, label="该里程碑")
+    await assert_project_child_in_scope(db, tenant_id, user, ms, label="该里程碑", biz_type="delivery")
     return ms
 
 

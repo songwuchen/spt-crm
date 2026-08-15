@@ -1,11 +1,9 @@
 /**
- * 图纸类打印：输出两套 A4 表格单据（对齐简道云在线表格打印版式）。
- * - 方案管理有合同号 / 合同图纸领用 → 合同图纸（资料）领用申请
- * - 方案管理无合同号 / 安装图设计通知 → 安装图通知单及设计卡
- *
- * 版式要点（对照简道云截图）：
- * - 横向 A4；整页一张表铺满；12 列栅格，标签窄、内容宽
- * - 字号约 10.5pt，靠压签字/意见区行高塞进一页，而不是缩小字体
+ * 图纸类打印：横向 A4 HTML → 浏览器打印「另存为 PDF」（不直接打 Word）。
+ * 版式对齐官方 Word 模板（H:\CRM系统打印所用模板）：
+ * - 合同图纸（资料）领用申请.docx
+ * - 安装图设计通知卡.docx
+ * 适用：方案管理 / 合同图纸领用 / 安装图设计通知。
  */
 import dayjs from 'dayjs'
 import { printHtml, escHtml } from '@/utils/printHtml'
@@ -99,11 +97,32 @@ function projectLabel(v: unknown, labels: Labels): string {
   return collectIds(v).map((id) => labels.projects[id] || id).join('、')
 }
 
-function yesNoStack(value: unknown): string {
-  const s = String(value ?? '')
+/** 对齐 Word 签字区：同一格内「☐是☐否」 */
+function yesNoInline(value: unknown): string {
+  const s = String(value ?? '').trim()
   const yes = s === '是' || s === 'true' || s === '1'
   const no = s === '否' || s === 'false' || s === '0'
-  return `<div class="chk-stack"><div>${yes ? '☑' : '☐'}是</div><div>${no ? '☑' : '☐'}否</div></div>`
+  return `<span class="chk-inline">${yes ? '☑' : '☐'}是${no ? '☑' : '☐'}否</span>`
+}
+
+/** 附件名：优先文本字段，否则从 file 列表拼文件名 */
+function attachmentLabel(form: Record<string, unknown>, ...keys: string[]): string {
+  for (const k of keys) {
+    const v = form[k]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+    if (Array.isArray(v) && v.length) {
+      const names = v.map((x) => {
+        if (typeof x === 'string') return x
+        if (x && typeof x === 'object') {
+          const o = x as { name?: string; file_name?: string; filename?: string }
+          return o.name || o.file_name || o.filename || ''
+        }
+        return ''
+      }).filter(Boolean)
+      if (names.length) return names.join('、')
+    }
+  }
+  return ''
 }
 
 function metaLine(items: [string, string][]): string {
@@ -191,10 +210,11 @@ function printCss(): string {
     .opin { min-height: 32pt; height: 32pt; vertical-align: top; }
     .result { min-height: 36pt; height: 36pt; vertical-align: top; }
     .matter { min-height: 16pt; vertical-align: top; }
-    .chk-stack { text-align: center; line-height: 1.35; font-size: 10pt; }
-    /* 是否勾选列：只够 ☐是/☐否，标签允许多行挤窄 */
+    .chk-inline { display: inline-block; text-align: center; line-height: 1.25; font-size: 10pt; white-space: nowrap; }
+    /* 是否勾选列：只够 ☐是☐否，标签允许多行挤窄 */
     .lbl.yn { font-size: 8pt; line-height: 1.15; padding: 1pt 1pt; }
-    .val.yn { padding: 1pt 1pt; }
+    .val.yn { padding: 1pt 1pt; text-align: center; }
+    .sec-head { font-weight: 700; text-align: center; font-size: 10.5pt; background: #f3f3f3; }
     .meta {
       display: flex;
       flex-wrap: wrap;
@@ -266,8 +286,8 @@ function printCss(): string {
     }
     table.detail td.dl { text-align: left; }
     td.nest { padding: 0 !important; border: 1px solid #000; }
-    /* 对齐简道云：横向 A4 */
-    @page { size: A4 landscape; margin: 6mm 8mm; }
+    /* 对齐 Word 模板：横向 A4，窄边距 */
+    @page { size: A4 landscape; margin: 5mm 8mm 3mm 8mm; }
     @media print {
       html, body { width: 100%; }
       .sheet { width: 100%; }
@@ -309,11 +329,16 @@ function requisitionPrintFileName(opts: {
 }
 
 function installPrintFileName(opts: {
+  projectNo: string
   designCardNo: string
-  orderPerson: string
+  salesPerson: string
 }): string {
+  // 项目号-设计卡号业务员，如 PRJ202608005-02-2026081501孙家兴
+  const parts = [opts.projectNo, opts.designCardNo].map((s) => String(s || '').trim()).filter(Boolean)
+  const base = parts.join('-')
+  const who = String(opts.salesPerson || '').trim()
   return sanitizePrintFileName(
-    `${opts.designCardNo}${opts.orderPerson}`,
+    `${base}${who}`,
     '安装图通知单及设计卡',
   )
 }
@@ -470,21 +495,26 @@ function stepsThroughNode(
   return chrono.slice(0, cut + 1).reverse()
 }
 
-/** 表下审批意见区（非表格）：标签 + 小字记录 + 打印时间/流水号 */
+/** 表下审批意见区（非表格）：标签 + 小字记录 + 打印时间；安装图另带流水号 */
 function approvalFootHtml(
   steps: WfFlowStep[] | null | undefined,
   form: Record<string, unknown>,
   businessNo?: string | null,
+  opts?: { showSerial?: boolean },
 ): string {
   const ops = approvalOpsHtml(steps) || (form.final_result != null && form.final_result !== ''
     ? `<div class="ops"><div class="op">${cell(form.final_result)}</div></div>`
     : '<div class="ops"></div>')
   const printAt = dayjs().format('YYYY-MM-DD HH:mm:ss')
   const serial = businessNo || ''
+  const showSerial = opts?.showSerial !== false && !!serial
+  const side = showSerial
+    ? `<div class="foot-side"><div>打印时间：${escHtml(printAt)}</div><div>流水号：${escHtml(serial)}</div></div>`
+    : `<div class="foot-side"><div>打印时间：${escHtml(printAt)}</div></div>`
   return `<div class="approval-foot">
     <div class="approval-label">审批意见：</div>
     ${ops}
-    <div class="foot-side"><div>打印时间：${escHtml(printAt)}</div><div>流水号：${escHtml(serial)}</div></div>
+    ${side}
   </div>`
 }
 
@@ -508,10 +538,14 @@ function buildRequisitionHtml(ctx: {
   const decrypt = form.need_decrypt != null
     ? (optionLabel(fields, 'need_decrypt', form.need_decrypt) || String(form.need_decrypt))
     : ''
+  // 表头「设计人」及签字/意见区在 Word 模板中为空白，打印留空手填，不带系统值
+  const attachName = attachmentLabel(form, 'attachment_name', 'attachments', 'images') || '无'
+  // 领用单：流水号在表头，页脚只留打印时间（对齐 Word 模板）
   const approvalFoot = approvalFootHtml(
     stepsThroughNode(steps, '总工审批'),
     form,
     serial,
+    { showSerial: false },
   )
 
   const body = `
@@ -543,7 +577,7 @@ function buildRequisitionHtml(ctx: {
         <td class="val" colspan="1">${cell(decrypt)}</td>
         <td class="val" colspan="1">${cell(drawingType)}</td>
         <td class="val" colspan="2">${cell(std)}</td>
-        <td class="val-left" colspan="3">${cell(form.attachment_name)}</td>
+        <td class="val-left" colspan="3">${cell(attachName)}</td>
       </tr>
       <tr>
         <td class="lbl" colspan="1">申请事由</td>
@@ -575,7 +609,7 @@ function buildRequisitionHtml(ctx: {
             <tr class="sign-body">
               <td class="val"></td>
               <td class="val"></td>
-              <td class="val yn">${yesNoStack('')}</td>
+              <td class="val yn">${yesNoInline('')}</td>
               <td class="val"></td>
               <td class="val"></td>
               <td class="val"></td>
@@ -629,6 +663,8 @@ function buildInstallHtml(ctx: {
     || (form.project_no != null && !/^[0-9a-f-]{36}$/i.test(String(form.project_no))
       ? String(form.project_no) : '')
   const orderPerson = personName(form.order_person, labels)
+  // 文件名「业务员」：优先 sales_person，否则订货人（样例常为订货人）
+  const salesPerson = personName(form.sales_person, labels) || orderPerson
   const dept = deptName(form.department, labels)
   const applicant = personName(form.applicant, labels)
   const cardDate = fmtDate(form.card_date || form.order_date || form.apply_datetime)
@@ -637,8 +673,12 @@ function buildInstallHtml(ctx: {
   const purpose = optionLabel(fields, 'pickup_purpose', form.pickup_purpose)
   const preDesigners = personName(form.pre_designers, labels)
   const requireDate = fmtDate(form.require_draw_date)
-  const applyChange = form.apply_or_change != null ? String(form.apply_or_change) : ''
-  const attachNames = form.attachment_names != null ? String(form.attachment_names) : ''
+  const applyChange = [form.apply_or_change, form.apply_reason, form.matter]
+    .map((v) => (v != null && String(v).trim() ? String(v).trim() : ''))
+    .find(Boolean) || ''
+  const attachNames = attachmentLabel(
+    form, 'attachment_names', 'attachment_name', 'attachments', 'attachments_no_image', 'images',
+  )
   const attention = form.attention != null ? String(form.attention) : ''
   const installPos = optionLabel(fields, 'install_position', form.install_position)
   const installMethod = optionLabel(fields, 'install_method', form.install_method)
@@ -662,10 +702,12 @@ function buildInstallHtml(ctx: {
       <td class="val" colspan="1">${idx === 0 ? cell(preDesigners) : ''}</td>
     </tr>`
   }).join('')
+  // 安装图：表头无流水号，页脚带打印时间+流水号（对齐 Word 模板）
   const approvalFoot = approvalFootHtml(
     stepsThroughNode(steps, '总工审批'),
     form,
     businessNo,
+    { showSerial: true },
   )
   const productModel = form.product_model != null ? String(form.product_model) : ''
 
@@ -682,6 +724,9 @@ function buildInstallHtml(ctx: {
     <table class="form">
       ${colgroup12()}
       <tr>
+        <td class="lbl sec-head" colspan="12">设备信息</td>
+      </tr>
+      <tr>
         <td class="lbl" colspan="1">序号</td>
         <td class="lbl" colspan="2">设备名称</td>
         <td class="lbl" colspan="3">设计要求</td>
@@ -695,7 +740,7 @@ function buildInstallHtml(ctx: {
       ${equipBody}
       <tr>
         <td class="lbl" colspan="2">申请事由/修改事项</td>
-        <td class="val-left matter" colspan="5">${cell(applyChange || form.matter)}</td>
+        <td class="val-left matter" colspan="5">${cell(applyChange)}</td>
         <td class="lbl" colspan="1">备注（附件）</td>
         <td class="val-left matter" colspan="4">${cell(attachNames)}</td>
       </tr>
@@ -704,7 +749,7 @@ function buildInstallHtml(ctx: {
         <td class="val-left" colspan="11">${cell(attention)}</td>
       </tr>
       <tr>
-        <td class="lbl" colspan="12">原料参数</td>
+        <td class="lbl sec-head" colspan="12">原料参数</td>
       </tr>
       <tr>
         <td class="nest" colspan="12">${materialDetailTableHtml(form, fields, {
@@ -742,8 +787,8 @@ function buildInstallHtml(ctx: {
               <td class="val"></td>
               <td class="val"></td>
               <td class="val"></td>
-              <td class="val yn">${yesNoStack('')}</td>
-              <td class="val yn">${yesNoStack('')}</td>
+              <td class="val yn">${yesNoInline('')}</td>
+              <td class="val yn">${yesNoInline('')}</td>
               <td class="val"></td>
               <td class="val"></td>
               <td class="val"></td>
@@ -779,7 +824,11 @@ function buildInstallHtml(ctx: {
       </tr>
     </table>
     ${approvalFoot}`
-  const fileTitle = installPrintFileName({ designCardNo: designCard, orderPerson })
+  const fileTitle = installPrintFileName({
+    projectNo,
+    designCardNo: designCard,
+    salesPerson,
+  })
   return wrapDoc(fileTitle, body)
 }
 
@@ -789,6 +838,7 @@ async function resolveLabels(
   const personIds = [
     ...collectIds(form.applicant),
     ...collectIds(form.order_person),
+    ...collectIds(form.sales_person),
     ...collectIds(form.designer),
     ...collectIds(form.design_assignees),
     ...collectIds(form.pre_designers),

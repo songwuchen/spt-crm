@@ -123,7 +123,23 @@ async def assert_biz_object_visible(
     elif kind == "owner":
         await assert_in_scope(db, tenant_id, user, obj, biz_type, label=label)
     else:
-        await assert_project_child_in_scope(db, tenant_id, user, obj, label=label)
+        # 商机子单据：按具体模块键取范围（quote/contract/…），未覆盖仍走角色默认
+        child_bt = "project"
+        if biz_type == "quote" or (biz_type or "").startswith("quote_"):
+            child_bt = "quote"
+        elif biz_type == "contract" or (biz_type or "").startswith("contract_"):
+            child_bt = "contract"
+        elif biz_type == "solution" or (biz_type or "").startswith("solution_"):
+            child_bt = "solution"
+        elif biz_type == "change":
+            child_bt = "change"
+        elif biz_type == "delivery_milestone" or (biz_type or "").startswith("delivery"):
+            child_bt = "delivery"
+        elif biz_type == "payment" or (biz_type or "").startswith("payment") or biz_type == "invoice":
+            child_bt = "payment"
+        await assert_project_child_in_scope(
+            db, tenant_id, user, obj, label=label, biz_type=child_bt,
+        )
 
 
 async def visible_activity_clause(db: AsyncSession, tenant_id: str, user: dict):

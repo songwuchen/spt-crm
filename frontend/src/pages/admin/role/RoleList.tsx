@@ -5,6 +5,7 @@ import { PlusOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons'
 import { roleApi, permissionApi } from '@/api/user'
 import type { Role, PermissionItem } from '@/api/types'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { SCOPE_MODULES, SCOPE_MODULE_GROUPS } from '@/constants/scopeModules'
 
 import Icon from '@/components/Icon'
 const actionLabels: Record<string, string> = {
@@ -18,6 +19,29 @@ const DATA_SCOPE_OPTIONS = [
   { value: 'all', label: '全部数据' },
 ]
 const dataScopeLabel = (v?: string) => DATA_SCOPE_OPTIONS.find((o) => o.value === (v || 'self'))?.label || '仅本人'
+
+function buildScopeByResource(
+  defaultScope: string,
+  moduleScopes: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  const base = defaultScope || 'self'
+  for (const { key } of SCOPE_MODULES) {
+    const v = moduleScopes[key] || base
+    if (v && v !== base) out[key] = v
+  }
+  return out
+}
+
+function moduleScopesFromRole(role: Role | null, defaultScope: string): Record<string, string> {
+  const base = defaultScope || 'self'
+  const overrides = role?.scope_by_resource || {}
+  const out: Record<string, string> = {}
+  for (const { key } of SCOPE_MODULES) {
+    out[key] = overrides[key] || base
+  }
+  return out
+}
 
 export default function RoleList() {
   usePageTitle('角色管理')
@@ -46,20 +70,47 @@ export default function RoleList() {
 
   useEffect(() => { fetchRoles(); fetchPermissions() }, [])
 
-  const openCreate = () => { setEditingRole(null); form.resetFields(); form.setFieldsValue({ data_scope: 'self' }); setCreateModal(true) }
+  const openCreate = () => {
+    setEditingRole(null)
+    form.resetFields()
+    form.setFieldsValue({
+      data_scope: 'self',
+      module_scopes: moduleScopesFromRole(null, 'self'),
+    })
+    setCreateModal(true)
+  }
   const openEditRole = (role: Role) => {
     setEditingRole(role)
-    form.setFieldsValue({ code: role.code, name: role.name, description: role.description, data_scope: role.data_scope || 'self' })
+    const ds = role.data_scope || 'self'
+    form.setFieldsValue({
+      code: role.code,
+      name: role.name,
+      description: role.description,
+      data_scope: ds,
+      module_scopes: moduleScopesFromRole(role, ds),
+    })
     setCreateModal(true)
   }
 
   const handleSave = async () => {
     const values = await form.validateFields()
+    const scope_by_resource = buildScopeByResource(values.data_scope, values.module_scopes || {})
     if (editingRole) {
-      await roleApi.update(editingRole.id, { name: values.name, description: values.description, data_scope: values.data_scope })
+      await roleApi.update(editingRole.id, {
+        name: values.name,
+        description: values.description,
+        data_scope: values.data_scope,
+        scope_by_resource,
+      })
       message.success('角色已更新')
     } else {
-      await roleApi.create(values)
+      await roleApi.create({
+        code: values.code,
+        name: values.name,
+        description: values.description,
+        data_scope: values.data_scope,
+        scope_by_resource,
+      })
       message.success('角色已创建')
     }
     setCreateModal(false); form.resetFields(); setEditingRole(null)
@@ -268,17 +319,76 @@ export default function RoleList() {
 
       {/* Create / Edit Modal */}
       <Modal title={editingRole ? '编辑角色' : '新建角色'} open={createModal} onOk={handleSave}
-        onCancel={() => { setCreateModal(false); setEditingRole(null) }}>
-        <Form form={form} layout="vertical">
+        onCancel={() => { setCreateModal(false); setEditingRole(null) }} width={560}>
+        <Form
+          form={form}
+          layout="vertical"
+          onValuesChange={(changed) => {
+            // 改默认范围时：未单独覆盖过的模块跟随新默认
+            if (changed.data_scope != null) {
+              const prev = form.getFieldValue('module_scopes') || {}
+              const next: Record<string, string> = { ...prev }
+              const overrides = editingRole?.scope_by_resource || {}
+              for (const { key } of SCOPE_MODULES) {
+                if (!overrides[key]) next[key] = changed.data_scope
+              }
+              form.setFieldsValue({ module_scopes: next })
+            }
+          }}
+        >
           <Form.Item name="code" label="角色编码" rules={[{ required: true }]}>
             <Input placeholder="如 sales_manager" disabled={!!editingRole} />
           </Form.Item>
           <Form.Item name="name" label="角色名称" rules={[{ required: true }]}>
             <Input placeholder="如 销售经理" />
           </Form.Item>
-          <Form.Item name="data_scope" label="数据范围"
-            tooltip="控制该角色可见的业务数据范围（客户/线索/商机）：仅本人=只看自己负责的；本部门及下级=看本部门及所有下级部门成员的；全部=看本租户全部">
+          <Form.Item name="data_scope" label="默认数据范围"
+            tooltip="各模块未单独指定时，按此档生效：仅本人 / 本部门及下级 / 全部">
             <Select options={DATA_SCOPE_OPTIONS} />
+          </Form.Item>
+          <Form.Item
+            label={
+              <div className="flex items-center justify-between gap-2 w-full pr-1">
+                <span>按模块数据范围</span>
+                <Button
+                  type="link"
+                  size="small"
+                  className="!px-0 h-auto"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    const ds = form.getFieldValue('data_scope') || 'self'
+                    const next: Record<string, string> = {}
+                    for (const { key } of SCOPE_MODULES) next[key] = ds
+                    form.setFieldsValue({ module_scopes: next })
+                  }}
+                >
+                  全部同步为默认
+                </Button>
+              </div>
+            }
+            tooltip="可为各业务模块单独指定；与默认相同的不落库。联系人跟随客户，不单独配置。"
+          >
+            <div className="border border-slate-200 rounded-lg max-h-[280px] overflow-y-auto">
+              {SCOPE_MODULE_GROUPS.map((group) => (
+                <div key={group}>
+                  <div className="sticky top-0 z-[1] px-3 py-1.5 text-[12px] font-semibold text-slate-500 bg-slate-50 border-b border-slate-100">
+                    {group}
+                  </div>
+                  {SCOPE_MODULES.filter((m) => m.group === group).map(({ key, label }) => (
+                    <div key={key} className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-100 last:border-b-0">
+                      <span className="text-sm text-slate-700">{label}</span>
+                      <Form.Item name={['module_scopes', key]} noStyle>
+                        <Select options={DATA_SCOPE_OPTIONS} style={{ width: 160 }} />
+                      </Form.Item>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              <div className="flex items-center justify-between gap-3 px-3 py-2 bg-slate-50/80 text-slate-400 text-sm">
+                <span>联系人</span>
+                <span className="text-[12px]">跟随客户</span>
+              </div>
+            </div>
           </Form.Item>
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={2} placeholder="角色描述" />

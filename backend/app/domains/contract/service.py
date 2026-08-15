@@ -157,7 +157,7 @@ async def get_contract(db: AsyncSession, tenant_id: str, contract_id: str,
     if not c:
         raise BusinessException(code=NOT_FOUND, message="合同不存在")
     from app.common.data_scope import assert_project_child_in_scope
-    await assert_project_child_in_scope(db, tenant_id, user, c, label="该合同")
+    await assert_project_child_in_scope(db, tenant_id, user, c, label="该合同", biz_type="contract")
     return c
 
 
@@ -366,7 +366,7 @@ async def create_from_quote(db: AsyncSession, tenant_id: str, quote_id: str, use
         raise BusinessException(code=NOT_FOUND, message="报价不存在")
     # 源报价看不见就不能转成合同，否则可借转换把越权数据搬进自己的合同
     from app.common.data_scope import assert_project_child_in_scope
-    await assert_project_child_in_scope(db, tenant_id, user, quote, label="该报价")
+    await assert_project_child_in_scope(db, tenant_id, user, quote, label="该报价", biz_type="quote")
 
     # Get current quote version
     current_ver = (await db.execute(

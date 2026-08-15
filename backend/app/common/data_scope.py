@@ -1,10 +1,13 @@
 """
 Data visibility scope filter.
 
-数据可见范围由「角色的 data_scope」决定（取用户多个角色中最大的一档）：
-  - all  : 全部租户数据（管理员、data:view_all，或任一角色 data_scope=all）
+数据可见范围由「角色的 data_scope」决定；可按模块用 scope_by_resource 覆盖。
+取用户多个角色中该模块有效档位的最大一档：
+  - all  : 全部租户数据（管理员、data:view_all，或有效档=all）
   - dept : 本人所在部门及其所有下级部门的成员所拥有的数据
   - self : 仅本人拥有的数据（默认）
+
+有效档：`scope_by_resource.get(biz_type) or data_scope`（biz_type 为空则只用 data_scope）。
 
 `resolve_owner_scope` 返回可见 owner_id 列表（None 表示不限）。
 `apply_data_scope` 在 owner 范围之外，额外并入「创建人/共享/项目成员」等可见性（用于商机）。
@@ -23,11 +26,45 @@ from app.common.dept_tree import subtree_dept_ids_select
 from app.common.error_codes import FORBIDDEN
 from app.common.exceptions import BusinessException
 
+_SCOPE_RANK = {"self": 0, "dept": 1, "all": 2}
+_VALID_SCOPES = frozenset(_SCOPE_RANK)
+
 
 def _is_admin(user: dict) -> bool:
     perms = user.get("permissions", [])
     roles = user.get("roles", [])
     return "*" in perms or "data:view_all" in perms or "admin" in roles or "super_admin" in roles
+
+
+def _effective_scope(data_scope: str | None, overrides: dict | None, biz_type: str | None) -> str:
+    """单角色在指定模块上的有效档位。"""
+    default = (data_scope or "self").strip() or "self"
+    if default not in _VALID_SCOPES:
+        default = "self"
+    if not biz_type or not isinstance(overrides, dict):
+        return default
+    raw = overrides.get(biz_type)
+    if isinstance(raw, str) and raw.strip() in _VALID_SCOPES:
+        return raw.strip()
+    return default
+
+
+def normalize_scope_by_resource(raw: dict | None) -> dict[str, str]:
+    """清洗前端提交的按模块范围；非法键/值丢弃。"""
+    from app.common.data_scope_modules import SCOPE_MODULE_KEYS
+
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for k, v in raw.items():
+        if not isinstance(k, str) or not k.strip():
+            continue
+        key = k.strip()
+        if key not in SCOPE_MODULE_KEYS:
+            continue
+        if isinstance(v, str) and v.strip() in _VALID_SCOPES:
+            out[key] = v.strip()
+    return out
 
 
 async def managed_department_ids(
@@ -94,8 +131,18 @@ def _lead_draft_is_mine(obj, user_id: str | None) -> bool:
     return False
 
 
-async def resolve_owner_scope(db: AsyncSession, user: dict, tenant_id: str | None = None) -> list[str] | None:
-    """返回当前用户可见数据的 owner_id 集合；None 表示不限（可见全部）。"""
+async def resolve_owner_scope(
+    db: AsyncSession,
+    user: dict,
+    tenant_id: str | None = None,
+    *,
+    biz_type: str | None = None,
+) -> list[str] | None:
+    """返回当前用户可见数据的 owner_id 集合；None 表示不限（可见全部）。
+
+    biz_type: 业务模块（customer/lead/project…）。有值时按该模块的
+    scope_by_resource 覆盖解析；为空则只用角色默认 data_scope。
+    """
     if _is_admin(user):
         return None
     uid = user.get("sub")
@@ -106,11 +153,15 @@ async def resolve_owner_scope(db: AsyncSession, user: dict, tenant_id: str | Non
     from app.domains.auth.models import Role, UserRole
     from app.domains.organization.models import Department, UserDepartment
 
-    scopes = set((await db.execute(
-        select(Role.data_scope)
+    rows = (await db.execute(
+        select(Role.data_scope, Role.scope_by_resource)
         .join(UserRole, UserRole.role_id == Role.id)
         .where(UserRole.user_id == uid, UserRole.tenant_id == tid)
-    )).scalars().all())
+    )).all()
+
+    scopes: set[str] = set()
+    for data_scope, overrides in rows:
+        scopes.add(_effective_scope(data_scope, overrides, biz_type))
 
     if "all" in scopes:
         return None
@@ -157,14 +208,18 @@ async def apply_project_child_scope(
     tenant_id: str,
     user: dict,
     model,
+    *,
+    biz_type: str = "project",
 ) -> tuple[Select, Select]:
     """按「所属商机的归属」过滤商机子实体列表（报价/合同/方案/变更/交付/回款等，需有 project_id 列）。
 
-    可见条件：父商机 owner 落在数据范围内，或该行由本人创建 / 指派给本人。
-    管理员 / data_scope=all（resolve_owner_scope 返回 None）不受限。
+    可见条件：父商机 owner 落在「本模块」数据范围内，或该行由本人创建 / 指派给本人，
+    或父商机共享给我 / 我是项目成员。
+    biz_type：子模块键（quote/contract/…）；未覆盖时仍走角色默认 data_scope。
+    管理员 / 有效档=all（resolve_owner_scope 返回 None）不受限。
     返回 (query, count_query)，两者同步加上过滤条件。
     """
-    scope = await resolve_owner_scope(db, user, tenant_id)
+    scope = await resolve_owner_scope(db, user, tenant_id, biz_type=biz_type)
     if scope is None:
         return query, count_query
 
@@ -225,7 +280,7 @@ async def visible_customer_ids_select(
     给「本身没有 owner_id、只能靠父客户判定可见性」的实体用（联系人等）。
     口径与 apply_data_scope(Customer) 对齐：归属在范围内 / 本人创建 / 共享给我 / 公海。
     """
-    scope = await resolve_owner_scope(db, user, tenant_id)
+    scope = await resolve_owner_scope(db, user, tenant_id, biz_type="customer")
     if scope is None:
         return None
 
@@ -261,7 +316,7 @@ async def visible_project_ids_select(
     user: dict,
 ):
     """可见商机 id 的子查询；None 表示不限。口径同 apply_data_scope(OpportunityProject)。"""
-    scope = await resolve_owner_scope(db, user, tenant_id)
+    scope = await resolve_owner_scope(db, user, tenant_id, biz_type="project")
     if scope is None:
         return None
 
@@ -306,7 +361,7 @@ async def service_ticket_scope_clause(db: AsyncSession, tenant_id: str, user: di
     self，而客户归销售所有，只按父对象判定会让工程师看不见自己手上的工单；未分配工单相当于
     工单池（同公海客户的处理），否则新工单没人认领得到。
     """
-    scope = await resolve_owner_scope(db, user, tenant_id)
+    scope = await resolve_owner_scope(db, user, tenant_id, biz_type="service")
     if scope is None:
         return None
 
@@ -354,8 +409,8 @@ async def is_in_scope(
         if getattr(obj, "review_status", None) == "draft":
             return _lead_draft_is_mine(obj, user.get("sub"))
 
-    scope = await resolve_owner_scope(db, user, tenant_id)
-    if scope is None:  # 管理员 / data_scope=all
+    scope = await resolve_owner_scope(db, user, tenant_id, biz_type=biz_type)
+    if scope is None:  # 管理员 / 该模块有效档=all
         return True
 
     uid = user.get("sub", "")
@@ -444,14 +499,17 @@ async def assert_project_child_in_scope(
     user: dict | None,
     obj,
     label: str = "该数据",
+    *,
+    biz_type: str = "project",
 ) -> None:
     """商机子实体（报价/合同/方案/变更/交付/回款…）的单对象校验。
 
-    与 `apply_project_child_scope` 同口径：父商机 owner 在范围内，或本行由本人创建/指派给本人。
+    与 `apply_project_child_scope` 同口径：父商机 owner 落在本模块范围内，
+    或本行由本人创建/指派，或父商机共享/项目成员。
     """
     if user is None or obj is None:
         return
-    scope = await resolve_owner_scope(db, user, tenant_id)
+    scope = await resolve_owner_scope(db, user, tenant_id, biz_type=biz_type)
     if scope is None:
         return
 
@@ -470,9 +528,12 @@ async def assert_project_child_in_scope(
                 OpportunityProject.tenant_id == tenant_id,
             )
         )).scalar_one_or_none()
-        # 父商机自身的可见性（含 ACL 共享 / 项目成员）决定子实体可见性
-        if parent is not None and await is_in_scope(db, tenant_id, user, parent, "project"):
-            return
+        if parent is not None:
+            if getattr(parent, "owner_id", None) in scope:
+                return
+            # ACL 共享 / 项目成员仍按商机协作关系放开（与列表 apply_project_child_scope 一致）
+            if uid and await _project_shared_or_member(db, tenant_id, uid, project_id):
+                return
 
     # 无商机的外部合同：客户在可见范围内即可
     customer_id = getattr(obj, "customer_id", None)
@@ -487,6 +548,39 @@ async def assert_project_child_in_scope(
     raise BusinessException(code=FORBIDDEN, message=f"无权访问{label}（不在您的数据范围内）")
 
 
+async def _project_shared_or_member(
+    db: AsyncSession, tenant_id: str, uid: str, project_id: str,
+) -> bool:
+    try:
+        from app.domains.customer.models import AclShare
+        shared = (await db.execute(
+            select(AclShare.id).where(
+                AclShare.tenant_id == tenant_id,
+                AclShare.biz_type == "project",
+                AclShare.biz_id == project_id,
+                or_(AclShare.shared_to_id == uid, AclShare.shared_to_type == "all"),
+            ).limit(1)
+        )).scalar_one_or_none()
+        if shared is not None:
+            return True
+    except Exception:
+        pass
+    try:
+        from app.domains.project.models import ProjectMember
+        mem = (await db.execute(
+            select(ProjectMember.id).where(
+                ProjectMember.tenant_id == tenant_id,
+                ProjectMember.project_id == project_id,
+                ProjectMember.user_id == uid,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if mem is not None:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 async def apply_data_scope(
     query: Select,
     db: AsyncSession,
@@ -499,7 +593,7 @@ async def apply_data_scope(
 
     线索草稿始终仅负责人/创建人可见，不受 data_scope=all 放开。
     """
-    scope = await resolve_owner_scope(db, user, tenant_id)
+    scope = await resolve_owner_scope(db, user, tenant_id, biz_type=biz_type)
     user_id = user.get("sub", "")
 
     if scope is not None:

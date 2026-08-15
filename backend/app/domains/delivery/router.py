@@ -118,7 +118,7 @@ async def list_all_milestones(
         q = q.where(clause)
         cq = cq.where(clause)
     from app.common.data_scope import apply_project_child_scope
-    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, DeliveryMilestone)
+    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, DeliveryMilestone, biz_type="delivery")
     total = (await db.execute(cq)).scalar() or 0
     order = resolve_sort("milestone", sort_by, sort_order, DeliveryMilestone.created_at.desc())
     q = q.order_by(order).offset((pageNo - 1) * pageSize).limit(pageSize)

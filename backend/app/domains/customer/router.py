@@ -1003,7 +1003,7 @@ async def check_similar(
 
     from app.domains.customer.models import Contact
 
-    scope = await resolve_owner_scope(db, _user, tenant_id)
+    scope = await resolve_owner_scope(db, _user, tenant_id, biz_type="customer")
     uid = _user.get("sub")
 
     def _visible(owner_id: str | None, status: str | None = None) -> bool:
@@ -1133,7 +1133,7 @@ async def batch_transfer(
     from sqlalchemy import update, case, or_
     from app.common.data_scope import resolve_owner_scope
 
-    scope = await resolve_owner_scope(db, current_user, tenant_id)
+    scope = await resolve_owner_scope(db, current_user, tenant_id, biz_type="customer")
     conds = [
         Customer.tenant_id == tenant_id,
         Customer.id.in_(body.ids),

@@ -98,7 +98,7 @@ async def list_invoices(db: AsyncSession, tenant_id: str, project_id: str, user:
     # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机的开票明细
     if user is not None:
         from app.common.data_scope import apply_project_child_scope
-        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, Invoice)
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, Invoice, biz_type="payment")
     result = await db.execute(q.order_by(Invoice.created_at.desc()))
     return result.scalars().all()
 
@@ -111,7 +111,7 @@ async def get_invoice(db: AsyncSession, tenant_id: str, invoice_id: str, user: d
     if not inv:
         raise BusinessException(code=NOT_FOUND, message="发票不存在")
     from app.common.data_scope import assert_project_child_in_scope
-    await assert_project_child_in_scope(db, tenant_id, user, inv, label="该发票")
+    await assert_project_child_in_scope(db, tenant_id, user, inv, label="该发票", biz_type="payment")
     return inv
 
 
@@ -165,7 +165,7 @@ async def list_plans(db: AsyncSession, tenant_id: str, project_id: str, user: di
     # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机的回款计划与金额
     if user is not None:
         from app.common.data_scope import apply_project_child_scope
-        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, PaymentPlan)
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, PaymentPlan, biz_type="payment")
     result = await db.execute(q.order_by(PaymentPlan.due_date))
     return result.scalars().all()
 
@@ -178,7 +178,7 @@ async def get_plan(db: AsyncSession, tenant_id: str, plan_id: str, user: dict | 
     if not plan:
         raise BusinessException(code=NOT_FOUND, message="回款计划不存在")
     from app.common.data_scope import assert_project_child_in_scope
-    await assert_project_child_in_scope(db, tenant_id, user, plan, label="该回款计划")
+    await assert_project_child_in_scope(db, tenant_id, user, plan, label="该回款计划", biz_type="payment")
     return plan
 
 
@@ -291,7 +291,7 @@ async def list_records(db: AsyncSession, tenant_id: str, project_id: str, user: 
     # 按 project_id 直接开列表时也要过滤：否则换个商机 id 就能读到别人商机的到账流水
     if user is not None:
         from app.common.data_scope import apply_project_child_scope
-        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, PaymentRecord)
+        q, _ = await apply_project_child_scope(q, q, db, tenant_id, user, PaymentRecord, biz_type="payment")
     result = await db.execute(q.order_by(PaymentRecord.received_date.desc()))
     return result.scalars().all()
 
@@ -410,7 +410,7 @@ async def delete_record(db: AsyncSession, tenant_id: str, record_id: str, user: 
     if not rec:
         raise BusinessException(code=NOT_FOUND, message="回款记录不存在")
     from app.common.data_scope import assert_project_child_in_scope
-    await assert_project_child_in_scope(db, tenant_id, user, rec, label="该回款记录")
+    await assert_project_child_in_scope(db, tenant_id, user, rec, label="该回款记录", biz_type="payment")
     await db.delete(rec)
     await db.commit()
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),

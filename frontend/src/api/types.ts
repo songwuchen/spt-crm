@@ -258,6 +258,8 @@ export interface Role {
   description?: string
   is_system: boolean
   data_scope?: string  // self / dept / all
+  /** 按模块覆盖：customer / lead / project → self|dept|all */
+  scope_by_resource?: Record<string, string>
   permissions: string[]
   member_count?: number
 }

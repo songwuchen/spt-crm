@@ -61,7 +61,7 @@ async def list_all_change_requests(
         q = q.where(clause)
         cq = cq.where(clause)
     from app.common.data_scope import apply_project_child_scope
-    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, ChangeRequest)
+    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, ChangeRequest, biz_type="change")
     total = (await db.execute(cq)).scalar() or 0
     order = resolve_sort("change", sort_by, sort_order, ChangeRequest.created_at.desc())
     q = q.order_by(order).offset((page_no - 1) * page_size).limit(page_size)

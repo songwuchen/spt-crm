@@ -176,7 +176,7 @@ async def list_contracts(
         q = q.where(clause)
         cq = cq.where(clause)
     from app.common.data_scope import apply_project_child_scope
-    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Contract)
+    q, cq = await apply_project_child_scope(q, cq, db, tenant_id, current_user, Contract, biz_type="contract")
     total = (await db.execute(cq)).scalar() or 0
     order = resolve_sort_from_schema(search_schema, sort_by, sort_order, Contract.created_at.desc())
     items = (await db.execute(

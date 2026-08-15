@@ -1,6 +1,7 @@
-from sqlalchemy import String, Boolean, Text, ForeignKey, DateTime, Index
+from sqlalchemy import String, Boolean, Text, ForeignKey, DateTime, Index, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
+from typing import Any
 
 from app.database import TenantScopedBase, PlatformBase
 
@@ -41,8 +42,10 @@ class Role(TenantScopedBase):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
-    # 数据范围：None/self=仅本人、dept=本部门及下级、all=全部
+    # 数据范围：None/self=仅本人、dept=本部门及下级、all=全部（各模块默认档）
     data_scope: Mapped[str | None] = mapped_column(String(16))
+    # 按模块覆盖，如 {"customer":"all","lead":"dept"}；未写的模块跟 data_scope
+    scope_by_resource: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     role_permissions: Mapped[list["RolePermission"]] = relationship(back_populates="role", lazy="selectin")
 

@@ -40,7 +40,7 @@ async def get(db: AsyncSession, tenant_id: str, cr_id: str, user: dict | None = 
     if not cr:
         raise BusinessException(code=NOT_FOUND, message="变更单不存在")
     from app.common.data_scope import assert_project_child_in_scope
-    await assert_project_child_in_scope(db, tenant_id, user, cr, label="该变更单")
+    await assert_project_child_in_scope(db, tenant_id, user, cr, label="该变更单", biz_type="change")
     return cr
 
 
