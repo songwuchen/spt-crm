@@ -42,7 +42,12 @@ vi.mock('@/api/user', () => ({
 vi.mock('@/api/notification', () => ({
   notificationApi: {
     list: vi.fn().mockResolvedValue({ data: [] }),
-    preferences: vi.fn().mockResolvedValue({ data: [] }),
+    getPreferences: vi.fn().mockResolvedValue({ data: { types: [], preferences: {} } }),
+    updatePreferences: vi.fn().mockResolvedValue({ data: {} }),
+    markRead: vi.fn().mockResolvedValue({ data: null }),
+    markAllRead: vi.fn().mockResolvedValue({ data: null }),
+    clearRead: vi.fn().mockResolvedValue({ data: { deleted: 0 } }),
+    unreadCount: vi.fn().mockResolvedValue({ data: { count: 0 } }),
   },
 }))
 
@@ -60,9 +65,26 @@ vi.mock('@/stores/useAuthStore', () => {
   return { useAuthStore }
 })
 
+vi.mock('@/components/lowcode/WfProcessDrawer', () => ({
+  useWfProcessDrawer: () => ({ openWith: vi.fn(), node: null }),
+  WfProcessDrawer: () => null,
+  bizEntityPath: () => null,
+}))
+
+vi.mock('@/hooks/useNotificationUnreadCount', () => ({
+  notifyNotificationUnreadChanged: vi.fn(),
+  useNotificationUnreadCount: () => 0,
+}))
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
-  return { ...actual, useNavigate: () => vi.fn(), useParams: () => ({ id: 'test-1' }) }
+  return {
+    ...actual,
+    useNavigate: () => vi.fn(),
+    useParams: () => ({ id: 'test-1' }),
+    useLocation: () => ({ pathname: '/notifications', search: '', hash: '', state: null, key: 'test' }),
+    useSearchParams: () => [new URLSearchParams(), vi.fn()] as const,
+  }
 })
 
 import LeadDetail from '../lead/LeadDetail'
