@@ -362,6 +362,12 @@ async def _notify_owner_review_passed(tenant_id: str, lead: Lead) -> None:
         logger.warning("notify lead owner review passed failed for %s: %s", lead.id, e)
 
 
+# 收录后仍允许的运维字段（跟进状态/废弃/改派）；申报与跟进正文须走 assert_lead_editable
+_LEAD_OPERATIONAL_FIELDS = frozenset({
+    "status", "owner_id", "owner_name", "reporter_id", "reporter_name",
+})
+
+
 async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: LeadUpdate, user: dict) -> Lead:
     lead = await get_lead(db, tenant_id, lead_id, user)
     if lead.status == "qualified":
@@ -375,11 +381,16 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
             code=VALIDATION_ERROR,
             message="线索已被驳回，项目不可再报备，不可继续编辑或跟进",
         )
-    from app.domains.lowcode.edit_lock import assert_lead_editable
-    await assert_lead_editable(db, tenant_id, lead.id, getattr(lead, "review_status", None))
     payload = data.model_dump(exclude_unset=True)
     products_given = "products" in payload
     payload.pop("products", None)  # 产品明细单独处理
+    content_keys = set(payload) - _LEAD_OPERATIONAL_FIELDS
+    if products_given:
+        content_keys.add("products")
+    # 收录/袭击后禁止改内容；仅改状态/负责人等运维字段放行（转化走 qualify 专用接口）
+    if content_keys:
+        from app.domains.lowcode.edit_lock import assert_lead_editable
+        await assert_lead_editable(db, tenant_id, lead.id, getattr(lead, "review_status", None))
     # 字段级权限：不可编辑扩展字段保留原值，忽略用户改动
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,

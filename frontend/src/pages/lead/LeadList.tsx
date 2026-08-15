@@ -442,7 +442,8 @@ export default function LeadList() {
       render: (_, record) => (
         <Space size={0}>
           <a onClick={() => navigate(`/leads/${record.id}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
-          {canEditLead && record.status !== 'qualified' && record.status !== 'discarded' && (
+          {canEditLead && record.status !== 'qualified' && record.status !== 'discarded'
+            && (record.review_status === 'draft' || record.review_status === 'pending') && (
             <a onClick={() => navigate(`/leads/${record.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
           )}
           {canDeleteLead && (

@@ -271,7 +271,9 @@ export default function LeadDetail() {
     (reactStatus === 'awaiting_reporter'
       ? [lead.reporter_id, lead.owner_id, lead.created_by_id].includes(currentUser.id)
       : [lead.created_by_id, lead.reporter_id, lead.owner_id].includes(currentUser.id))
-  const canEditLead = hasLeadEdit && canOperate && !reviewInFlight && reviewStatus !== 'rejected' && reviewStatus !== 'attacked'
+  // 仅草稿 / 撤回后的待审可整单编辑；收录后不可改（转化/跟进状态另入口）
+  const canEditLead = hasLeadEdit && canOperate && !reviewInFlight
+    && (reviewStatus === 'draft' || reviewStatus === 'pending')
   const canSubmitApproval = canOperate && reviewStatus === 'draft'
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null

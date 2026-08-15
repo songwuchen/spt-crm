@@ -158,6 +158,8 @@ export default function MobileLeadDetail() {
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
   const canOperate = lead.status !== 'qualified' && lead.status !== 'discarded'
+  const canEditContent = canEditLead && canOperate
+    && (reviewStatus === 'draft' || reviewStatus === 'pending')
 
   return (
     <div>
@@ -350,7 +352,7 @@ export default function MobileLeadDetail() {
       {/* Action Buttons — 已转化/已废弃不可再编辑 */}
       {lead.status !== 'qualified' && lead.status !== 'discarded' && (
       <div className="mt-4 flex gap-2">
-        {canEditLead && (
+        {canEditContent && (
         <button onClick={openEdit}
           className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1">
           <MobileIcon name="edit" style={{ fontSize: 16 }} />

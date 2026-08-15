@@ -123,11 +123,13 @@ export default function LeadForm() {
           navigate(`/leads/${id}`, { replace: true })
           return
         }
-        if (d.review_status === 'rejected' || d.review_status === 'attacked') {
+        if (d.review_status === 'rejected' || d.review_status === 'attacked' || d.review_status === 'approved') {
           message.warning(
             d.review_status === 'rejected'
               ? '线索已被驳回，项目不可再报备，不可继续编辑'
-              : '袭击状态的线索不可编辑申报信息',
+              : d.review_status === 'attacked'
+                ? '袭击状态的线索不可编辑申报信息'
+                : '线索已收录，不可再编辑',
           )
           navigate(`/leads/${id}`, { replace: true })
           return

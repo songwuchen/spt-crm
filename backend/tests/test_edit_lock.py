@@ -118,6 +118,33 @@ async def test_assert_lead_rejected_locked():
 
 
 @pytest.mark.asyncio
+async def test_assert_lead_approved_locked():
+    """收录后不可再改申报/跟进内容。"""
+    db = MagicMock()
+    with patch(
+        "app.domains.lowcode.edit_lock.has_running_process",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        with pytest.raises(BusinessException) as ei:
+            await assert_lead_editable(db, "t1", "l1", "approved")
+        assert "收录" in ei.value.message
+
+
+@pytest.mark.asyncio
+async def test_assert_lead_attacked_locked():
+    db = MagicMock()
+    with patch(
+        "app.domains.lowcode.edit_lock.has_running_process",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        with pytest.raises(BusinessException) as ei:
+            await assert_lead_editable(db, "t1", "l1", "attacked")
+        assert "袭击" in ei.value.message
+
+
+@pytest.mark.asyncio
 async def test_assert_lead_pending_with_running_locked():
     db = MagicMock()
     with patch(
