@@ -264,26 +264,36 @@ def clean_unknown_dept_ids_in_routes(
 ) -> tuple[list, dict[str, Any]]:
     """从连线条件中移除不在 CRM 部门表里的部门 id（设计器显示为「未知部门」）。
 
-    某条条件值被清空后删除该条；整段 condition 无剩余叶子则置为 null。
+    某条条件值被清空后删除该条；整段 condition 无剩余叶子则**删除该连线**
+   （勿置 condition=null，否则互斥组会多出假 else，串行节点被并行激活）。
     """
     if not routes:
-        return [], {"routes_touched": 0, "values_removed": 0, "removed_ids": []}
+        return [], {"routes_touched": 0, "values_removed": 0, "removed_ids": [], "routes_dropped": 0}
     raw = json.loads(json.dumps(routes, ensure_ascii=False))
     removed: list[str] = []
     routes_touched = 0
+    routes_dropped = 0
+    kept: list = []
     for r in raw:
         if not isinstance(r, dict):
+            kept.append(r)
             continue
         cond = r.get("condition")
         if not isinstance(cond, dict):
+            kept.append(r)
             continue
         before = json.dumps(cond, ensure_ascii=False, sort_keys=True)
         cleaned = _clean_dept_cond_node(cond, valid_dept_ids, fields, removed)
-        after_obj = cleaned
-        after = json.dumps(after_obj, ensure_ascii=False, sort_keys=True) if after_obj else "null"
-        if before != after:
-            routes_touched += 1
-            r["condition"] = after_obj
+        after = json.dumps(cleaned, ensure_ascii=False, sort_keys=True) if cleaned else "null"
+        if before == after:
+            kept.append(r)
+            continue
+        routes_touched += 1
+        if cleaned is None:
+            routes_dropped += 1
+            continue
+        r["condition"] = cleaned
+        kept.append(r)
     # 去重保序
     seen: set[str] = set()
     uniq_removed: list[str] = []
@@ -291,10 +301,11 @@ def clean_unknown_dept_ids_in_routes(
         if i not in seen:
             seen.add(i)
             uniq_removed.append(i)
-    return raw, {
+    return kept, {
         "routes_touched": routes_touched,
         "values_removed": len(removed),
         "removed_ids": uniq_removed,
+        "routes_dropped": routes_dropped,
     }
 
 
@@ -389,26 +400,30 @@ def clean_unknown_person_ids_in_routes(
     routes: list | None,
     fields: frozenset[str] = PERSON_COND_FIELDS,
 ) -> tuple[list, dict[str, Any]]:
-    """去掉人员条件里仍残留的简道云 MongoId（映射不上的已离职/未知成员）。"""
+    """去掉人员条件里仍残留的简道云 MongoId（映射不上的已离职/未知成员）。
+
+    整段 condition 清空后删除连线（同部门清理，避免假 else）。
+    """
     if not routes:
-        return [], {"routes_touched": 0, "values_removed": 0, "removed_ids": []}
+        return [], {"routes_touched": 0, "values_removed": 0, "removed_ids": [], "routes_dropped": 0}
     raw = json.loads(json.dumps(routes, ensure_ascii=False))
     removed: list[str] = []
     routes_touched = 0
+    routes_dropped = 0
 
     def clean_node(node: dict) -> dict | None:
         if "cond" in node and isinstance(node.get("cond"), list):
-            kept: list[dict] = []
+            kept_children: list[dict] = []
             for child in node["cond"]:
                 if not isinstance(child, dict):
                     continue
                 c = clean_node(child)
                 if c is not None:
-                    kept.append(c)
-            if not kept:
+                    kept_children.append(c)
+            if not kept_children:
                 return None
             out = dict(node)
-            out["cond"] = kept
+            out["cond"] = kept_children
             return out
         field = str(node.get("field") or "")
         if field not in fields:
@@ -435,23 +450,33 @@ def clean_unknown_person_ids_in_routes(
             return None
         return node
 
+    kept: list = []
     for r in raw:
         if not isinstance(r, dict):
+            kept.append(r)
             continue
         cond = r.get("condition")
         if not isinstance(cond, dict):
+            kept.append(r)
             continue
         before = json.dumps(cond, ensure_ascii=False, sort_keys=True)
         cleaned = clean_node(cond)
         after = json.dumps(cleaned, ensure_ascii=False, sort_keys=True) if cleaned else "null"
-        if before != after:
-            routes_touched += 1
-            r["condition"] = cleaned
+        if before == after:
+            kept.append(r)
+            continue
+        routes_touched += 1
+        if cleaned is None:
+            routes_dropped += 1
+            continue
+        r["condition"] = cleaned
+        kept.append(r)
     uniq = list(dict.fromkeys(removed))
-    return raw, {
+    return kept, {
         "routes_touched": routes_touched,
         "values_removed": len(removed),
         "removed_ids": uniq,
+        "routes_dropped": routes_dropped,
     }
 
 

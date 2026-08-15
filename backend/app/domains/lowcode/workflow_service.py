@@ -805,6 +805,23 @@ def _flow_missing_exclusive_groups(routes: list | None) -> bool:
     return False
 
 
+def _flow_exclusive_group_multi_blank(routes: list | None) -> bool:
+    """互斥组内出现 ≥2 条无条件边（条件被清成 null 后的假 else）。
+
+    报价等串行流会因此把「部门审批」与下游「财务核价」同时激活，须整图重发。
+    """
+    blanks: dict[str, int] = {}
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        gid = r.get("exclusive_group")
+        if not gid:
+            continue
+        if not r.get("condition"):
+            blanks[str(gid)] = blanks.get(str(gid), 0) + 1
+    return any(n > 1 for n in blanks.values())
+
+
 def fix_packaging_fork_serial_priority(
     nodes: list | None, routes: list | None,
 ) -> bool:
@@ -1859,6 +1876,8 @@ async def _upgrade_drawing_form_flow_if_needed(
             form_code == "install_drawing_notice"
             and _flow_missing_biz_score_perms(version.node_definitions)
         )
+        # 条件被清成 null 后互斥组多 else：节点拓扑仍「对齐」，但连线已坏，须整图重发
+        and not _flow_exclusive_group_multi_blank(version.route_definitions)
     )
     # 报价管理：财务核价「是否转采购」取消必填 → editable
     if (
@@ -2001,6 +2020,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         touched = (
             (stats.get("dept_clean") or {}).get("values_removed", 0)
             + (stats.get("person_clean") or {}).get("values_removed", 0)
+            + (stats.get("dept_clean") or {}).get("routes_dropped", 0)
+            + (stats.get("person_clean") or {}).get("routes_dropped", 0)
             + (stats.get("dept_remap") or {}).get("replaced", 0)
             + (stats.get("person_remap") or {}).get("replaced", 0)
         )
@@ -2019,6 +2040,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         touched = (
             (stats.get("dept_clean") or {}).get("values_removed", 0)
             + (stats.get("person_clean") or {}).get("values_removed", 0)
+            + (stats.get("dept_clean") or {}).get("routes_dropped", 0)
+            + (stats.get("person_clean") or {}).get("routes_dropped", 0)
             + (stats.get("dept_remap") or {}).get("replaced", 0)
             + (stats.get("person_remap") or {}).get("replaced", 0)
         )

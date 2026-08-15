@@ -440,9 +440,12 @@ class WorkflowEngine:
             if hit:
                 core.append(hit)
             else:
+                # else 只走组内第一条无条件边。条件被 sanitize 清成 null 后若残留
+                # 多条「假 else」，全部放行会把串行节点双开（报价：部门审批∥财务核价）。
                 for r in edges:
                     if not r.get("condition"):
                         core.append(r["target"])
+                        break
 
         matched_para = [
             r["target"] for r in parallel_edges

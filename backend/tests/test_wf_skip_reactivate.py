@@ -40,6 +40,63 @@ def test_next_targets_two_unconditional_still_parallel():
     assert set(eng._next_targets(version, "n1", {})) == {"a", "b"}
 
 
+def test_next_targets_exclusive_multi_blank_takes_first_else_only():
+    """互斥组内多条无条件边（条件被清掉的假 else）只走第一条，避免串行双开。"""
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    routes = [
+        {"id": "r_10", "source": "start", "target": "n1", "exclusive_group": "ex_start"},
+        {"id": "r_19", "source": "start", "target": "n10",
+         "condition": None, "exclusive_group": "ex_start"},
+        {"id": "r_20", "source": "start", "target": "n11",
+         "condition": None, "exclusive_group": "ex_start"},
+    ]
+    version = SimpleNamespace(route_definitions=routes, node_definitions=[])
+    eng = WorkflowEngine(db=None, tenant_id="t")
+    assert eng._next_targets(version, "start", {}) == ["n1"]
+
+
+def test_clean_unknown_dept_drops_route_when_condition_empty():
+    """部门条件值全无效时删除连线，而不是 condition=null 变成假 else。"""
+    from app.domains.lowcode.jdy_id_remap import clean_unknown_dept_ids_in_routes
+
+    routes = [
+        {"id": "r_else", "source": "start", "target": "n1", "exclusive_group": "ex"},
+        {
+            "id": "r_cond", "source": "start", "target": "n10",
+            "exclusive_group": "ex",
+            "condition": {
+                "field": "department", "operator": "in",
+                "value": ["dead-jdy-id"],
+            },
+        },
+    ]
+    cleaned, stats = clean_unknown_dept_ids_in_routes(routes, valid_dept_ids={"crm-uuid"})
+    assert stats["routes_dropped"] == 1
+    assert [r["id"] for r in cleaned] == ["r_else"]
+    assert cleaned[0].get("condition") is None
+
+
+def test_flow_exclusive_group_multi_blank_detects_quote_corruption():
+    from app.domains.lowcode.workflow_service import _flow_exclusive_group_multi_blank
+
+    bad = [
+        {"id": "r_10", "source": "start", "target": "n1", "exclusive_group": "ex_start"},
+        {"id": "r_19", "source": "start", "target": "n10",
+         "condition": None, "exclusive_group": "ex_start"},
+    ]
+    good = [
+        {"id": "r_10", "source": "start", "target": "n1", "exclusive_group": "ex_start"},
+        {
+            "id": "r_19", "source": "start", "target": "n10",
+            "exclusive_group": "ex_start",
+            "condition": {"field": "department", "operator": "eq", "value": "x"},
+        },
+    ]
+    assert _flow_exclusive_group_multi_blank(bad) is True
+    assert _flow_exclusive_group_multi_blank(good) is False
+
+
 @pytest.mark.asyncio
 async def test_activate_approval_skips_when_already_completed():
     """总工已完成并推进后，晚到的市场支持→总工不得再建第二个总工。"""
