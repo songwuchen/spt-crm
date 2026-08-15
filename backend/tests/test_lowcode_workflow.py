@@ -673,13 +673,21 @@ async def test_intel_attack_cc_not_convert_prompt(client, db, lead_intel_user):
         WfProcessInstance.biz_type == "lead", WfProcessInstance.biz_id == lead_id,
     ))).scalar_one()
     # 抄送站内通知已统一为 approval_cc + wf_instance（对齐「抄送我的」）
-    notes = (await db.execute(select(Notification).where(
-        Notification.tenant_id == DEMO_TENANT,
-        Notification.recipient_id == owner_id,
-        Notification.type == "approval_cc",
-        Notification.biz_type == "wf_instance",
-        Notification.biz_id == inst.id,
-    ))).scalars().all()
+    # flush_notifications 可能异步，稍等再查
+    import asyncio
+    from app.domains.lowcode.workflow_models import WfProcessCc
+
+    for _ in range(20):
+        notes = (await db.execute(select(Notification).where(
+            Notification.tenant_id == DEMO_TENANT,
+            Notification.recipient_id == owner_id,
+            Notification.type == "approval_cc",
+            Notification.biz_type == "wf_instance",
+            Notification.biz_id == inst.id,
+        ))).scalars().all()
+        if notes:
+            break
+        await asyncio.sleep(0.1)
     assert notes, "袭击后负责人应收到抄送通知"
     for n in notes:
         body = f"{n.title or ''}\n{n.content or ''}"
@@ -687,7 +695,6 @@ async def test_intel_attack_cc_not_convert_prompt(client, db, lead_intel_user):
         assert "自行选择是否转化" not in body
         assert "请转化为" not in body
 
-    from app.domains.lowcode.workflow_models import WfProcessCc
     cc_rows = (await db.execute(select(WfProcessCc).where(
         WfProcessCc.tenant_id == DEMO_TENANT,
         WfProcessCc.process_instance_id == inst.id,
