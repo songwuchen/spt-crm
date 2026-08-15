@@ -139,7 +139,7 @@ const MAP: Record<string, IconComp> = {
 
   // ---- 设备 / 位置 ----
   computer: DesktopOutlined, smartphone: MobileOutlined, phonelink_ring: MobileOutlined,
-  tablet: TabletOutlined, photo_camera: CameraOutlined,
+  tablet: TabletOutlined, photo_camera: CameraOutlined, image: PictureOutlined,
   location_on: EnvironmentOutlined, distance: ColumnWidthOutlined,
   directions_walk: NodeIndexOutlined,
 }
