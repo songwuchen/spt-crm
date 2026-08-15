@@ -525,35 +525,14 @@ async def test_conditional_visibility_suppresses_required(
 async def test_partial_update_skips_untouched_required_fields(
     client: AsyncClient, auth_headers: dict, reset_lead_template,
 ):
-    """批量改派这类局部更新，不应因历史数据缺少「后来才设为必填」的字段而失败。"""
-    import app.database as db_module
-    from sqlalchemy import select
-    from app.domains.lead.models import Lead
-    from app.domains.lowcode.workflow_engine import WorkflowEngine
-    from app.domains.lowcode.workflow_models import WfProcessInstance, WfTaskInstance
+    """批量改派这类局部更新，不应因历史数据缺少「后来才设为必填」的字段而失败。
 
+    用草稿测字段策略：收录后整单内容已锁，不能再靠「点过业务员确认」做正文编辑。
+    """
     h = auth_headers
     lid = (await client.post("/api/v1/leads", headers=h, json={
-        "title": "历史线索", "company_name": "老公司",
+        "title": "历史线索", "company_name": "老公司", "as_draft": True,
     })).json()["data"]["id"]
-
-    # 情报空审后会停在「业务员确认」：先点过才能整单编辑（草稿会跳过必填校验）
-    async with db_module.async_session_factory() as db:
-        lead = (await db.execute(select(Lead).where(Lead.id == lid))).scalar_one()
-        inst = (await db.execute(select(WfProcessInstance).where(
-            WfProcessInstance.biz_type == "lead", WfProcessInstance.biz_id == lid,
-        ))).scalar_one()
-        task = (await db.execute(select(WfTaskInstance).where(
-            WfTaskInstance.process_instance_id == inst.id,
-            WfTaskInstance.status == "pending",
-        ))).scalars().first()
-        assert task is not None
-        await WorkflowEngine(db, lead.tenant_id).act(
-            task.id,
-            {"sub": lead.owner_id, "real_name": "管理员"},
-            "approve",
-            opinion="确认",
-        )
 
     await _publish_lead_native_override(client, h, [
         {"id": "industry", "native": True, "required": True, "label": "行业", "type": "select"},

@@ -70,7 +70,13 @@ vi.mock('@/stores/useAuthStore', () => ({
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
-  return { ...actual, useNavigate: () => vi.fn(), useParams: () => ({ id: 'tk-1' }) }
+  return {
+    ...actual,
+    useNavigate: () => vi.fn(),
+    useParams: () => ({ id: 'tk-1' }),
+    useLocation: () => ({ pathname: '/m/approvals', search: '', hash: '', state: null, key: 'test' }),
+    useSearchParams: () => [new URLSearchParams(), vi.fn()] as const,
+  }
 })
 
 import dayjs from 'dayjs'
