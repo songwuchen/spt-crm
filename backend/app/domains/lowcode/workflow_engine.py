@@ -417,6 +417,18 @@ class WorkflowEngine:
             else:
                 parallel_edges.append(r)
 
+        # 缺 exclusive_group 的经典 if/else（若干有条件边 + 恰好一条无条件 else）
+        # 按互斥处理，避免部门审批→市场支持∥总工双开（发布版漏标互斥组时的兜底）。
+        # 显式 fork=parallel、或两条及以上无条件边、或全是条件边：仍并行。
+        if not any(r.get("fork") == "parallel" for r in parallel_edges):
+            if_else = [r for r in parallel_edges if r.get("condition")]
+            if_else_blank = [r for r in parallel_edges if not r.get("condition")]
+            if if_else and len(if_else_blank) == 1 and len(parallel_edges) == len(if_else) + 1:
+                exclusive_groups.setdefault("__auto_if_else__", []).extend(
+                    [*if_else, *if_else_blank]
+                )
+                parallel_edges = []
+
         core: list[str] = []
         for edges in exclusive_groups.values():
             hit: str | None = None
@@ -512,7 +524,7 @@ class WorkflowEngine:
                 return  # 已结束(end / terminate)
 
     async def _activate_node(self, inst: WfProcessInstance, version: WfProcessDefinitionVersion,
-                             node: dict, ctx: ApprovalContext) -> None:
+                             node: dict, ctx: ApprovalContext, *, allow_reenter: bool = False) -> None:
         ntype = node.get("type")
         if ntype == "end":
             # 主链与旁路抄送可能并行：抄送先「到达」end 时，审批节点/待办仍在，
@@ -526,7 +538,9 @@ class WorkflowEngine:
             await self._advance(inst, version, node["id"], ctx)
             return
         if ntype == "approval":
-            await self._activate_approval(inst, version, node, ctx)
+            await self._activate_approval(
+                inst, version, node, ctx, allow_reenter=allow_reenter,
+            )
             return
         if ntype == "parallel":
             await self._activate_parallel(inst, version, node, ctx)
@@ -546,18 +560,37 @@ class WorkflowEngine:
         except NoApproverError:
             return []
 
-    async def _activate_approval(self, inst, version, node, ctx) -> None:
+    async def _activate_approval(
+        self, inst, version, node, ctx, *, allow_reenter: bool = False,
+    ) -> None:
         # 并行分叉汇入同一审批节点时（如 研究院安排∥工艺包装 → 再入研究院安排）：
         # 已有进行中的同定义节点则跳过，避免重复建待办。
-        existing = (await self.db.execute(
-            select(WfNodeInstance.id).where(
-                WfNodeInstance.process_instance_id == inst.id,
-                WfNodeInstance.node_def_id == node["id"],
-                WfNodeInstance.status == "running",
-            ).limit(1)
-        )).scalar_one_or_none() if self.db is not None else None
-        if existing:
-            return
+        # 另：部门审批 if/else 失效导致「市场支持∥总工」双开时，总工先完成并推进到
+        # 设计指派后，晚到的「市场支持→总工」不能再激活第二个总工（退回重入除外）。
+        if self.db is not None:
+            existing_running = (await self.db.execute(
+                select(WfNodeInstance.id).where(
+                    WfNodeInstance.process_instance_id == inst.id,
+                    WfNodeInstance.node_def_id == node["id"],
+                    WfNodeInstance.status == "running",
+                ).limit(1)
+            )).scalar_one_or_none()
+            if existing_running:
+                return
+            if not allow_reenter:
+                already_done = (await self.db.execute(
+                    select(WfNodeInstance.id).where(
+                        WfNodeInstance.process_instance_id == inst.id,
+                        WfNodeInstance.node_def_id == node["id"],
+                        WfNodeInstance.status == "completed",
+                    ).limit(1)
+                )).scalar_one_or_none()
+                if already_done:
+                    self._log(
+                        inst.id, None, None, {"sub": "system"}, "skip_reactivate",
+                        f"节点「{node.get('name') or node['id']}」已完成，跳过晚到汇入的重复激活",
+                    )
+                    return
 
         # 线索袭击：不可转化，跳过「业务员确认是否转商机」待办，改为知会申报人后直通结束
         if (
@@ -1222,8 +1255,8 @@ class WorkflowEngine:
         for ni in nis:
             ni.status = "cancelled"
         await self.db.flush()
-        # 重新激活目标节点（会重新解析审批人并建待办）
-        await self._activate_node(inst, version, target, ctx)
+        # 重新激活目标节点（会重新解析审批人并建待办；允许越过「已完成」去重）
+        await self._activate_node(inst, version, target, ctx, allow_reenter=True)
 
     async def _reject_flow(self, inst, reason: str | None = None) -> None:
         # 作废所有未处理待办,流程置驳回
