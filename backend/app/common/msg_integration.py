@@ -146,17 +146,69 @@ async def get_dingtalk_unionid(token: str, userid: str) -> str | None:
     return None
 
 
-def _to_workbench_link(url: str | None) -> str | None:
-    """PC 端：包成钉钉工作台内打开的深链（新标签页），点击不跳出钉钉客户端。"""
-    if not url or url.startswith("dingtalk://"):
-        return url
-    return "dingtalk://dingtalkclient/page/link?url=" + urllib.parse.quote(url, safe="") + "&pc_slide=false&ddtab=true"
+def _dingtalk_app_id(agent_id: str | None) -> str | None:
+    """企业内部 H5 微应用：app_id = 0_{agentId}。"""
+    if not agent_id:
+        return None
+    s = str(agent_id).strip()
+    if not s:
+        return None
+    return s if s.startswith("0_") else f"0_{s}"
 
 
-def _to_app_deeplink(url: str | None) -> str | None:
-    """移动端：包成钉钉容器内打开的深链（可触发 JSAPI 免登）。"""
+def _to_workbench_link(
+    url: str | None,
+    *,
+    corp_id: str | None = None,
+    agent_id: str | None = None,
+) -> str | None:
+    """PC 端：在钉钉工作台/客户端内打开，禁止外跳系统浏览器。
+
+    优先官方 openapp + work_platform（工作台容器）；无 corpId 时回退 page/link + pc_slide=true。
+    注意：pc_slide=false 会强制用外部浏览器打开。
+    """
     if not url or url.startswith("dingtalk://"):
         return url
+    app_id = _dingtalk_app_id(agent_id)
+    corp = (corp_id or "").strip()
+    if corp and app_id:
+        return (
+            "dingtalk://dingtalkclient/action/openapp"
+            f"?corpid={urllib.parse.quote(corp, safe='')}"
+            "&container_type=work_platform"
+            f"&app_id={urllib.parse.quote(app_id, safe='')}"
+            "&redirect_type=jump"
+            f"&redirect_url={urllib.parse.quote(url, safe='')}"
+        )
+    # 回退：钉钉内大容器；ddtab 须写进目标 URL 再整体 encode
+    target = url if "ddtab=" in url else f"{url}{'&' if '?' in url else '?'}ddtab=true"
+    return (
+        "dingtalk://dingtalkclient/page/link?url="
+        + urllib.parse.quote(target, safe="")
+        + "&pc_slide=true"
+    )
+
+
+def _to_app_deeplink(
+    url: str | None,
+    *,
+    corp_id: str | None = None,
+    agent_id: str | None = None,
+) -> str | None:
+    """移动端：钉钉容器内打开（优先工作台微应用，便于免登 JSAPI）。"""
+    if not url or url.startswith("dingtalk://"):
+        return url
+    app_id = _dingtalk_app_id(agent_id)
+    corp = (corp_id or "").strip()
+    if corp and app_id:
+        return (
+            "dingtalk://dingtalkclient/action/openapp"
+            f"?corpid={urllib.parse.quote(corp, safe='')}"
+            "&container_type=work_platform"
+            f"&app_id={urllib.parse.quote(app_id, safe='')}"
+            "&redirect_type=jump"
+            f"&redirect_url={urllib.parse.quote(url, safe='')}"
+        )
     return "dingtalk://dingtalkclient/page/link?url=" + urllib.parse.quote(url, safe="")
 
 
@@ -165,6 +217,7 @@ async def send_dingtalk_work_notification(
     title: str, content: str,
     pc_url: str | None = None, app_url: str | None = None,
     *,
+    corp_id: str | None = None,
     head_text: str | None = None,
     form: list[dict[str, str]] | None = None,
     author: str | None = None,
@@ -197,8 +250,12 @@ async def send_dingtalk_work_notification(
         if author:
             body["author"] = author[:64]
         msg = {"msgtype": "oa", "oa": {
-            "message_url": _to_app_deeplink(app_url or pc_url),
-            "pc_message_url": _to_workbench_link(pc_url or app_url),
+            "message_url": _to_app_deeplink(
+                app_url or pc_url, corp_id=corp_id, agent_id=agent_id,
+            ),
+            "pc_message_url": _to_workbench_link(
+                pc_url or app_url, corp_id=corp_id, agent_id=agent_id,
+            ),
             "head": {
                 "bgcolor": "FF2681FF",
                 "text": (head_text or "威猛云")[:16],
@@ -228,6 +285,9 @@ async def create_dingtalk_todo(
     token: str, union_id: str, creator_union_id: str | None,
     subject: str, description: str | None = None,
     url: str | None = None, mobile_url: str | None = None,
+    *,
+    corp_id: str | None = None,
+    agent_id: str | None = None,
 ) -> str | None:
     """在负责人的钉钉「待办」中创建一条任务（v1.0 Todo API）。
 
@@ -247,7 +307,14 @@ async def create_dingtalk_todo(
     if description:
         body["description"] = description[:1000]
     if url or mobile_url:
-        body["detailUrl"] = {"pcUrl": _to_workbench_link(url or mobile_url), "appUrl": _to_app_deeplink(mobile_url or url)}
+        body["detailUrl"] = {
+            "pcUrl": _to_workbench_link(
+                url or mobile_url, corp_id=corp_id, agent_id=agent_id,
+            ),
+            "appUrl": _to_app_deeplink(
+                mobile_url or url, corp_id=corp_id, agent_id=agent_id,
+            ),
+        }
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(
@@ -376,14 +443,20 @@ async def dispatch_todo(
 
     pc_url = _abs_url(config, link, mobile=False)
     app_url = _abs_url(config, mobile_link or link, mobile=True)
+    corp_id = (config.get("corp_id") or "").strip() or None
 
     results["work_notification"] = await send_dingtalk_work_notification(
-        token, config["agent_id"], [userid], title, content, pc_url=pc_url, app_url=app_url)
+        token, config["agent_id"], [userid], title, content,
+        pc_url=pc_url, app_url=app_url, corp_id=corp_id,
+    )
 
     # 创建真正的钉钉待办（需 unionId + 应用具备待办权限）
     union_id = await get_dingtalk_unionid(token, userid)
     if union_id:
-        todo_id = await create_dingtalk_todo(token, union_id, None, title, content, pc_url, app_url)
+        todo_id = await create_dingtalk_todo(
+            token, union_id, None, title, content, pc_url, app_url,
+            corp_id=corp_id, agent_id=config["agent_id"],
+        )
         results["todo"] = bool(todo_id)
         results["todo_id"] = todo_id
         results["union_id"] = union_id
@@ -428,9 +501,11 @@ async def dispatch_cc_notify(
     pc_url = _abs_url(config, link, mobile=False)
     app_url = _abs_url(config, mobile_link or link, mobile=True)
     brand = head_text or (config.get("app_display_name") or config.get("corp_name") or "威猛云")
+    corp_id = (config.get("corp_id") or "").strip() or None
     results["work_notification"] = await send_dingtalk_work_notification(
         token, config["agent_id"], [userid], title, content,
         pc_url=pc_url, app_url=app_url,
+        corp_id=corp_id,
         head_text=str(brand)[:16],
         form=form,
         author=author,
