@@ -5,6 +5,7 @@ import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
 import { menuGroups, PROTECTED_MENU_KEYS, flattenMenuItems, type MenuItem } from '@/config/menus'
 import { t } from '@/locales'
 import { useApprovalPendingCount } from '@/hooks/useApprovalPendingCount'
+import { useNotificationUnreadCount } from '@/hooks/useNotificationUnreadCount'
 
 import Icon from '@/components/Icon'
 
@@ -55,6 +56,7 @@ export default function Sidebar() {
   const hiddenMenus = useUiSettingsStore((s) => s.hiddenMenus)
   const selectedKey = getSelectedKey(location.pathname)
   const approvalPendingCount = useApprovalPendingCount(60_000, location.pathname)
+  const notificationUnreadCount = useNotificationUnreadCount(60_000, location.pathname)
 
   const hiddenSet = new Set(hiddenMenus)
   const brandName = systemName || 'SPT-CRM'
@@ -137,7 +139,11 @@ export default function Sidebar() {
                   }
 
                   const isActive = selectedKey === item.key
-                  const badge = item.key === '/approvals' ? approvalPendingCount : 0
+                  const badge = item.key === '/approvals'
+                    ? approvalPendingCount
+                    : item.key === '/notifications'
+                      ? notificationUnreadCount
+                      : 0
                   return (
                     <button
                       key={item.key}
@@ -148,7 +154,10 @@ export default function Sidebar() {
                       <Icon name={item.icon} className="sidebar-item-icon" />
                       <span className="sidebar-item-label">{menuAliases[item.key] || t(item.labelKey)}</span>
                       {badge > 0 && (
-                        <span className="sidebar-item-badge" aria-label={`${badge} 条待办`}>
+                        <span
+                          className="sidebar-item-badge"
+                          aria-label={item.key === '/notifications' ? `${badge} 条未读` : `${badge} 条待办`}
+                        >
                           {badge > 99 ? '99+' : badge}
                         </span>
                       )}

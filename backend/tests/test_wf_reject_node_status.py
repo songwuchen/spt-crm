@@ -60,6 +60,37 @@ async def test_build_flow_steps_maps_stale_running_reject_to_rejected():
 
 
 @pytest.mark.asyncio
+async def test_build_flow_steps_shows_cc_recipients():
+    """抄送节点应展示被抄送人姓名（来自 wf_process_cc）。"""
+    from app.domains.lowcode.workflow_service import _build_flow_steps
+
+    cc_ni = _ni(
+        id="ni-cc",
+        node_def_id="cc_1",
+        node_name="抄送节点",
+        node_type="cc",
+        status="completed",
+        completed_at=datetime(2026, 8, 15, 10, 45, 50, tzinfo=timezone.utc),
+    )
+    db = AsyncMock()
+    cc_result = MagicMock()
+    cc_result.all.return_value = [("ni-cc", "u-wang"), ("ni-cc", "u-li")]
+    user_result = MagicMock()
+    user_result.all.return_value = [
+        ("u-wang", "王东期", "wang"),
+        ("u-li", "李四", "li"),
+    ]
+    db.execute = AsyncMock(side_effect=[cc_result, user_result])
+
+    steps = await _build_flow_steps(db, nodes=[cc_ni], tasks=[], logs=[], process_status="running")
+    assert len(steps) == 1
+    assert steps[0]["node_type"] == "cc"
+    assert steps[0]["handler_name"] == "系统"
+    assert steps[0]["action"] == "cc"
+    assert [a["name"] for a in steps[0]["assignees"]] == ["王东期", "李四"]
+
+
+@pytest.mark.asyncio
 async def test_reject_flow_closes_running_nodes():
     """_reject_flow 必须把 running 节点置为 rejected，避免 UI 卡住处理中。"""
     from app.domains.lowcode.workflow_engine import WorkflowEngine

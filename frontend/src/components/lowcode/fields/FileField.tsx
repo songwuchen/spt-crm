@@ -67,7 +67,7 @@ export default function FileField({
   const maxBytes = image ? IMAGE_MAX : FILE_MAX
   const hint = image
     ? '拖拽或单击后粘贴图片，单张20MB以内'
-    : '拖拽或单击后粘贴文件，单个50MB以内'
+    : '拖拽或单击后粘贴文件（含 PDF/CAD 等），单个50MB以内'
 
   useEffect(() => {
     if (!image || downloadDenied) return

@@ -87,11 +87,23 @@ async def batch_delete(
     return ok({"deleted": count})
 
 
+@router.post("/api/v1/notifications/clear_read")
+async def clear_read(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """清除当前用户全部已读通知。"""
+    count = await service.clear_read(db, tenant_id, current_user["sub"])
+    return ok({"deleted": count})
+
+
 # ---- Notification Preferences ----
 
 NOTIFICATION_TYPES = [
     {"key": "approval_pending", "label": "待审批通知"},
     {"key": "approval_decided", "label": "审批结果通知"},
+    {"key": "approval_cc", "label": "流程抄送提醒"},
     {"key": "stage_change", "label": "阶段变更通知"},
     {"key": "payment_overdue", "label": "回款逾期提醒"},
     {"key": "ai_task_complete", "label": "AI任务完成"},

@@ -77,6 +77,24 @@ function contractLabel(v: unknown, labels: Labels, form: Record<string, unknown>
   return ids.map((id) => labels.contracts[id] || id).join('、')
 }
 
+/** 标签「图纸编号（合同号）」→ 仅图纸编号；无括号则原样 */
+function drawingNoOnly(label: string): string {
+  const s = String(label || '').trim()
+  if (!s) return ''
+  const m = s.match(/^(.+?)\s*[（(]/)
+  if (m?.[1]?.trim()) return m[1].trim()
+  return s.replace(/\s+/g, ' ')
+}
+
+/** 打印「合同号」列与 PDF 文件名：只用图纸编号，不带 QQ 等业务合同号 */
+function printDrawingNo(v: unknown, labels: Labels, form: Record<string, unknown>): string {
+  const fromField = form.drawing_no != null && String(form.drawing_no).trim()
+    ? String(form.drawing_no).trim()
+    : ''
+  if (fromField && !/^[0-9a-f-]{36}$/i.test(fromField)) return fromField
+  return drawingNoOnly(contractLabel(v, labels, form))
+}
+
 function projectLabel(v: unknown, labels: Labels): string {
   return collectIds(v).map((id) => labels.projects[id] || id).join('、')
 }
@@ -268,19 +286,12 @@ function sanitizePrintFileName(name: string, fallback: string): string {
   return s || fallback
 }
 
-/** 文件名用合同号：优先纯文本；标签若为「图纸号（合同号）」取括号内 */
+/** 文件名用图纸编号（不用括号内的 QQ 合同号） */
 function contractNoForFileName(
   form: Record<string, unknown>,
   labels: Labels,
 ): string {
-  const raw = form.contract_no
-  if (typeof raw === 'string' && raw.trim() && !/^[0-9a-f-]{36}$/i.test(raw.trim())) {
-    return raw.trim()
-  }
-  const label = contractLabel(raw, labels, form).trim()
-  const m = label.match(/（([^）]+)）/)
-  if (m?.[1]) return m[1].trim()
-  return label
+  return printDrawingNo(form.contract_no, labels, form)
 }
 
 function requisitionPrintFileName(opts: {
@@ -490,7 +501,7 @@ function buildRequisitionHtml(ctx: {
   const applicant = personName(form.applicant, labels)
   const cardDate = fmtDate(form.order_date || form.apply_datetime)
   const serial = businessNo || ''
-  const contractNo = contractLabel(form.contract_no, labels, form)
+  const contractNo = printDrawingNo(form.contract_no, labels, form)
   const transfer = optionLabel(fields, 'transfer_channel', form.transfer_channel)
   const drawingType = optionLabel(fields, 'drawing_type', form.drawing_type)
   const std = optionLabel(fields, 'involve_std_drawing', form.involve_std_drawing)

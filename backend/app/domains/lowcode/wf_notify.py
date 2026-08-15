@@ -31,6 +31,36 @@ logger = logging.getLogger("spt_crm.lowcode.wf_notify")
 NOTIFY_BIZ_TYPE = "wf_instance"
 
 
+async def _ensure_process_cc_rows(
+    db: AsyncSession, tenant_id: str, process_instance_id: str, user_ids: list[str],
+) -> None:
+    """保证被抄送人在 wf_process_cc 有记录（审批中心「抄送我的」数据源）。"""
+    from app.database import generate_uuid
+    from app.domains.lowcode.workflow_models import WfProcessCc
+
+    for uid in user_ids:
+        if not uid:
+            continue
+        exists = (await db.execute(
+            select(WfProcessCc.id).where(
+                WfProcessCc.tenant_id == tenant_id,
+                WfProcessCc.process_instance_id == process_instance_id,
+                WfProcessCc.user_id == uid,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if exists:
+            continue
+        db.add(WfProcessCc(
+            id=generate_uuid(),
+            tenant_id=tenant_id,
+            process_instance_id=process_instance_id,
+            node_instance_id=None,
+            user_id=uid,
+            is_read=False,
+        ))
+    await db.flush()
+
+
 @asynccontextmanager
 async def _own_session():
     """通知专用的独立 session：与调用方的业务事务完全隔离。"""
@@ -304,6 +334,9 @@ async def notify_cc_users(
                         f"线索「{lead_title}」相关流程已抄送您。"
                         f"请打开审批中心「抄送我的」查看；可自行选择是否转化为客户/商机。"
                     )
+
+            # 兜底：若引擎漏写 wf_process_cc，补齐，避免「通知有、抄送我的空」
+            await _ensure_process_cc_rows(db, tenant_id, inst.id, user_ids)
 
             for uid in user_ids:
                 try:

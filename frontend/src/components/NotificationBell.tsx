@@ -5,6 +5,7 @@ import { notificationApi, type NotificationItem } from '@/api/notification'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { notificationTarget, notificationsHome } from '@/utils/notificationRoute'
 import MobileIcon from '@/components/MobileIcon'
+import { notifyNotificationUnreadChanged } from '@/hooks/useNotificationUnreadCount'
 
 const typeIcons: Record<string, { icon: string; color: string }> = {
   approval_pending: { icon: 'pending_actions', color: '#f59e0b' },
@@ -61,6 +62,7 @@ export default function NotificationBell() {
       const n = data.data as NotificationItem
       setItems((prev) => [n, ...prev])
       setUnread((c) => c + 1)
+      notifyNotificationUnreadChanged()
       message.info({ content: n.title, duration: 4, key: n.id })
     }
   }, [])
@@ -94,6 +96,7 @@ export default function NotificationBell() {
       notificationApi.markRead([item.id])
       setItems((prev) => prev.map((n) => n.id === item.id ? { ...n, is_read: true } : n))
       setUnread((c) => Math.max(0, c - 1))
+      notifyNotificationUnreadChanged()
     }
     setOpen(false)
 
@@ -106,6 +109,7 @@ export default function NotificationBell() {
       await notificationApi.markAllRead()
       setItems((prev) => prev.map((n) => ({ ...n, is_read: true })))
       setUnread(0)
+      notifyNotificationUnreadChanged()
     } catch {
       message.error('操作失败，请重试')
     }

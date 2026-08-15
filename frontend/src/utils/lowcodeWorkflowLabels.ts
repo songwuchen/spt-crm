@@ -4,7 +4,7 @@
 export const WF_ACTION_TEXT: Record<string, string> = {
   submit: '发起', approve: '通过', reject: '驳回', transfer: '转交', comment: '评论',
   withdraw: '撤回', auto_approve: '自动通过', auto_reject: '自动终止', return: '退回',
-  urge: '催办', auto_transfer: '自动转交', timeout: '超时提醒',
+  urge: '催办', auto_transfer: '自动转交', timeout: '超时提醒', cc: '抄送',
 }
 
 export interface WfStatusMeta { text: string; color: string; cls: string }

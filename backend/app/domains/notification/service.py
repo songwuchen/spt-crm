@@ -76,6 +76,19 @@ async def batch_delete(db: AsyncSession, tenant_id: str, recipient_id: str, ids:
     return result.rowcount
 
 
+async def clear_read(db: AsyncSession, tenant_id: str, recipient_id: str) -> int:
+    """删除当前用户全部已读通知。"""
+    result = await db.execute(
+        sql_delete(Notification).where(
+            Notification.tenant_id == tenant_id,
+            Notification.recipient_id == recipient_id,
+            Notification.is_read == True,  # noqa: E712
+        )
+    )
+    await db.commit()
+    return result.rowcount
+
+
 async def create_notification(db: AsyncSession, tenant_id: str, data: dict) -> Notification:
     n = Notification(id=generate_uuid(), tenant_id=tenant_id, **data)
     db.add(n)

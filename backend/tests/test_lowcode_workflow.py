@@ -686,3 +686,11 @@ async def test_intel_attack_cc_not_convert_prompt(client, db, lead_intel_user):
         assert "袭击" in body
         assert "自行选择是否转化" not in body
         assert "请转化为" not in body
+
+    from app.domains.lowcode.workflow_models import WfProcessCc
+    cc_rows = (await db.execute(select(WfProcessCc).where(
+        WfProcessCc.tenant_id == DEMO_TENANT,
+        WfProcessCc.process_instance_id == inst.id,
+        WfProcessCc.user_id == owner_id,
+    ))).scalars().all()
+    assert cc_rows, "袭击知会须写入 wf_process_cc，审批中心「抄送我的」才能看到"

@@ -17,18 +17,38 @@ from app.domains.lowcode import workflow_service as wsvc
 
 router = APIRouter(prefix="/api/v1/attachments", tags=["附件管理"])
 
-MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB（与前端 FileField 一致；CAD 版图常偏大）
 ALLOWED_EXTENSIONS = {
-    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp',
+    # 图片
+    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tif', '.tiff', '.svg',
+    # 办公文档
     '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-    '.txt', '.csv', '.zip', '.rar', '.7z',
+    '.txt', '.csv', '.rtf',
+    # 压缩包
+    '.zip', '.rar', '.7z',
+    # CAD / 工程图（报价询价单附件常用）
+    '.dwg', '.dxf', '.dwt', '.dwf', '.dwfx',
+    '.step', '.stp', '.iges', '.igs',
+    '.sldprt', '.sldasm', '.slddrw',
+    '.ipt', '.iam', '.idw',
+    '.catpart', '.catproduct', '.catdrawing',
+    '.prt', '.asm', '.x_t', '.x_b',
+    '.stl', '.obj', '.3ds', '.parasolid',
+    # 其它常见附图
+    '.vsd', '.vsdx', '.eml', '.msg',
 }
 ALLOWED_MIME_PREFIXES = {
     'image/', 'application/pdf', 'application/msword',
     'application/vnd.openxmlformats', 'application/vnd.ms-',
-    'text/plain', 'text/csv',
+    'text/plain', 'text/csv', 'text/rtf', 'application/rtf',
     'application/zip', 'application/x-rar', 'application/x-7z',
-    'application/octet-stream',  # generic fallback for zip/rar
+    'application/octet-stream',  # generic fallback for zip/rar/CAD
+    # AutoCAD / 通用 CAD
+    'application/acad', 'application/x-acad', 'application/autocad',
+    'application/x-autocad', 'application/dwg', 'application/x-dwg',
+    'image/vnd.dwg', 'image/x-dwg', 'application/dxf', 'application/x-dxf',
+    'model/step', 'application/step', 'application/sla', 'model/stl',
+    'application/vnd.visio', 'message/rfc822',
 }
 
 PRESIGN_EXPIRES = 600  # 10 minutes
@@ -111,9 +131,22 @@ def _validate_ext(filename: str) -> str:
 
 
 def _validate_mime(content_type: Optional[str]) -> None:
-    ct = (content_type or "").lower()
-    if ct and ct != "application/octet-stream" and not any(ct.startswith(p) for p in ALLOWED_MIME_PREFIXES):
-        raise BusinessException(message=f"不支持的内容类型: {ct}")
+    ct = (content_type or "").lower().split(";")[0].strip()
+    if not ct or ct == "application/octet-stream":
+        return
+    if any(ct.startswith(p) for p in ALLOWED_MIME_PREFIXES):
+        return
+    raise BusinessException(message=f"不支持的内容类型: {ct}")
+
+
+def _validate_upload_type(filename: str, content_type: Optional[str]) -> str:
+    """扩展名白名单为主；MIME 辅助（CAD 浏览器常报私有类型，扩展名合法则放行）。"""
+    ext = _validate_ext(filename)
+    try:
+        _validate_mime(content_type)
+    except BusinessException:
+        pass
+    return ext
 
 
 def _check_secrecy(att, current_user: dict) -> None:
@@ -156,8 +189,7 @@ async def upload(
     current_user: dict = Depends(require_permissions("attachment:upload")),
 ):
     filename = file.filename or "unknown"
-    _validate_ext(filename)
-    _validate_mime(file.content_type)
+    _validate_upload_type(filename, file.content_type)
 
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
@@ -209,8 +241,7 @@ async def presign_upload(
     Returns {"mode": "multipart"} when the active backend is local storage —
     the client should then fall back to the regular POST /api/v1/attachments.
     """
-    _validate_ext(body.filename)
-    _validate_mime(body.content_type)
+    _validate_upload_type(body.filename, body.content_type)
     if body.file_size and body.file_size > MAX_FILE_SIZE:
         raise BusinessException(message=f"文件大小超过限制（最大 {MAX_FILE_SIZE // 1024 // 1024}MB）")
 

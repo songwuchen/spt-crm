@@ -803,7 +803,7 @@ export default function ApprovalCenter() {
                   size="small"
                   scroll={{ x: 'max-content' }}
                   pagination={{ pageSize: 15, showSizeChanger: false }}
-                  locale={{ emptyText: <div className="py-8 text-slate-400">暂无抄送</div> }}
+                  locale={{ emptyText: <div className="py-8 text-slate-400">暂无抄送<br /><span className="text-xs">流程抄送节点触发后会出现在此；通知中心的「审批待处理/已决定」不会进入本列表</span></div> }}
                   dataSource={ccItems}
                   columns={[
                     {

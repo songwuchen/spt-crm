@@ -645,6 +645,13 @@ class WorkflowEngine:
             )
             self.db.add(ni)
             await self.db.flush()
+            # 须写入 wf_process_cc，否则只有站内通知、「抄送我的」为空
+            for uid in users:
+                self.db.add(WfProcessCc(
+                    id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
+                    node_instance_id=ni.id, user_id=uid, is_read=False,
+                ))
+            await self.db.flush()
             self._log(inst.id, ni.id, None, {"sub": "system"}, "auto_skip",
                       "线索已标记袭击，跳过业务员确认")
             if users:

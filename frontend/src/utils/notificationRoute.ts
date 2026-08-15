@@ -7,12 +7,40 @@
 
 import { currentZone } from '@/config/zone'
 
+/** 流程类通知：在通知中心本页打开详情，避免整页跳到「审批中心」造成割裂感 */
+function notificationsWfTarget(bizId: string | undefined, mobile: boolean): string {
+  if (mobile) {
+    // 移动端进流程详情页（非整页切到审批中心 Tab）
+    return bizId
+      ? `/m/lowcode/approvals/${encodeURIComponent(bizId)}`
+      : '/m/notifications'
+  }
+  return bizId
+    ? `/notifications?wf=${encodeURIComponent(bizId)}`
+    : '/notifications'
+}
+
+export function isInlineWorkflowNotification(
+  bizType?: string,
+  notifType?: string,
+): boolean {
+  if (notifType === 'approval_cc') return true
+  if (
+    (notifType === 'approval_pending' || notifType === 'approval_decided' || notifType === 'approval_sla_overdue')
+    && (bizType === 'wf_instance' || bizType === 'workflow')
+  ) {
+    return true
+  }
+  return bizType === 'wf_instance' || bizType === 'workflow'
+}
+
 /**
  * Resolve the in-app target route for a notification. Returns null when the
  * biz_type has no dedicated detail page (caller then just marks it read).
  *
- * 审批类：桌面端带查询参数，审批中心据此打开对应抽屉/详情（不再只落到空列表）。
- * 抄送类：落到审批中心「抄送我的」，并可带 wf= 打开对应流程。
+ * 流程抄送 / 新引擎审批结果与待办：PC 落在通知中心并带 ?wf= 打开抽屉；
+ * 待办也可在抽屉内处理，不必先跳进审批中心。
+ * 旧引擎 approval_flow 仍进审批中心。
  */
 export function notificationTarget(
   bizType?: string,
@@ -22,16 +50,15 @@ export function notificationTarget(
   const mobile = currentZone() === 'mobile'
   const p = mobile ? '/m' : ''
 
-  // 流程抄送 → 审批中心「抄送我的」（与 wf_process_cc 列表对齐）
   if (notifType === 'approval_cc') {
-    if (mobile) {
-      return bizId
-        ? `/m/approvals?tab=cc&wf=${encodeURIComponent(bizId)}`
-        : '/m/approvals?tab=cc'
-    }
-    return bizId
-      ? `/approvals?tab=cc&wf=${encodeURIComponent(bizId)}`
-      : '/approvals?tab=cc'
+    return notificationsWfTarget(bizId, mobile)
+  }
+
+  if (
+    (notifType === 'approval_pending' || notifType === 'approval_decided' || notifType === 'approval_sla_overdue')
+    && (bizType === 'wf_instance' || bizType === 'workflow')
+  ) {
+    return notificationsWfTarget(bizId, mobile)
   }
 
   switch (bizType) {
@@ -42,9 +69,7 @@ export function notificationTarget(
       return bizId ? `/approvals?flow=${encodeURIComponent(bizId)}` : '/approvals'
     case 'wf_instance':
     case 'workflow':
-      // 新工作流：移动端进 lowcode 详情；桌面端 ?wf= 打开流程抽屉
-      if (mobile) return bizId ? `/m/lowcode/approvals/${bizId}` : '/m/lowcode/approvals'
-      return bizId ? `/approvals?wf=${encodeURIComponent(bizId)}` : '/approvals'
+      return notificationsWfTarget(bizId, mobile)
     case 'lead':
       return bizId ? `${p}/leads/${bizId}` : `${p}/leads`
     case 'service_ticket':
@@ -59,7 +84,6 @@ export function notificationTarget(
     case 'tech_agreement_review':
       return bizId ? `/tech-agreement-reviews/${bizId}` : '/tech-agreement-reviews'
     case 'contract_version':
-      // 通知若带的是版本 id（非流程实例），无法稳定拼合同 URL，回审批中心
       return mobile ? '/m/approvals' : '/approvals'
     case 'customer':
       return bizId ? `${p}/customers/${bizId}` : null

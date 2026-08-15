@@ -3442,6 +3442,22 @@ async def _build_flow_steps(
     for l in logs:
         if l.actor_id:
             uid_set.add(l.actor_id)
+
+    # 抄送节点：从 wf_process_cc 取被抄送人（无审批任务，原先流程动态看不到人）
+    cc_node_ids = [n.id for n in nodes_sorted if getattr(n, "node_type", None) == "cc"]
+    cc_by_node: dict[str, list[str]] = {}
+    if cc_node_ids:
+        cc_rows = (await db.execute(
+            select(WfProcessCc.node_instance_id, WfProcessCc.user_id).where(
+                WfProcessCc.node_instance_id.in_(cc_node_ids),
+            )
+        )).all()
+        for nid, uid in cc_rows:
+            if not nid or not uid:
+                continue
+            cc_by_node.setdefault(nid, []).append(uid)
+            uid_set.add(uid)
+
     name_map: dict[str, str] = {}
     if uid_set:
         rows = (await db.execute(
@@ -3486,6 +3502,20 @@ async def _build_flow_steps(
             pending_names = [a["name"] for a in assignees if a["status"] == "pending"]
             actor_name = "、".join(pending_names) if pending_names else "、".join(a["name"] for a in assignees)
             action = action or "pending"
+        # 抄送节点：被抄送人放 assignees，供「查看抄送详情」；处理人显示为系统
+        if n.node_type == "cc":
+            cc_uids = cc_by_node.get(n.id) or []
+            uniq: list[str] = []
+            for uid in cc_uids:
+                if uid not in uniq:
+                    uniq.append(uid)
+            if uniq:
+                assignees = [
+                    {"id": uid, "name": name_map.get(uid, uid), "status": "completed"}
+                    for uid in uniq
+                ]
+            actor_name = actor_name or "系统"
+            action = action or "cc"
         end_at = n.completed_at or (getattr(lg, "created_at", None) if lg else None)
         out.append({
             "node_instance_id": n.id,
