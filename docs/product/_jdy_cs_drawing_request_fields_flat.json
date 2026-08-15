@@ -1,0 +1,241 @@
+[
+  {
+    "name": "_widget_1584423635442",
+    "title": "流水号",
+    "type": "sn",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324747780",
+    "title": "日期时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324747793",
+    "title": "部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324747817",
+    "title": "申请人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324747987",
+    "title": "合同号",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1697850315211",
+    "title": "图号231021",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1669604044008",
+    "title": "订货人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324747971",
+    "title": "订货人*",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324748032",
+    "title": "申请事由*",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1669620743951",
+    "title": "申请事由",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1625449621349",
+    "title": "设计人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324748048",
+    "title": "设计人*",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324748064",
+    "title": "产品型号",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1726128717250",
+    "title": "图纸传递途径",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "下生产",
+      "钉钉"
+    ]
+  },
+  {
+    "name": "_widget_1669614721963",
+    "title": "附件名称",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1669702693339",
+    "title": "图片",
+    "type": "image",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584324748414",
+    "title": "附件",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1765346720634",
+    "title": "部门指派",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "研管办",
+      "孙伟"
+    ]
+  },
+  {
+    "name": "_widget_1765346720633",
+    "title": "部门指派-研管办",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1669426933010",
+    "title": "设计单分派",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "总部单",
+      "新乡单",
+      "包装单",
+      "共同"
+    ]
+  },
+  {
+    "name": "_widget_1669426933009",
+    "title": "转新乡、工艺包装",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1669426933008",
+    "title": "设计指派",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676005046207",
+    "title": "科室",
+    "type": "deptgroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676005046206",
+    "title": "下单时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1584341179562",
+    "title": "图纸传递途径240912取消",
+    "type": "checkboxgroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "图纸数据管理",
+      "钉钉",
+      "打印纸质图"
+    ]
+  },
+  {
+    "name": "creator",
+    "title": "提交人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "createTime",
+    "title": "提交时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "updateTime",
+    "title": "更新时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  }
+]

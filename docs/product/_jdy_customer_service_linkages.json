@@ -558,6 +558,153 @@
           ]
         }
       ]
+    },
+    "cs_drawing_request": {
+      "required_fields": [
+        {
+          "widget": "_widget_1584324747780",
+          "label": "日期时间",
+          "type": "datetime",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1584324747793",
+          "label": "部门",
+          "type": "dept",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1584324747817",
+          "label": "申请人",
+          "type": "user",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1584324747987",
+          "label": "合同号",
+          "type": "combo",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1697850315211",
+          "label": "图号231021",
+          "type": "text",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1669604044008",
+          "label": "订货人",
+          "type": "user",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1669620743951",
+          "label": "申请事由",
+          "type": "textarea",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1726128717250",
+          "label": "图纸传递途径",
+          "type": "radiogroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1669614721963",
+          "label": "附件名称",
+          "type": "text",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1669426933010",
+          "label": "设计单分派",
+          "type": "radiogroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1669426933009",
+          "label": "转新乡、工艺包装",
+          "type": "usergroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1669426933008",
+          "label": "设计指派",
+          "type": "usergroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1676005046207",
+          "label": "科室",
+          "type": "deptgroup",
+          "parent": null,
+          "allowBlank": false
+        },
+        {
+          "widget": "_widget_1676005046206",
+          "label": "下单时间",
+          "type": "datetime",
+          "parent": null,
+          "allowBlank": false
+        }
+      ],
+      "field_show_rules": [
+        {
+          "filter": {
+            "cond": [
+              {
+                "type": "text",
+                "method": "in",
+                "value": [
+                  "总部单",
+                  "共同"
+                ],
+                "hasEmpty": false,
+                "field": "_widget_1669426933010"
+              }
+            ],
+            "rel": "and"
+          },
+          "fields": [
+            "_widget_1669426933008"
+          ]
+        },
+        {
+          "filter": {
+            "cond": [
+              {
+                "field": "_widget_1669426933010",
+                "type": "text",
+                "method": "in",
+                "value": [
+                  "新乡单",
+                  "郑州单",
+                  "共同",
+                  "包装单"
+                ],
+                "hasEmpty": false
+              }
+            ],
+            "rel": "and"
+          },
+          "fields": [
+            "_widget_1669426933009"
+          ]
+        }
+      ],
+      "subform_field_show_rules": []
     }
   }
 }

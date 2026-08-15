@@ -600,9 +600,28 @@ def charger_rule(chargers: dict | None, widget_slug: dict[str, str]) -> dict:
     if dm.get("creator") or dm.get("charger"):
         return {"type": "dept_head", "exclude_initiator": True}
     roles = c.get("roles") or []
-    if roles and isinstance(roles[0], dict) and roles[0].get("name"):
-        return {"type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
-                "jdy_role_hint": roles[0].get("name")}
+    if roles and isinstance(roles[0], dict):
+        from app.domains.lowcode.pickable_scope import (
+            JDY_ROLE_NAME_TO_APPROVER_SCOPE,
+            JDY_ROLE_TO_SCOPE_CODE,
+        )
+        rid = str(roles[0].get("_id") or roles[0].get("id") or "")
+        rname = str(roles[0].get("name") or "").strip()
+        scope = JDY_ROLE_TO_SCOPE_CODE.get(rid) or JDY_ROLE_NAME_TO_APPROVER_SCOPE.get(rname)
+        if scope:
+            return {
+                "type": "pickable_scope",
+                "value": scope,
+                "exclude_initiator": True,
+                "jdy_role_hint": rname or None,
+            }
+        if rname:
+            return {
+                "type": "specified_role",
+                "value": "sales_manager",
+                "exclude_initiator": True,
+                "jdy_role_hint": rname,
+            }
     return {"type": "specified_role", "value": "sales_manager", "exclude_initiator": True}
 
 
@@ -692,7 +711,12 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
                 "approver_rule": rule, "multi_mode": "or_sign",
                 "empty_strategy": "auto_approve",
             })
-            if rule.get("jdy_role_hint"):
+            if rule.get("type") == "pickable_scope":
+                notes.append(
+                    f"审批「{name}」JDY 角色「{rule.get('jdy_role_hint') or '?'}」"
+                    f"→ 可选范围 `{rule.get('value')}`"
+                )
+            elif rule.get("jdy_role_hint"):
                 notes.append(f"审批「{name}」JDY 角色「{rule['jdy_role_hint']}」降级为 sales_manager")
             if rule.get("type") == "specified_user":
                 notes.append(f"审批「{name}」具名用户 {rule.get('value')}，无匹配用户时 auto_approve")

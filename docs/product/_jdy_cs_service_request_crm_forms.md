@@ -45,21 +45,21 @@
 | └ field_26 | 发货日期 | datetime | 是 | | | `_widget_1577495432754` |
 | field_27 | 总工转交 | radio |  |  | approver | `_widget_1600497623100` |
 | field_28 | 总工下转 | person |  |  | approver | `_widget_1600497620698` |
-| field_29 | 附件 | file |  | 是 | initiator | `_widget_1578270713998` |
-| field_30 | 客服附件 | file |  |  | approver | `_widget_1578270714335` |
-| field_31 | 客服安排附件 | file |  |  | approver | `_widget_1586759656542` |
-| field_32 | 图片 | image |  | 是 | initiator | `_widget_1618967086538` |
-| field_33 | 需要协作 | select |  |  | approver | `_widget_1578109421544` |
-| field_34 | 协作人员 | person_multi |  |  | approver | `_widget_1586759657262` |
-| field_35 | 是否需要转交 | radio |  |  | approver | `_widget_1599529315677` |
-| field_36 | 转交人员 | person_multi |  |  | approver | `_widget_1599529315858` |
-| field_37 | 是否需要通知相关人员 | radio |  |  | approver | `_widget_1599529317113` |
-| field_38 | 通知相关人员 | person_multi |  |  | approver | `_widget_1599529317145` |
-| field_39 | 客服组长 | person_multi |  |  | approver | `_widget_1776385827924` |
-| field_40 | 是否需要总经理批示 | radio |  |  | approver | `_widget_1736846540976` |
-| field_41 | 客服备注 | detail_table |  |  | approver | `_widget_1774333506025` |
-| └ field_42 | 内容 | text |  | | | `_widget_1774333506027` |
-| └ field_43 | 附件 | file |  | | | `_widget_1774333506028` |
+| attachments | 附件 | file |  | 是 | initiator | `_widget_1578270713998` |
+| field_29 | 客服附件 | file |  |  | approver | `_widget_1578270714335` |
+| field_30 | 客服安排附件 | file |  |  | approver | `_widget_1586759656542` |
+| images | 图片 | image |  | 是 | initiator | `_widget_1618967086538` |
+| field_31 | 需要协作 | select |  |  | approver | `_widget_1578109421544` |
+| field_32 | 协作人员 | person_multi |  |  | approver | `_widget_1586759657262` |
+| field_33 | 是否需要转交 | radio |  |  | approver | `_widget_1599529315677` |
+| field_34 | 转交人员 | person_multi |  |  | approver | `_widget_1599529315858` |
+| field_35 | 是否需要通知相关人员 | radio |  |  | approver | `_widget_1599529317113` |
+| field_36 | 通知相关人员 | person_multi |  |  | approver | `_widget_1599529317145` |
+| field_37 | 客服组长 | person_multi |  |  | approver | `_widget_1776385827924` |
+| field_38 | 是否需要总经理批示 | radio |  |  | approver | `_widget_1736846540976` |
+| field_39 | 客服备注 | detail_table |  |  | approver | `_widget_1774333506025` |
+| └ field_40 | 内容 | text |  | | | `_widget_1774333506027` |
+| └ attachments_2 | 附件 | file |  | | | `_widget_1774333506028` |
 
 ### 流程降级备注
 

@@ -12,46 +12,46 @@
 | slug | 标签 | type | 必填 | 创建可填 | stage | jdy_widget |
 |------|------|------|------|----------|-------|------------|
 | serial_no | 流程编号 | auto_number |  | 是 | initiator | `_widget_1578121055665` |
-| field | 日期时间 | datetime |  | 是 | initiator | `_widget_1703723955401` |
-| field_2 | *提交人 | person |  | 是 | initiator | `_widget_1672114764912` |
-| field_3 | 发起部门 | department |  | 是 | initiator | `_widget_1657678970356` |
-| field_4 | 类型 | radio |  | 是 | initiator | `_widget_1703723955300` |
+| apply_datetime | 日期时间 | datetime |  | 是 | initiator | `_widget_1703723955401` |
+| field | *提交人 | person |  | 是 | initiator | `_widget_1672114764912` |
+| field_2 | 发起部门 | department |  | 是 | initiator | `_widget_1657678970356` |
+| field_3 | 类型 | radio |  | 是 | initiator | `_widget_1703723955300` |
 | customer_name | 客户名称 | customer |  | 是 | initiator | `_widget_1577514157595` |
-| field_5 | 业务部门 | department |  | 是 | initiator | `_widget_1578119863142` |
+| field_4 | 业务部门 | department |  | 是 | initiator | `_widget_1578119863142` |
 | sales_person | 业务员 | person |  | 是 | initiator | `_widget_1577520412656` |
-| field_6 | 现场联系人及电话 | text |  | 是 | initiator | `_widget_1577514157633` |
-| field_7 | 货物地址 | text |  | 是 | initiator | `_widget_1577514157611` |
+| field_5 | 现场联系人及电话 | text |  | 是 | initiator | `_widget_1577514157633` |
+| field_6 | 货物地址 | text |  | 是 | initiator | `_widget_1577514157611` |
 | remark | 备注 | textarea |  | 是 | initiator | `_widget_1577519023451` |
-| field_8 | 售出产品退回 | detail_table |  | 是 | initiator | `_widget_1577519022536` |
+| field_7 | 售出产品退回 | detail_table |  | 是 | initiator | `_widget_1577519022536` |
 | └ contract_no | 合同号 | text |  | | | `_widget_1577519022537` |
-| └ field_9 | 设备名称 | text |  | | | `_widget_1577519022538` |
-| └ field_10 | 规格型号 | text |  | | | `_widget_1577519022539` |
-| └ field_11 | 数量 | number |  | | | `_widget_1577519022540` |
-| └ field_12 | 单位 | text |  | | | `_widget_1578287861127` |
-| └ field_13 | 发货日期 | datetime |  | | | `_widget_1577519022541` |
-| └ field_14 | 退回产品详细说明 | textarea |  | | | `_widget_1577519022542` |
+| └ field_8 | 设备名称 | text |  | | | `_widget_1577519022538` |
+| └ field_9 | 规格型号 | text |  | | | `_widget_1577519022539` |
+| └ field_10 | 数量 | number |  | | | `_widget_1577519022540` |
+| └ field_11 | 单位 | text |  | | | `_widget_1578287861127` |
+| └ field_12 | 发货日期 | datetime |  | | | `_widget_1577519022541` |
+| └ field_13 | 退回产品详细说明 | textarea |  | | | `_widget_1577519022542` |
 | └ remark_2 | 备注 | textarea |  | | | `_widget_1577519022543` |
-| └ field_15 | 仓库判定* | radio |  | | | `_widget_1665817650935` |
-| field_16 | 图片 | detail_table |  | 是 | initiator | `_widget_1619070556652` |
-| └ field_17 | 上传人 | text |  | | | `_widget_1619070556669` |
-| └ field_18 | 图片 | image |  | | | `_widget_1619070556688` |
-| field_19 | 发起节点上传退回图片 | detail_table |  | 是 | initiator | `_widget_1736757240448` |
-| └ field_20 | 上传人 | text |  | | | `_widget_1736757240449` |
-| └ field_21 | 图片 | image |  | | | `_widget_1736757240450` |
-| field_22 | 图片 | image |  | 是 | initiator | `_widget_1578537741743` |
-| field_23 | 附件 | file |  | 是 | initiator | `_widget_1590721272018` |
-| field_24 | 图片 | image |  |  | approver | `_widget_1620023611025` |
-| field_25 | 会签成员 | person_multi |  |  | approver | `_widget_1578128358932` |
-| field_26 | 分发质检人员 | person_multi |  |  | approver | `_widget_1703723955512` |
-| field_27 | 分发生产人员 | person_multi |  |  | approver | `_widget_1703723955568` |
-| field_28 | 分发采购人员 | person_multi |  |  | approver | `_widget_1703723955540` |
-| field_29 | 分发仓库人员 | person_multi |  |  | approver | `_widget_1586758707499` |
-| field_30 | 维修部门 | department |  | 是 |  | `_widget_1578128358033` |
+| └ field_14 | 仓库判定* | radio |  | | | `_widget_1665817650935` |
+| images | 图片 | detail_table |  | 是 | initiator | `_widget_1619070556652` |
+| └ field_15 | 上传人 | text |  | | | `_widget_1619070556669` |
+| └ images_2 | 图片 | image |  | | | `_widget_1619070556688` |
+| field_16 | 发起节点上传退回图片 | detail_table |  | 是 | initiator | `_widget_1736757240448` |
+| └ field_17 | 上传人 | text |  | | | `_widget_1736757240449` |
+| └ images_3 | 图片 | image |  | | | `_widget_1736757240450` |
+| images_4 | 图片 | image |  | 是 | initiator | `_widget_1578537741743` |
+| attachments | 附件 | file |  | 是 | initiator | `_widget_1590721272018` |
+| images_5 | 图片 | image |  |  | approver | `_widget_1620023611025` |
+| field_18 | 会签成员 | person_multi |  |  | approver | `_widget_1578128358932` |
+| field_19 | 分发质检人员 | person_multi |  |  | approver | `_widget_1703723955512` |
+| field_20 | 分发生产人员 | person_multi |  |  | approver | `_widget_1703723955568` |
+| field_21 | 分发采购人员 | person_multi |  |  | approver | `_widget_1703723955540` |
+| field_22 | 分发仓库人员 | person_multi |  |  | approver | `_widget_1586758707499` |
+| field_23 | 维修部门 | department |  | 是 |  | `_widget_1578128358033` |
 | f_1 | 仓库判定1 | select |  | 是 |  | `_widget_1578127027977` |
-| field_31 | 流程判断 | radio |  | 是 |  | `_widget_1691974761704` |
-| field_32 | 物流情况 | radio |  |  | approver | `_widget_1753923897787` |
-| field_33 | 是否转相关人员 | radio |  | 是 | initiator | `_widget_1734925951092` |
-| field_34 | 转相关人员 | person_multi |  | 是 | initiator | `_widget_1734925951094` |
+| field_24 | 流程判断 | radio |  | 是 |  | `_widget_1691974761704` |
+| field_25 | 物流情况 | radio |  |  | approver | `_widget_1753923897787` |
+| field_26 | 是否转相关人员 | radio |  | 是 | initiator | `_widget_1734925951092` |
+| field_27 | 转相关人员 | person_multi |  | 是 | initiator | `_widget_1734925951094` |
 
 ### 流程降级备注
 

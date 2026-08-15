@@ -50,6 +50,17 @@ PRESET_SCOPES = [
         "is_system": True,
         "rules": {"role_codes": [], "user_ids": [], "dept_ids": [], "include_children": True},
     },
+    {
+        "code": "dept_dispatch_ygb",
+        "name": "部门指派-研管办",
+        "kind": "person",
+        "description": (
+            "客服领图「部门指派-研管办」审批人选范围；"
+            "对齐简道云角色「27.3图纸领用申请-研究院安排」。在此直接勾选成员。"
+        ),
+        "is_system": True,
+        "rules": {"role_codes": [], "user_ids": [], "dept_ids": [], "include_children": True},
+    },
 ]
 
 

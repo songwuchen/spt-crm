@@ -68,6 +68,8 @@ const breadcrumbNameMap: Record<string, string> = {
   '/cs-product-returns/fill': '新增',
   '/cs-loan-slips': '客服借据',
   '/cs-loan-slips/fill': '新增',
+  '/cs-drawing-requests': '客服领图',
+  '/cs-drawing-requests/fill': '新增',
   '/cs-service-delays': '客户服务延期申请',
   '/cs-service-delays/fill': '新增',
   '/cs-correspondences': '客服往来函件',

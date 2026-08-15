@@ -1,12 +1,14 @@
 /** 流程节点审批人/抄送人规则编辑（含组合选人 mixed）。 */
+import { useEffect, useState } from 'react'
 import { Button, Input, Select, Space, Typography } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import PersonField from '@/components/lowcode/fields/PersonField'
+import { pickableScopeApi } from '@/api/pickableScope'
 import type { ApproverType, FieldDefinition, WfApproverRule } from '@/types/lowcode'
 
 const { Text } = Typography
 
-type NeedValue = 'user' | 'field_person' | 'field_dept' | 'text' | 'mixed'
+type NeedValue = 'user' | 'field_person' | 'field_dept' | 'text' | 'pickable_scope' | 'mixed'
 
 export type ApproverTypeMeta = {
   value: ApproverType
@@ -23,6 +25,7 @@ export const ATOMIC_APPROVER_TYPES: ApproverTypeMeta[] = [
   { value: 'multi_level_superior', label: '逐级上级' },
   { value: 'form_field_person', label: '表单人员字段', needValue: 'field_person' },
   { value: 'form_field_dept', label: '表单部门字段', needValue: 'field_dept' },
+  { value: 'pickable_scope', label: '可选范围', needValue: 'pickable_scope' },
   { value: 'specified_role', label: '指定角色(角色码)', needValue: 'text' },
 ]
 
@@ -54,6 +57,39 @@ function deptFieldOptions(formFields: FieldDefinition[], current?: string) {
 function asSubRules(value: unknown): WfApproverRule[] {
   if (!Array.isArray(value)) return []
   return value.filter((x): x is WfApproverRule => !!x && typeof x === 'object' && !!(x as WfApproverRule).type)
+}
+
+function PickableScopeSelect({
+  value,
+  onChange,
+}: {
+  value: unknown
+  onChange: (value: unknown) => void
+}) {
+  const [opts, setOpts] = useState<{ value: string; label: string }[]>([])
+  useEffect(() => {
+    pickableScopeApi.listForPicker({ kind: 'person' }).then((r) => {
+      const list = Array.isArray(r.data) ? r.data : []
+      setOpts(list.map((s) => ({ value: s.code, label: `${s.name} (${s.code})` })))
+    }).catch(() => setOpts([]))
+  }, [])
+  const cur = typeof value === 'string' ? value : Array.isArray(value) ? String(value[0] || '') : undefined
+  const options = [...opts]
+  if (cur && !options.some((o) => o.value === cur)) {
+    options.unshift({ value: cur, label: cur })
+  }
+  return (
+    <Select
+      size="small"
+      style={{ width: '100%' }}
+      placeholder="选择可选范围"
+      value={cur || undefined}
+      options={options}
+      optionFilterProp="label"
+      showSearch
+      onChange={onChange}
+    />
+  )
 }
 
 /** 单一规则的取值区（不含 type 选择） */
@@ -102,6 +138,9 @@ function AtomicValueEditor({
         onChange={onChange}
       />
     )
+  }
+  if (meta.needValue === 'pickable_scope') {
+    return <PickableScopeSelect value={rule.value} onChange={onChange} />
   }
   return (
     <Input

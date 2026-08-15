@@ -24,8 +24,8 @@
 | field_6 | 区域经理/组长 | person |  | 是 | initiator | `_widget_1770086518838` |
 | field_7 | 具体情况描述 | text |  | 是 | initiator | `_widget_1709085809146` |
 | field_8 | 附件与图片 | detail_table |  | 是 | initiator | `_widget_1709085809844` |
-| └ field_9 | 图片 | image |  | | | `_widget_1709085809846` |
-| └ field_10 | 附件 | file |  | | | `_widget_1709085809847` |
+| └ images | 图片 | image |  | | | `_widget_1709085809846` |
+| └ attachments | 附件 | file |  | | | `_widget_1709085809847` |
 
 ### 流程降级备注
 

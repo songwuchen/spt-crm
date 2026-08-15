@@ -21,6 +21,7 @@ CHECKS = (
     ("cs_product_replace", "SYS_CS_PRODUCT_REPLACE"),
     ("cs_product_return", "SYS_CS_PRODUCT_RETURN"),
     ("cs_loan_slip", "SYS_CS_LOAN_SLIP"),
+    ("cs_drawing_request", "SYS_CS_DRAWING_REQUEST"),
     ("cs_service_delay", "SYS_CS_SERVICE_DELAY"),
     ("cs_correspondence", "SYS_CS_CORRESPONDENCE"),
 )
@@ -59,6 +60,31 @@ async def main():
                 f"  flow={d.code} expect={code} name={d.name} ver={v.version_number} "
                 f"jdy={jdy} nodes={n}"
             )
+            if key == "cs_drawing_request":
+                hit = next(
+                    (
+                        nd for nd in (v.node_definitions or [])
+                        if isinstance(nd, dict) and nd.get("name") == "部门指派-研管办"
+                    ),
+                    None,
+                )
+                rule = (hit or {}).get("approver_rule") or {}
+                print(f"  部门指派-研管办 rule={rule}")
+                if rule.get("type") != "pickable_scope" or rule.get("value") != "dept_dispatch_ygb":
+                    print("  FAIL: expected pickable_scope=dept_dispatch_ygb")
+                    ok = False
+                from app.domains.organization.pickable_scope_service import (
+                    ensure_preset_scopes, get_scope_by_code,
+                )
+                await ensure_preset_scopes(db, tenant)
+                scope = await get_scope_by_code(db, tenant, "dept_dispatch_ygb")
+                print(
+                    f"  scope dept_dispatch_ygb="
+                    f"{'ok' if scope else 'MISSING'} name={getattr(scope, 'name', None)}"
+                )
+                if not scope or scope.name != "部门指派-研管办":
+                    print("  FAIL: pickable scope 部门指派-研管办 missing")
+                    ok = False
             if d.code != code or not jdy:
                 ok = False
                 print("  FAIL code/jdy mismatch")

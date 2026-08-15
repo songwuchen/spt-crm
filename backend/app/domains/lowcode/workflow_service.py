@@ -404,6 +404,16 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "empty_strategy": "auto_approve",
     },
     {
+        "form_code": "research_coop_card",
+        "code": "SYS_RESEARCH_COOP_CARD",
+        "name": "中央研究院协同卡",
+        "approver_rule": {
+            "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
         "form_code": "cs_service_request",
         "code": "SYS_CS_SERVICE_REQUEST",
         "name": "客户服务申请及反馈",
@@ -437,6 +447,16 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "form_code": "cs_loan_slip",
         "code": "SYS_CS_LOAN_SLIP",
         "name": "客服借据",
+        "approver_rule": {
+            "type": "specified_role", "value": "service_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
+        "form_code": "cs_drawing_request",
+        "code": "SYS_CS_DRAWING_REQUEST",
+        "name": "客服领图",
         "approver_rule": {
             "type": "specified_role", "value": "service_manager", "exclude_initiator": True,
         },
@@ -501,6 +521,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     try:
         from app.domains.lowcode._pricing_checklist_hjqd_generated import PRICING_CHECKLIST_HJQD_JDY
         packs.update(PRICING_CHECKLIST_HJQD_JDY)
+    except Exception:
+        pass
+    try:
+        from app.domains.lowcode._research_coop_card_generated import RESEARCH_COOP_CARD_JDY
+        packs.update(RESEARCH_COOP_CARD_JDY)
     except Exception:
         pass
     try:
@@ -732,6 +757,8 @@ def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
         return _flow_is_jdy_quote(nodes)
     if form_code == "pricing_checklist_hjqd":
         return _flow_is_jdy_pricing_checklist(nodes)
+    if form_code == "research_coop_card":
+        return _flow_is_jdy_research_coop_card(nodes)
     if form_code and form_code.startswith("cs_"):
         return _flow_is_jdy_customer_service(nodes)
     return False
@@ -751,6 +778,13 @@ def _flow_is_jdy_pricing_checklist(nodes: list | None) -> bool:
     return "财务" in names and "cc" in types and len(nodes or []) >= 5
 
 
+def _flow_is_jdy_research_coop_card(nodes: list | None) -> bool:
+    """已对齐简道云中央研究院协同卡：含「设计安排」+ 抄送申请人。"""
+    names = {n.get("name") for n in (nodes or [])}
+    types = {n.get("type") for n in (nodes or [])}
+    return "设计安排" in names and "cc" in types and len(nodes or []) >= 6
+
+
 def _flow_has_legacy_department_leader(nodes: list | None) -> bool:
     """旧生成器把部门主管写成 department_leader，需升级为 dept_head。"""
     for n in nodes or []:
@@ -758,6 +792,30 @@ def _flow_has_legacy_department_leader(nodes: list | None) -> bool:
             continue
         rule = n.get("approver_rule") or {}
         if isinstance(rule, dict) and rule.get("type") == "department_leader":
+            return True
+    return False
+
+
+def _flow_needs_pickable_scope_approver_upgrade(
+    current_nodes: list | None, new_nodes: list | None,
+) -> bool:
+    """生成图已改为 pickable_scope（如客服领图「部门指派-研管办」），现网仍为角色降级时需重发。"""
+    cur_by_id = {
+        n.get("id"): n
+        for n in (current_nodes or [])
+        if isinstance(n, dict) and n.get("id")
+    }
+    for nn in new_nodes or []:
+        if not isinstance(nn, dict):
+            continue
+        want = nn.get("approver_rule") or {}
+        if not isinstance(want, dict) or want.get("type") != "pickable_scope":
+            continue
+        cur = cur_by_id.get(nn.get("id")) or {}
+        have = cur.get("approver_rule") or {}
+        if not isinstance(have, dict):
+            return True
+        if have.get("type") != "pickable_scope" or have.get("value") != want.get("value"):
             return True
     return False
 
@@ -1838,6 +1896,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         "SYS_CS_PRODUCT_REPLACE",
         "SYS_CS_PRODUCT_RETURN",
         "SYS_CS_LOAN_SLIP",
+        "SYS_CS_DRAWING_REQUEST",
         "SYS_CS_SERVICE_DELAY",
         "SYS_CS_CORRESPONDENCE",
     ):
@@ -1863,6 +1922,9 @@ async def _upgrade_drawing_form_flow_if_needed(
             version.node_definitions, version.route_definitions,
         )
         and not _flow_has_legacy_department_leader(version.node_definitions)
+        and not _flow_needs_pickable_scope_approver_upgrade(
+            version.node_definitions, new_nodes,
+        )
         and not (
             _flow_has_node_field_perms(new_nodes)
             and not _flow_has_node_field_perms(version.node_definitions)
@@ -2071,6 +2133,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "报价管理"
     elif form_code == "pricing_checklist_hjqd":
         d.name = "核价清单传递"
+    elif form_code == "research_coop_card":
+        d.name = "中央研究院协同卡"
     elif form_code == "cs_service_request":
         d.name = "客户服务申请及反馈"
     elif form_code == "cs_product_replace":
@@ -2079,6 +2143,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "售出产品/工具退回"
     elif form_code == "cs_loan_slip":
         d.name = "客服借据"
+    elif form_code == "cs_drawing_request":
+        d.name = "客服领图"
     elif form_code == "cs_service_delay":
         d.name = "客户服务延期申请"
     elif form_code == "cs_correspondence":

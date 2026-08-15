@@ -25,10 +25,10 @@
 | └ field_8 | 单位 | text |  | | | `_widget_1562922344901` |
 | field_9 | 是否已抽条 | radio |  |  | approver | `_widget_1749513825257` |
 | field_10 | 抽条日期 | datetime |  |  | approver | `_widget_1655946162663` |
-| field_11 | 附件 | file |  | 是 | initiator | `_widget_1657596605516` |
-| field_12 | 图片 | image |  | 是 | initiator | `_widget_1657596605551` |
-| field_13 | 抽条备注 | textarea |  |  | approver | `_widget_1562730825101` |
-| field_14 | 区域经理/组长 | person |  | 是 | initiator | `_widget_1770085770735` |
+| attachments | 附件 | file |  | 是 | initiator | `_widget_1657596605516` |
+| images | 图片 | image |  | 是 | initiator | `_widget_1657596605551` |
+| field_11 | 抽条备注 | textarea |  |  | approver | `_widget_1562730825101` |
+| field_12 | 区域经理/组长 | person |  | 是 | initiator | `_widget_1770085770735` |
 
 ### 流程降级备注
 

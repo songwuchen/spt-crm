@@ -1,0 +1,222 @@
+{
+  "success": true,
+  "data": {
+    "fields": [
+      {
+        "name": "_widget_1584423635442",
+        "text": "流水号",
+        "type": "sn",
+        "required": false,
+        "rules": [
+          {
+            "type": "createTime",
+            "format": "yyyyMMdd",
+            "formatType": "custom",
+            "chars": "格式：20150101"
+          },
+          {
+            "type": "incNumber",
+            "digitsNum": 2,
+            "fixedLength": true,
+            "resetDuration": "day",
+            "startValue": 1,
+            "chars": "2位数字,每日重置"
+          }
+        ]
+      },
+      {
+        "name": "_widget_1584324747780",
+        "text": "日期时间",
+        "type": "datetime",
+        "required": true,
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "name": "_widget_1584324747793",
+        "text": "部门",
+        "type": "dept",
+        "required": true
+      },
+      {
+        "name": "_widget_1584324747817",
+        "text": "申请人",
+        "type": "user",
+        "required": true
+      },
+      {
+        "name": "_widget_1584324747987",
+        "text": "合同号",
+        "type": "combo",
+        "required": true,
+        "items": []
+      },
+      {
+        "name": "_widget_1697850315211",
+        "text": "图号231021",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "_widget_1669604044008",
+        "text": "订货人",
+        "type": "user",
+        "required": true
+      },
+      {
+        "name": "_widget_1584324747971",
+        "text": "订货人*",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "_widget_1584324748032",
+        "text": "申请事由*",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "_widget_1669620743951",
+        "text": "申请事由",
+        "type": "textarea",
+        "required": true
+      },
+      {
+        "name": "_widget_1625449621349",
+        "text": "设计人",
+        "type": "user",
+        "required": false
+      },
+      {
+        "name": "_widget_1584324748048",
+        "text": "设计人*",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "_widget_1584324748064",
+        "text": "产品型号",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "_widget_1726128717250",
+        "text": "图纸传递途径",
+        "type": "radiogroup",
+        "required": true,
+        "items": [
+          {
+            "text": "下生产",
+            "value": "下生产"
+          },
+          {
+            "text": "钉钉",
+            "value": "钉钉"
+          }
+        ]
+      },
+      {
+        "name": "_widget_1669614721963",
+        "text": "附件名称",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "_widget_1669702693339",
+        "text": "图片",
+        "type": "image",
+        "required": false
+      },
+      {
+        "name": "_widget_1584324748414",
+        "text": "附件",
+        "type": "upload",
+        "required": false
+      },
+      {
+        "name": "_widget_1765346720634",
+        "text": "部门指派",
+        "type": "radiogroup",
+        "required": false,
+        "items": [
+          {
+            "text": "研管办",
+            "value": "研管办"
+          },
+          {
+            "text": "孙伟",
+            "value": "孙伟"
+          }
+        ]
+      },
+      {
+        "name": "_widget_1669426933010",
+        "text": "设计单分派",
+        "type": "radiogroup",
+        "required": true,
+        "items": [
+          {
+            "text": "总部单",
+            "value": "总部单"
+          },
+          {
+            "text": "新乡单",
+            "value": "新乡单"
+          },
+          {
+            "text": "包装单",
+            "value": "包装单"
+          },
+          {
+            "text": "共同",
+            "value": "共同"
+          }
+        ]
+      },
+      {
+        "name": "_widget_1669426933009",
+        "text": "转新乡、工艺包装",
+        "type": "usergroup",
+        "required": true
+      },
+      {
+        "name": "_widget_1669426933008",
+        "text": "设计指派",
+        "type": "usergroup",
+        "required": true
+      },
+      {
+        "name": "_widget_1676005046207",
+        "text": "科室",
+        "type": "deptgroup",
+        "required": true
+      },
+      {
+        "name": "_widget_1676005046206",
+        "text": "下单时间",
+        "type": "datetime",
+        "required": true,
+        "format": "yyyy-MM-dd"
+      },
+      {
+        "name": "_widget_1584341179562",
+        "text": "图纸传递途径240912取消",
+        "type": "checkboxgroup",
+        "required": false,
+        "items": [
+          {
+            "text": "图纸数据管理",
+            "value": "图纸数据管理"
+          },
+          {
+            "text": "钉钉",
+            "value": "钉钉"
+          },
+          {
+            "text": "打印纸质图",
+            "value": "打印纸质图"
+          }
+        ]
+      }
+    ]
+  }
+}

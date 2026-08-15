@@ -12,50 +12,50 @@
 | slug | 标签 | type | 必填 | 创建可填 | stage | jdy_widget |
 |------|------|------|------|----------|-------|------------|
 | serial_no | 流程编号 | auto_number |  | 是 | initiator | `_widget_1578121055665` |
-| field | 日期时间 | datetime |  | 是 | initiator | `_widget_1617689215719` |
-| field_2 | 业务部门 | department |  | 是 | initiator | `_widget_1578119863142` |
+| apply_datetime | 日期时间 | datetime |  | 是 | initiator | `_widget_1617689215719` |
+| field | 业务部门 | department |  | 是 | initiator | `_widget_1578119863142` |
 | sales_person | 业务员 | person |  | 是 | initiator | `_widget_1577520412656` |
-| field_3 | 对应区域经理或组长 | person |  | 是 | initiator | `_widget_1770085266610` |
+| field_2 | 对应区域经理或组长 | person |  | 是 | initiator | `_widget_1770085266610` |
 | customer_name | 客户名称 | customer |  | 是 | initiator | `_widget_1577514157595` |
-| field_4 | 货物地址 | text |  | 是 | initiator | `_widget_1577514157611` |
-| field_5 | 现场联系人及电话 | text |  | 是 | initiator | `_widget_1577514157633` |
+| field_3 | 货物地址 | text |  | 是 | initiator | `_widget_1577514157611` |
+| field_4 | 现场联系人及电话 | text |  | 是 | initiator | `_widget_1577514157633` |
 | remark | 备注 | textarea |  | 是 | initiator | `_widget_1577519023451` |
-| field_6 | 是否需退回 | radio |  | 是 | initiator | `_widget_1675673210466` |
-| field_7 | 是否关联验收回款 | radio |  | 是 | initiator | `_widget_1749182322753` |
-| field_8 | 是否需打借据 | radio |  |  | approver | `_widget_1675673210468` |
-| field_9 | 紧急程度判定-业务经理 | radio |  |  | approver | `_widget_1739261778534` |
-| field_10 | 紧急程度判定-客服经理 | radio |  |  | approver | `_widget_1739261778536` |
-| field_11 | 紧急程度判定-总经理 | radio |  |  | approver | `_widget_1739318635777` |
-| field_12 | 最终紧急程度判定 | text |  | 是 |  | `_widget_1739318635876` |
-| field_13 | 换货（含补发） | detail_table |  | 是 | initiator | `_widget_1577519022536` |
+| field_5 | 是否需退回 | radio |  | 是 | initiator | `_widget_1675673210466` |
+| field_6 | 是否关联验收回款 | radio |  | 是 | initiator | `_widget_1749182322753` |
+| field_7 | 是否需打借据 | radio |  |  | approver | `_widget_1675673210468` |
+| field_8 | 紧急程度判定-业务经理 | radio |  |  | approver | `_widget_1739261778534` |
+| field_9 | 紧急程度判定-客服经理 | radio |  |  | approver | `_widget_1739261778536` |
+| field_10 | 紧急程度判定-总经理 | radio |  |  | approver | `_widget_1739318635777` |
+| field_11 | 最终紧急程度判定 | text |  | 是 |  | `_widget_1739318635876` |
+| field_12 | 换货（含补发） | detail_table |  | 是 | initiator | `_widget_1577519022536` |
 | └ contract_no | 合同号 | text |  | | | `_widget_1577519022537` |
-| └ field_14 | 设备名称 | text |  | | | `_widget_1577519022538` |
-| └ field_15 | 规格型号 | text |  | | | `_widget_1577519022539` |
-| └ field_16 | 数量 | number |  | | | `_widget_1577519022540` |
-| └ field_17 | 单位 | text |  | | | `_widget_1578287834987` |
-| └ field_18 | 发货日期 | datetime |  | | | `_widget_1577519022541` |
-| └ field_19 | 退换详细说明 | textarea |  | | | `_widget_1577519022542` |
-| └ field_20 | 故障分类 | text |  | | | `_widget_1617691334516` |
-| field_21 | 成本价 | text |  |  | approver | `_widget_1687499358442` |
-| field_22 | 图片 | detail_table |  | 是 | initiator | `_widget_1619070274799` |
-| └ field_23 | 上传人 | text |  | | | `_widget_1619070274816` |
-| └ field_24 | 图片 | image |  | | | `_widget_1619070274835` |
+| └ field_13 | 设备名称 | text |  | | | `_widget_1577519022538` |
+| └ field_14 | 规格型号 | text |  | | | `_widget_1577519022539` |
+| └ field_15 | 数量 | number |  | | | `_widget_1577519022540` |
+| └ field_16 | 单位 | text |  | | | `_widget_1578287834987` |
+| └ field_17 | 发货日期 | datetime |  | | | `_widget_1577519022541` |
+| └ field_18 | 退换详细说明 | textarea |  | | | `_widget_1577519022542` |
+| └ field_19 | 故障分类 | text |  | | | `_widget_1617691334516` |
+| field_20 | 成本价 | text |  |  | approver | `_widget_1687499358442` |
+| images | 图片 | detail_table |  | 是 | initiator | `_widget_1619070274799` |
+| └ field_21 | 上传人 | text |  | | | `_widget_1619070274816` |
+| └ images_2 | 图片 | image |  | | | `_widget_1619070274835` |
 | f_0418 | 附件0418 | file |  | 是 | initiator | `_widget_1578271183948` |
 | f_0418_2 | 客服附件0418 | file |  |  | approver | `_widget_1578271183961` |
 | f_0418_3 | 客服补登附件0418 | file |  |  | approver | `_widget_1578702338220` |
 | f_0418_4 | 会签附件0418 | file |  |  | approver | `_widget_1589433529814` |
-| field_25 | 需要补登 | radio |  |  | approver | `_widget_1578452391724` |
-| field_26 | 货是否发完 | radio |  |  | approver | `_widget_1675988284441` |
-| field_27 | 是否小萌 | radio |  | 是 | initiator | `_widget_1716164018678` |
-| field_28 | 会签 | radio |  |  | approver | `_widget_1578127027977` |
+| field_22 | 需要补登 | radio |  |  | approver | `_widget_1578452391724` |
+| field_23 | 货是否发完 | radio |  |  | approver | `_widget_1675988284441` |
+| field_24 | 是否小萌 | radio |  | 是 | initiator | `_widget_1716164018678` |
+| field_25 | 会签 | radio |  |  | approver | `_widget_1578127027977` |
 | f_0418_5 | 图片0418 | image |  | 是 | initiator | `_widget_1618966943220` |
-| field_29 | 会签人员 | person_multi |  |  | approver | `_widget_1578127028052` |
-| field_30 | 责任方 | text |  |  | approver | `_widget_1617689215015` |
-| field_31 | 是否需要转交相关人员处理后补登 | radio |  |  | approver | `_widget_1593825383660` |
-| field_32 | 相关人员处理 | person |  |  | approver | `_widget_1593825383717` |
-| field_33 | 客服备注 | detail_table |  |  | approver | `_widget_1774333375920` |
-| └ field_34 | 内容 | text |  | | | `_widget_1774333375922` |
-| └ field_35 | 附件 | file |  | | | `_widget_1774333375923` |
+| field_26 | 会签人员 | person_multi |  |  | approver | `_widget_1578127028052` |
+| field_27 | 责任方 | text |  |  | approver | `_widget_1617689215015` |
+| field_28 | 是否需要转交相关人员处理后补登 | radio |  |  | approver | `_widget_1593825383660` |
+| field_29 | 相关人员处理 | person |  |  | approver | `_widget_1593825383717` |
+| field_30 | 客服备注 | detail_table |  |  | approver | `_widget_1774333375920` |
+| └ field_31 | 内容 | text |  | | | `_widget_1774333375922` |
+| └ attachments | 附件 | file |  | | | `_widget_1774333375923` |
 
 ### 流程降级备注
 

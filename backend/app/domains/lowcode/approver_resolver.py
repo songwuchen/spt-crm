@@ -269,6 +269,28 @@ class ApproverResolver:
         )).scalars().all()
         return list(rows)
 
+    async def _r_pickable_scope(self, rule: dict, _ctx: ApprovalContext) -> list[str]:
+        """按「系统管理 → 可选范围」成员解析审批人（对齐 JDY 专属角色，勿降级到 CRM 业务角色）。"""
+        codes = self._as_list(rule.get("value"))
+        if not codes:
+            return []
+        from app.domains.organization import pickable_scope_service as pss
+
+        out: list[str] = []
+        seen: set[str] = set()
+        for code in codes:
+            scope = await pss.get_scope_by_code(self.db, self.tenant_id, str(code))
+            if not scope:
+                continue
+            ids = await pss.resolve_person_ids(self.db, self.tenant_id, scope)
+            if not ids:
+                continue
+            for uid in ids:
+                if uid and uid not in seen:
+                    seen.add(uid)
+                    out.append(uid)
+        return out
+
     async def _r_specified_post(self, rule: dict, _ctx: ApprovalContext) -> list[str]:
         post_ids = self._as_list(rule.get("value"))
         if not post_ids:

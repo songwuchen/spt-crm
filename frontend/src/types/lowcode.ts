@@ -205,7 +205,7 @@ export interface WfTimeout {
   transfer_to?: string | null   // auto_transfer 时的接收人
 }
 export type ApproverType =
-  | 'specified_user' | 'specified_role' | 'specified_post'
+  | 'specified_user' | 'specified_role' | 'specified_post' | 'pickable_scope'
   | 'direct_supervisor' | 'dept_head' | 'multi_level_superior'
   | 'dept_members' | 'creator' | 'form_field_person' | 'form_field_dept'
   | 'initiator_self_select' | 'mixed'

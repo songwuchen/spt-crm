@@ -1,0 +1,5235 @@
+{
+  "_id": "63acddd2129b90000a2933f2",
+  "appId": "584658417562f37a227fa805",
+  "entryId": "63acddd2129b90000a2933f1",
+  "name": "中央研究院协同卡",
+  "content": {
+    "items": [
+      {
+        "description": "",
+        "label": "仅限总部与新乡、包装之间的协同",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1672981582225",
+          "lineStyle": "thin",
+          "lineColor": "#00B899",
+          "labelColor": "#8D3030"
+        }
+      },
+      {
+        "description": "",
+        "label": "流水号",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "type": "sn",
+          "widgetName": "_widget_1672273364044",
+          "rules": [
+            {
+              "type": "fixedChars",
+              "chars": "6.19.1-"
+            },
+            {
+              "format": "yyyyMMdd",
+              "formatType": "custom",
+              "type": "createTime"
+            },
+            {
+              "type": "incNumber",
+              "digitsNum": 2,
+              "fixedLength": true,
+              "resetDuration": "day",
+              "startValue": 1
+            }
+          ],
+          "enable": false
+        }
+      },
+      {
+        "description": "",
+        "label": "协同卡类型",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1672273364246",
+          "items": [
+            {
+              "value": "电气",
+              "text": "电气",
+              "color": "#EB5050"
+            },
+            {
+              "value": "振源",
+              "text": "振源",
+              "color": "#F0A800"
+            },
+            {
+              "value": "筛板",
+              "text": "筛板",
+              "color": "#46C26F"
+            },
+            {
+              "value": "标准化",
+              "text": "标准化",
+              "color": "#A2C204"
+            },
+            {
+              "value": "通用",
+              "text": "通用",
+              "color": "#00AED1"
+            },
+            {
+              "value": "包装",
+              "text": "包装",
+              "color": "#5865F5"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": "",
+        "label": "一、原始流程名称",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1672273364045",
+          "lineStyle": "style5",
+          "lineColor": "#0DB3A6",
+          "labelColor": "#FFFFFF"
+        }
+      },
+      {
+        "description": "",
+        "label": "流程名称",
+        "labelHidden": false,
+        "lineWidth": 9,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1744622134497",
+          "items": [
+            {
+              "value": "安装图设计通知",
+              "text": "安装图设计通知",
+              "color": "#EB5050"
+            },
+            {
+              "value": "合同图纸（资料）领用申请",
+              "text": "合同图纸（资料）领用申请",
+              "color": "#F0A800"
+            },
+            {
+              "value": "客服领图",
+              "text": "客服领图",
+              "color": "#46C26F"
+            },
+            {
+              "value": "生产卡/补充流程",
+              "text": "生产卡/补充流程",
+              "color": "#A2C204"
+            },
+            {
+              "text": "其他",
+              "value": "其他",
+              "isOther": true
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": "",
+        "label": "选择安装图设计通知数据",
+        "labelHidden": false,
+        "lineWidth": 9,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "linkfield",
+          "widgetName": "_widget_1676882291853",
+          "linkFilter": [],
+          "linkFilterRel": "and",
+          "linkFields": [
+            {
+              "text": "流水号",
+              "type": "sn",
+              "name": "_widget_1597364772669"
+            },
+            {
+              "text": "申请人",
+              "type": "user",
+              "name": "_widget_1584323676049"
+            },
+            {
+              "text": "部门",
+              "type": "dept",
+              "name": "_widget_1584323676006"
+            },
+            {
+              "text": "订货人",
+              "type": "user",
+              "name": "_widget_1624943050844"
+            },
+            {
+              "text": "新设计卡号",
+              "type": "text",
+              "name": "_widget_1697272822538"
+            }
+          ],
+          "linkFieldsFormShow": [],
+          "buttonStyle": {
+            "name": "选择数据"
+          },
+          "showDataLabel": false,
+          "linkForm": "5e6edc5b44b7070006d191cb",
+          "linkDataMaps": [
+            {
+              "mode": "depend",
+              "type": "text",
+              "field": "_widget_1744684632566",
+              "depend": {
+                "field": "_widget_1597364772669"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "user",
+              "field": "_widget_1744684632567",
+              "depend": {
+                "field": "_widget_1584323676049"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "text",
+              "field": "_widget_1744684632568",
+              "depend": {
+                "field": "_widget_1584323676189"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "text",
+              "field": "_widget_1744684632569",
+              "depend": {
+                "field": "_widget_1697272822538"
+              }
+            },
+            {
+              "mode": "depend",
+              "depend": {
+                "field": "_widget_1584323676006"
+              },
+              "field": "_widget_1744684632570",
+              "type": "dept"
+            },
+            {
+              "mode": "depend",
+              "depend": {
+                "field": "_widget_1723510391172"
+              },
+              "field": "_widget_1744699879751",
+              "type": "text"
+            }
+          ],
+          "refAppId": "5e6c73fefc53170006bd4e9c",
+          "sort": null,
+          "fieldGroupConfigs": []
+        }
+      },
+      {
+        "description": "",
+        "label": "流水号-安装图设计通知",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632566"
+        }
+      },
+      {
+        "description": "",
+        "label": "订货人（文本）-安装图设计通知",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632568"
+        }
+      },
+      {
+        "description": "",
+        "label": "申请人-安装图设计通知",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "user",
+          "widgetName": "_widget_1744684632567"
+        }
+      },
+      {
+        "description": "",
+        "label": "新设计卡号-安装图设计通知",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632569"
+        }
+      },
+      {
+        "description": "",
+        "label": "对应项目号-安装图设计通知",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744699879751"
+        }
+      },
+      {
+        "description": "",
+        "label": "部门-安装图设计通知",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "dept",
+          "widgetName": "_widget_1744684632570",
+          "valueOption": 0
+        }
+      },
+      {
+        "description": "",
+        "label": "安装图设计通知-查看",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "linkquery",
+          "widgetName": "_widget_1744684632786",
+          "linkFilter": [
+            {
+              "link": "_widget_1597364772669",
+              "method": "eq",
+              "type": "widget",
+              "rely": "_widget_1744684632566",
+              "fixed": null,
+              "linkType": "sn"
+            }
+          ],
+          "linkFilterRel": "and",
+          "linkFields": [
+            {
+              "text": "流水号",
+              "type": "sn",
+              "name": "_widget_1597364772669"
+            },
+            {
+              "text": "日期时间",
+              "type": "datetime",
+              "name": "_widget_1584323675993",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "项目号（打印模板显示）",
+              "type": "text",
+              "name": "_widget_1723510391172"
+            },
+            {
+              "text": "是否为新项目0816",
+              "type": "radiogroup",
+              "name": "_widget_1723596746484"
+            },
+            {
+              "text": "项目号选择",
+              "type": "combo",
+              "name": "_widget_1723598024203"
+            },
+            {
+              "text": "业务员",
+              "type": "user",
+              "name": "_widget_1723703918992"
+            },
+            {
+              "text": "现场",
+              "type": "text",
+              "name": "_widget_1723703918990"
+            },
+            {
+              "text": "事项",
+              "type": "text",
+              "name": "_widget_1723703918991"
+            },
+            {
+              "text": "申请人",
+              "type": "user",
+              "name": "_widget_1584323676049"
+            },
+            {
+              "text": "部门",
+              "type": "dept",
+              "name": "_widget_1584323676006"
+            },
+            {
+              "text": "订货人",
+              "type": "user",
+              "name": "_widget_1624943050844"
+            },
+            {
+              "text": "部门编号",
+              "type": "text",
+              "name": "_widget_1697272822537"
+            },
+            {
+              "text": "是否小萌方案",
+              "type": "radiogroup",
+              "name": "_widget_1662702145763"
+            },
+            {
+              "text": "设计卡号",
+              "type": "number",
+              "name": "_widget_1673499279532"
+            },
+            {
+              "text": "新设计卡号",
+              "type": "text",
+              "name": "_widget_1697272822538"
+            },
+            {
+              "text": "下图类型",
+              "type": "radiogroup",
+              "name": "_widget_1624352911105"
+            },
+            {
+              "text": "图纸类型（可多选）",
+              "type": "checkboxgroup",
+              "name": "_widget_1622075095219"
+            },
+            {
+              "text": "是否解密",
+              "type": "radiogroup",
+              "name": "_widget_1584323676350"
+            },
+            {
+              "text": "领图目的",
+              "type": "radiogroup",
+              "name": "_widget_1669604747098"
+            },
+            {
+              "text": "申请事由/修改事项",
+              "type": "text",
+              "name": "_widget_1584323676275"
+            },
+            {
+              "text": "*申请事由",
+              "type": "text",
+              "name": "_widget_1662702831365"
+            },
+            {
+              "text": "业务反馈240416",
+              "type": "radiogroup",
+              "name": "_widget_1713252188931"
+            },
+            {
+              "text": "落标原因240416",
+              "type": "text",
+              "name": "_widget_1713252188933"
+            },
+            {
+              "text": "下卡日期",
+              "type": "datetime",
+              "name": "_widget_1624352039272",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "前期沟通设计人员",
+              "type": "user",
+              "name": "_widget_1624352911480"
+            },
+            {
+              "text": "要求交图时间",
+              "type": "datetime",
+              "name": "_widget_1624352911499",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "产品型号",
+              "type": "text",
+              "name": "_widget_1584323676307"
+            },
+            {
+              "text": "前期沟通的设计员（文本）",
+              "type": "text",
+              "name": "_widget_1584323676291"
+            },
+            {
+              "name": "_widget_1624352909418",
+              "text": "出方案图填写明细",
+              "type": "subform",
+              "items": [
+                {
+                  "label": "设备名称",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624352909435"
+                  }
+                },
+                {
+                  "label": "设计要求",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624352909494"
+                  }
+                },
+                {
+                  "label": "是否有附件/修改图",
+                  "widget": {
+                    "type": "radiogroup",
+                    "widgetName": "_widget_1624352909611"
+                  }
+                },
+                {
+                  "label": "图纸数量",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624352909986"
+                  }
+                },
+                {
+                  "label": "是否核价",
+                  "widget": {
+                    "type": "radiogroup",
+                    "widgetName": "_widget_1624352910183"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "_widget_1624434803711",
+              "text": "安装环境和现场条件",
+              "type": "subform",
+              "items": [
+                {
+                  "label": "海拔高度（m)",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624434803728"
+                  }
+                },
+                {
+                  "label": "环境温度­°C（最高/最低）",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624434803793"
+                  }
+                },
+                {
+                  "label": "大气压力KP",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624434804053"
+                  }
+                },
+                {
+                  "label": "供电电源V",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624434804260"
+                  }
+                },
+                {
+                  "label": "防爆区域",
+                  "widget": {
+                    "type": "radiogroup",
+                    "widgetName": "_widget_1624434804437"
+                  }
+                },
+                {
+                  "label": "工艺位置",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624434804752"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "安装位置",
+              "type": "radiogroup",
+              "name": "_widget_1624352910598"
+            },
+            {
+              "text": "设备基础图纸",
+              "type": "radiogroup",
+              "name": "_widget_1624352910630"
+            },
+            {
+              "text": "安装方式",
+              "type": "radiogroup",
+              "name": "_widget_1624352910614"
+            },
+            {
+              "name": "_widget_1624352911556",
+              "text": "修改方案",
+              "type": "subform",
+              "items": [
+                {
+                  "label": "需要修改的设备名称",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624352911573"
+                  }
+                },
+                {
+                  "label": "修改部位",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624352911656"
+                  }
+                },
+                {
+                  "label": "修改原因",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624352911741"
+                  }
+                },
+                {
+                  "label": "前期沟通设计人员",
+                  "widget": {
+                    "type": "user",
+                    "widgetName": "_widget_1624583924385"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "_widget_1624352910323",
+              "text": "出方案图填写明细-物料特性",
+              "type": "subform",
+              "items": [
+                {
+                  "label": "行业*",
+                  "widget": {
+                    "type": "combo",
+                    "widgetName": "_widget_1670209699036"
+                  }
+                },
+                {
+                  "label": "行业",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624505906027"
+                  }
+                },
+                {
+                  "label": "物料名称（可多选）",
+                  "widget": {
+                    "type": "combocheck",
+                    "widgetName": "_widget_1685081858434"
+                  }
+                },
+                {
+                  "label": "物料名称230526取消",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670209699038"
+                  }
+                },
+                {
+                  "label": "物料名称",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624352910340"
+                  }
+                },
+                {
+                  "label": "*堆密度（kg/m³)",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670209699039"
+                  }
+                },
+                {
+                  "label": "堆密度（kg/m³)",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624434805021"
+                  }
+                },
+                {
+                  "label": "温度­°C",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624434805300"
+                  }
+                },
+                {
+                  "label": "筛孔尺寸mm*",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1685081858184"
+                  }
+                },
+                {
+                  "label": "筛孔尺寸mm",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624434805496"
+                  }
+                },
+                {
+                  "label": "*处理量(t/h)",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670209699040"
+                  }
+                },
+                {
+                  "label": "处理量(t/h)",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624352910498"
+                  }
+                },
+                {
+                  "label": "*入料粒度",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670209699041"
+                  }
+                },
+                {
+                  "label": "入料粒度",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1629079817970"
+                  }
+                },
+                {
+                  "label": "*筛分效率是否有要求",
+                  "widget": {
+                    "type": "radiogroup",
+                    "widgetName": "_widget_1670312768934"
+                  }
+                },
+                {
+                  "label": "筛分效率是否有要求",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624434806187"
+                  }
+                },
+                {
+                  "label": "*粒度分布",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670209699042"
+                  }
+                },
+                {
+                  "label": "粒度分布",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624352910389"
+                  }
+                },
+                {
+                  "label": "*筛分效率",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670209699043"
+                  }
+                },
+                {
+                  "label": "筛分效率",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1625038769012"
+                  }
+                },
+                {
+                  "label": "*水分含量%",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670209699044"
+                  }
+                },
+                {
+                  "label": "水分含量%",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624434805419"
+                  }
+                },
+                {
+                  "label": "粒度组成",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1624434806260"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "_widget_1670207254643",
+              "text": "非出方案图填写明细-物料特性",
+              "type": "subform",
+              "items": [
+                {
+                  "label": "行业",
+                  "widget": {
+                    "type": "combo",
+                    "widgetName": "_widget_1670207254644"
+                  }
+                },
+                {
+                  "label": "物料名称",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670207254645"
+                  }
+                },
+                {
+                  "label": "堆密度（kg/m³)",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670207254646"
+                  }
+                },
+                {
+                  "label": "温度­°C",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670207254647"
+                  }
+                },
+                {
+                  "label": "筛孔尺寸mm",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670207254648"
+                  }
+                },
+                {
+                  "label": "处理量(t/h)",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670207254649"
+                  }
+                },
+                {
+                  "label": "入料粒度",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670207254650"
+                  }
+                },
+                {
+                  "label": "筛分效率是否有要求",
+                  "widget": {
+                    "type": "radiogroup",
+                    "widgetName": "_widget_1670207254651"
+                  }
+                },
+                {
+                  "label": "粒度分布",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670207254652"
+                  }
+                },
+                {
+                  "label": "筛分效率",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670207254653"
+                  }
+                },
+                {
+                  "label": "水分含量%",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670207254654"
+                  }
+                },
+                {
+                  "label": "粒度组成",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1670207254655"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "简述行业、工艺位置、特殊要求（230320沟通不用显示）",
+              "type": "textarea",
+              "name": "_widget_1624352909302"
+            },
+            {
+              "text": "注意",
+              "type": "text",
+              "name": "_widget_1679722777387"
+            },
+            {
+              "text": "附件名称",
+              "type": "textarea",
+              "name": "_widget_1586759251628"
+            },
+            {
+              "text": "设计单分派",
+              "type": "radiogroup",
+              "name": "_widget_1668992972400"
+            },
+            {
+              "text": "转新乡、工艺包装",
+              "type": "usergroup",
+              "name": "_widget_1668992972425"
+            },
+            {
+              "text": "设计指派",
+              "type": "usergroup",
+              "name": "_widget_1584415118691"
+            },
+            {
+              "text": "是否上交图纸",
+              "type": "radiogroup",
+              "name": "_widget_1674957454888"
+            },
+            {
+              "text": "科室多选",
+              "type": "deptgroup",
+              "name": "_widget_1676007312737"
+            },
+            {
+              "text": "下单日期",
+              "type": "datetime",
+              "name": "_widget_1676007312736",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "转孙伟、刘万涛",
+              "type": "usergroup",
+              "name": "_widget_1662703176057"
+            },
+            {
+              "text": "附件（不能放图片）",
+              "type": "upload",
+              "name": "_widget_1584348631246"
+            },
+            {
+              "text": "图片",
+              "type": "image",
+              "name": "_widget_1584348816654"
+            },
+            {
+              "text": "态度分数",
+              "type": "number",
+              "name": "_widget_1676601972672"
+            },
+            {
+              "text": "进度、准确性分数",
+              "type": "number",
+              "name": "_widget_1676601972673"
+            },
+            {
+              "text": "专业技能分数",
+              "type": "number",
+              "name": "_widget_1676601972674"
+            },
+            {
+              "text": "备注",
+              "type": "textarea",
+              "name": "_widget_1676601353553"
+            },
+            {
+              "text": "总分",
+              "type": "number",
+              "name": "_widget_1676601972702"
+            },
+            {
+              "text": "打分日期",
+              "type": "datetime",
+              "name": "_widget_1677119447744",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "提交人",
+              "type": "user",
+              "name": "creator"
+            },
+            {
+              "text": "提交时间",
+              "type": "datetime",
+              "name": "createTime"
+            },
+            {
+              "text": "更新时间",
+              "type": "datetime",
+              "name": "updateTime"
+            },
+            {
+              "text": "流程状态",
+              "type": "flowState",
+              "name": "flowState"
+            }
+          ],
+          "linkForm": "5e6edc5b44b7070006d191cb",
+          "refAppId": "5e6c73fefc53170006bd4e9c",
+          "multi": true,
+          "allowAdd": false,
+          "rely": {
+            "widgets": [
+              "_widget_1744684632566"
+            ]
+          },
+          "sort": null
+        }
+      },
+      {
+        "description": "",
+        "label": "合同图纸（资料）领用申请",
+        "labelHidden": false,
+        "lineWidth": 9,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "linkfield",
+          "widgetName": "_widget_1744684632510",
+          "linkFilter": [],
+          "linkFilterRel": "and",
+          "linkFields": [
+            {
+              "text": "流水号",
+              "type": "sn",
+              "name": "_widget_1584423635442"
+            },
+            {
+              "text": "部门",
+              "type": "dept",
+              "name": "_widget_1584324747793"
+            },
+            {
+              "text": "申请人",
+              "type": "user",
+              "name": "_widget_1584324747817"
+            },
+            {
+              "text": "订货人（文本）",
+              "type": "text",
+              "name": "_widget_1584324747971"
+            },
+            {
+              "text": "合同号",
+              "type": "combo",
+              "name": "_widget_1584324747987"
+            }
+          ],
+          "linkFieldsFormShow": [],
+          "buttonStyle": {
+            "name": "选择数据"
+          },
+          "showDataLabel": false,
+          "linkForm": "5e6ee08be3051400062159ee",
+          "linkDataMaps": [
+            {
+              "mode": "depend",
+              "type": "text",
+              "field": "_widget_1744684632625",
+              "depend": {
+                "field": "_widget_1584423635442"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "dept",
+              "field": "_widget_1744684632626",
+              "depend": {
+                "field": "_widget_1584324747793"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "user",
+              "field": "_widget_1744684632627",
+              "depend": {
+                "field": "_widget_1584324747817"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "text",
+              "field": "_widget_1744684632628",
+              "depend": {
+                "field": "_widget_1584324747971"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "combo",
+              "field": "_widget_1744684632629",
+              "depend": {
+                "field": "_widget_1584324747987"
+              }
+            }
+          ],
+          "refAppId": "5e6c73fefc53170006bd4e9c",
+          "sort": null,
+          "fieldGroupConfigs": []
+        }
+      },
+      {
+        "description": "",
+        "label": "流水号-合同图纸（资料）领用申请",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632625"
+        }
+      },
+      {
+        "description": "",
+        "label": "合同号-合同图纸（资料）领用申请",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632629"
+        }
+      },
+      {
+        "description": "",
+        "label": "申请人-合同图纸（资料）领用申请",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "user",
+          "widgetName": "_widget_1744684632627"
+        }
+      },
+      {
+        "description": "",
+        "label": "订货人（文本）-合同图纸（资料）领用申请",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632628"
+        }
+      },
+      {
+        "description": "",
+        "label": "部门-合同图纸（资料）领用申请",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "dept",
+          "widgetName": "_widget_1744684632626",
+          "valueOption": 0
+        }
+      },
+      {
+        "description": "",
+        "label": "合同图纸（资料）领用申请-查看",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "linkquery",
+          "widgetName": "_widget_1744684632823",
+          "linkFilter": [
+            {
+              "link": "_widget_1584423635442",
+              "method": "eq",
+              "type": "widget",
+              "rely": "_widget_1744684632625",
+              "fixed": null,
+              "linkType": "sn"
+            }
+          ],
+          "linkFilterRel": "and",
+          "linkFields": [
+            {
+              "text": "流水号",
+              "type": "sn",
+              "name": "_widget_1584423635442"
+            },
+            {
+              "text": "日期时间",
+              "type": "datetime",
+              "name": "_widget_1584324747780",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "部门",
+              "type": "dept",
+              "name": "_widget_1584324747793"
+            },
+            {
+              "text": "申请人",
+              "type": "user",
+              "name": "_widget_1584324747817"
+            },
+            {
+              "text": "是否涉及企标图纸",
+              "type": "radiogroup",
+              "name": "_widget_1712285733642"
+            },
+            {
+              "text": "订货人",
+              "type": "user",
+              "name": "_widget_1670208477895"
+            },
+            {
+              "text": "订货人（文本）",
+              "type": "text",
+              "name": "_widget_1584324747971"
+            },
+            {
+              "text": "合同号",
+              "type": "combo",
+              "name": "_widget_1584324747987"
+            },
+            {
+              "text": "申请事由",
+              "type": "text",
+              "name": "_widget_1584324748032"
+            },
+            {
+              "text": "设计人",
+              "type": "user",
+              "name": "_widget_1625449621349"
+            },
+            {
+              "text": "设计人(文本)",
+              "type": "text",
+              "name": "_widget_1584324748048"
+            },
+            {
+              "text": "产品型号",
+              "type": "text",
+              "name": "_widget_1584324748064"
+            },
+            {
+              "text": "图纸传递途径",
+              "type": "radiogroup",
+              "name": "_widget_1726128540953"
+            },
+            {
+              "text": "是否解密",
+              "type": "radiogroup",
+              "name": "_widget_1584324748140"
+            },
+            {
+              "text": "是否解密*",
+              "type": "text",
+              "name": "_widget_1744187653651"
+            },
+            {
+              "text": "图纸类型",
+              "type": "radiogroup",
+              "name": "_widget_1584324748225"
+            },
+            {
+              "text": "附件/图片名称",
+              "type": "text",
+              "name": "_widget_1669617286395"
+            },
+            {
+              "text": "附件",
+              "type": "upload",
+              "name": "_widget_1584324748414"
+            },
+            {
+              "text": "图片",
+              "type": "image",
+              "name": "_widget_1584324748427"
+            },
+            {
+              "text": "设计单分派",
+              "type": "radiogroup",
+              "name": "_widget_1669426933010"
+            },
+            {
+              "text": "转新乡、工艺包装",
+              "type": "usergroup",
+              "name": "_widget_1669426933009"
+            },
+            {
+              "text": "设计指派",
+              "type": "usergroup",
+              "name": "_widget_1669426933008"
+            },
+            {
+              "text": "科室",
+              "type": "deptgroup",
+              "name": "_widget_1676005090837"
+            },
+            {
+              "text": "下单日期",
+              "type": "datetime",
+              "name": "_widget_1676005090838",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "是否需要总经理审批",
+              "type": "radiogroup",
+              "name": "_widget_1699839662506"
+            },
+            {
+              "text": "提交人",
+              "type": "user",
+              "name": "creator"
+            },
+            {
+              "text": "提交时间",
+              "type": "datetime",
+              "name": "createTime"
+            },
+            {
+              "text": "更新时间",
+              "type": "datetime",
+              "name": "updateTime"
+            },
+            {
+              "text": "流程状态",
+              "type": "flowState",
+              "name": "flowState"
+            }
+          ],
+          "linkForm": "5e6ee08be3051400062159ee",
+          "refAppId": "5e6c73fefc53170006bd4e9c",
+          "multi": true,
+          "allowAdd": false,
+          "rely": {
+            "widgets": [
+              "_widget_1744684632625"
+            ]
+          },
+          "sort": null
+        }
+      },
+      {
+        "description": "",
+        "label": "客服领图",
+        "labelHidden": false,
+        "lineWidth": 9,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "linkfield",
+          "widgetName": "_widget_1744684632491",
+          "linkFilter": [],
+          "linkFilterRel": "and",
+          "linkFields": [
+            {
+              "text": "流水号",
+              "type": "sn",
+              "name": "_widget_1584423635442"
+            },
+            {
+              "text": "部门",
+              "type": "dept",
+              "name": "_widget_1584324747793"
+            },
+            {
+              "text": "申请人",
+              "type": "user",
+              "name": "_widget_1584324747817"
+            },
+            {
+              "text": "合同号",
+              "type": "combo",
+              "name": "_widget_1584324747987"
+            },
+            {
+              "text": "订货人*",
+              "type": "text",
+              "name": "_widget_1584324747971"
+            }
+          ],
+          "linkFieldsFormShow": [],
+          "buttonStyle": {
+            "name": "选择数据"
+          },
+          "showDataLabel": false,
+          "linkForm": "63840316a3241c000a805869",
+          "linkDataMaps": [
+            {
+              "mode": "depend",
+              "type": "text",
+              "field": "_widget_1744684632668",
+              "depend": {
+                "field": "_widget_1584423635442"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "dept",
+              "field": "_widget_1744684632669",
+              "depend": {
+                "field": "_widget_1584324747793"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "user",
+              "field": "_widget_1744684632670",
+              "depend": {
+                "field": "_widget_1584324747817"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "combo",
+              "field": "_widget_1744684632671",
+              "depend": {
+                "field": "_widget_1584324747987"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "text",
+              "field": "_widget_1744684632673",
+              "depend": {
+                "field": "_widget_1584324747971"
+              }
+            }
+          ],
+          "refAppId": "58e2fbc7ffd1608b4ce92809",
+          "sort": null,
+          "fieldGroupConfigs": []
+        }
+      },
+      {
+        "description": "",
+        "label": "流水号-客服领图",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632668"
+        }
+      },
+      {
+        "description": "",
+        "label": "部门-客服领图",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "dept",
+          "widgetName": "_widget_1744684632669",
+          "valueOption": 0
+        }
+      },
+      {
+        "description": "",
+        "label": "申请人-客服领图",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "user",
+          "widgetName": "_widget_1744684632670"
+        }
+      },
+      {
+        "description": "",
+        "label": "合同号-客服领图",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632671"
+        }
+      },
+      {
+        "description": "",
+        "label": "订货人*-客服领图",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632673"
+        }
+      },
+      {
+        "description": "",
+        "label": "客服领图-查看",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "linkquery",
+          "widgetName": "_widget_1744684632842",
+          "linkFilter": [
+            {
+              "link": "_widget_1584423635442",
+              "method": "eq",
+              "type": "widget",
+              "rely": "_widget_1744684632668",
+              "fixed": null,
+              "linkType": "sn"
+            }
+          ],
+          "linkFilterRel": "and",
+          "linkFields": [
+            {
+              "text": "流水号",
+              "type": "sn",
+              "name": "_widget_1584423635442"
+            },
+            {
+              "text": "日期时间",
+              "type": "datetime",
+              "name": "_widget_1584324747780",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "部门",
+              "type": "dept",
+              "name": "_widget_1584324747793"
+            },
+            {
+              "text": "申请人",
+              "type": "user",
+              "name": "_widget_1584324747817"
+            },
+            {
+              "text": "合同号",
+              "type": "combo",
+              "name": "_widget_1584324747987"
+            },
+            {
+              "text": "图号231021",
+              "type": "text",
+              "name": "_widget_1697850315211"
+            },
+            {
+              "text": "订货人",
+              "type": "user",
+              "name": "_widget_1669604044008"
+            },
+            {
+              "text": "订货人*",
+              "type": "text",
+              "name": "_widget_1584324747971"
+            },
+            {
+              "text": "申请事由*",
+              "type": "text",
+              "name": "_widget_1584324748032"
+            },
+            {
+              "text": "申请事由",
+              "type": "textarea",
+              "name": "_widget_1669620743951"
+            },
+            {
+              "text": "设计人",
+              "type": "user",
+              "name": "_widget_1625449621349"
+            },
+            {
+              "text": "设计人*",
+              "type": "text",
+              "name": "_widget_1584324748048"
+            },
+            {
+              "text": "产品型号",
+              "type": "text",
+              "name": "_widget_1584324748064"
+            },
+            {
+              "text": "图纸传递途径",
+              "type": "radiogroup",
+              "name": "_widget_1726128717250"
+            },
+            {
+              "text": "附件名称",
+              "type": "text",
+              "name": "_widget_1669614721963"
+            },
+            {
+              "text": "图片",
+              "type": "image",
+              "name": "_widget_1669702693339"
+            },
+            {
+              "text": "附件",
+              "type": "upload",
+              "name": "_widget_1584324748414"
+            },
+            {
+              "text": "设计单分派",
+              "type": "radiogroup",
+              "name": "_widget_1669426933010"
+            },
+            {
+              "text": "转新乡、工艺包装",
+              "type": "usergroup",
+              "name": "_widget_1669426933009"
+            },
+            {
+              "text": "设计指派",
+              "type": "usergroup",
+              "name": "_widget_1669426933008"
+            },
+            {
+              "text": "科室",
+              "type": "deptgroup",
+              "name": "_widget_1676005046207"
+            },
+            {
+              "text": "下单时间",
+              "type": "datetime",
+              "name": "_widget_1676005046206",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "提交人",
+              "type": "user",
+              "name": "creator"
+            },
+            {
+              "text": "提交时间",
+              "type": "datetime",
+              "name": "createTime"
+            },
+            {
+              "text": "更新时间",
+              "type": "datetime",
+              "name": "updateTime"
+            },
+            {
+              "text": "流程状态",
+              "type": "flowState",
+              "name": "flowState"
+            }
+          ],
+          "linkForm": "63840316a3241c000a805869",
+          "refAppId": "58e2fbc7ffd1608b4ce92809",
+          "multi": true,
+          "allowAdd": false,
+          "rely": {
+            "widgets": [
+              "_widget_1744684632668"
+            ]
+          },
+          "sort": null
+        }
+      },
+      {
+        "description": "",
+        "label": "生产卡/补充流程",
+        "labelHidden": false,
+        "lineWidth": 9,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "linkfield",
+          "widgetName": "_widget_1744684632511",
+          "linkFilter": [],
+          "linkFilterRel": "and",
+          "linkFields": [
+            {
+              "text": "1.2.8生产卡/补充流程编号",
+              "type": "sn",
+              "name": "_widget_1617693684982"
+            },
+            {
+              "text": "合同号",
+              "type": "text",
+              "name": "_widget_1565329479026"
+            },
+            {
+              "text": "所在部门",
+              "type": "dept",
+              "name": "_widget_1572834254155"
+            },
+            {
+              "text": "提交人",
+              "type": "user",
+              "name": "_widget_1565937682664"
+            },
+            {
+              "text": "是否为补充",
+              "type": "radiogroup",
+              "name": "_widget_1596176975836"
+            },
+            {
+              "text": "说明",
+              "type": "textarea",
+              "name": "_widget_1596176980525"
+            }
+          ],
+          "linkFieldsFormShow": [],
+          "buttonStyle": {
+            "name": "选择数据"
+          },
+          "showDataLabel": false,
+          "linkForm": "5d11dcbf0c9b52255a2cb4be",
+          "linkDataMaps": [
+            {
+              "mode": "depend",
+              "type": "text",
+              "field": "_widget_1744684632729",
+              "depend": {
+                "field": "_widget_1617693684982"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "dept",
+              "field": "_widget_1744684632730",
+              "depend": {
+                "field": "_widget_1572834254155"
+              }
+            },
+            {
+              "mode": "depend",
+              "type": "text",
+              "field": "_widget_1744684632731",
+              "depend": {
+                "field": "_widget_1565329479026"
+              }
+            },
+            {
+              "mode": "depend",
+              "depend": {
+                "field": "_widget_1565937682664"
+              },
+              "field": "_widget_1744684633114",
+              "type": "user"
+            }
+          ],
+          "refAppId": "56ca77ce1efc301d279b8a4d",
+          "sort": null,
+          "fieldGroupConfigs": []
+        }
+      },
+      {
+        "description": "",
+        "label": "1.2.8生产卡/补充流程编号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632729"
+        }
+      },
+      {
+        "description": "",
+        "label": "图纸编号（筛选用）（公式的）-生产卡/补充流程",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632731"
+        }
+      },
+      {
+        "description": "",
+        "label": "申请人-生产卡/补充流程",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "user",
+          "widgetName": "_widget_1744684633114"
+        }
+      },
+      {
+        "description": "",
+        "label": "所在部门-生产卡/补充流程",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "dept",
+          "widgetName": "_widget_1744684632730",
+          "valueOption": 0
+        }
+      },
+      {
+        "description": "",
+        "label": "生产卡/补充流程-查看",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "linkquery",
+          "widgetName": "_widget_1744684632861",
+          "linkFilter": [
+            {
+              "link": "_widget_1617693684982",
+              "method": "eq",
+              "type": "widget",
+              "rely": "_widget_1744684632729",
+              "fixed": null,
+              "linkType": "sn"
+            }
+          ],
+          "linkFilterRel": "and",
+          "linkFields": [
+            {
+              "text": "1.2.8生产卡/补充流程编号",
+              "type": "sn",
+              "name": "_widget_1617693684982"
+            },
+            {
+              "text": "下卡日期",
+              "type": "datetime",
+              "name": "_widget_1561451713111",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "所在部门",
+              "type": "dept",
+              "name": "_widget_1572834254155"
+            },
+            {
+              "text": "提交人",
+              "type": "user",
+              "name": "_widget_1565937682664"
+            },
+            {
+              "text": "是否为补充",
+              "type": "radiogroup",
+              "name": "_widget_1596176975836"
+            },
+            {
+              "text": "是否涉及外购",
+              "type": "radiogroup",
+              "name": "_widget_1709188372015"
+            },
+            {
+              "text": "是否只是财务的补充",
+              "type": "radiogroup",
+              "name": "_widget_1596176976664"
+            },
+            {
+              "text": "是否已发货",
+              "type": "radiogroup",
+              "name": "_widget_1596176976964"
+            },
+            {
+              "text": "是否涉及金额变更",
+              "type": "radiogroup",
+              "name": "_widget_1619136451350"
+            },
+            {
+              "text": "是否单位变更",
+              "type": "radiogroup",
+              "name": "_widget_1640140662583"
+            },
+            {
+              "text": "是否是机器人",
+              "type": "radiogroup",
+              "name": "_widget_1636621742846"
+            },
+            {
+              "text": "是否锁机240503",
+              "type": "radiogroup",
+              "name": "_widget_1714702734207"
+            },
+            {
+              "text": "是否需研究院部门出图",
+              "type": "radiogroup",
+              "name": "_widget_1697417681087"
+            },
+            {
+              "text": "产品类型",
+              "type": "radiogroup",
+              "name": "_widget_1678416611198"
+            },
+            {
+              "text": "是否增加成本",
+              "type": "radiogroup",
+              "name": "_widget_1643178904330"
+            },
+            {
+              "text": "责任方",
+              "type": "combocheck",
+              "name": "_widget_1672477087569"
+            },
+            {
+              "text": "（否）图纸编号（图纸编号查询填充）",
+              "type": "text",
+              "name": "_widget_1404288712097"
+            },
+            {
+              "text": "是否为补充辅助-是有内容",
+              "type": "text",
+              "name": "_widget_1681177346404"
+            },
+            {
+              "text": "是否为补充辅助-否有内容",
+              "type": "text",
+              "name": "_widget_1681177346424"
+            },
+            {
+              "text": "有内容不清空不能提交",
+              "type": "text",
+              "name": "_widget_1681177346443"
+            },
+            {
+              "text": "油漆要求（补充）",
+              "type": "text",
+              "name": "_widget_1735869458267"
+            },
+            {
+              "text": "（是）合同号",
+              "type": "text",
+              "name": "_widget_1596176979687"
+            },
+            {
+              "text": "（是）合同号选择-主键",
+              "type": "text",
+              "name": "_widget_1418197025935"
+            },
+            {
+              "text": "（是）业务人员",
+              "type": "user",
+              "name": "_widget_1624691665003"
+            },
+            {
+              "text": "（是）单位名称",
+              "type": "text",
+              "name": "_widget_1624691665005"
+            },
+            {
+              "text": "图纸编号（筛选用）（公式的）",
+              "type": "text",
+              "name": "_widget_1565329479026"
+            },
+            {
+              "text": "说明",
+              "type": "textarea",
+              "name": "_widget_1596176980525"
+            },
+            {
+              "name": "_widget_1561451713222",
+              "text": "标准化室填写",
+              "type": "subform",
+              "items": [
+                {
+                  "label": "对应的合同明细",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1565223393872"
+                  }
+                },
+                {
+                  "label": "物料代码",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1561451713233"
+                  }
+                },
+                {
+                  "label": "产品名称",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1561451713245"
+                  }
+                },
+                {
+                  "label": "规格型号",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1561451713259"
+                  }
+                },
+                {
+                  "label": "单位",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1561451713275"
+                  }
+                },
+                {
+                  "label": "数量",
+                  "widget": {
+                    "type": "number",
+                    "widgetName": "_widget_1561451713293",
+                    "displayMode": "number"
+                  }
+                },
+                {
+                  "label": "理论重量",
+                  "widget": {
+                    "type": "number",
+                    "widgetName": "_widget_1561451713341",
+                    "displayMode": "number"
+                  }
+                },
+                {
+                  "label": "BOM内容备注",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1565223393810"
+                  }
+                },
+                {
+                  "label": "日期时间",
+                  "widget": {
+                    "type": "datetime",
+                    "widgetName": "_widget_1678671809304",
+                    "format": "yyyy-MM-dd HH:mm:ss"
+                  }
+                },
+                {
+                  "label": "设计人",
+                  "widget": {
+                    "type": "user",
+                    "widgetName": "_widget_1565223393758"
+                  }
+                },
+                {
+                  "label": "备注",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1561451713373"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "_widget_1595556246670",
+              "text": "电气车间填写",
+              "type": "subform",
+              "items": [
+                {
+                  "label": "对应的合同明细",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1595556246671"
+                  }
+                },
+                {
+                  "label": "物料代码",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1595556246672"
+                  }
+                },
+                {
+                  "label": "产品名称",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1595556246673"
+                  }
+                },
+                {
+                  "label": "规格型号",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1595556246674"
+                  }
+                },
+                {
+                  "label": "单位",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1595556246675"
+                  }
+                },
+                {
+                  "label": "数量",
+                  "widget": {
+                    "type": "number",
+                    "widgetName": "_widget_1595556246676",
+                    "displayMode": "number"
+                  }
+                },
+                {
+                  "label": "理论重量",
+                  "widget": {
+                    "type": "number",
+                    "widgetName": "_widget_1595556246677",
+                    "displayMode": "number"
+                  }
+                },
+                {
+                  "label": "BOM内容备注",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1595556246678"
+                  }
+                },
+                {
+                  "label": "设计人",
+                  "widget": {
+                    "type": "user",
+                    "widgetName": "_widget_1595556246679"
+                  }
+                },
+                {
+                  "label": "备注",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1595556246680"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "是否需要公司派人",
+              "type": "radiogroup",
+              "name": "_widget_1566352810370"
+            },
+            {
+              "text": "是否需要转电气车间",
+              "type": "radiogroup",
+              "name": "_widget_1565768965918"
+            },
+            {
+              "text": "是否有技术协议",
+              "type": "radiogroup",
+              "name": "_widget_1596272850375"
+            },
+            {
+              "text": "技术协议是否企标模板",
+              "type": "radiogroup",
+              "name": "_widget_1703552203591"
+            },
+            {
+              "text": "附件",
+              "type": "upload",
+              "name": "_widget_1564650197916"
+            },
+            {
+              "text": "图片",
+              "type": "image",
+              "name": "_widget_1619052062651"
+            },
+            {
+              "text": "设计单分派",
+              "type": "radiogroup",
+              "name": "_widget_1669077442128"
+            },
+            {
+              "text": "转新乡、工艺包装",
+              "type": "usergroup",
+              "name": "_widget_1668998052329"
+            },
+            {
+              "text": "设计指派",
+              "type": "usergroup",
+              "name": "_widget_1624949175724"
+            },
+            {
+              "text": "科室",
+              "type": "deptgroup",
+              "name": "_widget_1676004789878"
+            },
+            {
+              "text": "下单时间",
+              "type": "datetime",
+              "name": "_widget_1676004789877",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "下单类型",
+              "type": "radiogroup",
+              "name": "_widget_1676004789959"
+            },
+            {
+              "text": "下单类型（合并含补充）",
+              "type": "text",
+              "name": "_widget_1722397126052"
+            },
+            {
+              "name": "_widget_1625726006035",
+              "text": "室主任0414",
+              "type": "subform",
+              "items": [
+                {
+                  "label": "设计指派",
+                  "widget": {
+                    "type": "user",
+                    "widgetName": "_widget_1625726006052"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "辅助人员离职或部门删了后找不到的标识",
+              "type": "text",
+              "name": "_widget_1614212090529"
+            },
+            {
+              "name": "_widget_1627349271293",
+              "text": "合同明细（生产卡）",
+              "type": "subform",
+              "items": [
+                {
+                  "label": "产品类型",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1627349271310"
+                  }
+                },
+                {
+                  "label": "产品名称",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1627349271329"
+                  }
+                },
+                {
+                  "label": "规格型号",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1627349271398"
+                  }
+                },
+                {
+                  "label": "单位",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1627349271421"
+                  }
+                },
+                {
+                  "label": "数量",
+                  "widget": {
+                    "type": "number",
+                    "widgetName": "_widget_1627349271446",
+                    "displayMode": "number",
+                    "precision": null,
+                    "thousandsSeparator": false
+                  }
+                },
+                {
+                  "label": "电控装置",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1627349271491"
+                  }
+                },
+                {
+                  "label": "技术参数及要求",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1627349271564"
+                  }
+                },
+                {
+                  "label": "备注（①生产卡上按序号排列的项目，某设备已经包含在其他设备内时，在备注栏加填*。②生产卡上按序号排列的项目，某设备不需要供货时，在备注栏加填#）",
+                  "widget": {
+                    "type": "text",
+                    "widgetName": "_widget_1697441092775"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "包装要求（生产卡）",
+              "type": "text",
+              "name": "_widget_1627368430244"
+            },
+            {
+              "text": "项目名称（生产卡）",
+              "type": "text",
+              "name": "_widget_1627368430262"
+            },
+            {
+              "text": "油漆要求（生产卡）",
+              "type": "text",
+              "name": "_widget_1627368430281"
+            },
+            {
+              "text": "技术参数及要求（生产卡）",
+              "type": "textarea",
+              "name": "_widget_1627368430530"
+            },
+            {
+              "text": "（否）质保期限",
+              "type": "text",
+              "name": "_widget_1725871211715"
+            },
+            {
+              "text": "特别提醒（生产卡）",
+              "type": "text",
+              "name": "_widget_1687743784125"
+            },
+            {
+              "text": "备注（生产卡）",
+              "type": "textarea",
+              "name": "_widget_1627368430555"
+            },
+            {
+              "text": "特别提醒（生产卡）多",
+              "type": "textarea",
+              "name": "_widget_1627368430593"
+            },
+            {
+              "text": "是否有合同技术协议评审",
+              "type": "radiogroup",
+              "name": "_widget_1697527156848"
+            },
+            {
+              "text": "合同技术协议评审流水号",
+              "type": "text",
+              "name": "_widget_1697520968431"
+            },
+            {
+              "text": "提交人",
+              "type": "user",
+              "name": "creator"
+            },
+            {
+              "text": "提交时间",
+              "type": "datetime",
+              "name": "createTime"
+            },
+            {
+              "text": "更新时间",
+              "type": "datetime",
+              "name": "updateTime"
+            },
+            {
+              "text": "流程状态",
+              "type": "flowState",
+              "name": "flowState"
+            }
+          ],
+          "linkForm": "5d11dcbf0c9b52255a2cb4be",
+          "refAppId": "56ca77ce1efc301d279b8a4d",
+          "multi": true,
+          "allowAdd": false,
+          "rely": {
+            "widgets": [
+              "_widget_1744684632729"
+            ]
+          },
+          "sort": null
+        }
+      },
+      {
+        "description": "",
+        "label": "流水号（合并）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632448",
+          "value": null,
+          "rely": {
+            "widgets": [
+              "_widget_1744622134497",
+              "_widget_1744684632566",
+              "_widget_1744684632625",
+              "_widget_1744684632668",
+              "_widget_1744684632729"
+            ],
+            "formula": {
+              "type": "formula",
+              "text": "公式",
+              "formula": "IFS($_widget_1744622134497#==\"安装图设计通知\",$_widget_1744684632566#,$_widget_1744622134497#==\"合同图纸（资料）领用申请\",$_widget_1744684632625#,$_widget_1744622134497#==\"客服领图\",$_widget_1744684632668#,$_widget_1744622134497#==\"生产卡/补充流程\",$_widget_1744684632729#)",
+              "remark": ""
+            }
+          }
+        }
+      },
+      {
+        "description": "",
+        "label": "对应项目号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632449",
+          "value": null,
+          "rely": {
+            "widgets": [
+              "_widget_1744622134497",
+              "_widget_1744699879751"
+            ],
+            "formula": {
+              "type": "formula",
+              "text": "公式",
+              "formula": "IF($_widget_1744622134497#==\"安装图设计通知\",$_widget_1744699879751#,\"无\")",
+              "remark": ""
+            }
+          }
+        }
+      },
+      {
+        "description": "",
+        "label": "对应设计卡号（合并）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632450",
+          "value": null,
+          "rely": {
+            "widgets": [
+              "_widget_1744622134497",
+              "_widget_1744684632569"
+            ],
+            "formula": {
+              "type": "formula",
+              "text": "公式",
+              "formula": "IF($_widget_1744622134497#==\"安装图设计通知\",$_widget_1744684632569#,\"无\")",
+              "remark": ""
+            }
+          }
+        }
+      },
+      {
+        "description": "",
+        "label": "合同号（合并）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632451",
+          "value": null,
+          "rely": {
+            "widgets": [
+              "_widget_1744622134497",
+              "_widget_1744684632629",
+              "_widget_1744684632671",
+              "_widget_1744684632731"
+            ],
+            "formula": {
+              "type": "formula",
+              "text": "公式",
+              "formula": "IFS($_widget_1744622134497#==\"合同图纸（资料）领用申请\",$_widget_1744684632629#,$_widget_1744622134497#==\"客服领图\",$_widget_1744684632671#,$_widget_1744622134497#==\"生产卡/补充流程\",$_widget_1744684632731#,$_widget_1744622134497#==\"安装图设计通知\",\"无\")",
+              "remark": ""
+            }
+          }
+        }
+      },
+      {
+        "description": "",
+        "label": "订货人（合并）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632452",
+          "value": null,
+          "rely": {
+            "widgets": [
+              "_widget_1744622134497",
+              "_widget_1744684632568",
+              "_widget_1744684632628",
+              "_widget_1744684632673"
+            ],
+            "formula": {
+              "type": "formula",
+              "text": "公式",
+              "formula": "IFS($_widget_1744622134497#==\"安装图设计通知\",$_widget_1744684632568#,$_widget_1744622134497#==\"合同图纸（资料）领用申请\",$_widget_1744684632628#,$_widget_1744622134497#==\"客服领图\",$_widget_1744684632673#,$_widget_1744622134497#==\"生产卡/补充流程\",\"无\")",
+              "remark": ""
+            }
+          }
+        }
+      },
+      {
+        "description": "",
+        "label": "申请人（合并）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632453",
+          "value": null,
+          "rely": {
+            "widgets": [
+              "_widget_1744622134497",
+              "_widget_1744684632567",
+              "_widget_1744684632627",
+              "_widget_1744684632670",
+              "_widget_1744684633114"
+            ],
+            "formula": {
+              "type": "formula",
+              "text": "公式",
+              "formula": "IFS($_widget_1744622134497#==\"安装图设计通知\",TEXTUSER($_widget_1744684632567#,'name'),$_widget_1744622134497#==\"合同图纸（资料）领用申请\",TEXTUSER($_widget_1744684632627#,'name'),$_widget_1744622134497#==\"客服领图\",TEXTUSER($_widget_1744684632670#,'name'),$_widget_1744622134497#==\"生产卡/补充流程\",TEXTUSER($_widget_1744684633114#,'name'))",
+              "remark": ""
+            }
+          }
+        }
+      },
+      {
+        "description": "",
+        "label": "业务部门（合并）",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1744684632454",
+          "value": null,
+          "rely": {
+            "widgets": [
+              "_widget_1744622134497",
+              "_widget_1744684632570",
+              "_widget_1744684632626",
+              "_widget_1744684632669",
+              "_widget_1744684632730"
+            ],
+            "formula": {
+              "type": "formula",
+              "text": "公式",
+              "formula": "IFS($_widget_1744622134497#==\"安装图设计通知\",TEXTDEPT($_widget_1744684632570#,\"name\"),$_widget_1744622134497#==\"合同图纸（资料）领用申请\",TEXTDEPT($_widget_1744684632626#,\"name\"),$_widget_1744622134497#==\"客服领图\",TEXTDEPT($_widget_1744684632669#,\"name\"),$_widget_1744622134497#==\"生产卡/补充流程\",TEXTDEPT($_widget_1744684632730#,\"name\"))",
+              "remark": ""
+            }
+          }
+        }
+      },
+      {
+        "description": "",
+        "label": "一、合同信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1744684633349",
+          "lineStyle": "style5",
+          "lineColor": "#0DB3A6",
+          "labelColor": "#FFFFFF"
+        }
+      },
+      {
+        "description": "",
+        "label": "合同信息*",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "linkfield",
+          "widgetName": "_widget_1672273364041",
+          "linkFilter": [],
+          "linkFilterRel": "and",
+          "linkFields": [
+            {
+              "text": "下卡日期",
+              "type": "datetime",
+              "name": "_widget_1563772783339",
+              "format": "yyyy-MM-dd"
+            },
+            {
+              "text": "图纸编号",
+              "type": "text",
+              "name": "_widget_1563607519120"
+            },
+            {
+              "text": "订货部门",
+              "type": "dept",
+              "name": "_widget_1561431499461"
+            },
+            {
+              "text": "订货人",
+              "type": "user",
+              "name": "_widget_1561431499444"
+            }
+          ],
+          "linkFieldsFormShow": [
+            {
+              "text": "图纸编号",
+              "type": "text",
+              "name": "_widget_1563607519120"
+            },
+            {
+              "text": "订货部门",
+              "type": "dept",
+              "name": "_widget_1561431499461"
+            },
+            {
+              "text": "订货人",
+              "type": "user",
+              "name": "_widget_1561431499444"
+            }
+          ],
+          "buttonStyle": {
+            "name": "选择数据"
+          },
+          "showDataLabel": false,
+          "linkForm": "5d118dc922ba776f27472706",
+          "linkDataMaps": [
+            {
+              "mode": "depend",
+              "depend": {
+                "field": "_widget_1561431499461"
+              },
+              "field": "_widget_1672273364037",
+              "type": "dept"
+            },
+            {
+              "mode": "depend",
+              "depend": {
+                "field": "_widget_1561431499444"
+              },
+              "field": "_widget_1672273364038",
+              "type": "user"
+            },
+            {
+              "mode": "depend",
+              "depend": {
+                "field": "_widget_1563607519120"
+              },
+              "field": "_widget_1672273364036",
+              "type": "text"
+            }
+          ],
+          "refAppId": "56ca77ce1efc301d279b8a4d",
+          "fieldGroupConfigs": []
+        }
+      },
+      {
+        "description": "",
+        "label": "订货部门*",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": false,
+          "enable": false,
+          "allowBlank": true,
+          "type": "dept",
+          "widgetName": "_widget_1672273364037",
+          "valueOption": 0
+        }
+      },
+      {
+        "description": "",
+        "label": "订货人*",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": false,
+          "enable": false,
+          "allowBlank": true,
+          "type": "user",
+          "widgetName": "_widget_1672273364038"
+        }
+      },
+      {
+        "description": "",
+        "label": "图纸编号*",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": false,
+          "enable": false,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1672273364036"
+        }
+      },
+      {
+        "description": "",
+        "label": "二、协同内容",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1672273364107",
+          "lineStyle": "style5",
+          "lineColor": "#0DB3A6",
+          "labelColor": "#FFFFFF"
+        }
+      },
+      {
+        "description": "",
+        "label": "下卡日期",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "datetime",
+          "widgetName": "_widget_1672273364035",
+          "format": "yyyy-MM-dd",
+          "value": "today",
+          "rely": null
+        }
+      },
+      {
+        "description": "",
+        "label": "图纸编号-通用",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": false,
+          "enable": false,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1676882291854"
+        }
+      },
+      {
+        "description": "",
+        "label": "订货部门",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": false,
+          "enable": false,
+          "allowBlank": true,
+          "type": "dept",
+          "widgetName": "_widget_1676882291855",
+          "valueOption": 0
+        }
+      },
+      {
+        "description": "",
+        "label": "订货人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": false,
+          "enable": false,
+          "allowBlank": true,
+          "type": "user",
+          "widgetName": "_widget_1676882291856"
+        }
+      },
+      {
+        "description": "",
+        "label": "申请人",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "user",
+          "widgetName": "_widget_1672273364046",
+          "value": {
+            "_id": "100000000000000000000001",
+            "nickname": "当前用户"
+          }
+        }
+      },
+      {
+        "description": "",
+        "label": "所属科室",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "dept",
+          "widgetName": "_widget_1672273364047",
+          "value": {
+            "_id": "110000000000000000000001",
+            "name": "当前用户所处部门"
+          },
+          "limit": {},
+          "valueOption": 0
+        }
+      },
+      {
+        "description": "",
+        "label": "设备名称",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1672273364048"
+        }
+      },
+      {
+        "description": "",
+        "label": "规格型号（内部型号）",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1672273364049"
+        }
+      },
+      {
+        "description": "",
+        "label": "设备数量",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "number",
+          "widgetName": "_widget_1672273364050",
+          "displayMode": "number",
+          "precision": null,
+          "thousandsSeparator": false,
+          "maxNumber": null,
+          "minNumber": null
+        }
+      },
+      {
+        "description": "",
+        "label": "是否需要对照技术协议",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1672273364051",
+          "items": [
+            {
+              "value": "是",
+              "text": "是"
+            },
+            {
+              "value": "否",
+              "text": "否"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": false
+        }
+      },
+      {
+        "description": "",
+        "label": "协同图纸要求完成时间",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "datetime",
+          "widgetName": "_widget_1672273364053",
+          "format": "yyyy-MM-dd"
+        }
+      },
+      {
+        "description": "",
+        "label": "全套图纸下图时间",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "datetime",
+          "widgetName": "_widget_1672273364054",
+          "format": "yyyy-MM-dd"
+        }
+      },
+      {
+        "description": "",
+        "label": "三、设计参数",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1672273364055",
+          "lineStyle": "style5",
+          "lineColor": "#0DB3A6",
+          "labelColor": "#FFFFFF"
+        }
+      },
+      {
+        "description": "",
+        "label": "电气1",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1672273364125",
+          "lineStyle": "thin"
+        }
+      },
+      {
+        "description": "",
+        "label": "电气1",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "subform",
+          "widgetName": "_widget_1672273364056",
+          "subform_create": true,
+          "subform_insert": true,
+          "subform_edit": true,
+          "subform_delete": true,
+          "pc_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_view_style": "vertical",
+          "items": [
+            {
+              "label": "激振器电机",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": false,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1672273364058"
+              }
+            },
+            {
+              "label": "功率（KW)",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "number",
+                "widgetName": "_widget_1672273364060",
+                "displayMode": "number",
+                "precision": null,
+                "thousandsSeparator": false,
+                "maxNumber": null,
+                "minNumber": null
+              }
+            },
+            {
+              "label": "数量",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "number",
+                "widgetName": "_widget_1672273364061",
+                "displayMode": "number",
+                "precision": null,
+                "thousandsSeparator": false,
+                "maxNumber": null,
+                "minNumber": null
+              }
+            }
+          ],
+          "value": [
+            {
+              "_widget_1672273364058": {
+                "data": "第1种",
+                "widgetType": "text"
+              },
+              "_widget_1672273364060": {
+                "widgetType": "number"
+              },
+              "_widget_1672273364061": {
+                "widgetType": "number"
+              }
+            },
+            {
+              "_widget_1672273364058": {
+                "data": "第2种",
+                "widgetType": "text"
+              },
+              "_widget_1672273364060": {
+                "widgetType": "number"
+              },
+              "_widget_1672273364061": {
+                "widgetType": "number"
+              }
+            },
+            {
+              "_widget_1672273364058": {
+                "data": "第3种",
+                "widgetType": "text"
+              },
+              "_widget_1672273364060": {
+                "widgetType": "number"
+              },
+              "_widget_1672273364061": {
+                "widgetType": "number"
+              }
+            }
+          ],
+          "quick_fill": true
+        }
+      },
+      {
+        "description": "",
+        "label": "电气1",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "subform",
+          "widgetName": "_widget_1672273364118",
+          "subform_create": true,
+          "subform_insert": true,
+          "subform_edit": true,
+          "subform_delete": true,
+          "pc_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_view_style": "vertical",
+          "items": [
+            {
+              "label": "其他电机",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": false,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1672273364119"
+              }
+            },
+            {
+              "label": "功率（KW)",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "number",
+                "widgetName": "_widget_1672273364120",
+                "displayMode": "number",
+                "precision": null,
+                "thousandsSeparator": false,
+                "maxNumber": null,
+                "minNumber": null
+              }
+            },
+            {
+              "label": "数量",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "number",
+                "widgetName": "_widget_1672273364121",
+                "displayMode": "number",
+                "precision": null,
+                "thousandsSeparator": false,
+                "maxNumber": null,
+                "minNumber": null
+              }
+            }
+          ],
+          "value": [
+            {
+              "_widget_1672273364119": {
+                "data": "行走",
+                "widgetType": "text"
+              },
+              "_widget_1672273364120": {
+                "data": null,
+                "widgetType": "number"
+              },
+              "_widget_1672273364121": {
+                "data": null,
+                "widgetType": "number"
+              }
+            },
+            {
+              "_widget_1672273364119": {
+                "data": "电液推杆",
+                "widgetType": "text"
+              },
+              "_widget_1672273364120": {
+                "data": null,
+                "widgetType": "number"
+              },
+              "_widget_1672273364121": {
+                "data": null,
+                "widgetType": "number"
+              }
+            },
+            {
+              "_widget_1672273364119": {
+                "data": "干油泵",
+                "widgetType": "text"
+              },
+              "_widget_1672273364120": {
+                "data": null,
+                "widgetType": "number"
+              },
+              "_widget_1672273364121": {
+                "data": null,
+                "widgetType": "number"
+              }
+            }
+          ],
+          "quick_fill": true
+        }
+      },
+      {
+        "description": "",
+        "label": "工艺要求1",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "checkboxgroup",
+          "widgetName": "_widget_1672273364276",
+          "items": [
+            {
+              "value": "反接制动",
+              "text": "反接制动"
+            },
+            {
+              "value": "变频启动",
+              "text": "变频启动"
+            },
+            {
+              "value": "防爆接线口",
+              "text": "防爆接线口"
+            },
+            {
+              "value": "同步带",
+              "text": "同步带",
+              "color": "#3F8CFF"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": false,
+          "allowAddOptions": true
+        }
+      },
+      {
+        "description": "",
+        "label": "外设仪表1",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "checkboxgroup",
+          "widgetName": "_widget_1672273364278",
+          "items": [
+            {
+              "value": "测温",
+              "text": "测温"
+            },
+            {
+              "value": "电加热",
+              "text": "电加热"
+            },
+            {
+              "value": "测振",
+              "text": "测振"
+            },
+            {
+              "value": "堵煤开关",
+              "text": "堵煤开关",
+              "color": "#3F8CFF"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": false,
+          "allowAddOptions": true
+        }
+      },
+      {
+        "description": "",
+        "label": "激振器2",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1672273364126",
+          "lineStyle": "thin"
+        }
+      },
+      {
+        "description": "",
+        "label": "激振器2",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "subform",
+          "widgetName": "_widget_1672273364129",
+          "subform_create": true,
+          "subform_insert": true,
+          "subform_edit": true,
+          "subform_delete": true,
+          "pc_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_view_style": "vertical",
+          "items": [
+            {
+              "label": "项目",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": false,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1672273364133"
+              }
+            },
+            {
+              "label": "预设值",
+              "labelHidden": false,
+              "hint": "只能录入数字",
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "number",
+                "widgetName": "_widget_1672273364134",
+                "displayMode": "number",
+                "precision": null,
+                "thousandsSeparator": false,
+                "maxNumber": null,
+                "minNumber": null
+              }
+            },
+            {
+              "label": "确认值",
+              "labelHidden": false,
+              "hint": "只能录入数字",
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "number",
+                "widgetName": "_widget_1672273364135",
+                "displayMode": "number",
+                "precision": null,
+                "thousandsSeparator": false,
+                "maxNumber": null,
+                "minNumber": null
+              }
+            }
+          ],
+          "value": [
+            {
+              "_widget_1672273364133": {
+                "data": "参振质量kg",
+                "widgetType": "text"
+              },
+              "_widget_1672273364134": {
+                "data": null,
+                "widgetType": "number"
+              },
+              "_widget_1672273364135": {
+                "data": null,
+                "widgetType": "number"
+              }
+            },
+            {
+              "_widget_1672273364133": {
+                "data": "双振幅mm",
+                "widgetType": "text"
+              },
+              "_widget_1672273364134": {
+                "data": null,
+                "widgetType": "number"
+              },
+              "_widget_1672273364135": {
+                "data": null,
+                "widgetType": "number"
+              }
+            },
+            {
+              "_widget_1672273364133": {
+                "data": "振频1/min",
+                "widgetType": "text"
+              },
+              "_widget_1672273364134": {
+                "data": null,
+                "widgetType": "number"
+              },
+              "_widget_1672273364135": {
+                "data": null,
+                "widgetType": "number"
+              }
+            }
+          ],
+          "quick_fill": true
+        }
+      },
+      {
+        "description": "",
+        "label": "激振器2",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "subform",
+          "widgetName": "_widget_1672447922560",
+          "subform_create": true,
+          "subform_insert": true,
+          "subform_edit": true,
+          "subform_delete": true,
+          "pc_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_view_style": "vertical",
+          "items": [
+            {
+              "label": "项目",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": false,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1672447922561"
+              }
+            },
+            {
+              "label": "预设值",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "text",
+                "widgetName": "_widget_1672447922565"
+              }
+            },
+            {
+              "label": "确认值",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1672447922566"
+              }
+            }
+          ],
+          "value": [
+            {
+              "_widget_1672447922561": {
+                "data": "电机型号",
+                "widgetType": "text"
+              },
+              "_widget_1672447922565": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1672447922566": {
+                "data": "",
+                "widgetType": "text"
+              }
+            }
+          ],
+          "quick_fill": true
+        }
+      },
+      {
+        "description": "",
+        "label": "激振器2",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "subform",
+          "widgetName": "_widget_1672273364136",
+          "subform_create": true,
+          "subform_insert": true,
+          "subform_edit": true,
+          "subform_delete": true,
+          "pc_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_view_style": "vertical",
+          "items": [
+            {
+              "label": "行号",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1672447922663",
+                "fieldWidth": "custom",
+                "customWidth": 31,
+                "value": ""
+              }
+            },
+            {
+              "label": "激振器类型-预设值",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "checkboxgroup",
+                "widgetName": "_widget_1672447922680",
+                "items": [
+                  {
+                    "value": "WJZZ座式",
+                    "text": "WJZZ座式"
+                  },
+                  {
+                    "value": "FWJ箱式",
+                    "text": "FWJ箱式"
+                  },
+                  {
+                    "value": "WZQF法兰式",
+                    "text": "WZQF法兰式"
+                  },
+                  {
+                    "value": "WZQZ偏心轴",
+                    "text": "WZQZ偏心轴",
+                    "color": "#3F8CFF"
+                  },
+                  {
+                    "value": "WJTZ筒式",
+                    "text": "WJTZ筒式",
+                    "color": "#D144F4"
+                  }
+                ],
+                "layout": "vertical",
+                "colorEnable": false,
+                "allowAddOptions": true
+              }
+            },
+            {
+              "label": "激振器类型-确认值",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "checkboxgroup",
+                "widgetName": "_widget_1672447922682",
+                "items": [
+                  {
+                    "value": "WJZZ座式",
+                    "text": "WJZZ座式"
+                  },
+                  {
+                    "value": "FWJ箱式",
+                    "text": "FWJ箱式"
+                  },
+                  {
+                    "value": "WZQF法兰式",
+                    "text": "WZQF法兰式"
+                  },
+                  {
+                    "value": "WZQZ偏心轴",
+                    "text": "WZQZ偏心轴",
+                    "color": "#3F8CFF"
+                  },
+                  {
+                    "value": "WJTZ筒式",
+                    "text": "WJTZ筒式",
+                    "color": "#D144F4"
+                  }
+                ],
+                "layout": "vertical",
+                "colorEnable": false,
+                "allowAddOptions": true
+              }
+            },
+            {
+              "label": "是否带加热-预设值",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "radiogroup",
+                "widgetName": "_widget_1672273364154",
+                "items": [
+                  {
+                    "value": "是",
+                    "text": "是"
+                  },
+                  {
+                    "value": "否",
+                    "text": "否"
+                  }
+                ],
+                "layout": "vertical",
+                "colorEnable": false
+              }
+            },
+            {
+              "label": "是否带加热-确认值",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "radiogroup",
+                "widgetName": "_widget_1672273364156",
+                "items": [
+                  {
+                    "value": "是",
+                    "text": "是"
+                  },
+                  {
+                    "value": "否",
+                    "text": "否"
+                  }
+                ],
+                "layout": "vertical",
+                "colorEnable": false
+              }
+            }
+          ],
+          "value": [
+            {
+              "_widget_1672273364137": {
+                "widgetType": "radiogroup"
+              },
+              "_widget_1672273364154": {
+                "widgetType": "radiogroup"
+              },
+              "_widget_1672273364143": {
+                "widgetType": "radiogroup"
+              },
+              "_widget_1672273364156": {
+                "widgetType": "radiogroup"
+              },
+              "_widget_1672447922663": {
+                "data": "1",
+                "widgetType": "text"
+              }
+            }
+          ],
+          "quick_fill": true
+        }
+      },
+      {
+        "description": "",
+        "label": "筛板3",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1672273364127",
+          "lineStyle": "thin"
+        }
+      },
+      {
+        "description": "",
+        "label": "筛板3",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "subform",
+          "widgetName": "_widget_1672273364191",
+          "subform_create": true,
+          "subform_insert": true,
+          "subform_edit": true,
+          "subform_delete": true,
+          "pc_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_view_style": "vertical",
+          "items": [
+            {
+              "label": "行号",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1672447471443",
+                "fieldWidth": "custom",
+                "customWidth": 38
+              }
+            },
+            {
+              "label": "物料名称",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "text",
+                "widgetName": "_widget_1672273364193"
+              }
+            },
+            {
+              "label": "物料堆比重",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "text",
+                "widgetName": "_widget_1672273364195"
+              }
+            },
+            {
+              "label": "入料粒度",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "text",
+                "widgetName": "_widget_1672273364196"
+              }
+            },
+            {
+              "label": "物料含水量",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "text",
+                "widgetName": "_widget_1672273364197"
+              }
+            },
+            {
+              "label": "物料温度",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "text",
+                "widgetName": "_widget_1672273364198"
+              }
+            },
+            {
+              "label": "分级粒度",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": false,
+                "type": "text",
+                "widgetName": "_widget_1672273364199"
+              }
+            }
+          ],
+          "value": [
+            {
+              "_widget_1672447471443": {
+                "data": "1",
+                "widgetType": "text"
+              },
+              "_widget_1672273364193": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1672273364195": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1672273364196": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1672273364197": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1672273364198": {
+                "data": "",
+                "widgetType": "text"
+              },
+              "_widget_1672273364199": {
+                "data": "",
+                "widgetType": "text"
+              }
+            }
+          ],
+          "quick_fill": true
+        }
+      },
+      {
+        "description": "",
+        "label": "筛板类型3",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "checkboxgroup",
+          "widgetName": "_widget_1672273364280",
+          "items": [
+            {
+              "value": "单层棒条筛板",
+              "text": "单层棒条筛板"
+            },
+            {
+              "value": "单层双面棒条筛板",
+              "text": "单层双面棒条筛板"
+            },
+            {
+              "value": "堆焊棒条筛板",
+              "text": "堆焊棒条筛板"
+            },
+            {
+              "value": "铸造筛板",
+              "text": "铸造筛板",
+              "color": "#3F8CFF"
+            },
+            {
+              "value": "编织网筛板",
+              "text": "编织网筛板",
+              "color": "#D144F4"
+            },
+            {
+              "value": "聚氨酯筛板",
+              "text": "聚氨酯筛板",
+              "color": "#656565"
+            },
+            {
+              "value": "琴弦筛网",
+              "text": "琴弦筛网",
+              "color": "#FF9D8D"
+            },
+            {
+              "value": "冲孔筛板",
+              "text": "冲孔筛板",
+              "color": "#A5C71C"
+            },
+            {
+              "value": "聚氨酯条缝筛板",
+              "text": "聚氨酯条缝筛板",
+              "color": "#00C7C7"
+            },
+            {
+              "value": "不锈钢条缝筛板",
+              "text": "不锈钢条缝筛板",
+              "color": "#7957FF"
+            },
+            {
+              "value": "陶瓷棒条筛板",
+              "text": "陶瓷棒条筛板",
+              "color": "#F24BAF"
+            },
+            {
+              "value": "弹跳杆棒条筛板",
+              "text": "弹跳杆棒条筛板",
+              "color": "#B3B3B3"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": false,
+          "allowAddOptions": true
+        }
+      },
+      {
+        "description": "",
+        "label": "标准化",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1672273364128",
+          "lineStyle": "style1",
+          "lineColor": "#A2C204",
+          "labelColor": "#FFFFFF"
+        }
+      },
+      {
+        "description": "",
+        "label": "要求完成时间4",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "datetime",
+          "widgetName": "_widget_1672273364217",
+          "format": "yyyy-MM-dd"
+        }
+      },
+      {
+        "description": "",
+        "label": "标准化内容简述4",
+        "labelHidden": false,
+        "lineWidth": 9,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1672273364218"
+        }
+      },
+      {
+        "description": "",
+        "label": "详细要求4",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "textarea",
+          "widgetName": "_widget_1672273364232"
+        }
+      },
+      {
+        "description": "",
+        "label": "主设提醒",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "textarea",
+          "widgetName": "_widget_1672283155144"
+        }
+      },
+      {
+        "description": "",
+        "label": "通用&包装",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1673500159813",
+          "lineStyle": "style1",
+          "lineColor": "#7E47EB",
+          "labelColor": "#FFFFFF"
+        }
+      },
+      {
+        "description": "",
+        "label": "协同项目名称",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1673500159839"
+        }
+      },
+      {
+        "description": "",
+        "label": "交图时间",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "datetime",
+          "widgetName": "_widget_1673500159815",
+          "format": "yyyy-MM-dd"
+        }
+      },
+      {
+        "description": "",
+        "label": "是否含技术协议",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1673500159816",
+          "items": [
+            {
+              "value": "含",
+              "text": "含"
+            },
+            {
+              "value": "不含",
+              "text": "不含"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": false
+        }
+      },
+      {
+        "description": "",
+        "label": "协同情况（250423取消）",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1673500159819"
+        }
+      },
+      {
+        "description": "",
+        "label": "协同设计内容（250423取消）",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "textarea",
+          "widgetName": "_widget_1673500159820"
+        }
+      },
+      {
+        "description": "",
+        "label": "协同内容及主设设计思路",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "textarea",
+          "widgetName": "_widget_1673500159821"
+        }
+      },
+      {
+        "description": "",
+        "label": "附件名称",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1673500159818"
+        }
+      },
+      {
+        "description": "",
+        "label": "附件",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "upload",
+          "widgetName": "_widget_1672981656249",
+          "maxFileCount": 10,
+          "fileTypes": [
+            "mp4",
+            "docx",
+            "doc",
+            "xlsx",
+            "pdf",
+            "zip",
+            "rar",
+            "dwg",
+            "xls",
+            "ppt",
+            "pptx"
+          ]
+        }
+      },
+      {
+        "description": "",
+        "label": "图片",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "image",
+          "widgetName": "_widget_1672981656250",
+          "maxFileCount": 10,
+          "compressed": true,
+          "onlyCamera": false,
+          "watermark": false,
+          "showStyle": "list"
+        }
+      },
+      {
+        "description": "",
+        "label": "设计单分派",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1672444434312",
+          "items": [
+            {
+              "value": "总部单",
+              "text": "总部单"
+            },
+            {
+              "value": "新乡单",
+              "text": "新乡单"
+            },
+            {
+              "value": "包装单",
+              "text": "包装单"
+            },
+            {
+              "value": "共同",
+              "text": "共同",
+              "color": "#3F8CFF"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": false
+        }
+      },
+      {
+        "description": "",
+        "label": "转新乡、工艺包装",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "usergroup",
+          "widgetName": "_widget_1672444434344",
+          "limit": {
+            "roles": [
+              "6942502ab4606b6b5375dc4f"
+            ]
+          },
+          "value": []
+        }
+      },
+      {
+        "description": "",
+        "label": "设计指派",
+        "labelHidden": false,
+        "lineWidth": 4,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "usergroup",
+          "widgetName": "_widget_1672444434345",
+          "limit": {
+            "roles": [
+              "63815e3a7fb607000acc9195"
+            ]
+          },
+          "value": []
+        }
+      },
+      {
+        "description": "范围：中央研究院",
+        "label": "科室",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "deptgroup",
+          "widgetName": "_widget_1676011035682",
+          "value": [],
+          "limit": {
+            "departs": [
+              "56ca5b8af97e80434fc06122",
+              "5c6f8e75a028fdc81bf2abe5"
+            ]
+          },
+          "valueOption": 0
+        }
+      },
+      {
+        "description": "",
+        "label": "下单时间",
+        "labelHidden": false,
+        "lineWidth": 6,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "datetime",
+          "widgetName": "_widget_1676011035681",
+          "format": "yyyy-MM-dd",
+          "value": null,
+          "rely": {
+            "widgets": [
+              "_widget_1676011035682"
+            ],
+            "formula": {
+              "type": "formula",
+              "text": "公式",
+              "formula": "IF($_widget_1676011035682#!=\"\",SYSTIME(),\"\")"
+            }
+          }
+        }
+      }
+    ],
+    "type": "form",
+    "layout_fields": [
+      {
+        "name": "_layout_1744684632429",
+        "type": "multitab",
+        "tabStyle": "style3",
+        "style": {
+          "color": "#00AED1"
+        },
+        "container": [
+          {
+            "name": "tab_1744684632429",
+            "title": "安装图设计通知",
+            "type": "tab",
+            "field_layout": [
+              "_widget_1676882291853",
+              "_widget_1744684632566",
+              "_widget_1744684632568",
+              "_widget_1744684632567",
+              "_widget_1744684632569",
+              "_widget_1744699879751",
+              "_widget_1744684632570",
+              "_widget_1744684632786"
+            ]
+          },
+          {
+            "name": "tab_1744684632430",
+            "title": "合同图纸（资料）领用申请",
+            "type": "tab",
+            "field_layout": [
+              "_widget_1744684632510",
+              "_widget_1744684632625",
+              "_widget_1744684632629",
+              "_widget_1744684632627",
+              "_widget_1744684632628",
+              "_widget_1744684632626",
+              "_widget_1744684632823"
+            ]
+          },
+          {
+            "name": "tab_1744684632431",
+            "title": "客服领图",
+            "type": "tab",
+            "field_layout": [
+              "_widget_1744684632491",
+              "_widget_1744684632668",
+              "_widget_1744684632669",
+              "_widget_1744684632670",
+              "_widget_1744684632671",
+              "_widget_1744684632673",
+              "_widget_1744684632842"
+            ]
+          },
+          {
+            "name": "tab_1744684632432",
+            "title": "生产卡/补充流程",
+            "type": "tab",
+            "field_layout": [
+              "_widget_1744684632511",
+              "_widget_1744684632729",
+              "_widget_1744684632731",
+              "_widget_1744684633114",
+              "_widget_1744684632730",
+              "_widget_1744684632861"
+            ]
+          }
+        ]
+      }
+    ],
+    "field_layout": [
+      "_widget_1672981582225",
+      "_widget_1672273364044",
+      "_widget_1672273364246",
+      "_widget_1672273364045",
+      "_widget_1744622134497",
+      "_layout_1744684632429",
+      "_widget_1744684632448",
+      "_widget_1744684632449",
+      "_widget_1744684632450",
+      "_widget_1744684632451",
+      "_widget_1744684632452",
+      "_widget_1744684632453",
+      "_widget_1744684632454",
+      "_widget_1744684633349",
+      "_widget_1672273364041",
+      "_widget_1672273364037",
+      "_widget_1672273364038",
+      "_widget_1672273364036",
+      "_widget_1672273364107",
+      "_widget_1672273364035",
+      "_widget_1676882291854",
+      "_widget_1676882291855",
+      "_widget_1676882291856",
+      "_widget_1672273364046",
+      "_widget_1672273364047",
+      "_widget_1672273364048",
+      "_widget_1672273364049",
+      "_widget_1672273364050",
+      "_widget_1672273364051",
+      "_widget_1672273364053",
+      "_widget_1672273364054",
+      "_widget_1672273364055",
+      "_widget_1672273364125",
+      "_widget_1672273364056",
+      "_widget_1672273364118",
+      "_widget_1672273364276",
+      "_widget_1672273364278",
+      "_widget_1672273364126",
+      "_widget_1672273364129",
+      "_widget_1672447922560",
+      "_widget_1672273364136",
+      "_widget_1672273364127",
+      "_widget_1672273364191",
+      "_widget_1672273364280",
+      "_widget_1672273364128",
+      "_widget_1672273364217",
+      "_widget_1672273364218",
+      "_widget_1672273364232",
+      "_widget_1672283155144",
+      "_widget_1673500159813",
+      "_widget_1673500159839",
+      "_widget_1673500159815",
+      "_widget_1673500159816",
+      "_widget_1673500159819",
+      "_widget_1673500159820",
+      "_widget_1673500159821",
+      "_widget_1673500159818",
+      "_widget_1672981656249",
+      "_widget_1672981656250",
+      "_widget_1672444434312",
+      "_widget_1672444434344",
+      "_widget_1672444434345",
+      "_widget_1676011035682",
+      "_widget_1676011035681"
+    ],
+    "validators": [],
+    "submitRule": 3,
+    "widget_submit_rules": {},
+    "fieldShowRules": [
+      {
+        "filter": {
+          "cond": [
+            {
+              "type": "text",
+              "method": "in",
+              "value": [
+                "标准化"
+              ],
+              "hasEmpty": false,
+              "field": "_widget_1672273364246"
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1672273364217",
+          "_widget_1672273364218",
+          "_widget_1672273364232",
+          "_widget_1672273364128"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "type": "text",
+              "method": "in",
+              "value": [
+                "电气"
+              ],
+              "hasEmpty": false,
+              "field": "_widget_1672273364246"
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1672273364125",
+          "_widget_1672273364118",
+          "_widget_1672273364056",
+          "_widget_1672273364276",
+          "_widget_1672273364278"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "type": "text",
+              "method": "in",
+              "value": [
+                "振源"
+              ],
+              "hasEmpty": false,
+              "field": "_widget_1672273364246"
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1672273364126",
+          "_widget_1672273364129",
+          "_widget_1672273364136",
+          "_widget_1672447922560"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "type": "text",
+              "method": "in",
+              "value": [
+                "筛板"
+              ],
+              "hasEmpty": false,
+              "field": "_widget_1672273364246"
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1672273364127",
+          "_widget_1672273364191",
+          "_widget_1672273364280"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "field": "_widget_1672273364246",
+              "type": "text",
+              "method": "in",
+              "value": [
+                "电气",
+                "振源",
+                "筛板"
+              ],
+              "hasEmpty": false
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1744684633349",
+          "_widget_1672273364041",
+          "_widget_1672273364107",
+          "_widget_1672273364048",
+          "_widget_1672273364049",
+          "_widget_1672273364050",
+          "_widget_1672273364051",
+          "_widget_1672273364053",
+          "_widget_1672273364054",
+          "_widget_1672273364055",
+          "_widget_1672283155144"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "field": "_widget_1672444434312",
+              "type": "text",
+              "method": "in",
+              "value": [
+                "新乡单",
+                "郑州单",
+                "共同",
+                "包装单"
+              ],
+              "hasEmpty": false
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1672444434344"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "type": "text",
+              "method": "in",
+              "value": [
+                "总部单",
+                "共同"
+              ],
+              "hasEmpty": false,
+              "field": "_widget_1672444434312"
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1672444434345"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "field": "_widget_1672273364246",
+              "type": "text",
+              "method": "in",
+              "value": [
+                "通用",
+                "包装"
+              ],
+              "hasEmpty": false
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1672273364045",
+          "_widget_1744622134497",
+          "_widget_1744684632448",
+          "_widget_1744684632450",
+          "_widget_1744684632451",
+          "_widget_1744684632452",
+          "_widget_1744684632453",
+          "_widget_1744684632454",
+          "_widget_1672273364107",
+          "_widget_1673500159813",
+          "_widget_1673500159839",
+          "_widget_1673500159815",
+          "_widget_1673500159816",
+          "_widget_1673500159821",
+          "_widget_1673500159818"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "field": "_widget_1744622134497",
+              "type": "text",
+              "method": "eq",
+              "value": [
+                "安装图设计通知"
+              ]
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1676882291853",
+          "_widget_1744684632566",
+          "_widget_1744684632568",
+          "_widget_1744684632567",
+          "_widget_1744684632569",
+          "_widget_1744699879751",
+          "_widget_1744684632570",
+          "_widget_1744684632786",
+          "_widget_1744684632449"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "field": "_widget_1744622134497",
+              "type": "text",
+              "method": "eq",
+              "value": [
+                "合同图纸（资料）领用申请"
+              ]
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1744684632510",
+          "_widget_1744684632625",
+          "_widget_1744684632629",
+          "_widget_1744684632627",
+          "_widget_1744684632628",
+          "_widget_1744684632626",
+          "_widget_1744684632823"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "field": "_widget_1744622134497",
+              "type": "text",
+              "method": "eq",
+              "value": [
+                "客服领图"
+              ]
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1744684632491",
+          "_widget_1744684632668",
+          "_widget_1744684632669",
+          "_widget_1744684632670",
+          "_widget_1744684632671",
+          "_widget_1744684632673",
+          "_widget_1744684632842"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "field": "_widget_1744622134497",
+              "type": "text",
+              "method": "eq",
+              "value": [
+                "生产卡/补充流程"
+              ]
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1744684632511",
+          "_widget_1744684632729",
+          "_widget_1744684632731",
+          "_widget_1744684633114",
+          "_widget_1744684632730",
+          "_widget_1744684632861"
+        ]
+      }
+    ],
+    "subformFieldShowRules": {},
+    "layout": "grid-2"
+  },
+  "attr": {
+    "showFieldsMeta": {
+      "_widget_1672273364044": {
+        "width": 163
+      }
+    },
+    "isPublic": false,
+    "isQuery": false,
+    "hasExtParams": false,
+    "extParams": [],
+    "hasCoop": false,
+    "hasFlow": true,
+    "hasCache": false,
+    "flow": {
+      "designVer": [],
+      "flowVer": "9",
+      "verId": 9,
+      "versions": [
+        {
+          "ver": "1"
+        },
+        {
+          "ver": "2"
+        },
+        {
+          "ver": "4"
+        },
+        {
+          "ver": "5"
+        },
+        {
+          "ver": "6",
+          "hasManagerChainNode": false,
+          "theme": 1
+        },
+        {
+          "ver": "7",
+          "hasManagerChainNode": false,
+          "theme": 1
+        },
+        {
+          "ver": "8",
+          "hasManagerChainNode": false,
+          "theme": 2
+        },
+        {
+          "ver": "9",
+          "hasManagerChainNode": false,
+          "theme": 2
+        }
+      ]
+    },
+    "parent": "63acddba3228330008f8b3d2",
+    "comment": {
+      "enable": true,
+      "channels": [
+        "site"
+      ]
+    },
+    "mobileLayout": {
+      "widget": "normal",
+      "label": {
+        "layout": "vertical"
+      },
+      "description": {
+        "visible": true
+      }
+    },
+    "pcLayout": {
+      "label": {
+        "layout": "vertical"
+      },
+      "description": {
+        "visible": true
+      },
+      "input": {
+        "width": "normal"
+      }
+    },
+    "formEvents": [],
+    "submit_btn": {},
+    "draft_btn": {},
+    "maxWidgetCount": 500,
+    "quick_edit_status": "open",
+    "icon": 1,
+    "color": 1,
+    "authGroupDisplayMode": 2,
+    "isPublicData": false,
+    "publicOptAuth": {}
+  },
+  "is_system_form": false,
+  "dataPermOperations": [
+    {
+      "value": "flow_read",
+      "text": "查看"
+    },
+    {
+      "value": "flow_create",
+      "text": "添加"
+    },
+    {
+      "value": "flow_copy",
+      "text": "复制"
+    },
+    {
+      "value": "flow_update",
+      "text": "编辑"
+    },
+    {
+      "value": "flow_delete",
+      "text": "删除"
+    },
+    {
+      "value": "flow_transfer",
+      "text": "调整流程负责人"
+    },
+    {
+      "value": "flow_close",
+      "text": "结束流程"
+    },
+    {
+      "value": "flow_activate",
+      "text": "激活流程"
+    },
+    {
+      "value": "flow_batch_print",
+      "text": "批量打印"
+    },
+    {
+      "value": "flow_batch_update",
+      "text": "批量修改"
+    },
+    {
+      "value": "flow_export",
+      "text": "导出"
+    },
+    {
+      "value": "flow_import",
+      "text": "导入"
+    }
+  ],
+  "optAuthConfigPerm": {
+    "_widget_1672981582225": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1672273364044": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1672273364246": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364045": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1744622134497": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1676882291853": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632566": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632568": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632567": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632569": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744699879751": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632570": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632786": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1744684632510": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632625": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632629": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632627": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632628": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632626": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632823": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1744684632491": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632668": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632669": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632670": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632671": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632673": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632842": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1744684632511": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632729": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632731": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684633114": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632730": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632861": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1744684632448": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632449": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632450": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632451": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632452": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632453": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684632454": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1744684633349": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1672273364041": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364037": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364038": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364036": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364107": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1672273364035": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1676882291854": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1676882291855": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1676882291856": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364046": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364047": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364048": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364049": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364050": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364051": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364053": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364054": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364055": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1672273364125": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1672273364056": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364118": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364276": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364278": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364126": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1672273364129": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672447922560": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364136": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364127": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1672273364191": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364280": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364128": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1672273364217": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364218": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672273364232": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672283155144": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1673500159813": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1673500159839": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1673500159815": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1673500159816": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1673500159819": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1673500159820": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1673500159821": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1673500159818": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672981656249": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672981656250": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672444434312": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672444434344": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672444434345": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1676011035682": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1676011035681": {
+      "visible": true,
+      "editable": true
+    }
+  },
+  "printList": [
+    {
+      "id": "20221231080638387",
+      "name": "筛板",
+      "type": "table",
+      "seq": 1024
+    },
+    {
+      "id": "20221231085209118",
+      "name": "标准化",
+      "type": "table",
+      "seq": 2048
+    },
+    {
+      "id": "20221231090457637",
+      "name": "振源",
+      "type": "table",
+      "seq": 3072
+    },
+    {
+      "id": "20221231094637573",
+      "name": "电气",
+      "type": "table",
+      "seq": 4096
+    },
+    {
+      "id": "20230221084230925",
+      "name": "通用",
+      "type": "table",
+      "seq": 6144
+    },
+    {
+      "id": "20250414095435779",
+      "name": "包装",
+      "type": "table",
+      "seq": 7168
+    },
+    {
+      "id": "system",
+      "name": "系统打印"
+    }
+  ],
+  "canSearchAllFields": true,
+  "relationshipList": [],
+  "syncFields": {}
+}

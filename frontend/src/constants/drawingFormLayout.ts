@@ -554,6 +554,136 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       has_issue: 8, issue_details: 24,
     },
   },
+  // 中央研究院协同卡
+  research_coop_card: {
+    contentMaxWidth: 1080,
+    listColumns: [
+      'serial_no', 'coop_card_type', 'process_name', 'drawing_no',
+      'order_person', 'applicant', 'office', 'design_dispatch',
+    ],
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: ['serial_no', 'coop_card_type'],
+      },
+      {
+        title: '原始流程名称',
+        fieldIds: ['process_name'],
+      },
+      {
+        title: '关联安装图设计通知',
+        fieldIds: [
+          'link_install', 'install_serial_no', 'install_order_person',
+          'install_applicant', 'install_design_card_no', 'install_project_no',
+          'install_department',
+        ],
+      },
+      {
+        title: '关联合同图纸领用',
+        fieldIds: [
+          'link_requisition', 'req_serial_no', 'req_contract_no',
+          'req_applicant', 'req_order_person', 'req_department',
+        ],
+      },
+      {
+        title: '关联客服领图',
+        fieldIds: [
+          'link_cs_drawing', 'cs_serial_no', 'cs_department',
+          'cs_applicant', 'cs_contract_no', 'cs_order_person',
+        ],
+      },
+      {
+        title: '关联生产卡/补充流程',
+        fieldIds: [
+          'link_prod_card', 'prod_card_no', 'prod_drawing_no',
+          'prod_applicant', 'prod_department',
+        ],
+      },
+      {
+        title: '合并信息',
+        fieldIds: [
+          'merged_serial_no', 'project_no', 'design_card_no', 'contract_no',
+          'order_person_merged', 'applicant_merged', 'business_dept_merged',
+        ],
+      },
+      {
+        title: '合同信息',
+        fieldIds: [
+          'link_contract', 'order_dept', 'order_person', 'drawing_no',
+        ],
+      },
+      {
+        title: '协同内容',
+        fieldIds: [
+          'card_date', 'drawing_no_generic', 'order_dept_generic',
+          'order_person_generic', 'applicant', 'office',
+          'equipment_name', 'spec_model', 'equipment_qty',
+          'need_tech_agreement', 'coop_draw_due', 'full_draw_date',
+        ],
+      },
+      {
+        title: '电气',
+        fieldIds: [
+          'elec_motors', 'elec_motors_2', 'process_req', 'external_meters',
+        ],
+      },
+      {
+        title: '激振器',
+        fieldIds: [
+          'vibrator_params', 'vibrator_params_2', 'vibrator_params_3',
+        ],
+      },
+      {
+        title: '筛板',
+        fieldIds: ['screen_deck', 'screen_type'],
+      },
+      {
+        title: '标准化',
+        fieldIds: ['std_due_date', 'std_summary', 'std_detail', 'chief_design_note'],
+      },
+      {
+        title: '通用与包装',
+        fieldIds: [
+          'coop_project_name', 'delivery_draw_date', 'has_tech_agreement',
+          'coop_content', 'attachment_names', 'attachments', 'images',
+        ],
+      },
+      {
+        title: '设计安排（审批填写）',
+        fieldIds: [
+          'design_dispatch', 'transfer_packaging_users', 'design_assignees',
+          'offices', 'order_datetime',
+        ],
+      },
+    ],
+    spans: {
+      serial_no: 8, coop_card_type: 16, process_name: 24,
+      link_install: 24, link_requisition: 24, link_cs_drawing: 24, link_prod_card: 24,
+      link_contract: 24,
+      install_serial_no: 8, install_order_person: 8, install_applicant: 8,
+      install_design_card_no: 8, install_project_no: 8, install_department: 8,
+      req_serial_no: 8, req_contract_no: 8, req_applicant: 8,
+      req_order_person: 8, req_department: 8,
+      cs_serial_no: 8, cs_department: 8, cs_applicant: 8,
+      cs_contract_no: 8, cs_order_person: 8,
+      prod_card_no: 8, prod_drawing_no: 8, prod_applicant: 8, prod_department: 8,
+      merged_serial_no: 8, project_no: 8, design_card_no: 8, contract_no: 8,
+      order_person_merged: 8, applicant_merged: 8, business_dept_merged: 8,
+      order_dept: 8, order_person: 8, drawing_no: 8,
+      card_date: 8, drawing_no_generic: 8, order_dept_generic: 8,
+      order_person_generic: 8, applicant: 8, office: 8,
+      equipment_name: 8, spec_model: 8, equipment_qty: 8,
+      need_tech_agreement: 8, coop_draw_due: 8, full_draw_date: 8,
+      elec_motors: 24, elec_motors_2: 24, process_req: 12, external_meters: 12,
+      vibrator_params: 24, vibrator_params_2: 24, vibrator_params_3: 24,
+      screen_deck: 24, screen_type: 24,
+      std_due_date: 8, std_summary: 16, std_detail: 24, chief_design_note: 24,
+      coop_project_name: 12, delivery_draw_date: 6, has_tech_agreement: 6,
+      coop_content: 24, attachment_names: 24, attachments: 12, images: 12,
+      design_dispatch: 8, transfer_packaging_users: 8, design_assignees: 8,
+      offices: 8, order_datetime: 8,
+    },
+  },
   // —— 客户服务部（售后低代码，与原生售后工单并存）——
   // 列表列序对齐简道云「客户服务申请及反馈」数据管理横向滚动视图
   cs_service_request: {
@@ -671,6 +801,35 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       { title: '借据明细', fieldIds: ['field_4', 'field_11', 'field_12'] },
     ],
     spans: { field_4: 24 },
+  },
+  cs_drawing_request: {
+    contentMaxWidth: 960,
+    listColumns: [
+      'contract_no', 'applicant', 'department', 'order_person',
+      'apply_reason_2', 'designer', 'product_model', 'transfer_channel',
+    ],
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'apply_datetime', 'department', 'applicant',
+          'contract_no', 'drawing_no_note', 'order_person',
+          'apply_reason', 'apply_reason_2', 'designer', 'product_model',
+        ],
+      },
+      {
+        title: '图纸传递',
+        fieldIds: [
+          'transfer_channel', 'attachment_name', 'attachments', 'images',
+          'dept_dispatch', 'design_dispatch', 'design_assignees', 'transfer_packaging_users',
+          'offices', 'order_date',
+        ],
+      },
+    ],
+    spans: {
+      apply_reason: 24, apply_reason_2: 24, attachments: 24, images: 24,
+      design_assignees: 24, transfer_packaging_users: 24,
+    },
   },
   cs_service_delay: {
     contentMaxWidth: 960,

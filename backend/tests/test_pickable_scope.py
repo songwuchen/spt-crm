@@ -6,11 +6,19 @@ from app.domains.lowcode.pickable_scope import (
     strip_spt_scheme_pickable_scopes,
     DEFAULT_TENANT_ID,
     JDY_ROLE_TO_CRM_CODE,
+    JDY_ROLE_TO_SCOPE_CODE,
 )
 
 
 def test_jdy_room_leader_role_mapped():
     assert JDY_ROLE_TO_CRM_CODE["63815e3a7fb607000acc9195"] == "room_leader"
+
+
+def test_jdy_dept_dispatch_ygb_role_mapped():
+    assert JDY_ROLE_TO_SCOPE_CODE["5f46008a6344180006bfa81a"] == "dept_dispatch_ygb"
+    assert pickable_scope_from_jdy_limit(
+        {"roles": ["5f46008a6344180006bfa81a"]}
+    ) == {"scope_code": "dept_dispatch_ygb"}
 
 
 def test_pickable_scope_from_jdy_limit():

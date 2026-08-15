@@ -54,6 +54,13 @@ JDY_ROLE_TO_CRM_CODE: dict[str, str] = {
 # 简道云角色 → 预置可选范围 code
 JDY_ROLE_TO_SCOPE_CODE: dict[str, str] = {
     "63815e3a7fb607000acc9195": "room_leaders",
+    # 客服领图「部门指派-研管办」← 27.3图纸领用申请-研究院安排
+    "5f46008a6344180006bfa81a": "dept_dispatch_ygb",
+}
+
+# 简道云角色名 → 审批人可选范围（charger_rule 用；id 优先）
+JDY_ROLE_NAME_TO_APPROVER_SCOPE: dict[str, str] = {
+    "27.3图纸领用申请-研究院安排": "dept_dispatch_ygb",
 }
 
 # 简道云部门 limit.departs → 预置可选范围（核价管理「采购」= 计划采购部）

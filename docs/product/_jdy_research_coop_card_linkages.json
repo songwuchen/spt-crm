@@ -1,0 +1,400 @@
+{
+  "fieldShowRules": [
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1672273364246",
+          "method": "in",
+          "value": [
+            "标准化"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1672273364217"
+        },
+        {
+          "widget": "_widget_1672273364218"
+        },
+        {
+          "widget": "_widget_1672273364232"
+        },
+        {
+          "widget": "_widget_1672273364128"
+        }
+      ]
+    },
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1672273364246",
+          "method": "in",
+          "value": [
+            "电气"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1672273364125"
+        },
+        {
+          "widget": "_widget_1672273364118"
+        },
+        {
+          "widget": "_widget_1672273364056"
+        },
+        {
+          "widget": "_widget_1672273364276"
+        },
+        {
+          "widget": "_widget_1672273364278"
+        }
+      ]
+    },
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1672273364246",
+          "method": "in",
+          "value": [
+            "振源"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1672273364126"
+        },
+        {
+          "widget": "_widget_1672273364129"
+        },
+        {
+          "widget": "_widget_1672273364136"
+        },
+        {
+          "widget": "_widget_1672447922560"
+        }
+      ]
+    },
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1672273364246",
+          "method": "in",
+          "value": [
+            "筛板"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1672273364127"
+        },
+        {
+          "widget": "_widget_1672273364191"
+        },
+        {
+          "widget": "_widget_1672273364280"
+        }
+      ]
+    },
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1672273364246",
+          "method": "in",
+          "value": [
+            "电气",
+            "振源",
+            "筛板"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1744684633349"
+        },
+        {
+          "widget": "_widget_1672273364041"
+        },
+        {
+          "widget": "_widget_1672273364107"
+        },
+        {
+          "widget": "_widget_1672273364048"
+        },
+        {
+          "widget": "_widget_1672273364049"
+        },
+        {
+          "widget": "_widget_1672273364050"
+        },
+        {
+          "widget": "_widget_1672273364051"
+        },
+        {
+          "widget": "_widget_1672273364053"
+        },
+        {
+          "widget": "_widget_1672273364054"
+        },
+        {
+          "widget": "_widget_1672273364055"
+        },
+        {
+          "widget": "_widget_1672283155144"
+        }
+      ]
+    },
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1672444434312",
+          "method": "in",
+          "value": [
+            "新乡单",
+            "郑州单",
+            "共同",
+            "包装单"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1672444434344"
+        }
+      ]
+    },
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1672444434312",
+          "method": "in",
+          "value": [
+            "总部单",
+            "共同"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1672444434345"
+        }
+      ]
+    },
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1672273364246",
+          "method": "in",
+          "value": [
+            "通用",
+            "包装"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1672273364045"
+        },
+        {
+          "widget": "_widget_1744622134497"
+        },
+        {
+          "widget": "_widget_1744684632448"
+        },
+        {
+          "widget": "_widget_1744684632450"
+        },
+        {
+          "widget": "_widget_1744684632451"
+        },
+        {
+          "widget": "_widget_1744684632452"
+        },
+        {
+          "widget": "_widget_1744684632453"
+        },
+        {
+          "widget": "_widget_1744684632454"
+        },
+        {
+          "widget": "_widget_1672273364107"
+        },
+        {
+          "widget": "_widget_1673500159813"
+        },
+        {
+          "widget": "_widget_1673500159839"
+        },
+        {
+          "widget": "_widget_1673500159815"
+        },
+        {
+          "widget": "_widget_1673500159816"
+        },
+        {
+          "widget": "_widget_1673500159821"
+        },
+        {
+          "widget": "_widget_1673500159818"
+        }
+      ]
+    },
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1744622134497",
+          "method": "eq",
+          "value": [
+            "安装图设计通知"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1676882291853"
+        },
+        {
+          "widget": "_widget_1744684632566"
+        },
+        {
+          "widget": "_widget_1744684632568"
+        },
+        {
+          "widget": "_widget_1744684632567"
+        },
+        {
+          "widget": "_widget_1744684632569"
+        },
+        {
+          "widget": "_widget_1744699879751"
+        },
+        {
+          "widget": "_widget_1744684632570"
+        },
+        {
+          "widget": "_widget_1744684632786"
+        },
+        {
+          "widget": "_widget_1744684632449"
+        }
+      ]
+    },
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1744622134497",
+          "method": "eq",
+          "value": [
+            "合同图纸（资料）领用申请"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1744684632510"
+        },
+        {
+          "widget": "_widget_1744684632625"
+        },
+        {
+          "widget": "_widget_1744684632629"
+        },
+        {
+          "widget": "_widget_1744684632627"
+        },
+        {
+          "widget": "_widget_1744684632628"
+        },
+        {
+          "widget": "_widget_1744684632626"
+        },
+        {
+          "widget": "_widget_1744684632823"
+        }
+      ]
+    },
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1744622134497",
+          "method": "eq",
+          "value": [
+            "客服领图"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1744684632491"
+        },
+        {
+          "widget": "_widget_1744684632668"
+        },
+        {
+          "widget": "_widget_1744684632669"
+        },
+        {
+          "widget": "_widget_1744684632670"
+        },
+        {
+          "widget": "_widget_1744684632671"
+        },
+        {
+          "widget": "_widget_1744684632673"
+        },
+        {
+          "widget": "_widget_1744684632842"
+        }
+      ]
+    },
+    {
+      "rel": "and",
+      "conditions": [
+        {
+          "field": "_widget_1744622134497",
+          "method": "eq",
+          "value": [
+            "生产卡/补充流程"
+          ]
+        }
+      ],
+      "show_fields": [
+        {
+          "widget": "_widget_1744684632511"
+        },
+        {
+          "widget": "_widget_1744684632729"
+        },
+        {
+          "widget": "_widget_1744684632731"
+        },
+        {
+          "widget": "_widget_1744684633114"
+        },
+        {
+          "widget": "_widget_1744684632730"
+        },
+        {
+          "widget": "_widget_1744684632861"
+        }
+      ]
+    }
+  ],
+  "subformFieldShowRules": [],
+  "show_rule_count": 12
+}

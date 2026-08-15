@@ -188,6 +188,20 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "field_definitions": [],
         "sync_fields": True,
     },
+    {
+        "key": "research_coop_card",
+        "name": "中央研究院协同卡",
+        "category": "研究院",
+        "icon": "ApartmentOutlined",
+        "description": (
+            "对齐简道云中央研究院「中央研究院协同卡」"
+            "(app=58465841… entry=63acddd2…)。"
+            "流水号 6.19.1-+yyyyMMdd+两位日序。"
+            "详见 docs/product/_jdy_research_coop_card_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
     # —— 客户服务部（售后低代码，与原生售后工单并存）——
     {
         "key": "cs_service_request",
@@ -222,6 +236,15 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "category": "售后",
         "icon": "FileTextOutlined",
         "description": "对齐简道云客户服务部「客服借据」。",
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
+        "key": "cs_drawing_request",
+        "name": "客服领图",
+        "category": "售后",
+        "icon": "FileImageOutlined",
+        "description": "对齐简道云客户服务部「客服领图」(app=58e2fbc7… entry=63840316…)。",
         "field_definitions": [],
         "sync_fields": True,
     },
@@ -425,13 +448,17 @@ def _apply_drawing_jdy_fields() -> None:
     except Exception:
         PRICING_CHECKLIST_HJQD_JDY = {}
     try:
+        from app.domains.lowcode._research_coop_card_generated import RESEARCH_COOP_CARD_JDY
+    except Exception:
+        RESEARCH_COOP_CARD_JDY = {}
+    try:
         from app.domains.lowcode._customer_service_jdy_generated import CUSTOMER_SERVICE_JDY
     except Exception:
         CUSTOMER_SERVICE_JDY = {}
     packs = {
         **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY,
         **INVOICE_PAYMENT_JDY, **QUOTE_MANAGEMENT_JDY, **PRICING_CHECKLIST_HJQD_JDY,
-        **CUSTOMER_SERVICE_JDY,
+        **RESEARCH_COOP_CARD_JDY, **CUSTOMER_SERVICE_JDY,
     }
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])

@@ -40,5 +40,10 @@
     "app": "58e2fbc7ffd1608b4ce92809",
     "hasFlow": true,
     "folder": "1"
+  },
+  "cs_drawing_request": {
+    "id": "63840316a3241c000a805869",
+    "app": "58e2fbc7ffd1608b4ce92809",
+    "name": "客服领图"
   }
 }

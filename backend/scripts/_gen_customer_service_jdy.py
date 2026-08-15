@@ -32,6 +32,8 @@ SOFT_NOISE_KEYS = (
     "按日统计", "周几", "当日回款", "目标数",
 )
 HARD_DROP_KEYS = ("取消", "停用", "不用显示", "22/11/28", "230320", "221209", "240311", "删关")
+# 简道云「订货人*/设计人*」为人员旁文本镜像，CRM 只保留人员选择器
+STAR_TEXT_DROP = frozenset({"订货人*", "设计人*"})
 SYS_IDS = {"creator", "createTime", "updateTime", "appId", "entryId", "_id"}
 SKIP_TYPES = {
     "separator", "button", "pagebreak", "hint", "flowstate",
@@ -53,7 +55,28 @@ TITLE_SLUG = {
     "图纸编号": "drawing_no",
     "备注": "remark",
     "申请事由": "apply_reason",
+    "申请事由*": "apply_reason",
     "事由": "apply_reason",
+    "日期时间": "apply_datetime",
+    "订货人": "order_person",
+    "订货人*": "order_person_text",
+    "订货人（文本）": "order_person_text",
+    "设计人": "designer",
+    "设计人(文本)": "designer_text",
+    "设计人*": "designer_text",
+    "产品型号": "product_model",
+    "图纸传递途径": "transfer_channel",
+    "附件": "attachments",
+    "附件名称": "attachment_name",
+    "图片": "images",
+    "设计单分派": "design_dispatch",
+    "设计指派": "design_assignees",
+    "转新乡、工艺包装": "transfer_packaging_users",
+    "科室": "offices",
+    "下单日期": "order_date",
+    "下单时间": "order_date",
+    "部门指派": "dept_dispatch",
+    "图号231021": "drawing_no_note",
 }
 
 FORMS_META = {
@@ -87,6 +110,13 @@ FORMS_META = {
         "route": "/cs-correspondences",
         "serial_prefix": "WH",
     },
+    "cs_drawing_request": {
+        "title": "客服领图",
+        "route": "/cs-drawing-requests",
+        # 简道云流水号：yyyyMMdd + 2位日序（无字母前缀）
+        "serial_prefix": "",
+        "serial_digits": 2,
+    },
 }
 
 
@@ -107,6 +137,8 @@ def should_keep_field(label: str, name: str) -> bool:
     if is_hard_drop(label, name):
         return False
     if is_soft_noise(label):
+        return False
+    if (label or "").strip() in STAR_TEXT_DROP:
         return False
     return True
 
@@ -182,24 +214,23 @@ def sub_columns(f: dict, used: set[str], required_widgets: set[str] | None = Non
     return out
 
 
-def _serial_field(prefix: str, name: str = "") -> dict:
+def _serial_field(prefix: str, name: str = "", *, digits: int = 3) -> dict:
+    rules: list[dict] = []
+    if prefix:
+        rules.append({"type": "text", "value": prefix})
+    rules.append({"type": "date", "format": "yyyyMMdd"})
+    rules.append({
+        "type": "counter",
+        "digits": max(1, int(digits or 3)),
+        "fixed": True,
+        "reset_period": "daily",
+        "initial_value": 1,
+    })
     fd = {
         "id": "serial_no",
         "type": "auto_number",
-        "label": "流程编号",
-        "props": {
-            "serial_rules": [
-                {"type": "text", "value": prefix},
-                {"type": "date", "format": "yyyyMMdd"},
-                {
-                    "type": "counter",
-                    "digits": 3,
-                    "fixed": True,
-                    "reset_period": "daily",
-                    "initial_value": 1,
-                },
-            ],
-        },
+        "label": "流水号" if not prefix else "流程编号",
+        "props": {"serial_rules": rules},
         "available_on_create": True,
         "fill_stage": "initiator",
         "form_editable": False,
@@ -213,6 +244,8 @@ def build_fields(
     raw: dict,
     serial_prefix: str,
     required_widgets: set[str] | None = None,
+    *,
+    serial_digits: int = 3,
 ) -> list[dict]:
     req = required_widgets or set()
     data = raw.get("data", raw)
@@ -230,14 +263,16 @@ def build_fields(
         if not lab or not should_keep_field(lab, name):
             continue
         slug = _slug_for(lab, used)
-        if slug == "serial_no" or lab in ("流程编号", "流水号"):
-            out.append(_serial_field(serial_prefix, name))
+        if slug == "serial_no" or lab in ("流程编号", "流水号") or typ0 == "sn":
+            out.append(_serial_field(serial_prefix, name, digits=serial_digits))
             continue
         typ = map_type(typ0)
         if typ0 == "linkfield":
             typ = "text"
         if typ0 == "image":
             typ = "image"
+        if typ0 == "sn":
+            continue
         opts = options_of(f)
         if typ == "select" and not opts:
             typ = "text"
@@ -283,11 +318,17 @@ def build_fields(
             props = dict(fd.get("props") or {})
             props["default_current_user"] = True
             fd["props"] = props
+        if slug == "apply_datetime":
+            props = dict(fd.get("props") or {})
+            props["default_today"] = True
+            fd["props"] = props
+            fd.setdefault("available_on_create", True)
+            fd.setdefault("fill_stage", "initiator")
         out.append(fd)
 
     # ensure serial exists
     if not any(f.get("id") == "serial_no" for f in out):
-        out.insert(0, _serial_field(serial_prefix))
+        out.insert(0, _serial_field(serial_prefix, digits=serial_digits))
     return out
 
 
@@ -309,7 +350,12 @@ def gen_one(key: str, title: str, entry: str, app: str, meta: dict) -> dict:
     if wf_file.exists():
         wf_raw = unwrap_wf(json.loads(wf_file.read_text(encoding="utf-8")))
     required_widgets = load_required_widgets(key)
-    fields = build_fields(fields_raw, meta["serial_prefix"], required_widgets)
+    fields = build_fields(
+        fields_raw,
+        meta["serial_prefix"],
+        required_widgets,
+        serial_digits=int(meta.get("serial_digits") or 3),
+    )
     # 不再人工硬加必填：以简道云 allowBlank===false 为准（经 optAuth 再拆到发起/审批）
 
     nodes, routes, notes = build_flow(wf_raw, fields, title)

@@ -1,0 +1,1041 @@
+[
+  {
+    "name": "_widget_1672981582225",
+    "title": "仅限总部与新乡、包装之间的协同",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364044",
+    "title": "流水号",
+    "type": "sn",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364246",
+    "title": "协同卡类型",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "电气",
+      "振源",
+      "筛板",
+      "标准化",
+      "通用",
+      "包装"
+    ]
+  },
+  {
+    "name": "_widget_1672273364045",
+    "title": "一、原始流程名称",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744622134497",
+    "title": "流程名称",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "安装图设计通知",
+      "合同图纸（资料）领用申请",
+      "客服领图",
+      "生产卡/补充流程",
+      "其他"
+    ]
+  },
+  {
+    "name": "_widget_1676882291853",
+    "title": "选择安装图设计通知数据",
+    "type": "linkfield",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632566",
+    "title": "流水号-安装图设计通知",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632568",
+    "title": "订货人（文本）-安装图设计通知",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632567",
+    "title": "申请人-安装图设计通知",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632569",
+    "title": "新设计卡号-安装图设计通知",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744699879751",
+    "title": "对应项目号-安装图设计通知",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632570",
+    "title": "部门-安装图设计通知",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632786",
+    "title": "安装图设计通知-查看",
+    "type": "linkquery",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632510",
+    "title": "合同图纸（资料）领用申请",
+    "type": "linkfield",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632625",
+    "title": "流水号-合同图纸（资料）领用申请",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632629",
+    "title": "合同号-合同图纸（资料）领用申请",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632627",
+    "title": "申请人-合同图纸（资料）领用申请",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632628",
+    "title": "订货人（文本）-合同图纸（资料）领用申请",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632626",
+    "title": "部门-合同图纸（资料）领用申请",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632823",
+    "title": "合同图纸（资料）领用申请-查看",
+    "type": "linkquery",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632491",
+    "title": "客服领图",
+    "type": "linkfield",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632668",
+    "title": "流水号-客服领图",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632669",
+    "title": "部门-客服领图",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632670",
+    "title": "申请人-客服领图",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632671",
+    "title": "合同号-客服领图",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632673",
+    "title": "订货人*-客服领图",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632842",
+    "title": "客服领图-查看",
+    "type": "linkquery",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632511",
+    "title": "生产卡/补充流程",
+    "type": "linkfield",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632729",
+    "title": "1.2.8生产卡/补充流程编号",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632731",
+    "title": "图纸编号（筛选用）（公式的）-生产卡/补充流程",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684633114",
+    "title": "申请人-生产卡/补充流程",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632730",
+    "title": "所在部门-生产卡/补充流程",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632861",
+    "title": "生产卡/补充流程-查看",
+    "type": "linkquery",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632448",
+    "title": "流水号（合并）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632449",
+    "title": "对应项目号",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632450",
+    "title": "对应设计卡号（合并）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632451",
+    "title": "合同号（合并）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632452",
+    "title": "订货人（合并）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632453",
+    "title": "申请人（合并）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684632454",
+    "title": "业务部门（合并）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1744684633349",
+    "title": "一、合同信息",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364041",
+    "title": "合同信息*",
+    "type": "linkfield",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364037",
+    "title": "订货部门*",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364038",
+    "title": "订货人*",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364036",
+    "title": "图纸编号*",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364107",
+    "title": "二、协同内容",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364035",
+    "title": "下卡日期",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676882291854",
+    "title": "图纸编号-通用",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676882291855",
+    "title": "订货部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676882291856",
+    "title": "订货人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364046",
+    "title": "申请人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364047",
+    "title": "所属科室",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364048",
+    "title": "设备名称",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364049",
+    "title": "规格型号（内部型号）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364050",
+    "title": "设备数量",
+    "type": "number",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364051",
+    "title": "是否需要对照技术协议",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1672273364053",
+    "title": "协同图纸要求完成时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364054",
+    "title": "全套图纸下图时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364055",
+    "title": "三、设计参数",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364125",
+    "title": "电气1",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364056",
+    "title": "电气1",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "激振器电机",
+      "功率（KW)",
+      "数量"
+    ]
+  },
+  {
+    "name": "_widget_1672273364058",
+    "title": "激振器电机",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672273364056",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364060",
+    "title": "功率（KW)",
+    "type": "number",
+    "required": false,
+    "parent": "_widget_1672273364056",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364061",
+    "title": "数量",
+    "type": "number",
+    "required": false,
+    "parent": "_widget_1672273364056",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364118",
+    "title": "电气1",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "其他电机",
+      "功率（KW)",
+      "数量"
+    ]
+  },
+  {
+    "name": "_widget_1672273364119",
+    "title": "其他电机",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672273364118",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364120",
+    "title": "功率（KW)",
+    "type": "number",
+    "required": false,
+    "parent": "_widget_1672273364118",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364121",
+    "title": "数量",
+    "type": "number",
+    "required": false,
+    "parent": "_widget_1672273364118",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364276",
+    "title": "工艺要求1",
+    "type": "checkboxgroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "反接制动",
+      "变频启动",
+      "防爆接线口",
+      "同步带"
+    ]
+  },
+  {
+    "name": "_widget_1672273364278",
+    "title": "外设仪表1",
+    "type": "checkboxgroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "测温",
+      "电加热",
+      "测振",
+      "堵煤开关"
+    ]
+  },
+  {
+    "name": "_widget_1672273364126",
+    "title": "激振器2",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364129",
+    "title": "激振器2",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "项目",
+      "预设值",
+      "确认值"
+    ]
+  },
+  {
+    "name": "_widget_1672273364133",
+    "title": "项目",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672273364129",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364134",
+    "title": "预设值",
+    "type": "number",
+    "required": false,
+    "parent": "_widget_1672273364129",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364135",
+    "title": "确认值",
+    "type": "number",
+    "required": false,
+    "parent": "_widget_1672273364129",
+    "options": []
+  },
+  {
+    "name": "_widget_1672447922560",
+    "title": "激振器2",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "项目",
+      "预设值",
+      "确认值"
+    ]
+  },
+  {
+    "name": "_widget_1672447922561",
+    "title": "项目",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672447922560",
+    "options": []
+  },
+  {
+    "name": "_widget_1672447922565",
+    "title": "预设值",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672447922560",
+    "options": []
+  },
+  {
+    "name": "_widget_1672447922566",
+    "title": "确认值",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672447922560",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364136",
+    "title": "激振器2",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "行号",
+      "激振器类型-预设值",
+      "激振器类型-确认值",
+      "是否带加热-预设值",
+      "是否带加热-确认值"
+    ]
+  },
+  {
+    "name": "_widget_1672447922663",
+    "title": "行号",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672273364136",
+    "options": []
+  },
+  {
+    "name": "_widget_1672447922680",
+    "title": "激振器类型-预设值",
+    "type": "checkboxgroup",
+    "required": false,
+    "parent": "_widget_1672273364136",
+    "options": [
+      "WJZZ座式",
+      "FWJ箱式",
+      "WZQF法兰式",
+      "WZQZ偏心轴",
+      "WJTZ筒式"
+    ]
+  },
+  {
+    "name": "_widget_1672447922682",
+    "title": "激振器类型-确认值",
+    "type": "checkboxgroup",
+    "required": false,
+    "parent": "_widget_1672273364136",
+    "options": [
+      "WJZZ座式",
+      "FWJ箱式",
+      "WZQF法兰式",
+      "WZQZ偏心轴",
+      "WJTZ筒式"
+    ]
+  },
+  {
+    "name": "_widget_1672273364154",
+    "title": "是否带加热-预设值",
+    "type": "radiogroup",
+    "required": false,
+    "parent": "_widget_1672273364136",
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1672273364156",
+    "title": "是否带加热-确认值",
+    "type": "radiogroup",
+    "required": false,
+    "parent": "_widget_1672273364136",
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1672273364127",
+    "title": "筛板3",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364191",
+    "title": "筛板3",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "行号",
+      "物料名称",
+      "物料堆比重",
+      "入料粒度",
+      "物料含水量",
+      "物料温度",
+      "分级粒度"
+    ]
+  },
+  {
+    "name": "_widget_1672447471443",
+    "title": "行号",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672273364191",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364193",
+    "title": "物料名称",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672273364191",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364195",
+    "title": "物料堆比重",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672273364191",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364196",
+    "title": "入料粒度",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672273364191",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364197",
+    "title": "物料含水量",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672273364191",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364198",
+    "title": "物料温度",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672273364191",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364199",
+    "title": "分级粒度",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1672273364191",
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364280",
+    "title": "筛板类型3",
+    "type": "checkboxgroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "单层棒条筛板",
+      "单层双面棒条筛板",
+      "堆焊棒条筛板",
+      "铸造筛板",
+      "编织网筛板",
+      "聚氨酯筛板",
+      "琴弦筛网",
+      "冲孔筛板",
+      "聚氨酯条缝筛板",
+      "不锈钢条缝筛板",
+      "陶瓷棒条筛板",
+      "弹跳杆棒条筛板"
+    ]
+  },
+  {
+    "name": "_widget_1672273364128",
+    "title": "标准化",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364217",
+    "title": "要求完成时间4",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364218",
+    "title": "标准化内容简述4",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672273364232",
+    "title": "详细要求4",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672283155144",
+    "title": "主设提醒",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1673500159813",
+    "title": "通用&包装",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1673500159839",
+    "title": "协同项目名称",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1673500159815",
+    "title": "交图时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1673500159816",
+    "title": "是否含技术协议",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "含",
+      "不含"
+    ]
+  },
+  {
+    "name": "_widget_1673500159819",
+    "title": "协同情况（250423取消）",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1673500159820",
+    "title": "协同设计内容（250423取消）",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1673500159821",
+    "title": "协同内容及主设设计思路",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1673500159818",
+    "title": "附件名称",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672981656249",
+    "title": "附件",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672981656250",
+    "title": "图片",
+    "type": "image",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672444434312",
+    "title": "设计单分派",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "总部单",
+      "新乡单",
+      "包装单",
+      "共同"
+    ]
+  },
+  {
+    "name": "_widget_1672444434344",
+    "title": "转新乡、工艺包装",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1672444434345",
+    "title": "设计指派",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676011035682",
+    "title": "科室",
+    "type": "deptgroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676011035681",
+    "title": "下单时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "creator",
+    "title": "提交人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "createTime",
+    "title": "提交时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "updateTime",
+    "title": "更新时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  }
+]

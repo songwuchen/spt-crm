@@ -24,6 +24,7 @@ FORMS_FALLBACK = [
     ("cs_product_replace", "售出产品更换（补发）流程", "58e2fbc7ffd1608b4ce92809", "5e06f4ad2a9eb70007f7c164"),
     ("cs_product_return", "售出产品/工具退回流程SCCP/GJTH", "58e2fbc7ffd1608b4ce92809", "5e10538c0d5a270006df2763"),
     ("cs_loan_slip", "客服借据", "58e2fbc7ffd1608b4ce92809", "62cccb4c8ee15d0009136487"),
+    ("cs_drawing_request", "客服领图", "58e2fbc7ffd1608b4ce92809", "63840316a3241c000a805869"),
     ("cs_service_delay", "客户服务延期申请", "58e2fbc7ffd1608b4ce92809", "5f9b6dacb6ec680007f9c46f"),
     ("cs_correspondence", "客服往来函件KFWLHJ", "58e2fbc7ffd1608b4ce92809", "65de94717b566a9ff2059102"),
 ]
