@@ -650,6 +650,7 @@ async def test_intel_attack_cc_not_convert_prompt(client, db, lead_intel_user):
     from app.domains.lead import service as lead_svc
     from app.domains.lead.models import Lead
     from app.domains.notification.models import Notification
+    from app.domains.lowcode.workflow_models import WfProcessInstance
 
     _ = client
     initiator = await _admin_user(db)
@@ -668,11 +669,16 @@ async def test_intel_attack_cc_not_convert_prompt(client, db, lead_intel_user):
         decision="attack", task_id=task.id, customer_newness="new",
     )
 
+    inst = (await db.execute(select(WfProcessInstance).where(
+        WfProcessInstance.biz_type == "lead", WfProcessInstance.biz_id == lead_id,
+    ))).scalar_one()
+    # 抄送站内通知已统一为 approval_cc + wf_instance（对齐「抄送我的」）
     notes = (await db.execute(select(Notification).where(
         Notification.tenant_id == DEMO_TENANT,
         Notification.recipient_id == owner_id,
-        Notification.biz_type == "lead",
-        Notification.biz_id == lead_id,
+        Notification.type == "approval_cc",
+        Notification.biz_type == "wf_instance",
+        Notification.biz_id == inst.id,
     ))).scalars().all()
     assert notes, "袭击后负责人应收到抄送通知"
     for n in notes:
