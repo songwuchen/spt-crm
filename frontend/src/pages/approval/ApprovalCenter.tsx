@@ -483,7 +483,7 @@ export default function ApprovalCenter() {
 
   const pendingColumns: ColumnsType<UnifiedPendingItem> = [
     {
-      title: '审批标题', dataIndex: 'title', width: 280,
+      title: '审批标题', dataIndex: 'title', width: 360,
       render: (v: string, r) => (
         <a
           className="font-semibold text-primary cursor-pointer"
@@ -589,7 +589,7 @@ export default function ApprovalCenter() {
 
   const mineColumns: ColumnsType<UnifiedMineItem> = [
     {
-      title: '审批标题', dataIndex: 'title', width: 280,
+      title: '审批标题', dataIndex: 'title', width: 360,
       render: (v, r) => (
         <a
           className="font-semibold text-primary cursor-pointer"
@@ -655,7 +655,7 @@ export default function ApprovalCenter() {
 
   const doneColumns: ColumnsType<UnifiedDoneItem> = [
     {
-      title: '审批标题', dataIndex: 'title', width: 280,
+      title: '审批标题', dataIndex: 'title', width: 360,
       render: (v, r) => (
         <a
           className="font-semibold text-primary cursor-pointer"

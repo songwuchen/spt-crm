@@ -39,36 +39,115 @@ _TITLE_LABEL_HINTS = (
     "申请事由", "*申请事由", "申请事由/修改事项",
     "合同号", "图纸编号", "标题", "事由", "备注",
 )
+# 报价等：单号 + 客户 + 业务员拼进审批标题（人员/客户存 UUID，需 id_labels）
+_COMPOSITE_TITLE_FIELD_IDS = ("serial_no", "quote_no", "customer_name", "sales_person")
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
 
-def _title_snippet(val) -> str:
+def _title_snippet(val, id_labels: dict[str, str] | None = None) -> str:
+    labels = id_labels or {}
     if val is None:
         return ""
     if isinstance(val, dict):
-        return str(val.get("name") or val.get("label") or "").strip()
+        named = str(val.get("name") or val.get("label") or "").strip()
+        if named and named != "None":
+            return named
+        rid = val.get("id")
+        if rid is not None:
+            return labels.get(str(rid), "")
+        return ""
     if isinstance(val, list):
-        parts = [_title_snippet(x) for x in val]
+        parts = [_title_snippet(x, labels) for x in val]
         return "、".join(p for p in parts if p)[:40]
     s = str(val).strip()
     if not s or s == "None":
         return ""
-    # 人员/部门字段常存 UUID，不当作标题片段
+    if s in labels:
+        return labels[s]
+    # 人员/部门/客户字段常存 UUID，不当作标题片段（除非已解析到 labels）
     if len(s) >= 32 and s.count("-") >= 4:
         return ""
     return s
+
+
+def is_weak_form_title(title: str | None, template_name: str | None = None) -> bool:
+    """仅有模板/流程名、无业务片段的标题视为弱标题，可回写补齐。"""
+    t = (title or "").strip()
+    if not t:
+        return True
+    name = (template_name or "").strip()
+    if name and t == name:
+        return True
+    # 「报价管理:」这类空片段
+    if name and t in (f"{name}:", f"{name}："):
+        return True
+    return False
+
+
+def _compose_multi_snippet_title(name: str, parts: list[str]) -> str:
+    cleaned: list[str] = []
+    for p in parts:
+        s = (p or "").strip()
+        if s and s not in cleaned:
+            cleaned.append(s)
+    if not cleaned:
+        return name
+    joined = " · ".join(cleaned)
+    if len(joined) > 72:
+        joined = joined[:71] + "…"
+    return f"{name}: {joined}"
+
+
+def _should_use_composite_title(
+    template_name: str | None,
+    form_data: dict,
+    field_defs: list | None,
+) -> bool:
+    name = template_name or ""
+    if "报价" in name:
+        return True
+    if any(form_data.get(fid) not in (None, "", []) for fid in _COMPOSITE_TITLE_FIELD_IDS):
+        # 同时具备客户+业务员（或流水号）时，按组合标题拼，避免只抽到申请事由类字段
+        has_customer = form_data.get("customer_name") not in (None, "", [])
+        has_sales = form_data.get("sales_person") not in (None, "", [])
+        has_no = form_data.get("serial_no") not in (None, "", []) or form_data.get("quote_no") not in (None, "", [])
+        if has_customer or (has_sales and has_no) or (has_customer and has_sales):
+            return True
+    if field_defs:
+        ids = {
+            str(f.get("id"))
+            for f in field_defs if isinstance(f, dict) and f.get("id")
+        }
+        if {"serial_no", "customer_name", "sales_person"}.issubset(ids):
+            return True
+    return False
 
 
 def derive_form_instance_title(
     template_name: str | None,
     form_data: dict | None,
     field_defs: list | None = None,
+    id_labels: dict[str, str] | None = None,
 ) -> str:
-    """生成表单实例/流程标题，如「合同图纸（资料）领用申请: xxx」。"""
+    """生成表单实例/流程标题，如「报价管理: 单号 · 客户 · 业务员」。"""
     name = (template_name or "表单申请").strip() or "表单申请"
     data = form_data or {}
+    labels = id_labels or {}
+
+    if _should_use_composite_title(name, data, field_defs):
+        parts = [
+            _title_snippet(data.get(fid), labels)
+            for fid in _COMPOSITE_TITLE_FIELD_IDS
+        ]
+        composed = _compose_multi_snippet_title(name, parts)
+        if composed != name:
+            return composed
+
     snippet = ""
     for fid in _TITLE_FIELD_IDS:
-        snippet = _title_snippet(data.get(fid))
+        snippet = _title_snippet(data.get(fid), labels)
         if snippet:
             break
     if not snippet and field_defs:
@@ -80,7 +159,7 @@ def derive_form_instance_title(
             fid = by_label.get(hint)
             if not fid:
                 continue
-            snippet = _title_snippet(data.get(fid))
+            snippet = _title_snippet(data.get(fid), labels)
             if snippet:
                 break
     if snippet:
@@ -88,6 +167,99 @@ def derive_form_instance_title(
             snippet = snippet[:39] + "…"
         return f"{name}: {snippet}"
     return name
+
+
+def _collect_title_ref_ids(value) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        out: list[str] = []
+        for x in value:
+            out.extend(_collect_title_ref_ids(x))
+        return out
+    if isinstance(value, dict):
+        rid = value.get("id")
+        return [str(rid)] if rid else []
+    s = str(value).strip()
+    return [s] if s else []
+
+
+async def resolve_form_title_labels(
+    db: AsyncSession,
+    tenant_id: str,
+    form_data: dict | None,
+    field_defs: list | None = None,
+) -> dict[str, str]:
+    """把标题相关人员/客户 UUID 解析成显示名。"""
+    data = form_data or {}
+    type_by_id: dict[str, str] = {}
+    if field_defs:
+        type_by_id = {
+            str(f.get("id")): str(f.get("type") or "")
+            for f in field_defs if isinstance(f, dict) and f.get("id")
+        }
+    # 无字段定义时仍按常见 id 解析
+    for fid, ftype in (
+        ("sales_person", "person"),
+        ("customer_name", "customer"),
+        ("purchaser", "person"),
+    ):
+        type_by_id.setdefault(fid, ftype)
+
+    person_ids: set[str] = set()
+    customer_ids: set[str] = set()
+    for fid, ftype in type_by_id.items():
+        if fid not in data and fid not in _COMPOSITE_TITLE_FIELD_IDS:
+            continue
+        ids = _collect_title_ref_ids(data.get(fid))
+        if ftype in ("person", "person_multi", "user"):
+            person_ids.update(i for i in ids if _UUID_RE.match(i))
+        elif ftype == "customer":
+            customer_ids.update(i for i in ids if _UUID_RE.match(i))
+    # 组合标题字段即使类型未知也尝试解析
+    for fid in ("sales_person", "customer_name"):
+        for i in _collect_title_ref_ids(data.get(fid)):
+            if not _UUID_RE.match(i):
+                continue
+            if fid == "customer_name":
+                customer_ids.add(i)
+            else:
+                person_ids.add(i)
+
+    labels: dict[str, str] = {}
+    if person_ids:
+        from app.domains.auth.models import User
+        rows = (await db.execute(
+            select(User.id, User.real_name, User.username).where(
+                User.tenant_id == tenant_id,
+                User.id.in_(person_ids),
+            )
+        )).all()
+        for uid, real_name, username in rows:
+            labels[str(uid)] = (real_name or username or "").strip() or str(uid)
+    if customer_ids:
+        from app.domains.customer.models import Customer
+        rows = (await db.execute(
+            select(Customer.id, Customer.name).where(
+                Customer.tenant_id == tenant_id,
+                Customer.id.in_(customer_ids),
+            )
+        )).all()
+        for cid, cname in rows:
+            if cname:
+                labels[str(cid)] = str(cname).strip()
+    return labels
+
+
+async def derive_form_instance_title_resolved(
+    db: AsyncSession,
+    tenant_id: str,
+    template_name: str | None,
+    form_data: dict | None,
+    field_defs: list | None = None,
+) -> str:
+    labels = await resolve_form_title_labels(db, tenant_id, form_data, field_defs)
+    return derive_form_instance_title(template_name, form_data, field_defs, id_labels=labels)
 
 
 # ==================== 模板 ====================
@@ -1092,8 +1264,10 @@ async def create_instance(
         form_data = await generate_serials_for_submit(db, tenant_id, data.template_id, field_defs, form_data)
 
     title = (data.title or "").strip() or None
-    if not title:
-        title = derive_form_instance_title(tpl.name, form_data, field_defs)
+    if not title or is_weak_form_title(title, tpl.name):
+        title = await derive_form_instance_title_resolved(
+            db, tenant_id, tpl.name, form_data, field_defs,
+        )
 
     inst = FormInstance(
         id=generate_uuid(), tenant_id=tenant_id,
@@ -1654,13 +1828,24 @@ async def submit_instance(
         raise BusinessException(code=VALIDATION_ERROR, message=err)
     form_data = await generate_serials_for_submit(db, tenant_id, inst.template_id, field_defs, form_data)
 
-    if data.title is not None:
+    tpl = await get_template(db, tenant_id, inst.template_id)
+    # 报价等：流水号生成后再拼「单号 · 客户 · 业务员」，覆盖草稿阶段弱/不完整标题
+    if _should_use_composite_title(tpl.name, form_data, field_defs):
+        inst.title = await derive_form_instance_title_resolved(
+            db, tenant_id, tpl.name, form_data, field_defs,
+        )
+    elif data.title is not None:
         title = (data.title or "").strip() or None
         if title:
             inst.title = title
-    if not inst.title:
-        tpl = await get_template(db, tenant_id, inst.template_id)
-        inst.title = derive_form_instance_title(tpl.name, form_data, field_defs)
+        elif not inst.title or is_weak_form_title(inst.title, tpl.name):
+            inst.title = await derive_form_instance_title_resolved(
+                db, tenant_id, tpl.name, form_data, field_defs,
+            )
+    elif not inst.title or is_weak_form_title(inst.title, tpl.name):
+        inst.title = await derive_form_instance_title_resolved(
+            db, tenant_id, tpl.name, form_data, field_defs,
+        )
 
     inst.form_data = form_data
     inst.amount = _extract_amount(form_data, field_defs)

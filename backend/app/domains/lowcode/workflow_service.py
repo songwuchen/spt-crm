@@ -248,14 +248,22 @@ async def maybe_start_for_form(db, tenant_id, template_id, form_instance, user, 
         return None
 
     title = (getattr(form_instance, "title", None) or "").strip() or None
-    if not title:
-        from app.domains.lowcode.service import derive_form_instance_title
-        from app.domains.lowcode.models import FormTemplate
-        tpl = await db.get(FormTemplate, template_id)
-        title = derive_form_instance_title(
-            (tpl.name if tpl else None) or d.name,
-            form_data,
-            getattr(form_instance, "field_definitions", None),
+    from app.domains.lowcode.service import (
+        _should_use_composite_title,
+        derive_form_instance_title_resolved,
+        is_weak_form_title,
+    )
+    from app.domains.lowcode.models import FormTemplate
+    tpl = await db.get(FormTemplate, template_id)
+    tpl_name = (tpl.name if tpl else None) or d.name
+    field_defs = getattr(form_instance, "field_definitions", None)
+    if (
+        not title
+        or is_weak_form_title(title, tpl_name)
+        or _should_use_composite_title(tpl_name, form_data or {}, field_defs)
+    ):
+        title = await derive_form_instance_title_resolved(
+            db, tenant_id, tpl_name, form_data, field_defs,
         )
         form_instance.title = title
         await db.flush()
@@ -3844,6 +3852,7 @@ async def list_cc(db, tenant_id, user_id, page_no, page_size):
                 )
             )).all()
         }
+    await _heal_weak_form_titles(db, insts, def_name_map)
     out = []
     for c in ccs:
         inst = insts.get(c.process_instance_id)
@@ -3873,6 +3882,82 @@ async def list_cc(db, tenant_id, user_id, page_no, page_size):
             "created_at": c.created_at.isoformat() if c.created_at else None,
         })
     return out, total
+
+
+async def _heal_weak_form_titles(
+    db,
+    instances: list[WfProcessInstance] | dict[str, WfProcessInstance],
+    def_name_map: dict[str, str] | None = None,
+) -> None:
+    """列表页：把仅有「报价管理」等模板名的弱标题按表单字段补成「单号 · 客户 · 业务员」。"""
+    from app.domains.lowcode.models import FormInstance, FormTemplate
+    from app.domains.lowcode.service import (
+        derive_form_instance_title_resolved,
+        is_weak_form_title,
+    )
+
+    inst_iter = instances.values() if isinstance(instances, dict) else instances
+    def_name_map = def_name_map or {}
+    candidates: list[WfProcessInstance] = []
+    for inst in inst_iter:
+        if not inst or not inst.form_instance_id:
+            continue
+        pname = def_name_map.get(inst.process_definition_id)
+        if is_weak_form_title(inst.title, pname):
+            candidates.append(inst)
+    if not candidates:
+        return
+
+    fi_ids = {i.form_instance_id for i in candidates if i.form_instance_id}
+    fi_map: dict[str, FormInstance] = {}
+    if fi_ids:
+        rows = (await db.execute(
+            select(FormInstance).where(FormInstance.id.in_(fi_ids))
+        )).scalars().all()
+        fi_map = {f.id: f for f in rows}
+
+    tpl_ids = {f.template_id for f in fi_map.values() if f.template_id}
+    tpl_name_map: dict[str, str] = {}
+    if tpl_ids:
+        tpl_name_map = {
+            r[0]: r[1]
+            for r in (await db.execute(
+                select(FormTemplate.id, FormTemplate.name).where(FormTemplate.id.in_(tpl_ids))
+            )).all()
+        }
+
+    dirty = False
+    for inst in candidates:
+        fi = fi_map.get(inst.form_instance_id or "")
+        if not fi:
+            continue
+        tpl_name = (
+            tpl_name_map.get(fi.template_id)
+            or def_name_map.get(inst.process_definition_id)
+            or "表单申请"
+        )
+        try:
+            healed = await derive_form_instance_title_resolved(
+                db,
+                inst.tenant_id,
+                tpl_name,
+                fi.form_data if isinstance(fi.form_data, dict) else {},
+                fi.field_definitions,
+            )
+        except Exception:
+            continue
+        if not healed or healed == (inst.title or "").strip():
+            continue
+        inst.title = healed
+        if is_weak_form_title(fi.title, tpl_name):
+            fi.title = healed
+        dirty = True
+
+    if dirty:
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
 
 
 async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
@@ -3911,6 +3996,7 @@ async def _enrich_instances(db, rows: list[WfProcessInstance]) -> list[dict]:
                 )
             )).all()
         }
+    await _heal_weak_form_titles(db, rows, def_name_map)
     out = []
     for i in rows:
         d = _inst_dict(i)
@@ -3983,7 +4069,8 @@ async def _enrich_tasks(db, tasks: list[WfTaskInstance], viewer_id: str | None =
             )).all()
         }
 
-    # 列表路径不再为补标题去读 FormInstance（含大 JSON）；空标题用流程名 / 单号兜底
+    # 报价等弱标题（仅模板名）按表单字段补齐单号/客户/业务员；空标题仍用流程名 / 单号兜底
+    await _heal_weak_form_titles(db, insts, def_name_map)
     out = []
     for t in tasks:
         inst = insts.get(t.process_instance_id)
@@ -4327,28 +4414,36 @@ async def get_instance_detail(
     except Exception:
         process_name = None
 
-    # 表单流历史数据可能没写 title：从关联表单/流程名补齐展示（并回写）
-    if not (inst.title or "").strip():
+    # 表单流历史数据可能没写 title / 仅有模板名：从关联表单补齐展示（并回写）
+    from app.domains.lowcode.service import (
+        derive_form_instance_title_resolved,
+        is_weak_form_title,
+    )
+    if is_weak_form_title(inst.title, process_name) or (
+        inst.form_instance_id and is_weak_form_title(inst.title)
+    ):
         healed = None
         if inst.form_instance_id:
             try:
                 from app.domains.lowcode.models import FormInstance, FormTemplate
-                from app.domains.lowcode.service import derive_form_instance_title
                 fi = await db.get(FormInstance, inst.form_instance_id)
                 if fi:
                     tpl = await db.get(FormTemplate, fi.template_id) if fi.template_id else None
-                    healed = derive_form_instance_title(
-                        (tpl.name if tpl else None) or process_name,
-                        fi.form_data if isinstance(fi.form_data, dict) else {},
-                        fi.field_definitions,
-                    )
-                    if healed and not (fi.title or "").strip():
-                        fi.title = healed
+                    tpl_name = (tpl.name if tpl else None) or process_name
+                    # 仅模板名也视为弱标题，强制按表单字段重算
+                    if is_weak_form_title(inst.title, tpl_name) or is_weak_form_title(inst.title, process_name):
+                        healed = await derive_form_instance_title_resolved(
+                            db, tenant_id, tpl_name,
+                            fi.form_data if isinstance(fi.form_data, dict) else {},
+                            fi.field_definitions,
+                        )
+                        if healed and is_weak_form_title(fi.title, tpl_name):
+                            fi.title = healed
             except Exception:
                 healed = None
         if not healed:
             healed = process_name
-        if healed:
+        if healed and healed != (inst.title or "").strip():
             inst.title = healed
             try:
                 await db.commit()
