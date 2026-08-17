@@ -26,11 +26,19 @@ import Icon from '@/components/Icon'
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
 const countryLabels: Record<string, string> = { domestic: '国内', overseas: '国外' }
 
-function formatLocation(lead: Lead): string | undefined {
+function formatArea(lead: Lead): string | undefined {
   if (lead.country_type === 'overseas') {
     return `国外${lead.country_name ? ' · ' + lead.country_name : ''}`
   }
   return formatRegion(lead) || undefined
+}
+
+/** 页头/摘要：省市区 + 详细地址 */
+function formatLocation(lead: Lead): string | undefined {
+  const area = formatArea(lead)
+  const detail = (lead.region || '').trim()
+  if (area && detail) return `${area} ${detail}`
+  return area || detail || undefined
 }
 
 const qualifySteps = [
@@ -683,10 +691,18 @@ export default function LeadDetail() {
                             <div className="text-sm font-semibold text-slate-700">{lead.contact_phone || '-'}</div>
                           </div>
                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">联系邮箱</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.contact_email || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">渠道来源</div>
                             <div className="text-sm font-semibold text-slate-700">
                               {lead.source ? (sourceLabels[lead.source] || lead.source) : '-'}
                             </div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">业务日期</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.biz_date || '-'}</div>
                           </div>
                           <div className="sm:col-span-2 xl:col-span-3 p-4 bg-primary/5 rounded-xl border border-primary/20">
                             <div className="text-[12px] font-bold uppercase tracking-wider text-primary/70 mb-1">线索内容</div>
@@ -780,7 +796,11 @@ export default function LeadDetail() {
                           )}
                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">国别 / 地址</div>
-                            <div className="text-sm font-semibold text-slate-700">{formatLocation(lead) || lead.region || '-'}</div>
+                            <div className="text-sm font-semibold text-slate-700">{formatArea(lead) || '-'}</div>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">详细地址</div>
+                            <div className="text-sm font-semibold text-slate-700">{lead.region || '-'}</div>
                           </div>
                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">委托状态</div>

@@ -7,6 +7,8 @@
  */
 import dayjs from 'dayjs'
 import { printHtml, escHtml } from '@/utils/printHtml'
+import { htmlToPdfBlob, DRAWING_PRINT_MARGINS } from '@/utils/htmlToPdf'
+import { openPdfPreview, setPdfPreviewLoading, closePdfPreview } from '@/components/PdfPreviewModal'
 import { getPersonLabelMap } from '@/components/lowcode/fields/PersonField'
 import { getDeptNameMap } from '@/components/lowcode/fields/DeptField'
 import { getProjectLabelMap } from '@/components/lowcode/fields/ProjectField'
@@ -97,12 +99,20 @@ function projectLabel(v: unknown, labels: Labels): string {
   return collectIds(v).map((id) => labels.projects[id] || id).join('、')
 }
 
-/** 对齐 Word 签字区：同一格内「☐是☐否」 */
+/** 对齐 Word 签字区：同一格内「☐是☐否」横排（领用单部分单元格） */
 function yesNoInline(value: unknown): string {
   const s = String(value ?? '').trim()
   const yes = s === '是' || s === 'true' || s === '1'
   const no = s === '否' || s === 'false' || s === '0'
   return `<span class="chk-inline">${yes ? '☑' : '☐'}是${no ? '☑' : '☐'}否</span>`
+}
+
+/** 对齐 Word 安装图签字区：竖排「是☐ / 否☐」（客户模板原文） */
+function yesNoStack(value: unknown): string {
+  const s = String(value ?? '').trim()
+  const yes = s === '是' || s === 'true' || s === '1'
+  const no = s === '否' || s === 'false' || s === '0'
+  return `<span class="chk-stack"><span>是${yes ? '☑' : '☐'}</span><span>否${no ? '☑' : '☐'}</span></span>`
 }
 
 /** 附件名：优先文本字段，否则从 file 列表拼文件名 */
@@ -146,10 +156,20 @@ function printCss(): string {
       print-color-adjust: exact;
     }
     .sheet { width: 100%; padding: 0; }
+    /* 字段类标签：加粗黑体（对齐客户 Word 意见） */
+    h1,
+    .lbl,
+    .meta b,
+    .approval-label,
+    .sec-head,
+    table.detail td.dh,
+    .sheet.install table.equip-block td.eh {
+      font-family: "SimHei","Heiti SC","STHeiti","Microsoft YaHei","PingFang SC",sans-serif;
+      font-weight: 700;
+    }
     h1 {
       text-align: center;
       font-size: 14pt;
-      font-weight: 700;
       letter-spacing: 0.3em;
       margin: 0 0 3pt;
       line-height: 1.15;
@@ -169,12 +189,12 @@ function printCss(): string {
       overflow-wrap: anywhere;
     }
     .lbl {
-      font-weight: 700;
       text-align: center;
       line-height: 1.2;
       font-size: 9pt;
     }
     .lbl .sub {
+      font-family: "SimSun","Songti SC","STSong",serif;
       font-weight: 400;
       font-size: 8pt;
       display: block;
@@ -182,6 +202,13 @@ function printCss(): string {
     }
     .val { text-align: center; font-size: 10.5pt; }
     .val-left { text-align: left; font-size: 10.5pt; }
+    /* 领用单：合同号加宽后单行显示 */
+    .sheet.requisition td.contract-no {
+      white-space: nowrap;
+      word-break: keep-all;
+      overflow-wrap: normal;
+      font-size: 9.5pt;
+    }
     .sign { height: 18pt; vertical-align: top; }
     /* 安装图签字区：签字列加宽、是否列收窄、填写行加高 */
     table.sign-block {
@@ -211,20 +238,76 @@ function printCss(): string {
     .result { min-height: 36pt; height: 36pt; vertical-align: top; }
     .matter { min-height: 16pt; vertical-align: top; }
     .chk-inline { display: inline-block; text-align: center; line-height: 1.25; font-size: 10pt; white-space: nowrap; }
+    /* 安装图 Word：是否列竖排 是☐ / 否☐ */
+    .chk-stack {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.2;
+      font-size: 9pt;
+      gap: 1pt;
+    }
     /* 是否勾选列：只够 ☐是☐否，标签允许多行挤窄 */
     .lbl.yn { font-size: 8pt; line-height: 1.15; padding: 1pt 1pt; }
     .val.yn { padding: 1pt 1pt; text-align: center; }
-    .sec-head { font-weight: 700; text-align: center; font-size: 10.5pt; background: #f3f3f3; }
+    .sec-head { text-align: center; font-size: 10.5pt; background: #f3f3f3; }
+    /* 安装图：外框略粗，贴近 Word 模板 */
+    .sheet.install table.form {
+      border: 1.5pt solid #000;
+    }
+    .sheet.install table.form > tbody > tr > td {
+      border-color: #000;
+    }
+    .sheet.install .idea { min-height: 48pt; height: 48pt; }
+    .sheet.install .opin { min-height: 28pt; height: 28pt; }
+    .sheet.install .result { min-height: 28pt; height: 28pt; }
+    .sheet.install table.equip-block,
+    .sheet.install table.detail {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .sheet.install table.equip-block td {
+      border: 1px solid #000;
+      padding: 2pt 2pt;
+      vertical-align: middle;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      font-size: 9.5pt;
+    }
+    .sheet.install table.equip-block td.eh {
+      text-align: center;
+      font-size: 8.5pt;
+      line-height: 1.15;
+      background: #fff;
+    }
+    .sheet.install table.equip-block td.el { text-align: left; }
+    .sheet.install table.equip-block td.ec { text-align: center; }
+    .sheet.install table.detail td.dh {
+      font-size: 7.5pt;
+      padding: 1pt 1pt;
+    }
+    .sheet.install table.detail td {
+      font-size: 8.5pt;
+      padding: 1pt 1pt;
+    }
     .meta {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       justify-content: space-between;
-      gap: 2pt 10pt;
+      gap: 2pt 8pt;
       font-size: 10.5pt;
       margin: 0 0 3pt;
       line-height: 1.35;
     }
-    .meta b { font-weight: 700; }
+    .sheet.install .meta {
+      font-size: 10pt;
+      gap: 2pt 6pt;
+    }
+    .sheet.install .meta span {
+      white-space: nowrap;
+    }
     /* 表下审批区：无表格边框，左标签 + 小字记录 + 右打印信息 */
     .approval-foot {
       display: flex;
@@ -280,14 +363,13 @@ function printCss(): string {
       text-align: center;
     }
     table.detail td.dh {
-      font-weight: 700;
       font-size: 8pt;
       line-height: 1.15;
     }
     table.detail td.dl { text-align: left; }
     td.nest { padding: 0 !important; border: 1px solid #000; }
-    /* 对齐 Word 模板：横向 A4，窄边距 */
-    @page { size: A4 landscape; margin: 5mm 8mm 3mm 8mm; }
+    /* 对齐 Word 模板：横向 A4（297×210），边距上5.3/右7.8/下0/左7.9 */
+    @page { size: A4 landscape; margin: 5.3mm 7.8mm 0 7.9mm; }
     @media print {
       html, body { width: 100%; }
       .sheet { width: 100%; }
@@ -295,9 +377,10 @@ function printCss(): string {
   `
 }
 
-function wrapDoc(title: string, body: string): string {
+function wrapDoc(title: string, body: string, sheetClass?: string): string {
+  const cls = sheetClass ? `sheet ${sheetClass}` : 'sheet'
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escHtml(title)}</title>
-  <style>${printCss()}</style></head><body><div class="sheet">${body}</div></body></html>`
+  <style>${printCss()}</style></head><body><div class="${cls}">${body}</div></body></html>`
 }
 
 /** 打印另存 PDF 文件名：去掉非法字符与空白 */
@@ -463,20 +546,68 @@ function materialDetailTableHtml(
 }
 
 function approvalOpsHtml(steps?: WfFlowStep[] | null): string {
-  const done = (steps || []).filter((s) =>
-    s.action || s.opinion || s.handler_name
-    || ['approved', 'completed', 'rejected', 'running', 'pending'].includes(s.status),
-  )
+  const done = (steps || []).filter(isPrintableApprovalStep)
   if (!done.length) return ''
-  // flow_steps 已是最新在前（与简道云一致）
-  const rows = done.map((s) => {
+  // 打印按完成时间正序（先审在前）；无时间时保持相对顺序
+  const chrono = [...done].sort((a, b) => {
+    const ta = a.completed_at || a.started_at || ''
+    const tb = b.completed_at || b.started_at || ''
+    if (ta && tb) return String(ta).localeCompare(String(tb))
+    if (ta) return -1
+    if (tb) return 1
+    return 0
+  })
+  const rows = chrono.map((s) => {
     const when = s.completed_at ? dayjs(s.completed_at).format('YYYY-MM-DD HH:mm') : ''
-    const act = s.status_text || s.action || s.status || ''
     const who = s.handler_name || (s.assignees || []).map((a) => a.name).filter(Boolean).join('、') || ''
-    const line = [s.node_name, who, when, act].filter(Boolean).join('  ')
+    const opinion = stepPrintOpinion(s)
+    const line = [s.node_name, who, when, opinion].filter(Boolean).join('  ')
     return `<div class="op">${escHtml(line)}</div>`
   }).join('')
   return `<div class="ops">${rows}</div>`
+}
+
+/** 流程发起 / 结束 / 抄送不进入打印意见区 */
+function isPrintableApprovalStep(s: WfFlowStep): boolean {
+  const name = (s.node_name || '').trim()
+  if (s.node_type === 'start' || name === '流程发起' || name === '发起') return false
+  if (s.node_type === 'end' || name === '结束') return false
+  if (s.node_type === 'cc') return false
+  // 未处理完的当前节点不打印
+  if (s.is_current || s.status === 'running' || s.status === 'pending') return false
+  return !!(
+    s.action
+    || (s.opinion && String(s.opinion).trim())
+    || s.handler_name
+    || s.status === 'completed'
+    || s.status === 'rejected'
+    || s.status === 'approved'
+  )
+}
+
+/**
+ * 打印用审批结论：优先意见原文；无意见时用动作语义（同意/驳回…）。
+ * 不用「已完成」——完成态不代表同意。
+ */
+function stepPrintOpinion(s: WfFlowStep): string {
+  const op = String(s.opinion ?? '').trim()
+  if (op) return op
+  const act = String(s.action ?? '').trim()
+  const byAction: Record<string, string> = {
+    approve: '同意',
+    auto_approve: '同意',
+    reject: '驳回',
+    auto_reject: '驳回',
+    return: '退回',
+    transfer: '转交',
+    resubmit: '重新提交',
+  }
+  if (act && byAction[act]) return byAction[act]
+  if (s.status === 'rejected') return '驳回'
+  if (s.status === 'completed' || s.status === 'approved') return '同意'
+  const st = String(s.status_text || '').trim()
+  if (st && st !== '已完成' && st !== '处理中') return st
+  return ''
 }
 
 /**
@@ -560,24 +691,24 @@ function buildRequisitionHtml(ctx: {
     <table class="form">
       ${colgroup12()}
       <tr>
-        <td class="lbl" colspan="1">合同号</td>
+        <td class="lbl" colspan="2">合同号</td>
         <td class="lbl" colspan="1">产品型号</td>
         <td class="lbl" colspan="1">设计人</td>
         <td class="lbl" colspan="2">图纸传递路径</td>
         <td class="lbl" colspan="1">是否解密</td>
         <td class="lbl" colspan="1">图纸类型</td>
         <td class="lbl" colspan="2">是否涉及企标图纸</td>
-        <td class="lbl" colspan="3">附件/图片名称</td>
+        <td class="lbl" colspan="2">附件/图片名称</td>
       </tr>
       <tr>
-        <td class="val" colspan="1">${cell(contractNo)}</td>
+        <td class="val contract-no" colspan="2">${cell(contractNo)}</td>
         <td class="val" colspan="1">${cell(form.product_model)}</td>
         <td class="val" colspan="1"></td>
         <td class="val" colspan="2">${cell(transfer)}</td>
         <td class="val" colspan="1">${cell(decrypt)}</td>
         <td class="val" colspan="1">${cell(drawingType)}</td>
         <td class="val" colspan="2">${cell(std)}</td>
-        <td class="val-left" colspan="3">${cell(attachName)}</td>
+        <td class="val-left" colspan="2">${cell(attachName)}</td>
       </tr>
       <tr>
         <td class="lbl" colspan="1">申请事由</td>
@@ -646,7 +777,7 @@ function buildRequisitionHtml(ctx: {
     </table>
     ${approvalFoot}`
   const fileTitle = requisitionPrintFileName({ form, labels, orderPerson, cardDate })
-  return wrapDoc(fileTitle, body)
+  return wrapDoc(fileTitle, body, 'requisition')
 }
 
 function buildInstallHtml(ctx: {
@@ -684,24 +815,52 @@ function buildInstallHtml(ctx: {
   const installMethod = optionLabel(fields, 'install_method', form.install_method)
   const envRows = detailRows(form.install_env)
   const processPos = envRows.map((r) => r.process_position).filter((v) => v != null && v !== '').join('、')
-  // 设备明细：一行一条；表单级字段（新项目/下图类型等）只在首行带出
+  // 设备明细：独立列宽对齐 Word（设计要求加宽）；表单级字段只在首行带出
   const schemeRows = detailRows(form.scheme_detail)
-  const equipBody = (schemeRows.length ? schemeRows : [{}]).map((r, idx) => {
+  const equipRows = (schemeRows.length ? schemeRows : [{}]).map((r, idx) => {
     const pricing = r.need_pricing != null
       ? (detailColOptionLabel(fields, 'scheme_detail', 'need_pricing', r.need_pricing) || String(r.need_pricing))
       : ''
+    const designReq = r.design_req != null && String(r.design_req).trim()
+      ? String(r.design_req)
+      : (r.design_requirement != null ? String(r.design_requirement) : '')
     return `<tr>
-      <td class="val" colspan="1">${idx + 1}</td>
-      <td class="val-left" colspan="2">${cell(r.equipment_name)}</td>
-      <td class="val-left" colspan="3">${cell(r.design_req)}</td>
-      <td class="val" colspan="1">${idx === 0 ? cell(form.is_new_project != null ? optionLabel(fields, 'is_new_project', form.is_new_project) : '') : ''}</td>
-      <td class="val" colspan="1">${idx === 0 ? cell(issueType) : ''}</td>
-      <td class="val" colspan="1">${idx === 0 ? cell(purpose) : ''}</td>
-      <td class="val" colspan="1">${cell(pricing)}</td>
-      <td class="val" colspan="1">${idx === 0 ? cell(requireDate) : ''}</td>
-      <td class="val" colspan="1">${idx === 0 ? cell(preDesigners) : ''}</td>
+      <td class="ec">${idx + 1}</td>
+      <td class="el">${cell(r.equipment_name)}</td>
+      <td class="el">${cell(designReq)}</td>
+      <td class="ec">${idx === 0 ? cell(form.is_new_project != null ? optionLabel(fields, 'is_new_project', form.is_new_project) : '') : ''}</td>
+      <td class="ec">${idx === 0 ? cell(issueType) : ''}</td>
+      <td class="ec">${idx === 0 ? cell(purpose) : ''}</td>
+      <td class="ec">${cell(pricing)}</td>
+      <td class="ec">${idx === 0 ? cell(requireDate) : ''}</td>
+      <td class="ec">${idx === 0 ? cell(preDesigners) : ''}</td>
     </tr>`
   }).join('')
+  const equipTable = `<table class="equip-block">
+    <colgroup>
+      <col style="width:4%">
+      <col style="width:12%">
+      <col style="width:30%">
+      <col style="width:7%">
+      <col style="width:8%">
+      <col style="width:8%">
+      <col style="width:6%">
+      <col style="width:10%">
+      <col style="width:15%">
+    </colgroup>
+    <tr>
+      <td class="eh">序号</td>
+      <td class="eh">设备名称</td>
+      <td class="eh">设计要求</td>
+      <td class="eh">是否为新项目</td>
+      <td class="eh">下图类型</td>
+      <td class="eh">领图目的</td>
+      <td class="eh">是否核价</td>
+      <td class="eh">要求交图时间</td>
+      <td class="eh">前期沟通设计人员</td>
+    </tr>
+    ${equipRows}
+  </table>`
   // 安装图：表头无流水号，页脚带打印时间+流水号（对齐 Word 模板）
   const approvalFoot = approvalFootHtml(
     stepsThroughNode(steps, '总工审批'),
@@ -710,6 +869,8 @@ function buildInstallHtml(ctx: {
     { showSerial: true },
   )
   const productModel = form.product_model != null ? String(form.product_model) : ''
+  const hasParamTable = form.has_param_table ?? form.has_parameter_table ?? ''
+  const needGm = form.need_gm_approval ?? ''
 
   const body = `
     <h1>安装图通知单及设计卡</h1>
@@ -727,17 +888,8 @@ function buildInstallHtml(ctx: {
         <td class="lbl sec-head" colspan="12">设备信息</td>
       </tr>
       <tr>
-        <td class="lbl" colspan="1">序号</td>
-        <td class="lbl" colspan="2">设备名称</td>
-        <td class="lbl" colspan="3">设计要求</td>
-        <td class="lbl" colspan="1">是否为新项目</td>
-        <td class="lbl" colspan="1">下图类型</td>
-        <td class="lbl" colspan="1">领图目的</td>
-        <td class="lbl" colspan="1">是否核价</td>
-        <td class="lbl" colspan="1">要求交图时间</td>
-        <td class="lbl" colspan="1">前期沟通设计人员</td>
+        <td class="nest" colspan="12">${equipTable}</td>
       </tr>
-      ${equipBody}
       <tr>
         <td class="lbl" colspan="2">申请事由/修改事项</td>
         <td class="val-left matter" colspan="5">${cell(applyChange)}</td>
@@ -760,16 +912,16 @@ function buildInstallHtml(ctx: {
         <td class="nest" colspan="12">
           <table class="sign-block">
             <colgroup>
-              <col style="width:11%">
-              <col style="width:11%">
-              <col style="width:12%">
-              <col style="width:6%">
-              <col style="width:7%">
-              <col style="width:12%">
-              <col style="width:12%">
-              <col style="width:12%">
-              <col style="width:8%">
               <col style="width:9%">
+              <col style="width:9%">
+              <col style="width:11%">
+              <col style="width:7%">
+              <col style="width:11%">
+              <col style="width:11%">
+              <col style="width:11%">
+              <col style="width:11%">
+              <col style="width:9%">
+              <col style="width:11%">
             </colgroup>
             <tr class="sign-head">
               <td class="lbl">设计人</td>
@@ -787,8 +939,8 @@ function buildInstallHtml(ctx: {
               <td class="val"></td>
               <td class="val"></td>
               <td class="val"></td>
-              <td class="val yn">${yesNoInline('')}</td>
-              <td class="val yn">${yesNoInline('')}</td>
+              <td class="val yn">${yesNoStack(hasParamTable)}</td>
+              <td class="val yn">${yesNoStack(needGm)}</td>
               <td class="val"></td>
               <td class="val"></td>
               <td class="val"></td>
@@ -829,7 +981,7 @@ function buildInstallHtml(ctx: {
     designCardNo: designCard,
     salesPerson,
   })
-  return wrapDoc(fileTitle, body)
+  return wrapDoc(fileTitle, body, 'install')
 }
 
 async function resolveLabels(
@@ -920,11 +1072,83 @@ export function canPrintDrawingDocument(
     || isInstallDrawingNoticeForm(fields, formData, processName)
 }
 
+/** 图纸类流程「研究院安排」：该节点「通过」时顺带打开打印预览 */
+export function isDrawingApproveAndPrintNode(nodeName?: string | null): boolean {
+  return (nodeName || '').trim() === '研究院安排'
+}
+
+/** 仅拼装领用单 HTML（试打/预览用，可不打接口解析标签） */
+export function buildRequisitionPrintDocument(opts: {
+  formData: Record<string, unknown>
+  fieldDefinitions?: FieldDefinition[]
+  businessNo?: string | null
+  flowSteps?: WfFlowStep[] | null
+  labels?: Partial<Labels>
+}): string {
+  const form = opts.formData || {}
+  const fields = opts.fieldDefinitions || []
+  const labels: Labels = {
+    users: opts.labels?.users || {},
+    depts: opts.labels?.depts || {},
+    projects: opts.labels?.projects || {},
+    contracts: opts.labels?.contracts || {},
+  }
+  const serial = (form.serial_no != null && form.serial_no !== '' ? String(form.serial_no) : '')
+    || (opts.businessNo ? String(opts.businessNo) : '')
+  return buildRequisitionHtml({
+    form,
+    fields,
+    labels,
+    businessNo: serial,
+    steps: opts.flowSteps,
+  })
+}
+
+/** 仅拼装安装图通知单 HTML（试打用） */
+export function buildInstallPrintDocument(opts: {
+  formData: Record<string, unknown>
+  fieldDefinitions?: FieldDefinition[]
+  businessNo?: string | null
+  flowSteps?: WfFlowStep[] | null
+  labels?: Partial<Labels>
+}): string {
+  const form = opts.formData || {}
+  const fields = opts.fieldDefinitions || []
+  const labels: Labels = {
+    users: opts.labels?.users || {},
+    depts: opts.labels?.depts || {},
+    projects: opts.labels?.projects || {},
+    contracts: opts.labels?.contracts || {},
+  }
+  const serial = (form.serial_no != null && form.serial_no !== '' ? String(form.serial_no) : '')
+    || (opts.businessNo ? String(opts.businessNo) : '')
+  return buildInstallHtml({
+    form,
+    fields,
+    labels,
+    businessNo: serial,
+    steps: opts.flowSteps,
+  })
+}
+
+function printFileNameFromHtml(html: string): string {
+  const m = html.match(/<title[^>]*>([^<]*)<\/title>/i)
+  return (m?.[1] || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim()
+}
+
+/** 生成图纸类打印 PDF（版式不变），并打开简道云式预览弹层。 */
 export async function printSchemeInstance(opts: {
   formData: Record<string, unknown>
   fieldDefinitions: FieldDefinition[]
   businessNo?: string | null
   flowSteps?: WfFlowStep[] | null
+  /** true 时退回浏览器打印框（调试用） */
+  legacyBrowserPrint?: boolean
 }): Promise<void> {
   const form = opts.formData || {}
   const fields = opts.fieldDefinitions || []
@@ -934,7 +1158,6 @@ export async function printSchemeInstance(opts: {
     || (opts.businessNo && opts.businessNo !== String(form.design_card_no || '')
       ? String(opts.businessNo)
       : '')
-  // 方案管理无合同号 / 独立安装图设计通知 → 安装图通知单；其余 → 领用单
   const useInstall = schemeType === 'install'
     || isInstallDrawingNoticeForm(fields, form)
   const html = useInstall
@@ -946,12 +1169,21 @@ export async function printSchemeInstance(opts: {
       form, fields, labels,
       businessNo: serial, steps: opts.flowSteps,
     })
-  const m = html.match(/<title[^>]*>([^<]*)<\/title>/i)
-  const fileName = (m?.[1] || '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .trim()
-  printHtml(html, { orientation: 'landscape', fileName: fileName || undefined })
+  const fileName = printFileNameFromHtml(html) || 'print'
+  if (opts.legacyBrowserPrint) {
+    printHtml(html, { orientation: 'landscape', fileName: fileName || undefined })
+    return
+  }
+  setPdfPreviewLoading(true, fileName)
+  try {
+    const { blob, fileName: pdfName } = await htmlToPdfBlob(html, {
+      orientation: 'landscape',
+      fileName,
+      margins: DRAWING_PRINT_MARGINS,
+    })
+    openPdfPreview(blob, pdfName)
+  } catch {
+    closePdfPreview()
+    printHtml(html, { orientation: 'landscape', fileName: fileName || undefined })
+  }
 }

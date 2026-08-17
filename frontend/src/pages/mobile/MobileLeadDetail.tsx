@@ -17,6 +17,7 @@ interface LeadItem {
   contact_name: string | null; contact_phone: string | null; contact_email: string | null
   source: string | null; status: string; score: number | null
   demand_summary: string | null; industry: string | null; region: string | null
+  biz_date?: string | null
   reporter_name?: string | null; reported_at?: string | null
   owner_name: string | null
   department_name?: string | null; created_at: string
@@ -338,6 +339,12 @@ export default function MobileLeadDetail() {
             <span className="text-sm text-slate-600">{lead.contact_email}</span>
           </div>
         )}
+        {lead.biz_date && (
+          <div className="flex justify-between">
+            <span className="text-sm text-slate-400">业务日期</span>
+            <span className="text-sm text-slate-600">{lead.biz_date}</span>
+          </div>
+        )}
         {lead.source && (
           <div className="flex justify-between">
             <span className="text-sm text-slate-400">来源</span>
@@ -351,9 +358,9 @@ export default function MobileLeadDetail() {
           </div>
         )}
         {lead.region && (
-          <div className="flex justify-between">
-            <span className="text-sm text-slate-400">地区</span>
-            <span className="text-sm text-slate-600">{lead.region}</span>
+          <div className="flex justify-between gap-3">
+            <span className="text-sm text-slate-400 shrink-0">详细地址</span>
+            <span className="text-sm text-slate-600 text-right">{lead.region}</span>
           </div>
         )}
         {lead.score != null && (

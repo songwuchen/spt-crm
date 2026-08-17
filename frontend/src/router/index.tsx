@@ -80,6 +80,7 @@ const FormFillPage = lazy(() => import('@/pages/lowcode/FormFillPage'))
 const FormDataListPage = lazy(() => import('@/pages/lowcode/FormDataListPage'))
 const FormModulePage = lazy(() => import('@/pages/drawing/FormModulePage'))
 const FormModuleFillPage = lazy(() => import('@/pages/drawing/FormModuleFillPage'))
+const DrawingPrintDemoPage = lazy(() => import('@/pages/drawing/DrawingPrintDemoPage'))
 const WorkflowList = lazy(() => import('@/pages/lowcode/WorkflowList'))
 const WorkflowDesignerPage = lazy(() => import('@/pages/lowcode/WorkflowCanvasPage'))
 /** 桌面端审批入口已统一到 /approvals；旧路径保留重定向（含 query/state）以免书签失效 */
@@ -178,6 +179,11 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Lazy><Login /></Lazy>,
+    errorElement: <RouteError />,
+  },
+  {
+    path: '/dev/drawing-print-demo',
+    element: <Lazy><DrawingPrintDemoPage /></Lazy>,
     errorElement: <RouteError />,
   },
   {

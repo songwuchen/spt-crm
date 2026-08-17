@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -550,7 +550,40 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         )
         strip_biz_score_flow_nodes(nodes)
         apply_chief_gm_flow_nodes(nodes)
+    if form_code in ("install_drawing_notice", "scheme_management", "drawing_requisition"):
+        apply_drawing_pre_chief_opinion_required(nodes)
     return nodes, routes
+
+
+# 安装图/方案/领用：部门审批→市场支持→总工须填意见（同意等），「已完成」不能代替同意
+_DRAWING_OPINION_REQUIRED_NODES = ("部门审批", "市场支持中心", "总工审批")
+
+
+def apply_drawing_pre_chief_opinion_required(nodes: list | None) -> bool:
+    """就地为部门/市场支持/总工挂 opinion_required。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if n.get("name") not in _DRAWING_OPINION_REQUIRED_NODES:
+            continue
+        if not n.get("opinion_required"):
+            n["opinion_required"] = True
+            changed = True
+    return changed
+
+
+def _flow_missing_drawing_pre_chief_opinion(nodes: list | None) -> bool:
+    """部门/市场支持/总工任一缺少 opinion_required → 需升级。"""
+    want = set(_DRAWING_OPINION_REQUIRED_NODES)
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        if n.get("name") not in want:
+            continue
+        if not n.get("opinion_required"):
+            return True
+    return False
 
 
 def _flow_is_jdy_drawing(nodes: list | None) -> bool:
@@ -1141,7 +1174,7 @@ _JDY_REVIEW_USER = {
     "procurement": "02352513566524",          # 杨霜
     "qc": "0236420233847",                    # 张国运
     "export": "01000533004677",               # 王玲玲
-    "legal_sup": "492105073721398323",        # 史守义（法务主管）
+    "legal_sup": "02364840011125",            # 袁文俊（法务主管）
     # 抄送具名
     "cc_install": ["080160552326376700", "02364307332960", "232040221426613133"],  # 杜珍珍/韩利民/杜金波
     "cc_related": ["02364249424532", "023656363429294971", "02362556584221"],  # 李惠萍/王梦颖/李晋
@@ -2019,6 +2052,21 @@ async def _upgrade_drawing_form_flow_if_needed(
                 DRAWING_FORM_FLOW_DESC, f"方案管理去掉业务打分字段权限({form_code})",
             )
             return
+    # 安装图/方案/领用：部门审批·市场支持·总工 意见必填
+    if (
+        topology_ok
+        and form_code in ("install_drawing_notice", "scheme_management", "drawing_requisition")
+        and _flow_missing_drawing_pre_chief_opinion(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_drawing_pre_chief_opinion_required(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"部门/市场支持/总工意见必填({form_code})",
+        )
+        return
     # 仅缺总工「是否需要总经理审批」：就地补 field_perms，避免整图覆盖已 remap 的审批人
     if (
         topology_ok
@@ -2553,10 +2601,93 @@ def _contract_review_risk_perms_aligned(nodes: list | None) -> bool:
     return True
 
 
+def _contract_review_legal_sup_user_aligned(
+    nodes: list | None, want: str | None = None,
+) -> bool:
+    """法务主管审批人是否为当前配置的具名用户。"""
+    want = want or (
+        _JDY_REVIEW_USER["legal_sup"][0]
+        if isinstance(_JDY_REVIEW_USER["legal_sup"], list)
+        else _JDY_REVIEW_USER["legal_sup"]
+    )
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("id") != "approval_legal_sup":
+            continue
+        rule = n.get("approver_rule") or {}
+        if rule.get("type") != "specified_user":
+            return False
+        v = rule.get("value")
+        if isinstance(v, list):
+            return v == [want]
+        return v == want
+    return False
+
+
+async def _resolve_legal_sup_user(db, tenant_id: str) -> tuple[str | None, str | None]:
+    """解析租户内法务主管 (user_id, username)；优先配置 username，否则按姓名「袁文俊」。"""
+    from app.domains.auth.models import User
+
+    want = _JDY_REVIEW_USER["legal_sup"]
+    if isinstance(want, list):
+        want = want[0]
+    row = (await db.execute(
+        select(User.id, User.username).where(
+            User.tenant_id == tenant_id,
+            User.username == want,
+        ).limit(1)
+    )).first()
+    if row:
+        return row[0], row[1]
+    row = (await db.execute(
+        select(User.id, User.username).where(
+            User.tenant_id == tenant_id,
+            User.real_name == "袁文俊",
+        ).limit(1)
+    )).first()
+    if row:
+        return row[0], row[1]
+    return None, None
+
+
+async def _reassign_pending_legal_sup_tasks(db, tenant_id: str) -> int:
+    """在途「法务主管审批」待办改派到当前 legal_sup 用户。"""
+    uid, want_username = await _resolve_legal_sup_user(db, tenant_id)
+    if not uid:
+        logger.warning(
+            "法务主管改派跳过：租户 %s 未找到 username=%s / 姓名袁文俊",
+            tenant_id, _JDY_REVIEW_USER["legal_sup"],
+        )
+        return 0
+
+    rows = (await db.execute(text("""
+        SELECT t.id AS task_id, t.assignee_id, pi.business_no
+        FROM wf_task_instance t
+        JOIN wf_node_instance ni ON ni.id = t.node_instance_id
+        JOIN wf_process_instance pi ON pi.id = t.process_instance_id
+        WHERE pi.tenant_id = :tid
+          AND pi.biz_type = 'contract_review'
+          AND pi.status = 'running'
+          AND t.status IN ('pending', 'waiting')
+          AND ni.node_def_id = 'approval_legal_sup'
+          AND t.assignee_id IS DISTINCT FROM :uid
+    """), {"tid": tenant_id, "uid": uid})).mappings().all()
+    for r in rows:
+        await db.execute(text("""
+            UPDATE wf_task_instance
+            SET assignee_id = :uid, dingtalk_todo_id = NULL, version = version + 1
+            WHERE id = :tid
+        """), {"uid": uid, "tid": r["task_id"]})
+        logger.info(
+            "法务主管待办改派 %s: %s → %s(%s)",
+            r["business_no"] or r["task_id"], r["assignee_id"], uid, want_username,
+        )
+    return len(rows)
+
+
 async def _upgrade_contract_review_jdy_if_needed(
     db, tenant_id: str, d: WfProcessDefinition,
 ) -> None:
-    """系统兜底合同评审流：单节点等升级为简道云会签主干；已对齐拓扑则补风险字段权限。"""
+    """系统兜底合同评审流：单节点等升级为简道云会签主干；已对齐拓扑则补风险字段权限/法务主管。"""
     if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
         return
     if d.biz_type != "contract_review":
@@ -2565,44 +2696,84 @@ async def _upgrade_contract_review_jdy_if_needed(
     if not version:
         return
     new_nodes, new_routes = _contract_review_flow_graph()
+    _, local_legal_sup = await _resolve_legal_sup_user(db, tenant_id)
+    legal_sup_want = local_legal_sup or (
+        _JDY_REVIEW_USER["legal_sup"][0]
+        if isinstance(_JDY_REVIEW_USER["legal_sup"], list)
+        else _JDY_REVIEW_USER["legal_sup"]
+    )
     if not _flow_is_jdy_contract_review(version.node_definitions, version.route_definitions):
+        # 全量拓扑替换前，把法务主管改成租户可解析的 username
+        import copy
+        new_nodes = copy.deepcopy(new_nodes)
+        for n in new_nodes:
+            if isinstance(n, dict) and n.get("id") == "approval_legal_sup":
+                rule = dict(n.get("approver_rule") or {})
+                rule["value"] = legal_sup_want
+                n["approver_rule"] = rule
         await _publish_system_default_upgrade(
             db, tenant_id, d, version, new_nodes, new_routes,
             CONTRACT_REVIEW_DEFAULT_DESC, "简道云评审会签流(旁路抄送/反馈回路)",
         )
+        await _reassign_pending_legal_sup_tasks(db, tenant_id)
+        await db.commit()
         return
-    if _contract_review_risk_perms_aligned(version.node_definitions):
+
+    need_fp = not _contract_review_risk_perms_aligned(version.node_definitions)
+    need_legal_sup = not _contract_review_legal_sup_user_aligned(
+        version.node_definitions, legal_sup_want,
+    )
+    if not need_fp and not need_legal_sup:
+        n = await _reassign_pending_legal_sup_tasks(db, tenant_id)
+        if n:
+            await db.commit()
         return
-    # 拓扑已对齐：只覆盖 field_perms，保留节点审批人等既有 remap
+
     import copy
-    want_fp = {
-        n.get("id"): list(n.get("field_perms") or [])
+    want_by_id = {
+        n.get("id"): n
         for n in new_nodes
         if isinstance(n, dict) and n.get("id") and n.get("type") == "approval"
     }
     patched = copy.deepcopy(version.node_definitions or [])
     changed = False
+    tags: list[str] = []
     for n in patched:
         if not isinstance(n, dict) or n.get("type") != "approval":
             continue
         nid = n.get("id")
-        if nid not in want_fp:
+        want_node = want_by_id.get(nid)
+        if not want_node:
             continue
-        cur = list(n.get("field_perms") or [])
-        want = want_fp[nid]
-        if _flow_field_perms_sig([{"id": nid, "type": "approval", "field_perms": cur}]) != \
-                _flow_field_perms_sig([{"id": nid, "type": "approval", "field_perms": want}]):
-            if want:
-                n["field_perms"] = want
-            elif "field_perms" in n:
-                del n["field_perms"]
-            changed = True
-    if not changed:
-        return
-    await _publish_system_default_upgrade(
-        db, tenant_id, d, version, patched, list(version.route_definitions or []),
-        CONTRACT_REVIEW_DEFAULT_DESC, "合同评审风险字段审批可写(对齐简道云)",
-    )
+        if need_fp:
+            cur = list(n.get("field_perms") or [])
+            want = list(want_node.get("field_perms") or [])
+            if _flow_field_perms_sig([{"id": nid, "type": "approval", "field_perms": cur}]) != \
+                    _flow_field_perms_sig([{"id": nid, "type": "approval", "field_perms": want}]):
+                if want:
+                    n["field_perms"] = want
+                elif "field_perms" in n:
+                    del n["field_perms"]
+                changed = True
+        if need_legal_sup and nid == "approval_legal_sup":
+            want_rule = copy.deepcopy(want_node.get("approver_rule") or {})
+            want_rule["value"] = legal_sup_want
+            if n.get("approver_rule") != want_rule:
+                n["approver_rule"] = want_rule
+                changed = True
+    if need_fp and changed:
+        tags.append("风险字段审批可写")
+    if need_legal_sup and changed:
+        tags.append("法务主管→袁文俊")
+    if changed:
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version, patched, list(version.route_definitions or []),
+            CONTRACT_REVIEW_DEFAULT_DESC,
+            "合同评审" + "+".join(tags) if tags else "合同评审局部对齐",
+        )
+    n = await _reassign_pending_legal_sup_tasks(db, tenant_id)
+    if n:
+        await db.commit()
 
 
 def _flow_is_tech_agreement_jdy(nodes: list | None) -> bool:

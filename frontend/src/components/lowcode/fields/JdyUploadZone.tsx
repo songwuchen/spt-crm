@@ -34,7 +34,7 @@ export function filesFromClipboard(data: DataTransfer | null | undefined): File[
 export function jdyUploadHint(image?: boolean): string {
   return image
     ? '拖拽或单击后粘贴图片，单张20MB以内'
-    : '拖拽或单击后粘贴文件（含 PDF/CAD 等），单个50MB以内'
+    : '拖拽或单击后粘贴文件（含 PDF/OFD/CAD 等），单个50MB以内'
 }
 
 export function jdyMaxBytes(image?: boolean): number {

@@ -17,7 +17,7 @@ import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
-import { canPrintDrawingDocument, printSchemeInstance } from '@/pages/drawing/schemePrint'
+import { canPrintDrawingDocument, isDrawingApproveAndPrintNode, printSchemeInstance } from '@/pages/drawing/schemePrint'
 import { isLeadOwnerConfirmNode, isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
 
 function bizEntityPath(bizType?: string | null, bizId?: string | null, bizRefId?: string | null): string | null {
@@ -155,6 +155,11 @@ export default function MobileLowcodeApprovalDetail() {
       const updates = (ct?.field_perms || []).length
         ? Object.fromEntries((ct!.field_perms || []).map((p) => [p.field, fieldUpdates[p.field]]))
         : undefined
+      const canPrint = canPrintDrawingDocument(fields, formData, detail?.process_name)
+      const shouldPrintAfterApprove = action === 'approve'
+        && canPrint
+        && isDrawingApproveAndPrintNode(ct?.node_name)
+      const mergedForm = { ...formData, ...fieldUpdates }
       await workflowApi.act(effectiveTaskId, {
         action,
         opinion: opinion.trim() || undefined,
@@ -164,6 +169,22 @@ export default function MobileLowcodeApprovalDetail() {
         to_node_id: action === 'return' ? returnTo : undefined,
         field_updates: action === 'approve' ? updates : undefined,
       })
+      if (shouldPrintAfterApprove) {
+        message.success('已通过，正在打开打印预览')
+        try {
+          await printSchemeInstance({
+            formData: mergedForm,
+            fieldDefinitions: fields,
+            businessNo: detail?.business_no,
+            flowSteps: detail?.flow_steps,
+          })
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          message.warning(msg || '已通过，打印失败，可稍后点打印重试')
+        }
+        nav('/m/approvals')
+        return
+      }
       message.success('已处理'); nav('/m/approvals')
     } catch { message.error('处理失败') } finally { setBusy(false) }
   }
@@ -186,6 +207,8 @@ export default function MobileLowcodeApprovalDetail() {
   if (!detail) return null
   const st = PSTATUS[detail.status] || { cls: 'bg-slate-100 text-slate-500', text: detail.status }
   const canPrintScheme = canPrintDrawingDocument(fields, formData, detail.process_name)
+  const approveAndPrint = canAct && canPrintScheme
+    && isDrawingApproveAndPrintNode(detail.current_task?.node_name)
 
   const handlePrintScheme = async () => {
     try {
@@ -408,7 +431,9 @@ export default function MobileLowcodeApprovalDetail() {
             style={{ marginBottom: 8 }}
           />
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => act('approve')} disabled={busy} className="h-11 rounded-xl bg-primary text-white font-bold border-0 disabled:opacity-60">通过</button>
+            <button onClick={() => act('approve')} disabled={busy} className="h-11 rounded-xl bg-primary text-white font-bold border-0 disabled:opacity-60">
+              {approveAndPrint ? '通过并打印' : '通过'}
+            </button>
             <button
               onClick={() => {
                 if (!(detail.approval_nodes?.length)) {

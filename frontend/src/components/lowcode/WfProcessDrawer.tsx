@@ -23,7 +23,7 @@ import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
-import { canPrintDrawingDocument, printSchemeInstance } from '@/pages/drawing/schemePrint'
+import { canPrintDrawingDocument, isDrawingApproveAndPrintNode, printSchemeInstance } from '@/pages/drawing/schemePrint'
 import { isLeadOwnerConfirmNode, isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
 
 const { Text, Title } = Typography
@@ -179,6 +179,24 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     || detail?.current_task?.node_type === 'revise'
   const canAct = !!effectiveTaskId && (detail?.status === 'running' || isReviseTask)
 
+  const canPrintScheme = canPrintDrawingDocument(fields, formData, detail?.process_name)
+  const approveAndPrint = canAct && canPrintScheme
+    && isDrawingApproveAndPrintNode(detail?.current_task?.node_name)
+
+  const handlePrintScheme = async () => {
+    try {
+      await printSchemeInstance({
+        formData: { ...formData, ...fieldUpdates },
+        fieldDefinitions: fields,
+        businessNo: detail?.business_no,
+        flowSteps: detail?.flow_steps,
+      })
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '打印失败')
+    }
+  }
+
   const act = async (action: string) => {
     if (!effectiveTaskId) return
     if (action === 'transfer' && !transferTo) return message.error('请选择转交接收人')
@@ -213,12 +231,32 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       const updates = (ct?.field_perms || []).length
         ? Object.fromEntries((ct!.field_perms || []).map((p) => [p.field, fieldUpdates[p.field]]))
         : undefined
+      const mergedForm = { ...formData, ...fieldUpdates }
+      const shouldPrintAfterApprove = action === 'approve'
+        && canPrintScheme
+        && isDrawingApproveAndPrintNode(ct?.node_name)
       await workflowApi.act(effectiveTaskId, {
         action, opinion: opinion.trim() || undefined,
         transfer_to: action === 'transfer' ? (Array.isArray(transferTo) ? transferTo[0] : transferTo) as string : undefined,
         to_node_id: action === 'return' ? returnTo : undefined,
         field_updates: action === 'approve' ? updates : undefined,
       })
+      if (shouldPrintAfterApprove) {
+        message.success('已通过，正在打开打印预览')
+        try {
+          await printSchemeInstance({
+            formData: mergedForm,
+            fieldDefinitions: fields,
+            businessNo: detail?.business_no,
+            flowSteps: detail?.flow_steps,
+          })
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          message.warning(msg || '已通过，打印失败，可稍后点打印重试')
+        }
+        onDone(); onClose()
+        return
+      }
       message.success('已处理'); onDone(); onClose()
     } finally { setBusy(false) }
   }
@@ -247,21 +285,6 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   )
   const isLeadIntel = detail?.biz_type === 'lead' && canAct && !!effectiveTaskId && !!detail?.biz_id
     && !isReviseTask && !isLeadOwnerConfirm
-  const canPrintScheme = canPrintDrawingDocument(fields, formData, detail?.process_name)
-
-  const handlePrintScheme = async () => {
-    try {
-      await printSchemeInstance({
-        formData: { ...formData, ...fieldUpdates },
-        fieldDefinitions: fields,
-        businessNo: detail?.business_no,
-        flowSteps: detail?.flow_steps,
-      })
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      message.error(msg || '打印失败')
-    }
-  }
 
   return (
     <Drawer
@@ -542,7 +565,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       loading={busy}
                       onClick={() => act('approve')}
                     >
-                      通过
+                      {approveAndPrint ? '通过并打印' : '通过'}
                     </Button>
                     <Button
                       loading={busy}

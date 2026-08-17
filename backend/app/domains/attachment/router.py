@@ -21,8 +21,8 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB（与前端 FileField 一致；CAD 版�
 ALLOWED_EXTENSIONS = {
     # 图片
     '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tif', '.tiff', '.svg',
-    # 办公文档
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    # 办公文档 / 电子发票
+    '.pdf', '.ofd', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
     '.txt', '.csv', '.rtf',
     # 压缩包
     '.zip', '.rar', '.7z',
@@ -38,7 +38,8 @@ ALLOWED_EXTENSIONS = {
     '.vsd', '.vsdx', '.eml', '.msg',
 }
 ALLOWED_MIME_PREFIXES = {
-    'image/', 'application/pdf', 'application/msword',
+    'image/', 'application/pdf', 'application/ofd', 'application/vnd.ofd',
+    'application/msword',
     'application/vnd.openxmlformats', 'application/vnd.ms-',
     'text/plain', 'text/csv', 'text/rtf', 'application/rtf',
     'application/zip', 'application/x-rar', 'application/x-7z',

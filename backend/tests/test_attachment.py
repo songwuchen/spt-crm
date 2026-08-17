@@ -21,6 +21,14 @@ def test_cad_extensions_allowlisted():
     _validate_upload_type("model.step", "application/weird-cad-vendor")
 
 
+def test_ofd_extension_allowlisted():
+    """电子发票 OFD（开票申请附件常用）。"""
+    assert ".ofd" in ALLOWED_EXTENSIONS
+    assert _validate_ext("invoice.ofd") == ".ofd"
+    _validate_upload_type("电子发票.OFD", "application/ofd")
+    _validate_upload_type("fapiao.ofd", "application/octet-stream")
+
+
 def test_exe_extension_rejected():
     with pytest.raises(BusinessException) as ei:
         _validate_ext("malware.exe")
