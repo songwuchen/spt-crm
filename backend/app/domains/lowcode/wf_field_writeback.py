@@ -20,6 +20,7 @@ _REVIEW_JSON_KEYS = frozenset({
     "purchase_risk", "purchase_risk_desc", "export_risk", "export_risk_desc",
     "clause_opinion", "need_feedback", "feedback_members",
     "credit_level", "past_biz_desc", "pricing_supplement", "industry",
+    "drawing_no", "opinion_exec",
 })
 # 合同评审：一等公民列
 _REVIEW_NATIVE_KEYS = frozenset({"payment_term", "conclusion"})

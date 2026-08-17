@@ -199,6 +199,11 @@ async def update_review(
 
 async def delete_review(db: AsyncSession, tenant_id: str, rid: str, user: dict):
     row = await get_review(db, tenant_id, rid)
+    if row.status != "draft":
+        raise BusinessException(
+            code=VALIDATION_ERROR,
+            message=f"当前状态「{row.status}」不可删除（仅草稿可删除）",
+        )
     code = row.review_code
     await db.delete(row)
     await db.commit()

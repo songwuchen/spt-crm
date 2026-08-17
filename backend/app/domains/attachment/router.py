@@ -307,8 +307,29 @@ async def register_uploaded(
 
 
 # ---------------------------------------------------------------------------
-# Listing
+# Listing / link
 # ---------------------------------------------------------------------------
+class LinkAttachmentsBody(BaseModel):
+    attachment_ids: list[str]
+    biz_type: str
+    biz_id: str
+
+
+@router.post("/link")
+async def link_attachments(
+    body: LinkAttachmentsBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("attachment:upload")),
+):
+    """创建页可先用 FileField 直传（无 biz），落库后再挂到业务单据。"""
+    n = await service.link_attachments(
+        db, tenant_id, current_user,
+        body.attachment_ids, body.biz_type, body.biz_id,
+    )
+    return ok({"linked": n})
+
+
 @router.get("/by_biz")
 async def list_by_biz(
     biz_type: str,

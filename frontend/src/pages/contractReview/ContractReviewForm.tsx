@@ -10,6 +10,9 @@ import type { Customer } from '@/api/types'
 import { industryLabels } from '@/api/types'
 import ContractReviewFields from '@/components/ContractReviewFields'
 import AttachmentPanel from '@/components/AttachmentPanel'
+import FileField from '@/components/lowcode/fields/FileField'
+import { attachmentApi } from '@/api/attachment'
+import type { FileFieldAtt } from '@/utils/fileFieldValue'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
 import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
@@ -68,6 +71,8 @@ export default function ContractReviewForm() {
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
   const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
   const [reviewId, setReviewId] = useState<string | undefined>(isEdit ? id : undefined)
+  /** 新建：直接用 FileField 上传，保存后挂到单据 */
+  const [pendingFileFields, setPendingFileFields] = useState<Record<string, FileFieldAtt[]>>({})
   const [fillingCustomer, setFillingCustomer] = useState(false)
   const customerSelect = useCustomerSelect()
   const currentUser = useAuthStore((s) => s.user)
@@ -233,6 +238,28 @@ export default function ContractReviewForm() {
     return payload
   }
 
+  const patchPendingFiles = (bizType: string, atts: unknown) => {
+    const list = Array.isArray(atts) ? atts as FileFieldAtt[] : []
+    setPendingFileFields((prev) => ({ ...prev, [bizType]: list }))
+  }
+
+  const linkPendingToBiz = async (rid: string) => {
+    const entries = Object.entries(pendingFileFields)
+    let ok = 0
+    let fail = 0
+    for (const [bizType, atts] of entries) {
+      const ids = (atts || []).map((a) => a.id).filter((id) => id && !id.startsWith('jdy-meta:'))
+      if (!ids.length) continue
+      try {
+        const res = await attachmentApi.link(ids, bizType, rid)
+        ok += res.data?.linked ?? ids.length
+      } catch {
+        fail += ids.length
+      }
+    }
+    return { ok, fail }
+  }
+
   const onFinish = async (values: Record<string, unknown>, andSubmit: boolean) => {
     setSaving(true)
     try {
@@ -243,6 +270,15 @@ export default function ContractReviewForm() {
       } else {
         const res = await contractReviewApi.create(payload)
         rid = res.data.id
+      }
+      if (rid && !isEdit) {
+        const { ok, fail } = await linkPendingToBiz(rid)
+        if (fail > 0 && ok === 0) {
+          message.error(`单据已保存，但附件关联失败，请到详情页重新上传`)
+        } else if (fail > 0) {
+          message.warning(`部分附件关联失败（${fail}），请到详情页检查`)
+        }
+        setPendingFileFields({})
       }
       if (andSubmit) {
         try {
@@ -313,7 +349,8 @@ export default function ContractReviewForm() {
             scrollToFirstError={{ behavior: 'smooth', block: 'center' }}
             initialValues={{ review_json: {} }}
           >
-            {/* companion 姓名：须注册为 Form.Item，否则 validateFields 不会带回 */}
+            {/* 简道云 260518 取消项目评审：固定合同评审，不再提供切换 */}
+            <Form.Item name="review_type" hidden><Input /></Form.Item>
             <Form.Item name="owner_name" hidden><Input /></Form.Item>
             <Form.Item name="region_manager_name" hidden><Input /></Form.Item>
             <Form.Item name="department_name" hidden><Input /></Form.Item>
@@ -424,24 +461,49 @@ export default function ContractReviewForm() {
                 pricing_files: reviewId ? (
                   <AttachmentPanel bizType="contract_review_cost" bizId={reviewId} title="成本附件" />
                 ) : (
-                  <div className="text-sm text-slate-400">保存后可上传成本附件</div>
+                  <div>
+                    <div className="mb-2 font-medium">成本附件</div>
+                    <FileField
+                      value={pendingFileFields.contract_review_cost || []}
+                      onChange={(v) => patchPendingFiles('contract_review_cost', v)}
+                    />
+                  </div>
                 ),
                 review_files: reviewId ? (
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <AttachmentPanel bizType="contract_review" bizId={reviewId} title="附件" />
-                    <AttachmentPanel bizType="contract_review_image" bizId={reviewId} title="图片" accept="image/*" />
+                    <AttachmentPanel
+                      bizType="contract_review_image"
+                      bizId={reviewId}
+                      title="图片"
+                      accept="image/*"
+                    />
                   </div>
                 ) : (
-                  <div className="text-sm text-slate-400">保存后可上传附件/图片</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <div className="mb-2 font-medium">附件</div>
+                      <FileField
+                        value={pendingFileFields.contract_review || []}
+                        onChange={(v) => patchPendingFiles('contract_review', v)}
+                      />
+                    </div>
+                    <div>
+                      <div className="mb-2 font-medium">图片</div>
+                      <FileField
+                        image
+                        value={pendingFileFields.contract_review_image || []}
+                        onChange={(v) => patchPendingFiles('contract_review_image', v)}
+                      />
+                    </div>
+                  </div>
                 ),
                 feedback_files: reviewId ? (
                   <div className="space-y-3">
                     <AttachmentPanel bizType="contract_review_feedback" bizId={reviewId} title="反馈附件" />
                     <AttachmentPanel bizType="contract_review_feedback_image" bizId={reviewId} title="反馈图片" accept="image/*" />
                   </div>
-                ) : (
-                  <div className="text-sm text-slate-400">保存后可上传反馈附件</div>
-                ),
+                ) : null,
               }}
             />
 

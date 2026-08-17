@@ -1,6 +1,6 @@
 // 附件/图片字段(file / image)。对齐简道云：虚线选择区 +「选择」+ 拖拽/粘贴提示 + 大小限制。
 import { useEffect, useRef, useState } from 'react'
-import { Modal, QRCode, Spin, Tooltip, message } from 'antd'
+import { Modal, QRCode, Tooltip, message } from 'antd'
 import {
   CloseCircleFilled, PaperClipOutlined, QrcodeOutlined,
 } from '@ant-design/icons'
@@ -10,39 +10,14 @@ import {
   normalizeFileFieldValue,
   type FileFieldAtt,
 } from '@/utils/fileFieldValue'
+import JdyUploadZone, { jdyMaxBytes } from '@/components/lowcode/fields/JdyUploadZone'
 
 type Att = FileFieldAtt
-
-const FILE_MAX = 50 * 1024 * 1024
-const IMAGE_MAX = 20 * 1024 * 1024
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
-/** 截图/复制文件多在 items 里，files 可能为空 */
-function filesFromClipboard(data: DataTransfer | null | undefined): File[] {
-  if (!data) return []
-  const out: File[] = []
-  const seen = new Set<string>()
-  const push = (f: File | null) => {
-    if (!f) return
-    const key = `${f.name}|${f.size}|${f.type}|${f.lastModified}`
-    if (seen.has(key)) return
-    seen.add(key)
-    out.push(f)
-  }
-  if (data.items?.length) {
-    for (const item of Array.from(data.items)) {
-      if (item.kind === 'file') push(item.getAsFile())
-    }
-  }
-  if (!out.length && data.files?.length) {
-    for (const f of Array.from(data.files)) push(f)
-  }
-  return out
 }
 
 export default function FileField({
@@ -59,15 +34,8 @@ export default function FileField({
   attsRef.current = atts
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [uploading, setUploading] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
-  const [focused, setFocused] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const zoneRef = useRef<HTMLDivElement>(null)
-  const maxBytes = image ? IMAGE_MAX : FILE_MAX
-  const hint = image
-    ? '拖拽或单击后粘贴图片，单张20MB以内'
-    : '拖拽或单击后粘贴文件（含 PDF/CAD 等），单个50MB以内'
+  const maxBytes = jdyMaxBytes(image)
 
   useEffect(() => {
     if (!image || downloadDenied) return
@@ -132,21 +100,6 @@ export default function FileField({
     for (const f of files) await uploadOne(f)
   }
 
-  // 聚焦虚线区后，窗口级监听粘贴（截图走 items，比 div.onPaste 更稳）
-  useEffect(() => {
-    if (!focused || readonly || downloadDenied) return
-    const onPaste = (e: ClipboardEvent) => {
-      const files = filesFromClipboard(e.clipboardData)
-      if (!files.length) return
-      e.preventDefault()
-      e.stopPropagation()
-      void uploadMany(files)
-    }
-    window.addEventListener('paste', onPaste, true)
-    return () => window.removeEventListener('paste', onPaste, true)
-    // uploadMany 经 attsRef，无需列入依赖
-  }, [focused, readonly, downloadDenied, image]) // eslint-disable-line react-hooks/exhaustive-deps
-
   if (downloadDenied) {
     return <div className="pt-1 text-slate-400 text-sm">无权限查看附件</div>
   }
@@ -183,66 +136,11 @@ export default function FileField({
 
   return (
     <div className="w-full">
-      <div className="flex items-stretch gap-2">
-        <div
-          ref={zoneRef}
-          tabIndex={0}
-          role="button"
-          className={[
-            'flex min-h-[40px] flex-1 cursor-text items-center gap-2 rounded border border-dashed px-3 py-2 outline-none transition-colors',
-            dragOver || focused
-              ? 'border-teal-500 bg-teal-50/60 ring-2 ring-teal-200'
-              : 'border-slate-300 bg-white hover:border-teal-400',
-          ].join(' ')}
-          onClick={() => {
-            // 单击区域：聚焦以便 Ctrl+V，不弹文件框（对齐简道云「单击后粘贴」）
-            zoneRef.current?.focus()
-          }}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              inputRef.current?.click()
-            }
-          }}
-          onDragEnter={(e) => { e.preventDefault(); setDragOver(true) }}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => {
-            e.preventDefault()
-            setDragOver(false)
-            void uploadMany(Array.from(e.dataTransfer.files || []))
-          }}
-        >
-          <span
-            className="shrink-0 cursor-pointer text-[13px] font-medium text-teal-600 hover:text-teal-700"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={(e) => {
-              e.stopPropagation()
-              inputRef.current?.click()
-            }}
-          >
-            选择
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[12px] text-slate-400">
-            {focused ? (image ? '已选中，可 Ctrl+V 粘贴图片' : '已选中，可 Ctrl+V 粘贴文件') : hint}
-          </span>
-          {uploading && <Spin size="small" />}
-          <input
-            ref={inputRef}
-            type="file"
-            className="hidden"
-            multiple
-            accept={image ? 'image/*' : undefined}
-            onChange={(e) => {
-              const files = e.target.files
-              if (files?.length) void uploadMany(Array.from(files))
-              e.target.value = ''
-            }}
-          />
-        </div>
-        {image && (
+      <JdyUploadZone
+        image={image}
+        uploading={uploading}
+        onFiles={uploadMany}
+        extraRight={image ? (
           <Tooltip title="手机扫码上传">
             <button
               type="button"
@@ -256,8 +154,8 @@ export default function FileField({
               <QrcodeOutlined className="text-lg" />
             </button>
           </Tooltip>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {atts.length > 0 && (
         <ul className="mt-2 space-y-1.5">
@@ -302,7 +200,7 @@ export default function FileField({
             请用手机浏览器打开本页后选择或拍摄图片上传。
           </p>
           <p className="m-0 text-[12px] text-slate-400">
-            电脑端也可直接拖拽、粘贴或点击「选择」（单张 {formatSize(IMAGE_MAX)} 以内）。
+            电脑端也可直接拖拽、粘贴或点击「选择」（单张 {formatSize(jdyMaxBytes(true))} 以内）。
           </p>
         </div>
       </Modal>

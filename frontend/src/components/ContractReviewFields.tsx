@@ -9,9 +9,9 @@ import { Form, Input, InputNumber, DatePicker, Select, Radio, Checkbox, AutoComp
 import type { FormInstance } from 'antd'
 import {
   CONTRACT_REVIEW_SECTIONS,
+  reviewDepVisible,
   type ReviewAfterSlot,
   type ReviewFieldDef,
-  type ReviewShowWhen,
 } from '@/constants/contractReview'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
@@ -26,20 +26,8 @@ type Props = {
   slots?: Partial<Record<ReviewAfterSlot, ReactNode>>
 }
 
-function readDepValue(values: Record<string, unknown>, dep: ReviewShowWhen): unknown {
-  if ((dep.source || 'reg') === 'native') return values[dep.field]
-  const reg = (values.review_json || {}) as Record<string, unknown>
-  return reg[dep.field]
-}
-
 function isVisible(field: ReviewFieldDef, values: Record<string, unknown>): boolean {
-  const sw = field.showWhen
-  if (!sw) return true
-  const v = readDepValue(values, sw)
-  if (sw.equals?.length) {
-    return sw.equals.includes(v == null ? '' : String(v))
-  }
-  return v != null && v !== ''
+  return reviewDepVisible(field.showWhen, values)
 }
 
 /** 组织架构选人；同步写 companion name 字段 */
@@ -328,7 +316,11 @@ function FieldGrid({
   form: FormInstance
   readOnly?: boolean
 }) {
-  const visible = fields.filter((f) => isVisible(f, values))
+  // 创建/编辑：审批填写 / 仅详情展示字段不出现；详情只读仍展示（并遵守 showWhen）
+  const visible = fields.filter((f) => {
+    if (!readOnly && (f.fillStage === 'approver' || f.fillStage === 'display')) return false
+    return isVisible(f, values)
+  })
   if (!visible.length) return null
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
@@ -355,35 +347,69 @@ function FieldGrid({
   )
 }
 
+function sectionVisibleFields(
+  fields: ReviewFieldDef[],
+  values: Record<string, unknown>,
+  readOnly?: boolean,
+): ReviewFieldDef[] {
+  return fields.filter((f) => {
+    if (!readOnly && (f.fillStage === 'approver' || f.fillStage === 'display')) return false
+    return isVisible(f, values)
+  })
+}
+
 export default function ContractReviewFields({ form, readOnly, slots }: Props) {
   const reviewWatch = Form.useWatch('review_json', form) as Record<string, unknown> | undefined
   const reviewType = Form.useWatch('review_type', form)
   const isExport = Form.useWatch('is_export', form)
-  const hasGuarantee = reviewWatch?.has_guarantee
+  const needPricing = Form.useWatch('need_pricing', form)
   const values: Record<string, unknown> = {
     review_type: reviewType,
     is_export: isExport,
-    review_json: { ...(reviewWatch || {}), has_guarantee: hasGuarantee },
+    need_pricing: needPricing,
+    review_json: { ...(reviewWatch || {}) },
   }
+  // 联系信息 / 核价附件：仅合同评审（新建已固定为合同评审）
+  const showContacts = !reviewType || reviewType === '合同评审'
+  const showPricingSlot = needPricing === '有核价' && showContacts
+  // 附件：有评审类型即显示（历史项目评审详情仍可见）
+  const showReviewFiles = !!reviewType || !readOnly
 
   return (
     <div className="space-y-5">
-      {CONTRACT_REVIEW_SECTIONS.map((sec) => (
-        <div key={sec.key}>
-          <ContractSectionTitle title={sec.title} />
-          <FieldGrid fields={sec.fields} values={values} form={form} readOnly={readOnly} />
-          {sec.afterSlot && slots?.[sec.afterSlot] ? (
-            <div className="my-4">{slots[sec.afterSlot]}</div>
-          ) : null}
-          {sec.fieldsAfterSlot?.length ? (
-            <FieldGrid fields={sec.fieldsAfterSlot} values={values} form={form} readOnly={readOnly} />
-          ) : null}
-        </div>
-      ))}
+      {CONTRACT_REVIEW_SECTIONS.map((sec) => {
+        const visibleMain = sectionVisibleFields(sec.fields, values, readOnly)
+        const visibleAfter = sectionVisibleFields(sec.fieldsAfterSlot || [], values, readOnly)
+        const showSlotCreate = !readOnly && sec.afterSlot && sec.afterSlot !== 'feedback_files'
+          && (sec.afterSlot !== 'contacts' || showContacts)
+          && (sec.afterSlot !== 'pricing_files' || showPricingSlot)
+          && (sec.afterSlot !== 'review_files' || showReviewFiles)
+          && !!slots?.[sec.afterSlot]
+        // 详情只读：联系人/核价/主附件同样按简道云显隐
+        const showSlotDetail = !!readOnly && !!sec.afterSlot && !!slots?.[sec.afterSlot]
+          && (sec.afterSlot !== 'contacts' || showContacts)
+          && (sec.afterSlot !== 'pricing_files' || showPricingSlot)
+          && (sec.afterSlot !== 'review_files' || showReviewFiles)
+        if (!visibleMain.length && !visibleAfter.length && !showSlotCreate && !showSlotDetail) {
+          return null
+        }
+
+        return (
+          <div key={sec.key}>
+            <ContractSectionTitle title={sec.title} />
+            <FieldGrid fields={sec.fields} values={values} form={form} readOnly={readOnly} />
+            {showSlotDetail ? <div className="my-4">{slots![sec.afterSlot!]}</div> : null}
+            {showSlotCreate ? <div className="my-4">{slots![sec.afterSlot!]}</div> : null}
+            {sec.fieldsAfterSlot?.length ? (
+              <FieldGrid fields={sec.fieldsAfterSlot} values={values} form={form} readOnly={readOnly} />
+            ) : null}
+          </div>
+        )
+      })}
       {!readOnly && (
         <div className="text-[12px] text-slate-400">
-          标 <span className="text-rose-500">*</span> 为必填（对齐简道云「合同评审」带 * 字段 + 流程关键项）。
-          业务员 / 区域经理 / 业务部门 / 成员多选请从组织架构选择。
+          标 <span className="text-rose-500">*</span> 为必填（对齐简道云显隐与带 * 字段）。
+          风险按「合同评审」规则显隐（简道云已取消项目评审）；风险 / 结论 / 签约在审批节点填写。
         </div>
       )}
     </div>

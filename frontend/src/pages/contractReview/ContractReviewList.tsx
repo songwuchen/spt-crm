@@ -150,13 +150,13 @@ export default function ContractReviewList() {
       render: (_, r) => (
         <Space size={0}>
           <a className="text-primary text-sm px-2" onClick={() => navigate(`/contract-reviews/${r.id}`)}>详情</a>
-          {canDelete && (
+          {canDelete && r.status === 'draft' && (
             <a
               className="text-rose-500 text-sm px-2"
               onClick={() => {
                 Modal.confirm({
                   title: '确认删除',
-                  content: `确定删除合同评审「${r.review_code}」？`,
+                  content: `确定删除合同评审「${r.review_code}」？仅草稿可删除。`,
                   okType: 'danger',
                   onOk: async () => {
                     await contractReviewApi.delete(r.id)
@@ -237,11 +237,11 @@ export default function ContractReviewList() {
         />
         <Select
           allowClear
-          placeholder="合同评审/项目评审"
-          className="w-40"
+          placeholder="评审类型"
+          className="w-36"
           options={[
             { value: '合同评审', label: '合同评审' },
-            { value: '项目评审', label: '项目评审' },
+            { value: '项目评审', label: '项目评审（历史）' },
           ]}
           value={reviewType}
           onChange={setReviewType}

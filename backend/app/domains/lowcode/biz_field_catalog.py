@@ -77,6 +77,9 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         {"id": "export_risk_desc", "label": "出口风险描述", "type": "text"},
         {"id": "payment_term", "label": "账期", "type": "text"},
         {"id": "conclusion", "label": "结论描述", "type": "textarea"},
+        {"id": "drawing_no", "label": "图纸编号", "type": "text"},
+        {"id": "opinion_exec", "label": "合同评审意见执行情况", "type": "textarea"},
+        {"id": "feedback_members", "label": "成员多选", "type": "person_multi"},
     ],
     "change_request": [
         {"id": "change_type", "label": "变更类型", "type": "text"},

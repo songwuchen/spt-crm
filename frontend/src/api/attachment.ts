@@ -71,4 +71,11 @@ export const attachmentApi = {
   upload,
   getUrl,
   delete: (id: string) => client.delete<unknown, ApiResponse<null>>(`/api/v1/attachments/${id}`),
+  /** 将已直传的附件挂到业务单据（创建页 FileField → 保存后关联） */
+  link: (attachmentIds: string[], bizType: string, bizId: string) =>
+    client.post<unknown, ApiResponse<{ linked: number }>>('/api/v1/attachments/link', {
+      attachment_ids: attachmentIds,
+      biz_type: bizType,
+      biz_id: bizId,
+    }),
 }

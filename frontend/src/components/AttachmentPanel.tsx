@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Upload, Button, Table, Modal, message } from 'antd'
+import { Button, Table, Modal, message } from 'antd'
 import {
-  UploadOutlined, DownloadOutlined, EyeOutlined, DeleteOutlined, InboxOutlined, PaperClipOutlined,
+  DownloadOutlined, EyeOutlined, DeleteOutlined, PaperClipOutlined,
 } from '@ant-design/icons'
 import { attachmentApi } from '@/api/attachment'
 import client from '@/api/client'
 import type { ApiResponse } from '@/api/types'
+import JdyUploadZone, { jdyMaxBytes } from '@/components/lowcode/fields/JdyUploadZone'
 
 interface AttachmentItem {
   id: string
@@ -75,30 +76,31 @@ function PendingDropZone({
   onChange: (files: File[]) => void
   compact?: boolean
 }) {
-  const isImage = accept?.startsWith('image')
+  const isImage = !!accept?.startsWith('image')
+  const maxBytes = jdyMaxBytes(isImage)
+
+  const take = (incoming: File[]) => {
+    const next = [...files]
+    for (const file of incoming) {
+      if (isImage && !file.type.startsWith('image/')) {
+        message.warning('请选择图片文件')
+        continue
+      }
+      if (file.size > maxBytes) {
+        message.warning(isImage ? '单张图片不能超过 20MB' : '单个文件不能超过 50MB')
+        continue
+      }
+      next.push(file)
+    }
+    onChange(next)
+  }
+
   return (
     <div className={compact ? 'rounded-lg border border-slate-100 bg-slate-50/50 p-3' : 'mb-4'}>
       <div className="mb-2">
         <span className={compact ? 'text-sm font-medium text-slate-700' : 'font-medium'}>{title}</span>
       </div>
-      <Upload.Dragger
-        multiple
-        showUploadList={false}
-        accept={accept}
-        beforeUpload={(file) => {
-          onChange([...files, file])
-          return false
-        }}
-        className="!bg-slate-50"
-      >
-        <p className="ant-upload-drag-icon">
-          <InboxOutlined className="text-teal-600" />
-        </p>
-        <p className="ant-upload-text text-sm">
-          {isImage ? '拖拽或点击选择图片，单张建议 20MB 以内' : '拖拽或点击选择文件'}
-        </p>
-        <p className="ant-upload-hint text-xs text-slate-400">保存后自动上传到本单据</p>
-      </Upload.Dragger>
+      <JdyUploadZone image={isImage} onFiles={take} />
       {files.length > 0 && (
         <ul className="mt-2 space-y-1">
           {files.map((f, i) => (
@@ -194,6 +196,9 @@ function AttachmentPanelBound({
   previewUrl: string
   setPreviewUrl: (v: string) => void
 }) {
+  const isImage = !!accept?.startsWith('image')
+  const maxBytes = jdyMaxBytes(isImage)
+
   const fetchList = async () => {
     setLoading(true)
     try {
@@ -222,23 +227,33 @@ function AttachmentPanelBound({
     return () => { cancelled = true }
   }, [previewItem])
 
-  const handleUpload = async (file: File) => {
+  const handleUploadMany = async (files: File[]) => {
     setUploading(true)
     try {
-      await attachmentApi.upload(file, bizType, bizId)
-      message.success('上传成功')
-      fetchList()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : ''
-      if (msg === 'CORS_OR_NETWORK') {
-        message.error('直传失败：浏览器无法连接对象存储，请检查 OSS 跨域(CORS)配置')
-      } else {
-        message.error(msg || '上传失败')
+      for (const file of files) {
+        if (isImage && !file.type.startsWith('image/')) {
+          message.warning('请选择图片文件')
+          continue
+        }
+        if (file.size > maxBytes) {
+          message.warning(isImage ? '单张图片不能超过 20MB' : '单个文件不能超过 50MB')
+          continue
+        }
+        try {
+          await attachmentApi.upload(file, bizType, bizId)
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : ''
+          if (msg === 'CORS_OR_NETWORK') {
+            message.error('直传失败：浏览器无法连接对象存储，请检查 OSS 跨域(CORS)配置')
+          } else {
+            message.error(msg || '上传失败')
+          }
+        }
       }
+      await fetchList()
     } finally {
       setUploading(false)
     }
-    return false
   }
 
   const handleDownload = async (item: AttachmentItem) => {
@@ -301,24 +316,22 @@ function AttachmentPanelBound({
   ]
 
   return (
-    <div className={compact ? 'rounded-lg border border-slate-100 bg-slate-50/50 p-3' : ''}>
-      <div className="flex justify-between mb-2 items-center">
+    <div className={compact ? 'rounded-lg border border-slate-100 bg-slate-50/50 p-3' : 'mb-4'}>
+      <div className="mb-2">
         <span className={compact ? 'text-sm font-medium text-slate-700' : 'font-medium'}>{title}</span>
-        <Upload beforeUpload={handleUpload} showUploadList={false} accept={accept}>
-          <Button size="small" icon={<UploadOutlined />} loading={uploading}>
-            {accept?.startsWith('image') ? '上传图片' : '上传附件'}
-          </Button>
-        </Upload>
       </div>
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={list}
-        loading={loading}
-        pagination={false}
-        size="small"
-        locale={{ emptyText: '暂无文件，点击右上角上传' }}
-      />
+      <JdyUploadZone image={isImage} uploading={uploading} onFiles={handleUploadMany} />
+      <div className="mt-2">
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={list}
+          loading={loading}
+          pagination={false}
+          size="small"
+          locale={{ emptyText: '暂无文件' }}
+        />
+      </div>
 
       <Modal
         title={previewItem?.original_name || '预览'}

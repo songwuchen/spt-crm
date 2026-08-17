@@ -9,6 +9,7 @@ import {
   CONTRACT_REVIEW_SECTIONS,
   CONTRACT_REVIEW_STATUS,
   findFirstMissingReviewRequired,
+  reviewDepVisible,
   reviewSectionAllFields,
   type ReviewFieldDef,
 } from '@/constants/contractReview'
@@ -139,6 +140,7 @@ export default function ContractReviewDetail() {
   const contacts = Array.isArray(rj.contacts) ? rj.contacts as Record<string, unknown>[] : []
   const canSubmit = hasPermission('contract_review:edit') && (row.status === 'draft' || row.status === 'rejected')
   const canEdit = canSubmit
+  const canDelete = hasPermission('contract_review:delete') && row.status === 'draft'
 
   const main = (
     <div className="min-w-0 flex-1">
@@ -163,11 +165,11 @@ export default function ContractReviewDetail() {
             <Button icon={<EditOutlined />}
               onClick={() => navigate(`/contract-reviews/${id}/edit`)}>编辑</Button>
           )}
-          {hasPermission('contract_review:delete') && (
+          {canDelete && (
             <Button danger icon={<DeleteOutlined />} onClick={() => {
               Modal.confirm({
                 title: '确认删除',
-                content: `确定删除「${row.review_code}」？`,
+                content: `确定删除「${row.review_code}」？仅草稿可删除。`,
                 okType: 'danger',
                 onOk: async () => {
                   await contractReviewApi.delete(id!)
@@ -181,18 +183,28 @@ export default function ContractReviewDetail() {
       </div>
 
       {CONTRACT_REVIEW_SECTIONS.map((sec) => {
-        const fields = reviewSectionAllFields(sec)
+        const fields = reviewSectionAllFields(sec).filter((f) => reviewDepVisible(f.showWhen, row as Record<string, unknown>))
+        const showContacts = sec.afterSlot === 'contacts' && contacts.length > 0 && String(row.review_type || '') === '合同评审'
+        const showPricingFiles = sec.afterSlot === 'pricing_files'
+          && String(row.review_type || '') === '合同评审'
+          && String(row.need_pricing || '') === '有核价'
+        const showReviewFiles = sec.afterSlot === 'review_files'
+          && (String(row.review_type || '') === '合同评审' || String(row.review_type || '') === '项目评审')
+        const showFeedbackFiles = sec.afterSlot === 'feedback_files'
+        if (!fields.length && !showContacts && !showPricingFiles && !showReviewFiles && !showFeedbackFiles) return null
         return (
           <div key={sec.key} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-4">
             <ContractSectionTitle title={sec.title} />
-            <Descriptions size="small" column={2} bordered>
-              {fields.map((f) => (
-                <Descriptions.Item key={f.key} label={f.label} span={f.widget === 'textarea' ? 2 : 1}>
-                  {formatReviewField(f, row, rj)}
-                </Descriptions.Item>
-              ))}
-            </Descriptions>
-            {sec.afterSlot === 'contacts' && contacts.length > 0 && (
+            {fields.length > 0 && (
+              <Descriptions size="small" column={2} bordered>
+                {fields.map((f) => (
+                  <Descriptions.Item key={f.key} label={f.label} span={f.widget === 'textarea' ? 2 : 1}>
+                    {formatReviewField(f, row, rj)}
+                  </Descriptions.Item>
+                ))}
+              </Descriptions>
+            )}
+            {showContacts && (
               <div className="mt-4">
                 <div className="text-sm font-semibold text-slate-500 mb-2">联系信息</div>
                 <Table
@@ -214,18 +226,18 @@ export default function ContractReviewDetail() {
                 />
               </div>
             )}
-            {sec.afterSlot === 'pricing_files' && (
+            {showPricingFiles && (
               <div className="mt-4">
                 <AttachmentPanel bizType="contract_review_cost" bizId={row.id} title="成本附件" />
               </div>
             )}
-            {sec.afterSlot === 'review_files' && (
+            {showReviewFiles && (
               <div className="mt-4 space-y-3">
                 <AttachmentPanel bizType="contract_review" bizId={row.id} title="附件" />
                 <AttachmentPanel bizType="contract_review_image" bizId={row.id} title="图片" accept="image/*" />
               </div>
             )}
-            {sec.afterSlot === 'feedback_files' && (
+            {showFeedbackFiles && (
               <div className="mt-4 space-y-3">
                 <AttachmentPanel bizType="contract_review_feedback" bizId={row.id} title="反馈附件" />
                 <AttachmentPanel bizType="contract_review_feedback_image" bizId={row.id} title="反馈图片" accept="image/*" />

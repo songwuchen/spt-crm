@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
-from app.common.error_codes import NOT_FOUND
+from app.common.error_codes import FORBIDDEN, NOT_FOUND
 from app.domains.attachment.models import Attachment, AttachmentLink
 from app.domains.attachment.storage import build_object_key
 
@@ -117,6 +117,49 @@ async def list_by_biz(
         select(Attachment).where(Attachment.id.in_(link_q), Attachment.tenant_id == tenant_id).order_by(Attachment.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def link_attachments(
+    db: AsyncSession, tenant_id: str, user: dict,
+    attachment_ids: list[str], biz_type: str, biz_id: str,
+) -> int:
+    """将已上传（尚未挂单）的附件关联到业务对象。用于创建页 FileField 先传后建单。"""
+    from app.domains.activity.service import assert_biz_object_visible
+
+    if not attachment_ids or not biz_type or not biz_id:
+        return 0
+    await assert_biz_object_visible(db, tenant_id, user, biz_type, biz_id, label="该业务对象的附件")
+
+    linked = 0
+    for aid in attachment_ids:
+        aid = (aid or "").strip()
+        if not aid:
+            continue
+        att = (await db.execute(
+            select(Attachment).where(Attachment.id == aid, Attachment.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if not att:
+            raise BusinessException(code=NOT_FOUND, message=f"附件不存在：{aid}")
+        # 仅本人上传的未挂单附件可挂（避免把别人的 id 挂到本单）
+        if att.uploader_id and att.uploader_id != user.get("sub"):
+            raise BusinessException(code=FORBIDDEN, message="只能关联本人上传的附件")
+        exists = (await db.execute(
+            select(AttachmentLink.id).where(
+                AttachmentLink.tenant_id == tenant_id,
+                AttachmentLink.attachment_id == aid,
+                AttachmentLink.biz_type == biz_type,
+                AttachmentLink.biz_id == biz_id,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if exists:
+            continue
+        db.add(AttachmentLink(
+            id=generate_uuid(), tenant_id=tenant_id,
+            attachment_id=aid, biz_type=biz_type, biz_id=biz_id,
+        ))
+        linked += 1
+    await db.commit()
+    return linked
 
 
 async def get_attachment(db: AsyncSession, tenant_id: str, attachment_id: str, user: dict | None = None) -> Attachment:

@@ -29,9 +29,12 @@ export interface ReviewOption {
 }
 
 export interface ReviewShowWhen {
-  field: string
+  /** 单条件字段；仅用 allOf 时可省略 */
+  field?: string
   source?: ReviewFieldSource
   equals?: string[]
+  /** 全部满足才显示（与 field/equals 同时存在时一并 AND） */
+  allOf?: ReviewShowWhen[]
 }
 
 export interface ReviewFieldDef {
@@ -43,6 +46,12 @@ export interface ReviewFieldDef {
   showWhen?: ReviewShowWhen
   required?: boolean
   requiredWhen?: ReviewShowWhen
+  /** 对齐简道云填写时机：
+   * - initiator（默认）：创建/编辑可填
+   * - approver：审批节点可填，创建不渲染
+   * - display：表单禁用且无节点可写，仅详情只读展示
+   */
+  fillStage?: 'initiator' | 'approver' | 'display'
 }
 
 export interface ReviewSection {
@@ -64,6 +73,39 @@ const RISK: ReviewOption[] = [
   { value: '低', label: '低' },
 ]
 
+/** 简道云 fieldShowRules 对照（docs/product/_tmp_cr_show_rules.json） */
+const WHEN_CONTRACT: ReviewShowWhen = {
+  field: 'review_type', source: 'native', equals: ['合同评审'],
+}
+const WHEN_PROJECT: ReviewShowWhen = {
+  field: 'review_type', source: 'native', equals: ['项目评审'],
+}
+const WHEN_REVIEW_TYPE: ReviewShowWhen = {
+  field: 'review_type', source: 'native', equals: ['合同评审', '项目评审'],
+}
+/** 简道云 rule5：是否外贸客户 = 否 → 显示客户关系 / 母公司说明 */
+const WHEN_NOT_FOREIGN: ReviewShowWhen = {
+  field: 'is_foreign_trade', source: 'reg', equals: ['否'],
+}
+const WHEN_EXPORT_YES: ReviewShowWhen = {
+  field: 'is_export', source: 'native', equals: ['是'],
+}
+const WHEN_GUARANTEE_YES: ReviewShowWhen = {
+  field: 'has_guarantee', source: 'reg', equals: ['是'],
+}
+/** 有核价明细：仅合同评审 + 是否核价=有核价（JDY rule4 仅控已取消的核价时间；CRM 明细按业务补） */
+const WHEN_PRICING_DETAIL: ReviewShowWhen = {
+  allOf: [
+    WHEN_CONTRACT,
+    { field: 'need_pricing', source: 'native', equals: ['有核价'] },
+  ],
+}
+const RISK_NEED_DESC = ['高', '中']
+function whenRiskDesc(riskKey: string, extra?: ReviewShowWhen): ReviewShowWhen {
+  const riskCond: ReviewShowWhen = { field: riskKey, source: 'reg', equals: RISK_NEED_DESC }
+  return { allOf: extra ? [extra, riskCond] : [WHEN_CONTRACT, riskCond] }
+}
+
 export const CONTRACT_REVIEW_STATUS = [
   { value: 'draft', label: '草稿' },
   { value: 'submitted', label: '已提交' },
@@ -77,16 +119,18 @@ export const CONTRACT_REVIEW_SECTIONS: ReviewSection[] = [
     title: '基本信息',
     fields: [
       {
-        key: 'review_type', label: '合同评审/项目评审', source: 'native', widget: 'radio',
+        // 简道云：label「…（260518取消）」、description「项目评审由260518取消」→ 新建固定合同评审，不再提供切换
+        key: 'review_type', label: '评审类型', source: 'native', widget: 'radio',
         options: [
           { value: '合同评审', label: '合同评审' },
-          { value: '项目评审', label: '项目评审' },
+          { value: '项目评审', label: '项目评审' }, // 仅历史详情只读展示
         ],
+        fillStage: 'display',
       },
       {
-        // 流程分支依赖，发起时必填
+        // rule1：仅合同评审
         key: 'is_export', label: '是否出口合同', source: 'native', widget: 'radio', required: true,
-        options: YES_NO,
+        options: YES_NO, showWhen: WHEN_CONTRACT,
       },
       {
         key: 'need_pricing', label: '是否核价', source: 'native', widget: 'radio', required: true,
@@ -94,6 +138,7 @@ export const CONTRACT_REVIEW_SECTIONS: ReviewSection[] = [
           { value: '有核价', label: '有核价' },
           { value: '未核价', label: '未核价' },
         ],
+        showWhen: WHEN_CONTRACT,
       },
       {
         key: 'need_install', label: '是否需要安装', source: 'native', widget: 'radio', required: true,
@@ -102,15 +147,19 @@ export const CONTRACT_REVIEW_SECTIONS: ReviewSection[] = [
           { value: '负责安装', label: '负责安装' },
           { value: '无需指导安装', label: '无需指导安装' },
         ],
+        showWhen: WHEN_CONTRACT,
       },
-      { key: 'owner_id', label: '业务员', source: 'native', widget: 'person', required: true },
-      { key: 'region_manager_id', label: '区域经理/组长', source: 'native', widget: 'person' },
-      { key: 'department_id', label: '业务部门', source: 'native', widget: 'department' },
-      { key: 'company_name', label: '公司名称', source: 'native', widget: 'text', required: true },
-      // 对齐简道云「是否外贸客户」（自由文本，落 review_json）
-      { key: 'is_foreign_trade', label: '是否外贸客户', source: 'reg', widget: 'text' },
+      // rule0：合同评审或项目评审
+      { key: 'owner_id', label: '业务员', source: 'native', widget: 'person', required: true, showWhen: WHEN_REVIEW_TYPE },
+      { key: 'region_manager_id', label: '区域经理/组长', source: 'native', widget: 'person', showWhen: WHEN_CONTRACT },
+      { key: 'department_id', label: '业务部门', source: 'native', widget: 'department', showWhen: WHEN_REVIEW_TYPE },
+      { key: 'company_name', label: '公司名称', source: 'native', widget: 'text', required: true, showWhen: WHEN_REVIEW_TYPE },
       {
-        // 对齐简道云发起必填（电控装置）
+        // 触发 rule5；客户回填为「是/否」文本
+        key: 'is_foreign_trade', label: '是否外贸客户', source: 'reg', widget: 'radio',
+        options: YES_NO, showWhen: WHEN_REVIEW_TYPE,
+      },
+      {
         key: 'elec_ctrl', label: '电控装置', source: 'native', widget: 'radio', required: true,
         options: [
           { value: '含电控电缆', label: '含电控电缆' },
@@ -118,6 +167,7 @@ export const CONTRACT_REVIEW_SECTIONS: ReviewSection[] = [
           { value: '不含电控不含电缆', label: '不含电控不含电缆' },
           { value: '不含电控含电缆', label: '不含电控含电缆' },
         ],
+        showWhen: WHEN_CONTRACT,
       },
     ],
   },
@@ -125,13 +175,34 @@ export const CONTRACT_REVIEW_SECTIONS: ReviewSection[] = [
     key: 'pricing',
     title: '核价信息',
     fields: [
-      { key: 'pricing_no', label: '核价单号', source: 'reg', widget: 'text' },
-      { key: 'cost_price', label: '成本价', source: 'reg', widget: 'textarea' },
-      { key: 'motor_req', label: '核价配置要求的电机', source: 'reg', widget: 'text' },
-      { key: 'bearing_req', label: '核价配置要求的轴承', source: 'reg', widget: 'text' },
-      { key: 'material_req', label: '核价配置要求的主材材质', source: 'reg', widget: 'text' },
-      { key: 'liner_req', label: '核价配置要求的衬板/筛板', source: 'reg', widget: 'text' },
-      { key: 'special_req', label: '特殊要求', source: 'reg', widget: 'textarea' },
+      {
+        key: 'pricing_no', label: '核价单号', source: 'reg', widget: 'text',
+        showWhen: WHEN_PRICING_DETAIL,
+      },
+      {
+        key: 'cost_price', label: '成本价', source: 'reg', widget: 'textarea',
+        showWhen: WHEN_PRICING_DETAIL,
+      },
+      {
+        key: 'motor_req', label: '核价配置要求的电机', source: 'reg', widget: 'text',
+        showWhen: WHEN_PRICING_DETAIL,
+      },
+      {
+        key: 'bearing_req', label: '核价配置要求的轴承', source: 'reg', widget: 'text',
+        showWhen: WHEN_PRICING_DETAIL,
+      },
+      {
+        key: 'material_req', label: '核价配置要求的主材材质', source: 'reg', widget: 'text',
+        showWhen: WHEN_PRICING_DETAIL,
+      },
+      {
+        key: 'liner_req', label: '核价配置要求的衬板/筛板', source: 'reg', widget: 'text',
+        showWhen: WHEN_PRICING_DETAIL,
+      },
+      {
+        key: 'special_req', label: '特殊要求', source: 'reg', widget: 'textarea',
+        showWhen: WHEN_PRICING_DETAIL,
+      },
     ],
     afterSlot: 'pricing_files',
   },
@@ -145,18 +216,31 @@ export const CONTRACT_REVIEW_SECTIONS: ReviewSection[] = [
           { value: '新客户', label: '新客户' },
           { value: '老客户', label: '老客户' },
         ],
+        showWhen: WHEN_REVIEW_TYPE,
       },
-      { key: 'contract_copies', label: '正式合同份数', source: 'reg', widget: 'number' },
-      // 以下 4 项对齐简道云标题带 * 的必填
-      { key: 'company_nature', label: '公司性质', source: 'reg', widget: 'text', required: true },
-      { key: 'industry', label: '所属行业', source: 'reg', widget: 'text', required: true },
-      { key: 'scale_fund', label: '规模及资金（万元）', source: 'reg', widget: 'number', required: true },
-      { key: 'customer_relation', label: '客户关系', source: 'reg', widget: 'text', required: true },
-      { key: 'dishonest_count', label: '失信信息', source: 'reg', widget: 'number' },
-      { key: 'lawsuit_count', label: '诉讼纠纷', source: 'reg', widget: 'number' },
-      { key: 'env_penalty_count', label: '环保处罚', source: 'reg', widget: 'number' },
-      { key: 'tax_penalty_count', label: '税务处罚', source: 'reg', widget: 'number' },
-      { key: 'other_penalty_count', label: '其它行政处罚', source: 'reg', widget: 'number' },
+      { key: 'contract_copies', label: '正式合同份数', source: 'reg', widget: 'number', showWhen: WHEN_CONTRACT },
+      {
+        key: 'company_nature', label: '公司性质', source: 'reg', widget: 'text', required: true,
+        showWhen: WHEN_REVIEW_TYPE,
+      },
+      {
+        key: 'industry', label: '所属行业', source: 'reg', widget: 'text', required: true,
+        showWhen: WHEN_REVIEW_TYPE,
+      },
+      {
+        key: 'scale_fund', label: '规模及资金（万元）', source: 'reg', widget: 'number', required: true,
+        showWhen: WHEN_REVIEW_TYPE,
+      },
+      // rule5：外贸=否 时显示并必填
+      {
+        key: 'customer_relation', label: '客户关系', source: 'reg', widget: 'text',
+        showWhen: WHEN_NOT_FOREIGN, requiredWhen: WHEN_NOT_FOREIGN,
+      },
+      { key: 'dishonest_count', label: '失信信息', source: 'reg', widget: 'number', showWhen: WHEN_CONTRACT },
+      { key: 'lawsuit_count', label: '诉讼纠纷', source: 'reg', widget: 'number', showWhen: WHEN_CONTRACT },
+      { key: 'env_penalty_count', label: '环保处罚', source: 'reg', widget: 'number', showWhen: WHEN_CONTRACT },
+      { key: 'tax_penalty_count', label: '税务处罚', source: 'reg', widget: 'number', showWhen: WHEN_CONTRACT },
+      { key: 'other_penalty_count', label: '其它行政处罚', source: 'reg', widget: 'number', showWhen: WHEN_CONTRACT },
     ],
     afterSlot: 'contacts',
   },
@@ -164,24 +248,35 @@ export const CONTRACT_REVIEW_SECTIONS: ReviewSection[] = [
     key: 'project',
     title: '项目信息',
     fields: [
-      { key: 'holding_desc', label: '母公司或控股公司的情况及性质说明', source: 'reg', widget: 'text', required: true },
+      {
+        key: 'holding_desc', label: '母公司或控股公司的情况及性质说明', source: 'reg', widget: 'text',
+        showWhen: WHEN_NOT_FOREIGN, requiredWhen: WHEN_NOT_FOREIGN,
+      },
       { key: 'project_title', label: '项目名称及应用', source: 'native', widget: 'textarea' },
-      { key: 'reported_at', label: '报备时间', source: 'native', widget: 'date', required: true },
-      { key: 'salary_insurance', label: '工资及保险情况', source: 'reg', widget: 'text', required: true },
-      { key: 'contract_amount', label: '合同价格（元）', source: 'native', widget: 'money' },
+      // rule2：历史「仅项目评审」；260518 后新建不再出现
+      {
+        key: 'reported_at', label: '报备时间', source: 'native', widget: 'date',
+        showWhen: WHEN_PROJECT, fillStage: 'display',
+      },
+      {
+        key: 'salary_insurance', label: '工资及保险情况', source: 'reg', widget: 'text', required: true,
+        showWhen: WHEN_CONTRACT,
+      },
+      { key: 'contract_amount', label: '合同价格（元）', source: 'native', widget: 'money', showWhen: WHEN_CONTRACT },
       { key: 'delivery_period', label: '交货期', source: 'native', widget: 'text' },
       {
         key: 'has_guarantee', label: '是否有保函', source: 'reg', widget: 'radio',
         options: YES_NO,
       },
       {
+        // rule3
         key: 'guarantee_type', label: '保函类型', source: 'reg', widget: 'radio',
         options: [
           { value: '履约保函', label: '履约保函' },
           { value: '预付保函', label: '预付保函' },
           { value: '质量保函', label: '质量保函' },
         ],
-        showWhen: { field: 'has_guarantee', source: 'reg', equals: ['是'] },
+        showWhen: WHEN_GUARANTEE_YES,
       },
       {
         key: 'has_weight_req', label: '是否有重量要求', source: 'reg', widget: 'radio', required: true,
@@ -196,15 +291,18 @@ export const CONTRACT_REVIEW_SECTIONS: ReviewSection[] = [
       },
       {
         key: 'has_smart', label: '合同是否含智能化部分', source: 'reg', widget: 'radio',
-        options: YES_NO,
+        options: YES_NO, showWhen: WHEN_CONTRACT,
       },
-      { key: 'sign_basis', label: '合同签订依据及情况', source: 'reg', widget: 'text', required: true },
-      { key: 'ref_contract_no', label: '参考合同号', source: 'reg', widget: 'text' },
+      {
+        key: 'sign_basis', label: '合同签订依据及情况', source: 'reg', widget: 'text', required: true,
+        showWhen: WHEN_CONTRACT,
+      },
+      { key: 'ref_contract_no', label: '参考合同号', source: 'reg', widget: 'text', showWhen: WHEN_CONTRACT },
       { key: 'payment_method', label: '付款方式', source: 'reg', widget: 'text' },
       { key: 'company_survey', label: '公司现状调查', source: 'reg', widget: 'text' },
       { key: 'bid_status', label: '项目报备与投标情况', source: 'reg', widget: 'text' },
       { key: 'sales_supplement', label: '针对销售情况的补充', source: 'reg', widget: 'text' },
-      { key: 'survey_req', label: '现场测绘及要求', source: 'reg', widget: 'text' },
+      { key: 'survey_req', label: '现场测绘及要求', source: 'reg', widget: 'text', showWhen: WHEN_REVIEW_TYPE },
     ],
     afterSlot: 'review_files',
   },
@@ -212,35 +310,95 @@ export const CONTRACT_REVIEW_SECTIONS: ReviewSection[] = [
     key: 'risk',
     title: '风险信息',
     fields: [
-      { key: 'clause_opinion', label: '合同条款审核意见', source: 'reg', widget: 'textarea' },
-      { key: 'legal_risk', label: '法务风险等级判断', source: 'reg', widget: 'radio', options: RISK, required: true },
-      { key: 'legal_risk_desc', label: '法务风险等级文字描述', source: 'reg', widget: 'text' },
-      { key: 'tech_risk', label: '技术风险等级判断', source: 'reg', widget: 'radio', options: RISK, required: true },
-      { key: 'tech_risk_desc', label: '技术风险等级文字描述', source: 'reg', widget: 'text' },
-      { key: 'biz_risk', label: '业务风险等级判断', source: 'reg', widget: 'radio', options: RISK, required: true },
-      { key: 'biz_risk_desc', label: '业务风险等级文字描述', source: 'reg', widget: 'text' },
-      { key: 'finance_risk', label: '财务风险等级判断', source: 'reg', widget: 'radio', options: RISK, required: true },
-      { key: 'finance_risk_desc', label: '财务风险等级文字描述', source: 'reg', widget: 'text' },
-      { key: 'purchase_risk', label: '采购风险等级判断', source: 'reg', widget: 'radio', options: RISK, required: true },
-      { key: 'purchase_risk_desc', label: '采购风险等级文字描述', source: 'reg', widget: 'text' },
-      { key: 'export_risk', label: '出口风险等级判断', source: 'reg', widget: 'radio', options: RISK, required: true },
-      { key: 'export_risk_desc', label: '出口风险等级文字描述', source: 'reg', widget: 'text' },
-      { key: 'credit_level', label: '重点数据及信用等级', source: 'reg', widget: 'text' },
-      { key: 'past_biz_desc', label: '前期业务来往描述', source: 'reg', widget: 'text' },
-      { key: 'pricing_supplement', label: '核价报价补充', source: 'reg', widget: 'text' },
+      // 审批填写；rule1 仅合同评审展示风险区（详情/审批侧）
+      {
+        key: 'clause_opinion', label: '合同条款审核意见', source: 'reg', widget: 'textarea',
+        fillStage: 'approver', showWhen: WHEN_CONTRACT,
+      },
+      {
+        key: 'legal_risk', label: '法务风险等级判断', source: 'reg', widget: 'radio', options: RISK,
+        fillStage: 'approver', showWhen: WHEN_CONTRACT,
+      },
+      {
+        key: 'legal_risk_desc', label: '法务风险等级文字描述', source: 'reg', widget: 'text',
+        fillStage: 'approver',
+        showWhen: whenRiskDesc('legal_risk'),
+      },
+      {
+        key: 'tech_risk', label: '技术风险等级判断', source: 'reg', widget: 'radio', options: RISK,
+        fillStage: 'approver', showWhen: WHEN_CONTRACT,
+      },
+      {
+        key: 'tech_risk_desc', label: '技术风险等级文字描述', source: 'reg', widget: 'text',
+        fillStage: 'approver',
+        showWhen: whenRiskDesc('tech_risk'),
+      },
+      {
+        key: 'biz_risk', label: '业务风险等级判断', source: 'reg', widget: 'radio', options: RISK,
+        fillStage: 'approver', showWhen: WHEN_CONTRACT,
+      },
+      {
+        key: 'biz_risk_desc', label: '业务风险等级文字描述', source: 'reg', widget: 'text',
+        fillStage: 'approver',
+        showWhen: whenRiskDesc('biz_risk'),
+      },
+      {
+        key: 'finance_risk', label: '财务风险等级判断', source: 'reg', widget: 'radio', options: RISK,
+        fillStage: 'approver', showWhen: WHEN_CONTRACT,
+      },
+      {
+        key: 'finance_risk_desc', label: '财务风险等级文字描述', source: 'reg', widget: 'text',
+        fillStage: 'approver',
+        showWhen: whenRiskDesc('finance_risk'),
+      },
+      {
+        key: 'purchase_risk', label: '采购风险等级判断', source: 'reg', widget: 'radio', options: RISK,
+        fillStage: 'approver', showWhen: WHEN_CONTRACT,
+      },
+      {
+        key: 'purchase_risk_desc', label: '采购风险等级文字描述', source: 'reg', widget: 'text',
+        fillStage: 'approver',
+        showWhen: whenRiskDesc('purchase_risk'),
+      },
+      // rule18：出口=是 才显示出口风险
+      {
+        key: 'export_risk', label: '出口风险等级判断', source: 'reg', widget: 'radio', options: RISK,
+        fillStage: 'approver', showWhen: WHEN_EXPORT_YES,
+      },
+      {
+        key: 'export_risk_desc', label: '出口风险等级文字描述', source: 'reg', widget: 'text',
+        fillStage: 'approver',
+        showWhen: whenRiskDesc('export_risk', WHEN_EXPORT_YES),
+      },
+      {
+        // 简道云：visible/enable=false，发起与各审批节点均不可写 → 仅详情只读
+        key: 'credit_level', label: '重点数据及信用等级', source: 'reg', widget: 'text',
+        fillStage: 'display',
+      },
+      {
+        key: 'past_biz_desc', label: '前期业务来往描述', source: 'reg', widget: 'text',
+        fillStage: 'display',
+      },
+      {
+        key: 'pricing_supplement', label: '核价报价补充', source: 'reg', widget: 'text',
+        fillStage: 'display',
+      },
     ],
   },
   {
     key: 'conclusion',
     title: '结论',
     fields: [
-      { key: 'payment_term', label: '账期', source: 'native', widget: 'text', required: true },
-      { key: 'conclusion', label: '结论描述', source: 'native', widget: 'textarea' },
+      {
+        key: 'payment_term', label: '账期', source: 'native', widget: 'text',
+        fillStage: 'approver', showWhen: WHEN_CONTRACT,
+      },
+      { key: 'conclusion', label: '结论描述', source: 'native', widget: 'textarea', fillStage: 'approver' },
       {
         key: 'need_feedback', label: '是否反馈', source: 'reg', widget: 'radio',
-        options: YES_NO,
+        options: YES_NO, fillStage: 'approver',
       },
-      { key: 'feedback_members', label: '成员多选', source: 'reg', widget: 'person_multi' },
+      { key: 'feedback_members', label: '成员多选', source: 'reg', widget: 'person_multi', fillStage: 'approver' },
     ],
     afterSlot: 'feedback_files',
   },
@@ -248,8 +406,8 @@ export const CONTRACT_REVIEW_SECTIONS: ReviewSection[] = [
     key: 'signing',
     title: '合同签订',
     fields: [
-      { key: 'drawing_no', label: '图纸编号', source: 'reg', widget: 'combo' },
-      { key: 'opinion_exec', label: '合同评审意见执行情况', source: 'reg', widget: 'textarea' },
+      { key: 'drawing_no', label: '图纸编号', source: 'reg', widget: 'combo', fillStage: 'approver' },
+      { key: 'opinion_exec', label: '合同评审意见执行情况', source: 'reg', widget: 'textarea', fillStage: 'approver' },
     ],
   },
 ]
@@ -268,11 +426,15 @@ export function readReviewFieldValue(
   return rj[field.key]
 }
 
-function reviewDepVisible(
+export function reviewDepVisible(
   dep: ReviewShowWhen | undefined,
   row: Record<string, unknown>,
 ): boolean {
   if (!dep) return true
+  if (dep.allOf?.length) {
+    if (!dep.allOf.every((d) => reviewDepVisible(d, row))) return false
+  }
+  if (!dep.field) return true
   const v = dep.source === 'native'
     ? row[dep.field]
     : ((row.review_json || {}) as Record<string, unknown>)[dep.field]
@@ -297,6 +459,7 @@ export function findFirstMissingReviewRequired(
 ): { name: (string | number)[]; label: string } | null {
   for (const sec of CONTRACT_REVIEW_SECTIONS) {
     for (const f of reviewSectionAllFields(sec)) {
+      if (f.fillStage === 'approver' || f.fillStage === 'display') continue
       if (!reviewDepVisible(f.showWhen, row)) continue
       const need = f.required || (f.requiredWhen ? reviewDepVisible(f.requiredWhen, row) : false)
       if (!need) continue
@@ -354,7 +517,7 @@ export interface ReviewListColumnDef {
 
 export const CONTRACT_REVIEW_LIST_COLUMNS: ReviewListColumnDef[] = [
   { key: 'review_code', title: '流水号', width: 150, source: 'native', fixed: 'left' },
-  { key: 'review_type', title: '合同评审/项目评审', width: 150, source: 'native', kind: 'tag' },
+  { key: 'review_type', title: '评审类型', width: 110, source: 'native', kind: 'tag' },
   { key: 'is_export', title: '是否出口合同', width: 120, source: 'native', kind: 'tag' },
   { key: 'need_pricing', title: '是否核价', width: 120, source: 'native', kind: 'tag' },
   { key: 'need_install', title: '是否需要安装', width: 140, source: 'native', kind: 'tag' },

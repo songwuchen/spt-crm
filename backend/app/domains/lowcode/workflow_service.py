@@ -1345,7 +1345,10 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
             "cc_install", "抄送金微星",
             {"type": "specified_user", "value": u["cc_install"]},
         ),
-        _field_person_approval_node("approval_region", "区域经理/组长", "region_manager_id"),
+        _field_person_approval_node(
+            "approval_region", "区域经理/组长", "region_manager_id",
+            field_perms=_fp(("biz_risk", "required"), ("biz_risk_desc", "editable")),
+        ),
         {
             "id": "approval_biz", "type": "approval", "name": "业务部门审批",
             "approver_rule": {"type": "dept_head", "exclude_initiator": True},
@@ -1360,7 +1363,13 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
                 ("clause_opinion", "editable"),
             ),
         ),
-        _user_approval_node("approval_legal_sup", "法务主管审批", u["legal_sup"]),
+        _user_approval_node(
+            "approval_legal_sup", "法务主管审批", u["legal_sup"],
+            field_perms=_fp(
+                ("legal_risk", "required"), ("legal_risk_desc", "editable"),
+                ("clause_opinion", "editable"),
+            ),
+        ),
         _user_approval_node(
             "approval_design", "设计审批", u["design"],
             field_perms=_fp(("tech_risk", "required"), ("tech_risk_desc", "editable")),
@@ -1368,7 +1377,12 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
         _user_approval_node(
             "approval_finance_dir", "财务总监意见", u["finance_dir"],
             multi_mode="and_sign",
-            field_perms=_fp(("finance_risk", "required"), ("finance_risk_desc", "editable")),
+            # 简道云：财务/采购风险 + 账期/结论描述
+            field_perms=_fp(
+                ("finance_risk", "required"), ("finance_risk_desc", "editable"),
+                ("purchase_risk", "required"), ("purchase_risk_desc", "editable"),
+                ("payment_term", "required"), ("conclusion", "editable"),
+            ),
         ),
         _user_approval_node(
             "approval_export", "出口审批", u["export"],
@@ -1380,7 +1394,8 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
         ),
         _user_approval_node(
             "approval_finance_opinion", "财务意见", u["finance_opinion"],
-            field_perms=_fp(("finance_risk", "required"), ("finance_risk_desc", "editable")),
+            # 简道云：是否反馈在此填写，决定后续反馈回路 / 产采质
+            field_perms=_fp(("need_feedback", "required")),
         ),
         # —— 财务意见旁路抄送 ——
         _cc_node(
@@ -1404,25 +1419,28 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
         ),
         # 财务意见后：产采质 + 发起人（不反馈时）→ 直达结束
         _user_approval_node("approval_production", "生产审批", u["production"]),
-        _user_approval_node(
-            "approval_procurement", "采购审批", u["procurement"],
-            field_perms=_fp(("purchase_risk", "required"), ("purchase_risk_desc", "editable")),
-        ),
+        _user_approval_node("approval_procurement", "采购审批", u["procurement"]),
         _user_approval_node("approval_qc", "质检审批", u["qc"]),
-        _creator_approval_node("approval_initiator", "发起人"),
+        _creator_approval_node(
+            "approval_initiator", "发起人",
+            # 简道云流程无签约字段可写；CRM 在发起人节点补填图纸号/意见执行/反馈成员
+            field_perms=_fp(
+                ("drawing_no", "editable"), ("opinion_exec", "editable"),
+                ("feedback_members", "editable"),
+            ),
+        ),
         {"id": "merge_ops_post", "type": "merge", "name": "产采质汇聚"},
         # 反馈回路
-        _creator_approval_node(
-            "approval_info_feedback", "信息反馈",
-            field_perms=_fp(("need_feedback", "editable")),
-        ),
+        _creator_approval_node("approval_info_feedback", "信息反馈"),
         _field_person_approval_node(
             "approval_feedback_region", "反馈区域经理/组长", "region_manager_id",
+            field_perms=_fp(("biz_risk", "required"), ("biz_risk_desc", "editable")),
         ),
         {
             "id": "approval_feedback_biz", "type": "approval", "name": "反馈业务部门",
             "approver_rule": {"type": "dept_head", "exclude_initiator": True},
             "multi_mode": "or_sign", "empty_strategy": "auto_approve",
+            "field_perms": _fp(("biz_risk", "required"), ("biz_risk_desc", "editable")),
         },
         _user_approval_node("approval_design_fb", "设计审批1", u["design"]),
         {"id": "end", "type": "end", "name": "结束"},
@@ -2497,10 +2515,48 @@ async def _upgrade_contract_version_jdy_reg_if_needed(
     )
 
 
+def _contract_review_risk_perms_aligned(nodes: list | None) -> bool:
+    """风险/结论/签约字段可写节点是否对齐简道云。"""
+    by_id = {
+        n.get("id"): n for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id")
+    }
+
+    def fields_of(nid: str) -> set[str]:
+        n = by_id.get(nid) or {}
+        return {
+            str(p.get("field"))
+            for p in (n.get("field_perms") or [])
+            if isinstance(p, dict) and p.get("field")
+        }
+
+    fin_dir = fields_of("approval_finance_dir")
+    if "finance_risk" not in fin_dir or "purchase_risk" not in fin_dir:
+        return False
+    if "payment_term" not in fin_dir or "conclusion" not in fin_dir:
+        return False
+    if "purchase_risk" in fields_of("approval_procurement"):
+        return False
+    if "finance_risk" in fields_of("approval_finance_opinion"):
+        return False
+    if "need_feedback" not in fields_of("approval_finance_opinion"):
+        return False
+    if "need_feedback" in fields_of("approval_info_feedback"):
+        return False
+    if "legal_risk" not in fields_of("approval_legal_sup"):
+        return False
+    if "biz_risk" not in fields_of("approval_region"):
+        return False
+    initiator = fields_of("approval_initiator")
+    if "drawing_no" not in initiator or "opinion_exec" not in initiator:
+        return False
+    return True
+
+
 async def _upgrade_contract_review_jdy_if_needed(
     db, tenant_id: str, d: WfProcessDefinition,
 ) -> None:
-    """系统兜底合同评审流：单节点等升级为简道云会签主干。"""
+    """系统兜底合同评审流：单节点等升级为简道云会签主干；已对齐拓扑则补风险字段权限。"""
     if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
         return
     if d.biz_type != "contract_review":
@@ -2508,13 +2564,44 @@ async def _upgrade_contract_review_jdy_if_needed(
     version = await _published_version(db, tenant_id, d.id)
     if not version:
         return
-    if _flow_is_jdy_contract_review(version.node_definitions, version.route_definitions):
-        return
-
     new_nodes, new_routes = _contract_review_flow_graph()
+    if not _flow_is_jdy_contract_review(version.node_definitions, version.route_definitions):
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version, new_nodes, new_routes,
+            CONTRACT_REVIEW_DEFAULT_DESC, "简道云评审会签流(旁路抄送/反馈回路)",
+        )
+        return
+    if _contract_review_risk_perms_aligned(version.node_definitions):
+        return
+    # 拓扑已对齐：只覆盖 field_perms，保留节点审批人等既有 remap
+    import copy
+    want_fp = {
+        n.get("id"): list(n.get("field_perms") or [])
+        for n in new_nodes
+        if isinstance(n, dict) and n.get("id") and n.get("type") == "approval"
+    }
+    patched = copy.deepcopy(version.node_definitions or [])
+    changed = False
+    for n in patched:
+        if not isinstance(n, dict) or n.get("type") != "approval":
+            continue
+        nid = n.get("id")
+        if nid not in want_fp:
+            continue
+        cur = list(n.get("field_perms") or [])
+        want = want_fp[nid]
+        if _flow_field_perms_sig([{"id": nid, "type": "approval", "field_perms": cur}]) != \
+                _flow_field_perms_sig([{"id": nid, "type": "approval", "field_perms": want}]):
+            if want:
+                n["field_perms"] = want
+            elif "field_perms" in n:
+                del n["field_perms"]
+            changed = True
+    if not changed:
+        return
     await _publish_system_default_upgrade(
-        db, tenant_id, d, version, new_nodes, new_routes,
-        CONTRACT_REVIEW_DEFAULT_DESC, "简道云评审会签流(旁路抄送/反馈回路)",
+        db, tenant_id, d, version, patched, list(version.route_definitions or []),
+        CONTRACT_REVIEW_DEFAULT_DESC, "合同评审风险字段审批可写(对齐简道云)",
     )
 
 
