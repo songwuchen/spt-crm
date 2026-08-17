@@ -445,7 +445,8 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
   // 报价管理（简道云核价管理流程）
   quote_management: {
     contentMaxWidth: 1080,
-    listExpandDetail: 'price_lines',
+    // 不在列表展开价格明细：rowSpan 合并 + 右侧固定列会导致行高错位、状态列叠字，
+    // 用户滚动时像「少了很多单」（尤其 8/15 等靠后记录）。明细仍在详情页查看。
     listColumns: [
       'related_project', 'customer_name', 'sales_person', 'department', 'price_type',
       'customer_category', 'ref_contract_no', 'need_purchase',

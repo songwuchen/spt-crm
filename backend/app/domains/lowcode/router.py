@@ -7,6 +7,8 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+import re
+import re
 
 from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions, get_data_scope
 from app.common.schemas import ok
@@ -911,8 +913,98 @@ _INST_STATUS_LABELS = {
 # 单次导出行上限(与 service.export_instances 的 clamp 上限一致);命中即在末尾追加截断提示。
 _EXPORT_ROW_CAP = 50000
 
+_UUID_EXPORT_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
-def _fmt_export_cell(field_type: str | None, value) -> str:
+
+def _collect_ref_ids(value) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        out: list[str] = []
+        for x in value:
+            out.extend(_collect_ref_ids(x))
+        return out
+    if isinstance(value, dict):
+        rid = value.get("id")
+        return [str(rid)] if rid else []
+    s = str(value).strip()
+    return [s] if s else []
+
+
+async def _load_export_label_maps(
+    db: AsyncSession, tenant_id: str, field_defs: list, rows: list,
+) -> dict[str, dict[str, str]]:
+    """批量把导出里的人员/部门等 id 解析成显示名。"""
+    from sqlalchemy import text as sql_text
+
+    person_ids: set[str] = set()
+    dept_ids: set[str] = set()
+    project_ids: set[str] = set()
+    contract_ids: set[str] = set()
+    customer_ids: set[str] = set()
+    type_by_id = {
+        str(fd.get("id")): str(fd.get("type") or "")
+        for fd in field_defs if isinstance(fd, dict) and fd.get("id")
+    }
+    for inst in rows:
+        fd_data = inst.form_data or {}
+        for fid, ftype in type_by_id.items():
+            ids = _collect_ref_ids(fd_data.get(fid))
+            if ftype in ("person", "person_multi"):
+                person_ids.update(ids)
+            elif ftype in ("department", "department_multi"):
+                dept_ids.update(ids)
+            elif ftype == "project":
+                project_ids.update(ids)
+            elif ftype == "contract":
+                contract_ids.update(ids)
+            elif ftype == "customer":
+                customer_ids.update(ids)
+
+    async def _map(sql: str, ids: set[str]) -> dict[str, str]:
+        from sqlalchemy import bindparam
+        clean = [i for i in ids if i and _UUID_EXPORT_RE.match(i)]
+        if not clean:
+            return {}
+        stmt = sql_text(sql).bindparams(bindparam("ids", expanding=True))
+        rows_db = (await db.execute(stmt, {"t": tenant_id, "ids": clean})).fetchall()
+        return {str(r[0]): str(r[1] or "") for r in rows_db if r[0]}
+
+    users = await _map(
+        "SELECT id, COALESCE(NULLIF(real_name,''), username, id) FROM users "
+        "WHERE tenant_id = :t AND id IN :ids",
+        person_ids,
+    )
+    depts = await _map(
+        "SELECT id, name FROM departments WHERE tenant_id = :t AND id IN :ids",
+        dept_ids,
+    )
+    projects = await _map(
+        "SELECT id, COALESCE(NULLIF(project_code,''), NULLIF(name,''), id) FROM opportunity_projects "
+        "WHERE tenant_id = :t AND id IN :ids",
+        project_ids,
+    )
+    contracts = await _map(
+        "SELECT id, COALESCE(NULLIF(contract_no,''), id) FROM contracts "
+        "WHERE tenant_id = :t AND id IN :ids",
+        contract_ids,
+    )
+    customers = await _map(
+        "SELECT id, COALESCE(NULLIF(name,''), id) FROM customers "
+        "WHERE tenant_id = :t AND id IN :ids",
+        customer_ids,
+    )
+    return {
+        "users": users, "depts": depts, "projects": projects,
+        "contracts": contracts, "customers": customers,
+    }
+
+
+def _fmt_export_cell(
+    field_type: str | None, value, labels: dict[str, dict[str, str]] | None = None,
+) -> str:
     """把表单字段值格式化成单元格文本（列表/子表/文件等做可读摘要）。"""
     if value is None or value == "":
         return ""
@@ -922,6 +1014,29 @@ def _fmt_export_cell(field_type: str | None, value) -> str:
         return f"{len(value)} 个文件" if isinstance(value, list) else str(value)
     if field_type == "switch" or isinstance(value, bool):
         return "是" if value else "否"
+
+    labels = labels or {}
+    if field_type in ("person", "person_multi"):
+        m = labels.get("users") or {}
+        names = [m.get(i) or i for i in _collect_ref_ids(value)]
+        return "、".join(n for n in names if n)
+    if field_type in ("department", "department_multi"):
+        m = labels.get("depts") or {}
+        names = [m.get(i) or i for i in _collect_ref_ids(value)]
+        return "、".join(n for n in names if n)
+    if field_type == "project":
+        m = labels.get("projects") or {}
+        names = [m.get(i) or i for i in _collect_ref_ids(value)]
+        return "、".join(n for n in names if n)
+    if field_type == "contract":
+        m = labels.get("contracts") or {}
+        names = [m.get(i) or i for i in _collect_ref_ids(value)]
+        return "、".join(n for n in names if n)
+    if field_type == "customer":
+        m = labels.get("customers") or {}
+        names = [m.get(i) or i for i in _collect_ref_ids(value)]
+        return "、".join(n for n in names if n)
+
     if isinstance(value, list):
         return "、".join(
             str(v.get("name") or v.get("label") or v.get("id") or v) if isinstance(v, dict) else str(v)
@@ -953,6 +1068,7 @@ async def export_form_instances(
     _roles = set(_user.get("roles") or [])
     data_fields = [fd for fd in field_defs if fd.get("id") and field_visible(fd, _roles)]
     headers = ["业务编号", "标题", "状态", "创建时间"] + [fd.get("label") or fd.get("id") for fd in data_fields]
+    label_maps = await _load_export_label_maps(db, tenant_id, field_defs, rows)
     data_rows = []
     uid = _user.get("sub")
     for inst in rows:
@@ -968,7 +1084,10 @@ async def export_form_instances(
             _INST_STATUS_LABELS.get(inst.status, inst.status or ""),
             inst.created_at.strftime("%Y-%m-%d %H:%M") if inst.created_at else "",
         ]
-        line += [_fmt_export_cell(fd.get("type"), fd_data.get(fd.get("id"))) for fd in data_fields]
+        line += [
+            _fmt_export_cell(fd.get("type"), fd_data.get(fd.get("id")), label_maps)
+            for fd in data_fields
+        ]
         data_rows.append(line)
     # 命中导出上限时显式提示截断，避免用户误以为导出完整（非静默截断）。
     if len(rows) >= _EXPORT_ROW_CAP:
@@ -976,7 +1095,8 @@ async def export_form_instances(
         data_rows.append(note + [""] * (len(headers) - 1))
     sheet = tpl.name if tpl else "表单数据"
     buf = build_excel(sheet, headers, data_rows)
-    return excel_response(buf, "form_data.xlsx")
+    fname = f"{(tpl.name if tpl else '表单数据')}.xlsx"
+    return excel_response(buf, fname)
 
 
 @router.post("/form-instances")

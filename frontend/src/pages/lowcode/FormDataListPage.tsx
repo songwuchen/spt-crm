@@ -1048,7 +1048,8 @@ export default function FormDataListPage({
         })),
         ...detailGroupCols,
         {
-          title: '流程状态', key: 'status', width: 100, fixed: 'right' as const,
+          // 明细 rowSpan 时禁用 fixed：Ant Design 固定列与合并单元格行高不同步，会叠字/错位
+          title: '流程状态', key: 'status', width: 100,
           onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
           render: (_: unknown, row) => {
             const s = (row as DetailFlatRow).record.status || ''
@@ -1057,7 +1058,7 @@ export default function FormDataListPage({
           },
         },
         {
-          title: '操作', key: 'op', width: 72, fixed: 'right' as const,
+          title: '操作', key: 'op', width: 72,
           onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
           render: (_: unknown, row) => renderOps((row as DetailFlatRow).record),
         },
@@ -1140,7 +1141,12 @@ export default function FormDataListPage({
         </Space>
         <Space>
           <Button icon={<DownloadOutlined />} disabled={total === 0}
-            onClick={() => downloadFile(exportUrl, `${name || '表单数据'}.xlsx`)}>
+            onClick={() => {
+              void downloadFile(exportUrl, `${name || '表单数据'}.xlsx`).catch((err: unknown) => {
+                const msg = err instanceof Error ? err.message : '导出失败'
+                message.error(msg)
+              })
+            }}>
             导出
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => nav(fillPath)}>新增</Button>

@@ -1307,6 +1307,8 @@ _JDY_REVIEW_USER = {
     "procurement": "02352513566524",          # 杨霜
     "qc": "0236420233847",                    # 张国运
     "export": "01000533004677",               # 王玲玲
+    # 简道云角色「24.2.3合同/项目评审-法务审批多人」；CRM 无 legal 角色会空批跳过
+    "legal": ["4723152427763414", "256932256424153873"],  # 孔雪、张孟杰（法务部）
     "legal_sup": "02364840011125",            # 袁文俊（法务主管）
     # 抄送具名
     "cc_install": ["080160552326376700", "02364307332960", "232040221426613133"],  # 杜珍珍/韩利民/杜金波
@@ -1522,8 +1524,9 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
             "field_perms": _fp(("biz_risk", "required"), ("biz_risk_desc", "editable")),
         },
         _user_approval_node("approval_intel", "信息情报部审批", u["intel"]),
-        _role_approval_node(
-            "approval_legal", "法务审批", "legal",
+        _user_approval_node(
+            "approval_legal", "法务审批", u["legal"],
+            multi_mode="or_sign",
             field_perms=_fp(
                 ("legal_risk", "required"), ("legal_risk_desc", "editable"),
                 ("clause_opinion", "editable"),
@@ -1648,16 +1651,19 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
         },
         {"id": "r_start_biz", "source": "start", "target": "approval_biz"},
         {"id": "r_region_biz", "source": "approval_region", "target": "approval_biz"},
-        # 业务 → 会签分支
+        # 业务 → 会签分支（须 fork=parallel，否则「有条件边+一条无条件 merge」会被
+        # 引擎当成 if/else，合同评审只走法务、设计/财务永不激活）
         {
             "id": "r_biz_legal", "source": "approval_biz", "target": "approval_legal",
-            "condition": _and_cond(rt_contract),
+            "condition": _and_cond(rt_contract), "fork": "parallel",
         },
         *[
-            {"id": f"r_biz_{tid}", "source": "approval_biz", "target": tid, "condition": cond}
+            {
+                "id": f"r_biz_{tid}", "source": "approval_biz", "target": tid,
+                "condition": cond, "fork": "parallel",
+            }
             for tid, cond in peer_to_merge
         ],
-        {"id": "r_biz_merge", "source": "approval_biz", "target": "merge_review"},
         # 法务 → 法务主管 → 汇聚
         {"id": "r_legal_sup", "source": "approval_legal", "target": "approval_legal_sup"},
         {"id": "r_legal_sup_merge", "source": "approval_legal_sup", "target": "merge_review"},
@@ -2661,7 +2667,22 @@ def _flow_is_jdy_contract_review(nodes: list | None, routes: list | None = None)
         legal_ok and named_gm and named_legal_sup
         and post_fin_ops and has_feedback_route and has_design_fb_reentry
         and has_start_cc and export_not_intl
+        and _contract_review_parallel_countersign_aligned(routes)
     )
+
+
+def _contract_review_parallel_countersign_aligned(routes: list | None) -> bool:
+    """业务后会签边须标 fork=parallel，且不能有无条件 biz→merge（否则被当成 if/else）。"""
+    has_legal_fork = False
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("source") != "approval_biz":
+            continue
+        tgt = r.get("target")
+        if tgt == "merge_review" and not r.get("condition") and not r.get("always"):
+            return False
+        if tgt == "approval_legal" and r.get("fork") == "parallel":
+            has_legal_fork = True
+    return has_legal_fork
 
 
 async def _publish_system_default_upgrade(
@@ -2789,6 +2810,48 @@ def _contract_review_legal_sup_user_aligned(
     return False
 
 
+def _contract_review_legal_users_aligned(
+    nodes: list | None, want: list[str] | str | None = None,
+) -> bool:
+    """法务审批是否已改为具名用户（勿用空的 specified_role=legal）。"""
+    want = want if want is not None else _JDY_REVIEW_USER["legal"]
+    want_list = [want] if isinstance(want, str) else list(want)
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("id") != "approval_legal":
+            continue
+        rule = n.get("approver_rule") or {}
+        if rule.get("type") != "specified_user":
+            return False
+        v = rule.get("value")
+        got = [v] if isinstance(v, str) else list(v or [])
+        return got == want_list
+    return False
+
+
+def apply_contract_review_named_legal_approvers(nodes: list[dict]) -> bool:
+    """就地改：法务审批 specified_role=legal → 法务部具名用户（或签）。"""
+    want = _JDY_REVIEW_USER["legal"]
+    want_list = [want] if isinstance(want, str) else list(want)
+    want_rule = {
+        "type": "specified_user",
+        "value": want_list[0] if len(want_list) == 1 else want_list,
+        "exclude_initiator": True,
+    }
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("id") != "approval_legal":
+            continue
+        cur = n.get("approver_rule") or {}
+        if cur.get("type") == want_rule["type"] and cur.get("value") == want_rule["value"]:
+            return False
+        n["approver_rule"] = dict(want_rule)
+        n.setdefault("multi_mode", "or_sign")
+        n.setdefault("empty_strategy", "auto_approve")
+        changed = True
+        break
+    return changed
+
+
 async def _resolve_legal_sup_user(db, tenant_id: str) -> tuple[str | None, str | None]:
     """解析租户内法务主管 (user_id, username)；优先配置 username，否则按姓名「袁文俊」。"""
     from app.domains.auth.models import User
@@ -2850,6 +2913,166 @@ async def _reassign_pending_legal_sup_tasks(db, tenant_id: str) -> int:
     return len(rows)
 
 
+async def _repair_contract_review_skipped_legal(
+    db, tenant_id: str,
+) -> tuple[int, "WorkflowEngine | None"]:
+    """修复因空角色 legal 被 auto_approve 直接跳到法务主管的单据。
+
+    覆盖：在途卡在法务主管、以及被主管提前驳回正在「修改并重新提交」的单。
+    撤回主管/修订待办，补建法务会签，并补激活被 if/else 误吞的设计/财务总监。
+    """
+    from app.domains.auth.models import User
+    from app.domains.lowcode.approver_resolver import ApprovalContext
+    from app.domains.lowcode.wf_biz_writeback import writeback
+
+    want_legal = _JDY_REVIEW_USER["legal"]
+    want_list = [want_legal] if isinstance(want_legal, str) else list(want_legal)
+    legal_uids = list((await db.execute(
+        select(User.id).where(
+            User.tenant_id == tenant_id,
+            User.username.in_(want_list),
+            User.is_active == True,  # noqa: E712
+        )
+    )).scalars().all())
+    if not legal_uids:
+        logger.warning("补建法务待办跳过：租户 %s 无具名法务用户 %s", tenant_id, want_list)
+        return 0, None
+
+    # 从未建过法务节点，且已经到过法务主管（在途或被提前驳回）
+    rows = (await db.execute(text("""
+        SELECT pi.id AS pid
+        FROM wf_process_instance pi
+        WHERE pi.tenant_id = :tid
+          AND pi.biz_type = 'contract_review'
+          AND pi.status IN ('running', 'rejected')
+          AND EXISTS (
+            SELECT 1 FROM wf_node_instance ni
+            WHERE ni.process_instance_id = pi.id
+              AND ni.node_def_id = 'approval_legal_sup'
+              AND ni.status IN ('running', 'rejected')
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM wf_node_instance ni2
+            WHERE ni2.process_instance_id = pi.id
+              AND ni2.node_def_id = 'approval_legal'
+          )
+    """), {"tid": tenant_id})).mappings().all()
+
+    if not rows:
+        return 0, None
+
+    engine = WorkflowEngine(db, tenant_id)
+    fixed = 0
+    for r in rows:
+        pid = r["pid"]
+        inst = await db.get(WfProcessInstance, pid)
+        if not inst:
+            continue
+
+        await engine._cancel_initiator_revise_todos(pid)
+
+        pending_sup = (await db.execute(select(WfTaskInstance.id).where(
+            WfTaskInstance.process_instance_id == pid,
+            WfTaskInstance.status.in_(["pending", "waiting"]),
+            WfTaskInstance.node_instance_id.in_(
+                select(WfNodeInstance.id).where(
+                    WfNodeInstance.process_instance_id == pid,
+                    WfNodeInstance.node_def_id == "approval_legal_sup",
+                )
+            ),
+        ))).scalars().all()
+        if pending_sup:
+            await db.execute(text("""
+                UPDATE wf_task_instance t
+                SET status = 'cancelled', action_at = NOW(), version = version + 1
+                FROM wf_node_instance ni
+                WHERE t.node_instance_id = ni.id
+                  AND ni.process_instance_id = :pid
+                  AND ni.node_def_id = 'approval_legal_sup'
+                  AND t.status IN ('pending', 'waiting')
+            """), {"pid": pid})
+            engine._queue("todos_done", [str(x) for x in pending_sup])
+
+        await db.execute(text("""
+            UPDATE wf_node_instance
+            SET status = 'cancelled', completed_at = NOW(),
+                config = COALESCE(config, '{}'::jsonb) || '{"repaired":"rewind_to_legal"}'::jsonb
+            WHERE process_instance_id = :pid
+              AND node_def_id = 'approval_legal_sup'
+              AND status IN ('running', 'rejected')
+        """), {"pid": pid})
+
+        if inst.status != "running":
+            inst.status = "running"
+            inst.completed_at = None
+            if inst.biz_id:
+                await writeback(db, tenant_id, "contract_review", inst.biz_id, "submitted")
+
+        version = await _published_version(db, tenant_id, inst.process_definition_id)
+        if version:
+            inst.process_version_id = version.id
+
+        ni = WfNodeInstance(
+            id=generate_uuid(), tenant_id=tenant_id, process_instance_id=pid,
+            node_def_id="approval_legal", node_type="approval", node_name="法务审批",
+            status="running", config={"mode": "or_sign", "repaired": True},
+            started_at=_now(),
+        )
+        db.add(ni)
+        await db.flush()
+        fresh_tasks: list[str] = []
+        for idx, uid in enumerate(legal_uids):
+            tid = generate_uuid()
+            db.add(WfTaskInstance(
+                id=tid, tenant_id=tenant_id, process_instance_id=pid,
+                node_instance_id=ni.id, assignee_id=uid, status="pending", task_order=idx,
+            ))
+            fresh_tasks.append(tid)
+        engine._queue("tasks_created", fresh_tasks, inst)
+        # 不挂到法务节点、不写处理人，避免流程动态把「系统修复」当成当前审批人
+        engine._log(
+            pid, None, None, {"sub": "system"}, "repair",
+            "空角色法务已跳过，补建法务审批待办（孔雪/张孟杰）并拉回会签主干",
+        )
+        await db.flush()
+
+        if version:
+            ctx = ApprovalContext(
+                initiator_id=inst.initiator_id or "",
+                form_data=await engine._form_data(inst),
+                nominated=dict(inst.nominated_approvers or {}),
+            )
+            nodes_by = {n.get("id"): n for n in (version.node_definitions or []) if isinstance(n, dict)}
+            for nid in ("approval_design", "approval_finance_dir"):
+                exists = (await db.execute(select(WfNodeInstance.id).where(
+                    WfNodeInstance.process_instance_id == pid,
+                    WfNodeInstance.node_def_id == nid,
+                ).limit(1))).scalar_one_or_none()
+                if exists:
+                    continue
+                node = nodes_by.get(nid)
+                if not node:
+                    continue
+                approvers = await engine._resolve_approvers(version, node, ctx)
+                if not approvers:
+                    logger.warning("合同评审补激活跳过 %s：无审批人 process=%s", nid, pid)
+                    continue
+                await engine._activate_node(inst, version, node, ctx)
+        fixed += 1
+        logger.info("合同评审补建法务审批 process=%s", pid)
+    return fixed, engine
+
+
+async def _finish_contract_review_runtime_fix(db, tenant_id: str) -> None:
+    """升级定义后：改派在途法务主管 + 把跳过法务的单据拉回会签。"""
+    n_repair, eng = await _repair_contract_review_skipped_legal(db, tenant_id)
+    n_reassign = await _reassign_pending_legal_sup_tasks(db, tenant_id)
+    if n_repair or n_reassign:
+        await db.commit()
+        if eng:
+            await eng.flush_notifications(wait=True)
+
+
 async def _upgrade_contract_review_jdy_if_needed(
     db, tenant_id: str, d: WfProcessDefinition,
 ) -> None:
@@ -2881,18 +3104,16 @@ async def _upgrade_contract_review_jdy_if_needed(
             db, tenant_id, d, version, new_nodes, new_routes,
             CONTRACT_REVIEW_DEFAULT_DESC, "简道云评审会签流(旁路抄送/反馈回路)",
         )
-        await _reassign_pending_legal_sup_tasks(db, tenant_id)
-        await db.commit()
+        await _finish_contract_review_runtime_fix(db, tenant_id)
         return
 
     need_fp = not _contract_review_risk_perms_aligned(version.node_definitions)
     need_legal_sup = not _contract_review_legal_sup_user_aligned(
         version.node_definitions, legal_sup_want,
     )
-    if not need_fp and not need_legal_sup:
-        n = await _reassign_pending_legal_sup_tasks(db, tenant_id)
-        if n:
-            await db.commit()
+    need_legal = not _contract_review_legal_users_aligned(version.node_definitions)
+    if not need_fp and not need_legal_sup and not need_legal:
+        await _finish_contract_review_runtime_fix(db, tenant_id)
         return
 
     import copy
@@ -2927,19 +3148,25 @@ async def _upgrade_contract_review_jdy_if_needed(
             if n.get("approver_rule") != want_rule:
                 n["approver_rule"] = want_rule
                 changed = True
+        if need_legal and nid == "approval_legal":
+            want_rule = copy.deepcopy(want_node.get("approver_rule") or {})
+            if n.get("approver_rule") != want_rule:
+                n["approver_rule"] = want_rule
+                n.setdefault("multi_mode", want_node.get("multi_mode") or "or_sign")
+                changed = True
     if need_fp and changed:
         tags.append("风险字段审批可写")
     if need_legal_sup and changed:
         tags.append("法务主管→袁文俊")
+    if need_legal and changed:
+        tags.append("法务审批→具名")
     if changed:
         await _publish_system_default_upgrade(
             db, tenant_id, d, version, patched, list(version.route_definitions or []),
             CONTRACT_REVIEW_DEFAULT_DESC,
             "合同评审" + "+".join(tags) if tags else "合同评审局部对齐",
         )
-    n = await _reassign_pending_legal_sup_tasks(db, tenant_id)
-    if n:
-        await db.commit()
+    await _finish_contract_review_runtime_fix(db, tenant_id)
 
 
 def _flow_is_tech_agreement_jdy(nodes: list | None) -> bool:

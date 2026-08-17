@@ -11,6 +11,7 @@ import {
 import dayjs from 'dayjs'
 import type { FieldDefinition } from '@/types/lowcode'
 import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
+import DepartmentSelect from '@/components/DepartmentSelect'
 
 const { RangePicker } = DatePicker
 
@@ -352,6 +353,38 @@ function ValueControl({
         placeholder="请选择"
         onChange={onChange}
         options={opts.map((o) => ({ value: o.value, label: o.label }))}
+      />
+    )
+  }
+  if (type === 'department' || type === 'department_multi') {
+    if (op === 'eq') {
+      return (
+        <DepartmentSelect
+          allowClear
+          placeholder="选择部门"
+          value={typeof value === 'string' ? value : undefined}
+          onChange={(v) => onChange(v || undefined)}
+        />
+      )
+    }
+    return (
+      <Input
+        size="middle"
+        value={value as string}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="输入部门名称，如：砂石"
+        allowClear
+      />
+    )
+  }
+  if (type === 'person' || type === 'person_multi') {
+    return (
+      <Input
+        size="middle"
+        value={value as string}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="输入姓名"
+        allowClear
       />
     )
   }

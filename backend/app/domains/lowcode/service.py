@@ -1231,6 +1231,14 @@ def _normalize_instance_filters(filters: list | dict | str | None) -> tuple[str,
     return match, out
 
 
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+_REF_FILTER_TYPES = frozenset({
+    "department", "department_multi", "person", "person_multi",
+})
+
+
 def _form_data_filter_clause(rule: dict):
     """单条规则 → SQL 条件（form_data->>field 文本语义）。"""
     field = rule["field"]
@@ -1279,20 +1287,136 @@ def _form_data_filter_clause(rule: dict):
     return txt.ilike(f"%{value}%")
 
 
-def _form_data_person_in_owner_ids(field: str, owner_ids: list[str]):
-    """form_data 人员字段命中数据范围（字符串 id / {id} / JSON 文本含 id）。"""
+def _form_data_ids_match_clause(field: str, ids: list[str]):
+    """form_data 字段命中任一 id（纯字符串 / {id} / JSON 文本含 id）。"""
     parts = []
-    for uid in owner_ids or []:
-        if not uid:
+    txt = FormInstance.form_data.op("->>")(field)
+    obj_id = FormInstance.form_data.op("->")(field).op("->>")("id")
+    for raw in ids:
+        sid = str(raw or "").strip()
+        if not sid:
             continue
-        sid = str(uid)
-        txt = FormInstance.form_data.op("->>")(field)
-        obj_id = FormInstance.form_data.op("->")(field).op("->>")("id")
         parts.append(txt == sid)
         parts.append(obj_id == sid)
-        # 多选人员等 JSON 数组场景
         parts.append(txt.ilike(f"%{sid}%"))
     return or_(*parts) if parts else False
+
+
+def _form_data_person_in_owner_ids(field: str, owner_ids: list[str]):
+    """form_data 人员字段命中数据范围（字符串 id / {id} / JSON 文本含 id）。"""
+    return _form_data_ids_match_clause(field, owner_ids or [])
+
+
+async def _template_field_type_map(
+    db: AsyncSession, tenant_id: str, template_id: str,
+) -> dict[str, str]:
+    ver = await _get_published_version(db, tenant_id, template_id)
+    if not ver:
+        ver = await _get_latest_version(db, tenant_id, template_id)
+    out: dict[str, str] = {}
+    for f in (ver.field_definitions if ver else []) or []:
+        if isinstance(f, dict) and f.get("id") and f.get("type"):
+            out[str(f["id"])] = str(f["type"])
+    return out
+
+
+async def _lookup_ref_ids_by_name(
+    db: AsyncSession, tenant_id: str, *, kind: str, value: str, exact: bool,
+) -> list[str]:
+    """按姓名/部门名解析 id；value 已是 UUID 则原样返回。"""
+    from sqlalchemy import text as sql_text
+
+    needle = (value or "").strip()
+    if not needle:
+        return []
+    if _UUID_RE.match(needle):
+        return [needle]
+    if kind.startswith("department"):
+        if exact:
+            rows = (await db.execute(sql_text(
+                "SELECT id FROM departments WHERE tenant_id = :t AND name = :n LIMIT 200"
+            ), {"t": tenant_id, "n": needle})).fetchall()
+        else:
+            rows = (await db.execute(sql_text(
+                "SELECT id FROM departments WHERE tenant_id = :t AND name ILIKE :n LIMIT 200"
+            ), {"t": tenant_id, "n": f"%{needle}%"})).fetchall()
+        return [str(r[0]) for r in rows]
+    if kind.startswith("person"):
+        if exact:
+            rows = (await db.execute(sql_text(
+                "SELECT id FROM users WHERE tenant_id = :t "
+                "AND (real_name = :n OR username = :n) LIMIT 200"
+            ), {"t": tenant_id, "n": needle})).fetchall()
+        else:
+            rows = (await db.execute(sql_text(
+                "SELECT id FROM users WHERE tenant_id = :t "
+                "AND (real_name ILIKE :n OR username ILIKE :n) LIMIT 200"
+            ), {"t": tenant_id, "n": f"%{needle}%"})).fetchall()
+        return [str(r[0]) for r in rows]
+    return []
+
+
+def _flatten_filter_values(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        out: list[str] = []
+        for v in value:
+            out.extend(_flatten_filter_values(v))
+        return out
+    s = str(value).strip()
+    return [s] if s else []
+
+
+async def _form_data_filter_clause_resolved(
+    db: AsyncSession, tenant_id: str, rule: dict, field_type: str | None,
+):
+    """部门/人员等引用字段：按名称解析成 id 再匹配（含「包含 砂石」）。"""
+    op = rule["op"]
+    field = rule["field"]
+    ftype = (field_type or "").strip()
+    if ftype not in _REF_FILTER_TYPES or op in _EMPTY_OPS:
+        return _form_data_filter_clause(rule)
+
+    values = _flatten_filter_values(rule.get("value"))
+    if not values:
+        return False
+
+    # contains / not_contains：名称模糊；eq / ne / in：精确名或 UUID
+    exact = op in ("eq", "ne", "in")
+    resolved: list[str] = []
+    for v in values:
+        resolved.extend(
+            await _lookup_ref_ids_by_name(
+                db, tenant_id, kind=ftype, value=v, exact=exact,
+            )
+        )
+
+    seen: set[str] = set()
+    ids: list[str] = []
+    for i in resolved:
+        if i not in seen:
+            seen.add(i)
+            ids.append(i)
+
+    txt = FormInstance.form_data.op("->>")(field)
+    id_hit = _form_data_ids_match_clause(field, ids) if ids else False
+    # 名称也可能嵌在 JSON 文本里（{id,name}），保留原文包含
+    name_hit = or_(*[txt.ilike(f"%{v}%") for v in values]) if values else False
+
+    if op == "contains":
+        return or_(id_hit, name_hit)
+    if op == "not_contains":
+        miss = not_(id_hit) if ids else True
+        return and_(miss, or_(txt.is_(None), not_(name_hit)))
+    if op == "eq":
+        return or_(id_hit, name_hit)
+    if op == "ne":
+        miss = not_(id_hit) if ids else True
+        return and_(miss, or_(txt.is_(None), not_(name_hit)))
+    if op == "in":
+        return or_(id_hit, name_hit)
+    return _form_data_filter_clause(rule)
 
 
 def _instance_list_conds(
@@ -1301,6 +1425,7 @@ def _instance_list_conds(
     owner_ids: list[str] | None = None,
     filters: list | dict | str | None = None,
     owner_person_field: str | None = None,
+    filter_clauses: list | None = None,
 ) -> list:
     conds = [
         FormInstance.tenant_id == tenant_id,
@@ -1324,11 +1449,35 @@ def _instance_list_conds(
                 _form_data_person_in_owner_ids(owner_person_field, owner_ids or []),
             )
         conds.append(owner_clause)
+    if filter_clauses is not None:
+        if filter_clauses:
+            # match 已在外层折叠进 filter_clauses 单条 or/and
+            conds.append(filter_clauses[0] if len(filter_clauses) == 1 else and_(*filter_clauses))
+        return conds
     match, rules = _normalize_instance_filters(filters)
     if rules:
         clauses = [_form_data_filter_clause(r) for r in rules]
         conds.append(or_(*clauses) if match == "any" else and_(*clauses))
     return conds
+
+
+async def _instance_list_filter_bundle(
+    db: AsyncSession, tenant_id: str, template_id: str,
+    filters: list | dict | str | None,
+) -> list | None:
+    """解析 filters；引用字段按名称解析。返回 [combined_clause] 或 None（无筛选）。"""
+    match, rules = _normalize_instance_filters(filters)
+    if not rules:
+        return None
+    field_types = await _template_field_type_map(db, tenant_id, template_id)
+    clauses = [
+        await _form_data_filter_clause_resolved(
+            db, tenant_id, r, field_types.get(r["field"]),
+        )
+        for r in rules
+    ]
+    combined = or_(*clauses) if match == "any" else and_(*clauses)
+    return [combined]
 
 
 # 列表/导出：除发起人外，按表单业务员字段纳入数据范围
@@ -1361,10 +1510,12 @@ async def list_instances(
     owner_person_field = None
     if owner_ids is not None:
         owner_person_field = await _owner_person_field_for_template(db, tenant_id, template_id)
+    filter_bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters)
     conds = _instance_list_conds(
         tenant_id, template_id, keyword=keyword, status=status,
-        owner_ids=owner_ids, filters=filters,
+        owner_ids=owner_ids, filters=None if filter_bundle is not None else filters,
         owner_person_field=owner_person_field,
+        filter_clauses=filter_bundle,
     )
 
     total = (await db.execute(
@@ -1400,10 +1551,12 @@ async def export_instances(
     owner_person_field = None
     if owner_ids is not None:
         owner_person_field = _OWNER_PERSON_FIELD_BY_TEMPLATE.get((tpl.code if tpl else "") or "")
+    filter_bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters)
     conds = _instance_list_conds(
         tenant_id, template_id, keyword=keyword, status=status,
-        owner_ids=owner_ids, filters=filters,
+        owner_ids=owner_ids, filters=None if filter_bundle is not None else filters,
         owner_person_field=owner_person_field,
+        filter_clauses=filter_bundle,
     )
     rows = (await db.execute(
         select(FormInstance).where(*conds)
