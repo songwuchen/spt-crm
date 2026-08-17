@@ -33,8 +33,10 @@ import CascadeField, { type CascadeOption } from './fields/CascadeField'
 import RichTextField from './fields/RichTextField'
 import SignatureField from './fields/SignatureField'
 import BaseFormLookupField, { parseFormOptionsSource } from './fields/BaseFormLookupField'
+import FormInstanceLookupField, { pricingChecklistClearKeys } from './fields/FormInstanceLookupField'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { applySimpleFormulas } from '@/utils/lowcodeSimpleFormulas'
+import { PRICING_CHECKLIST_LINKS, pricingChecklistAllClearKeys } from '@/constants/pricingChecklistLinks'
 
 const { TextArea } = Input
 const { Text } = Typography
@@ -46,7 +48,7 @@ const SUPPORTED = new Set([
   'formula', 'auto_number', 'detail_table',
   'person', 'person_multi', 'department', 'department_multi', 'file', 'image',
   'address', 'cascade', 'rich_text', 'signature', 'project', 'contract', 'customer',
-  'tech_agreement_review',
+  'tech_agreement_review', 'select_data',
 ])
 
 // 这些类型自行渲染只读态(名称/URL 需异步解析或富媒体展示),不走通用 ReadonlyValue。
@@ -55,7 +57,7 @@ const SUPPORTED = new Set([
 const SELF_RENDER_READONLY = new Set([
   'detail_table', 'person', 'person_multi', 'department', 'department_multi', 'file', 'image',
   'address', 'cascade', 'rich_text', 'signature', 'project', 'contract', 'customer',
-  'tech_agreement_review', 'auto_number', 'formula',
+  'tech_agreement_review', 'auto_number', 'formula', 'select_data',
 ])
 
 const GROUP_TYPES = new Set(['tab_group', 'collapse_section'])
@@ -430,6 +432,45 @@ function FieldWidget({
     }
     case 'customer':
       return <CustomerField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
+    case 'select_data': {
+      const props = (field.props || {}) as {
+        source_form_code?: string
+        link_fill?: string
+      }
+      const formCode = String(props.source_form_code || '').trim()
+      if (!formCode) {
+        return <Input value={(value as string) || ''} onChange={(e) => onChange(e.target.value)} placeholder={ph} disabled={readonly} />
+      }
+      const fillMode = props.link_fill
+      return (
+        <FormInstanceLookupField
+          formCode={formCode}
+          linkField={field.id}
+          value={value}
+          readonly={readonly}
+          placeholder={ph || '请选择'}
+          onChange={(v) => {
+            if (!fillMode || !onPatch) {
+              onChange(v)
+              return
+            }
+            const id = v != null && v !== '' ? String(v) : undefined
+            if (!id) {
+              const cleared: Record<string, unknown> = { [field.id]: undefined }
+              for (const k of pricingChecklistClearKeys(field.id)) cleared[k] = undefined
+              onPatch(cleared)
+              return
+            }
+            onChange(v)
+          }}
+          onFill={(id, fill) => {
+            if (!fillMode || !onPatch) return
+            if (!id) return
+            onPatch({ [field.id]: id, ...fill })
+          }}
+        />
+      )
+    }
     case 'file':
       return <FileField value={value} onChange={onChange} readonly={readonly} downloadDenied={downloadDenied} />
     case 'image':
@@ -499,7 +540,23 @@ function FieldWidget({
       )
     case 'radio':
       return (
-        <Radio.Group value={value} onChange={(e) => onChange(e.target.value)}>
+        <Radio.Group
+          value={value}
+          onChange={(e) => {
+            const v = e.target.value
+            const isPricing = field.id === 'process_name'
+              && onPatch
+              && fields.some((f) => f.id in PRICING_CHECKLIST_LINKS)
+            if (isPricing) {
+              const cleared: Record<string, unknown> = { [field.id]: v }
+              for (const k of pricingChecklistAllClearKeys()) cleared[k] = undefined
+              cleared[field.id] = v
+              onPatch(cleared)
+              return
+            }
+            onChange(v)
+          }}
+        >
           {opts.map((o) => <Radio key={o.value} value={o.value}>{o.label}</Radio>)}
         </Radio.Group>
       )
@@ -739,7 +796,18 @@ export function findRequiredError(
   values: Record<string, unknown>,
   rules: FormRule[] = [],
 ): RequiredFieldError | null {
-  const empty = (v: unknown) => v == null || v === '' || (Array.isArray(v) && v.length === 0)
+    const empty = (v: unknown) => {
+      if (v == null || v === '') return true
+      if (Array.isArray(v) && v.length === 0) return true
+      if (typeof v === 'object') {
+        const o = v as Record<string, unknown>
+        if ('id' in o || 'value' in o) {
+          const id = o.id ?? o.value
+          return id == null || id === ''
+        }
+      }
+      return false
+    }
   for (const f of fields) {
     if (f.type === 'formula' || f.type === 'auto_number') continue
     if (f.type === 'section' || f.type === 'separator') continue

@@ -84,6 +84,15 @@ export const workflowApi = {
     ),
   urge: (instanceId: string) =>
     client.post<unknown, ApiResponse<{ notified: number }>>(`/api/v1/lc/wf/instances/${instanceId}/urge`),
+  activateNodes: (instanceId: string) =>
+    client.get<unknown, ApiResponse<{ id: string; name: string; type?: string }[]>>(
+      `/api/v1/lc/wf/instances/${instanceId}/activate-nodes`,
+    ),
+  activate: (instanceId: string, data: { to_node_id: string }) =>
+    client.post<unknown, ApiResponse<{ id: string; status: string; title?: string }>>(
+      `/api/v1/lc/wf/instances/${instanceId}/activate`,
+      data,
+    ),
 
   // 业务类型审批流的业务字段目录(业务流无表单时用于条件分支/字段选择)
   bizFields: (bizType: string) =>

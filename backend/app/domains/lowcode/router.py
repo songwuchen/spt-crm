@@ -402,6 +402,34 @@ async def pickable_contracts(
     ])
 
 
+@router.get("/pickable-form-instances")
+async def pickable_form_instances(
+    form_code: str = Query(..., description="源表单 builtin code，如 install_drawing_notice"),
+    link_field: str | None = Query(None, description="核价清单选择字段 id，用于带出映射"),
+    keyword: str | None = Query(None),
+    ids: str | None = Query(None, description="逗号分隔的实例 id，用于只读回显"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """表单关联选择：从另一张已发布表单选实例（仅需登录，不要求 form_data:view）。"""
+    from app.domains.lowcode.pricing_checklist_fields import (
+        PICKABLE_FORM_CODES, list_pickable_form_instances,
+    )
+    code = (form_code or "").strip()
+    if code not in PICKABLE_FORM_CODES:
+        raise BusinessException(code=VALIDATION_ERROR, message="不支持的关联表单")
+    id_list = [x.strip() for x in (ids or "").split(",") if x.strip()]
+    data = await list_pickable_form_instances(
+        db, tenant_id, form_code=code, link_field=link_field,
+        keyword=keyword, ids=id_list or None,
+        page=page, page_size=page_size,
+    )
+    return ok(data)
+
+
 @router.get("/pickable-contracts/{contract_id}/prod-card-fill")
 async def pickable_contract_prod_card_fill(
     contract_id: str,

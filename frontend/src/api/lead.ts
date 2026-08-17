@@ -1,5 +1,5 @@
 import client from './client'
-import type { ApiResponse, PageData, Lead } from './types'
+import type { ApiResponse, PageData, Lead, LeadReactivationRecord } from './types'
 
 export const leadApi = {
   list: (params: Record<string, unknown>) =>
@@ -26,6 +26,9 @@ export const leadApi = {
     assess_remark?: string
   }) =>
     client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/intel_review`, data),
+  listReactivationRecords: (id: string) =>
+    client.get<unknown, ApiResponse<LeadReactivationRecord[]>>(
+      `/api/v1/leads/${id}/reactivation/records`),
   submitReactivation: (id: string, data: {
     project_recent?: string
     follow_progress?: string

@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import generate_uuid, utcnow
 from app.domains.audit.service import log_action
-from app.domains.lead.models import Lead
+from app.domains.lead.models import Lead, LeadReactivationRecord
 
 logger = logging.getLogger(__name__)
 
@@ -390,6 +390,64 @@ async def scan_and_activate(db: AsyncSession, *, limit: int = 200) -> int:
     return activated
 
 
+async def _upsert_reactivation_record(
+    db: AsyncSession, tenant_id: str, lead: Lead, user: dict,
+) -> LeadReactivationRecord:
+    """按轮次写入/更新激活内容（对齐简道云「180天项目激活」一行）。"""
+    round_no = max(1, int(lead.reactivation_round or 0))
+    existing = (await db.execute(
+        select(LeadReactivationRecord).where(
+            LeadReactivationRecord.tenant_id == tenant_id,
+            LeadReactivationRecord.lead_id == lead.id,
+            LeadReactivationRecord.round_no == round_no,
+        ).limit(1)
+    )).scalar_one_or_none()
+    now = utcnow()
+    submitter_name = user.get("real_name") or user.get("username")
+    if existing:
+        existing.original_lead_code = lead.lead_code or existing.original_lead_code
+        existing.project_recent = lead.project_recent
+        existing.follow_progress = lead.follow_progress
+        existing.site_visit = lead.site_visit
+        existing.report_project_status = lead.report_project_status
+        existing.submitted_by_id = user.get("sub")
+        existing.submitted_by_name = submitter_name
+        existing.submitted_at = now
+        await db.flush()
+        return existing
+    row = LeadReactivationRecord(
+        tenant_id=tenant_id,
+        lead_id=lead.id,
+        original_lead_code=lead.lead_code,
+        round_no=round_no,
+        project_recent=lead.project_recent,
+        follow_progress=lead.follow_progress,
+        site_visit=lead.site_visit,
+        report_project_status=lead.report_project_status,
+        submitted_by_id=user.get("sub"),
+        submitted_by_name=submitter_name,
+        submitted_at=now,
+    )
+    db.add(row)
+    await db.flush()
+    return row
+
+
+async def list_reactivation_records(
+    db: AsyncSession, tenant_id: str, lead_id: str,
+) -> list[LeadReactivationRecord]:
+    """线索详情：180 天激活内容查看（按轮次倒序）。"""
+    return list((await db.execute(
+        select(LeadReactivationRecord).where(
+            LeadReactivationRecord.tenant_id == tenant_id,
+            LeadReactivationRecord.lead_id == lead_id,
+        ).order_by(
+            LeadReactivationRecord.round_no.desc(),
+            LeadReactivationRecord.submitted_at.desc().nullslast(),
+        )
+    )).scalars().all())
+
+
 async def submit_reactivation(
     db: AsyncSession, tenant_id: str, lead_id: str, user: dict, data,
 ) -> Lead:
@@ -422,6 +480,7 @@ async def submit_reactivation(
     lead.follow_progress = (data.follow_progress or "").strip() or None
     lead.site_visit = (data.site_visit or "").strip() or None
     lead.report_project_status = project_status
+    await _upsert_reactivation_record(db, tenant_id, lead, user)
 
     # 暂缓/取消/落标 → 结束
     if project_status in CLOSE_PROJECT_STATUSES:

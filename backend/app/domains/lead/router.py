@@ -524,6 +524,38 @@ class LeadReactivationBody(BaseModel):
     report_project_status: str
 
 
+def _reactivation_record_dict(r) -> dict:
+    return {
+        "id": r.id,
+        "lead_id": r.lead_id,
+        "original_lead_code": r.original_lead_code,
+        "round_no": r.round_no,
+        "project_recent": r.project_recent,
+        "follow_progress": r.follow_progress,
+        "site_visit": r.site_visit,
+        "report_project_status": r.report_project_status,
+        "submitted_by_id": r.submitted_by_id,
+        "submitted_by_name": r.submitted_by_name,
+        "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+    }
+
+
+@router.get("/{lead_id}/reactivation/records")
+async def list_lead_reactivation_records(
+    lead_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("lead:view")),
+):
+    """线索详情：180 天项目激活内容查看（按轮次倒序）。"""
+    from app.domains.lead import reactivation as react_svc
+    await service.get_lead(db, tenant_id, lead_id, current_user)
+    rows = await react_svc.list_reactivation_records(db, tenant_id, lead_id)
+    return ok([_reactivation_record_dict(r) for r in rows])
+
+
 @router.post("/{lead_id}/reactivation/submit")
 async def submit_lead_reactivation(
     lead_id: str,

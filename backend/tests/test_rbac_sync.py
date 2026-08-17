@@ -63,6 +63,16 @@ def test_only_lowcode_admin_roles_get_design_tier():
             assert not (design & codes), f"{rd['code']} should NOT have design tier"
 
 
+def test_legal_role_has_contract_review_page():
+    rd = next(r for r in cat.STANDARD_ROLES if r["code"] == "legal")
+    codes = set(cat.role_perm_codes(rd))
+    assert "contract_review:view" in codes
+    assert "approval:approve" in codes
+    assert "contract_review:edit" not in codes
+    assert "contract:sign" not in codes
+    assert "customer:view" not in rd["perms"]
+
+
 # ----------------------------- DB-backed sync (rolled back) -----------------------------
 
 @pytest.fixture

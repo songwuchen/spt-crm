@@ -6,7 +6,9 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_tenant_id, get_current_user, require_permissions
+from app.dependencies import (
+    get_db, get_tenant_id, get_current_user, require_permissions, require_any_permission,
+)
 from app.common.schemas import ok
 from app.domains.lowcode import workflow_schemas as ws, workflow_service as wsvc
 from app.domains.lowcode.workflow_engine import WorkflowEngine
@@ -208,6 +210,31 @@ async def urge(instance_id: str, tenant_id: str = Depends(get_tenant_id),
     """催办: 发起人提醒当前待办人尽快处理。"""
     n = await WorkflowEngine(db, tenant_id).urge(instance_id, user)
     return ok({"notified": n})
+
+
+@router.get("/instances/{instance_id}/activate-nodes")
+async def activate_nodes(
+    instance_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    # manage 可设计流程，视为包含激活；兼容登录 JWT 尚未带上新权限码的情况
+    _u=Depends(require_any_permission("workflow:activate", "workflow:manage")),
+):
+    """可激活节点列表（开始 + 审批）。"""
+    return ok(await wsvc.get_activate_nodes(db, tenant_id, instance_id))
+
+
+@router.post("/instances/{instance_id}/activate")
+async def activate_instance(
+    instance_id: str,
+    body: ws.WfActivateRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_any_permission("workflow:activate", "workflow:manage")),
+):
+    """激活已结束流程：跳到指定开始/审批节点（同实例）。"""
+    inst = await WorkflowEngine(db, tenant_id).activate(instance_id, user, body.to_node_id)
+    return ok({"id": inst.id, "status": inst.status, "title": inst.title})
 
 
 @router.get("/biz-fields/{biz_type}")

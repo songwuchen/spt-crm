@@ -18,7 +18,7 @@ import FormInstanceFilterPopover, {
 import {
   ArrowLeftOutlined, PlusOutlined, DownloadOutlined,
   PrinterOutlined, EditOutlined, DeleteOutlined, SendOutlined,
-  SearchOutlined, ReloadOutlined, PaperClipOutlined,
+  SearchOutlined, ReloadOutlined, PaperClipOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import ModalFullscreenTitle, { modalFullscreenProps } from '@/components/ModalFullscreenTitle'
 import { lowcodeApi } from '@/api/lowcode'
@@ -32,6 +32,7 @@ import {
 import type { FieldDefinition, FormRule, FormInstance, WfInstanceDetail } from '@/types/lowcode'
 import FormRenderer, { findRequiredError, scrollToLcField, deriveRolePerms } from '@/components/lowcode/FormRenderer'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
+import WfActivateFlowModal from '@/components/lowcode/WfActivateFlowModal'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { fieldShowsTime } from '@/components/lowcode/dateField'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -528,6 +529,8 @@ export default function FormDataListPage({
   const nav = useNavigate()
   const location = useLocation()
   const userRoles = useAuthStore((s) => s.user?.roles) || []
+  const hasPermission = useAuthStore((s) => s.hasPermission)
+  const canActivateFlow = hasPermission('workflow:activate') || hasPermission('workflow:manage')
   const [name, setName] = useState('')
   const [schemaFields, setSchemaFields] = useState<FieldDefinition[]>([])
   /** 列配置可选的全部可列表字段 */
@@ -550,6 +553,7 @@ export default function FormDataListPage({
   const [serialPreviews, setSerialPreviews] = useState<Record<string, string>>({})
   const [wfDetail, setWfDetail] = useState<WfInstanceDetail | null>(null)
   const [wfCommenting, setWfCommenting] = useState(false)
+  const [activateOpen, setActivateOpen] = useState(false)
   const [nameMaps, setNameMaps] = useState<NameMaps>({
     users: {}, depts: {}, projects: {}, contracts: {}, customers: {},
   })
@@ -1261,6 +1265,15 @@ export default function FormDataListPage({
                   提交审批
                 </Button>
               )}
+              {canActivateFlow && wfDetail?.can_activate && wfDetail.id && (
+                <Button
+                  type="text"
+                  icon={<ThunderboltOutlined />}
+                  onClick={() => setActivateOpen(true)}
+                >
+                  激活流程
+                </Button>
+              )}
               <Popconfirm title="确认删除该记录?" onConfirm={() => del(viewRec.id)}>
                 <Button type="text" danger icon={<DeleteOutlined />}>
                   删除
@@ -1301,6 +1314,18 @@ export default function FormDataListPage({
           </div>
         )}
       </Modal>
+      <WfActivateFlowModal
+        open={activateOpen}
+        instanceId={wfDetail?.id}
+        nodes={wfDetail?.activate_nodes}
+        onClose={() => setActivateOpen(false)}
+        onDone={() => {
+          if (viewRec?.id) {
+            void loadWorkflow(viewRec.id, wfDetail?.id)
+          }
+          void load()
+        }}
+      />
     </div>
   )
 }

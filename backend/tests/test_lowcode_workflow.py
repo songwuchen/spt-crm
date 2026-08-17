@@ -741,3 +741,98 @@ async def test_intel_attack_cc_not_convert_prompt(client, db, lead_intel_user):
     assert cc_rows, "袭击知会须写入 wf_process_cc，审批中心「抄送我的」才能看到"
     cc_uids = {c.user_id for c in cc_rows}
     assert owner_id in cc_uids or any(n.recipient_id in cc_uids for n in notes)
+
+
+# ---------- 流程激活（已结束选节点重开） ----------
+
+async def _reject_lead_flow(db, lead_id: str, reviewer_id: str):
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+    task = await _pending_task_for_lead(db, lead_id, reviewer_id)
+    await WorkflowEngine(db, DEMO_TENANT).act(
+        task.id, {"sub": reviewer_id, "real_name": "测试内勤"}, "reject", opinion="激活用例驳回",
+        allow_lead_intel=True,
+    )
+
+
+def _nodes_of(inst, db_version):
+    nodes = db_version.node_definitions or []
+    start = next(n for n in nodes if n.get("type") == "start")
+    approval = next(n for n in nodes if n.get("type") == "approval")
+    return start, approval
+
+
+@pytest.mark.asyncio
+async def test_activate_approval_reopens_ended_instance(client, db, lead_intel_user):
+    """已驳回实例激活到审批节点 → running + 新 pending 待办。"""
+    from app.domains.lowcode.workflow_models import (
+        WfProcessInstance, WfTaskInstance, WfProcessDefinitionVersion,
+    )
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+    from app.common.exceptions import BusinessException
+
+    _ = client
+    initiator = await _admin_user(db)
+    reviewer_id = lead_intel_user
+    lead_id = await _create_pending_lead(db, "激活-审批节点", initiator)
+    await _reject_lead_flow(db, lead_id, reviewer_id)
+
+    inst = (await db.execute(select(WfProcessInstance).where(
+        WfProcessInstance.biz_type == "lead", WfProcessInstance.biz_id == lead_id,
+    ))).scalar_one()
+    assert inst.status == "rejected"
+    version = await db.get(WfProcessDefinitionVersion, inst.process_version_id)
+    _, approval = _nodes_of(inst, version)
+
+    actor = {"sub": initiator["sub"], "real_name": "admin", "username": "admin"}
+    out = await WorkflowEngine(db, DEMO_TENANT).activate(inst.id, actor, approval["id"])
+    assert out.status == "running"
+    assert out.completed_at is None
+
+    pending = (await db.execute(select(WfTaskInstance).where(
+        WfTaskInstance.process_instance_id == inst.id,
+        WfTaskInstance.status == "pending",
+    ))).scalars().all()
+    assert pending, "激活审批节点后应有待办"
+    assert any(t.assignee_id == reviewer_id for t in pending)
+
+    # running 不可再激活
+    with pytest.raises(BusinessException) as ei:
+        await WorkflowEngine(db, DEMO_TENANT).activate(inst.id, actor, approval["id"])
+    assert "退回" in ei.value.message or "进行中" in ei.value.message
+
+
+@pytest.mark.asyncio
+async def test_activate_start_creates_revise_todo(client, db, lead_intel_user):
+    """已结束激活到开始节点 → 发起人修订待办（可改数重提）。"""
+    from app.domains.lowcode.workflow_models import (
+        WfProcessInstance, WfTaskInstance, WfNodeInstance, WfProcessDefinitionVersion,
+    )
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    _ = client
+    initiator = await _admin_user(db)
+    reviewer_id = lead_intel_user
+    lead_id = await _create_pending_lead(db, "激活-开始节点", initiator)
+    await _reject_lead_flow(db, lead_id, reviewer_id)
+
+    inst = (await db.execute(select(WfProcessInstance).where(
+        WfProcessInstance.biz_type == "lead", WfProcessInstance.biz_id == lead_id,
+    ))).scalar_one()
+    version = await db.get(WfProcessDefinitionVersion, inst.process_version_id)
+    start, _ = _nodes_of(inst, version)
+
+    actor = {"sub": initiator["sub"], "real_name": "admin", "username": "admin"}
+    out = await WorkflowEngine(db, DEMO_TENANT).activate(inst.id, actor, start["id"])
+    assert out.status == "withdrawn"
+
+    revise = (await db.execute(
+        select(WfTaskInstance)
+        .join(WfNodeInstance, WfNodeInstance.id == WfTaskInstance.node_instance_id)
+        .where(
+            WfTaskInstance.process_instance_id == inst.id,
+            WfTaskInstance.status == "pending",
+            WfNodeInstance.node_type == "revise",
+        )
+    )).scalars().all()
+    assert revise, "激活开始节点应给发起人修订待办"
+    assert any(t.assignee_id == initiator["sub"] for t in revise)

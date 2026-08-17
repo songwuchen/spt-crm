@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Button, Space, Modal, Tabs, Checkbox, message, Form, Input, Select } from 'antd'
-import { EditOutlined, DeleteOutlined, AuditOutlined } from '@ant-design/icons'
+import { Button, Space, Modal, Tabs, Checkbox, message, Form, Input, Select, Table } from 'antd'
+import { EditOutlined, DeleteOutlined, AuditOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import type { WfInstanceDetail, WfTodoItem } from '@/types/lowcode'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import type { Lead } from '@/api/types'
+import type { Lead, LeadReactivationRecord } from '@/api/types'
 import { sourceLabels } from '@/api/types'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
@@ -20,6 +20,7 @@ import { formatRegion } from '@/utils/address'
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
+import WfActivateFlowModal from '@/components/lowcode/WfActivateFlowModal'
 import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadIntelTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
 
 import Icon from '@/components/Icon'
@@ -85,15 +86,19 @@ export default function LeadDetail() {
   const [myTask, setMyTask] = useState<WfTodoItem | null>(null)
   const [reviewInFlight, setReviewInFlight] = useState(false)
   const [wfInstance, setWfInstance] = useState<WfInstanceDetail | null>(null)
+  const [activateOpen, setActivateOpen] = useState(false)
   const [wfCommenting, setWfCommenting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [reactModalOpen, setReactModalOpen] = useState(false)
   const [reactSubmitting, setReactSubmitting] = useState(false)
   const [reactForm] = Form.useForm()
+  const [reactRecords, setReactRecords] = useState<LeadReactivationRecord[]>([])
+  const [reactRecordsLoading, setReactRecordsLoading] = useState(false)
   const currentUser = useAuthStore((s) => s.user)
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const canDeleteLead = hasPermission('lead:delete')
   const hasLeadEdit = hasPermission('lead:edit')
+  const canActivateFlow = hasPermission('workflow:activate') || hasPermission('workflow:manage')
   const customerTypeDict = useDataDict('customer_type')
   const industryDict = useDataDict('industry')
 
@@ -103,6 +108,19 @@ export default function LeadDetail() {
       setLead(res.data)
     } catch {
       message.error('获取线索详情失败')
+    }
+  }
+
+  const fetchReactivationRecords = async () => {
+    if (!id) return
+    setReactRecordsLoading(true)
+    try {
+      const res = await leadApi.listReactivationRecords(id)
+      setReactRecords(res.data || [])
+    } catch {
+      setReactRecords([])
+    } finally {
+      setReactRecordsLoading(false)
     }
   }
 
@@ -133,6 +151,7 @@ export default function LeadDetail() {
       void fetchLead()
       void fetchMyApproval()
       void loadWf(id)
+      void fetchReactivationRecords()
     }
   }, [id])
 
@@ -280,6 +299,7 @@ export default function LeadDetail() {
       message.success(closed ? '本轮重激活已结束' : '已提交，将进入下一环节')
       await loadWf(id)
       await fetchMyApproval()
+      await fetchReactivationRecords()
     } catch (err: unknown) {
       if ((err as { errorFields?: unknown })?.errorFields) return
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -378,6 +398,15 @@ export default function LeadDetail() {
             </div>
           </div>
           <Space>
+            {/* 流程激活看 WF 终态，与线索是否已转化无关（已转化单也可重开审批） */}
+            {canActivateFlow && wfInstance?.can_activate && wfInstance.id && (
+              <Button
+                icon={<ThunderboltOutlined />}
+                onClick={() => setActivateOpen(true)}
+              >
+                激活流程
+              </Button>
+            )}
             {canOperate && (
               <>
                 {canEditLead && (
@@ -875,6 +904,75 @@ export default function LeadDetail() {
                         </div>
                       </div>
 
+                      <div>
+                        <div className="relative mb-3 flex items-center overflow-hidden rounded-sm bg-teal-600 px-3 py-2 text-white">
+                          <span className="text-[13px] font-semibold">180天项目激活内容查看</span>
+                        </div>
+                        <Table
+                          size="small"
+                          rowKey="id"
+                          loading={reactRecordsLoading}
+                          pagination={false}
+                          scroll={{ x: 960 }}
+                          locale={{ emptyText: '暂无激活记录' }}
+                          dataSource={reactRecords}
+                          columns={[
+                            {
+                              title: '原项目编号',
+                              dataIndex: 'original_lead_code',
+                              width: 120,
+                              render: (v: string | null) => v || '-',
+                            },
+                            {
+                              title: '轮次',
+                              dataIndex: 'round_no',
+                              width: 64,
+                              render: (v: number) => (v != null ? `第${v}轮` : '-'),
+                            },
+                            {
+                              title: '项目状态',
+                              dataIndex: 'report_project_status',
+                              width: 88,
+                              render: (v: string | null) => v || '-',
+                            },
+                            {
+                              title: '项目近况',
+                              dataIndex: 'project_recent',
+                              width: 160,
+                              ellipsis: true,
+                              render: (v: string | null) => v || '-',
+                            },
+                            {
+                              title: '跟进进度',
+                              dataIndex: 'follow_progress',
+                              width: 160,
+                              ellipsis: true,
+                              render: (v: string | null) => v || '-',
+                            },
+                            {
+                              title: '实地拜访情况',
+                              dataIndex: 'site_visit',
+                              width: 160,
+                              ellipsis: true,
+                              render: (v: string | null) => v || '-',
+                            },
+                            {
+                              title: '提交人',
+                              dataIndex: 'submitted_by_name',
+                              width: 88,
+                              render: (v: string | null) => v || '-',
+                            },
+                            {
+                              title: '提交时间',
+                              dataIndex: 'submitted_at',
+                              width: 160,
+                              render: (v: string | null) =>
+                                v ? new Date(v).toLocaleString('zh-CN') : '-',
+                            },
+                          ]}
+                        />
+                      </div>
+
                       {/* 评估结论：仅情报已裁定后展示；草稿/待审/撤回修订时与新建一致不展示 */}
                       {(reviewApproved || reviewStatus === 'rejected' || reviewStatus === 'attacked') && (
                       <div>
@@ -1063,6 +1161,16 @@ export default function LeadDetail() {
           </div>
         </div>
       </div>
+
+      <WfActivateFlowModal
+        open={activateOpen}
+        instanceId={wfInstance?.id}
+        nodes={wfInstance?.activate_nodes}
+        onClose={() => setActivateOpen(false)}
+        onDone={() => {
+          if (id) void loadWf(id)
+        }}
+      />
     </div>
   )
 }

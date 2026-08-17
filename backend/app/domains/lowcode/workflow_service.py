@@ -918,6 +918,63 @@ def apply_quote_named_role_approvers(nodes: list[dict]) -> bool:
     return changed
 
 
+def _quote_nodes_named(nodes: list | None, name: str) -> set[str]:
+    return {
+        str(n["id"])
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id") and n.get("name") == name
+    }
+
+
+def apply_quote_purchase_inquiry_parallel(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """财务核价后「是否转采购=是」并行进采购，不与部门通知互斥。
+
+    简道云里采购条件字段独立于部门 if/else；采购完成后无条件回到财务核价，
+    须标 ``reenter`` 否则引擎会 skip_reactivate 已完成的财务核价。
+    """
+    purchase_ids = _quote_nodes_named(nodes, "采购")
+    finance_ids = _quote_nodes_named(nodes, "财务核价")
+    if not purchase_ids:
+        return False
+    changed = False
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        tgt = str(r.get("target") or "")
+        src = str(r.get("source") or "")
+        if tgt in purchase_ids:
+            if r.get("exclusive_group") or r.get("fork") != "parallel":
+                r.pop("exclusive_group", None)
+                r["fork"] = "parallel"
+                changed = True
+        if src in purchase_ids and tgt in finance_ids:
+            if not r.get("reenter"):
+                r["reenter"] = True
+                changed = True
+    return changed
+
+
+def _flow_quote_purchase_not_parallel(nodes: list | None, routes: list | None) -> bool:
+    """采购边仍在部门互斥组内，或采购回财务核价未标重入。"""
+    purchase_ids = _quote_nodes_named(nodes, "采购")
+    finance_ids = _quote_nodes_named(nodes, "财务核价")
+    if not purchase_ids:
+        return False
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        tgt = str(r.get("target") or "")
+        src = str(r.get("source") or "")
+        if tgt in purchase_ids:
+            if r.get("exclusive_group") or r.get("fork") != "parallel":
+                return True
+        if src in purchase_ids and tgt in finance_ids and not r.get("reenter"):
+            return True
+    return False
+
+
 def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
     if form_code in ("drawing_requisition", "install_drawing_notice", "scheme_management"):
         return _flow_is_jdy_drawing(nodes)
@@ -1009,15 +1066,18 @@ def _drawing_flow_has_cc_end_bug(nodes: list | None, routes: list | None) -> boo
     return False
 
 
-def _source_is_jdy_parallel_fork(outs: list) -> bool:
-    """显式标了 fork=parallel 的同源分叉（工艺包装串行优先不走此标记）。"""
-    return any(isinstance(o, dict) and o.get("fork") == "parallel" for o in outs)
+def _serial_exclusive_outs(outs: list) -> list:
+    """互斥组只覆盖非 parallel 出边。转采购等并行边不参与 if/else。"""
+    return [
+        o for o in outs
+        if isinstance(o, dict) and o.get("fork") != "parallel"
+    ]
 
 
 def _flow_missing_exclusive_groups(routes: list | None) -> bool:
     """同源多出边未标 exclusive_group 时，画布像一条直线、引擎也可能不按 if/else 选路。
 
-    标了 ``fork=parallel`` 的分叉故意不设互斥组，跳过。
+    标了 ``fork=parallel`` 的边不参与互斥；其余串行出边仍须成组。
     """
     by_src: dict[str, list] = {}
     for r in routes or []:
@@ -1028,11 +1088,10 @@ def _flow_missing_exclusive_groups(routes: list | None) -> bool:
             continue
         by_src.setdefault(src, []).append(r)
     for outs in by_src.values():
-        if len(outs) < 2:
+        serial = _serial_exclusive_outs(outs)
+        if len(serial) < 2:
             continue
-        if _source_is_jdy_parallel_fork(outs):
-            continue
-        if any(not o.get("exclusive_group") for o in outs):
+        if any(not o.get("exclusive_group") for o in serial):
             return True
     return False
 
@@ -2295,30 +2354,42 @@ async def _upgrade_drawing_form_flow_if_needed(
                 DRAWING_FORM_FLOW_DESC, f"工艺包装分叉改为互斥优先({form_code})",
             )
             return
-    # 仅缺互斥组：在现有 CRM 条件上补 exclusive_group，避免用生成图覆盖已 remap 的部门/人员
-    if topology_ok and _flow_missing_exclusive_groups(version.route_definitions):
-        patched = [dict(r) if isinstance(r, dict) else r for r in (version.route_definitions or [])]
-        by_src: dict[str, list] = {}
-        for r in patched:
-            if not isinstance(r, dict) or r.get("always"):
-                continue
-            src = str(r.get("source") or "")
-            if src:
-                by_src.setdefault(src, []).append(r)
-        for src, outs in by_src.items():
-            if len(outs) < 2:
-                continue
-            if _source_is_jdy_parallel_fork(outs):
-                continue
-            gid = f"ex_{src}"
-            for r in outs:
-                r["exclusive_group"] = gid
-        await _publish_system_default_upgrade(
-            db, tenant_id, d, version,
-            version.node_definitions, patched,
-            DRAWING_FORM_FLOW_DESC, f"补同源互斥组({form_code})",
-        )
-        return
+    # 报价：转采购与部门通知并行；同源互斥组只覆盖非 parallel 出边
+    if topology_ok:
+        import copy
+        patched_routes = copy.deepcopy(version.route_definitions or [])
+        tags: list[str] = []
+        if form_code == "quote_management" and apply_quote_purchase_inquiry_parallel(
+            version.node_definitions, patched_routes,
+        ):
+            tags.append("转采购并行询价")
+        if _flow_missing_exclusive_groups(patched_routes):
+            by_src: dict[str, list] = {}
+            for r in patched_routes:
+                if not isinstance(r, dict) or r.get("always"):
+                    continue
+                src = str(r.get("source") or "")
+                if src:
+                    by_src.setdefault(src, []).append(r)
+            for src, outs in by_src.items():
+                serial = _serial_exclusive_outs(outs)
+                if len(serial) < 2:
+                    continue
+                gid = f"ex_{src}"
+                for r in serial:
+                    r["exclusive_group"] = gid
+            tags.append(f"补同源互斥组({form_code})")
+        if tags:
+            await _publish_system_default_upgrade(
+                db, tenant_id, d, version,
+                version.node_definitions, patched_routes,
+                DRAWING_FORM_FLOW_DESC, "+".join(tags),
+            )
+            if form_code == "quote_management":
+                await _finish_quote_purchase_runtime_fix(db, tenant_id)
+            return
+        if form_code == "quote_management":
+            await _finish_quote_purchase_runtime_fix(db, tenant_id)
     aligned = topology_ok and not _flow_missing_exclusive_groups(version.route_definitions)
     if aligned and not need_id_remap:
         # 拓扑已对齐且无 JDY MongoId：仍清掉 CRM 不存在的部门条件（未知部门）
@@ -3076,6 +3147,100 @@ async def _finish_contract_review_runtime_fix(db, tenant_id: str) -> None:
     n_repair, eng = await _repair_contract_review_skipped_legal(db, tenant_id)
     n_reassign = await _reassign_pending_legal_sup_tasks(db, tenant_id)
     if n_repair or n_reassign:
+        await db.commit()
+        if eng:
+            await eng.flush_notifications(wait=True)
+
+
+def _form_need_purchase_yes(data: dict | None) -> bool:
+    raw = (data or {}).get("need_purchase")
+    vals = raw if isinstance(raw, list) else [raw]
+    return any(str(v).strip() == "是" for v in vals if v is not None)
+
+
+async def _repair_quote_skipped_purchase(
+    db, tenant_id: str,
+) -> tuple[int, "WorkflowEngine | None"]:
+    """财务核价已选转采购，但互斥组吞掉采购节点：补建采购待办。"""
+    from app.domains.lowcode.approver_resolver import ApprovalContext
+    from app.domains.lowcode.models import FormInstance
+
+    rows = (await db.execute(text("""
+        SELECT pi.id AS pid
+        FROM wf_process_instance pi
+        JOIN wf_process_definition d ON d.id = pi.process_definition_id
+        WHERE pi.tenant_id = :tid
+          AND d.code = 'SYS_QUOTE_MANAGEMENT'
+          AND pi.status IN ('running', 'completed')
+          AND pi.form_instance_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM wf_node_instance ni
+            WHERE ni.process_instance_id = pi.id
+              AND ni.node_name = '采购'
+          )
+          AND EXISTS (
+            SELECT 1 FROM wf_node_instance ni2
+            WHERE ni2.process_instance_id = pi.id
+              AND ni2.node_name = '财务核价'
+              AND ni2.status = 'completed'
+          )
+    """), {"tid": tenant_id})).mappings().all()
+    if not rows:
+        return 0, None
+
+    engine = WorkflowEngine(db, tenant_id)
+    fixed = 0
+    for r in rows:
+        pid = r["pid"]
+        inst = await db.get(WfProcessInstance, pid)
+        if not inst or not inst.form_instance_id:
+            continue
+        fi = await db.get(FormInstance, inst.form_instance_id)
+        if not fi or not _form_need_purchase_yes(fi.form_data):
+            continue
+        purchaser = (fi.form_data or {}).get("purchaser")
+        if purchaser in (None, "", [], {}):
+            continue
+
+        version = await _published_version(db, tenant_id, inst.process_definition_id)
+        if not version:
+            continue
+        purchase = next(
+            (
+                n for n in (version.node_definitions or [])
+                if isinstance(n, dict) and n.get("name") == "采购"
+            ),
+            None,
+        )
+        if not purchase:
+            continue
+
+        inst.process_version_id = version.id
+        if inst.status != "running":
+            inst.status = "running"
+            inst.completed_at = None
+        fi.status = "running"
+        await db.flush()
+
+        ctx = ApprovalContext(
+            initiator_id=inst.initiator_id or "",
+            form_data=dict(fi.form_data or {}),
+            nominated=dict(inst.nominated_approvers or {}) or {},
+        )
+        await engine._activate_approval(inst, version, purchase, ctx)
+        engine._log(
+            inst.id, None, None, {"sub": "system"}, "repair",
+            "补建采购询价（财务核价已选择转采购）",
+        )
+        fixed += 1
+        logger.info("报价补建采购询价 process=%s serial=%s", pid, fi.business_no)
+    return fixed, engine if fixed else None
+
+
+async def _finish_quote_purchase_runtime_fix(db, tenant_id: str) -> None:
+    """升级定义后：给已跳过采购节点的报价补建待办。"""
+    n_repair, eng = await _repair_quote_skipped_purchase(db, tenant_id)
+    if n_repair:
         await db.commit()
         if eng:
             await eng.flush_notifications(wait=True)
@@ -4377,6 +4542,46 @@ async def find_latest_instance_by_form_instance(
     return await get_instance_detail(db, tenant_id, inst.id, viewer_id=viewer_id)
 
 
+def list_activate_nodes(version: WfProcessDefinitionVersion | None) -> list[dict]:
+    """可激活节点：开始 + 全部审批（对齐简道云激活流程下拉）。"""
+    if not version:
+        return []
+    out: list[dict] = []
+    for n in version.node_definitions or []:
+        if not isinstance(n, dict) or not n.get("id"):
+            continue
+        ntype = n.get("type")
+        if ntype == "start":
+            out.append({
+                "id": n["id"],
+                "name": n.get("name") or "开始",
+                "type": "start",
+            })
+        elif ntype == "approval":
+            out.append({
+                "id": n["id"],
+                "name": n.get("name") or "审批",
+                "type": "approval",
+            })
+    return out
+
+
+async def get_activate_nodes(db, tenant_id: str, instance_id: str) -> list[dict]:
+    inst = (await db.execute(select(WfProcessInstance).where(
+        WfProcessInstance.id == instance_id, WfProcessInstance.tenant_id == tenant_id,
+    ))).scalar_one_or_none()
+    if not inst:
+        raise BusinessException(code=NOT_FOUND, message="流程实例不存在")
+    version = await db.get(WfProcessDefinitionVersion, inst.process_version_id)
+    # 优先已发布最新版
+    pub = (await db.execute(select(WfProcessDefinitionVersion).where(
+        WfProcessDefinitionVersion.tenant_id == tenant_id,
+        WfProcessDefinitionVersion.process_definition_id == inst.process_definition_id,
+        WfProcessDefinitionVersion.status == "published",
+    ).order_by(WfProcessDefinitionVersion.version_number.desc()).limit(1))).scalar_one_or_none()
+    return list_activate_nodes(pub or version)
+
+
 async def get_instance_detail(
     db, tenant_id, instance_id, viewer_id: str | None = None,
     task_id: str | None = None,
@@ -4403,6 +4608,8 @@ async def get_instance_detail(
             for n in (version.node_definitions if version else []) if n.get("type") == "approval"
         ],
     ]
+    activate_nodes = list_activate_nodes(version)
+    can_activate = inst.status in ("completed", "rejected", "withdrawn") and bool(activate_nodes)
     # 业务单据审批（线索/报价等）没有 form_instance：把业务关键字段塞进 biz_detail，
     # 供审批中心抽屉展示；否则审批人只能看到「无关联表单」。
     biz_detail: dict = {}
@@ -4568,6 +4775,8 @@ async def get_instance_detail(
         **_inst_dict(inst),
         "process_name": process_name,
         "approval_nodes": approval_nodes,
+        "activate_nodes": activate_nodes,
+        "can_activate": can_activate,
         "biz_detail": biz_detail,
         "biz_ref_id": biz_ref_id,
         "form_fields": form_fields,

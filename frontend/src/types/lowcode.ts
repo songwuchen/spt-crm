@@ -373,6 +373,10 @@ export interface WfInstanceDetail {
   tasks: { id: string; assignee_id: string; status: string; opinion?: string; task_order: number }[]
   comments: { user_id: string; user_name?: string; content: string; at?: string }[]
   approval_nodes?: { id: string; name: string }[]  // 可退回的审批节点(退回选择)
+  /** 可激活节点（开始 + 审批） */
+  activate_nodes?: { id: string; name: string; type?: string }[]
+  /** 实例状态是否允许激活（前端再叠加 workflow:activate 权限） */
+  can_activate?: boolean
 }
 
 // ===== 仪表盘 =====

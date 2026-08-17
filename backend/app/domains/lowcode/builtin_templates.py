@@ -513,6 +513,8 @@ def _apply_drawing_jdy_fields() -> None:
             from app.domains.lowcode.quote_management_fields import apply_quote_management_fields
             apply_quote_management_fields(defs)
         if t["key"] == "pricing_checklist_hjqd":
+            from app.domains.lowcode.pricing_checklist_fields import apply_pricing_checklist_fields
+            apply_pricing_checklist_fields(defs)
             _FINANCE_DOWNLOAD = ["finance", "finance_manager"]
             for f in defs:
                 if isinstance(f, dict) and f.get("id") in ("attachments", "images"):

@@ -99,6 +99,9 @@ def _is_empty(v: Any) -> bool:
         return True
     if isinstance(v, (list, tuple)) and len(v) == 0:
         return True
+    if isinstance(v, dict) and ("id" in v or "value" in v):
+        rid = v.get("id") or v.get("value")
+        return rid is None or rid == ""
     return False
 
 

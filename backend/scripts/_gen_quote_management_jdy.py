@@ -341,11 +341,16 @@ def gen_one() -> dict:
     apply_notify_initiator(nodes, notes)
     # 与 workflow_service.apply_quote_named_role_approvers 一致（charger_rule 已映射；此处兜底）
     try:
-        from app.domains.lowcode.workflow_service import apply_quote_named_role_approvers
+        from app.domains.lowcode.workflow_service import (
+            apply_quote_named_role_approvers,
+            apply_quote_purchase_inquiry_parallel,
+        )
         if apply_quote_named_role_approvers(nodes):
             notes.append("报价角色审批：王玲玲/段荣凯→指定用户，冶金→可选范围 quote_metallurgy")
+        if apply_quote_purchase_inquiry_parallel(nodes, routes):
+            notes.append("财务核价→采购：并行（不与部门通知互斥）；采购→财务核价可重入")
     except Exception as ex:  # pragma: no cover
-        notes.append(f"报价角色审批补丁跳过: {ex}")
+        notes.append(f"报价角色/转采购补丁跳过: {ex}")
     notes.append("客户类别/价格类型：创建隐藏，部门审批可填（非必填）")
 
     pack = {

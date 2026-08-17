@@ -239,6 +239,23 @@ export interface Lead {
   updated_at: string
 }
 
+/** 180 天项目激活历史（对齐简道云 linkquery） */
+export interface LeadReactivationRecord {
+  id: string
+  lead_id: string
+  original_lead_code?: string | null
+  round_no: number
+  project_recent?: string | null
+  follow_progress?: string | null
+  site_visit?: string | null
+  report_project_status?: string | null
+  submitted_by_id?: string | null
+  submitted_by_name?: string | null
+  submitted_at?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
 export interface Department {
   id: string
   name: string

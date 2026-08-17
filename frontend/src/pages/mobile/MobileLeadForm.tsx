@@ -10,7 +10,6 @@ import DepartmentSelect from '@/components/DepartmentSelect'
 import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
 import { MField, MoreFields, reportFirstFormError } from './MobilePolicyField'
-import { useAuthStore } from '@/stores/useAuthStore'
 import {
   YES_NO,
   CATEGORY_OPTIONS,
@@ -40,18 +39,13 @@ export default function MobileLeadForm() {
   const hasConflict = Form.useWatch('has_internal_conflict', form)
   const reporterSelect = useUserSelect()
   const ownerSelect = useUserSelect()
-  const currentUser = useAuthStore((s) => s.user)
 
   useEffect(() => {
-    if (!currentUser) return
-    const label = currentUser.real_name || currentUser.username
     form.setFieldsValue({
-      reporter_id: currentUser.id,
       reported_at: dayjs(),
       has_internal_conflict: '否',
     })
-    reporterSelect.setInitialOption({ label, value: currentUser.id })
-  }, [currentUser])
+  }, [])
 
   const handleSave = async (andSubmit: boolean) => {
     let values: Record<string, unknown>

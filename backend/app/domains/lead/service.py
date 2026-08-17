@@ -225,9 +225,9 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     payload = await enforce_native_field_policy(
         db, tenant_id, "lead", payload, None, user.get("roles"),
         skip_required=as_draft)
-    # 报备人：表单可选；未选则默认当前用户（添加人）
+    # 申报人：由表单选择，未选则空（不再默认当前用户）
     reporter_id, reporter_name = await _resolve_user_display(
-        db, tenant_id, payload.pop("reporter_id", None), fallback=user)
+        db, tenant_id, payload.pop("reporter_id", None))
     # 负责人：表单可选；未选则默认当前用户
     owner_id, owner_name = await _resolve_user_display(
         db, tenant_id, payload.pop("owner_id", None), fallback=user)

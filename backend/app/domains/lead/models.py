@@ -87,6 +87,26 @@ class Lead(TenantScopedBase):
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
 
+class LeadReactivationRecord(TenantScopedBase):
+    """180 天项目激活历史（对齐简道云「180天项目激活」关联表）。
+
+    每轮重激活提交一条；详情「180天项目激活内容查看」按 lead 列出。
+    """
+    __tablename__ = "lead_reactivation_records"
+
+    lead_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    # 简道云「原项目编号」：线索编号快照
+    original_lead_code: Mapped[str | None] = mapped_column(String(50))
+    round_no: Mapped[int] = mapped_column(Integer, default=1)
+    project_recent: Mapped[str | None] = mapped_column(String(500))
+    follow_progress: Mapped[str | None] = mapped_column(String(500))
+    site_visit: Mapped[str | None] = mapped_column(String(500))
+    report_project_status: Mapped[str | None] = mapped_column(String(50))
+    submitted_by_id: Mapped[str | None] = mapped_column(String(36))
+    submitted_by_name: Mapped[str | None] = mapped_column(String(100))
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class LeadProduct(TenantScopedBase):
     """线索产品信息子表：一条线索可包含多条产品明细(产品名称/规格/数量/备注)(issue #84)。"""
     __tablename__ = "lead_products"

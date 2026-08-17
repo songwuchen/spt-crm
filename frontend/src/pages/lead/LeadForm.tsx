@@ -180,13 +180,8 @@ export default function LeadForm() {
         country_type: 'domestic',
         category: 'self_reported',
       })
-      if (currentUser) {
-        const label = currentUser.real_name || currentUser.username
-        form.setFieldsValue({ reporter_id: currentUser.id })
-        reporterSelect.setInitialOption({ label, value: currentUser.id })
-      }
     }
-  }, [id, currentUser, isReviseMode])
+  }, [id, isReviseMode])
 
   const onFinish = async (values: Record<string, unknown>, andSubmit: boolean) => {
     // 提交审批才校验扩展必填；存草稿只落库

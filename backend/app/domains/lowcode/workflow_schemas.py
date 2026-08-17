@@ -74,6 +74,11 @@ class WfCommentRequest(BaseModel):
     content: str
 
 
+class WfActivateRequest(BaseModel):
+    """激活已结束流程：跳到指定开始/审批节点。"""
+    to_node_id: str
+
+
 class WfAgentCreate(BaseModel):
     agent_id: str                   # 代理人 user_id
     start_time: datetime

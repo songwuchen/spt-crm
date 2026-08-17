@@ -540,7 +540,7 @@ class WorkflowEngine:
         from app.domains.lowcode import wf_notify
         labels = {
             "submit": "提交审批", "approve": "审批通过", "reject": "审批驳回",
-            "withdraw": "撤回审批", "resubmit": "重新发起",
+            "withdraw": "撤回审批", "resubmit": "重新发起", "activate": "激活流程",
         }
         await wf_notify.audit(
             self.db, self.tenant_id, inst, actor, f"wf_{action}",
@@ -553,13 +553,33 @@ class WorkflowEngine:
                        from_node_id: str, ctx: ApprovalContext) -> None:
         targets = self._next_targets(version, from_node_id, ctx.form_data)
         nodes = self._nodes_by_id(version)
+        # 报价「采购→财务核价」等回路：连线标 reenter 时允许再次激活已完成节点
+        reenter_targets = {
+            r.get("target")
+            for r in self._outgoing(version, from_node_id)
+            if isinstance(r, dict) and (r.get("reenter") or r.get("allow_reenter"))
+        }
         for tid in targets:
             node = nodes.get(tid)
             if not node:
                 continue
-            await self._activate_node(inst, version, node, ctx)
+            await self._activate_node(
+                inst, version, node, ctx, allow_reenter=tid in reenter_targets,
+            )
             if inst.status != "running":
                 return  # 已结束(end / terminate)
+        # 后继全部 skip_reactivate（或无出边）且无在途待办时收尾，避免采购回路卡住
+        if (
+            self.db is not None
+            and inst.status == "running"
+            and not await self._has_live_work(inst)
+        ):
+            end = next(
+                (n for n in (version.node_definitions or []) if n.get("type") == "end"),
+                None,
+            )
+            if end:
+                await self._activate_node(inst, version, end, ctx)
 
     async def _activate_node(self, inst: WfProcessInstance, version: WfProcessDefinitionVersion,
                              node: dict, ctx: ApprovalContext, *, allow_reenter: bool = False) -> None:
@@ -1405,6 +1425,127 @@ class WorkflowEngine:
             actor_id=actor.get("sub"), actor_name=actor.get("real_name"),
             action=action, opinion=opinion,
         ))
+
+    # ---------- 激活（对齐简道云：已结束实例选节点重开） ----------
+
+    _ACTIVATABLE_STATUSES = frozenset({"completed", "rejected", "withdrawn"})
+
+    async def activate(
+        self, process_instance_id: str, actor: dict, to_node_id: str,
+    ) -> WfProcessInstance:
+        """已结束流程选节点重新激活（同实例，非新建）。
+
+        - start：置 withdrawn + 发起人修订待办（改数后走既有重提）
+        - approval：置 running + `_return_to_node` 重建待办
+        """
+        to_node_id = (to_node_id or "").strip()
+        if not to_node_id:
+            raise BusinessException(code=VALIDATION_ERROR, message="请选择激活节点")
+
+        inst = (await self.db.execute(
+            select(WfProcessInstance).where(
+                WfProcessInstance.id == process_instance_id,
+                WfProcessInstance.tenant_id == self.tenant_id,
+            )
+        )).scalar_one_or_none()
+        if not inst:
+            raise BusinessException(code=NOT_FOUND, message="流程不存在")
+        if inst.status == "running":
+            raise BusinessException(
+                code=BUSINESS_ERROR, message="流程进行中，请使用退回；仅已结束流程可激活",
+            )
+        if inst.status not in self._ACTIVATABLE_STATUSES:
+            raise BusinessException(code=BUSINESS_ERROR, message="当前状态不可激活流程")
+
+        version = (await self.db.execute(select(WfProcessDefinitionVersion).where(
+            WfProcessDefinitionVersion.tenant_id == self.tenant_id,
+            WfProcessDefinitionVersion.process_definition_id == inst.process_definition_id,
+            WfProcessDefinitionVersion.status == "published",
+        ).order_by(WfProcessDefinitionVersion.version_number.desc()).limit(1))).scalar_one_or_none()
+        if not version:
+            version = await self.db.get(WfProcessDefinitionVersion, inst.process_version_id)
+        if not version:
+            raise BusinessException(code=BUSINESS_ERROR, message="流程定义缺失，无法激活")
+
+        # 激活时尽量吃最新发布版
+        if version.id != inst.process_version_id:
+            inst.process_version_id = version.id
+
+        target = self._nodes_by_id(version).get(to_node_id)
+        if not target:
+            raise BusinessException(code=VALIDATION_ERROR, message="激活节点不存在")
+        ntype = target.get("type")
+        if ntype not in ("start", "approval"):
+            raise BusinessException(code=VALIDATION_ERROR, message="仅可激活开始节点或审批节点")
+
+        node_label = (target.get("name") or ntype or to_node_id).strip()
+        await self._cancel_initiator_revise_todos(inst.id)
+
+        # 作废残留待办 / running 节点
+        tasks = (await self.db.execute(select(WfTaskInstance).where(
+            WfTaskInstance.process_instance_id == inst.id,
+            WfTaskInstance.status.in_(["pending", "waiting"]),
+        ))).scalars().all()
+        for t in tasks:
+            t.status = "cancelled"
+        if tasks:
+            self._queue("todos_done", [t.id for t in tasks])
+        nis = (await self.db.execute(select(WfNodeInstance).where(
+            WfNodeInstance.process_instance_id == inst.id,
+            WfNodeInstance.status == "running",
+        ))).scalars().all()
+        for ni in nis:
+            ni.status = "cancelled"
+
+        self._log(
+            inst.id, None, None, actor, "activate",
+            f"激活至「{node_label}」",
+        )
+
+        ctx = ApprovalContext(
+            initiator_id=inst.initiator_id,
+            form_data=await self._form_data(inst),
+            nominated=inst.nominated_approvers or {},
+        )
+
+        if ntype == "start":
+            # 对齐「递呈信息」：发起人改数后重提（复用 withdrawn + 修订待办）
+            inst.status = "withdrawn"
+            inst.completed_at = _now()
+            if inst.form_instance_id:
+                fi = await self.db.get(FormInstance, inst.form_instance_id)
+                if fi:
+                    fi.status = "draft"
+            if inst.biz_type and inst.biz_id:
+                from app.domains.lowcode.wf_biz_writeback import writeback
+                await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, "withdrawn")
+            await self.db.flush()
+            await self._create_initiator_revise_todo(
+                inst, reason=f"流程已激活至「{node_label}」，请修改后重新提交",
+            )
+        else:
+            inst.status = "running"
+            inst.completed_at = None
+            if not inst.started_at:
+                inst.started_at = _now()
+            if inst.form_instance_id:
+                fi = await self.db.get(FormInstance, inst.form_instance_id)
+                if fi:
+                    fi.status = "submitted"
+                    fi.process_instance_id = inst.id
+            if inst.biz_type and inst.biz_id:
+                from app.domains.lowcode.wf_biz_writeback import writeback
+                await writeback(self.db, self.tenant_id, inst.biz_type, inst.biz_id, "submitted")
+            await self.db.flush()
+            await self._activate_node(inst, version, target, ctx, allow_reenter=True)
+
+        from app.domains.lowcode import wf_notify
+        await wf_notify.enqueue_wf_event(self.db, self.tenant_id, "workflow.activated", inst)
+        await self.db.commit()
+        await self.db.refresh(inst)
+        await self.flush_notifications(inst)
+        await self._audit(inst, actor, "activate")
+        return inst
 
     # ---------- 撤回 ----------
 

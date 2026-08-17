@@ -64,6 +64,21 @@ def require_permissions(*perms: str):
     return _checker
 
 
+def require_any_permission(*perms: str):
+    """Factory: user must have at least ONE of the listed permissions."""
+
+    async def _checker(current_user: dict = Depends(get_current_user)):
+        user_perms: List[str] = current_user.get("permissions", [])
+        if any(p in user_perms for p in perms):
+            return current_user
+        raise BusinessException(
+            code=FORBIDDEN,
+            message=f"缺少权限: {' / '.join(perms)}",
+        )
+
+    return _checker
+
+
 async def get_data_scope(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

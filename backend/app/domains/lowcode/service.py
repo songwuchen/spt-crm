@@ -691,6 +691,8 @@ async def sync_builtin_form_fields(
             )
         ]
     if key == "pricing_checklist_hjqd":
+        from app.domains.lowcode.pricing_checklist_fields import apply_pricing_checklist_fields
+        apply_pricing_checklist_fields(want)
         # 核价清单附件仅财务可打开；ensure/sync 强制回写，避免旧版本缺配置
         for fd in want:
             if isinstance(fd, dict) and fd.get("id") in ("attachments", "images"):

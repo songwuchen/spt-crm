@@ -135,6 +135,7 @@ PERMISSIONS = [
     ("form_data:delete", "删除表单数据", "扩展平台"),
     ("workflow:view", "查看流程定义", "扩展平台"),
     ("workflow:manage", "设计/管理流程定义", "扩展平台"),
+    ("workflow:activate", "激活已结束流程", "扩展平台"),
     ("dashboard:manage", "设计/管理仪表盘", "扩展平台"),
 ]
 
@@ -151,7 +152,10 @@ CORE = [
 
 # 扩展平台「设计/管理」层 — only roles flagged lowcode_admin (主管/总监/总工).
 # form_data:delete lives here (deleting form data is more sensitive than filling).
-LOWCODE_DESIGN = ["form:manage", "workflow:manage", "dashboard:manage", "form_data:delete"]
+LOWCODE_DESIGN = [
+    "form:manage", "workflow:manage", "workflow:activate",
+    "dashboard:manage", "form_data:delete",
+]
 
 # The standard roles. ``perms`` = role-specific perms only (CORE is added by
 # role_perm_codes). ``scope`` -> data_scope: self / dept / all.
@@ -230,6 +234,7 @@ STANDARD_ROLES = [
             "lead:view", "lead:create", "lead:edit", "lead:review",
             "lead:qualify", "lead:discard",
             "approval:approve", "approval:decide", "approval:delegate",
+            "workflow:activate",
         ],
     },
     {
@@ -371,11 +376,10 @@ STANDARD_ROLES = [
     },
     {
         "code": "legal", "name": "合同法务", "scope": "all",
-        "desc": "法务管理小组:合同审查/签署 + 合同审批",
+        "desc": "法务部:合同评审页面 + 参与合同评审审批（不开放合同签署/客户商机等）",
         "perms": [
-            "customer:view", "project:view", "quote:view",
-            "contract:view", "contract:edit", "contract:sign",
-            "approval:approve", "approval:decide", "approval:delegate",
+            "contract_review:view",
+            "approval:approve", "approval:decide",
         ],
     },
     {

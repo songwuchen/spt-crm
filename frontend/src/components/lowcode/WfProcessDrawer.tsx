@@ -6,7 +6,7 @@ import {
 } from 'antd'
 import {
   CheckCircleOutlined, CloseCircleOutlined, SwapOutlined,
-  RollbackOutlined, FileTextOutlined, PrinterOutlined,
+  RollbackOutlined, FileTextOutlined, PrinterOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
@@ -20,11 +20,13 @@ import ContractRegistrationReadonly from '@/components/lowcode/ContractRegistrat
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
+import WfActivateFlowModal from '@/components/lowcode/WfActivateFlowModal'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { canPrintDrawingDocument, isDrawingApproveAndPrintNode, printSchemeInstance } from '@/pages/drawing/schemePrint'
 import { isLeadOwnerConfirmNode, isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 const { Text, Title } = Typography
 
@@ -61,6 +63,8 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   onDone: () => void
 }) {
   const navigate = useNavigate()
+  const hasPermission = useAuthStore((s) => s.hasPermission)
+  const canActivateFlow = hasPermission('workflow:activate') || hasPermission('workflow:manage')
   const [detail, setDetail] = useState<WfInstanceDetail | null>(null)
   const [fields, setFields] = useState<FieldDefinition[]>([])
   const [formData, setFormData] = useState<Record<string, unknown>>({})
@@ -72,6 +76,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [activateOpen, setActivateOpen] = useState(false)
   const [sideTab, setSideTab] = useState('flow')
   const [commenting, setCommenting] = useState(false)
   const [leadFinalStatus, setLeadFinalStatus] = useState<'include' | 'return' | 'revise' | 'attack'>('include')
@@ -332,6 +337,17 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       onClick={() => { void handlePrintScheme() }}
                     >
                       打印
+                    </Button>
+                  )}
+                  {canActivateFlow && detail.can_activate && (
+                    <Button
+                      size="small"
+                      type="primary"
+                      ghost
+                      icon={<ThunderboltOutlined />}
+                      onClick={() => setActivateOpen(true)}
+                    >
+                      激活流程
                     </Button>
                   )}
                   {bizPath && (
@@ -652,6 +668,16 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
           </div>
         </div>
       )}
+      <WfActivateFlowModal
+        open={activateOpen}
+        instanceId={detail?.id || instanceId}
+        nodes={detail?.activate_nodes}
+        onClose={() => setActivateOpen(false)}
+        onDone={() => {
+          void reloadDetail()
+          onDone()
+        }}
+      />
     </Drawer>
   )
 }
