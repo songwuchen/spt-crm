@@ -43,6 +43,20 @@ def test_lead_confirm_assignee_skips_to_filler():
     assert lead_confirm_assignee_id(normal, cfg) == "r1"
 
 
+def test_lead_confirm_assignee_falls_back_when_reporter_empty():
+    """申报人未选时，确认待办回退负责人，避免确认节点 terminate 驳回整单。"""
+    lead = SimpleNamespace(
+        reporter_id=None, reporter_name=None,
+        created_by_id="c1", owner_id="o1",
+    )
+    assert lead_confirm_assignee_id(lead, {}) == "o1"
+    no_owner = SimpleNamespace(
+        reporter_id=None, reporter_name=None,
+        created_by_id="c1", owner_id=None,
+    )
+    assert lead_confirm_assignee_id(no_owner, {}) == "c1"
+
+
 def test_resolve_assignee_skips_to_filler():
     cfg = {"skip_reporter_names": ["张贺"]}
     lead = SimpleNamespace(

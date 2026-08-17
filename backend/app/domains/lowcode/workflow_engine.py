@@ -244,7 +244,11 @@ class WorkflowEngine:
     async def _redirect_lead_confirm_if_skip_reporter(
         self, inst: WfProcessInstance, approvers: list[str],
     ) -> list[str]:
-        """申报人在跳过名单（如张贺）时，转商机确认改派填表人。"""
+        """转商机确认：跳过名单改派填表人；无申报人时回退负责人/填表人。
+
+        申报人改为手选后可为空。确认节点 empty_strategy=terminate，若这里不回退，
+        情报免审通过后确认节点会把整单驳回，线索无法转化。
+        """
         if not inst.biz_id or not self.db:
             return approvers
         from app.domains.lead.models import Lead
@@ -258,17 +262,19 @@ class WorkflowEngine:
         if not ld:
             return approvers
         cfg = await get_tenant_config(self.db, self.tenant_id)
-        if not should_skip_reporter(ld, cfg):
-            return approvers
         uid = (lead_confirm_assignee_id(ld, cfg) or "").strip()
-        if not uid:
+        if should_skip_reporter(ld, cfg):
+            if not uid:
+                return approvers
+            if approvers != [uid]:
+                self._log(
+                    inst.id, None, None, {"sub": "system"}, "lead_confirm_redirect",
+                    f"申报人「{ld.reporter_name or ''}」跳过，转商机确认改派填表人",
+                )
+            return [uid]
+        if approvers:
             return approvers
-        if approvers != [uid]:
-            self._log(
-                inst.id, None, None, {"sub": "system"}, "lead_confirm_redirect",
-                f"申报人「{ld.reporter_name or ''}」跳过，转商机确认改派填表人",
-            )
-        return [uid]
+        return [uid] if uid else approvers
 
     async def _mark_lead_approved_after_intel(self, inst: WfProcessInstance, node) -> None:
         """情报节点通过/空审跳过后立刻 approved（流程可能还要走业务员确认）。
