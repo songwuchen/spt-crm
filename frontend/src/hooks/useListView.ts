@@ -1,16 +1,22 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import type { ColumnsType } from 'antd/es/table'
+import type { ColumnsType, ColumnType } from 'antd/es/table'
 import type { FilterDsl } from '@/api/searchSchema'
 import { lowcodeApi } from '@/api/lowcode'
 import { buildCustomFieldColumns, type CustomFieldDef } from '@/components/list/customFieldColumns'
 
 const PREFIX = 'spt_listcfg_'
+const MIN_COL_WIDTH = 64
+const MAX_COL_WIDTH = 800
+/** 未声明 width 的列也给默认宽，保证「列宽拖拽」是通用能力 */
+const DEFAULT_COL_WIDTH = 140
 
 export interface ColumnState {
   hidden: string[]
   order: string[]
   /** 「调出显示」白名单：自定义(扩展)字段列默认隐藏，仅当其 key 在此列表时才显示。 */
   shown?: string[]
+  /** 用户拖拽后的列宽（px），按列 key 持久化。 */
+  widths?: Record<string, number>
 }
 
 export interface ColMeta {
@@ -39,8 +45,12 @@ function colKey(c: any): string {
   return String(c?.key ?? c?.dataIndex ?? '')
 }
 
+function clampWidth(w: number): number {
+  return Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, Math.round(w)))
+}
+
 /**
- * 列表视图控制器：统一管理高级筛选条件、列配置（显隐+排序）与排序，
+ * 列表视图控制器：统一管理高级筛选条件、列配置（显隐+排序+列宽）与排序，
  * 列配置默认持久化到 localStorage；可被「保存视图」整体读写。
  *
  * 传入 opts.entityType 时，自动拉取该实体的扩展(自定义)字段并追加为列，
@@ -60,9 +70,9 @@ export function useListView<T = any>(
   const [colState, setColStateRaw] = useState<ColumnState>(() => {
     try {
       const s = localStorage.getItem(storageKey)
-      return s ? JSON.parse(s) : { hidden: [], order: [], shown: [] }
+      return s ? JSON.parse(s) : { hidden: [], order: [], shown: [], widths: {} }
     } catch {
-      return { hidden: [], order: [], shown: [] }
+      return { hidden: [], order: [], shown: [], widths: {} }
     }
   })
 
@@ -90,9 +100,12 @@ export function useListView<T = any>(
     return [...cols.slice(0, insertAt), ...customCols, ...cols.slice(insertAt)] as ColumnsType<T>
   }, [baseColumns, customCols])
 
-  const setColState = useCallback((cs: ColumnState) => {
-    setColStateRaw(cs)
-    try { localStorage.setItem(storageKey, JSON.stringify(cs)) } catch { /* ignore */ }
+  const setColState = useCallback((cs: ColumnState | ((prev: ColumnState) => ColumnState)) => {
+    setColStateRaw((prev) => {
+      const next = typeof cs === 'function' ? cs(prev) : cs
+      try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
   }, [storageKey])
 
   // 全部列的元信息（key + 标题 + 是否为可调出的自定义列），用于列配置面板
@@ -109,9 +122,10 @@ export function useListView<T = any>(
     [allColumns],
   )
 
-  // 应用「排序 + 显隐」后用于 <Table> 的列
+  // 应用「排序 + 显隐 + 列宽」后用于 <Table> 的列
   const columns = useMemo(() => {
     const shown = colState.shown || []
+    const widths = colState.widths || {}
     const byKey = new Map(allColumns.map((c) => [colKey(c), c]))
     const ordered: ColumnsType<T> = []
     const seen = new Set<string>()
@@ -123,14 +137,48 @@ export function useListView<T = any>(
       const k = colKey(c)
       if (!seen.has(k)) ordered.push(c)
     }
-    return ordered.filter((c) => {
-      const k = colKey(c)
-      if (!k) return true
-      // 可调出的列（扩展字段列 + 声明了 __optIn 的原生列）：默认隐藏，需在 shown 白名单里才显示
-      if ((c as any).__optIn || (c as any).__customField) return shown.includes(k)
-      return !colState.hidden.includes(k)
-    })
-  }, [allColumns, colState])
+    return ordered
+      .filter((c) => {
+        const k = colKey(c)
+        if (!k) return true
+        // 可调出的列（扩展字段列 + 声明了 __optIn 的原生列）：默认隐藏，需在 shown 白名单里才显示
+        if ((c as any).__optIn || (c as any).__customField) return shown.includes(k)
+        return !colState.hidden.includes(k)
+      })
+      .map((c) => {
+        const k = colKey(c)
+        if (!k) return c
+        // 显式关闭拖拽（极少用）
+        if ((c as any).__noResize) return c
+        const baseW = typeof c.width === 'number' ? c.width : DEFAULT_COL_WIDTH
+        const width = typeof widths[k] === 'number' ? widths[k] : baseW
+        const prevHeader = (c as ColumnType<T>).onHeaderCell
+        return {
+          ...c,
+          width,
+          onHeaderCell: (col: ColumnType<T>) => {
+            const base = (
+              typeof prevHeader === 'function'
+                ? (prevHeader as (c: ColumnType<T>) => Record<string, unknown>)(col)
+                : prevHeader
+            ) || {}
+            return {
+              ...base,
+              width,
+              colKey: k,
+              'data-col-key': k,
+              'data-resizable': '1',
+              onResizeStop: (nextW: number) => {
+                setColState((prev) => ({
+                  ...prev,
+                  widths: { ...(prev.widths || {}), [k]: clampWidth(nextW) },
+                }))
+              },
+            }
+          },
+        }
+      }) as ColumnsType<T>
+  }, [allColumns, colState, setColState])
 
   // 合并进列表请求的参数
   const buildParams = useCallback((): Record<string, unknown> => {
@@ -148,6 +196,7 @@ export function useListView<T = any>(
       hidden: v.columns.hidden || [],
       order: v.columns.order || [],
       shown: v.columns.shown || [],
+      widths: v.columns.widths || {},
     })
     if (v?.sort_by) setSort({ by: v.sort_by, order: v.sort_order === 'asc' ? 'asc' : 'desc' })
     else setSort(null)
@@ -161,13 +210,23 @@ export function useListView<T = any>(
     sort_order: sort?.order ?? null,
   }), [advanced, colState, sort])
 
-  const resetColumns = useCallback(() => setColState({ hidden: [], order: [], shown: [] }), [setColState])
+  const resetColumns = useCallback(
+    () => setColState({ hidden: [], order: [], shown: [], widths: {} }),
+    [setColState],
+  )
+
+  const setColumnWidth = useCallback((key: string, width: number) => {
+    setColState((prev) => ({
+      ...prev,
+      widths: { ...(prev.widths || {}), [key]: clampWidth(width) },
+    }))
+  }, [setColState])
 
   return {
     resource,
     advanced, setAdvanced,
     sort, setSort,
-    colState, setColState, resetColumns,
+    colState, setColState, resetColumns, setColumnWidth,
     columns, allMeta,
     buildParams, applyView, currentPayload,
     activeCount: advanced?.rules?.length ?? 0,

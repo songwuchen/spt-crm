@@ -466,6 +466,7 @@ export default function LeadList() {
 
   // pageKey 换新版本，避免旧列配置覆盖简道云默认列
   const view = useListView<Lead>('lead', allColumns, { pageKey: 'leads_jdy_v1', entityType: 'lead' })
+  const hasSavedColWidths = Object.keys(view.colState.widths || {}).length > 0
 
   return (
     <div>
@@ -622,7 +623,8 @@ export default function LeadList() {
           columns={view.columns}
           dataSource={data}
           loading={loading}
-          scroll={{ x: 1050 }}
+          scroll={{ x: hasSavedColWidths ? 'max-content' : 1050 }}
+          onColumnWidthChange={view.setColumnWidth}
           rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
           pagination={{
             current: pageNo, total, pageSize, showTotal: (total) => t('common.totalCount', { count: total }),
