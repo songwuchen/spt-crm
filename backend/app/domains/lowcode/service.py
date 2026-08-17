@@ -1334,6 +1334,7 @@ def _instance_list_conds(
 # 列表/导出：除发起人外，按表单业务员字段纳入数据范围
 _OWNER_PERSON_FIELD_BY_TEMPLATE = {
     "invoice_application": "sales_person",
+    "quote_management": "sales_person",
 }
 
 

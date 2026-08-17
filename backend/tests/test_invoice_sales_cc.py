@@ -53,6 +53,7 @@ def test_drawing_flow_graph_invoice_includes_sales_cc():
 
 def test_invoice_list_owner_person_field_mapping():
     assert _OWNER_PERSON_FIELD_BY_TEMPLATE["invoice_application"] == "sales_person"
+    assert _OWNER_PERSON_FIELD_BY_TEMPLATE["quote_management"] == "sales_person"
     # 带 owner_person_field 时条件构造不抛错（SQL 表达式可编译）
     conds = _instance_list_conds(
         "t1", "tpl1", owner_ids=["u-sales"], owner_person_field="sales_person",
