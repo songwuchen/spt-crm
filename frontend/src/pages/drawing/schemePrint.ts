@@ -669,7 +669,10 @@ function buildRequisitionHtml(ctx: {
   const decrypt = form.need_decrypt != null
     ? (optionLabel(fields, 'need_decrypt', form.need_decrypt) || String(form.need_decrypt))
     : ''
-  // 表头「设计人」及签字/意见区在 Word 模板中为空白，打印留空手填，不带系统值
+  // 表头「设计人」带表单值；下方签字栏仍留空手签（对齐 Word）
+  const designer = personName(form.designer, labels)
+    || personName(form.design_assignees, labels)
+    || (form.designer_text != null ? String(form.designer_text).trim() : '')
   const attachName = attachmentLabel(form, 'attachment_name', 'attachments', 'images') || '无'
   // 领用单：流水号在表头，页脚只留打印时间（对齐 Word 模板）
   const approvalFoot = approvalFootHtml(
@@ -703,7 +706,7 @@ function buildRequisitionHtml(ctx: {
       <tr>
         <td class="val contract-no" colspan="2">${cell(contractNo)}</td>
         <td class="val" colspan="1">${cell(form.product_model)}</td>
-        <td class="val" colspan="1"></td>
+        <td class="val" colspan="1">${cell(designer)}</td>
         <td class="val" colspan="2">${cell(transfer)}</td>
         <td class="val" colspan="1">${cell(decrypt)}</td>
         <td class="val" colspan="1">${cell(drawingType)}</td>
