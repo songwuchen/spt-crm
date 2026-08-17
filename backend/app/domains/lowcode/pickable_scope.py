@@ -56,11 +56,25 @@ JDY_ROLE_TO_SCOPE_CODE: dict[str, str] = {
     "63815e3a7fb607000acc9195": "room_leaders",
     # 客服领图「部门指派-研管办」← 27.3图纸领用申请-研究院安排
     "5f46008a6344180006bfa81a": "dept_dispatch_ygb",
+    # 报价管理「冶金装备销售事业部」← 27.7核价管理流程-冶金
+    "5f6c394b2ad3770006ded49a": "quote_metallurgy",
 }
 
 # 简道云角色名 → 审批人可选范围（charger_rule 用；id 优先）
 JDY_ROLE_NAME_TO_APPROVER_SCOPE: dict[str, str] = {
     "27.3图纸领用申请-研究院安排": "dept_dispatch_ygb",
+    "27.7核价管理流程-冶金": "quote_metallurgy",
+}
+
+# 简道云「一人角色」（角色名即人名/专属岗）→ 指定用户 username（对齐合同等具名审批）
+# 勿再降级为 CRM sales_manager（205 上常空成员 → 无审批人自动通过）。
+JDY_ROLE_TO_SPECIFIED_USER: dict[str, str] = {
+    "5f65673064514d0006b13a66": "01000533004677",  # 王玲玲
+    "5f46003a5c11340006b167f2": "02364714147257",  # 热能利用-段荣凯
+}
+JDY_ROLE_NAME_TO_SPECIFIED_USER: dict[str, str] = {
+    "王玲玲": "01000533004677",
+    "热能利用-段荣凯": "02364714147257",
 }
 
 # 简道云部门 limit.departs → 预置可选范围（核价管理「采购」= 计划采购部）

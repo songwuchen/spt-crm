@@ -61,6 +61,17 @@ PRESET_SCOPES = [
         "is_system": True,
         "rules": {"role_codes": [], "user_ids": [], "dept_ids": [], "include_children": True},
     },
+    {
+        "code": "quote_metallurgy",
+        "name": "报价管理-冶金",
+        "kind": "person",
+        "description": (
+            "报价管理「冶金装备销售事业部」审批人选范围；"
+            "对齐简道云角色「27.7核价管理流程-冶金」。在此直接勾选成员。"
+        ),
+        "is_system": True,
+        "rules": {"role_codes": [], "user_ids": [], "dept_ids": [], "include_children": True},
+    },
 ]
 
 
@@ -140,6 +151,61 @@ async def seed_quote_purchasers_depts(db: AsyncSession, tenant_id: str) -> bool:
     return True
 
 
+async def seed_quote_metallurgy_users(db: AsyncSession, tenant_id: str) -> bool:
+    """报价管理-冶金：空范围时用冶金相关部门负责人兜底（可再在可选范围页调整）。"""
+    row = (
+        await db.execute(
+            select(PickableScope).where(
+                PickableScope.tenant_id == tenant_id,
+                PickableScope.code == "quote_metallurgy",
+            )
+        )
+    ).scalar_one_or_none()
+    if not row:
+        return False
+    r = _rules(row)
+    if r.get("user_ids") or r.get("dept_ids"):
+        return False
+    # 优先：钉钉号已知的冶金线负责人（王浩）；否则按部门名取 leader
+    user_ids: list[str] = []
+    for uname in ("02433366141261",):  # 王浩
+        uid = (
+            await db.execute(
+                select(User.id).where(
+                    User.tenant_id == tenant_id,
+                    User.username == uname,
+                    User.is_active.is_(True),
+                ).limit(1)
+            )
+        ).scalar_one_or_none()
+        if uid:
+            user_ids.append(str(uid))
+    if not user_ids:
+        dept_rows = list(
+            (
+                await db.execute(
+                    select(Department.leader_id).where(
+                        Department.tenant_id == tenant_id,
+                        Department.name.ilike("%冶金%"),
+                        Department.leader_id.is_not(None),
+                    )
+                )
+            ).scalars().all()
+        )
+        for lid in dept_rows:
+            if lid and str(lid) not in user_ids:
+                user_ids.append(str(lid))
+    if not user_ids:
+        return False
+    row.rules = {
+        "role_codes": [],
+        "user_ids": user_ids,
+        "dept_ids": [],
+        "include_children": True,
+    }
+    return True
+
+
 async def ensure_preset_scopes(db: AsyncSession, tenant_id: str) -> list[str]:
     """确保预置可选范围存在；并把旧 role_codes 规则摊平成人员。返回新建的 code。"""
     existing_rows = list(
@@ -180,6 +246,10 @@ async def ensure_preset_scopes(db: AsyncSession, tenant_id: str) -> list[str]:
         await db.flush()
 
     if await seed_quote_purchasers_depts(db, tenant_id):
+        changed = True
+        await db.flush()
+
+    if await seed_quote_metallurgy_users(db, tenant_id):
         changed = True
         await db.flush()
 

@@ -859,6 +859,57 @@ def apply_quote_notify_initiator(nodes: list[dict]) -> bool:
     return changed
 
 
+# 报价：简道云一人角色 / 冶金专属角色 → 具名用户或可选范围（勿用空的 sales_manager）
+_QUOTE_ROLE_APPROVER_BY_ID: dict[str, dict] = {
+    "n10": {  # 王玲玲审批
+        "type": "specified_user", "value": "01000533004677",
+        "exclude_initiator": True, "jdy_role_hint": "王玲玲",
+    },
+    "n11": {  # 经理审批 ← 热能利用-段荣凯
+        "type": "specified_user", "value": "02364714147257",
+        "exclude_initiator": True, "jdy_role_hint": "热能利用-段荣凯",
+    },
+    "n12": {  # 热能
+        "type": "specified_user", "value": "02364714147257",
+        "exclude_initiator": True, "jdy_role_hint": "热能利用-段荣凯",
+    },
+    "n14": {  # 冶金装备销售事业部
+        "type": "pickable_scope", "value": "quote_metallurgy",
+        "exclude_initiator": True, "jdy_role_hint": "27.7核价管理流程-冶金",
+    },
+}
+
+
+def _flow_quote_needs_named_role_approvers(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _QUOTE_ROLE_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            continue
+        rule = n.get("approver_rule") or {}
+        if rule.get("type") != want.get("type") or rule.get("value") != want.get("value"):
+            return True
+    return False
+
+
+def apply_quote_named_role_approvers(nodes: list[dict]) -> bool:
+    """就地改：报价角色审批对齐合同式具名用户 / 可选范围。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _QUOTE_ROLE_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            continue
+        cur = n.get("approver_rule") or {}
+        if cur.get("type") == want["type"] and cur.get("value") == want["value"]:
+            continue
+        n["approver_rule"] = dict(want)
+        changed = True
+    return changed
+
+
 def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
     if form_code in ("drawing_requisition", "install_drawing_notice", "scheme_management"):
         return _flow_is_jdy_drawing(nodes)
@@ -2117,6 +2168,21 @@ async def _upgrade_drawing_form_flow_if_needed(
             db, tenant_id, d, version,
             patched, version.route_definitions,
             DRAWING_FORM_FLOW_DESC, f"通知尚高华改为通知发起人({form_code})",
+        )
+        return
+    # 报价管理：王玲玲/段荣凯/冶金 从空 sales_manager 改为具名用户或可选范围
+    if (
+        topology_ok
+        and form_code == "quote_management"
+        and _flow_quote_needs_named_role_approvers(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_quote_named_role_approvers(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"报价角色审批改为具名用户/可选范围({form_code})",
         )
         return
     # 开票申请：提交/财务开票后抄送业务员

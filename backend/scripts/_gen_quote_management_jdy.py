@@ -339,6 +339,13 @@ def gen_one() -> dict:
     apply_finance_need_purchase_editable(nodes, notes)
     apply_dept_approver_fill_fields(nodes, notes)
     apply_notify_initiator(nodes, notes)
+    # 与 workflow_service.apply_quote_named_role_approvers 一致（charger_rule 已映射；此处兜底）
+    try:
+        from app.domains.lowcode.workflow_service import apply_quote_named_role_approvers
+        if apply_quote_named_role_approvers(nodes):
+            notes.append("报价角色审批：王玲玲/段荣凯→指定用户，冶金→可选范围 quote_metallurgy")
+    except Exception as ex:  # pragma: no cover
+        notes.append(f"报价角色审批补丁跳过: {ex}")
     notes.append("客户类别/价格类型：创建隐藏，部门审批可填（非必填）")
 
     pack = {

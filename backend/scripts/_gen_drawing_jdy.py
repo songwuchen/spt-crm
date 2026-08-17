@@ -603,10 +603,22 @@ def charger_rule(chargers: dict | None, widget_slug: dict[str, str]) -> dict:
     if roles and isinstance(roles[0], dict):
         from app.domains.lowcode.pickable_scope import (
             JDY_ROLE_NAME_TO_APPROVER_SCOPE,
+            JDY_ROLE_NAME_TO_SPECIFIED_USER,
             JDY_ROLE_TO_SCOPE_CODE,
+            JDY_ROLE_TO_SPECIFIED_USER,
         )
         rid = str(roles[0].get("_id") or roles[0].get("id") or "")
         rname = str(roles[0].get("name") or "").strip()
+        # 1) 一人专属角色 → 指定用户（与合同评审具名审批一致）
+        named = JDY_ROLE_TO_SPECIFIED_USER.get(rid) or JDY_ROLE_NAME_TO_SPECIFIED_USER.get(rname)
+        if named:
+            return {
+                "type": "specified_user",
+                "value": named,
+                "exclude_initiator": True,
+                "jdy_role_hint": rname or None,
+            }
+        # 2) 已登记可选范围 → pickable_scope
         scope = JDY_ROLE_TO_SCOPE_CODE.get(rid) or JDY_ROLE_NAME_TO_APPROVER_SCOPE.get(rname)
         if scope:
             return {
@@ -716,9 +728,14 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
                     f"审批「{name}」JDY 角色「{rule.get('jdy_role_hint') or '?'}」"
                     f"→ 可选范围 `{rule.get('value')}`"
                 )
+            elif rule.get("type") == "specified_user" and rule.get("jdy_role_hint"):
+                notes.append(
+                    f"审批「{name}」JDY 角色「{rule['jdy_role_hint']}」"
+                    f"→ 指定用户 {rule.get('value')}"
+                )
             elif rule.get("jdy_role_hint"):
                 notes.append(f"审批「{name}」JDY 角色「{rule['jdy_role_hint']}」降级为 sales_manager")
-            if rule.get("type") == "specified_user":
+            elif rule.get("type") == "specified_user":
                 notes.append(f"审批「{name}」具名用户 {rule.get('value')}，无匹配用户时 auto_approve")
 
     nodes.append({"id": "end", "type": "end", "name": "结束"})
