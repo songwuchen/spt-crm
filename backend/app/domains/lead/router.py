@@ -481,7 +481,7 @@ async def submit_lead_review(
 
 
 class IntelReviewBody(BaseModel):
-    decision: str  # include | attack | return | draft
+    decision: str  # include | attack | return | revise | draft
     task_id: str
     customer_newness: Optional[str] = None  # new | old
     return_reason: Optional[str] = None

@@ -74,7 +74,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const [moreOpen, setMoreOpen] = useState(false)
   const [sideTab, setSideTab] = useState('flow')
   const [commenting, setCommenting] = useState(false)
-  const [leadFinalStatus, setLeadFinalStatus] = useState<'include' | 'return' | 'attack'>('include')
+  const [leadFinalStatus, setLeadFinalStatus] = useState<'include' | 'return' | 'revise' | 'attack'>('include')
   const [contract, setContract] = useState<ContractItem | null>(null)
   const [contractVersion, setContractVersion] = useState<ContractVersion | null>(null)
   const [contractLoading, setContractLoading] = useState(false)
@@ -476,12 +476,16 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                         buttonStyle="solid"
                         options={[
                           { value: 'include', label: '收录' },
+                          { value: 'revise', label: '回退' },
                           { value: 'return', label: '驳回' },
                           { value: 'attack', label: '袭击' },
                         ]}
                       />
                       {leadFinalStatus === 'return' && (
                         <div className="mt-2 text-xs text-amber-700">驳回须在上方填写原因；驳回后不可再报备</div>
+                      )}
+                      {leadFinalStatus === 'revise' && (
+                        <div className="mt-2 text-xs text-blue-700">回退须在上方填写原因；申报人可修改后重新提交</div>
                       )}
                     </div>
                   )}
@@ -516,7 +520,9 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       opinion={opinion}
                       finalStatus={leadFinalStatus}
                       onFinalStatusChange={(v) => {
-                        if (v === 'include' || v === 'return' || v === 'attack') setLeadFinalStatus(v)
+                        if (v === 'include' || v === 'return' || v === 'revise' || v === 'attack') {
+                          setLeadFinalStatus(v)
+                        }
                       }}
                       onDone={(decision) => {
                         if (decision === 'draft') {

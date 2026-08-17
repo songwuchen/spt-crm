@@ -130,7 +130,10 @@ export default function LeadForm() {
           navigate(`${leadBase}/${id}`, { replace: true })
           return
         }
-        if (d.review_status === 'rejected' || d.review_status === 'attacked' || d.review_status === 'approved') {
+        if (
+          (d.review_status === 'rejected' || d.review_status === 'attacked' || d.review_status === 'approved')
+          && !isReviseMode
+        ) {
           message.warning(
             d.review_status === 'rejected'
               ? '线索已被驳回，项目不可再报备，不可继续编辑'

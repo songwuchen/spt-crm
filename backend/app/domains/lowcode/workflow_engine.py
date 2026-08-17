@@ -167,9 +167,11 @@ class WorkflowEngine:
 
     async def _create_initiator_revise_todo(
         self, inst: WfProcessInstance, *, reason: str | None = None,
+        assignee_id: str | None = None,
     ) -> None:
-        """撤回/驳回/退回发起人后：给发起人一条「修改并重新提交」待办。"""
-        if not inst.initiator_id:
+        """撤回/驳回/退回发起人后：给发起人（或指定人）一条「修改并重新提交」待办。"""
+        uid = assignee_id or inst.initiator_id
+        if not uid:
             return
         await self._cancel_initiator_revise_todos(inst.id)
         now = _now()
@@ -191,7 +193,7 @@ class WorkflowEngine:
             tenant_id=self.tenant_id,
             process_instance_id=inst.id,
             node_instance_id=ni.id,
-            assignee_id=inst.initiator_id,
+            assignee_id=uid,
             status="pending",
         )
         self.db.add(task)
@@ -875,7 +877,7 @@ class WorkflowEngine:
         ):
             raise BusinessException(
                 code=VALIDATION_ERROR,
-                message="线索审核请使用情报审批（收录/袭击/回退），不可直接通过或驳回",
+                message="线索审核请使用情报审批（收录/袭击/回退/驳回），不可直接通过或驳回",
             )
 
         version = await self.db.get(WfProcessDefinitionVersion, inst.process_version_id)
@@ -926,7 +928,16 @@ class WorkflowEngine:
                 self._log(inst.id, task.node_instance_id, task.id, actor, "return", opinion)
                 self._queue("todo_done_explicit", task.assignee_id, getattr(task, "dingtalk_todo_id", None))
                 await self._reject_flow(inst, reason=opinion)
-                await self._create_initiator_revise_todo(inst, reason=opinion)
+                revise_assignee = inst.initiator_id
+                # 线索回退：优先给申报人改完再提（对齐业务口径）
+                if inst.biz_type == "lead" and inst.biz_id:
+                    from app.domains.lead.models import Lead
+                    ld = await self.db.get(Lead, inst.biz_id)
+                    if ld and getattr(ld, "reporter_id", None):
+                        revise_assignee = ld.reporter_id
+                await self._create_initiator_revise_todo(
+                    inst, reason=opinion, assignee_id=revise_assignee,
+                )
                 await self.db.commit()
                 await self.flush_notifications(inst)
                 await self._audit(inst, actor, "return")

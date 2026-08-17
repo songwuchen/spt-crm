@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { Button, Input, Radio, Space, message } from 'antd'
 import { leadApi } from '@/api/lead'
 
-export type IntelDecision = 'include' | 'attack' | 'return' | 'draft'
+export type IntelDecision = 'include' | 'attack' | 'return' | 'revise' | 'draft'
 export type CustomerNewness = 'new' | 'old'
+export type IntelFinalStatus = 'pending' | 'include' | 'return' | 'revise' | 'attack'
 
 type Props = {
   leadId: string
@@ -20,8 +21,8 @@ type Props = {
   actionsOnly?: boolean
   /** actionsOnly 时是否展示「项目最终状态」（可放到本节点填写区另行渲染） */
   showFinalStatus?: boolean
-  finalStatus?: 'pending' | 'include' | 'return' | 'attack'
-  onFinalStatusChange?: (v: 'pending' | 'include' | 'return' | 'attack') => void
+  finalStatus?: IntelFinalStatus
+  onFinalStatusChange?: (v: IntelFinalStatus) => void
   /** actionsOnly 时与 ApproveFieldForm / 底部意见同步 */
   fieldValues?: Record<string, unknown>
   opinion?: string
@@ -47,9 +48,9 @@ export default function LeadIntelReviewForm({
   fieldValues, opinion: opinionProp, onDone,
 }: Props) {
   const [newness, setNewness] = useState<CustomerNewness | undefined>()
-  const [finalStatusInner, setFinalStatusInner] = useState<'pending' | 'include' | 'return' | 'attack'>('include')
+  const [finalStatusInner, setFinalStatusInner] = useState<IntelFinalStatus>('include')
   const finalStatus = finalStatusProp ?? finalStatusInner
-  const setFinalStatus = (v: 'pending' | 'include' | 'return' | 'attack') => {
+  const setFinalStatus = (v: IntelFinalStatus) => {
     onFinalStatusChange?.(v)
     if (finalStatusProp === undefined) setFinalStatusInner(v)
   }
@@ -79,19 +80,19 @@ export default function LeadIntelReviewForm({
     return {
       customer_newness: newness,
       return_reason: returnReason.trim() || undefined,
-      opinion: opinion.trim() || undefined,
       assess_remark: assessRemark.trim() || undefined,
+      opinion: opinion.trim() || undefined,
     }
   }
 
   const submit = async (decision: IntelDecision) => {
     const payload = resolvePayload()
     if (decision !== 'draft' && !payload.customer_newness) {
-      message.warning('请选择客户类型（新/老）')
+      message.error('请选择客户类型（新/老）')
       return
     }
-    if (decision === 'return' && !payload.return_reason) {
-      message.warning('驳回须填写驳回原因')
+    if ((decision === 'return' || decision === 'revise') && !payload.return_reason) {
+      message.error(decision === 'revise' ? '请填写回退原因' : '请填写驳回原因')
       return
     }
     setLoading(true)
@@ -102,7 +103,11 @@ export default function LeadIntelReviewForm({
         ...payload,
       })
       const labels: Record<IntelDecision, string> = {
-        include: '已收录', attack: '已标记袭击', return: '已驳回（不可再报备）', draft: '已暂存',
+        include: '已收录',
+        attack: '已标记袭击',
+        return: '已驳回（不可再报备）',
+        revise: '已回退，等待申报人修改后重新提交',
+        draft: '已暂存',
       }
       message.success(labels[decision])
       onDone(decision)
@@ -116,14 +121,16 @@ export default function LeadIntelReviewForm({
 
   const primaryDecision = (): IntelDecision => {
     if (finalStatus === 'return') return 'return'
+    if (finalStatus === 'revise') return 'revise'
     if (finalStatus === 'attack') return 'attack'
     return 'include'
   }
 
   const primaryLabel =
     finalStatus === 'return' ? '驳回'
-      : finalStatus === 'attack' ? '袭击'
-        : '收录'
+      : finalStatus === 'revise' ? '回退'
+        : finalStatus === 'attack' ? '袭击'
+          : '收录'
 
   const statusBlock = (
     <div>
@@ -138,6 +145,7 @@ export default function LeadIntelReviewForm({
         options={[
           { value: 'pending', label: '待审', disabled: true },
           { value: 'include', label: '收录' },
+          { value: 'revise', label: '回退' },
           { value: 'return', label: '驳回' },
           { value: 'attack', label: '袭击' },
         ]}
@@ -145,6 +153,11 @@ export default function LeadIntelReviewForm({
       {actionsOnly && finalStatus === 'return' && (
         <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1.5">
           驳回后流程结束，项目不可再报备；请在上方「本节点填写」中填写驳回原因
+        </div>
+      )}
+      {actionsOnly && finalStatus === 'revise' && (
+        <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1.5">
+          回退后申报人可修改并重新提交审批；请在上方填写回退原因
         </div>
       )}
     </div>
@@ -198,16 +211,21 @@ export default function LeadIntelReviewForm({
 
       {statusBlock}
 
-      {finalStatus === 'return' && (
+      {(finalStatus === 'return' || finalStatus === 'revise') && (
         <div>
           <div className="text-sm font-medium text-slate-700 mb-2">
-            <span className="text-red-500 mr-0.5">*</span>驳回原因
+            <span className="text-red-500 mr-0.5">*</span>
+            {finalStatus === 'revise' ? '回退原因' : '驳回原因'}
           </div>
           <Input.TextArea
             rows={compact ? 2 : 3}
             value={returnReason}
             onChange={(e) => setReturnReason(e.target.value)}
-            placeholder="请填写驳回原因（驳回后不可再报备/跟进）"
+            placeholder={
+              finalStatus === 'revise'
+                ? '请填写回退原因（申报人修改时可见）'
+                : '请填写驳回原因（驳回后不可再报备/跟进）'
+            }
           />
         </div>
       )}
@@ -222,15 +240,17 @@ export default function LeadIntelReviewForm({
         />
       </div>
 
-      <div>
-        <div className="text-sm font-medium text-slate-700 mb-2">操作意见</div>
-        <Input.TextArea
-          rows={compact ? 2 : 3}
-          value={opinion}
-          onChange={(e) => setOpinion(e.target.value)}
-          placeholder="选填"
-        />
-      </div>
+      {!actionsOnly && (
+        <div>
+          <div className="text-sm font-medium text-slate-700 mb-2">操作意见</div>
+          <Input.TextArea
+            rows={compact ? 2 : 3}
+            value={opinion}
+            onChange={(e) => setOpinion(e.target.value)}
+            placeholder="可选"
+          />
+        </div>
+      )}
 
       {actionButtons}
     </div>

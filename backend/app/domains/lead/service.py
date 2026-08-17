@@ -703,11 +703,12 @@ async def intel_review_lead(
     opinion: str | None = None,
     assess_remark: str | None = None,
 ) -> Lead:
-    """情报审批：收录 / 袭击 / 回退 / 暂存。
+    """情报审批：收录 / 袭击 / 驳回 / 回退 / 暂存。
 
     - include → 工作流 approve，review_status=approved（可转化）
     - attack → 工作流 approve 后覆盖为 attacked（不可转化）
     - return → 工作流 reject，review_status=rejected（终态：不可再报备/跟进；重激活待办除外）
+    - revise → 退回申报人修改并重新提交（修订待办 + 线索回草稿）
     - draft → 只落业务字段，不结束待办
     """
     from app.common.error_codes import VALIDATION_ERROR, FORBIDDEN, BUSINESS_ERROR, NOT_FOUND
@@ -775,6 +776,33 @@ async def intel_review_lead(
         )
         return lead
 
+    if decision == "revise":
+        reason = (return_reason or "").strip()
+        lead.reject_reason = reason
+        await db.commit()
+        await WorkflowEngine(db, tenant_id).act(
+            task_id, user, "return", opinion=reason or opinion,
+            return_to="__initiator__",
+            field_updates=_intel_field_updates(
+                customer_newness=customer_newness,
+                return_reason=return_reason,
+                assess_remark=assess_remark,
+            ),
+            allow_lead_intel=True,
+        )
+        await db.refresh(lead)
+        # 引擎回写为 rejected；回退须可改再提 → 置草稿，保留回退原因
+        lead.review_status = "draft"
+        await db.commit()
+        await db.refresh(lead)
+        await log_action(
+            db, tenant_id=tenant_id, user_id=user["sub"],
+            user_name=user.get("real_name") or user.get("username"),
+            action="intel_revise", resource_type="lead", resource_id=lead.id,
+            summary=f"回退线索给申报人修改: {lead.title}",
+        )
+        return lead
+
     if decision == "return":
         reason = (return_reason or "").strip()
         lead.reject_reason = reason
@@ -793,7 +821,7 @@ async def intel_review_lead(
             db, tenant_id=tenant_id, user_id=user["sub"],
             user_name=user.get("real_name") or user.get("username"),
             action="intel_return", resource_type="lead", resource_id=lead.id,
-            summary=f"回退线索: {lead.title}",
+            summary=f"驳回线索(不可再报备): {lead.title}",
         )
         return lead
 

@@ -552,14 +552,14 @@ async def test_intel_attack_blocks_qualify(client, db, lead_intel_user):
 
 @pytest.mark.asyncio
 async def test_intel_return_writes_reason(client, db, lead_intel_user):
-    """回退 → rejected + reject_reason，且不可再提交审核。"""
+    """驳回 → rejected + reject_reason，且不可再提交审核。"""
     from app.domains.lead import service as lead_svc
     from app.common.exceptions import BusinessException
 
     _ = client
     initiator = await _admin_user(db)
     reviewer_id = lead_intel_user
-    lead_id = await _create_pending_lead(db, "情报-回退", initiator)
+    lead_id = await _create_pending_lead(db, "情报-驳回", initiator)
     task = await _pending_task_for_lead(db, lead_id, reviewer_id)
 
     lead = await lead_svc.intel_review_lead(
@@ -584,6 +584,45 @@ async def test_intel_return_writes_reason(client, db, lead_intel_user):
             {"sub": initiator["sub"], "real_name": "发起人", "username": "u"},
         )
     assert "驳回" in ei2.value.message
+
+
+@pytest.mark.asyncio
+async def test_intel_revise_sends_back_for_resubmit(client, db, lead_intel_user):
+    """回退 → 草稿 + 修订待办，申报人可改后再提。"""
+    from sqlalchemy import select
+    from app.domains.lead import service as lead_svc
+    from app.domains.lead.models import Lead
+    from app.domains.lowcode.workflow_models import WfTaskInstance, WfNodeInstance
+
+    _ = client
+    initiator = await _admin_user(db)
+    reviewer_id = lead_intel_user
+    lead_id = await _create_pending_lead(db, "情报-回退改提", initiator)
+    # 申报人指向发起人，修订待办应派给申报人
+    lead_row = (await db.execute(select(Lead).where(Lead.id == lead_id))).scalar_one()
+    lead_row.reporter_id = initiator["sub"]
+    await db.commit()
+
+    task = await _pending_task_for_lead(db, lead_id, reviewer_id)
+    lead = await lead_svc.intel_review_lead(
+        db, DEMO_TENANT, lead_id,
+        {"sub": reviewer_id, "real_name": "测试内勤", "username": "intel"},
+        decision="revise", task_id=task.id, customer_newness="new",
+        return_reason="请补全联系人", opinion="回退修改",
+    )
+    assert lead.review_status == "draft"
+    assert lead.reject_reason == "请补全联系人"
+
+    revise_tasks = (await db.execute(
+        select(WfTaskInstance)
+        .join(WfNodeInstance, WfNodeInstance.id == WfTaskInstance.node_instance_id)
+        .where(
+            WfTaskInstance.tenant_id == DEMO_TENANT,
+            WfNodeInstance.node_type == "revise",
+            WfTaskInstance.status == "pending",
+        )
+    )).scalars().all()
+    assert any(t.assignee_id == initiator["sub"] for t in revise_tasks)
 
 
 @pytest.mark.asyncio

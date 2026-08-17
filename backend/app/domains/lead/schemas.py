@@ -7,7 +7,7 @@ import re
 LeadCategory = Literal["self_reported", "distributed"]
 LeadCountryType = Literal["domestic", "overseas"]
 LeadCustomerNewness = Literal["new", "old"]
-LeadIntelDecision = Literal["include", "attack", "return", "draft"]
+LeadIntelDecision = Literal["include", "attack", "return", "revise", "draft"]
 
 
 class LeadProductIn(BaseModel):
@@ -153,7 +153,7 @@ class LeadUpdate(BaseModel):
 
 
 class LeadIntelReviewIn(BaseModel):
-    """情报审批裁定：收录 / 袭击 / 驳回 / 暂存。"""
+    """情报审批裁定：收录 / 袭击 / 驳回 / 回退 / 暂存。"""
     decision: LeadIntelDecision
     task_id: str = Field(..., min_length=1, max_length=36)
     customer_newness: Optional[LeadCustomerNewness] = None
@@ -163,10 +163,12 @@ class LeadIntelReviewIn(BaseModel):
 
     @model_validator(mode="after")
     def _require_fields_by_decision(self):
-        if self.decision in ("include", "attack", "return") and not self.customer_newness:
+        if self.decision in ("include", "attack", "return", "revise") and not self.customer_newness:
             raise ValueError("请选择客户类型（新/老）")
         if self.decision == "return" and not (self.return_reason or "").strip():
             raise ValueError("驳回须填写驳回原因")
+        if self.decision == "revise" and not (self.return_reason or "").strip():
+            raise ValueError("回退须填写回退原因（供申报人修改参考）")
         return self
 
 

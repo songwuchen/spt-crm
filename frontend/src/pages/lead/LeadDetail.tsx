@@ -527,13 +527,19 @@ export default function LeadDetail() {
           <Icon name={reviewBannerIcon} className={`${reviewCfg.text}`} />
           <div className="flex-1">
             <div className={`text-sm font-bold ${reviewCfg.text}`}>
-              {reviewStatus === 'draft' && '线索草稿未提交'}
+              {reviewStatus === 'draft' && (lead.reject_reason ? '线索已回退，待修改后重提' : '线索草稿未提交')}
               {reviewStatus === 'pending' && '线索待信息情报部内勤审核'}
               {reviewStatus === 'rejected' && '线索已驳回'}
               {reviewStatus === 'attacked' && '线索已标记为袭击'}
             </div>
             <div className="text-sm text-slate-600 mt-1">
-              {reviewStatus === 'draft' && '完善申报信息后提交审批，可在右侧查看流程动态。'}
+              {reviewStatus === 'draft' && (
+                <>
+                  {lead.reject_reason
+                    ? `情报已回退，请按意见修改后重新提交。回退原因：${lead.reject_reason}`
+                    : '完善申报信息后提交审批，可在右侧查看流程动态。'}
+                </>
+              )}
               {reviewStatus === 'pending' && '审核收录后方可转化为客户。'}
               {reviewStatus === 'rejected' && (
                 <>

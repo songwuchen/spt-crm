@@ -18,7 +18,7 @@ export const leadApi = {
   submitReview: (id: string) =>
     client.post<unknown, ApiResponse<Lead>>(`/api/v1/leads/${id}/submit_review`),
   intelReview: (id: string, data: {
-    decision: 'include' | 'attack' | 'return' | 'draft'
+    decision: 'include' | 'attack' | 'return' | 'revise' | 'draft'
     task_id: string
     customer_newness?: 'new' | 'old'
     return_reason?: string
