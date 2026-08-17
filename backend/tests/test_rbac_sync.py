@@ -63,6 +63,15 @@ def test_only_lowcode_admin_roles_get_design_tier():
             assert not (design & codes), f"{rd['code']} should NOT have design tier"
 
 
+def test_lead_intel_can_activate_flow_but_not_design():
+    """内勤可激活已结束审核流，但不能设计流程。"""
+    rd = next(r for r in cat.STANDARD_ROLES if r["code"] == "lead_intel")
+    codes = set(cat.role_perm_codes(rd))
+    assert "workflow:activate" in codes
+    assert "workflow:manage" not in codes
+    assert not (set(cat.LOWCODE_DESIGN) & codes)
+
+
 def test_legal_role_has_contract_review_page():
     rd = next(r for r in cat.STANDARD_ROLES if r["code"] == "legal")
     codes = set(cat.role_perm_codes(rd))

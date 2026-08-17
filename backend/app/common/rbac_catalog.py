@@ -152,8 +152,10 @@ CORE = [
 
 # 扩展平台「设计/管理」层 — only roles flagged lowcode_admin (主管/总监/总工).
 # form_data:delete lives here (deleting form data is more sensitive than filling).
+# workflow:activate 是运行时操作（重开已结束流程），不是设计权；内勤等角色可单独授予，
+# 主管已有 workflow:manage，接口按二者任一放行。
 LOWCODE_DESIGN = [
-    "form:manage", "workflow:manage", "workflow:activate",
+    "form:manage", "workflow:manage",
     "dashboard:manage", "form_data:delete",
 ]
 
