@@ -1279,11 +1279,28 @@ def _form_data_filter_clause(rule: dict):
     return txt.ilike(f"%{value}%")
 
 
+def _form_data_person_in_owner_ids(field: str, owner_ids: list[str]):
+    """form_data 人员字段命中数据范围（字符串 id / {id} / JSON 文本含 id）。"""
+    parts = []
+    for uid in owner_ids or []:
+        if not uid:
+            continue
+        sid = str(uid)
+        txt = FormInstance.form_data.op("->>")(field)
+        obj_id = FormInstance.form_data.op("->")(field).op("->>")("id")
+        parts.append(txt == sid)
+        parts.append(obj_id == sid)
+        # 多选人员等 JSON 数组场景
+        parts.append(txt.ilike(f"%{sid}%"))
+    return or_(*parts) if parts else False
+
+
 def _instance_list_conds(
     tenant_id: str, template_id: str,
     keyword: str | None = None, status: str | None = None,
     owner_ids: list[str] | None = None,
     filters: list | dict | str | None = None,
+    owner_person_field: str | None = None,
 ) -> list:
     conds = [
         FormInstance.tenant_id == tenant_id,
@@ -1299,13 +1316,38 @@ def _instance_list_conds(
         ))
     if status:
         conds.append(FormInstance.status == status)
-    if owner_ids is not None:  # 数据范围: 仅可见发起人
-        conds.append(FormInstance.initiator_id.in_(owner_ids or ["__none__"]))
+    if owner_ids is not None:  # 数据范围: 发起人；开票等可并入业务员字段
+        owner_clause = FormInstance.initiator_id.in_(owner_ids or ["__none__"])
+        if owner_person_field:
+            owner_clause = or_(
+                owner_clause,
+                _form_data_person_in_owner_ids(owner_person_field, owner_ids or []),
+            )
+        conds.append(owner_clause)
     match, rules = _normalize_instance_filters(filters)
     if rules:
         clauses = [_form_data_filter_clause(r) for r in rules]
         conds.append(or_(*clauses) if match == "any" else and_(*clauses))
     return conds
+
+
+# 列表/导出：除发起人外，按表单业务员字段纳入数据范围
+_OWNER_PERSON_FIELD_BY_TEMPLATE = {
+    "invoice_application": "sales_person",
+}
+
+
+async def _owner_person_field_for_template(
+    db: AsyncSession, tenant_id: str, template_id: str,
+) -> str | None:
+    code = (await db.execute(
+        select(FormTemplate.code).where(
+            FormTemplate.id == template_id,
+            FormTemplate.tenant_id == tenant_id,
+            FormTemplate.is_deleted == False,  # noqa: E712
+        )
+    )).scalar_one_or_none()
+    return _OWNER_PERSON_FIELD_BY_TEMPLATE.get(code or "")
 
 
 async def list_instances(
@@ -1315,9 +1357,13 @@ async def list_instances(
     owner_ids: list[str] | None = None,
     filters: list | dict | str | None = None,
 ) -> tuple[list[FormInstance], int]:
+    owner_person_field = None
+    if owner_ids is not None:
+        owner_person_field = await _owner_person_field_for_template(db, tenant_id, template_id)
     conds = _instance_list_conds(
         tenant_id, template_id, keyword=keyword, status=status,
         owner_ids=owner_ids, filters=filters,
+        owner_person_field=owner_person_field,
     )
 
     total = (await db.execute(
@@ -1350,9 +1396,13 @@ async def export_instances(
         ver = await _get_latest_version(db, tenant_id, template_id)
     field_defs = (ver.field_definitions if ver else []) or []
 
+    owner_person_field = None
+    if owner_ids is not None:
+        owner_person_field = _OWNER_PERSON_FIELD_BY_TEMPLATE.get((tpl.code if tpl else "") or "")
     conds = _instance_list_conds(
         tenant_id, template_id, keyword=keyword, status=status,
         owner_ids=owner_ids, filters=filters,
+        owner_person_field=owner_person_field,
     )
     rows = (await db.execute(
         select(FormInstance).where(*conds)

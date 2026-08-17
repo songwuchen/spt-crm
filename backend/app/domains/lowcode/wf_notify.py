@@ -121,13 +121,33 @@ async def notify_tasks_created(
             title = getattr(inst, "title", None) or getattr(inst, "biz_type", None) or "审批"
             inst_id = getattr(inst, "id", None)
 
+            from app.domains.lowcode.workflow_models import WfNodeInstance
+            ni_ids = [t.node_instance_id for t in tasks if t.node_instance_id]
+            ni_by_id: dict[str, WfNodeInstance] = {}
+            if ni_ids:
+                for ni in (await db.execute(select(WfNodeInstance).where(
+                    WfNodeInstance.tenant_id == tenant_id,
+                    WfNodeInstance.id.in_(ni_ids),
+                ))).scalars().all():
+                    ni_by_id[ni.id] = ni
+
             for t in tasks:
+                ni = ni_by_id.get(t.node_instance_id) if t.node_instance_id else None
+                node_name = (getattr(ni, "node_name", None) or "").strip()
+                if "发起人接收" in node_name:
+                    n_title = f"【请确认】{title}"
+                    n_content = "财务已完成开票，请确认接收并可下载发票附件/图片。"
+                    todo_content = "财务已开票，请打开确认并可下载发票附件。"
+                else:
+                    n_title = f"【待审批】{title}"
+                    n_content = f"{initiator} 提交了审批请求，请尽快处理。"
+                    todo_content = f"{initiator} 提交了审批，请打开处理。"
                 try:
                     await send_notification(
                         db=db, tenant_id=tenant_id, recipient_id=t.assignee_id,
                         type="approval_pending",
-                        title=f"【待审批】{title}",
-                        content=f"{initiator} 提交了审批请求，请尽快处理。",
+                        title=n_title,
+                        content=n_content,
                         biz_type=NOTIFY_BIZ_TYPE, biz_id=inst_id,
                         sender_name=initiator or None,
                     )
@@ -138,8 +158,8 @@ async def notify_tasks_created(
                 try:
                     res = await dispatch_todo(
                         db, tenant_id, t.assignee_id,
-                        f"【待审批】{title}",
-                        f"{initiator} 提交了审批，请打开处理。",
+                        n_title,
+                        todo_content,
                         link=f"/approvals?wf={inst_id}&task={t.id}",
                         mobile_link=f"/m/lowcode/approvals/{inst_id}?task={t.id}",
                     )
@@ -334,6 +354,18 @@ async def notify_cc_users(
                         f"线索「{lead_title}」相关流程已抄送您。"
                         f"请打开审批中心「抄送我的」查看；可自行选择是否转化为客户/商机。"
                     )
+            elif node_name == "已提交开票申请":
+                station_title = f"开票申请已提交: {process_name}"
+                station_content = "您名下有新的开票申请已提交，请知悉。"
+                ding_title = station_title
+                ding_content = station_content
+            elif node_name == "发票已开具可下载":
+                station_title = f"发票已开具: {process_name}"
+                station_content = (
+                    "财务已完成开票，请打开「开票申请」或审批详情下载发票附件/图片。"
+                )
+                ding_title = station_title
+                ding_content = station_content
 
             # 兜底：若引擎漏写 wf_process_cc，补齐，避免「通知有、抄送我的空」
             await _ensure_process_cc_rows(db, tenant_id, inst.id, user_ids)

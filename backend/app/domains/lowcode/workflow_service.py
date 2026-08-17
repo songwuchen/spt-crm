@@ -552,6 +552,8 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_chief_gm_flow_nodes(nodes)
     if form_code in ("install_drawing_notice", "scheme_management", "drawing_requisition"):
         apply_drawing_pre_chief_opinion_required(nodes)
+    if form_code == "invoice_application":
+        apply_invoice_sales_cc(nodes, routes)
     return nodes, routes
 
 
@@ -650,6 +652,86 @@ def _flow_is_jdy_invoice(nodes: list | None) -> bool:
     """已对齐简道云开票申请：开票 → 发起人接收。"""
     names = {n.get("name") for n in (nodes or [])}
     return "开票" in names and "发起人接收" in names
+
+
+# 开票申请：抄送业务员（提交知悉 / 财务开票后可下载）
+_INVOICE_CC_SALES_SUBMIT = "cc_sales_submit"
+_INVOICE_CC_SALES_DONE = "cc_sales_done"
+_INVOICE_CC_SALES_SUBMIT_NAME = "已提交开票申请"
+_INVOICE_CC_SALES_DONE_NAME = "发票已开具可下载"
+
+
+def _flow_missing_invoice_sales_cc(nodes: list | None, routes: list | None = None) -> bool:
+    """缺少业务员抄送节点或 start/开票旁路边 → 需升级。"""
+    by_id = {n.get("id"): n for n in (nodes or []) if isinstance(n, dict) and n.get("id")}
+    for nid, want_name in (
+        (_INVOICE_CC_SALES_SUBMIT, _INVOICE_CC_SALES_SUBMIT_NAME),
+        (_INVOICE_CC_SALES_DONE, _INVOICE_CC_SALES_DONE_NAME),
+    ):
+        n = by_id.get(nid)
+        if not n or n.get("type") != "cc":
+            return True
+        rule = n.get("approver_rule") or {}
+        if rule.get("type") != "form_field_person" or rule.get("value") != "sales_person":
+            return True
+        if n.get("name") != want_name:
+            return True
+    want_edges = {
+        ("start", _INVOICE_CC_SALES_SUBMIT),
+        ("n1", _INVOICE_CC_SALES_DONE),
+    }
+    have = {
+        (r.get("source"), r.get("target"))
+        for r in (routes or [])
+        if isinstance(r, dict) and r.get("always")
+    }
+    return not want_edges.issubset(have)
+
+
+def apply_invoice_sales_cc(nodes: list[dict], routes: list[dict]) -> bool:
+    """就地补：提交旁路抄送业务员 + 财务开票后抄送业务员（可下载附件）。"""
+    if not isinstance(nodes, list) or not isinstance(routes, list):
+        return False
+    changed = False
+    by_id = {n.get("id"): n for n in nodes if isinstance(n, dict) and n.get("id")}
+
+    def _upsert_cc(nid: str, name: str) -> None:
+        nonlocal changed
+        want = _cc_node(nid, name, {"type": "form_field_person", "value": "sales_person"})
+        cur = by_id.get(nid)
+        if not cur:
+            nodes.append(want)
+            by_id[nid] = want
+            changed = True
+            return
+        if cur.get("type") != "cc" or cur.get("name") != name:
+            cur["type"] = "cc"
+            cur["name"] = name
+            changed = True
+        rule = cur.get("approver_rule") or {}
+        if rule.get("type") != "form_field_person" or rule.get("value") != "sales_person":
+            cur["approver_rule"] = {"type": "form_field_person", "value": "sales_person"}
+            changed = True
+
+    _upsert_cc(_INVOICE_CC_SALES_SUBMIT, _INVOICE_CC_SALES_SUBMIT_NAME)
+    _upsert_cc(_INVOICE_CC_SALES_DONE, _INVOICE_CC_SALES_DONE_NAME)
+
+    def _ensure_always(rid: str, source: str, target: str) -> None:
+        nonlocal changed
+        for r in routes:
+            if not isinstance(r, dict):
+                continue
+            if r.get("source") == source and r.get("target") == target:
+                if not r.get("always"):
+                    r["always"] = True
+                    changed = True
+                return
+        routes.append({"id": rid, "source": source, "target": target, "always": True})
+        changed = True
+
+    _ensure_always("r_start_cc_sales_submit", "start", _INVOICE_CC_SALES_SUBMIT)
+    _ensure_always("r_n1_cc_sales_done", "n1", _INVOICE_CC_SALES_DONE)
+    return changed
 
 
 def _flow_is_jdy_payment(nodes: list | None) -> bool:
@@ -2035,6 +2117,24 @@ async def _upgrade_drawing_form_flow_if_needed(
             db, tenant_id, d, version,
             patched, version.route_definitions,
             DRAWING_FORM_FLOW_DESC, f"通知尚高华改为通知发起人({form_code})",
+        )
+        return
+    # 开票申请：提交/财务开票后抄送业务员
+    if (
+        topology_ok
+        and form_code == "invoice_application"
+        and _flow_missing_invoice_sales_cc(
+            version.node_definitions, version.route_definitions,
+        )
+    ):
+        import copy
+        patched_nodes = copy.deepcopy(version.node_definitions or [])
+        patched_routes = copy.deepcopy(version.route_definitions or [])
+        apply_invoice_sales_cc(patched_nodes, patched_routes)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched_nodes, patched_routes,
+            DRAWING_FORM_FLOW_DESC, f"开票申请抄送业务员({form_code})",
         )
         return
     # 方案管理：剥离业务打分三项（及总分/日期）节点可填权限

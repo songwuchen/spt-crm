@@ -1072,9 +1072,13 @@ export function canPrintDrawingDocument(
     || isInstallDrawingNoticeForm(fields, formData, processName)
 }
 
-/** 图纸类流程「研究院安排」：该节点「通过」时顺带打开打印预览 */
+/** 图纸类流程指派节点：通过时顺带打开打印预览（领用=研究院安排，安装图=设计指派安排） */
 export function isDrawingApproveAndPrintNode(nodeName?: string | null): boolean {
-  return (nodeName || '').trim() === '研究院安排'
+  const name = (nodeName || '').trim()
+  // 「设计指派安排*」为转包装后的第二指派节点，同样需要通过并打印
+  return name === '研究院安排'
+    || name === '设计指派安排'
+    || name === '设计指派安排*'
 }
 
 /** 仅拼装领用单 HTML（试打/预览用，可不打接口解析标签） */
