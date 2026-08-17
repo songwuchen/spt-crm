@@ -183,7 +183,9 @@ export default function ContractReviewDetail() {
       </div>
 
       {CONTRACT_REVIEW_SECTIONS.map((sec) => {
-        const fields = reviewSectionAllFields(sec).filter((f) => reviewDepVisible(f.showWhen, row as Record<string, unknown>))
+        const fields = reviewSectionAllFields(sec).filter((f) =>
+          reviewDepVisible(f.showWhen, row as unknown as Record<string, unknown>),
+        )
         const showContacts = sec.afterSlot === 'contacts' && contacts.length > 0 && String(row.review_type || '') === '合同评审'
         const showPricingFiles = sec.afterSlot === 'pricing_files'
           && String(row.review_type || '') === '合同评审'
