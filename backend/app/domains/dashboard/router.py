@@ -123,10 +123,9 @@ async def _lead_scope_where(db: AsyncSession, tenant_id: str, user: dict, scope:
     if scope is None:
         return [draft_privacy] if draft_privacy is not None else []
 
-    conds = [Lead.owner_id == uid]
+    conds = [Lead.owner_id == uid, Lead.created_by_id == uid]
     if uid:
         conds.append(Lead.reporter_id == uid)
-        conds.append(and_(Lead.created_by_id == uid, Lead.department_id.is_(None)))
     try:
         from app.domains.customer.models import AclShare
         conds.append(Lead.id.in_(select(AclShare.biz_id).where(

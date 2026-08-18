@@ -11,8 +11,7 @@ Data visibility scope filter.
 
 `resolve_owner_scope` 返回可见 owner_id 列表（None 表示不限）。
 `apply_data_scope` 在 owner 范围之外，额外并入「创建人/共享/项目成员」等可见性（用于商机）。
-线索部门档：以单据 `department_id` 落在本人组织部门子树为准，不按负责人兼职部门放大，
-也不因「创建人」把其它事业部的单带进来（无部门的单仍可见创建人）；
+线索部门档：以单据 `department_id` 落在本人组织部门子树为准，不按负责人兼职部门放大；
 草稿（review_status=draft）仅负责人/创建人/报备人可见，即使 data_scope=all 也不放开。
 
 列表之外还必须守住「单对象」入口：`assert_in_scope` / `assert_project_child_in_scope`
@@ -20,7 +19,7 @@ Data visibility scope filter.
 否则会出现「列表查不到、按 id 却读得到」的越权（详情 IDOR）。所有 update/delete 都经由
 各域的 get_X() 取对象，因此在 get_X() 里带上 user 即可同时守住读与写两侧。
 """
-from sqlalchemy import select, or_, and_
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
@@ -483,9 +482,7 @@ async def is_in_scope(
     elif owner_id is not None and owner_id in scope:
         return True
     if uid and getattr(obj, "created_by_id", None) == uid:
-        # 线索已填部门时，创建人不能跨事业部放大（内勤代录仍属单据部门）
-        if not is_lead or not getattr(obj, "department_id", None):
-            return True
+        return True
     # 线索报备人 = 业务员，与负责人同权可见（转商机确认待办常派给 reporter）
     if uid and (biz_type == "lead" or getattr(obj, "__tablename__", "") == "leads"):
         if getattr(obj, "reporter_id", None) == uid:
@@ -661,8 +658,7 @@ async def apply_data_scope(
 ) -> Select:
     """按数据范围过滤查询（商机等用，含创建人/共享/项目成员的额外可见性）。
 
-    线索：部门档以单据 department_id 落在本人组织部门子树为准，不按负责人兼职部门放大；
-    已填部门的线索不以创建人跨事业部放大。
+    线索：部门档以单据 department_id 落在本人组织部门子树为准，不按负责人兼职部门放大。
     线索草稿始终仅负责人/创建人/报备人可见，不受 data_scope=all 放开。
     """
     scope = await resolve_owner_scope(db, user, tenant_id, biz_type=biz_type)
@@ -679,15 +675,9 @@ async def apply_data_scope(
             else:
                 conditions.append(model.owner_id.in_(scope))
 
-        # 2. 本人创建：线索已填部门时不以创建人跨事业部放大
+        # 2. 本人创建
         if hasattr(model, "created_by_id"):
-            if is_lead:
-                conditions.append(and_(
-                    model.created_by_id == user_id,
-                    model.department_id.is_(None),
-                ))
-            else:
-                conditions.append(model.created_by_id == user_id)
+            conditions.append(model.created_by_id == user_id)
 
         # 2b. 线索报备人（业务员）
         if is_lead and hasattr(model, "reporter_id") and user_id:
