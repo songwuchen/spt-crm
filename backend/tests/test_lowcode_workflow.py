@@ -836,3 +836,59 @@ async def test_activate_start_creates_revise_todo(client, db, lead_intel_user):
     )).scalars().all()
     assert revise, "激活开始节点应给发起人修订待办"
     assert any(t.assignee_id == initiator["sub"] for t in revise)
+
+
+@pytest.mark.asyncio
+async def test_delete_form_instance_blocked_after_flow_started(db):
+    """表单数据一旦绑定流程实例，禁止直接删除（草稿未发起仍可删）。"""
+    from app.common.exceptions import BusinessException
+    from app.domains.lowcode.models import FormInstance
+    from app.domains.lowcode.service import delete_instance
+    from app.domains.lowcode.workflow_service import STARTED_FLOW_DELETE_MSG
+
+    user = {"sub": "ut-admin", "username": "admin", "real_name": "UT"}
+    draft = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=generate_uuid(), template_version_id=generate_uuid(),
+        title="草稿可删", status="draft", initiator_id=user["sub"],
+        form_data={}, field_definitions=[],
+    )
+    started = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=generate_uuid(), template_version_id=generate_uuid(),
+        title="已发起不可删", status="running", initiator_id=user["sub"],
+        process_instance_id=generate_uuid(),
+        form_data={}, field_definitions=[],
+    )
+    db.add_all([draft, started])
+    await db.commit()
+
+    await delete_instance(db, DEMO_TENANT, draft.id, user)
+    await db.refresh(draft)
+    assert draft.is_deleted is True
+
+    with pytest.raises(BusinessException) as exc:
+        await delete_instance(db, DEMO_TENANT, started.id, user)
+    assert STARTED_FLOW_DELETE_MSG in str(exc.value.message)
+    await db.refresh(started)
+    assert started.is_deleted is False
+
+    # 旧数据可能没回写 process_instance_id，仍按 form_instance_id 拦住
+    from app.domains.lowcode.workflow_models import WfProcessInstance
+    orphan = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=generate_uuid(), template_version_id=generate_uuid(),
+        title="仅流程侧绑定", status="running", initiator_id=user["sub"],
+        form_data={}, field_definitions=[],
+    )
+    db.add(orphan)
+    await db.flush()
+    db.add(WfProcessInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        process_definition_id=generate_uuid(), process_version_id=generate_uuid(),
+        form_instance_id=orphan.id, initiator_id=user["sub"], status="running",
+    ))
+    await db.commit()
+    with pytest.raises(BusinessException) as exc2:
+        await delete_instance(db, DEMO_TENANT, orphan.id, user)
+    assert STARTED_FLOW_DELETE_MSG in str(exc2.value.message)

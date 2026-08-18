@@ -1881,6 +1881,12 @@ async def delete_instance(db: AsyncSession, tenant_id: str, instance_id: str, us
     )).scalar_one_or_none()
     if not inst:
         raise BusinessException(code=NOT_FOUND, message="表单数据不存在")
+    from app.domains.lowcode.workflow_service import (
+        STARTED_FLOW_DELETE_MSG, assert_no_started_process,
+    )
+    if inst.process_instance_id:
+        raise BusinessException(code=BUSINESS_ERROR, message=STARTED_FLOW_DELETE_MSG)
+    await assert_no_started_process(db, tenant_id, form_instance_id=inst.id)
     inst.is_deleted = True
     inst.deleted_at = _now()
     inst.deleted_by = user.get("sub")

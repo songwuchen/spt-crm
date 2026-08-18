@@ -924,10 +924,15 @@ export default function FormDataListPage({
   }
 
   const del = async (recId: string) => {
-    await lowcodeApi.deleteInstance(recId)
-    message.success('已删除')
-    if (viewRec?.id === recId) closeView()
-    load()
+    try {
+      await lowcodeApi.deleteInstance(recId)
+      message.success('已删除')
+      if (viewRec?.id === recId) closeView()
+      load()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '删除失败')
+    }
   }
 
   const canPrintScheme = templateCode === 'scheme_management'
@@ -935,6 +940,9 @@ export default function FormDataListPage({
     || templateCode === 'install_drawing_notice'
   const canEditRecord = (status?: string | null) =>
     status === 'draft' || status === 'rejected'
+  /** 流程一旦发起（含审批中/已结束），不允许直接删除单据 */
+  const canDeleteRecord = (rec: ViewRec | null) =>
+    Boolean(rec) && !rec?.process_instance_id && !wfDetail?.id
 
   const handlePrint = async (recId: string) => {
     try {
@@ -1274,11 +1282,13 @@ export default function FormDataListPage({
                   激活流程
                 </Button>
               )}
-              <Popconfirm title="确认删除该记录?" onConfirm={() => del(viewRec.id)}>
-                <Button type="text" danger icon={<DeleteOutlined />}>
-                  删除
-                </Button>
-              </Popconfirm>
+              {canDeleteRecord(viewRec) && (
+                <Popconfirm title="确认删除该记录?" onConfirm={() => del(viewRec.id)}>
+                  <Button type="text" danger icon={<DeleteOutlined />}>
+                    删除
+                  </Button>
+                </Popconfirm>
+              )}
             </div>
             <div className="flex gap-0 flex-1 min-h-0" style={{ minHeight: modalFullscreen ? undefined : 480 }}>
               <div className="flex-1 overflow-y-auto pr-3" style={{ maxHeight: contentMaxH }}>

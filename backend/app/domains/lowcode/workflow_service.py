@@ -26,6 +26,55 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+STARTED_FLOW_DELETE_MSG = "该单据已发起流程，不可删除。如需作废请撤回或走流程驳回。"
+
+
+async def has_started_process(
+    db,
+    tenant_id: str,
+    *,
+    form_instance_id: str | None = None,
+    biz_type: str | None = None,
+    biz_id: str | None = None,
+) -> bool:
+    """是否已有流程实例（任意状态）。发起后即视为已走流程。"""
+    conds = [WfProcessInstance.tenant_id == tenant_id]
+    if form_instance_id:
+        inst = (await db.execute(
+            select(WfProcessInstance.id).where(
+                *conds, WfProcessInstance.form_instance_id == form_instance_id,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if inst:
+            return True
+    if biz_type and biz_id:
+        inst = (await db.execute(
+            select(WfProcessInstance.id).where(
+                *conds,
+                WfProcessInstance.biz_type == biz_type,
+                WfProcessInstance.biz_id == biz_id,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if inst:
+            return True
+    return False
+
+
+async def assert_no_started_process(
+    db,
+    tenant_id: str,
+    *,
+    form_instance_id: str | None = None,
+    biz_type: str | None = None,
+    biz_id: str | None = None,
+) -> None:
+    """流程一旦发起，禁止直接删除关联单据。"""
+    if await has_started_process(
+        db, tenant_id, form_instance_id=form_instance_id, biz_type=biz_type, biz_id=biz_id,
+    ):
+        raise BusinessException(code=BUSINESS_ERROR, message=STARTED_FLOW_DELETE_MSG)
+
+
 # ==================== 流程定义 ====================
 
 async def create_definition(db: AsyncSession, tenant_id: str, data: ws.WfDefinitionCreate, user: dict) -> WfProcessDefinition:
