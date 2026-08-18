@@ -892,3 +892,50 @@ async def test_delete_form_instance_blocked_after_flow_started(db):
     with pytest.raises(BusinessException) as exc2:
         await delete_instance(db, DEMO_TENANT, orphan.id, user)
     assert STARTED_FLOW_DELETE_MSG in str(exc2.value.message)
+
+
+@pytest.mark.asyncio
+async def test_abort_deleted_form_cancels_pending_todo(db):
+    """表单已软删时，作废进行中流程并取消待办。"""
+    from app.domains.lowcode.models import FormInstance
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+    from app.domains.lowcode.workflow_models import WfNodeInstance, WfProcessInstance, WfTaskInstance
+    from app.domains.lowcode.workflow_service import list_todo
+
+    fi = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=generate_uuid(), template_version_id=generate_uuid(),
+        title="已删单据", status="running", initiator_id="u-init",
+        is_deleted=True, form_data={}, field_definitions=[],
+    )
+    inst = WfProcessInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        process_definition_id=generate_uuid(), process_version_id=generate_uuid(),
+        form_instance_id=fi.id, initiator_id="u-init", status="running",
+        title="已删单据流程",
+    )
+    ni = WfNodeInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        process_instance_id=inst.id, node_def_id="n1",
+        node_type="approval", node_name="财务核价", status="running",
+    )
+    task = WfTaskInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        process_instance_id=inst.id, node_instance_id=ni.id,
+        assignee_id="u-approver", status="pending",
+    )
+    db.add_all([fi, inst, ni, task])
+    await db.commit()
+
+    items, total = await list_todo(db, DEMO_TENANT, "u-approver", 1, 20)
+    assert total == 0, "已删表单的待办不应出现在列表里"
+
+    ok = await WorkflowEngine(db, DEMO_TENANT).abort_deleted_form(inst.id)
+    assert ok is True
+    await db.refresh(inst)
+    await db.refresh(task)
+    await db.refresh(ni)
+    assert inst.status == "cancelled"
+    assert task.status == "cancelled"
+    assert ni.status == "cancelled"
+

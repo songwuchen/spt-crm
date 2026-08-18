@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -3979,6 +3979,40 @@ async def can_access_form_via_workflow(
     return False
 
 
+def _live_form_process_clause(tenant_id: str):
+    """排除关联表单已软删的流程：单据删了，待办/我发起的/抄送不应再出现。"""
+    from app.domains.lowcode.models import FormInstance
+    deleted_forms = select(FormInstance.id).where(
+        FormInstance.tenant_id == tenant_id,
+        FormInstance.is_deleted.is_(True),  # noqa: E712
+    )
+    return or_(
+        WfProcessInstance.form_instance_id.is_(None),
+        ~WfProcessInstance.form_instance_id.in_(deleted_forms),
+    )
+
+
+async def abort_processes_for_deleted_form(
+    db, tenant_id: str, form_instance_id: str, user: dict | None = None,
+) -> int:
+    """表单已删时作废仍挂着的流程实例。"""
+    if not form_instance_id:
+        return 0
+    rows = (await db.execute(
+        select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == tenant_id,
+            WfProcessInstance.form_instance_id == form_instance_id,
+            WfProcessInstance.status.in_(["running", "draft"]),
+        )
+    )).scalars().all()
+    n = 0
+    engine = WorkflowEngine(db, tenant_id)
+    for inst in rows:
+        if await engine.abort_deleted_form(inst.id, user):
+            n += 1
+    return n
+
+
 async def list_todo(db, tenant_id, user_id, page_no, page_size, biz_type=None, biz_id=None):
     """我的待办。biz_type/biz_id 可选，用于业务详情页精确查「这单是否轮到我审」——
     否则调用方只能拉一页待办再在前端过滤，待办多时会漏掉。"""
@@ -3987,13 +4021,15 @@ async def list_todo(db, tenant_id, user_id, page_no, page_size, biz_type=None, b
     assignees = [user_id, *principals]
     conds = [WfTaskInstance.tenant_id == tenant_id, WfTaskInstance.assignee_id.in_(assignees),
              WfTaskInstance.status == "pending"]
-    if biz_type or biz_id:
-        inst_q = select(WfProcessInstance.id).where(WfProcessInstance.tenant_id == tenant_id)
-        if biz_type:
-            inst_q = inst_q.where(WfProcessInstance.biz_type == biz_type)
-        if biz_id:
-            inst_q = inst_q.where(WfProcessInstance.biz_id == biz_id)
-        conds.append(WfTaskInstance.process_instance_id.in_(inst_q))
+    inst_q = select(WfProcessInstance.id).where(
+        WfProcessInstance.tenant_id == tenant_id,
+        _live_form_process_clause(tenant_id),
+    )
+    if biz_type:
+        inst_q = inst_q.where(WfProcessInstance.biz_type == biz_type)
+    if biz_id:
+        inst_q = inst_q.where(WfProcessInstance.biz_id == biz_id)
+    conds.append(WfTaskInstance.process_instance_id.in_(inst_q))
     total = (await db.execute(select(func.count()).select_from(WfTaskInstance).where(*conds))).scalar_one()
     tasks = (await db.execute(select(WfTaskInstance).where(*conds)
              .order_by(WfTaskInstance.created_at.desc())
@@ -4003,7 +4039,13 @@ async def list_todo(db, tenant_id, user_id, page_no, page_size, biz_type=None, b
 
 async def list_done(db, tenant_id, user_id, page_no, page_size):
     conds = [WfTaskInstance.tenant_id == tenant_id, WfTaskInstance.assignee_id == user_id,
-             WfTaskInstance.status.in_(["approved", "rejected", "transferred", "returned"])]
+             WfTaskInstance.status.in_(["approved", "rejected", "transferred", "returned"]),
+             WfTaskInstance.process_instance_id.in_(
+                 select(WfProcessInstance.id).where(
+                     WfProcessInstance.tenant_id == tenant_id,
+                     _live_form_process_clause(tenant_id),
+                 )
+             )]
     total = (await db.execute(select(func.count()).select_from(WfTaskInstance).where(*conds))).scalar_one()
     tasks = (await db.execute(select(WfTaskInstance).where(*conds)
              .order_by(WfTaskInstance.action_at.desc())
@@ -4012,7 +4054,11 @@ async def list_done(db, tenant_id, user_id, page_no, page_size):
 
 
 async def list_initiated(db, tenant_id, user_id, page_no, page_size):
-    conds = [WfProcessInstance.tenant_id == tenant_id, WfProcessInstance.initiator_id == user_id]
+    conds = [
+        WfProcessInstance.tenant_id == tenant_id,
+        WfProcessInstance.initiator_id == user_id,
+        _live_form_process_clause(tenant_id),
+    ]
     total = (await db.execute(select(func.count()).select_from(WfProcessInstance).where(*conds))).scalar_one()
     rows = (await db.execute(select(WfProcessInstance).where(*conds)
             .order_by(WfProcessInstance.created_at.desc())
@@ -4022,7 +4068,16 @@ async def list_initiated(db, tenant_id, user_id, page_no, page_size):
 
 async def list_cc(db, tenant_id, user_id, page_no, page_size):
     """抄送给我的流程。"""
-    conds = [WfProcessCc.tenant_id == tenant_id, WfProcessCc.user_id == user_id]
+    conds = [
+        WfProcessCc.tenant_id == tenant_id,
+        WfProcessCc.user_id == user_id,
+        WfProcessCc.process_instance_id.in_(
+            select(WfProcessInstance.id).where(
+                WfProcessInstance.tenant_id == tenant_id,
+                _live_form_process_clause(tenant_id),
+            )
+        ),
+    ]
     total = (await db.execute(select(func.count()).select_from(WfProcessCc).where(*conds))).scalar_one()
     ccs = (await db.execute(select(WfProcessCc).where(*conds)
            .order_by(WfProcessCc.created_at.desc())

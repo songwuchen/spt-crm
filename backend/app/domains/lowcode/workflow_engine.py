@@ -1553,6 +1553,47 @@ class WorkflowEngine:
         await self._audit(inst, actor, "activate")
         return inst
 
+    async def abort_deleted_form(self, process_instance_id: str, actor: dict | None = None) -> bool:
+        """关联表单已删除：作废进行中流程与待办，不回写草稿、不建修订待办。"""
+        inst = (await self.db.execute(
+            select(WfProcessInstance).where(
+                WfProcessInstance.id == process_instance_id,
+                WfProcessInstance.tenant_id == self.tenant_id,
+            )
+        )).scalar_one_or_none()
+        if not inst:
+            return False
+        actor = actor or {"sub": "system", "real_name": "系统"}
+        tasks = (await self.db.execute(
+            select(WfTaskInstance).where(
+                WfTaskInstance.process_instance_id == inst.id,
+                WfTaskInstance.status.in_(["pending", "waiting"]),
+            )
+        )).scalars().all()
+        now = _now()
+        for t in tasks:
+            t.status = "cancelled"
+            t.action_at = now
+        nis = (await self.db.execute(
+            select(WfNodeInstance).where(
+                WfNodeInstance.process_instance_id == inst.id,
+                WfNodeInstance.status == "running",
+            )
+        )).scalars().all()
+        for ni in nis:
+            ni.status = "cancelled"
+            ni.completed_at = now
+        if inst.status in ("running", "draft") or tasks or nis:
+            inst.status = "cancelled"
+            inst.completed_at = now
+            self._log(inst.id, None, None, actor, "abort", "关联表单已删除，流程作废")
+        if tasks:
+            self._queue("todos_done", [t.id for t in tasks])
+        await self.db.commit()
+        if tasks:
+            await self.flush_notifications(inst)
+        return True
+
     # ---------- 撤回 ----------
 
     async def withdraw(self, process_instance_id: str, actor: dict) -> None:
