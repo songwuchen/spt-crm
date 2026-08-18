@@ -141,6 +141,8 @@ class WorkflowEngine:
         # 同一出边批次深度：>0 时 completed 只登记、不落状态，防止旁路抄送抢先收尾
         self._advance_batch_depth = 0
         self._deferred_complete: tuple | None = None
+        # 本批是否因「节点已完成」跳过激活（采购回路等才允许据此发明 end）
+        self._skipped_reactivate_this_batch = False
 
     async def _has_downstream_approval(self, process_instance_id: str) -> bool:
         """下一节点（或任一审批节点）已有人审批通过 → 不可撤回。"""
@@ -670,6 +672,30 @@ class WorkflowEngine:
 
     # ---------- 推进到下一节点 ----------
 
+    def _should_invent_end(
+        self, from_node: dict, ordered: list[str], nodes: dict[str, dict],
+        *, has_live_work: bool, skipped_reactivate: bool,
+    ) -> bool:
+        """无在途待办时要不要发明 end。
+
+        仅抄送、或指定人主链被跳过，都不能收尾；采购回路 skip_reactivate 才发明结束。
+        """
+        if has_live_work:
+            return False
+        if (from_node or {}).get("type") == "cc":
+            return False
+        phases = [self._advance_phase(nodes.get(t)) for t in ordered]
+        if ordered and all(p == ADVANCE_PHASE_SIDECAR for p in phases):
+            return False
+        if any(p == ADVANCE_PHASE_CORE for p in phases) and not skipped_reactivate:
+            return False
+        return True
+
+    def _specified_rule_has_value(self, rule: dict | None) -> bool:
+        if not isinstance(rule, dict) or rule.get("type") != "specified_user":
+            return False
+        return bool(ApproverResolver._as_list(rule.get("value")))
+
     async def _advance(self, inst: WfProcessInstance, version: WfProcessDefinitionVersion,
                        from_node_id: str, ctx: ApprovalContext) -> None:
         targets = self._next_targets(version, from_node_id, ctx.form_data)
@@ -681,6 +707,7 @@ class WorkflowEngine:
             if isinstance(r, dict) and (r.get("reenter") or r.get("allow_reenter"))
         }
         ordered = self._order_advance_targets(version, from_node_id, targets)
+        self._skipped_reactivate_this_batch = False
         self._advance_batch_depth += 1
         try:
             for tid in ordered:
@@ -698,11 +725,15 @@ class WorkflowEngine:
         # 后继全部 skip_reactivate（或无出边）且无在途待办时收尾，避免采购回路卡住。
         # 抄送节点本身无出边，不能从抄送收尾——否则会抢在同批审批激活之前结束流程。
         from_node = nodes.get(from_node_id) or {}
+        live = bool(self.db is not None and await self._has_live_work(inst))
         if (
             self.db is not None
             and inst.status == "running"
-            and from_node.get("type") != "cc"
-            and not await self._has_live_work(inst)
+            and self._should_invent_end(
+                from_node, ordered, nodes,
+                has_live_work=live,
+                skipped_reactivate=self._skipped_reactivate_this_batch,
+            )
         ):
             end = next(
                 (n for n in (version.node_definitions or []) if n.get("type") == "end"),
@@ -777,6 +808,7 @@ class WorkflowEngine:
                     ).limit(1)
                 )).scalar_one_or_none()
                 if already_done:
+                    self._skipped_reactivate_this_batch = True
                     self._log(
                         inst.id, None, None, {"sub": "system"}, "skip_reactivate",
                         f"节点「{node.get('name') or node['id']}」已完成，跳过晚到汇入的重复激活",
@@ -820,6 +852,28 @@ class WorkflowEngine:
         if not approvers:
             strategy = node.get("empty_strategy") or (node.get("config") or {}).get("empty_strategy") or "auto_approve"
             node_name = node.get("name") or "审批"
+            rule = self._approver_rule(version, node) or {}
+            # 节点写了指定人：人在组织里就该建待办，禁止「找不到就自动过」把主链吃掉。
+            if self._specified_rule_has_value(rule):
+                logger.error(
+                    "specified_user unresolved: node=%s value=%s process=%s",
+                    node_name, rule.get("value"), inst.id,
+                )
+                ni = WfNodeInstance(
+                    id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
+                    node_def_id=node["id"], node_type="approval",
+                    node_name=node_name, status="running",
+                    config={"unresolved_approver": True, "specified": rule.get("value")},
+                    started_at=_now(),
+                )
+                self.db.add(ni)
+                await self.db.flush()
+                self._log(
+                    inst.id, ni.id, None, {"sub": "system"}, "unresolved_approver",
+                    f"节点「{node_name}」指定审批人未匹配到在职账号，已挂起（不自动通过）",
+                )
+                self._queue("empty_auto_approved", node_name, inst)
+                return
             if strategy == "terminate":
                 await self._complete_instance(inst, "rejected", reason=f"节点「{node_name}」无审批人,流程终止")
                 self._log(inst.id, None, None, {"sub": "system"}, "auto_reject", "无审批人,流程终止")

@@ -79,6 +79,59 @@ def test_end_last_in_same_batch():
     assert batch[-1]["phase"] == ADVANCE_PHASE_END
 
 
+def test_should_invent_end_rules():
+    """仅抄送 / 主链被空过 不得发明 end；skip_reactivate 才可以。"""
+    eng = WorkflowEngine(db=None, tenant_id="t")
+    nodes = {
+        "n7": {"id": "n7", "type": "approval", "name": "总工"},
+        "n5": {"id": "n5", "type": "approval", "name": "设计指派"},
+        "cc1": {"id": "cc1", "type": "cc", "name": "抄送"},
+        "end": {"id": "end", "type": "end", "name": "结束"},
+    }
+    from_n7 = nodes["n7"]
+    assert eng._should_invent_end(
+        from_n7, ["cc1"], nodes, has_live_work=False, skipped_reactivate=False,
+    ) is False
+    assert eng._should_invent_end(
+        from_n7, ["n5", "cc1"], nodes, has_live_work=False, skipped_reactivate=False,
+    ) is False
+    assert eng._should_invent_end(
+        from_n7, ["n5"], nodes, has_live_work=False, skipped_reactivate=True,
+    ) is True
+    assert eng._should_invent_end(
+        from_n7, [], nodes, has_live_work=False, skipped_reactivate=False,
+    ) is True
+    assert eng._should_invent_end(
+        from_n7, ["cc1"], nodes, has_live_work=True, skipped_reactivate=False,
+    ) is False
+
+
+def test_as_list_unwraps_jdy_person_dict():
+    from app.domains.lowcode.approver_resolver import ApproverResolver
+
+    assert ApproverResolver._as_list({"username": "013807685436426800", "nickname": "郑志颖"}) == [
+        "013807685436426800",
+    ]
+    assert ApproverResolver._as_list([
+        {"id": "u1"}, "u2", {"nickname": "张三"},
+    ]) == ["u1", "u2", "张三"]
+    assert ApproverResolver._as_list("") == []
+    assert ApproverResolver._as_list(None) == []
+
+
+def test_specified_rule_has_value():
+    eng = WorkflowEngine(db=None, tenant_id="t")
+    assert eng._specified_rule_has_value(
+        {"type": "specified_user", "value": "013807685436426800"},
+    )
+    assert eng._specified_rule_has_value(
+        {"type": "specified_user", "value": {"username": "x", "nickname": "甲"}},
+    )
+    assert not eng._specified_rule_has_value({"type": "specified_user", "value": ""})
+    assert not eng._specified_rule_has_value({"type": "specified_role", "value": "sales"})
+    assert not eng._specified_rule_has_value(None)
+
+
 def test_invoice_start_batch_finance_then_cc():
     graph = _drawing_flow_graph("invoice_application")
     assert graph is not None

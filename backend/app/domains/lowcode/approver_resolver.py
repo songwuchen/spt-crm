@@ -89,20 +89,30 @@ class ApproverResolver:
         return out
 
     async def _resolve_user_identifier(self, ident: str) -> str | None:
-        """值可能是 user_id,或用户名。优先当作 id;否则按 username 查。"""
+        """值可能是 user_id、钉钉 userid(存 username)、或姓名。"""
         ident = str(ident).strip()
         if not ident:
             return None
         active = await self._active_user_ids()
         if ident in active:
             return ident
-        # 可能是停用用户 id(仍是有效 id,但会在末尾被过滤);或用户名
         uid = (await self.db.execute(
-            select(User.id).where(User.tenant_id == self.tenant_id, User.username == ident)
+            select(User.id).where(
+                User.tenant_id == self.tenant_id, User.username == ident,
+            ).limit(1)
         )).scalar_one_or_none()
         if uid:
             return uid
-        # 作为 id 透传(末尾统一按 active 过滤)
+        # 画布/简道云有时只写了姓名
+        uid = (await self.db.execute(
+            select(User.id).where(
+                User.tenant_id == self.tenant_id,
+                User.is_active == True,  # noqa: E712
+                User.real_name == ident,
+            ).order_by(User.created_at.asc()).limit(1)
+        )).scalar_one_or_none()
+        if uid:
+            return uid
         return ident
 
     # ---------- 主入口 ----------
@@ -130,10 +140,32 @@ class ApproverResolver:
                 out.append(u)
         return out
 
-    def _as_list(self, v: Any) -> list[str]:
+    @staticmethod
+    def _as_list(v: Any) -> list[str]:
+        """把指定人配置摊成 ident 列表。
+
+        简道云/画布可能写成 username 字符串、CRM UUID、或
+        ``{username, nickname, name, id}`` 对象（含数组）。
+        """
         if v is None or v == "":
             return []
-        return [str(x) for x in v] if isinstance(v, list) else [str(v)]
+        if isinstance(v, dict):
+            for k in ("username", "id", "user_id", "value"):
+                s = str(v.get(k) or "").strip()
+                if s:
+                    return [s]
+            for k in ("nickname", "name", "real_name"):
+                s = str(v.get(k) or "").strip()
+                if s:
+                    return [s]
+            return []
+        if isinstance(v, list):
+            out: list[str] = []
+            for x in v:
+                out.extend(ApproverResolver._as_list(x))
+            return out
+        s = str(v).strip()
+        return [s] if s else []
 
     # ---------- 各审批人类型策略 ----------
 

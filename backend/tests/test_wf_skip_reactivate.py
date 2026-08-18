@@ -126,6 +126,39 @@ async def test_activate_approval_skips_when_already_completed():
 
 
 @pytest.mark.asyncio
+async def test_specified_user_unresolved_hangs_without_auto_approve():
+    """写了指定人却解析不到：挂起节点，禁止 auto_approve 吃掉主链。"""
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    eng = WorkflowEngine(db=AsyncMock(), tenant_id="t")
+    eng._queue = MagicMock()
+    eng._log = MagicMock()
+    eng._resolve_approvers = AsyncMock(return_value=[])
+    eng._advance = AsyncMock()
+    eng.db.flush = AsyncMock()
+
+    running_miss = MagicMock()
+    running_miss.scalar_one_or_none.return_value = None
+    eng.db.execute = AsyncMock(return_value=running_miss)
+
+    inst = SimpleNamespace(id="pi-1", biz_type="form", biz_id=None, tenant_id="t")
+    node = {
+        "id": "n5", "type": "approval", "name": "设计指派安排",
+        "approver_rule": {"type": "specified_user", "value": "013807685436426800"},
+        "empty_strategy": "auto_approve",
+    }
+    version = SimpleNamespace(node_definitions=[node], route_definitions=[], approver_rules=[])
+    ctx = SimpleNamespace(form_data={}, initiator_id="u1", nominated={})
+
+    await eng._activate_approval(inst, version, node, ctx)
+
+    eng._advance.assert_not_awaited()
+    eng.db.add.assert_called()
+    eng._log.assert_called()
+    assert eng._log.call_args[0][4] == "unresolved_approver"
+
+
+@pytest.mark.asyncio
 async def test_activate_approval_allow_reenter_after_completed():
     """退回重入：即使历史总工已完成，也允许再次激活。"""
     from app.domains.lowcode.workflow_engine import WorkflowEngine
