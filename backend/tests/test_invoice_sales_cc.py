@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from app.domains.lowcode.service import (
-    _OWNER_PERSON_FIELD_BY_TEMPLATE,
+    _OWNER_PERSON_FIELDS_BY_TEMPLATE,
     _instance_list_conds,
 )
 from app.domains.lowcode.workflow_service import (
@@ -130,10 +130,10 @@ async def test_advance_activates_invoice_approval_before_submit_cc():
 
 
 def test_invoice_list_owner_person_field_mapping():
-    assert _OWNER_PERSON_FIELD_BY_TEMPLATE["invoice_application"] == "sales_person"
-    assert _OWNER_PERSON_FIELD_BY_TEMPLATE["quote_management"] == "sales_person"
-    # 带 owner_person_field 时条件构造不抛错（SQL 表达式可编译）
+    assert _OWNER_PERSON_FIELDS_BY_TEMPLATE["invoice_application"] == ["sales_person"]
+    assert _OWNER_PERSON_FIELDS_BY_TEMPLATE["quote_management"] == ["sales_person"]
+    # 带 owner_person_fields 时条件构造不抛错（SQL 表达式可编译）
     conds = _instance_list_conds(
-        "t1", "tpl1", owner_ids=["u-sales"], owner_person_field="sales_person",
+        "t1", "tpl1", owner_ids=["u-sales"], owner_person_fields=["sales_person"],
     )
     assert len(conds) >= 4
