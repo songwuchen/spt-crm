@@ -639,22 +639,24 @@ async def test_country_name_required_does_not_block_domestic_lead(
 async def test_masking_covers_derived_display_fields(
     client: AsyncClient, auth_headers: dict, reset_lead_template,
 ):
-    """脱敏 owner_id 必须连带 owner_name —— 列表页渲染的正是后者。"""
+    """脱敏 reporter_id 必须连带 reporter_name —— 列表页渲染的正是后者。"""
     h = auth_headers
+    me = (await client.get("/api/v1/auth/me", headers=h)).json()["data"]
     lid = (await client.post("/api/v1/leads", headers=h, json={
         "title": "派生字段脱敏线索", "company_name": "某公司",
+        "reporter_id": me["id"],
     })).json()["data"]["id"]
 
     before = (await client.get(f"/api/v1/leads/{lid}", headers=h)).json()["data"]
-    assert before["owner_name"], "前置条件：该线索应有负责人姓名"
+    assert before["reporter_name"], "前置条件：该线索应有申报人姓名"
 
     await _publish_lead_native_override(client, h, [
-        {"id": "owner_id", "native": True, "label": "负责人", "type": "person",
+        {"id": "reporter_id", "native": True, "label": "申报人", "type": "person",
          "unmask_roles": ["__manager_only__"]},
     ])
     after = (await client.get(f"/api/v1/leads/{lid}", headers=h)).json()["data"]
-    assert after["owner_id"] == "***"
-    assert after["owner_name"] == "***", "只裁 owner_id 而漏了 owner_name，脱敏等于没配"
+    assert after["reporter_id"] == "***"
+    assert after["reporter_name"] == "***", "只裁 reporter_id 而漏了 reporter_name，脱敏等于没配"
 
     await client.delete(f"/api/v1/leads/{lid}", headers=h)
 

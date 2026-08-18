@@ -117,7 +117,6 @@ export default function LeadForm() {
   const customerTypeDict = useDataDict('customer_type', CUSTOMER_TYPE_OPTIONS)
 
   const reporterSelect = useUserSelect()
-  const ownerSelect = useUserSelect()
   const currentUser = useAuthStore((s) => s.user)
   const countryType = Form.useWatch('country_type', form)
 
@@ -168,9 +167,6 @@ export default function LeadForm() {
         setCustomFields((d.custom_fields_json as Record<string, unknown>) || {})
         if (d.reporter_id && d.reporter_name) {
           reporterSelect.setInitialOption({ label: String(d.reporter_name), value: String(d.reporter_id) })
-        }
-        if (d.owner_id && d.owner_name) {
-          ownerSelect.setInitialOption({ label: String(d.owner_name), value: String(d.owner_id) })
         }
       }).catch(() => message.error('加载线索数据失败'))
     } else {
@@ -452,13 +448,6 @@ export default function LeadForm() {
                 <DatePicker showTime className="w-full" placeholder="请选择申报时间" format="YYYY-MM-DD HH:mm" />
               </PolicyItem>
 
-              <PolicyItem name="owner_id" label="负责人">
-                <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
-                  loading={ownerSelect.loading}
-                  options={ownerSelect.options}
-                  onSearch={ownerSelect.onSearch}
-                  onDropdownVisibleChange={ownerSelect.onDropdownVisibleChange} />
-              </PolicyItem>
               <PolicyItem name="project_activity" label="项目动态" className="sm:col-span-2 xl:col-span-3" rules={[{ required: true, message: '请选择项目动态' }]}>
                 <ChoiceOptionsBridge fieldId="project_activity" fallback={PROJECT_ACTIVITY_OPTIONS}>
                   {(opts) => <Radio.Group options={opts} />}

@@ -38,7 +38,6 @@ export default function MobileLeadForm() {
   const countryType = Form.useWatch('country_type', form)
   const hasConflict = Form.useWatch('has_internal_conflict', form)
   const reporterSelect = useUserSelect()
-  const ownerSelect = useUserSelect()
 
   useEffect(() => {
     form.setFieldsValue({
@@ -167,12 +166,6 @@ export default function MobileLeadForm() {
             </MField>
             <MField name="entrust_term" label="委托期限">
               <Input placeholder="委托期限" className={inputCls} />
-            </MField>
-            <MField name="owner_id" label="负责人">
-              <Select placeholder="请选择负责人" allowClear showSearch filterOption={false}
-                className="w-full" loading={ownerSelect.loading} options={ownerSelect.options}
-                onSearch={ownerSelect.onSearch}
-                onDropdownVisibleChange={ownerSelect.onDropdownVisibleChange} />
             </MField>
             <MField name="project_recent" label="项目近况">
               <Input placeholder="项目近况" className={inputCls} />

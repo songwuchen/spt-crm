@@ -322,8 +322,8 @@ export default function LeadDetail() {
     reactTodo &&
     !!currentUser &&
     (reactStatus === 'awaiting_reporter'
-      ? [lead.reporter_id, lead.owner_id, lead.created_by_id].includes(currentUser.id)
-      : [lead.created_by_id, lead.reporter_id, lead.owner_id].includes(currentUser.id))
+      ? [lead.reporter_id, lead.created_by_id].includes(currentUser.id)
+      : [lead.created_by_id, lead.reporter_id].includes(currentUser.id))
   // 仅草稿 / 撤回后的待审可整单编辑；收录后不可改（详情「动态」仍可添加互动记录）
   const canEditLead = hasLeadEdit && canOperate && !reviewInFlight
     && (reviewStatus === 'draft' || reviewStatus === 'pending')
@@ -714,10 +714,6 @@ export default function LeadDetail() {
                             </div>
                           </div>
                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">负责人</div>
-                            <div className="text-sm font-semibold text-slate-700">{lead.owner_name || '-'}</div>
-                          </div>
-                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">联系人</div>
                             <div className="text-sm font-semibold text-slate-700">{lead.contact_name || '-'}</div>
                           </div>
@@ -872,10 +868,6 @@ export default function LeadDetail() {
                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">项目动态</div>
                             <div className="text-sm font-semibold text-slate-700">{lead.project_activity || '-'}</div>
-                          </div>
-                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                            <div className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1">负责人</div>
-                            <div className="text-sm font-semibold text-slate-700">{lead.owner_name || '-'}</div>
                           </div>
                         </div>
                       </div>

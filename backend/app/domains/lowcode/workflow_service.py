@@ -335,6 +335,18 @@ SYSTEM_DEFAULT_CATEGORY = "system_default"
 # 系统兜底流程排在最后，租户自建流程(sort_order 默认 0)优先命中
 _SYSTEM_DEFAULT_SORT = 9999
 
+# 线索情报审批默认指定人员（钉钉 username，与 resolver / 简道云 chargers 一致）
+_LEAD_INTEL_APPROVER_USERNAMES = ["060832423223953982", "0615176412841441"]  # 崔艳丽、杨光
+
+
+def _lead_intel_approver_rule() -> dict:
+    return {
+        "type": "specified_user",
+        "value": list(_LEAD_INTEL_APPROVER_USERNAMES),
+        "exclude_initiator": True,
+    }
+
+
 # 打开「流程管理」/租户开通时幂等补齐；业务提交路径仍保留 ensure 作双保险。
 BIZ_DEFAULT_SPECS: list[dict] = [
     {
@@ -365,7 +377,7 @@ BIZ_DEFAULT_SPECS: list[dict] = [
         "biz_type": "lead",
         "code": "SYS_LEAD_REVIEW",
         "name": "信息情报部审批",
-        "approver_rule": {"type": "specified_role", "value": "lead_intel", "exclude_initiator": True},
+        "approver_rule": _lead_intel_approver_rule(),
         "multi_mode": "or_sign",
         "empty_strategy": "auto_approve",
     },
@@ -2041,6 +2053,28 @@ def _is_lead_confirm_person_rule(rule: dict | None) -> bool:
     )
 
 
+def _is_lead_owner_confirm_node_dict(n: dict) -> bool:
+    if n.get("id") in _LEAD_OWNER_CONFIRM_LEGACY_IDS:
+        return True
+    name = (n.get("name") or "").strip()
+    if name in (_LEAD_JDY_CC, *_LEAD_LEGACY_CC) or "转商机" in name:
+        return True
+    rule = n.get("approver_rule") or {}
+    return _is_lead_confirm_person_rule(rule) and ("转商机" in name or "确认转化" in name)
+
+
+def _lead_intel_approver_already_cui_yang(rule: dict | None) -> bool:
+    rule = rule or {}
+    if rule.get("type") != "specified_user":
+        return False
+    vals = rule.get("value")
+    if isinstance(vals, str):
+        vals = [vals]
+    want = set(_LEAD_INTEL_APPROVER_USERNAMES)
+    got = {str(v).strip() for v in (vals or []) if str(v).strip()}
+    return want <= got
+
+
 def _lead_owner_confirm_node() -> dict:
     """情报通过后：申报人（业务员）审批确认是否转商机（非填表人/负责人）。"""
     return {
@@ -2163,6 +2197,49 @@ async def _upgrade_lead_intel_field_perms_if_needed(
         db, tenant_id, d, version, new_nodes, list(version.route_definitions or []),
         "系统默认流程（情报节点可填：新/老、回退原因、备注2、操作意见）",
         "线索情报节点field_perms",
+    )
+
+
+async def _upgrade_lead_intel_specified_users_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition,
+) -> None:
+    """线索情报节点：角色码 lead_intel → 指定崔艳丽、杨光（或签）。"""
+    if d.code != "SYS_LEAD_REVIEW":
+        return
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+    nodes = list(version.node_definitions or [])
+    intel_ap: dict | None = None
+    for n in nodes:
+        if n.get("type") != "approval" or _is_lead_owner_confirm_node_dict(n):
+            continue
+        if "情报" in (n.get("name") or "") or n.get("id") == "approval_1":
+            intel_ap = n
+            break
+    if intel_ap is None:
+        for n in nodes:
+            if n.get("type") == "approval" and not _is_lead_owner_confirm_node_dict(n):
+                intel_ap = n
+                break
+    if intel_ap is None:
+        return
+    if _lead_intel_approver_already_cui_yang(intel_ap.get("approver_rule")):
+        return
+    new_rule = _lead_intel_approver_rule()
+    new_nodes: list[dict] = []
+    for n in nodes:
+        nn = dict(n)
+        if nn.get("id") == intel_ap.get("id"):
+            nn["approver_rule"] = new_rule
+            nn["multi_mode"] = nn.get("multi_mode") or "or_sign"
+        new_nodes.append(nn)
+    await _publish_system_default_upgrade(
+        db, tenant_id, d, version, new_nodes, list(version.route_definitions or []),
+        "系统默认流程（信息情报部审批：指定崔艳丽、杨光）",
+        "线索情报节点指定人员",
     )
 
 
@@ -2628,6 +2705,7 @@ async def ensure_default_definition(
                 db, tenant_id, sys_def, name, approver_rule, multi_mode, empty_strategy,
             )
             await _upgrade_lead_intel_field_perms_if_needed(db, tenant_id, sys_def)
+            await _upgrade_lead_intel_specified_users_if_needed(db, tenant_id, sys_def)
             await _upgrade_lead_owner_confirm_to_approval_if_needed(db, tenant_id, sys_def)
             await _upgrade_lead_confirm_reporter_if_needed(db, tenant_id, sys_def)
 
@@ -3652,7 +3730,7 @@ async def _upgrade_lead_owner_confirm_to_approval_if_needed(
     elif len(ccs) == 0 and types <= {"start", "approval", "end"}:
         # 无确认节点：整图换成带审批确认的默认图，保留情报节点配置
         name = approvals[0].get("name") or _LEAD_JDY_APPROVAL
-        rule = approvals[0].get("approver_rule") or {"type": "specified_role", "value": "lead_intel"}
+        rule = approvals[0].get("approver_rule") or _lead_intel_approver_rule()
         mode = approvals[0].get("multi_mode") or "or_sign"
         empty = approvals[0].get("empty_strategy") or "auto_approve"
         new_nodes, new_routes = _default_flow_graph(

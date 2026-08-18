@@ -32,7 +32,6 @@ const apiGroups = [
       { method: 'POST', path: '/api/v1/leads', desc: '创建线索' },
       { method: 'GET', path: '/api/v1/leads/:id', desc: '线索详情' },
       { method: 'PUT', path: '/api/v1/leads/:id', desc: '更新线索' },
-      { method: 'POST', path: '/api/v1/leads/batch_assign', desc: '批量分配负责人' },
       { method: 'POST', path: '/api/v1/leads/batch_status', desc: '批量更新状态' },
     ],
   },

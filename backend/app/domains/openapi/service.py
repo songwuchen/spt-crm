@@ -906,6 +906,7 @@ async def _delete_wf_instance_tree(db: AsyncSession, tenant_id: str, instance_id
 async def import_lead_flow_history(db: AsyncSession, ctx, lead, steps) -> str | None:
     """把简道云流程动态落成已结束的 CRM 流程实例，供线索详情「流程动态」展示。"""
     from app.domains.lead.service import LEAD_DEFAULT_FLOW_CODE
+    from app.domains.lowcode.workflow_service import _lead_intel_approver_rule
 
     title = f"简道云流程: {(lead.lead_code + ' ') if lead.lead_code else ''}{lead.title}"
     initiator_id = lead.reporter_id or lead.owner_id or ctx.app_id
@@ -919,7 +920,7 @@ async def import_lead_flow_history(db: AsyncSession, ctx, lead, steps) -> str | 
         initiator_id=initiator_id,
         department_id=lead.department_id,
         steps=steps,
-        approver_rule={"type": "specified_role", "value": "lead_intel", "exclude_initiator": True},
+        approver_rule=_lead_intel_approver_rule(),
     )
     if inst_id:
         lead.review_flow_id = inst_id

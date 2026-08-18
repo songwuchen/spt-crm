@@ -201,7 +201,7 @@ async def export_leads_excel(
     headers = [
         # 列表 & 基本信息
         "项目号", "标题", "公司名称", "部门", "来源", "类别", "客户类型", "行业",
-        "业务日期", "报备人", "报备时间", "负责人", "状态", "评分",
+        "业务日期", "报备人", "报备时间", "状态", "评分",
         # 联系人信息
         "联系人", "联系电话", "邮箱",
         # 地区
@@ -229,7 +229,7 @@ async def export_leads_excel(
             c("biz_date", str(l.biz_date) if l.biz_date else ""),
             c("reporter_id", getattr(l, "reporter_name", None) or ""),
             c("reported_at", l.reported_at.strftime("%Y-%m-%d %H:%M") if getattr(l, "reported_at", None) else ""),
-            c("owner_id", l.owner_name or ""), l.status or "", l.score or "",
+            l.status or "", l.score or "",
             c("contact_name", l.contact_name or ""), c("contact_phone", l.contact_phone or ""),
             c("contact_email", l.contact_email or ""),
             c("country_type", country_label.get(l.country_type or "", l.country_type or "")),
@@ -296,10 +296,6 @@ async def _validate_lead_import_row(
     if reporter_name:
         if not await _resolve_user_id(db, tenant_id, reporter_name):
             return f"找不到申报人「{reporter_name}」"
-    owner_name = raw.get("owner_name")
-    if owner_name:
-        if not await _resolve_user_id(db, tenant_id, owner_name):
-            return f"找不到负责人「{owner_name}」"
     return None
 
 
@@ -373,23 +369,21 @@ async def import_leads_excel(
                 continue
             dept_name = raw.pop("department_name", None)
             reporter_name = raw.pop("reporter_name", None)
-            owner_name = raw.pop("owner_name", None)
+            raw.pop("owner_name", None)  # 负责人列已废弃，兼容旧模板时忽略
             err = await _validate_lead_import_row(db, tenant_id, {
                 "title": title,
                 "department_name": dept_name,
                 "reporter_name": reporter_name,
-                "owner_name": owner_name,
             })
             if err:
                 raise ValueError(err)
             department_id = await _resolve_department_id(db, tenant_id, dept_name)
             reporter_id = await _resolve_user_id(db, tenant_id, reporter_name)
-            owner_id = await _resolve_user_id(db, tenant_id, owner_name)
 
             company = raw.get("company_name") or title
             skip = {
                 "company_name", "source", "title",
-                "department_id", "reporter_id", "owner_id",
+                "department_id", "reporter_id",
             }
             kwargs = {
                 k: v for k, v in raw.items()
@@ -400,7 +394,6 @@ async def import_leads_excel(
                 company_name=company,
                 department_id=department_id,
                 reporter_id=reporter_id,
-                owner_id=owner_id,
                 source=raw.get("source") or "import",
                 **kwargs,
             )
@@ -645,12 +638,6 @@ async def public_lead_capture(
 
 # ---- Batch Operations ----
 
-class BatchAssignBody(BaseModel):
-    ids: list[str]
-    owner_id: str
-    owner_name: Optional[str] = None
-
-
 class BatchStatusBody(BaseModel):
     ids: list[str]
     status: str  # new / following / qualified / discarded
@@ -667,46 +654,6 @@ async def _visible_lead_ids(db: AsyncSession, tenant_id: str, user: dict, ids: l
         Lead.tenant_id == tenant_id, Lead.id.in_(ids), Lead.is_deleted == False)
     q = await apply_data_scope(q, db, tenant_id, user, Lead, "lead")
     return list((await db.execute(q)).scalars().all())
-
-
-@router.post("/batch_assign")
-async def batch_assign(
-    body: BatchAssignBody,
-    tenant_id: str = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_permissions("lead:edit")),
-):
-    """Batch assign leads to a new owner."""
-    from sqlalchemy import select, update
-    from app.domains.lead.models import Lead
-    # 数据范围：批量入口同样只能操作可见线索，否则「列表看不到」的线索仍能被整批改派，
-    # 就是详情越权(IDOR)的批量版本。
-    ids = await _visible_lead_ids(db, tenant_id, current_user, body.ids)
-    if not ids:
-        return ok({"updated": 0})
-    sample = (await db.execute(
-        select(Lead).where(Lead.tenant_id == tenant_id, Lead.id.in_(ids), Lead.is_deleted == False).limit(1)
-    )).scalar()
-    result = await db.execute(
-        update(Lead).where(
-            Lead.tenant_id == tenant_id,
-            Lead.id.in_(ids),
-            Lead.is_deleted == False,
-        ).values(owner_id=body.owner_id, owner_name=body.owner_name)
-    )
-    await db.commit()
-    # 批量改派给他人 → 给新负责人发一条汇总通知
-    if body.owner_id and body.owner_id != current_user["sub"] and result.rowcount and sample:
-        try:
-            from app.common.auto_notify import notify_lead_assigned
-            await notify_lead_assigned(
-                db, tenant_id, sample.title or sample.company_name or "线索",
-                body.owner_id, current_user.get("real_name") or current_user.get("username"),
-                sample.id, count=result.rowcount,
-            )
-        except Exception:
-            pass
-    return ok({"updated": result.rowcount})
 
 
 @router.post("/batch_status")

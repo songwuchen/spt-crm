@@ -379,10 +379,6 @@ export default function MobileLeadDetail() {
             {lead.reported_at ? new Date(lead.reported_at).toLocaleString('zh-CN') : '-'}
           </span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-sm text-slate-400">负责人</span>
-          <span className="text-sm text-slate-600">{lead.owner_name || '-'}</span>
-        </div>
         {lead.department_name && (
           <div className="flex justify-between">
             <span className="text-sm text-slate-400">部门</span>

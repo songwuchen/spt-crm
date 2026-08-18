@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Button, Input, Space, Select, Modal, Form, DatePicker, message } from 'antd'
+import { Button, Input, Space, Select, Modal, DatePicker, message } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, SearchOutlined, DownloadOutlined, UploadOutlined, DeleteOutlined } from '@ant-design/icons'
 import { downloadFile } from '@/utils/download'
@@ -10,7 +10,6 @@ import { sourceLabels } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
 import { leadStatusConfig as statusConfig, leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useUserSelect } from '@/hooks/useSelectOptions'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useListView } from '@/hooks/useListView'
 import { usePageSize } from '@/hooks/usePageSize'
@@ -132,25 +131,9 @@ export default function LeadList() {
   // created_at 是默认维度，不写进 URL 以保持链接干净
   const setDateField = (v: string) => updateParams({ date_field: v === 'created_at' ? undefined : v, page: undefined })
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-  const [assignModal, setAssignModal] = useState(false)
   const [importModal, setImportModal] = useState(false)
-  const [assignForm] = Form.useForm()
-  const userSelect = useUserSelect()
   const [reload, setReload] = useState(0)
   const didMount = useRef(false)
-
-  const handleBatchAssign = async () => {
-    const values = await assignForm.validateFields()
-    const ownerName = userSelect.options.find(o => o.value === values.owner_id)?.label || ''
-    try {
-      const res = await leadApi.batchAssign(selectedRowKeys as string[], values.owner_id, ownerName)
-      message.success(t('lead.batchAssignDone', { count: (res as any).data?.updated || selectedRowKeys.length }))
-      setAssignModal(false)
-      assignForm.resetFields()
-      setSelectedRowKeys([])
-      fetchData()
-    } catch { message.error(t('lead.batchAssignFailed')) }
-  }
 
   const handleBatchDelete = () => {
     if (!selectedRowKeys.length) return
@@ -425,7 +408,6 @@ export default function LeadList() {
             </span>
           )
         } },
-      { title: t('common.owner'), dataIndex: 'owner_name', width: 90 },
       { title: t('lead.contact'), dataIndex: 'contact_name', width: 90 },
       { title: t('lead.source'), dataIndex: 'source', width: 90,
         render: (v: string) => v ? <span className="text-sm text-slate-600">{sourceLabels[v] || v}</span> : emptyCell() },
@@ -506,7 +488,6 @@ export default function LeadList() {
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center justify-between shrink-0">
           <span className="text-sm text-blue-700">{t('common.selected', { count: selectedRowKeys.length })}</span>
           <Space>
-            <Button size="small" onClick={() => { assignForm.resetFields(); setAssignModal(true) }}>{t('lead.batchAssign')}</Button>
             <Button size="small" onClick={handleBatchConvert}>{t('lead.batchConvert')}</Button>
             {canDeleteLead && (
               <Button size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>{t('common.batchDelete')}</Button>
@@ -636,18 +617,6 @@ export default function LeadList() {
         />
       </div>
 
-      <Modal title={t('lead.batchAssign')} open={assignModal} onOk={handleBatchAssign}
-        onCancel={() => setAssignModal(false)} okText={t('common.confirm')}>
-        <Form form={assignForm} layout="vertical" className="py-2">
-          <Form.Item label={t('lead.batchAssignTo')} name="owner_id" rules={[{ required: true, message: t('lead.batchAssignTo') }]}>
-            <Select showSearch filterOption={false} placeholder={t('common.searchPlaceholder')}
-              loading={userSelect.loading} options={userSelect.options}
-              onSearch={userSelect.onSearch} onDropdownVisibleChange={userSelect.onDropdownVisibleChange} />
-          </Form.Item>
-        </Form>
-        <p className="text-sm text-slate-400">{t('lead.assignTo', { count: selectedRowKeys.length })}</p>
-      </Modal>
-
       <ImportModal
         open={importModal}
         onClose={() => setImportModal(false)}
@@ -661,7 +630,7 @@ export default function LeadList() {
         expectedHeaders={[
           '项目名称', '来源', '公司名称', '客户类型', '国别', '国家', '省', '市', '区县', '详细地址',
           '是否内部冲突', '备注：请示部门经理的结果', '行业', '委托状态', '委托开具日期', '委托期限',
-          '部门', '申报人', '申报时间', '负责人', '项目动态', '备注1（线索内容）',
+          '部门', '申报人', '申报时间', '项目动态', '备注1（线索内容）',
           '联系人', '联系电话', '联系邮箱', '线索来源', '业务日期', '备注',
         ]}
       />

@@ -93,7 +93,6 @@ export default function MobileLeads() {
                 {l.contact_name && <span>{l.contact_name}</span>}
                 {l.source && <span>{sourceLabels[l.source] || l.source}</span>}
                 {l.reporter_name && <span>报备 {l.reporter_name}</span>}
-                {l.owner_name && <span>负责 {l.owner_name}</span>}
                 {l.department_name && <span>{l.department_name}</span>}
                 <span className="ml-auto">
                   {l.reported_at

@@ -57,7 +57,6 @@ class LeadCreate(BaseModel):
     department_id: Optional[str] = Field(None, max_length=36)
     budget_range: Optional[str] = None
     reporter_id: Optional[str] = Field(None, max_length=36)
-    owner_id: Optional[str] = Field(None, max_length=36)
     reported_at: Optional[datetime] = None
     biz_date: Optional[date] = None
     remark: Optional[str] = Field(None, max_length=2000)
@@ -121,7 +120,6 @@ class LeadUpdate(BaseModel):
     department_id: Optional[str] = Field(None, max_length=36)
     budget_range: Optional[str] = None
     reporter_id: Optional[str] = Field(None, max_length=36)
-    owner_id: Optional[str] = Field(None, max_length=36)
     reported_at: Optional[datetime] = None
     biz_date: Optional[date] = None
     status: Optional[str] = None

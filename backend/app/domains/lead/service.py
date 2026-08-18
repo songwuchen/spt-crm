@@ -166,23 +166,23 @@ async def submit_lead_review(db: AsyncSession, tenant_id: str, lead: Lead, user:
 
     审批人解析优先级：
       ① 租户在「扩展平台→流程设计」为 biz_type=lead 发布的可视化流程；
-      ② 系统兜底默认流程 —— 审批人 = lead_intel(信息情报部内勤)角色的活跃成员，
-         或签(任一通过)，并排除提交人本人。
+      ② 系统兜底默认流程 —— 审批人 = 指定崔艳丽、杨光（或签），并排除提交人本人。
 
-    兜底流程用引擎自己的规则语言(specified_role)表达原先硬编码的内勤兜底，因此运行时
+    兜底流程用引擎 specified_user 表达情报内勤审批人，因此运行时
     不需要任何线索特判；「解析不出审批人就免审通过」也交给引擎的 empty_strategy=auto_approve
     承担（并会通知发起人，不再是静默放行），避免线索卡在 pending 无法转化。
 
     返回创建的 WfProcessInstance；连流程都起不来时返回 None（调用方按免审处理）。
     """
-    from app.domains.lowcode.workflow_service import ensure_default_definition, start_for_biz
+    from app.domains.lowcode.workflow_service import (
+        _lead_intel_approver_rule, ensure_default_definition, start_for_biz,
+    )
 
     title = f"信息情报部审批: {(lead.lead_code + ' ') if lead.lead_code else ''}{lead.title}"
     # 先确保系统兜底流程存在且已含「业务员确认是否转商机」抄送（可在设计器改），再发起
     await ensure_default_definition(
         db, tenant_id, biz_type="lead", code=LEAD_DEFAULT_FLOW_CODE, name="信息情报部审批",
-        # 刻意按角色而非按 lead:review 权限解析，避免把管理员(拥有全部权限)也拉进审核人池
-        approver_rule={"type": "specified_role", "value": "lead_intel", "exclude_initiator": True},
+        approver_rule=_lead_intel_approver_rule(),
         multi_mode="or_sign", empty_strategy="auto_approve",
     )
     return await start_for_biz(db, tenant_id, "lead", lead.id, user, title=title)
@@ -228,9 +228,7 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     # 申报人：由表单选择，未选则空（不再默认当前用户）
     reporter_id, reporter_name = await _resolve_user_display(
         db, tenant_id, payload.pop("reporter_id", None))
-    # 负责人：表单可选；未选则默认当前用户
-    owner_id, owner_name = await _resolve_user_display(
-        db, tenant_id, payload.pop("owner_id", None), fallback=user)
+    payload.pop("owner_id", None)  # 负责人字段已废弃，忽略写入
     # 填表人 = 创建人：JWT 刷新后可能缺 real_name/username，必须回落查库
     created_by_id, created_by_name = await _resolve_user_display(
         db, tenant_id, user.get("sub"), fallback=user)
@@ -245,7 +243,6 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
         id=generate_uuid(), tenant_id=tenant_id,
         lead_code=lead_code,
         reporter_id=reporter_id, reporter_name=reporter_name,
-        owner_id=owner_id, owner_name=owner_name,
         reported_at=reported_at,
         created_by_id=created_by_id,
         created_by_name=created_by_name,
@@ -362,9 +359,9 @@ async def _notify_owner_review_passed(tenant_id: str, lead: Lead) -> None:
         logger.warning("notify lead owner review passed failed for %s: %s", lead.id, e)
 
 
-# 收录后仍允许的运维字段（跟进状态/废弃/改派）
+# 收录后仍允许的运维字段（跟进状态/废弃/改申报人）
 _LEAD_OPERATIONAL_FIELDS = frozenset({
-    "status", "owner_id", "owner_name", "reporter_id", "reporter_name",
+    "status", "reporter_id", "reporter_name",
 })
 
 
@@ -382,6 +379,7 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
             message="线索已被驳回，项目不可再报备，不可继续编辑或跟进",
         )
     payload = data.model_dump(exclude_unset=True)
+    payload.pop("owner_id", None)  # 负责人字段已废弃
     products_given = "products" in payload
     payload.pop("products", None)  # 产品明细单独处理
     content_keys = set(payload) - _LEAD_OPERATIONAL_FIELDS
@@ -414,13 +412,7 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     # 审核门禁：未通过审核的线索不可经编辑直接置为「已转化」(移动端转化走 update)
     if payload.get("status") == "qualified" and getattr(lead, "review_status", "approved") != "approved":
         raise BusinessException(code=VALIDATION_ERROR, message="线索尚未通过审核，无法转化")
-    # When owner / reporter changes, refresh display names to match
-    reassigned_to = None
-    if "owner_id" in payload and payload["owner_id"] and payload["owner_id"] != lead.owner_id:
-        _, owner_name = await _resolve_user_display(db, tenant_id, payload["owner_id"])
-        if owner_name:
-            lead.owner_name = owner_name
-        reassigned_to = payload["owner_id"]
+    # When reporter changes, refresh display names to match
     if "reporter_id" in payload and payload["reporter_id"] and payload["reporter_id"] != lead.reporter_id:
         _, reporter_name = await _resolve_user_display(db, tenant_id, payload["reporter_id"])
         if reporter_name:
@@ -436,14 +428,6 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="update", resource_type="lead", resource_id=lead.id,
                      summary=f"更新线索: {lead.title}")
-    # 线索改派给他人 → 通知新负责人有线索待跟进
-    if reassigned_to and reassigned_to != user["sub"]:
-        try:
-            from app.common.auto_notify import notify_lead_assigned
-            await notify_lead_assigned(db, tenant_id, lead.title or lead.company_name or "线索",
-                                       reassigned_to, user.get("real_name") or user.get("username"), lead.id)
-        except Exception:
-            pass
     return lead
 
 
@@ -475,7 +459,9 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
         name=lead.company_name or lead.title,
         industry=lead.industry,
         region=_derived_region(lead) or lead.region,
-        source=lead.source, owner_id=lead.owner_id, owner_name=lead.owner_name,
+        source=lead.source,
+        owner_id=lead.reporter_id or lead.owner_id or lead.created_by_id,
+        owner_name=lead.reporter_name or lead.owner_name or lead.created_by_name,
     )
     db.add(customer)
 
@@ -537,7 +523,8 @@ async def qualify_lead(db: AsyncSession, tenant_id: str, lead_id: str, user: dic
             lead_code=lead.lead_code,
             # 直接同步线索与商机重复的字段，避免转化后重复录入 (issue #94)
             biz_date=lead.biz_date,
-            owner_id=lead.owner_id, owner_name=lead.owner_name,
+            owner_id=lead.reporter_id or lead.owner_id or lead.created_by_id,
+            owner_name=lead.reporter_name or lead.owner_name or lead.created_by_name,
             created_by_id=user.get("sub"),
             created_by_name=user.get("real_name") or user.get("username"),
             key_requirements_json={"summary": lead.demand_summary} if lead.demand_summary else None,

@@ -62,9 +62,10 @@ async def test_lead_submit_goes_through_workflow_engine(client: AsyncClient, aut
 
 @pytest.mark.asyncio
 async def test_default_lead_flow_is_provisioned_and_published(client: AsyncClient, auth_headers, db):
-    """未配置可视化流程时，系统兜底流程应被自动创建并发布，且审批人规则是 lead_intel。"""
+    """未配置可视化流程时，系统兜底流程应被自动创建并发布，且审批人规则是指定崔艳丽、杨光。"""
     from app.domains.lowcode.workflow_models import WfProcessDefinition, WfProcessDefinitionVersion
     from app.domains.lead.service import LEAD_DEFAULT_FLOW_CODE
+    from app.domains.lowcode.workflow_service import _LEAD_INTEL_APPROVER_USERNAMES
 
     await _create_lead(client, auth_headers, "兜底流程-线索")
 
@@ -82,11 +83,17 @@ async def test_default_lead_flow_is_provisioned_and_published(client: AsyncClien
     assert v is not None
     approval = [n for n in v.node_definitions if n.get("type") == "approval"]
     assert len(approval) == 2, "情报审批 + 业务员确认是否转商机"
-    intel = next(n for n in approval if (n.get("approver_rule") or {}).get("value") == "lead_intel")
+    intel = next(
+        n for n in approval
+        if "情报" in (n.get("name") or "")
+        or (n.get("approver_rule") or {}).get("type") == "specified_user"
+    )
     confirm = next(n for n in approval if n.get("id") == "approval_owner_confirm"
                    or "转商机" in (n.get("name") or ""))
     rule = intel["approver_rule"]
-    assert rule["type"] == "specified_role" and rule["value"] == "lead_intel"
+    assert rule["type"] == "specified_user"
+    vals = rule["value"] if isinstance(rule["value"], list) else [rule["value"]]
+    assert set(vals) >= set(_LEAD_INTEL_APPROVER_USERNAMES)
     # 排除提交人本人，保持与旧实现一致（旧实现 exclude_user_id=提交人）
     assert rule.get("exclude_initiator") is True
     # 无审批人时自动通过，避免线索卡在 pending 无法转化
@@ -178,18 +185,21 @@ async def test_list_definitions_seeds_contract_default_flows(client: AsyncClient
 
 @pytest.mark.asyncio
 async def test_lead_auto_approved_when_no_reviewer(client: AsyncClient, auth_headers, db):
-    """没有 lead_intel 成员时，引擎按 empty_strategy 自动放行，线索可继续转化。
+    """没有指定情报审批人时，引擎按 empty_strategy 自动放行，线索可继续转化。
 
     等价于旧实现的「无审核人 → 免审通过」。测试库是共享的（其它用例会造内勤用户），
-    所以这里显式把 lead_intel 成员全部停用来构造前置条件，用完恢复。
+    所以这里显式把崔艳丽/杨光对应账号全部停用来构造前置条件，用完恢复。
     """
-    from app.domains.auth.models import User, UserRole, Role
+    from app.domains.auth.models import User
     from app.domains.lead.models import Lead
+    from app.domains.lowcode.workflow_service import _LEAD_INTEL_APPROVER_USERNAMES
 
     members = (await db.execute(
-        select(User).join(UserRole, UserRole.user_id == User.id)
-        .join(Role, Role.id == UserRole.role_id)
-        .where(User.tenant_id == DEMO_TENANT, Role.code == "lead_intel", User.is_active == True)  # noqa: E712
+        select(User).where(
+            User.tenant_id == DEMO_TENANT,
+            User.username.in_(_LEAD_INTEL_APPROVER_USERNAMES),
+            User.is_active == True,  # noqa: E712
+        )
     )).scalars().all()
     restore = [u.id for u in members]
     for u in members:
@@ -213,37 +223,38 @@ async def test_lead_auto_approved_when_no_reviewer(client: AsyncClient, auth_hea
 
 @pytest.fixture
 async def lead_intel_user(db):
-    """造一个 lead_intel 角色的活跃用户，用完彻底清理。
+    """造一个与兜底流程指定人员 username 对齐的活跃用户，用完彻底清理。
 
     测试库是共享的且不做隔离（见 conftest：直连 DATABASE_URL），若把这个用户留在库里，
     之后所有新建线索都会变成待审核 —— test_lead.py 的 qualify 用例就会因「线索尚未通过
     审核」而失败。所以这里必须自己收尾。
     """
-    from app.domains.auth.models import User, UserRole, Role
+    from app.domains.auth.models import User
+    from app.domains.lowcode.workflow_service import _LEAD_INTEL_APPROVER_USERNAMES
 
-    role = (await db.execute(select(Role).where(
-        Role.tenant_id == DEMO_TENANT, Role.code == "lead_intel",
+    test_username = _LEAD_INTEL_APPROVER_USERNAMES[0]
+    existing = (await db.execute(select(User).where(
+        User.tenant_id == DEMO_TENANT, User.username == test_username,
     ))).scalar_one_or_none()
-    created_role = False
-    if role is None:
-        role = Role(id=generate_uuid(), tenant_id=DEMO_TENANT, code="lead_intel", name="信息情报部内勤")
-        db.add(role)
-        await db.flush()
-        created_role = True
+    if existing is not None:
+        was_active = existing.is_active
+        existing.is_active = True
+        await db.commit()
+        yield existing.id
+        existing.is_active = was_active
+        await db.commit()
+        return
 
-    u = User(id=generate_uuid(), tenant_id=DEMO_TENANT, username=f"wf_test_intel_{generate_uuid()[:8]}",
-             real_name="测试内勤", password_hash="x", is_active=True)
+    u = User(
+        id=generate_uuid(), tenant_id=DEMO_TENANT, username=test_username,
+        real_name="测试内勤", password_hash="x", is_active=True,
+    )
     db.add(u)
-    await db.flush()
-    db.add(UserRole(id=generate_uuid(), tenant_id=DEMO_TENANT, user_id=u.id, role_id=role.id))
     await db.commit()
 
     yield u.id
 
-    await db.execute(text("DELETE FROM user_roles WHERE user_id = :uid"), {"uid": u.id})
     await db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": u.id})
-    if created_role:
-        await db.execute(text("DELETE FROM roles WHERE id = :rid"), {"rid": role.id})
     await db.commit()
 
 

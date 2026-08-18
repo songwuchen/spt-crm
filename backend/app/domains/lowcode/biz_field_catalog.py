@@ -107,7 +107,6 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         {"id": "category", "label": "来源", "type": "text"},
         {"id": "country_type", "label": "国别", "type": "text"},
         {"id": "industry", "label": "行业", "type": "text"},
-        {"id": "owner_id", "label": "负责人", "type": "person"},
         {"id": "reporter_id", "label": "申报人", "type": "person"},
         {"id": "department_id", "label": "部门", "type": "department"},
     ],

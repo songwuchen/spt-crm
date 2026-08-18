@@ -33,7 +33,6 @@ LEAD_IMPORT_HEADERS: list[str] = [
     "部门",
     "申报人",
     "申报时间",
-    "负责人",
     "项目动态",
     "备注1（线索内容）",
     "联系人",
@@ -186,7 +185,6 @@ def lead_import_sample_row() -> list[Any]:
         "信息情报部",  # 部门（按名称匹配，请改成实际部门名）
         "",  # 申报人（空=导入人）
         "",  # 申报时间（空=当前）
-        "",  # 负责人（空=导入人）
         "拟建",  # 项目动态
         "需湿法钢渣处理方案",  # 备注1
         "张三",  # 联系人
@@ -212,7 +210,7 @@ def lead_import_guide_rows() -> list[list[str]]:
         ["是否内部冲突", "必填", "是 / 否；为「是」时须填冲突备注列"],
         ["行业", "必填", "筛分分选-冶金 等"],
         ["部门", "必填", "填系统中的部门全名"],
-        ["申报人/负责人", "选填", "填姓名；空则默认为导入操作人"],
+        ["申报人", "选填", "填姓名；空则默认为导入操作人"],
         ["项目动态", "必填", "技术交流 / 出方案 / 报价 / 投标 / 拟建"],
         ["联系人/线索来源等", "选填", "对应表单「其他（可选）」"],
         ["业务日期", "选填", "YYYY-MM-DD"],
@@ -393,7 +391,6 @@ def row_to_payload(row: tuple | list, colmap: dict[str, int]) -> dict[str, Any]:
         "entrust_term": _str(g("entrust_term")),
         "department_name": _str(g("department_name")),
         "reporter_name": _str(g("reporter_name")),
-        "owner_name": _str(g("owner_name")),
         "reported_at": parse_datetime_cell(g("reported_at")),
         "project_activity": _str(g("project_activity")),
         "demand_summary": _str(g("demand_summary")),
