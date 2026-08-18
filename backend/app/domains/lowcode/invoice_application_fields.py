@@ -164,7 +164,7 @@ def apply_invoice_application_fields(defs: list) -> None:
             f["fill_stage"] = "initiator"
         elif fid in (
             "drawing_no", "customer_name", "dept_contract_no", "customer_no",
-            "customer_code", "contract_data", "contract_lines_new", "total_amount",
+            "customer_code", "contract_data", "total_amount",
         ):
             f["form_editable"] = False
             f["description"] = (f.get("description") or "") or "由选择合同号自动带出，不可编辑。"
@@ -176,6 +176,10 @@ def apply_invoice_application_fields(defs: list) -> None:
             if fid == "contract_data":
                 f["label"] = f.get("label") or "合同数据"
                 f["description"] = "由选择合同号带出合同编号。"
+        elif fid == "contract_lines_new":
+            # 选合同只是把明细拷贝进本单 form_data，可增删改；不回写合同原明细
+            f["form_editable"] = True
+            f["description"] = "选择合同号后自动带出；可在本单增删改行，不影响合同已保存的明细。"
         elif fid == "sales_person":
             f["form_editable"] = False
             f["description"] = "由选择合同号带出合同业务员，不可编辑。"
