@@ -92,6 +92,10 @@ async def test_is_in_scope_lead_managed_department(monkeypatch):
 
     monkeypatch.setattr("app.common.data_scope.resolve_owner_scope", fake_resolve)
     monkeypatch.setattr("app.common.data_scope.managed_department_ids", fake_managed)
+    monkeypatch.setattr(
+        "app.common.data_scope.resolve_module_scope",
+        AsyncMock(return_value="self"),
+    )
 
     assert await is_in_scope(MagicMock(), "t1", user, lead, "lead") is True
 
@@ -175,6 +179,83 @@ async def test_is_in_scope_lead_reporter_as_salesperson(monkeypatch):
 
     monkeypatch.setattr("app.common.data_scope.resolve_owner_scope", fake_stranger)
     assert await is_in_scope(MagicMock(), "t1", stranger, lead, "lead") is False
+
+
+async def test_is_in_scope_lead_dept_uses_form_department_not_owner_sidejob(monkeypatch):
+    """部门档以线索表 department_id 为准：负责人兼职本部门不能放大到平级事业部。
+
+    岳毅挂市场支持中心（与精细筛分平级）；张玲玉同时挂市场支持中心+精细筛分。
+    所在部门=精细筛分的单，旧逻辑因负责人在岳毅部门而可见，现应不可见。
+    """
+    user = {"sub": "u-yueyi", "roles": ["mkt_support"], "permissions": []}
+
+    async def fake_resolve(*_a, **_k):
+        # 旧口径会把兼职同事算进 owner 集合
+        return ["u-yueyi", "u-zhanglingyu"]
+
+    monkeypatch.setattr("app.common.data_scope.resolve_owner_scope", fake_resolve)
+    monkeypatch.setattr(
+        "app.common.data_scope.managed_department_ids",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        "app.common.data_scope.resolve_module_scope",
+        AsyncMock(return_value="dept"),
+    )
+    monkeypatch.setattr(
+        "app.common.data_scope.org_department_subtree_ids",
+        AsyncMock(return_value=["dept-mkt", "dept-yejin", "dept-wash", "dept-ops"]),
+    )
+
+    jingxi = SimpleNamespace(
+        id="L-jx", owner_id="u-zhanglingyu", created_by_id="u-zhanglingyu",
+        reporter_id="u-zhanglingyu", department_id="dept-jingxi",
+        __tablename__="leads", status="new", review_status="approved",
+    )
+    assert await is_in_scope(MagicMock(), "t1", user, jingxi, "lead") is False
+
+    own_dept = SimpleNamespace(
+        id="L-mkt", owner_id="u-zhanglingyu", created_by_id="u-zhanglingyu",
+        reporter_id="u-zhanglingyu", department_id="dept-mkt",
+        __tablename__="leads", status="new", review_status="approved",
+    )
+    assert await is_in_scope(MagicMock(), "t1", user, own_dept, "lead") is True
+
+    mine_even_if_jingxi = SimpleNamespace(
+        id="L-mine", owner_id="u-yueyi", created_by_id="u-other",
+        reporter_id="u-other", department_id="dept-jingxi",
+        __tablename__="leads", status="new", review_status="approved",
+    )
+    assert await is_in_scope(MagicMock(), "t1", user, mine_even_if_jingxi, "lead") is True
+
+
+async def test_is_in_scope_lead_self_ignores_org_department_subtree(monkeypatch):
+    """self 档（业务员）不因组织部门子树放开同事单据；负责业务部门仍可见。"""
+    user = {"sub": "u-sales", "roles": ["customer_entry"], "permissions": []}
+
+    async def fake_self(*_a, **_k):
+        return ["u-sales"]
+
+    monkeypatch.setattr("app.common.data_scope.resolve_owner_scope", fake_self)
+    monkeypatch.setattr(
+        "app.common.data_scope.managed_department_ids",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        "app.common.data_scope.resolve_module_scope",
+        AsyncMock(return_value="self"),
+    )
+    monkeypatch.setattr(
+        "app.common.data_scope.org_department_subtree_ids",
+        AsyncMock(return_value=["dept-mkt"]),
+    )
+
+    peer = SimpleNamespace(
+        id="L-peer", owner_id="u-peer", created_by_id="u-peer",
+        reporter_id="u-peer", department_id="dept-mkt",
+        __tablename__="leads", status="new", review_status="approved",
+    )
+    assert await is_in_scope(MagicMock(), "t1", user, peer, "lead") is False
 
 
 async def test_managed_department_ids_empty_user():

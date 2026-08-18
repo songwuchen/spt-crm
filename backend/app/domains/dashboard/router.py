@@ -108,8 +108,14 @@ def _child_scope_where(model, tenant_id: str, user: dict, scope: list[str] | Non
 
 
 async def _lead_scope_where(db: AsyncSession, tenant_id: str, user: dict, scope: list[str] | None) -> list:
-    """线索可见条件，口径对齐 apply_data_scope(Lead, "lead")。"""
-    from app.common.data_scope import lead_draft_privacy_clause, managed_department_ids
+    """线索可见条件，口径对齐 apply_data_scope(Lead, "lead")。
+
+    部门档以单据 department_id 落在本人组织部门子树为准，不按负责人兼职部门放大。
+    """
+    from app.common.data_scope import (
+        lead_draft_privacy_clause, managed_department_ids,
+        org_department_subtree_ids, resolve_module_scope,
+    )
 
     uid = user.get("sub", "")
     draft_privacy = lead_draft_privacy_clause(Lead, uid)
@@ -117,7 +123,9 @@ async def _lead_scope_where(db: AsyncSession, tenant_id: str, user: dict, scope:
     if scope is None:
         return [draft_privacy] if draft_privacy is not None else []
 
-    conds = [Lead.owner_id.in_(scope), Lead.created_by_id == uid]
+    conds = [Lead.owner_id == uid, Lead.created_by_id == uid]
+    if uid:
+        conds.append(Lead.reporter_id == uid)
     try:
         from app.domains.customer.models import AclShare
         conds.append(Lead.id.in_(select(AclShare.biz_id).where(
@@ -128,9 +136,13 @@ async def _lead_scope_where(db: AsyncSession, tenant_id: str, user: dict, scope:
     except Exception:
         pass
     try:
+        dept_ids: list[str] = []
         managed = await managed_department_ids(db, tenant_id, uid)
-        if managed:
-            conds.append(Lead.department_id.in_(managed))
+        dept_ids.extend(managed or [])
+        if await resolve_module_scope(db, user, tenant_id, biz_type="lead") == "dept":
+            dept_ids.extend(await org_department_subtree_ids(db, tenant_id, uid))
+        if dept_ids:
+            conds.append(Lead.department_id.in_(list(set(dept_ids))))
     except Exception:
         pass
     visibility = or_(*conds)

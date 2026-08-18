@@ -4,14 +4,15 @@ Data visibility scope filter.
 数据可见范围由「角色的 data_scope」决定；可按模块用 scope_by_resource 覆盖。
 取用户多个角色中该模块有效档位的最大一档：
   - all  : 全部租户数据（管理员、data:view_all，或有效档=all）
-  - dept : 本人所在部门及其所有下级部门的成员所拥有的数据
+  - dept : 本人所在部门及其下级（线索看单据 department_id；其它模块看负责人所在部门）
   - self : 仅本人拥有的数据（默认）
 
 有效档：`scope_by_resource.get(biz_type) or data_scope`（biz_type 为空则只用 data_scope）。
 
 `resolve_owner_scope` 返回可见 owner_id 列表（None 表示不限）。
 `apply_data_scope` 在 owner 范围之外，额外并入「创建人/共享/项目成员」等可见性（用于商机）。
-线索草稿（review_status=draft）仅负责人/创建人可见，即使 data_scope=all 也不放开。
+线索部门档：以单据 `department_id` 落在本人组织部门子树为准，不按负责人兼职部门放大；
+草稿（review_status=draft）仅负责人/创建人/报备人可见，即使 data_scope=all 也不放开。
 
 列表之外还必须守住「单对象」入口：`assert_in_scope` / `assert_project_child_in_scope`
 是 `apply_data_scope` / `apply_project_child_scope` 的单行版本，判定口径必须与列表一致，
@@ -97,6 +98,64 @@ async def managed_department_ids(
     return list({*root_ids, *child_ids})
 
 
+async def org_department_subtree_ids(
+    db: AsyncSession, tenant_id: str, user_id: str | None,
+) -> list[str]:
+    """用户组织编制部门及其下级 id（user_departments，不含「负责业务部门」）。"""
+    if not user_id or not tenant_id:
+        return []
+    from app.domains.organization.models import Department, UserDepartment
+
+    my_dept_ids = list((await db.execute(
+        select(UserDepartment.department_id).where(
+            UserDepartment.user_id == user_id,
+            UserDepartment.tenant_id == tenant_id,
+        )
+    )).scalars().all())
+    if not my_dept_ids:
+        return []
+    my_paths = list((await db.execute(
+        select(Department.path).where(
+            Department.id.in_(my_dept_ids), Department.tenant_id == tenant_id)
+    )).scalars().all())
+    child_ids = list((await db.execute(
+        subtree_dept_ids_select(tenant_id, my_dept_ids, my_paths)
+    )).scalars().all())
+    return list({*my_dept_ids, *child_ids})
+
+
+async def resolve_module_scope(
+    db: AsyncSession,
+    user: dict,
+    tenant_id: str | None = None,
+    *,
+    biz_type: str | None = None,
+) -> str:
+    """当前用户在该模块上的有效档：all / dept / self。"""
+    if _is_admin(user):
+        return "all"
+    uid = user.get("sub")
+    tid = tenant_id or user.get("tenant_id")
+    if not uid:
+        return "all"
+
+    from app.domains.auth.models import Role, UserRole
+
+    rows = (await db.execute(
+        select(Role.data_scope, Role.scope_by_resource)
+        .join(UserRole, UserRole.role_id == Role.id)
+        .where(UserRole.user_id == uid, UserRole.tenant_id == tid)
+    )).all()
+    scopes: set[str] = set()
+    for data_scope, overrides in rows:
+        scopes.add(_effective_scope(data_scope, overrides, biz_type))
+    if "all" in scopes:
+        return "all"
+    if "dept" in scopes:
+        return "dept"
+    return "self"
+
+
 def lead_draft_privacy_clause(model, user_id: str | None):
     """草稿线索隐私：仅负责人 / 创建人 / 报备人可见（对 data_scope=all 同样生效）。
 
@@ -156,7 +215,7 @@ async def resolve_owner_scope(
         return None
 
     from app.domains.auth.models import Role, UserRole
-    from app.domains.organization.models import Department, UserDepartment
+    from app.domains.organization.models import UserDepartment
 
     rows = (await db.execute(
         select(Role.data_scope, Role.scope_by_resource)
@@ -171,19 +230,8 @@ async def resolve_owner_scope(
     if "all" in scopes:
         return None
     if "dept" in scopes:
-        my_dept_ids = (await db.execute(
-            select(UserDepartment.department_id).where(
-                UserDepartment.user_id == uid, UserDepartment.tenant_id == tid)
-        )).scalars().all()
-        if my_dept_ids:
-            my_paths = (await db.execute(
-                select(Department.path).where(
-                    Department.id.in_(my_dept_ids), Department.tenant_id == tid)
-            )).scalars().all()
-            # 子树（含本部门）：统一走 dept_tree 助手，内含空路径/LIKE 元字符/结尾斜杠防御
-            subtree_ids = set(my_dept_ids) | set((await db.execute(
-                subtree_dept_ids_select(tid, my_dept_ids, my_paths)
-            )).scalars().all())
+        subtree_ids = await org_department_subtree_ids(db, tid, uid)
+        if subtree_ids:
             members = (await db.execute(
                 select(UserDepartment.user_id).where(
                     UserDepartment.department_id.in_(subtree_ids), UserDepartment.tenant_id == tid)
@@ -403,8 +451,9 @@ async def is_in_scope(
     ACL 共享 / （商机）本人是项目成员。另外「公海」记录（status='pool'，无归属）对全员开放，
     否则 客户公海 页面会整个失效。
 
-    线索草稿（review_status=draft）例外：仅负责人或创建人可见，即使 data_scope=all
-    也不能看别人的未提交草稿。
+    线索部门档以单据 department_id 为准（组织部门子树 + 负责业务部门），不因负责人
+    兼职本部门而放大。草稿（review_status=draft）仅负责人/创建人/报备人可见，即使
+    data_scope=all 也不放开。
     """
     if obj is None:
         return False
@@ -419,13 +468,18 @@ async def is_in_scope(
         return True
 
     uid = user.get("sub", "")
+    is_lead = biz_type == "lead" or getattr(obj, "__tablename__", "") == "leads"
 
     # 公海：无人负责的客户对全员可见（领取入口依赖于此）
     if getattr(obj, "status", None) == "pool":
         return True
 
     owner_id = getattr(obj, "owner_id", None)
-    if owner_id is not None and owner_id in scope:
+    # 线索部门档不以「负责人兼职部门」放大；只认本人负责 / 单据上的部门
+    if is_lead:
+        if uid and owner_id == uid:
+            return True
+    elif owner_id is not None and owner_id in scope:
         return True
     if uid and getattr(obj, "created_by_id", None) == uid:
         return True
@@ -472,13 +526,17 @@ async def is_in_scope(
     except Exception:
         pass
 
-    # 线索：业务部门落在本人「负责业务部门」内
-    if biz_type == "lead" or getattr(obj, "__tablename__", "") == "leads":
+    # 线索：以单据 department_id 为准（组织部门子树 + 负责业务部门），不看负责人挂了哪些部门
+    if is_lead:
         dept_id = getattr(obj, "department_id", None)
         if dept_id and uid:
             managed = await managed_department_ids(db, tenant_id, uid)
             if dept_id in managed:
                 return True
+            if await resolve_module_scope(db, user, tenant_id, biz_type="lead") == "dept":
+                org_depts = await org_department_subtree_ids(db, tenant_id, uid)
+                if dept_id in org_depts:
+                    return True
 
     return False
 
@@ -600,24 +658,29 @@ async def apply_data_scope(
 ) -> Select:
     """按数据范围过滤查询（商机等用，含创建人/共享/项目成员的额外可见性）。
 
+    线索：部门档以单据 department_id 落在本人组织部门子树为准，不按负责人兼职部门放大。
     线索草稿始终仅负责人/创建人/报备人可见，不受 data_scope=all 放开。
     """
     scope = await resolve_owner_scope(db, user, tenant_id, biz_type=biz_type)
     user_id = user.get("sub", "")
+    is_lead = biz_type == "lead" or getattr(model, "__tablename__", "") == "leads"
 
     if scope is not None:
         conditions = []
 
-        # 1. owner 在可见范围内（self=本人、dept=部门子树成员）
+        # 1. owner：线索只认本人负责；其它模块仍按部门成员 owner 集合
         if hasattr(model, "owner_id"):
-            conditions.append(model.owner_id.in_(scope))
+            if is_lead:
+                conditions.append(model.owner_id == user_id)
+            else:
+                conditions.append(model.owner_id.in_(scope))
 
         # 2. 本人创建
         if hasattr(model, "created_by_id"):
             conditions.append(model.created_by_id == user_id)
 
         # 2b. 线索报备人（业务员）
-        if biz_type == "lead" and hasattr(model, "reporter_id") and user_id:
+        if is_lead and hasattr(model, "reporter_id") and user_id:
             conditions.append(model.reporter_id == user_id)
 
         # 3. ACL 共享
@@ -647,11 +710,15 @@ async def apply_data_scope(
         except (ImportError, Exception):
             pass
 
-        # 4. 线索：负责业务部门（含子树）内的记录可见，与 owner 范围 OR
-        if biz_type == "lead" and hasattr(model, "department_id") and user_id:
+        # 4. 线索：单据部门 ∈ 组织部门子树（dept 档）或负责业务部门
+        if is_lead and hasattr(model, "department_id") and user_id:
+            dept_ids: list[str] = []
             managed = await managed_department_ids(db, tenant_id, user_id)
-            if managed:
-                conditions.append(model.department_id.in_(managed))
+            dept_ids.extend(managed or [])
+            if await resolve_module_scope(db, user, tenant_id, biz_type="lead") == "dept":
+                dept_ids.extend(await org_department_subtree_ids(db, tenant_id, user_id))
+            if dept_ids:
+                conditions.append(model.department_id.in_(list(set(dept_ids))))
 
         if conditions:
             query = query.where(or_(*conditions))

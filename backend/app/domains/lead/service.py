@@ -103,7 +103,7 @@ async def list_leads(
     if clause is not None:
         base = base.where(clause)
 
-    # 数据范围过滤（非管理员仅见 负责人/创建人/报备人/共享给本人 的线索）
+    # 数据范围过滤（线索部门档看单据 department_id，不以负责人兼职部门放大）
     if current_user:
         from app.common.data_scope import apply_data_scope
         base = await apply_data_scope(base, db, tenant_id, current_user, Lead, "lead")
