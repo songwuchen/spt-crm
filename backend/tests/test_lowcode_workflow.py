@@ -7,22 +7,9 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.pool import NullPool
 
-from app.config import settings
 from app.database import generate_uuid
-
-DEMO_TENANT = "00000000-0000-0000-0000-000000000001"
-
-
-@pytest.fixture
-async def db():
-    engine = create_async_engine(settings.DATABASE_URL, echo=False, poolclass=NullPool)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with factory() as session:
-        yield session
-    await engine.dispose()
+from tests.lead_intel_helpers import DEMO_TENANT, pending_intel_task
 
 
 async def _create_lead(client: AsyncClient, headers: dict, title: str) -> str:
@@ -184,12 +171,8 @@ async def test_list_definitions_seeds_contract_default_flows(client: AsyncClient
 # ---------- 降级语义 ----------
 
 @pytest.mark.asyncio
-async def test_lead_auto_approved_when_no_reviewer(client: AsyncClient, auth_headers, db):
-    """没有指定情报审批人时，引擎按 empty_strategy 自动放行，线索可继续转化。
-
-    等价于旧实现的「无审核人 → 免审通过」。测试库是共享的（其它用例会造内勤用户），
-    所以这里显式把崔艳丽/杨光对应账号全部停用来构造前置条件，用完恢复。
-    """
+async def test_lead_stays_pending_when_intel_approvers_unresolved(client: AsyncClient, auth_headers, db):
+    """指定情报审批人账号不存在/停用时，不得静默 auto_approve，线索保持待审。"""
     from app.domains.auth.models import User
     from app.domains.lead.models import Lead
     from app.domains.lowcode.workflow_service import _LEAD_INTEL_APPROVER_USERNAMES
@@ -209,8 +192,8 @@ async def test_lead_auto_approved_when_no_reviewer(client: AsyncClient, auth_hea
     try:
         lead_id = await _create_lead(client, auth_headers, "无审核人-线索")
         lead = (await db.execute(select(Lead).where(Lead.id == lead_id))).scalar_one()
-        assert lead.review_status == "approved", (
-            f"无审批人时应免审通过，实际 review_status={lead.review_status}（线索会卡死无法转化）"
+        assert lead.review_status == "pending", (
+            f"指定审批人未匹配时不应静默免审，实际 review_status={lead.review_status}"
         )
     finally:
         if restore:
@@ -221,41 +204,8 @@ async def test_lead_auto_approved_when_no_reviewer(client: AsyncClient, auth_hea
 
 # ---------- 有审批人时的完整闭环 ----------
 
-@pytest.fixture
-async def lead_intel_user(db):
-    """造一个与兜底流程指定人员 username 对齐的活跃用户，用完彻底清理。
-
-    测试库是共享的且不做隔离（见 conftest：直连 DATABASE_URL），若把这个用户留在库里，
-    之后所有新建线索都会变成待审核 —— test_lead.py 的 qualify 用例就会因「线索尚未通过
-    审核」而失败。所以这里必须自己收尾。
-    """
-    from app.domains.auth.models import User
-    from app.domains.lowcode.workflow_service import _LEAD_INTEL_APPROVER_USERNAMES
-
-    test_username = _LEAD_INTEL_APPROVER_USERNAMES[0]
-    existing = (await db.execute(select(User).where(
-        User.tenant_id == DEMO_TENANT, User.username == test_username,
-    ))).scalar_one_or_none()
-    if existing is not None:
-        was_active = existing.is_active
-        existing.is_active = True
-        await db.commit()
-        yield existing.id
-        existing.is_active = was_active
-        await db.commit()
-        return
-
-    u = User(
-        id=generate_uuid(), tenant_id=DEMO_TENANT, username=test_username,
-        real_name="测试内勤", password_hash="x", is_active=True,
-    )
-    db.add(u)
-    await db.commit()
-
-    yield u.id
-
-    await db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": u.id})
-    await db.commit()
+async def _pending_task_for_lead(db, lead_id: str, assignee_id: str | None = None):
+    return await pending_intel_task(db, lead_id, assignee_id)
 
 
 @pytest.mark.asyncio
@@ -480,21 +430,6 @@ async def _create_pending_lead(db, title: str, initiator: dict) -> str:
     )
     assert lead.review_status == "pending", f"expected pending, got {lead.review_status}"
     return lead.id
-
-
-async def _pending_task_for_lead(db, lead_id: str, assignee_id: str | None = None):
-    from app.domains.lowcode.workflow_models import WfProcessInstance, WfTaskInstance
-    inst = (await db.execute(select(WfProcessInstance).where(
-        WfProcessInstance.biz_type == "lead", WfProcessInstance.biz_id == lead_id,
-    ))).scalar_one()
-    q = select(WfTaskInstance).where(
-        WfTaskInstance.process_instance_id == inst.id, WfTaskInstance.status == "pending",
-    )
-    if assignee_id:
-        q = q.where(WfTaskInstance.assignee_id == assignee_id)
-    task = (await db.execute(q)).scalars().first()
-    assert task is not None, f"no pending task for lead={lead_id} assignee={assignee_id}"
-    return task
 
 
 async def _admin_user(db) -> dict:

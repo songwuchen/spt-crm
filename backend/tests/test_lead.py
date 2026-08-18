@@ -2,6 +2,8 @@
 
 from httpx import AsyncClient
 
+from tests.lead_intel_helpers import approve_lead_intel_include
+
 
 async def test_list_leads(client: AsyncClient, auth_headers: dict):
     resp = await client.get("/api/v1/leads", headers=auth_headers)
@@ -95,11 +97,14 @@ async def test_lead_export(client: AsyncClient, auth_headers: dict):
     assert resp.status_code == 200
 
 
-async def test_qualify_creates_customer_only_by_default(client: AsyncClient, auth_headers: dict):
+async def test_qualify_creates_customer_only_by_default(
+    client: AsyncClient, auth_headers: dict, db, lead_intel_user,
+):
     h = auth_headers
     lid = (await client.post("/api/v1/leads", headers=h, json={
         "title": "仅转客户线索", "company_name": "仅客户公司", "source": "website",
     })).json()["data"]["id"]
+    await approve_lead_intel_include(db, lid, lead_intel_user)
     res = (await client.post(f"/api/v1/leads/{lid}/qualify", headers=h)).json()
     assert res["code"] == 0
     assert res["data"]["customer_id"]
@@ -111,13 +116,16 @@ async def test_qualify_creates_customer_only_by_default(client: AsyncClient, aut
     assert "不可编辑" in (upd.get("message") or "")
 
 
-async def test_qualify_with_create_opportunity_carries_context(client: AsyncClient, auth_headers: dict):
+async def test_qualify_with_create_opportunity_carries_context(
+    client: AsyncClient, auth_headers: dict, db, lead_intel_user,
+):
     h = auth_headers
     lid = (await client.post("/api/v1/leads", headers=h, json={
         "title": "大型振动筛采购", "company_name": "矿业集团",
         "source": "expo", "demand_summary": "需要 3 台大型直线振动筛，含保函",
         "budget_range": "200-300万",
     })).json()["data"]["id"]
+    await approve_lead_intel_include(db, lid, lead_intel_user)
 
     res = (await client.post(f"/api/v1/leads/{lid}/qualify", headers=h,
                              json={"create_opportunity": True})).json()
