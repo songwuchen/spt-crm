@@ -152,6 +152,29 @@ class WorkflowEngine:
         )).scalar_one_or_none()
         return row is not None
 
+    async def _running_by_form(self, form_instance_id: str) -> WfProcessInstance | None:
+        if not form_instance_id:
+            return None
+        return (await self.db.execute(select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == self.tenant_id,
+            WfProcessInstance.form_instance_id == form_instance_id,
+            WfProcessInstance.status == "running",
+        ).order_by(WfProcessInstance.created_at.asc()).limit(1))).scalar_one_or_none()
+
+    async def _cancel_form_stale_revise(self, form_instance_id: str, *, keep_process_id: str | None) -> None:
+        """新流程已在跑时，作废同表单其它实例上残留的「修改并重新提交」待办。"""
+        if not form_instance_id:
+            return
+        q = select(WfProcessInstance.id).where(
+            WfProcessInstance.tenant_id == self.tenant_id,
+            WfProcessInstance.form_instance_id == form_instance_id,
+        )
+        if keep_process_id:
+            q = q.where(WfProcessInstance.id != keep_process_id)
+        ids = [r[0] for r in (await self.db.execute(q)).all()]
+        for pid in ids:
+            await self._cancel_initiator_revise_todos(pid)
+
     async def _cancel_initiator_revise_todos(self, process_instance_id: str) -> None:
         tasks = (await self.db.execute(
             select(WfTaskInstance).where(
@@ -534,6 +557,12 @@ class WorkflowEngine:
         if not start:
             raise BusinessException(code=VALIDATION_ERROR, message="流程缺少开始节点")
 
+        if form_instance_id:
+            existing = await self._running_by_form(form_instance_id)
+            if existing:
+                await self._cancel_form_stale_revise(form_instance_id, keep_process_id=existing.id)
+                return existing
+
         inst = WfProcessInstance(
             id=generate_uuid(), tenant_id=self.tenant_id,
             process_definition_id=definition_id, process_version_id=version.id,
@@ -545,6 +574,8 @@ class WorkflowEngine:
         self.db.add(inst)
         await self.db.flush()
         self._log(inst.id, None, None, initiator, "submit", None)
+        if form_instance_id:
+            await self._cancel_form_stale_revise(form_instance_id, keep_process_id=inst.id)
 
         ctx = ApprovalContext(initiator_id=initiator.get("sub"), form_data=form_data or {}, nominated=nominated or {})
         # 生命周期事件必须按发生顺序入队: submitted 要早于 _advance 可能产生的
@@ -1670,8 +1701,11 @@ class WorkflowEngine:
         await self._audit(inst, actor, "activate")
         return inst
 
-    async def abort_deleted_form(self, process_instance_id: str, actor: dict | None = None) -> bool:
-        """关联表单已删除：作废进行中流程与待办，不回写草稿、不建修订待办。"""
+    async def abort_deleted_form(
+        self, process_instance_id: str, actor: dict | None = None,
+        *, reason: str = "关联表单已删除，流程作废",
+    ) -> bool:
+        """作废进行中流程与待办，不回写草稿、不建修订待办。"""
         inst = (await self.db.execute(
             select(WfProcessInstance).where(
                 WfProcessInstance.id == process_instance_id,
@@ -1703,7 +1737,7 @@ class WorkflowEngine:
         if inst.status in ("running", "draft") or tasks or nis:
             inst.status = "cancelled"
             inst.completed_at = now
-            self._log(inst.id, None, None, actor, "abort", "关联表单已删除，流程作废")
+            self._log(inst.id, None, None, actor, "abort", reason)
         if tasks:
             self._queue("todos_done", [t.id for t in tasks])
         await self.db.commit()

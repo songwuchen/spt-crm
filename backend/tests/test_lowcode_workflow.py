@@ -939,3 +939,38 @@ async def test_abort_deleted_form_cancels_pending_todo(db):
     assert task.status == "cancelled"
     assert ni.status == "cancelled"
 
+
+@pytest.mark.asyncio
+async def test_submit_reuses_running_process_for_same_form(db):
+    """同一表单已有进行中流程时，再次 submit 不得再开一条。"""
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+    from app.domains.lowcode.workflow_models import WfProcessInstance
+
+    fid = generate_uuid()
+    running = WfProcessInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        process_definition_id=generate_uuid(), process_version_id=generate_uuid(),
+        form_instance_id=fid, initiator_id="u-init", status="running", title="dup",
+    )
+    db.add(running)
+    await db.commit()
+
+    eng = WorkflowEngine(db, DEMO_TENANT)
+    got = await eng._running_by_form(fid)
+    assert got is not None and got.id == running.id
+
+    class _Ver:
+        node_definitions = [{"id": "start", "type": "start", "name": "开始"}]
+        route_definitions = []
+
+    reused = await eng.submit(
+        running.process_definition_id, _Ver(), {"sub": "u-init"},
+        form_instance_id=fid, title="dup-again",
+    )
+    assert reused.id == running.id
+    rows = (await db.execute(
+        select(WfProcessInstance).where(WfProcessInstance.form_instance_id == fid)
+    )).scalars().all()
+    assert len(rows) == 1
+
+
