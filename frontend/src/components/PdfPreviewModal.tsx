@@ -1,7 +1,8 @@
-/** 全局 PDF 预览（对齐简道云：暗色遮罩 + 文件名 + 下载/关闭 + 内嵌 PDF 查看器）。 */
-import { useEffect, useState } from 'react'
+/** 全局 PDF 预览（对齐简道云：暗色遮罩 + 文件名 + 下载/打印/关闭 + 内嵌 PDF 工具栏）。 */
+import { useEffect, useRef, useState } from 'react'
 import { Button, Spin } from 'antd'
-import { CloseOutlined, DownloadOutlined } from '@ant-design/icons'
+import { CloseOutlined, DownloadOutlined, PrinterOutlined } from '@ant-design/icons'
+import client from '@/api/client'
 
 export type PdfPreviewState = {
   blobUrl: string
@@ -95,11 +96,66 @@ function downloadBlobUrl(url: string, fileName: string) {
   document.body.removeChild(a)
 }
 
+function pdfViewerHash(url: string): string {
+  const bare = url.split('#')[0]
+  return `${bare}#toolbar=1&navpanes=1&pagemode=thumbs&view=FitH`
+}
+
+async function namedPreviewUrl(blob: Blob, fileName: string): Promise<string | null> {
+  const name = (fileName.replace(/\.pdf$/i, '') || 'document') + '.pdf'
+  const file = new File([blob], name, { type: 'application/pdf' })
+  const fd = new FormData()
+  fd.append('file', file)
+  try {
+    const res = await client.post('/api/v1/attachments/print-previews', fd) as { data?: { url?: string } }
+    const url = res?.data?.url
+    return url ? pdfViewerHash(url) : null
+  } catch {
+    return null
+  }
+}
+
+function printPdfFrame(frame: HTMLIFrameElement | null, blobUrl?: string) {
+  const win = frame?.contentWindow
+  if (win) {
+    try {
+      win.focus()
+      win.print()
+      return
+    } catch { /* 跨域或 PDF 插件拦截时走独立窗口 */ }
+  }
+  if (!blobUrl) return
+  const w = window.open(blobUrl, '_blank')
+  if (!w) return
+  const go = () => {
+    try { w.focus(); w.print() } catch { /* ignore */ }
+  }
+  w.addEventListener('load', go)
+  setTimeout(go, 400)
+}
+
 /** 挂在 App 根上即可，业务侧调用 openPdfPreview。 */
 export function PdfPreviewHost() {
   const [state, setState] = useState<PdfPreviewState>(current)
+  const [frameSrc, setFrameSrc] = useState('')
+  const frameRef = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => subscribePdfPreview(setState), [])
+
+  useEffect(() => {
+    if (!state?.blobUrl || state.loading) {
+      setFrameSrc('')
+      return
+    }
+    let cancelled = false
+    const fallback = pdfViewerHash(state.blobUrl)
+    setFrameSrc(fallback)
+    if (!state.blob) return
+    void namedPreviewUrl(state.blob, state.fileName).then((url) => {
+      if (!cancelled && url) setFrameSrc(url)
+    })
+    return () => { cancelled = true }
+  }, [state])
 
   useEffect(() => {
     if (!state) return
@@ -124,7 +180,7 @@ export function PdfPreviewHost() {
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 1100,
+        zIndex: 2000,
         background: 'rgba(0,0,0,.72)',
         display: 'flex',
         flexDirection: 'column',
@@ -148,6 +204,13 @@ export function PdfPreviewHost() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <Button
+            icon={<PrinterOutlined />}
+            disabled={!!state.loading || !state.blobUrl}
+            onClick={() => printPdfFrame(frameRef.current, frameSrc || state.blobUrl)}
+          >
+            打印
+          </Button>
+          <Button
             type="primary"
             icon={<DownloadOutlined />}
             disabled={!!state.loading || !state.blobUrl}
@@ -169,7 +232,7 @@ export function PdfPreviewHost() {
       </div>
 
       <div style={{ flex: 1, minHeight: 0, position: 'relative', background: '#525659' }}>
-        {state.loading || !state.blobUrl ? (
+        {state.loading || !state.blobUrl || !frameSrc ? (
           <div style={{
             position: 'absolute', inset: 0,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -180,8 +243,9 @@ export function PdfPreviewHost() {
           </div>
         ) : (
           <iframe
+            ref={frameRef}
             title={state.fileName}
-            src={`${state.blobUrl}#toolbar=0&navpanes=0`}
+            src={frameSrc}
             style={{ width: '100%', height: '100%', border: 0, background: '#525659' }}
           />
         )}

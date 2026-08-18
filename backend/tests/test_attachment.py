@@ -1,6 +1,7 @@
 """Attachment domain tests — upload, list, download, delete."""
 
 import io
+import urllib.parse
 
 import pytest
 from httpx import AsyncClient
@@ -94,6 +95,33 @@ async def test_attachment_cad_dwg_allowed(client: AsyncClient, auth_headers: dic
     assert data["code"] == 0, f"CAD upload failed: {data}"
     att_id = data["data"]["id"]
     await client.delete(f"/api/v1/attachments/{att_id}", headers=h)
+
+
+async def test_print_preview_named_url(client: AsyncClient, auth_headers: dict):
+    """Chrome PDF 工具栏用 URL 末段当文件名，不能是 blob UUID。"""
+    pdf = b"%PDF-1.4 fake"
+    resp = await client.post(
+        "/api/v1/attachments/print-previews",
+        headers=auth_headers,
+        files={"file": ("WMGF202503004白宗凯合同资料领用2026-08-17.pdf", io.BytesIO(pdf), "application/pdf")},
+    )
+    body = resp.json()
+    assert body["code"] == 0, body
+    url = body["data"]["url"]
+    assert "WMGF202503004" in url
+    assert "白宗凯" in urllib.parse.unquote(url)
+    got = await client.get(url)
+    assert got.status_code == 200
+    assert got.content == pdf
+    assert "application/pdf" in (got.headers.get("content-type") or "")
+
+
+async def test_print_preview_requires_login(client: AsyncClient):
+    resp = await client.post(
+        "/api/v1/attachments/print-previews",
+        files={"file": ("a.pdf", io.BytesIO(b"%PDF"), "application/pdf")},
+    )
+    assert resp.json()["code"] != 0
 
 
 async def test_attachment_rejects_exe(client: AsyncClient, auth_headers: dict):

@@ -1,9 +1,11 @@
 import os
+import time
+import uuid
 import urllib.parse
 from typing import Optional
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, Request, Query
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -353,6 +355,73 @@ async def list_by_biz(
         "storage_backend": getattr(a, "storage_backend", "local") or "local",
         "created_at": a.created_at.isoformat() if a.created_at else "",
     } for a in items])
+
+
+# blob: URL 在 Chrome PDF 工具栏会显示 UUID；改走带真实文件名的临时预览地址
+_PRINT_PREVIEW_TTL = 15 * 60
+_PRINT_PREVIEW_MAX = 24
+_PRINT_PREVIEW_MAX_BYTES = 20 * 1024 * 1024
+_print_previews: dict[str, tuple[bytes, str, float]] = {}
+
+
+def _safe_preview_filename(name: str | None) -> str:
+    raw = (name or "document.pdf").replace("\\", "_").replace("/", "_")
+    raw = "".join(c for c in raw if c.isprintable() and c not in '<>:"|?*#%')
+    raw = raw.strip() or "document.pdf"
+    if not raw.lower().endswith(".pdf"):
+        raw += ".pdf"
+    return raw
+
+
+def _purge_print_previews() -> None:
+    now = time.time()
+    for key in [k for k, item in _print_previews.items() if item[2] < now]:
+        _print_previews.pop(key, None)
+    while len(_print_previews) > _PRINT_PREVIEW_MAX:
+        oldest = min(_print_previews, key=lambda k: _print_previews[k][2])
+        _print_previews.pop(oldest, None)
+
+
+@router.post("/print-previews")
+async def create_print_preview(
+    file: UploadFile = File(...),
+    _user: dict = Depends(get_current_user),
+):
+    """登录用户把打印 PDF 暂存几分钟，供 iframe 用带文件名的 URL 打开。"""
+    data = await file.read()
+    if len(data) > _PRINT_PREVIEW_MAX_BYTES:
+        raise BusinessException(message="预览文件过大")
+    if not data:
+        raise BusinessException(message="预览文件为空")
+    filename = _safe_preview_filename(file.filename)
+    token = uuid.uuid4().hex
+    _purge_print_previews()
+    _print_previews[token] = (data, filename, time.time() + _PRINT_PREVIEW_TTL)
+    quoted = urllib.parse.quote(filename)
+    return ok({
+        "token": token,
+        "url": f"/api/v1/attachments/print-previews/{token}/{quoted}",
+    })
+
+
+@router.get("/print-previews/{token}/{filename:path}")
+async def get_print_preview(token: str, filename: str):
+    """无鉴权：token 足够随机；iframe 无法带 Authorization。"""
+    _purge_print_previews()
+    item = _print_previews.get(token)
+    if not item:
+        raise BusinessException(code=NOT_FOUND, message="预览已过期，请重新打印")
+    data, stored_name, _exp = item
+    name = _safe_preview_filename(filename) or stored_name
+    quoted = urllib.parse.quote(name)
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{quoted}",
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

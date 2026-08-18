@@ -153,11 +153,14 @@ export async function htmlToPdfBlob(
       format: 'a4',
       compress: true,
     })
+    pdf.setProperties({ title: base })
     // PNG 比 JPEG 更利于表格细线；整页 1:1 铺入，边距已在图里
     const img = canvas.toDataURL('image/png')
     pdf.addImage(img, 'PNG', 0, 0, pageWmm, pageHmm, undefined, 'FAST')
-    const blob = pdf.output('blob')
-    return { blob, fileName: `${base}.pdf` }
+    const raw = pdf.output('blob')
+    const fileName = `${base}.pdf`
+    const blob = new File([raw], fileName, { type: 'application/pdf' })
+    return { blob, fileName }
   } finally {
     if (iframe.parentNode) document.body.removeChild(iframe)
   }
