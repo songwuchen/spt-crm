@@ -388,10 +388,15 @@ async def test_notifies_reviewer_on_submit_and_initiator_on_reject(
 async def test_resolver_excludes_initiator_when_flagged(db, lead_intel_user):
     """exclude_initiator=True 时提交人不应出现在审批人里（避免自己审自己）。"""
     from app.domains.lowcode.approver_resolver import ApproverResolver, ApprovalContext
+    from app.domains.lowcode.workflow_service import _LEAD_INTEL_APPROVER_USERNAMES
 
     reviewer_id = lead_intel_user
     resolver = ApproverResolver(db, DEMO_TENANT)
-    rule = {"type": "specified_role", "value": "lead_intel", "exclude_initiator": True}
+    rule = {
+        "type": "specified_user",
+        "value": list(_LEAD_INTEL_APPROVER_USERNAMES),
+        "exclude_initiator": True,
+    }
 
     ids = await resolver.resolve(rule, ApprovalContext(initiator_id=reviewer_id, form_data={}, nominated={}))
     assert reviewer_id not in ids
@@ -399,7 +404,7 @@ async def test_resolver_excludes_initiator_when_flagged(db, lead_intel_user):
     # 不开开关时保持原行为
     resolver2 = ApproverResolver(db, DEMO_TENANT)
     ids2 = await resolver2.resolve(
-        {"type": "specified_role", "value": "lead_intel"},
+        {"type": "specified_user", "value": list(_LEAD_INTEL_APPROVER_USERNAMES)},
         ApprovalContext(initiator_id=reviewer_id, form_data={}, nominated={}),
     )
     assert reviewer_id in ids2
