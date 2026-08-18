@@ -136,14 +136,16 @@ export const menuGroups: MenuGroup[] = [
     ],
   },
   {
+    // 扩展平台是表单/流程设计入口，仅系统管理员可见。
+    // 业务填报、审批中心仍走各自模块，不依赖本组。
     key: 'group:lowcode',
     titleKey: 'nav.groupLowcode',
     items: [
-      { key: '/lowcode/forms', icon: 'dynamic_form', labelKey: 'nav.lowcodeForms', permission: 'form:view' },
-      { key: '/lowcode/workflows', icon: 'account_tree', labelKey: 'nav.lowcodeWorkflows', permission: 'workflow:view' },
+      { key: '/lowcode/forms', icon: 'dynamic_form', labelKey: 'nav.lowcodeForms', permission: 'role:manage' },
+      { key: '/lowcode/workflows', icon: 'account_tree', labelKey: 'nav.lowcodeWorkflows', permission: 'role:manage' },
       // 审批入口统一到主菜单「审批中心」，避免双入口混淆
-      { key: '/lowcode/dashboards', icon: 'insert_chart', labelKey: 'nav.lowcodeDashboards', permission: 'dashboard:view' },
-      { key: '/lowcode/entity-fields', icon: 'tune', labelKey: 'nav.lowcodeEntityFields', permission: 'form:manage' },
+      { key: '/lowcode/dashboards', icon: 'insert_chart', labelKey: 'nav.lowcodeDashboards', permission: 'role:manage' },
+      { key: '/lowcode/entity-fields', icon: 'tune', labelKey: 'nav.lowcodeEntityFields', permission: 'role:manage' },
     ],
   },
   {

@@ -140,7 +140,8 @@ PERMISSIONS = [
 ]
 
 # Permissions EVERY standard role gets. Includes the 扩展平台「使用」层 so all
-# staff can fill forms, view flows & dashboards.
+# staff can fill forms / view flows via 业务模块与审批中心.
+# 侧栏「扩展平台」设计入口不看这些权限，只对系统管理员（role:manage）开放。
 CORE = [
     "notification:view",
     "attachment:download", "attachment:upload",
