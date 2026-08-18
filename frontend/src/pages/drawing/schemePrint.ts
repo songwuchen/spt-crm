@@ -669,9 +669,9 @@ function buildRequisitionHtml(ctx: {
   const decrypt = form.need_decrypt != null
     ? (optionLabel(fields, 'need_decrypt', form.need_decrypt) || String(form.need_decrypt))
     : ''
-  // 表头「设计人」带表单值；下方签字栏仍留空手签（对齐 Word）
+  // 表头「设计人」只取设计内勤填写的设计人；空则留白，不回落到设计指派。
+  // 下方签字栏仍留空手签（对齐 Word）
   const designer = personName(form.designer, labels)
-    || personName(form.design_assignees, labels)
     || (form.designer_text != null ? String(form.designer_text).trim() : '')
   const attachName = attachmentLabel(form, 'attachment_name', 'attachments', 'images') || '无'
   // 领用单：流水号在表头，页脚只留打印时间（对齐 Word 模板）
