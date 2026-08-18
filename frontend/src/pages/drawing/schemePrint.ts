@@ -167,10 +167,10 @@ function printCss(): string {
       print-color-adjust: exact;
     }
     .sheet { width: 100%; padding: 0; }
-    /* 内容表格线：细灰线（非纯黑粗框）；领用单/安装图通知单共用 */
+    /* 内容表格线：细灰 inset shadow（非 border，避免嵌套/PDF 叠成双 line） */
     .sheet.requisition,
     .sheet.install {
-      --tbl-line: 0.5pt solid #888;
+      --grid: #888;
     }
     /* 字段类标签：加粗黑体（对齐客户 Word 意见） */
     h1,
@@ -190,16 +190,17 @@ function printCss(): string {
       margin: 0 0 3pt;
       line-height: 1.15;
     }
-    /* 12 列栅格：标签窄、内容宽，横向铺满 */
-    table.form {
+    /* 12 列栅格：标签窄、内容宽，横向铺满；外框整圈 border，内部用 shadow 画分隔线 */
+    .sheet.requisition table.form,
+    .sheet.install table.form {
       width: 100%;
       border-collapse: collapse;
+      border-spacing: 0;
       table-layout: fixed;
-      border: none;
+      border: 1px solid var(--grid);
     }
     table.form col { width: 8.333%; }
     table.form td {
-      border: var(--tbl-line, 0.5pt solid #888);
       padding: 2pt 3pt;
       vertical-align: middle;
       word-break: break-word;
@@ -230,12 +231,12 @@ function printCss(): string {
     /* 安装图签字区：签字列加宽、是否列收窄、填写行加高 */
     table.sign-block {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       table-layout: fixed;
       border: none;
     }
     table.sign-block td {
-      border: var(--tbl-line, 0.5pt solid #888);
       padding: 2pt 2pt;
       vertical-align: middle;
       word-break: break-word;
@@ -270,30 +271,83 @@ function printCss(): string {
     .lbl.yn { font-size: 8pt; line-height: 1.15; padding: 1pt 1pt; }
     .val.yn { padding: 1pt 1pt; text-align: center; }
     .sec-head { text-align: center; font-size: 10.5pt; background: #f3f3f3; }
-    /* 领用单/安装图：仅单元格画线，避免表格外框与 td 叠成粗黑框 */
-    .sheet.requisition table.form,
-    .sheet.install table.form {
-      border: none;
-    }
+    /* 主表：外圈靠 table border；单元格只画内部右/下分隔线（shadow） */
     .sheet.requisition table.form > tbody > tr > td,
     .sheet.install table.form > tbody > tr > td {
-      border: var(--tbl-line);
+      border: none !important;
+      box-shadow: inset -1px 0 0 var(--grid), inset 0 -1px 0 var(--grid);
+    }
+    .sheet.requisition table.form > tbody > tr > td:last-child,
+    .sheet.install table.form > tbody > tr > td:last-child {
+      box-shadow: inset 0 -1px 0 var(--grid);
+    }
+    .sheet.requisition table.form > tbody > tr:last-child > td,
+    .sheet.install table.form > tbody > tr:last-child > td {
+      box-shadow: inset -1px 0 0 var(--grid);
+    }
+    .sheet.requisition table.form > tbody > tr:last-child > td:last-child,
+    .sheet.install table.form > tbody > tr:last-child > td:last-child {
+      box-shadow: none;
+    }
+    /* 分区标题：不画底边，由下方 nest 内表首行顶边承接 */
+    .sheet.requisition table.form > tbody > tr.form-sec > td,
+    .sheet.install table.form > tbody > tr.form-sec > td {
+      box-shadow: none !important;
     }
     .sheet.install .idea { min-height: 48pt; height: 48pt; }
     .sheet.install .opin { min-height: 28pt; height: 28pt; }
     .sheet.install .result { min-height: 28pt; height: 28pt; }
-    .sheet.requisition table.equip-block,
-    .sheet.install table.equip-block,
-    .sheet.requisition table.detail,
-    .sheet.install table.detail {
+    /* nest 本身不画线，格线全在内嵌表 */
+    .sheet.requisition td.nest,
+    .sheet.install td.nest {
+      padding: 0 !important;
+      vertical-align: top;
+      border: none !important;
+      box-shadow: none !important;
+    }
+    .sheet.requisition td.nest > table,
+    .sheet.install td.nest > table {
       width: 100%;
       border-collapse: collapse;
+      border-spacing: 0;
       table-layout: fixed;
       border: none;
     }
-    .sheet.requisition table.equip-block td,
-    .sheet.install table.equip-block td {
-      border: var(--tbl-line);
+    .sheet.requisition td.nest > table td,
+    .sheet.install td.nest > table td {
+      border: none !important;
+      box-shadow: inset -1px 0 0 var(--grid), inset 0 -1px 0 var(--grid);
+    }
+    .sheet.requisition td.nest > table td:last-child,
+    .sheet.install td.nest > table td:last-child {
+      box-shadow: inset 0 -1px 0 var(--grid);
+    }
+    .sheet.requisition td.nest > table > tbody > tr:first-of-type > td,
+    .sheet.requisition td.nest > table > tr:first-of-type > td,
+    .sheet.install td.nest > table > tbody > tr:first-of-type > td,
+    .sheet.install td.nest > table > tr:first-of-type > td {
+      box-shadow: inset -1px 0 0 var(--grid), inset 0 -1px 0 var(--grid);
+    }
+    .sheet.requisition td.nest > table > tbody > tr:first-of-type > td:last-child,
+    .sheet.requisition td.nest > table > tr:first-of-type > td:last-child,
+    .sheet.install td.nest > table > tbody > tr:first-of-type > td:last-child,
+    .sheet.install td.nest > table > tr:first-of-type > td:last-child {
+      box-shadow: inset 0 -1px 0 var(--grid);
+    }
+    .sheet.requisition tr.form-nest-after-sec td.nest > table > tbody > tr:first-of-type > td,
+    .sheet.requisition tr.form-nest-after-sec td.nest > table > tr:first-of-type > td,
+    .sheet.install tr.form-nest-after-sec td.nest > table > tbody > tr:first-of-type > td,
+    .sheet.install tr.form-nest-after-sec td.nest > table > tr:first-of-type > td {
+      box-shadow: inset 0 1px 0 var(--grid), inset -1px 0 0 var(--grid), inset 0 -1px 0 var(--grid);
+    }
+    .sheet.requisition tr.form-nest-after-sec td.nest > table > tbody > tr:first-of-type > td:last-child,
+    .sheet.requisition tr.form-nest-after-sec td.nest > table > tr:first-of-type > td:last-child,
+    .sheet.install tr.form-nest-after-sec td.nest > table > tbody > tr:first-of-type > td:last-child,
+    .sheet.install tr.form-nest-after-sec td.nest > table > tr:first-of-type > td:last-child {
+      box-shadow: inset 0 1px 0 var(--grid), inset 0 -1px 0 var(--grid);
+    }
+    .sheet.requisition td.nest > table.equip-block td,
+    .sheet.install td.nest > table.equip-block td {
       padding: 2pt 2pt;
       vertical-align: middle;
       word-break: break-word;
@@ -315,6 +369,11 @@ function printCss(): string {
     .sheet.install table.detail td {
       font-size: 8.5pt;
       padding: 1pt 1pt;
+    }
+    .sheet.install td.nest > table.detail tr.detail-body td {
+      min-height: 28pt;
+      height: 28pt;
+      vertical-align: middle;
     }
     .meta {
       display: flex;
@@ -374,12 +433,12 @@ function printCss(): string {
     /* 子表明细（设备/原料）：多行扩展，表头+数据行 */
     table.detail {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       table-layout: fixed;
       border: none;
     }
     table.detail td {
-      border: var(--tbl-line, 0.5pt solid #888);
       padding: 2pt 2pt;
       vertical-align: middle;
       word-break: break-word;
@@ -392,30 +451,6 @@ function printCss(): string {
       line-height: 1.15;
     }
     table.detail td.dl { text-align: left; }
-    /* 嵌套表：外层 nest 只保留一圈线，内表去掉贴边重复线 */
-    td.nest {
-      padding: 0 !important;
-      border: var(--tbl-line, 0.5pt solid #888);
-      vertical-align: top;
-    }
-    .sheet.requisition td.nest > table,
-    .sheet.install td.nest > table {
-      width: 100%;
-      border: none;
-      border-collapse: collapse;
-    }
-    .sheet.requisition td.nest > table td,
-    .sheet.install td.nest > table td {
-      border: var(--tbl-line);
-    }
-    .sheet.requisition td.nest > table tr:first-child > td,
-    .sheet.install td.nest > table tr:first-child > td { border-top: none; }
-    .sheet.requisition td.nest > table tr:last-child > td,
-    .sheet.install td.nest > table tr:last-child > td { border-bottom: none; }
-    .sheet.requisition td.nest > table tr > td:first-child,
-    .sheet.install td.nest > table tr > td:first-child { border-left: none; }
-    .sheet.requisition td.nest > table tr > td:last-child,
-    .sheet.install td.nest > table tr > td:last-child { border-right: none; }
     /* 对齐 Word 模板：横向 A4（297×210），边距上5.3/右7.8/下0/左7.9 */
     @page { size: A4 landscape; margin: 5.3mm 7.8mm 0 7.9mm; }
     @media print {
@@ -587,8 +622,12 @@ function materialDetailTableHtml(
     '工艺位置', '要求筛分效率', '粒度分布', '水分', '安装方式', '安装位置',
   ]
   const head = `<tr>${headers.map((h) => `<td class="dh">${escHtml(h)}</td>`).join('')}</tr>`
-  const body = (cells.length ? cells : [headers.map(() => '')]).map((cols) =>
-    `<tr>${cols.map((c, i) => `<td class="${i === 1 ? 'dl' : ''}">${c}</td>`).join('')}</tr>`,
+  const dataRows = cells.length ? cells : [headers.map(() => '')]
+  const body = dataRows.map((cols) =>
+    `<tr class="detail-body">${cols.map((c, i) => {
+      const v = c || '&nbsp;'
+      return `<td class="${i === 1 ? 'dl' : ''}">${v}</td>`
+    }).join('')}</tr>`,
   ).join('')
   return `<table class="detail">${head}${body}</table>`
 }
@@ -765,7 +804,7 @@ function buildRequisitionHtml(ctx: {
         <td class="lbl" colspan="1">申请事由</td>
         <td class="val-left matter" colspan="11">${cell(form.apply_reason || form.apply_or_change)}</td>
       </tr>
-      <tr>
+      <tr class="form-nest">
         <td class="nest" colspan="12">
           <table class="sign-block">
             <colgroup>
@@ -933,10 +972,10 @@ function buildInstallHtml(ctx: {
     ])}
     <table class="form">
       ${colgroup12()}
-      <tr>
+      <tr class="form-sec">
         <td class="lbl sec-head" colspan="12">设备信息</td>
       </tr>
-      <tr>
+      <tr class="form-nest form-nest-after-sec">
         <td class="nest" colspan="12">${equipTable}</td>
       </tr>
       <tr>
@@ -949,15 +988,15 @@ function buildInstallHtml(ctx: {
         <td class="lbl" colspan="1">注意</td>
         <td class="val-left" colspan="11">${cell(attention)}</td>
       </tr>
-      <tr>
+      <tr class="form-sec">
         <td class="lbl sec-head" colspan="12">原料参数</td>
       </tr>
-      <tr>
+      <tr class="form-nest form-nest-after-sec">
         <td class="nest" colspan="12">${materialDetailTableHtml(form, fields, {
           productModel, processPos, installMethod, installPos,
         })}</td>
       </tr>
-      <tr>
+      <tr class="form-nest">
         <td class="nest" colspan="12">
           <table class="sign-block">
             <colgroup>

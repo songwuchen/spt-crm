@@ -15,6 +15,7 @@ from app.domains.lowcode.service import (
     _form_data_filter_clause,
     _lookup_ref_ids_by_name,
     _normalize_instance_filters,
+    _person_name_chars_all_present,
     list_instances,
 )
 
@@ -55,6 +56,14 @@ def test_plain_contains_still_works_for_text():
         "field": "dept_code", "op": "contains", "value": "03",
     })
     assert clause is not None
+
+
+def test_person_name_chars_all_present():
+    assert _person_name_chars_all_present("尚高华", "高尚")
+    assert _person_name_chars_all_present("王高尚", "高尚")
+    assert _person_name_chars_all_present("尚高华", "高华")
+    assert not _person_name_chars_all_present("张三", "高尚")
+    assert not _person_name_chars_all_present("尚高华", "高")  # 单字仍走 ILIKE
 
 
 @pytest.mark.asyncio

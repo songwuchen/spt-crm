@@ -1505,6 +1505,18 @@ async def _template_field_type_map(
     return out
 
 
+def _person_name_chars_all_present(real_name: str, needle: str) -> bool:
+    """中文姓名模糊「包含」：检索词每个字都在姓名里出现即可（不要求连续）。
+
+    例：「高尚」可命中「尚高华」；单字仍走 ILIKE 子串，避免误匹配过宽。
+    """
+    n = (needle or "").strip()
+    rn = (real_name or "").strip()
+    if len(n) < 2:
+        return False
+    return all(c in rn for c in n)
+
+
 async def _lookup_ref_ids_by_name(
     db: AsyncSession, tenant_id: str, *, kind: str, value: str, exact: bool,
 ) -> list[str]:
@@ -1529,10 +1541,24 @@ async def _lookup_ref_ids_by_name(
         ), {"t": tenant_id, "n": like})).fetchall()
         return [str(r[0]) for r in rows]
     if kind.startswith("person"):
-        rows = (await db.execute(sql_text(
-            f"SELECT id FROM users WHERE tenant_id = :t "
-            f"AND (real_name {op} :n OR username {op} :n) LIMIT 200"
-        ), {"t": tenant_id, "n": like})).fetchall()
+        if exact:
+            rows = (await db.execute(sql_text(
+                "SELECT id FROM users WHERE tenant_id = :t "
+                "AND (real_name = :n OR username = :n) LIMIT 200"
+            ), {"t": tenant_id, "n": needle})).fetchall()
+        else:
+            # 连续子串 + 中文按字包含（「高尚」→「尚高华」）
+            rows = (await db.execute(sql_text(
+                "SELECT id FROM users WHERE tenant_id = :t AND ("
+                "  real_name ILIKE :like OR username ILIKE :like"
+                "  OR ("
+                "    length(:needle) >= 2 AND NOT EXISTS ("
+                "      SELECT 1 FROM unnest(regexp_split_to_array(:needle, '')) AS ch(c)"
+                "      WHERE ch.c = '' OR position(ch.c IN users.real_name) = 0"
+                "    )"
+                "  )"
+                ") LIMIT 200"
+            ), {"t": tenant_id, "like": like, "needle": needle})).fetchall()
         return [str(r[0]) for r in rows]
     if kind == "contract":
         rows = (await db.execute(sql_text(

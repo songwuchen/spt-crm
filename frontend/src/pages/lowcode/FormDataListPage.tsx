@@ -16,6 +16,10 @@ import FormInstanceFilterPopover, {
   type FormFilterDsl,
 } from '@/components/lowcode/FormInstanceFilterPopover'
 import {
+  loadAppliedFilters,
+  saveAppliedFilters,
+} from '@/components/lowcode/formInstanceFilterUtils'
+import {
   ArrowLeftOutlined, PlusOutlined, DownloadOutlined,
   PrinterOutlined, EditOutlined, DeleteOutlined, SendOutlined,
   SearchOutlined, ReloadOutlined, PaperClipOutlined, ThunderboltOutlined,
@@ -78,6 +82,10 @@ function loadColState(storageKey: string): ColumnState {
   } catch {
     return { hidden: [], order: [], shown: [] }
   }
+}
+
+function listFilterMemoryKey(templateCode?: string, id?: string) {
+  return templateCode || id || 'unknown'
 }
 
 /** 列表不宜展开的重字段类型（file/image 以紧凑芯片展示，可进列） */
@@ -545,8 +553,11 @@ export default function FormDataListPage({
   const [keywordInput, setKeywordInput] = useState('')
   const [keyword, setKeyword] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | undefined>()
-  const [fieldFilters, setFieldFilters] = useState<FormFilterDsl | null>(null)
-  const colStorageKey = COL_STORAGE_PREFIX + (templateCode || id || 'unknown')
+  const colStorageKey = COL_STORAGE_PREFIX + listFilterMemoryKey(templateCode, id)
+  const filterMemoryKey = listFilterMemoryKey(templateCode, id)
+  const [fieldFilters, setFieldFilters] = useState<FormFilterDsl | null>(
+    () => loadAppliedFilters(filterMemoryKey),
+  )
   const [colState, setColStateRaw] = useState<ColumnState>(() => loadColState(colStorageKey))
   const [viewRec, setViewRec] = useState<ViewRec | null>(null)
   const [modalFullscreen, setModalFullscreen] = useState(false)
@@ -582,10 +593,11 @@ export default function FormDataListPage({
     [expandDetails, items],
   )
 
-  // 切换模板时重载列配置
+  // 切换模板时重载列配置与筛选记忆
   useEffect(() => {
     setColStateRaw(loadColState(colStorageKey))
-  }, [colStorageKey])
+    setFieldFilters(loadAppliedFilters(filterMemoryKey))
+  }, [colStorageKey, filterMemoryKey])
 
   const setColState = useCallback((cs: ColumnState) => {
     setColStateRaw(cs)
@@ -686,6 +698,7 @@ export default function FormDataListPage({
 
   const applyFieldFilters = (dsl: FormFilterDsl | null) => {
     setFieldFilters(dsl)
+    saveAppliedFilters(filterMemoryKey, dsl)
     setPageNo(1)
   }
 
@@ -1185,6 +1198,7 @@ export default function FormDataListPage({
             fields={schemaFields}
             value={fieldFilters}
             onApply={applyFieldFilters}
+            storageKey={filterMemoryKey}
           />
           <Button icon={<ReloadOutlined />} onClick={() => load()}>刷新</Button>
           {colMeta.length > 0 && (

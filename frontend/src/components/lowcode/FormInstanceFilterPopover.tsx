@@ -12,11 +12,21 @@ import dayjs from 'dayjs'
 import type { FieldDefinition } from '@/types/lowcode'
 import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 import DepartmentSelect from '@/components/DepartmentSelect'
+import {
+  type FormFilterDsl,
+  type FormFilterRule,
+  loadDraftFilters,
+  needsFilterValue,
+  normalizeDraftDsl,
+  normalizeFilterDsl,
+  ruleHasItem,
+  ruleValid,
+  saveDraftFilters,
+} from '@/components/lowcode/formInstanceFilterUtils'
 
 const { RangePicker } = DatePicker
 
-export type FormFilterRule = { field: string; op: string; value?: unknown }
-export type FormFilterDsl = { match: 'all' | 'any'; rules: FormFilterRule[] }
+export type { FormFilterDsl, FormFilterRule } from '@/components/lowcode/formInstanceFilterUtils'
 
 const FILTERABLE_TYPES = new Set([
   'text', 'textarea', 'auto_number', 'number', 'amount',
@@ -66,29 +76,18 @@ function defaultOp(type: string): string {
 }
 
 function needsValue(op: string): boolean {
-  return op !== 'is_empty' && op !== 'is_not_empty'
-}
-
-function ruleValid(r: FormFilterRule): boolean {
-  if (!r.field || !r.op) return false
-  if (!needsValue(r.op)) return true
-  if (r.op === 'between') {
-    return Array.isArray(r.value) && r.value.length >= 2 && r.value[0] != null && r.value[1] != null
-      && r.value[0] !== '' && r.value[1] !== ''
-  }
-  if (r.op === 'in') {
-    return Array.isArray(r.value) ? r.value.length > 0 : !!r.value
-  }
-  return r.value !== undefined && r.value !== null && r.value !== ''
+  return needsFilterValue(op)
 }
 
 interface Props {
   fields: FieldDefinition[]
   value: FormFilterDsl | null
   onApply: (dsl: FormFilterDsl | null) => void
+  /** 用于 localStorage 记忆；与列表页 templateCode/id 一致 */
+  storageKey?: string
 }
 
-export default function FormInstanceFilterPopover({ fields, value, onApply }: Props) {
+export default function FormInstanceFilterPopover({ fields, value, onApply, storageKey }: Props) {
   const [open, setOpen] = useState(false)
   const [match, setMatch] = useState<'all' | 'any'>('all')
   const [rows, setRows] = useState<FormFilterRule[]>([])
@@ -98,11 +97,42 @@ export default function FormInstanceFilterPopover({ fields, value, onApply }: Pr
     [fields],
   )
 
+  const restoreRows = () => {
+    const applied = normalizeFilterDsl(value)
+    if (applied?.rules.length) {
+      setMatch(applied.match)
+      setRows(applied.rules.map((r) => ({ ...r })))
+      return
+    }
+    if (storageKey) {
+      const draft = loadDraftFilters(storageKey)
+      if (draft?.rules.length) {
+        setMatch(draft.match)
+        setRows(draft.rules.map((r) => ({ ...r })))
+        return
+      }
+    }
+    setMatch('all')
+    setRows([])
+  }
+
   useEffect(() => {
     if (!open) return
-    setMatch(value?.match || 'all')
-    setRows(value?.rules?.length ? value.rules.map((r) => ({ ...r })) : [])
+    restoreRows()
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const persistDraft = () => {
+    if (!storageKey) return
+    const draft = normalizeDraftDsl({ match, rules: rows })
+    saveDraftFilters(storageKey, draft)
+  }
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && open) {
+      persistDraft()
+    }
+    setOpen(next)
+  }
 
   const fieldOf = (id: string) => filterFields.find((f) => f.id === id)
 
@@ -124,18 +154,28 @@ export default function FormInstanceFilterPopover({ fields, value, onApply }: Pr
 
   const handleApply = () => {
     const clean = rows.filter(ruleValid)
-    onApply(clean.length ? { match, rules: clean } : null)
+    const applied = clean.length ? { match, rules: clean } : null
+    onApply(applied)
+    if (storageKey) {
+      if (applied) saveDraftFilters(storageKey, null)
+      else saveDraftFilters(storageKey, normalizeDraftDsl({ match, rules: rows.filter(ruleHasItem) }))
+    }
     setOpen(false)
   }
 
   const handleClear = () => {
     setRows([])
     setMatch('all')
+    if (storageKey) saveDraftFilters(storageKey, null)
     onApply(null)
     setOpen(false)
   }
 
   const activeCount = value?.rules?.length || 0
+  const draftHint = useMemo(() => {
+    if (activeCount || !storageKey) return 0
+    return loadDraftFilters(storageKey)?.rules.length || 0
+  }, [activeCount, storageKey, value])
 
   const content = (
     <div className="w-[560px] max-w-[calc(100vw-32px)]">
@@ -226,14 +266,14 @@ export default function FormInstanceFilterPopover({ fields, value, onApply }: Pr
   return (
     <Popover
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleOpenChange}
       trigger="click"
       placement="bottomLeft"
       arrow={false}
       content={content}
       overlayInnerStyle={{ padding: 0 }}
     >
-      <Badge count={activeCount} size="small">
+      <Badge count={activeCount || draftHint || 0} size="small">
         <Button icon={<FilterOutlined />}>筛选</Button>
       </Badge>
     </Popover>
