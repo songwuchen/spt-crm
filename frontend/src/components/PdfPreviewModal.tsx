@@ -6,6 +6,7 @@ import { CloseOutlined, DownloadOutlined } from '@ant-design/icons'
 export type PdfPreviewState = {
   blobUrl: string
   fileName: string
+  blob?: Blob
   /** 当前份数序号，默认 1 */
   index?: number
   /** 总份数，默认 1 */
@@ -37,6 +38,7 @@ export function openPdfPreview(blob: Blob, fileName: string, opts?: { index?: nu
   emit({
     blobUrl,
     fileName: name,
+    blob,
     index: opts?.index ?? 1,
     total: opts?.total ?? 1,
   })
@@ -65,6 +67,22 @@ export function closePdfPreview() {
   if (prev) {
     try { URL.revokeObjectURL(prev) } catch { /* ignore */ }
   }
+}
+
+function downloadNamedPdf(blob: Blob, fileName: string) {
+  const name = (fileName.replace(/\.pdf$/i, '') || 'download') + '.pdf'
+  const file = new File([blob], name, { type: 'application/pdf' })
+  const href = URL.createObjectURL(file)
+  const a = document.createElement('a')
+  a.href = href
+  a.download = name
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  window.setTimeout(() => {
+    try { URL.revokeObjectURL(href) } catch { /* ignore */ }
+  }, 2000)
 }
 
 function downloadBlobUrl(url: string, fileName: string) {
@@ -133,7 +151,10 @@ export function PdfPreviewHost() {
             type="primary"
             icon={<DownloadOutlined />}
             disabled={!!state.loading || !state.blobUrl}
-            onClick={() => state.blobUrl && downloadBlobUrl(state.blobUrl, state.fileName)}
+            onClick={() => {
+              if (state.blob) downloadNamedPdf(state.blob, state.fileName)
+              else if (state.blobUrl) downloadBlobUrl(state.blobUrl, state.fileName)
+            }}
           >
             下载
           </Button>
@@ -160,7 +181,7 @@ export function PdfPreviewHost() {
         ) : (
           <iframe
             title={state.fileName}
-            src={state.blobUrl}
+            src={`${state.blobUrl}#toolbar=0&navpanes=0`}
             style={{ width: '100%', height: '100%', border: 0, background: '#525659' }}
           />
         )}

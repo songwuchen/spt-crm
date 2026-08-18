@@ -95,8 +95,19 @@ function printDrawingNo(v: unknown, labels: Labels, form: Record<string, unknown
   return drawingNoOnly(contractLabel(v, labels, form))
 }
 
+const PRINT_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function printableToken(s: string): string {
+  const t = String(s || '').trim()
+  if (!t || PRINT_UUID_RE.test(t)) return ''
+  return t
+}
+
 function projectLabel(v: unknown, labels: Labels): string {
-  return collectIds(v).map((id) => labels.projects[id] || id).join('、')
+  return collectIds(v)
+    .map((id) => printableToken(labels.projects[id] || '') || printableToken(id))
+    .filter(Boolean)
+    .join('、')
 }
 
 /** 对齐 Word 签字区：同一格内「☐是☐否」横排（领用单部分单元格） */
@@ -414,12 +425,12 @@ function requisitionPrintFileName(opts: {
 function installPrintFileName(opts: {
   projectNo: string
   designCardNo: string
-  salesPerson: string
+  orderPerson: string
 }): string {
-  // 项目号-设计卡号业务员，如 PRJ202608005-02-2026081501孙家兴
-  const parts = [opts.projectNo, opts.designCardNo].map((s) => String(s || '').trim()).filter(Boolean)
+  // 项目号-设计卡号订货人，如 PRJ202608001-02-2026081401赵敬良
+  const parts = [printableToken(opts.projectNo), printableToken(opts.designCardNo)].filter(Boolean)
+  const who = printableToken(String(opts.orderPerson || '').replace(/\s+/g, ''))
   const base = parts.join('-')
-  const who = String(opts.salesPerson || '').trim()
   return sanitizePrintFileName(
     `${base}${who}`,
     '安装图通知单及设计卡',
@@ -797,8 +808,6 @@ function buildInstallHtml(ctx: {
     || (form.project_no != null && !/^[0-9a-f-]{36}$/i.test(String(form.project_no))
       ? String(form.project_no) : '')
   const orderPerson = personName(form.order_person, labels)
-  // 文件名「业务员」：优先 sales_person，否则订货人（样例常为订货人）
-  const salesPerson = personName(form.sales_person, labels) || orderPerson
   const dept = deptName(form.department, labels)
   const applicant = personName(form.applicant, labels)
   const cardDate = fmtDate(form.card_date || form.order_date || form.apply_datetime)
@@ -982,7 +991,7 @@ function buildInstallHtml(ctx: {
   const fileTitle = installPrintFileName({
     projectNo,
     designCardNo: designCard,
-    salesPerson,
+    orderPerson,
   })
   return wrapDoc(fileTitle, body, 'install')
 }
