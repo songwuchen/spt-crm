@@ -193,7 +193,7 @@ function printCss(): string {
     }
     table.form col { width: 8.333%; }
     table.form td {
-      border: 1px solid #000;
+      border: 0.5pt solid #000;
       padding: 2pt 3pt;
       vertical-align: middle;
       word-break: break-word;
@@ -228,7 +228,7 @@ function printCss(): string {
       table-layout: fixed;
     }
     table.sign-block td {
-      border: 1px solid #000;
+      border: 0.5pt solid #000;
       padding: 2pt 2pt;
       vertical-align: middle;
       word-break: break-word;
@@ -263,9 +263,9 @@ function printCss(): string {
     .lbl.yn { font-size: 8pt; line-height: 1.15; padding: 1pt 1pt; }
     .val.yn { padding: 1pt 1pt; text-align: center; }
     .sec-head { text-align: center; font-size: 10.5pt; background: #f3f3f3; }
-    /* 安装图：外框略粗，贴近 Word 模板 */
+    /* 安装图：细线框（避免 1px + 外框 1.5pt 叠成粗黑框） */
     .sheet.install table.form {
-      border: 1.5pt solid #000;
+      border: 0.5pt solid #000;
     }
     .sheet.install table.form > tbody > tr > td {
       border-color: #000;
@@ -280,7 +280,7 @@ function printCss(): string {
       table-layout: fixed;
     }
     .sheet.install table.equip-block td {
-      border: 1px solid #000;
+      border: 0.5pt solid #000;
       padding: 2pt 2pt;
       vertical-align: middle;
       word-break: break-word;
@@ -365,7 +365,7 @@ function printCss(): string {
       table-layout: fixed;
     }
     table.detail td {
-      border: 1px solid #000;
+      border: 0.5pt solid #000;
       padding: 2pt 2pt;
       vertical-align: middle;
       word-break: break-word;
@@ -378,7 +378,7 @@ function printCss(): string {
       line-height: 1.15;
     }
     table.detail td.dl { text-align: left; }
-    td.nest { padding: 0 !important; border: 1px solid #000; }
+    td.nest { padding: 0 !important; border: 0.5pt solid #000; }
     /* 对齐 Word 模板：横向 A4（297×210），边距上5.3/右7.8/下0/左7.9 */
     @page { size: A4 landscape; margin: 5.3mm 7.8mm 0 7.9mm; }
     @media print {
