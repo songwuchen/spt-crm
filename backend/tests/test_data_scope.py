@@ -104,14 +104,14 @@ async def test_is_in_scope_lead_managed_department(monkeypatch):
 
 
 async def test_is_in_scope_lead_draft_private_even_for_all(monkeypatch):
-    """草稿仅负责人/创建人可见；data_scope=all 也不能看别人的草稿。"""
+    """草稿仅负责人/创建人/报备人可见；data_scope=all 也不能看别人的草稿。"""
     async def fake_all(*_a, **_k):
         return None  # all
 
     monkeypatch.setattr("app.common.data_scope.resolve_owner_scope", fake_all)
 
     other_draft = SimpleNamespace(
-        id="D1", owner_id="u-other", created_by_id="u-other",
+        id="D1", owner_id="u-other", created_by_id="u-other", reporter_id="u-other",
         department_id="d1", __tablename__="leads", status="new",
         review_status="draft",
     )
@@ -119,26 +119,62 @@ async def test_is_in_scope_lead_draft_private_even_for_all(monkeypatch):
     assert await is_in_scope(MagicMock(), "t1", viewer, other_draft, "lead") is False
 
     mine_as_owner = SimpleNamespace(
-        id="D2", owner_id="u-me", created_by_id="u-other",
+        id="D2", owner_id="u-me", created_by_id="u-other", reporter_id="u-other",
         department_id="d1", __tablename__="leads", status="new",
         review_status="draft",
     )
     assert await is_in_scope(MagicMock(), "t1", viewer, mine_as_owner, "lead") is True
 
     mine_as_creator = SimpleNamespace(
-        id="D3", owner_id="u-other", created_by_id="u-me",
+        id="D3", owner_id="u-other", created_by_id="u-me", reporter_id="u-other",
         department_id="d1", __tablename__="leads", status="new",
         review_status="draft",
     )
     assert await is_in_scope(MagicMock(), "t1", viewer, mine_as_creator, "lead") is True
 
+    mine_as_reporter = SimpleNamespace(
+        id="D4", owner_id="u-other", created_by_id="u-other", reporter_id="u-me",
+        department_id="d1", __tablename__="leads", status="new",
+        review_status="draft",
+    )
+    assert await is_in_scope(MagicMock(), "t1", viewer, mine_as_reporter, "lead") is True
+
     # 非草稿：all 仍可见
     approved = SimpleNamespace(
-        id="A1", owner_id="u-other", created_by_id="u-other",
+        id="A1", owner_id="u-other", created_by_id="u-other", reporter_id="u-other",
         department_id="d1", __tablename__="leads", status="new",
         review_status="approved",
     )
     assert await is_in_scope(MagicMock(), "t1", viewer, approved, "lead") is True
+
+
+async def test_is_in_scope_lead_reporter_as_salesperson(monkeypatch):
+    """报备人=业务员：self 范围下即使不是负责人/创建人也可访问线索（转商机确认）。"""
+    lead = SimpleNamespace(
+        id="L-rpt", owner_id="u-owner", created_by_id="u-owner",
+        reporter_id="u-reporter", department_id=None,
+        __tablename__="leads", status="new", review_status="approved",
+    )
+    user = {"sub": "u-reporter", "roles": ["customer_entry"], "permissions": []}
+
+    async def fake_self(*_a, **_k):
+        return ["u-reporter"]
+
+    monkeypatch.setattr("app.common.data_scope.resolve_owner_scope", fake_self)
+    monkeypatch.setattr(
+        "app.common.data_scope.managed_department_ids",
+        AsyncMock(return_value=[]),
+    )
+
+    assert await is_in_scope(MagicMock(), "t1", user, lead, "lead") is True
+
+    stranger = {"sub": "u-stranger", "roles": ["customer_entry"], "permissions": []}
+
+    async def fake_stranger(*_a, **_k):
+        return ["u-stranger"]
+
+    monkeypatch.setattr("app.common.data_scope.resolve_owner_scope", fake_stranger)
+    assert await is_in_scope(MagicMock(), "t1", stranger, lead, "lead") is False
 
 
 async def test_managed_department_ids_empty_user():

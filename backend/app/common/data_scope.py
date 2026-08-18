@@ -98,11 +98,12 @@ async def managed_department_ids(
 
 
 def lead_draft_privacy_clause(model, user_id: str | None):
-    """草稿线索隐私：仅负责人或创建人可见（对 data_scope=all 同样生效）。
+    """草稿线索隐私：仅负责人 / 创建人 / 报备人可见（对 data_scope=all 同样生效）。
 
+    报备人即业务员，与负责人同属「本单当事人」。
     非草稿 / review_status 为空：不额外限制。
-    返回 SQLAlchemy 条件；user_id 为空时返回恒假（不可见任何草稿行，
-    且非草稿仍可见 —— 用 is_distinct_from 表达）。
+    返回 SQLAlchemy 条件；user_id 为空时只能看非草稿
+    （用 is_distinct_from 表达）。
     """
     if not hasattr(model, "review_status"):
         return None
@@ -111,6 +112,8 @@ def lead_draft_privacy_clause(model, user_id: str | None):
         mine.append(model.owner_id == user_id)
     if hasattr(model, "created_by_id"):
         mine.append(model.created_by_id == user_id)
+    if hasattr(model, "reporter_id"):
+        mine.append(model.reporter_id == user_id)
     if not mine or not user_id:
         # 无身份：只能看非草稿
         return model.review_status.is_distinct_from("draft")
@@ -121,12 +124,14 @@ def lead_draft_privacy_clause(model, user_id: str | None):
 
 
 def _lead_draft_is_mine(obj, user_id: str | None) -> bool:
-    """单对象：草稿是否属于当前用户（负责人或创建人）。"""
+    """单对象：草稿是否属于当前用户（负责人 / 创建人 / 报备人）。"""
     if not user_id:
         return False
     if getattr(obj, "owner_id", None) == user_id:
         return True
     if getattr(obj, "created_by_id", None) == user_id:
+        return True
+    if getattr(obj, "reporter_id", None) == user_id:
         return True
     return False
 
@@ -424,6 +429,10 @@ async def is_in_scope(
         return True
     if uid and getattr(obj, "created_by_id", None) == uid:
         return True
+    # 线索报备人 = 业务员，与负责人同权可见（转商机确认待办常派给 reporter）
+    if uid and (biz_type == "lead" or getattr(obj, "__tablename__", "") == "leads"):
+        if getattr(obj, "reporter_id", None) == uid:
+            return True
     if uid and getattr(obj, "assignee_id", None) == uid:
         return True
 
@@ -591,7 +600,7 @@ async def apply_data_scope(
 ) -> Select:
     """按数据范围过滤查询（商机等用，含创建人/共享/项目成员的额外可见性）。
 
-    线索草稿始终仅负责人/创建人可见，不受 data_scope=all 放开。
+    线索草稿始终仅负责人/创建人/报备人可见，不受 data_scope=all 放开。
     """
     scope = await resolve_owner_scope(db, user, tenant_id, biz_type=biz_type)
     user_id = user.get("sub", "")
@@ -606,6 +615,10 @@ async def apply_data_scope(
         # 2. 本人创建
         if hasattr(model, "created_by_id"):
             conditions.append(model.created_by_id == user_id)
+
+        # 2b. 线索报备人（业务员）
+        if biz_type == "lead" and hasattr(model, "reporter_id") and user_id:
+            conditions.append(model.reporter_id == user_id)
 
         # 3. ACL 共享
         try:

@@ -127,7 +127,7 @@ async def list_leads(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("lead:view")),
 ):
-    # 数据范围「本人」= 负责人/创建人/共享给本人；「部门」= 部门子树成员；「全部」= 不限。
+    # 数据范围「本人」= 负责人/创建人/报备人(业务员)/共享给本人；「部门」= 部门子树成员；「全部」= 不限。
     items, total = await service.list_leads(
         db, tenant_id, pageNo, pageSize, keyword, status, owner_id,
         customer_type=customer_type, category=category, country_type=country_type,
