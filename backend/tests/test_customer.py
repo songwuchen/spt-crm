@@ -15,6 +15,7 @@ async def test_customer_crud(client: AsyncClient, auth_headers: dict):
     # Create
     resp = await client.post("/api/v1/customers", headers=auth_headers, json={
         "name": "测试客户_自动化", "industry": "电子制造", "region": "华东",
+        "as_draft": True,  # 跳过客户信息审批，避免 running 流程锁编辑
     })
     data = resp.json()
     assert data["code"] == 0
