@@ -13,6 +13,9 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 import dayjs from 'dayjs'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { canDirectCreateOpportunity } from '@/utils/opportunityCreate'
+import NoPermission from '@/pages/NoPermission'
 
 const defaultRiskOptions = [
   { label: '低', value: 'L' }, { label: '中', value: 'M' }, { label: '高', value: 'H' },
@@ -56,6 +59,7 @@ export default function OpportunityForm() {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const isEdit = !!id
+  const canCreate = canDirectCreateOpportunity(useAuthStore((s) => s.user))
   usePageTitle(isEdit ? '编辑商机' : '新建商机')
 
   const riskDict = useDataDict('risk_level', defaultRiskOptions)
@@ -106,6 +110,10 @@ export default function OpportunityForm() {
       if (restored) message.info('已恢复上次未保存的草稿')
     }
   }, [id])
+
+  if (!isEdit && !canCreate) {
+    return <NoPermission />
+  }
 
   const onFinish = async (values: Record<string, unknown>) => {
     // 扩展字段不在 antd Form 状态里，其必填(含条件必填)需单独校验；后端也会二次校验

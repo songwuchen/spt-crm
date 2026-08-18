@@ -6,6 +6,8 @@ import io
 
 from app.dependencies import get_db, get_tenant_id, require_permissions, get_data_scope
 from app.common.schemas import ok
+from app.common.exceptions import BusinessException
+from app.common.error_codes import FORBIDDEN
 from app.common.export import build_excel, build_template, excel_response
 from app.domains.project import service
 from app.domains.lowcode.field_permission import ok_entity, strip_entity_dicts
@@ -320,6 +322,9 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("project:create")),
 ):
+    # 手工新建仅系统账号 admin；业务用户从线索转化
+    if (current_user.get("username") or "") != "admin":
+        raise BusinessException(code=FORBIDDEN, message="商机只能从线索转化")
     p = await service.create_project(db, tenant_id, body, current_user)
     return await ok_entity(db, tenant_id, "project", _project_dict(p), current_user.get("roles"))
 

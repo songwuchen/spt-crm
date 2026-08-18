@@ -864,23 +864,16 @@ export default function FormDataListPage({
 
   const saveEdit = async () => {
     if (!viewRec) return
-    const displayFields = drawingLayout
-      ? applyDrawingFormLayout(templateCode, viewRec.fields)
-      : viewRec.fields
-    const states = computeFieldStates(
-      displayFields, viewRec.value, viewRec.rules,
-      deriveRolePerms(displayFields, userRoles),
-    )
-    const e = findRequiredError(displayFields, states, viewRec.value, viewRec.rules)
-    if (e) {
-      message.error(e.message)
-      scrollToLcField(e.fieldId)
-      return
+    // 存草稿不校验必填（与 FormFillPage 一致）；提交审批才走 findRequiredError
+    try {
+      await lowcodeApi.updateInstance(viewRec.id, { form_data: viewRec.value })
+      message.success('已保存')
+      closeView()
+      load()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      message.error(msg || '保存失败')
     }
-    await lowcodeApi.updateInstance(viewRec.id, { form_data: viewRec.value })
-    message.success('已保存')
-    closeView()
-    load()
   }
 
   const submitDraft = async () => {

@@ -13,6 +13,7 @@ import FloatingAssistant from '@/components/ai/FloatingAssistant'
 import MustChangePasswordBanner from '@/components/MustChangePasswordBanner'
 import { useAppStore } from '@/stores/useAppStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { canDirectCreateOpportunity } from '@/utils/opportunityCreate'
 import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
 import { authApi } from '@/api/auth'
 
@@ -204,7 +205,9 @@ export default function MainLayout() {
       const path = location.pathname
       if (path.startsWith('/customers')) navigate('/customers/new')
       else if (path.startsWith('/leads')) navigate('/leads/new')
-      else if (path.startsWith('/opportunities')) navigate('/opportunities/new')
+      else if (path.startsWith('/opportunities') && canDirectCreateOpportunity(useAuthStore.getState().user)) {
+        navigate('/opportunities/new')
+      }
     },
     'escape': () => window.dispatchEvent(new CustomEvent('close-modal')),
   }), [location.pathname, navigate])

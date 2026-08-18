@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { canDirectCreateOpportunity } from '@/utils/opportunityCreate'
 
 import Icon from '@/components/Icon'
 interface Command {
@@ -17,8 +19,10 @@ export default function CommandPalette() {
   const [selectedIdx, setSelectedIdx] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
+  const canCreateOpportunity = canDirectCreateOpportunity(useAuthStore((s) => s.user))
 
-  const commands: Command[] = useMemo(() => [
+  const commands: Command[] = useMemo(() => {
+    const items: Command[] = [
     // Navigation
     { id: 'nav-dashboard', label: '仪表盘', icon: 'dashboard', category: '导航', action: () => navigate('/'), keywords: '首页 home' },
     { id: 'nav-customers', label: '客户列表', icon: 'business', category: '导航', action: () => navigate('/customers'), keywords: '客户' },
@@ -31,9 +35,13 @@ export default function CommandPalette() {
     // Create actions
     { id: 'create-customer', label: '新建客户', icon: 'person_add', category: '新建', action: () => navigate('/customers/new'), keywords: '创建 客户' },
     { id: 'create-lead', label: '新建线索', icon: 'add_circle', category: '新建', action: () => navigate('/leads/new'), keywords: '创建 线索' },
-    { id: 'create-opportunity', label: '新建商机', icon: 'add_business', category: '新建', action: () => navigate('/opportunities/new'), keywords: '创建 商机 项目' },
-    { id: 'create-ticket', label: '新建工单', icon: 'add_task', category: '新建', action: () => navigate('/service-tickets/new'), keywords: '创建 工单' },
-  ], [navigate])
+    ]
+    if (canCreateOpportunity) {
+      items.push({ id: 'create-opportunity', label: '新建商机', icon: 'add_business', category: '新建', action: () => navigate('/opportunities/new'), keywords: '创建 商机 项目' })
+    }
+    items.push({ id: 'create-ticket', label: '新建工单', icon: 'add_task', category: '新建', action: () => navigate('/service-tickets/new'), keywords: '创建 工单' })
+    return items
+  }, [navigate, canCreateOpportunity])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return commands

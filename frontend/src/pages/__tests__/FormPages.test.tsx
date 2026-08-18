@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, act } from '@testing-library/react'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 vi.mock('@/api/lead', () => ({
   leadApi: {
@@ -71,6 +72,15 @@ describe('CustomerForm', () => {
 })
 
 describe('OpportunityForm', () => {
+  beforeEach(() => {
+    act(() => {
+      useAuthStore.getState().setUser({
+        id: 'u-1', tenant_id: 't-1', username: 'admin', real_name: 'Admin',
+        roles: ['admin'], permissions: ['project:create'],
+      })
+    })
+  })
+
   it('renders create mode title', () => {
     render(<OpportunityForm />)
     expect(screen.getByText('新建商机')).toBeInTheDocument()

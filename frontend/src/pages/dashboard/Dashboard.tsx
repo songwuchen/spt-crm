@@ -8,6 +8,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { fetchUnifiedPending, decideUnified } from '@/api/unifiedApprovals'
 import type { UnifiedPendingItem } from '@/api/unifiedApprovals'
 import { leadReviseEditPath } from '@/utils/leadWorkflow'
+import { canDirectCreateOpportunity } from '@/utils/opportunityCreate'
 import { TrendChart, CollectionChart, RevenueChart, WinLossChart, FunnelChartPanel, LeaderboardChart, ContractExpiryPanel } from './DashboardCharts'
 
 import Icon from '@/components/Icon'
@@ -862,6 +863,7 @@ export default function Dashboard() {
                         <div className="text-[13px] text-slate-500">创建新的销售线索</div>
                       </div>
                     </button>
+                    {canDirectCreateOpportunity(user) && (
                     <button onClick={() => navigate('/opportunities/new')}
                       className="w-full flex items-center gap-3 p-3.5 rounded-lg border border-slate-100 bg-slate-50 hover:border-primary/40 hover:bg-primary/5 transition-all text-left">
                       <Icon name="rocket_launch" className="text-amber-500" />
@@ -870,6 +872,7 @@ export default function Dashboard() {
                         <div className="text-[13px] text-slate-500">创建新的商机项目</div>
                       </div>
                     </button>
+                    )}
                   </div>
                 </div>
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">

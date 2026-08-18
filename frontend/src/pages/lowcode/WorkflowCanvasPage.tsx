@@ -48,18 +48,20 @@ function condLabel(cond: WfRoute['condition']): string | undefined {
   return n === 1 ? '条件' : `条件×${n}`
 }
 
-/** 画布连线文案：条件 / else / 旁路（旁路可带条件） */
+/** 画布连线文案：条件 / else / 旁路（旁路可带条件）；有激活序时带「序N」 */
 function routeEdgeLabel(route: WfRoute, all: WfRoute[]): string | undefined {
+  const ord = typeof route.activate_order === 'number' ? `序${route.activate_order}` : ''
+  const withOrd = (base: string) => (ord ? `${base}·${ord}` : base)
   if (route.always) {
-    if (route.condition) return '旁路·条件'
-    return '旁路'
+    if (route.condition) return withOrd('旁路·条件')
+    return withOrd('旁路')
   }
-  if (route.condition) return condLabel(route.condition)
+  if (route.condition) return withOrd(condLabel(route.condition) || '条件')
   const siblings = all.filter((r) => r.source === route.source && !r.always && r.id !== route.id)
   if (route.exclusive_group || siblings.some((s) => !!s.condition || !!s.exclusive_group)) {
-    return 'else'
+    return withOrd('else')
   }
-  return undefined
+  return ord || undefined
 }
 
 function valueToInput(v: unknown): string {
@@ -454,6 +456,9 @@ function DesignerInner() {
                 (selectedEdge.data as { route: WfRoute }).route.source, on,
               )}
               onAlways={(on) => patchEdgeRoute(selectedEdge.id, { always: on || undefined })}
+              onActivateOrder={(n) => patchEdgeRoute(selectedEdge.id, {
+                activate_order: n == null ? undefined : n,
+              })}
               onDelete={delSelected}
             />
           ) : (
@@ -593,13 +598,14 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
   )
 }
 
-function EdgeConfig({ route, formFields, sourceExclusive, onCond, onExclusive, onAlways, onDelete }: {
+function EdgeConfig({ route, formFields, sourceExclusive, onCond, onExclusive, onAlways, onActivateOrder, onDelete }: {
   route: WfRoute
   formFields: FieldDefinition[]
   sourceExclusive: boolean
   onCond: (c: WfRoute['condition']) => void
   onExclusive: (on: boolean) => void
   onAlways: (on: boolean) => void
+  onActivateOrder: (n: number | null) => void
   onDelete: () => void
 }) {
   const fieldOpts = formFields
@@ -629,9 +635,25 @@ function EdgeConfig({ route, formFields, sourceExclusive, onCond, onExclusive, o
   }
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="small">
-      <Text type="secondary" style={{ fontSize: 12 }}>
-        连线条件（互斥组内=if/else 只走一条；未互斥则可多条件并行；旁路抄送可另附条件，命中才通知）
+      <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.6 }}>
+        选路（谁亮）：条件 / 互斥组 / always 旁路。未互斥时多条命中都会创建，不是只走一条。
+        <br />
+        激活序（先走谁）：连线上填数字，越小越先。画布连线可以乱序，引擎仍按 1→2→3→4→5 激活。
+        <br />
+        相位硬规则：主链审批 → 抄送 → 结束。抄送就算填了激活序 1，也不能排到审批前面。
       </Text>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <Text style={{ fontSize: 12 }}>激活序 activate_order</Text>
+        <InputNumber
+          size="small"
+          min={1}
+          max={99}
+          style={{ width: 88 }}
+          placeholder="默认"
+          value={typeof route.activate_order === 'number' ? route.activate_order : null}
+          onChange={(v) => onActivateOrder(typeof v === 'number' ? v : null)}
+        />
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <Text style={{ fontSize: 12 }}>同源出边互斥 (if/else)</Text>
         <Switch size="small" checked={sourceExclusive && !route.always}
