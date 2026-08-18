@@ -218,7 +218,6 @@ CATALOG: dict[str, list[dict[str, Any]]] = {
         _f("department_id", "部门", "department", companions=("department_name",)),
         _f("reporter_id", "申报人", "person", companions=("reporter_name",)),
         _f("reported_at", "申报时间", "datetime"),
-        _f("owner_id", "负责人", "person", companions=("owner_name",)),
         _f("project_activity", "项目动态", "radio",
            options=[{"value": v, "label": v} for v in (
                "技术交流", "出方案", "报价", "投标", "拟建")]),
