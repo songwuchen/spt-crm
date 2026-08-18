@@ -63,6 +63,22 @@ def test_line_amount_stays_editable():
     assert amount["form_editable"] is True
 
 
+def test_customer_name_visible_on_create():
+    defs = [
+        {"id": "drawing_no_select", "type": "text", "label": "选择图纸编号"},
+        {"id": "customer_name", "type": "text", "label": "单位名称",
+         "available_on_create": False, "fill_stage": "approver"},
+        {"id": "customer_no", "type": "text", "label": "客户编号"},
+        {"id": "total_amount", "type": "number", "label": "合计总价"},
+    ]
+    apply_invoice_application_fields(defs)
+    cn = next(f for f in defs if f["id"] == "customer_name")
+    assert cn["available_on_create"] is True
+    assert cn["fill_stage"] == "initiator"
+    assert cn["form_editable"] is False
+    assert cn["label"] == "客户名称"
+
+
 def test_fill_overwrites_stale_line_amount():
     mapped = map_contract_lines_to_invoice(
         [{"name": "筛", "qty": 0.6, "price": 1140000, "amount": 1}],

@@ -480,11 +480,22 @@ async def pickable_contract_prod_card_fill(
     taxpayer_id = None
     invoice_address_phone = None
     bank_account = None
-    if c.customer_id:
+    cust_id = c.customer_id
+    if not cust_id and c.project_id:
+        from app.domains.project.models import OpportunityProject
+        cust_id = (
+            await db.execute(
+                select(OpportunityProject.customer_id).where(
+                    OpportunityProject.id == c.project_id,
+                    OpportunityProject.tenant_id == tenant_id,
+                )
+            )
+        ).scalar_one_or_none()
+    if cust_id:
         from app.domains.customer.models import Customer
         cu = (
             await db.execute(
-                select(Customer).where(Customer.id == c.customer_id, Customer.tenant_id == tenant_id)
+                select(Customer).where(Customer.id == cust_id, Customer.tenant_id == tenant_id)
             )
         ).scalar_one_or_none()
         if cu:
@@ -495,8 +506,8 @@ async def pickable_contract_prod_card_fill(
             bank_account = getattr(cu, "bank_account", None)
         else:
             from app.common.list_enrich import customer_names_map
-            names = await customer_names_map(db, tenant_id, [c.customer_id])
-            customer_name = names.get(c.customer_id)
+            names = await customer_names_map(db, tenant_id, [cust_id])
+            customer_name = names.get(cust_id)
 
     if mode == "invoice_application":
         fill = build_invoice_fill_from_contract(
@@ -923,12 +934,13 @@ async def list_form_instances(
     filters: str | None = Query(None, description='JSON: {match,rules:[{field,op,value}]} 或旧版数组'),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("form_data:view")),
+    user: dict = Depends(require_permissions("form_data:view")),
     scope: "list[str] | None" = Depends(get_data_scope),
 ):
     items, total = await service.list_instances(
         db, tenant_id, template_id, pageNo, pageSize,
         keyword=keyword, status=status, owner_ids=scope, filters=filters,
+        user=user,
     )
     return ok({"items": [_inst_list_dict(i) for i in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
@@ -1083,22 +1095,22 @@ async def export_form_instances(
     filters: str | None = Query(None, description='JSON: {match,rules:[{field,op,value}]} 或旧版数组'),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
-    _user=Depends(require_permissions("form_data:view")),
+    user: dict = Depends(require_permissions("form_data:view")),
     scope: "list[str] | None" = Depends(get_data_scope),
 ):
     """导出当前筛选下的表单数据为 Excel（列＝表单字段，含业务编号/状态/创建时间）。"""
     tpl, field_defs, rows = await service.export_instances(
         db, tenant_id, template_id, keyword=keyword, status=status, owner_ids=scope,
-        filters=filters, limit=_EXPORT_ROW_CAP,
+        filters=filters, limit=_EXPORT_ROW_CAP, user=user,
     )
     # 字段级权限：导出列同样剔除对该用户隐藏的字段；附件无下载权则导出空
     from app.domains.lowcode.field_permission import field_visible, filter_read
-    _roles = set(_user.get("roles") or [])
+    _roles = set(user.get("roles") or [])
     data_fields = [fd for fd in field_defs if fd.get("id") and field_visible(fd, _roles)]
     headers = ["业务编号", "标题", "状态", "创建时间"] + [fd.get("label") or fd.get("id") for fd in data_fields]
     label_maps = await _load_export_label_maps(db, tenant_id, field_defs, rows)
     data_rows = []
-    uid = _user.get("sub")
+    uid = user.get("sub")
     for inst in rows:
         is_creator = bool(uid and (
             uid == getattr(inst, "created_by", None)

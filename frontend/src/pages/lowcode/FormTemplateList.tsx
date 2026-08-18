@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Button, Space, Tag, Modal, Form, Input, message, Popconfirm, Typography, List, Empty, Spin,
+  Button, Space, Tag, Modal, Form, Input, message, Popconfirm, Typography, List, Empty, Spin, Alert,
 } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { PlusOutlined, AppstoreAddOutlined } from '@ant-design/icons'
@@ -35,6 +35,7 @@ export default function FormTemplateList() {
   const [builtins, setBuiltins] = useState<BuiltinTemplate[]>([])
   const [marketLoading, setMarketLoading] = useState(false)
   const [installingKey, setInstallingKey] = useState<string | null>(null)
+  const [keyword, setKeyword] = useState('')
 
   const openMarket = async () => {
     setMarketOpen(true)
@@ -64,7 +65,11 @@ export default function FormTemplateList() {
   const load = async () => {
     setLoading(true)
     try {
-      const res = await lowcodeApi.listTemplates({ pageNo, pageSize: 20 })
+      const res = await lowcodeApi.listTemplates({
+        pageNo,
+        pageSize: 20,
+        ...(keyword.trim() ? { name: keyword.trim() } : {}),
+      })
       setItems(res.data.items)
       setTotal(res.data.total)
     } catch {
@@ -73,7 +78,7 @@ export default function FormTemplateList() {
       setLoading(false)
     }
   }
-  useEffect(() => { load() }, [pageNo])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [pageNo, keyword])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreate = async () => {
     const v = await form.validateFields()
@@ -140,6 +145,32 @@ export default function FormTemplateList() {
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建表单</Button>
           </Space>
         )}
+      </div>
+      <Alert
+        type="info"
+        showIcon
+        className="mb-4"
+        message="与「自定义字段」的区别"
+        description={
+          <>
+            「自定义字段」是给客户/线索/商机等业务实体加扩展字段；图纸领用、安装图通知等是独立业务表单，在本页按名称或编码查找（如
+            <Tag className="mx-1">合同图纸领用</Tag>
+            编码 <code>drawing_requisition</code>，
+            <Tag className="mx-1">安装图设计通知</Tag>
+            编码 <code>install_drawing_notice</code>）。业务填报入口在左侧「方案管理」子菜单。
+          </>
+        }
+      />
+      <div className="mb-4 flex gap-2 flex-wrap items-center">
+        <Input.Search
+          allowClear
+          placeholder="搜索表单名称或编码"
+          style={{ width: 280 }}
+          value={keyword}
+          onChange={(e) => { setKeyword(e.target.value); setPageNo(1) }}
+          onSearch={(v) => { setKeyword(v); setPageNo(1) }}
+        />
+        <span className="text-xs text-slate-400">共 {total} 个表单</span>
       </div>
       <FillHeightTable
           rowKey="id" loading={loading} columns={columns} dataSource={items} scroll={{ x: 'max-content' }}

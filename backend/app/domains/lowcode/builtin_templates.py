@@ -106,7 +106,7 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
     },
     {
         "key": "drawing_requisition",
-        "name": "合同图纸（资料）领用申请",
+        "name": "合同图纸领用",
         "category": "图纸",
         "icon": "FileImageOutlined",
         "description": "对齐简道云通用流程「合同图纸（资料）领用申请」。字段见 docs/product/_jdy_drawing_forms.md。",

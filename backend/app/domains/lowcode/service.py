@@ -821,6 +821,10 @@ async def ensure_builtin_form(
 
     existing = await get_template_by_code(db, tenant_id, key)
     if existing:
+        # 内置业务表展示名与侧栏/表单中心对齐（code 固定，可安全同步）
+        if existing.name != bt["name"]:
+            existing.name = bt["name"]
+            await db.flush()
         published = await _get_published_version(db, tenant_id, existing.id)
         if not published:
             latest = await _get_latest_version(db, tenant_id, existing.id)
@@ -841,6 +845,7 @@ async def ensure_builtin_form(
             from app.domains.organization.pickable_scope_service import ensure_preset_scopes
             await ensure_preset_scopes(db, tenant_id)
             await db.commit()
+        await db.commit()
         return existing
 
     tpl = FormTemplate(
@@ -901,7 +906,10 @@ async def list_templates(
     conds = [FormTemplate.tenant_id == tenant_id, FormTemplate.is_deleted == False,  # noqa: E712
              FormTemplate.is_system == False]  # noqa: E712
     if name:
-        conds.append(FormTemplate.name.ilike(f"%{name}%"))
+        conds.append(or_(
+            FormTemplate.name.ilike(f"%{name}%"),
+            FormTemplate.code.ilike(f"%{name}%"),
+        ))
     if category:
         conds.append(FormTemplate.category == category)
     if published_only:
@@ -1618,8 +1626,11 @@ def _instance_list_conds(
     keyword: str | None = None, status: str | None = None,
     owner_ids: list[str] | None = None,
     filters: list | dict | str | None = None,
-    owner_person_field: str | None = None,
+    owner_person_fields: list[str] | None = None,
     filter_clauses: list | None = None,
+    template_code: str | None = None,
+    form_dept_scope_ids: list[str] | None = None,
+    form_dept_name_literals: list[str] | None = None,
 ) -> list:
     conds = [
         FormInstance.tenant_id == tenant_id,
@@ -1635,13 +1646,23 @@ def _instance_list_conds(
         ))
     if status:
         conds.append(FormInstance.status == status)
-    if owner_ids is not None:  # 数据范围: 发起人；开票等可并入业务员字段
+    if owner_ids is not None:  # 数据范围: 发起人；开票/核价等可并入业务员/部门字段
         owner_clause = FormInstance.initiator_id.in_(owner_ids or ["__none__"])
-        if owner_person_field:
-            owner_clause = or_(
-                owner_clause,
-                _form_data_person_in_owner_ids(owner_person_field, owner_ids or []),
-            )
+        for pf in owner_person_fields or []:
+            owner_clause = or_(owner_clause, _form_data_person_in_owner_ids(pf, owner_ids or []))
+        code = template_code or ""
+        if form_dept_scope_ids:
+            for df in _FORM_DEPT_FIELDS_BY_TEMPLATE.get(code, []):
+                owner_clause = or_(
+                    owner_clause,
+                    _form_data_ids_match_clause(df, form_dept_scope_ids),
+                )
+        if form_dept_name_literals:
+            for nf in _FORM_DEPT_NAME_FIELDS_BY_TEMPLATE.get(code, []):
+                owner_clause = or_(
+                    owner_clause,
+                    _form_data_text_in_literals(nf, form_dept_name_literals),
+                )
         conds.append(owner_clause)
     if filter_clauses is not None:
         if filter_clauses:
@@ -1674,24 +1695,119 @@ async def _instance_list_filter_bundle(
     return [combined]
 
 
-# 列表/导出：除发起人外，按表单业务员字段纳入数据范围
+# 列表/导出：除发起人外，按表单人员/部门字段纳入数据范围
 _OWNER_PERSON_FIELD_BY_TEMPLATE = {
     "invoice_application": "sales_person",
     "quote_management": "sales_person",
 }
 
+_OWNER_PERSON_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
+    "invoice_application": ["sales_person"],
+    "quote_management": ["sales_person"],
+    "pricing_checklist_hjqd": [
+        "install_applicant", "req_applicant", "cs_applicant",
+        "coop_applicant", "coop_order_person",
+    ],
+}
 
-async def _owner_person_field_for_template(
-    db: AsyncSession, tenant_id: str, template_id: str,
-) -> str | None:
-    code = (await db.execute(
+# 部门档：form_data 部门控件 id 落在组织/负责业务部门子树内即可见（对齐线索 department_id）
+_FORM_DEPT_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
+    "pricing_checklist_hjqd": [
+        "install_department", "req_department", "cs_department", "coop_order_dept",
+    ],
+}
+
+# 部门档：业务部门等文本字段按部门名称匹配
+_FORM_DEPT_NAME_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
+    "pricing_checklist_hjqd": ["business_dept"],
+}
+
+
+def _form_data_text_in_literals(field: str, literals: list[str]):
+    parts = []
+    txt = FormInstance.form_data.op("->>")(field)
+    for lit in literals:
+        s = str(lit or "").strip()
+        if not s:
+            continue
+        parts.append(txt == s)
+        parts.append(txt.ilike(f"%{s}%"))
+    return or_(*parts) if parts else False
+
+
+async def _template_code_for(db: AsyncSession, tenant_id: str, template_id: str) -> str | None:
+    return (await db.execute(
         select(FormTemplate.code).where(
             FormTemplate.id == template_id,
             FormTemplate.tenant_id == tenant_id,
             FormTemplate.is_deleted == False,  # noqa: E712
         )
     )).scalar_one_or_none()
-    return _OWNER_PERSON_FIELD_BY_TEMPLATE.get(code or "")
+
+
+async def _form_list_scope_extras(
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict | None,
+    template_code: str | None,
+    owner_ids: list[str] | None,
+) -> tuple[list[str], list[str] | None, list[str] | None]:
+    """部门档表单列表：除发起人/业务员外，按单据部门字段与负责业务部门匹配。"""
+    if owner_ids is None or not template_code or not user:
+        return [], None, None
+    person_fields = list(_OWNER_PERSON_FIELDS_BY_TEMPLATE.get(template_code) or [])
+    dept_fields = _FORM_DEPT_FIELDS_BY_TEMPLATE.get(template_code) or []
+    name_fields = _FORM_DEPT_NAME_FIELDS_BY_TEMPLATE.get(template_code) or []
+    if not dept_fields and not name_fields:
+        return person_fields, None, None
+
+    from app.common.data_scope import managed_department_ids, org_department_subtree_ids
+
+    uid = user.get("sub")
+    org = await org_department_subtree_ids(db, tenant_id, uid)
+    managed = await managed_department_ids(db, tenant_id, uid)
+    dept_ids = list({*org, *managed})
+    if not dept_ids:
+        return person_fields, None, None
+
+    name_literals: list[str] = []
+    if name_fields:
+        from app.domains.organization.models import Department
+
+        names = list((await db.execute(
+            select(Department.name).where(
+                Department.tenant_id == tenant_id,
+                Department.id.in_(dept_ids),
+            )
+        )).scalars().all())
+        name_literals = [str(n).strip() for n in names if n and str(n).strip()]
+
+    return (
+        person_fields,
+        dept_ids if dept_fields else None,
+        name_literals if name_fields and name_literals else None,
+    )
+
+
+async def _owner_person_fields_for_template(
+    db: AsyncSession, tenant_id: str, template_id: str,
+) -> list[str]:
+    code = await _template_code_for(db, tenant_id, template_id)
+    if not code:
+        return []
+    fields = list(_OWNER_PERSON_FIELDS_BY_TEMPLATE.get(code) or [])
+    if not fields:
+        single = _OWNER_PERSON_FIELD_BY_TEMPLATE.get(code)
+        if single:
+            fields = [single]
+    return fields
+
+
+async def _owner_person_field_for_template(
+    db: AsyncSession, tenant_id: str, template_id: str,
+) -> str | None:
+    fields = await _owner_person_fields_for_template(db, tenant_id, template_id)
+    return fields[0] if fields else None
 
 
 async def list_instances(
@@ -1700,16 +1816,29 @@ async def list_instances(
     keyword: str | None = None, status: str | None = None,
     owner_ids: list[str] | None = None,
     filters: list | dict | str | None = None,
+    user: dict | None = None,
 ) -> tuple[list[FormInstance], int]:
-    owner_person_field = None
+    template_code = await _template_code_for(db, tenant_id, template_id)
+    owner_person_fields: list[str] = []
+    form_dept_scope_ids: list[str] | None = None
+    form_dept_name_literals: list[str] | None = None
     if owner_ids is not None:
-        owner_person_field = await _owner_person_field_for_template(db, tenant_id, template_id)
+        owner_person_fields, form_dept_scope_ids, form_dept_name_literals = (
+            await _form_list_scope_extras(db, tenant_id, user, template_code, owner_ids)
+        )
+        if not owner_person_fields:
+            owner_person_fields = await _owner_person_fields_for_template(
+                db, tenant_id, template_id,
+            )
     filter_bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters)
     conds = _instance_list_conds(
         tenant_id, template_id, keyword=keyword, status=status,
         owner_ids=owner_ids, filters=None if filter_bundle is not None else filters,
-        owner_person_field=owner_person_field,
+        owner_person_fields=owner_person_fields,
         filter_clauses=filter_bundle,
+        template_code=template_code,
+        form_dept_scope_ids=form_dept_scope_ids,
+        form_dept_name_literals=form_dept_name_literals,
     )
 
     total = (await db.execute(
@@ -1728,6 +1857,7 @@ async def export_instances(
     keyword: str | None = None, status: str | None = None,
     owner_ids: list[str] | None = None, limit: int = 10000,
     filters: list | dict | str | None = None,
+    user: dict | None = None,
 ) -> tuple[FormTemplate | None, list[dict], list[FormInstance]]:
     """导出表单数据: 返回(模板, 列定义 field_defs, 数据行)。
     列定义优先取已发布版本,否则最新版本(草稿态也可导出)。"""
@@ -1742,15 +1872,29 @@ async def export_instances(
         ver = await _get_latest_version(db, tenant_id, template_id)
     field_defs = (ver.field_definitions if ver else []) or []
 
-    owner_person_field = None
+    template_code = (tpl.code if tpl else None) or await _template_code_for(
+        db, tenant_id, template_id,
+    )
+    owner_person_fields: list[str] = []
+    form_dept_scope_ids: list[str] | None = None
+    form_dept_name_literals: list[str] | None = None
     if owner_ids is not None:
-        owner_person_field = _OWNER_PERSON_FIELD_BY_TEMPLATE.get((tpl.code if tpl else "") or "")
+        owner_person_fields, form_dept_scope_ids, form_dept_name_literals = (
+            await _form_list_scope_extras(db, tenant_id, user, template_code, owner_ids)
+        )
+        if not owner_person_fields:
+            owner_person_fields = await _owner_person_fields_for_template(
+                db, tenant_id, template_id,
+            )
     filter_bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters)
     conds = _instance_list_conds(
         tenant_id, template_id, keyword=keyword, status=status,
         owner_ids=owner_ids, filters=None if filter_bundle is not None else filters,
-        owner_person_field=owner_person_field,
+        owner_person_fields=owner_person_fields,
         filter_clauses=filter_bundle,
+        template_code=template_code,
+        form_dept_scope_ids=form_dept_scope_ids,
+        form_dept_name_literals=form_dept_name_literals,
     )
     rows = (await db.execute(
         select(FormInstance).where(*conds)

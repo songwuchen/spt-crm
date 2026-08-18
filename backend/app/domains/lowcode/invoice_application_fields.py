@@ -167,7 +167,11 @@ def apply_invoice_application_fields(defs: list) -> None:
             "customer_code", "contract_data", "total_amount",
         ):
             f["form_editable"] = False
+            f["available_on_create"] = True
+            f["fill_stage"] = "initiator"
             f["description"] = (f.get("description") or "") or "由选择合同号自动带出，不可编辑。"
+            if fid == "customer_name":
+                f["label"] = "客户名称"
             if fid == "total_amount":
                 # 明细带出后用公式汇总，避免手工改总价与明细不一致
                 f["type"] = "formula"

@@ -167,6 +167,11 @@ function printCss(): string {
       print-color-adjust: exact;
     }
     .sheet { width: 100%; padding: 0; }
+    /* 内容表格线：细灰线（非纯黑粗框）；领用单/安装图通知单共用 */
+    .sheet.requisition,
+    .sheet.install {
+      --tbl-line: 0.5pt solid #888;
+    }
     /* 字段类标签：加粗黑体（对齐客户 Word 意见） */
     h1,
     .lbl,
@@ -190,10 +195,11 @@ function printCss(): string {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
+      border: none;
     }
     table.form col { width: 8.333%; }
     table.form td {
-      border: 0.5pt solid #000;
+      border: var(--tbl-line, 0.5pt solid #888);
       padding: 2pt 3pt;
       vertical-align: middle;
       word-break: break-word;
@@ -226,9 +232,10 @@ function printCss(): string {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
+      border: none;
     }
     table.sign-block td {
-      border: 0.5pt solid #000;
+      border: var(--tbl-line, 0.5pt solid #888);
       padding: 2pt 2pt;
       vertical-align: middle;
       word-break: break-word;
@@ -263,24 +270,30 @@ function printCss(): string {
     .lbl.yn { font-size: 8pt; line-height: 1.15; padding: 1pt 1pt; }
     .val.yn { padding: 1pt 1pt; text-align: center; }
     .sec-head { text-align: center; font-size: 10.5pt; background: #f3f3f3; }
-    /* 安装图：细线框（避免 1px + 外框 1.5pt 叠成粗黑框） */
+    /* 领用单/安装图：仅单元格画线，避免表格外框与 td 叠成粗黑框 */
+    .sheet.requisition table.form,
     .sheet.install table.form {
-      border: 0.5pt solid #000;
+      border: none;
     }
+    .sheet.requisition table.form > tbody > tr > td,
     .sheet.install table.form > tbody > tr > td {
-      border-color: #000;
+      border: var(--tbl-line);
     }
     .sheet.install .idea { min-height: 48pt; height: 48pt; }
     .sheet.install .opin { min-height: 28pt; height: 28pt; }
     .sheet.install .result { min-height: 28pt; height: 28pt; }
+    .sheet.requisition table.equip-block,
     .sheet.install table.equip-block,
+    .sheet.requisition table.detail,
     .sheet.install table.detail {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
+      border: none;
     }
+    .sheet.requisition table.equip-block td,
     .sheet.install table.equip-block td {
-      border: 0.5pt solid #000;
+      border: var(--tbl-line);
       padding: 2pt 2pt;
       vertical-align: middle;
       word-break: break-word;
@@ -363,9 +376,10 @@ function printCss(): string {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
+      border: none;
     }
     table.detail td {
-      border: 0.5pt solid #000;
+      border: var(--tbl-line, 0.5pt solid #888);
       padding: 2pt 2pt;
       vertical-align: middle;
       word-break: break-word;
@@ -378,7 +392,30 @@ function printCss(): string {
       line-height: 1.15;
     }
     table.detail td.dl { text-align: left; }
-    td.nest { padding: 0 !important; border: 0.5pt solid #000; }
+    /* 嵌套表：外层 nest 只保留一圈线，内表去掉贴边重复线 */
+    td.nest {
+      padding: 0 !important;
+      border: var(--tbl-line, 0.5pt solid #888);
+      vertical-align: top;
+    }
+    .sheet.requisition td.nest > table,
+    .sheet.install td.nest > table {
+      width: 100%;
+      border: none;
+      border-collapse: collapse;
+    }
+    .sheet.requisition td.nest > table td,
+    .sheet.install td.nest > table td {
+      border: var(--tbl-line);
+    }
+    .sheet.requisition td.nest > table tr:first-child > td,
+    .sheet.install td.nest > table tr:first-child > td { border-top: none; }
+    .sheet.requisition td.nest > table tr:last-child > td,
+    .sheet.install td.nest > table tr:last-child > td { border-bottom: none; }
+    .sheet.requisition td.nest > table tr > td:first-child,
+    .sheet.install td.nest > table tr > td:first-child { border-left: none; }
+    .sheet.requisition td.nest > table tr > td:last-child,
+    .sheet.install td.nest > table tr > td:last-child { border-right: none; }
     /* 对齐 Word 模板：横向 A4（297×210），边距上5.3/右7.8/下0/左7.9 */
     @page { size: A4 landscape; margin: 5.3mm 7.8mm 0 7.9mm; }
     @media print {
