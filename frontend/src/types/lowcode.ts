@@ -264,6 +264,11 @@ export interface WfRoute {
   /** 抄送旁路：与主链并行，不参与 if/else 抢占 */
   always?: boolean
   /**
+   * 并行出边的激活顺序（越小越先）。只决定引擎建待办的先后，不会把并行改成串行。
+   * 未设置时：主链审批 → 抄送 → 结束；同一相位内保持连线定义顺序。
+   */
+  activate_order?: number
+  /**
    * 互斥组 id（简道云 if/else）。同 source + 同 exclusive_group 的出边只走一条；
    * 未设置时多条条件边可并行命中。
    */

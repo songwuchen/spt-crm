@@ -1,6 +1,8 @@
 """开票申请：业务员抄送节点 + 列表数据范围并入 sales_person。"""
 from __future__ import annotations
 
+import pytest
+
 from app.domains.lowcode.service import (
     _OWNER_PERSON_FIELD_BY_TEMPLATE,
     _instance_list_conds,
@@ -49,6 +51,41 @@ def test_drawing_flow_graph_invoice_includes_sales_cc():
     assert _flow_missing_invoice_sales_cc(nodes, routes) is False
     assert any(n.get("id") == _INVOICE_CC_SALES_SUBMIT for n in nodes)
     assert any(n.get("id") == _INVOICE_CC_SALES_DONE for n in nodes)
+
+
+@pytest.mark.asyncio
+async def test_advance_activates_invoice_approval_before_submit_cc():
+    """start → 旁路抄送∥开票：抄送若先跑并无出边，旧引擎会误收尾，财务待办建不出来。"""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    nodes = [
+        {"id": "start", "type": "start", "name": "发起"},
+        {"id": "n1", "type": "approval", "name": "开票"},
+        {"id": "cc_sales_submit", "type": "cc", "name": "已提交开票申请"},
+        {"id": "end", "type": "end", "name": "结束"},
+    ]
+    routes = [
+        {"id": "r_2", "source": "start", "target": "n1"},
+        {"id": "r_cc", "source": "start", "target": "cc_sales_submit", "always": True},
+    ]
+    version = SimpleNamespace(node_definitions=nodes, route_definitions=routes)
+    eng = WorkflowEngine(db=None, tenant_id="t")
+    order: list[str] = []
+
+    async def _activate(inst, _version, node, _ctx, allow_reenter=False):
+        order.append(node["id"])
+        if node.get("type") == "cc":
+            inst.status = "completed"
+
+    eng._activate_node = AsyncMock(side_effect=_activate)
+    inst = SimpleNamespace(status="running")
+    await eng._advance(inst, version, "start", SimpleNamespace(form_data={}))
+    assert order[0] == "n1"
+    assert "cc_sales_submit" in order
+    assert "end" not in order
 
 
 def test_invoice_list_owner_person_field_mapping():

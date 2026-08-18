@@ -9,6 +9,11 @@
 - 并行网关: parallel(fork,激活所有出边分支) + merge(AND-join,advisory lock 串行化到达记账);
 - 超时(SLA): 审批节点 timeout={hours,action},由 reminder_worker 扫描触发 fire_timeout;
 - 催办: 发起人对进行中待办人发提醒(urge)。
+- 并行出边两件事分开：
+  1. 选路 ``_next_targets``：哪些支路要亮（条件 / 互斥 / always）；
+  2. 激活顺序 ``activate_order``：亮了之后引擎按 1→2→3→4→5 去建待办。
+  并行不是串行——五个节点都会创建，只是激活有先后，避免抄送抢先把主链收尾。
+  未写 ``activate_order`` 时按相位：主链审批 → 抄送 → 结束；同相位保持连线定义序。
 
 统一入口保证: 状态推进 + 待办生成/作废 + 日志 + (表单实例)回写 集中处理,避免散落。
 高级能力(加签/退回指定节点/子流程/代理落地)见 act();其余按需迭代。
@@ -114,6 +119,13 @@ def evaluate_condition(cond: dict | None, form_data: dict) -> bool:
 
 # ==================== 引擎 ====================
 
+# 同一出边批次的激活顺序（选路 _next_targets 只决定「谁该亮」，不决定「先亮谁」）
+ADVANCE_PHASE_CORE = 1      # 主链：审批 / 并行网关 / 汇聚 / 直通
+ADVANCE_PHASE_SIDECAR = 2   # 旁路：抄送（always 边），不得结束流程
+ADVANCE_PHASE_END = 3       # 结束：必须等主链待办建出来之后
+_ABORT_STATUSES = frozenset({"rejected", "terminated", "cancelled", "withdrawn"})
+
+
 class WorkflowEngine:
     def __init__(self, db: AsyncSession, tenant_id: str):
         self.db = db
@@ -126,6 +138,9 @@ class WorkflowEngine:
         self._suppress_finished_notify = False
         # 整次 submit/act 复用组织快照，避免每个节点新建 Resolver 重复加载全量部门/用户
         self._approver_resolver = ApproverResolver(db, tenant_id)
+        # 同一出边批次深度：>0 时 completed 只登记、不落状态，防止旁路抄送抢先收尾
+        self._advance_batch_depth = 0
+        self._deferred_complete: tuple | None = None
 
     async def _has_downstream_approval(self, process_instance_id: str) -> bool:
         """下一节点（或任一审批节点）已有人审批通过 → 不可撤回。"""
@@ -443,7 +458,8 @@ class WorkflowEngine:
           有条件边，否则走组内无条件边(else)；不同组彼此独立
         - 无 ``exclusive_group`` 的普通边：仍可多条条件同时命中（并行）；
           若这些并行边中无一条件命中，则走其中无条件边
-        旁路边排在前面，避免 end 先激活导致同批抄送被跳过。
+        返回顺序不等于激活顺序。激活见 ``_order_advance_targets`` /
+        ``explain_advance_batch``（连线 ``activate_order`` + 相位）。
         """
         routes = self._outgoing(version, node_id)
         always_routes = [r for r in routes if r.get("always")]
@@ -553,6 +569,74 @@ class WorkflowEngine:
             f"{labels.get(action, action)}: {inst.title or inst.biz_type or ''}",
         )
 
+    def _advance_phase(self, node: dict | None) -> int:
+        """相位：主链(1) → 抄送(2) → 结束(3)。抄送不能排到审批前面。"""
+        t = (node or {}).get("type")
+        if t == "end":
+            return ADVANCE_PHASE_END
+        if t == "cc":
+            return ADVANCE_PHASE_SIDECAR
+        return ADVANCE_PHASE_CORE
+
+    def _route_activate_order(self, route: dict | None) -> int:
+        """连线 activate_order：同一相位内越小越先。未写视为 0（保持定义序）。"""
+        if not isinstance(route, dict):
+            return 0
+        raw = route.get("activate_order", route.get("priority"))
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return 0
+
+    def _route_for_target(self, version: WfProcessDefinitionVersion, from_node_id: str, target_id: str) -> dict | None:
+        for r in self._outgoing(version, from_node_id):
+            if isinstance(r, dict) and r.get("target") == target_id:
+                return r
+        return None
+
+    def _order_advance_targets(
+        self, version: WfProcessDefinitionVersion, from_node_id: str, targets: list[str],
+    ) -> list[str]:
+        """并行批次激活序：相位 → activate_order → 选路原序。"""
+        nodes = self._nodes_by_id(version)
+        keyed: list[tuple[int, int, int, str]] = []
+        for i, tid in enumerate(targets):
+            node = nodes.get(tid)
+            if not node:
+                continue
+            route = self._route_for_target(version, from_node_id, tid)
+            keyed.append((
+                self._advance_phase(node),
+                self._route_activate_order(route),
+                i,
+                tid,
+            ))
+        keyed.sort()
+        return [tid for _, _, _, tid in keyed]
+
+    def explain_advance_batch(
+        self, version: WfProcessDefinitionVersion, from_node_id: str,
+        form_data: dict | None = None,
+    ) -> list[dict]:
+        """同一出边将按此顺序激活（全部都会亮，这是先后不是互斥）。"""
+        nodes = self._nodes_by_id(version)
+        targets = self._next_targets(version, from_node_id, form_data or {})
+        ordered = self._order_advance_targets(version, from_node_id, targets)
+        out: list[dict] = []
+        for seq, tid in enumerate(ordered, start=1):
+            node = nodes.get(tid) or {}
+            route = self._route_for_target(version, from_node_id, tid) or {}
+            out.append({
+                "seq": seq,
+                "id": tid,
+                "name": node.get("name") or tid,
+                "type": node.get("type"),
+                "phase": self._advance_phase(node),
+                "activate_order": self._route_activate_order(route),
+                "always": bool(route.get("always")),
+            })
+        return out
+
     # ---------- 推进到下一节点 ----------
 
     async def _advance(self, inst: WfProcessInstance, version: WfProcessDefinitionVersion,
@@ -565,19 +649,28 @@ class WorkflowEngine:
             for r in self._outgoing(version, from_node_id)
             if isinstance(r, dict) and (r.get("reenter") or r.get("allow_reenter"))
         }
-        for tid in targets:
-            node = nodes.get(tid)
-            if not node:
-                continue
-            await self._activate_node(
-                inst, version, node, ctx, allow_reenter=tid in reenter_targets,
-            )
-            if inst.status != "running":
-                return  # 已结束(end / terminate)
-        # 后继全部 skip_reactivate（或无出边）且无在途待办时收尾，避免采购回路卡住
+        ordered = self._order_advance_targets(version, from_node_id, targets)
+        self._advance_batch_depth += 1
+        try:
+            for tid in ordered:
+                node = nodes.get(tid)
+                if not node:
+                    continue
+                await self._activate_node(
+                    inst, version, node, ctx, allow_reenter=tid in reenter_targets,
+                )
+                if inst.status in _ABORT_STATUSES:
+                    self._deferred_complete = None
+                    return
+        finally:
+            self._advance_batch_depth -= 1
+        # 后继全部 skip_reactivate（或无出边）且无在途待办时收尾，避免采购回路卡住。
+        # 抄送节点本身无出边，不能从抄送收尾——否则会抢在同批审批激活之前结束流程。
+        from_node = nodes.get(from_node_id) or {}
         if (
             self.db is not None
             and inst.status == "running"
+            and from_node.get("type") != "cc"
             and not await self._has_live_work(inst)
         ):
             end = next(
@@ -586,6 +679,7 @@ class WorkflowEngine:
             )
             if end:
                 await self._activate_node(inst, version, end, ctx)
+        await self._flush_deferred_complete(inst)
 
     async def _activate_node(self, inst: WfProcessInstance, version: WfProcessDefinitionVersion,
                              node: dict, ctx: ApprovalContext, *, allow_reenter: bool = False) -> None:
@@ -599,7 +693,9 @@ class WorkflowEngine:
             return
         if ntype == "cc":
             await self._create_cc(inst, version, node, ctx)
-            await self._advance(inst, version, node["id"], ctx)
+            # 无出边的旁路抄送到此为止，禁止再走「无待办则收尾」把同批审批吃掉
+            if self._outgoing(version, node["id"]):
+                await self._advance(inst, version, node["id"], ctx)
             return
         if ntype == "approval":
             await self._activate_approval(
@@ -1367,7 +1463,28 @@ class WorkflowEngine:
 
     # ---------- 收尾 / 回写 ----------
 
+    async def _flush_deferred_complete(self, inst) -> None:
+        """批次全部激活完再收尾：同批还有审批待办则丢弃旁路抄送触发的 completed。"""
+        if self._advance_batch_depth > 0:
+            return
+        pending = self._deferred_complete
+        self._deferred_complete = None
+        if not pending or inst.status != "running":
+            return
+        _pinst, status, reason = pending
+        if status != "completed":
+            return
+        if self.db is not None and await self._has_live_work(inst):
+            return
+        await self._commit_complete_instance(inst, status, reason)
+
     async def _complete_instance(self, inst, status: str, reason: str | None = None) -> None:
+        if status == "completed" and self._advance_batch_depth > 0:
+            self._deferred_complete = (inst, status, reason)
+            return
+        await self._commit_complete_instance(inst, status, reason)
+
+    async def _commit_complete_instance(self, inst, status: str, reason: str | None = None) -> None:
         inst.status = status
         inst.completed_at = _now()
         # 收尾时关掉残留 running 节点 / pending 待办，避免流程动态长期「处理中」
