@@ -1412,6 +1412,7 @@ _UUID_RE = re.compile(
 )
 _REF_FILTER_TYPES = frozenset({
     "department", "department_multi", "person", "person_multi",
+    "contract", "customer", "project",
 })
 
 
@@ -1499,7 +1500,10 @@ async def _template_field_type_map(
 async def _lookup_ref_ids_by_name(
     db: AsyncSession, tenant_id: str, *, kind: str, value: str, exact: bool,
 ) -> list[str]:
-    """按姓名/部门名解析 id；value 已是 UUID 则原样返回。"""
+    """按显示名解析引用字段 id；value 已是 UUID 则原样返回。
+
+    合同字段列表展示图纸编号（无则合同号），筛选需按 contract_no / drawing_no 反查。
+    """
     from sqlalchemy import text as sql_text
 
     needle = (value or "").strip()
@@ -1507,27 +1511,41 @@ async def _lookup_ref_ids_by_name(
         return []
     if _UUID_RE.match(needle):
         return [needle]
+
+    like = needle if exact else f"%{needle}%"
+    op = "=" if exact else "ILIKE"
+
     if kind.startswith("department"):
-        if exact:
-            rows = (await db.execute(sql_text(
-                "SELECT id FROM departments WHERE tenant_id = :t AND name = :n LIMIT 200"
-            ), {"t": tenant_id, "n": needle})).fetchall()
-        else:
-            rows = (await db.execute(sql_text(
-                "SELECT id FROM departments WHERE tenant_id = :t AND name ILIKE :n LIMIT 200"
-            ), {"t": tenant_id, "n": f"%{needle}%"})).fetchall()
+        rows = (await db.execute(sql_text(
+            f"SELECT id FROM departments WHERE tenant_id = :t AND name {op} :n LIMIT 200"
+        ), {"t": tenant_id, "n": like})).fetchall()
         return [str(r[0]) for r in rows]
     if kind.startswith("person"):
-        if exact:
-            rows = (await db.execute(sql_text(
-                "SELECT id FROM users WHERE tenant_id = :t "
-                "AND (real_name = :n OR username = :n) LIMIT 200"
-            ), {"t": tenant_id, "n": needle})).fetchall()
-        else:
-            rows = (await db.execute(sql_text(
-                "SELECT id FROM users WHERE tenant_id = :t "
-                "AND (real_name ILIKE :n OR username ILIKE :n) LIMIT 200"
-            ), {"t": tenant_id, "n": f"%{needle}%"})).fetchall()
+        rows = (await db.execute(sql_text(
+            f"SELECT id FROM users WHERE tenant_id = :t "
+            f"AND (real_name {op} :n OR username {op} :n) LIMIT 200"
+        ), {"t": tenant_id, "n": like})).fetchall()
+        return [str(r[0]) for r in rows]
+    if kind == "contract":
+        rows = (await db.execute(sql_text(
+            f"SELECT id FROM contracts WHERE tenant_id = :t "
+            f"AND (contract_no {op} :n OR drawing_no {op} :n "
+            f"OR peer_contract_no {op} :n) LIMIT 200"
+        ), {"t": tenant_id, "n": like})).fetchall()
+        return [str(r[0]) for r in rows]
+    if kind == "customer":
+        rows = (await db.execute(sql_text(
+            f"SELECT id FROM customers WHERE tenant_id = :t "
+            f"AND (name {op} :n OR COALESCE(short_name,'') {op} :n "
+            f"OR COALESCE(customer_code,'') {op} :n) LIMIT 200"
+        ), {"t": tenant_id, "n": like})).fetchall()
+        return [str(r[0]) for r in rows]
+    if kind == "project":
+        rows = (await db.execute(sql_text(
+            f"SELECT id FROM opportunity_projects WHERE tenant_id = :t "
+            f"AND COALESCE(is_deleted, false) = false "
+            f"AND (name {op} :n OR project_code {op} :n) LIMIT 200"
+        ), {"t": tenant_id, "n": like})).fetchall()
         return [str(r[0]) for r in rows]
     return []
 

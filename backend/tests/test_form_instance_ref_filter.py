@@ -1,12 +1,33 @@
-"""表单列表筛选：部门/人员按名称解析。"""
+"""表单列表筛选：部门/人员按名称解析；合同按合同号/图纸编号解析。"""
 from __future__ import annotations
 
+import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+
+from app.config import settings
+from app.database import generate_uuid
+from app.domains.contract.models import Contract
+from app.domains.lowcode.models import FormInstance, FormTemplate, FormTemplateVersion
 from app.domains.lowcode.service import (
     _UUID_RE,
     _flatten_filter_values,
     _form_data_filter_clause,
+    _lookup_ref_ids_by_name,
     _normalize_instance_filters,
+    list_instances,
 )
+
+DEMO_TENANT = "00000000-0000-0000-0000-000000000001"
+
+
+@pytest.fixture
+async def db():
+    engine = create_async_engine(settings.DATABASE_URL, echo=False, poolclass=NullPool)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        yield session
+    await engine.dispose()
 
 
 def test_uuid_detect():
@@ -34,3 +55,55 @@ def test_plain_contains_still_works_for_text():
         "field": "dept_code", "op": "contains", "value": "03",
     })
     assert clause is not None
+
+
+@pytest.mark.asyncio
+async def test_contract_filter_matches_drawing_no(db):
+    """合同号字段存 UUID，筛选「包含图纸编号片段」应命中。"""
+    token = generate_uuid()[:8]
+    drawing_no = f"WMGFUT{token}"
+    contract = Contract(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        contract_no=f"YJ-UT-{token}", drawing_no=drawing_no, status="draft",
+    )
+    tpl = FormTemplate(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        name=f"ut-contract-filter-{token}", code=f"ut_cf_{token}",
+        status="published", current_version=1,
+    )
+    ver = FormTemplateVersion(
+        id=generate_uuid(), tenant_id=DEMO_TENANT, template_id=tpl.id,
+        version_number=1, status="published",
+        field_definitions=[{"id": "contract_no", "type": "contract", "label": "合同号"}],
+        layout_definition={}, rule_definitions=[],
+    )
+    inst = FormInstance(
+        id=generate_uuid(), tenant_id=DEMO_TENANT,
+        template_id=tpl.id, template_version_id=ver.id,
+        title="ut", status="running", initiator_id="ut-admin",
+        form_data={"contract_no": contract.id}, field_definitions=[],
+    )
+    db.add_all([contract, tpl, ver, inst])
+    await db.commit()
+
+    ids = await _lookup_ref_ids_by_name(
+        db, DEMO_TENANT, kind="contract", value=token, exact=False,
+    )
+    assert contract.id in ids
+
+    rows, total = await list_instances(
+        db, DEMO_TENANT, tpl.id, 1, 20,
+        filters={"match": "all", "rules": [
+            {"field": "contract_no", "op": "contains", "value": token},
+        ]},
+    )
+    assert total >= 1
+    assert any(r.id == inst.id for r in rows)
+
+    _miss, miss_n = await list_instances(
+        db, DEMO_TENANT, tpl.id, 1, 20,
+        filters={"match": "all", "rules": [
+            {"field": "contract_no", "op": "contains", "value": "NO_SUCH_DRAWING_XYZ"},
+        ]},
+    )
+    assert miss_n == 0
