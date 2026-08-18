@@ -35,7 +35,7 @@ import SignatureField from './fields/SignatureField'
 import BaseFormLookupField, { parseFormOptionsSource } from './fields/BaseFormLookupField'
 import FormInstanceLookupField, { pricingChecklistClearKeys } from './fields/FormInstanceLookupField'
 import ContractSectionTitle from '@/components/ContractSectionTitle'
-import { applySimpleFormulas } from '@/utils/lowcodeSimpleFormulas'
+import { applySimpleFormulas, recomputeDetailRowOnColChange } from '@/utils/lowcodeSimpleFormulas'
 import { PRICING_CHECKLIST_LINKS, pricingChecklistAllClearKeys } from '@/constants/pricingChecklistLinks'
 
 const { TextArea } = Input
@@ -664,7 +664,7 @@ function DetailTable({
   const setCell = (rowIdx: number, colId: string, v: unknown) => {
     const next = rows.map((r, i) => {
       if (i !== rowIdx) return r
-      const row = { ...r, [colId]: v }
+      let row: Record<string, unknown> = { ...r, [colId]: v }
       // 筛分效率是否有要求改为否时，清空其后条件字段，避免隐藏值残留
       if (
         (colId === 'need_screening_eff_star' || colId === 'need_screening_eff' || colId === 'need_screening_eff_2')
@@ -679,6 +679,7 @@ function DetailTable({
           if (k in row) delete row[k]
         }
       }
+      row = recomputeDetailRowOnColChange(row, allCols, colId)
       return row
     })
     onChange(next)
@@ -829,6 +830,7 @@ export function findRequiredError(
           : {}
         const rowStates = computeFieldStates(fields, { ...values, [f.id]: [row] }, rules)
         for (const c of f.detail_table_columns || []) {
+          if (c.type === 'formula') continue
           const cst = rowStates[c.id]
           if (cst && !cst.visible) continue
           const colReq = cst ? cst.required : !!c.required

@@ -43,3 +43,28 @@ def test_fill_copies_lines_without_mutating_source():
     fill["contract_lines_new"].append({"product_name": "本单加行", "qty": 1, "unit_price": 10})
     assert len(source) == 1
     assert len(fill["contract_lines_new"]) == 2
+
+
+def test_line_amount_stays_editable():
+    defs = [
+        {"id": "contract_lines_new", "type": "detail_table", "label": "合同明细（新增）",
+         "detail_table_columns": [
+             {"id": "qty", "type": "number", "label": "数量"},
+             {"id": "unit_price", "type": "number", "label": "单价"},
+             {"id": "line_amount", "type": "formula", "label": "合计",
+              "form_editable": False, "props": {"formula": "$qty# * $unit_price#"}},
+         ]},
+        {"id": "total_amount", "type": "number", "label": "合计总价"},
+    ]
+    apply_invoice_application_fields(defs)
+    lines = next(f for f in defs if f["id"] == "contract_lines_new")
+    amount = next(c for c in lines["detail_table_columns"] if c["id"] == "line_amount")
+    assert amount["type"] == "number"
+    assert amount["form_editable"] is True
+
+
+def test_fill_overwrites_stale_line_amount():
+    mapped = map_contract_lines_to_invoice(
+        [{"name": "筛", "qty": 0.6, "price": 1140000, "amount": 1}],
+    )
+    assert mapped[0]["line_amount"] == 684000.0

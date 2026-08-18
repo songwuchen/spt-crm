@@ -79,7 +79,7 @@ def map_contract_lines_to_invoice(key_clauses: Any) -> list[dict]:
                 mapped[dst] = row[src]
         qty = _to_number(mapped.get("qty"))
         price = _to_number(mapped.get("unit_price"))
-        if mapped.get("line_amount") in (None, "") and qty is not None and price is not None:
+        if qty is not None and price is not None:
             mapped["line_amount"] = round(qty * price, 2)
         if mapped:
             out.append(mapped)
@@ -180,6 +180,14 @@ def apply_invoice_application_fields(defs: list) -> None:
             # 选合同只是把明细拷贝进本单 form_data，可增删改；不回写合同原明细
             f["form_editable"] = True
             f["description"] = "选择合同号后自动带出；可在本单增删改行，不影响合同已保存的明细。"
+            cols = [dict(c) if isinstance(c, dict) else c for c in (f.get("detail_table_columns") or [])]
+            for c in cols:
+                if not isinstance(c, dict) or c.get("id") != "line_amount":
+                    continue
+                c["type"] = "number"
+                c["form_editable"] = True
+                c["description"] = "默认数量 × 单价，可手改。"
+            f["detail_table_columns"] = cols
         elif fid == "sales_person":
             f["form_editable"] = False
             f["description"] = "由选择合同号带出合同业务员，不可编辑。"
