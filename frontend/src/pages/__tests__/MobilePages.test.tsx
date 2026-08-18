@@ -63,7 +63,7 @@ vi.mock('@/hooks/useDataDict', () => ({
 
 vi.mock('@/stores/useAuthStore', () => ({
   useAuthStore: vi.fn((selector: any) => {
-    const state = { user: { username: 'admin', real_name: '管理员' }, token: 'test' }
+    const state = { user: { username: 'admin', real_name: '管理员' }, token: 'test', hasPermission: () => false }
     return selector ? selector(state) : state
   }),
 }))

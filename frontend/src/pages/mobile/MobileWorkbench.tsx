@@ -46,7 +46,17 @@ export default function MobileWorkbench() {
   const [pendingCount, setPendingCount] = useState(0)
   const user = useAuthStore((s) => s.user)
   const hasPermission = useAuthStore((s) => s.hasPermission)
+  const canOpenLowcodeForms = Boolean(hasPermission?.('role:manage'))
   const navigate = useNavigate()
+  const quickActions = [
+    { icon: 'add_business', label: '新客户', path: '/m/customers/new', color: 'text-blue-600 bg-blue-50' },
+    { icon: 'contact_phone', label: '写跟进', path: '/m/follow-up/new', color: 'text-purple-600 bg-purple-50' },
+    { icon: 'checklist', label: '待办', path: '/m/tasks', color: 'text-emerald-600 bg-emerald-50' },
+    { icon: 'task_alt', label: '审批', path: '/m/approvals', color: 'text-amber-600 bg-amber-50' },
+    ...(canOpenLowcodeForms
+      ? [{ icon: 'assignment', label: '表单填报', path: '/m/lowcode/forms', color: 'text-indigo-600 bg-indigo-50' }]
+      : []),
+  ]
 
   const refreshAll = async () => {
     await Promise.allSettled([
@@ -102,15 +112,7 @@ export default function MobileWorkbench() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-4">
         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">快捷操作</h3>
         <div className="grid grid-cols-4 gap-2">
-          {[
-            { icon: 'add_business', label: '新客户', path: '/m/customers/new', color: 'text-blue-600 bg-blue-50' },
-            { icon: 'contact_phone', label: '写跟进', path: '/m/follow-up/new', color: 'text-purple-600 bg-purple-50' },
-            { icon: 'checklist', label: '待办', path: '/m/tasks', color: 'text-emerald-600 bg-emerald-50' },
-            { icon: 'task_alt', label: '审批', path: '/m/approvals', color: 'text-amber-600 bg-amber-50' },
-            ...(hasPermission('role:manage')
-              ? [{ icon: 'assignment', label: '表单填报', path: '/m/lowcode/forms', color: 'text-indigo-600 bg-indigo-50' }]
-              : []),
-          ].map((a) => (
+          {quickActions.map((a) => (
             <button key={a.label} onClick={() => navigate(a.path)}
               className="flex flex-col items-center gap-1.5 py-2 bg-transparent border-0 cursor-pointer">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${a.color}`}>
