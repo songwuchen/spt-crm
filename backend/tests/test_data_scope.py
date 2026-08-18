@@ -229,6 +229,46 @@ async def test_is_in_scope_lead_dept_uses_form_department_not_owner_sidejob(monk
     assert await is_in_scope(MagicMock(), "t1", user, mine_even_if_jingxi, "lead") is True
 
 
+async def test_is_in_scope_lead_creator_cannot_cross_department(monkeypatch):
+    """有部门的线索：创建人不能把其它事业部单据带进本部门可见范围。
+
+    张玲玉代录了大量「所在部门=新疆威猛」的单，部门档只应看单据部门，不应因创建人可见。
+    未填部门的单仍归创建人。
+    """
+    user = {"sub": "u-zly", "roles": ["mkt_support"], "permissions": []}
+
+    async def fake_resolve(*_a, **_k):
+        return ["u-zly"]
+
+    monkeypatch.setattr("app.common.data_scope.resolve_owner_scope", fake_resolve)
+    monkeypatch.setattr(
+        "app.common.data_scope.managed_department_ids",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        "app.common.data_scope.resolve_module_scope",
+        AsyncMock(return_value="dept"),
+    )
+    monkeypatch.setattr(
+        "app.common.data_scope.org_department_subtree_ids",
+        AsyncMock(return_value=["dept-mkt", "dept-yejin", "dept-qingqian"]),
+    )
+
+    xj = SimpleNamespace(
+        id="L-xj", owner_id="u-donghao", created_by_id="u-zly",
+        reporter_id="u-donghao", department_id="dept-xinjiang",
+        __tablename__="leads", status="new", review_status="approved",
+    )
+    assert await is_in_scope(MagicMock(), "t1", user, xj, "lead") is False
+
+    no_dept = SimpleNamespace(
+        id="L-nd", owner_id="u-other", created_by_id="u-zly",
+        reporter_id="u-other", department_id=None,
+        __tablename__="leads", status="new", review_status="approved",
+    )
+    assert await is_in_scope(MagicMock(), "t1", user, no_dept, "lead") is True
+
+
 async def test_is_in_scope_lead_self_ignores_org_department_subtree(monkeypatch):
     """self 档（业务员）不因组织部门子树放开同事单据；负责业务部门仍可见。"""
     user = {"sub": "u-sales", "roles": ["customer_entry"], "permissions": []}
