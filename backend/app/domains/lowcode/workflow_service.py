@@ -263,7 +263,13 @@ async def _discard_stale_system_draft_if_needed(
         return
     # 草稿已是对齐拓扑则保留（用户可能在调布局/审批人）
     if _flow_is_jdy_form_graph(form_code, latest.node_definitions):
-        return
+        if not (
+            form_code == "invoice_application"
+            and _flow_missing_invoice_sales_cc(
+                latest.node_definitions, latest.route_definitions,
+            )
+        ):
+            return
     latest.status = "deprecated"
     await db.commit()
     logger.info(
@@ -711,15 +717,24 @@ def _flow_is_jdy_invoice(nodes: list | None) -> bool:
     return "开票" in names and "发起人接收" in names
 
 
-# 开票申请：抄送业务员（提交知悉 / 财务开票后可下载）
+# 开票申请：抄送业务员（提交知悉 / 发起人接收后再通知可下载）
 _INVOICE_CC_SALES_SUBMIT = "cc_sales_submit"
 _INVOICE_CC_SALES_DONE = "cc_sales_done"
 _INVOICE_CC_SALES_SUBMIT_NAME = "已提交开票申请"
 _INVOICE_CC_SALES_DONE_NAME = "发票已开具可下载"
+_INVOICE_INITIATOR_RECV_NAME = "发起人接收"
+_INVOICE_APPROVE_NAME = "开票"
+
+
+def _invoice_node_id(nodes: list | None, name: str) -> str | None:
+    for n in nodes or []:
+        if isinstance(n, dict) and n.get("name") == name and n.get("id"):
+            return str(n["id"])
+    return None
 
 
 def _flow_missing_invoice_sales_cc(nodes: list | None, routes: list | None = None) -> bool:
-    """缺少业务员抄送节点或 start/开票旁路边 → 需升级。"""
+    """缺少业务员抄送，或「可下载」仍挂在开票旁路（应在发起人接收之后）→ 需升级。"""
     by_id = {n.get("id"): n for n in (nodes or []) if isinstance(n, dict) and n.get("id")}
     for nid, want_name in (
         (_INVOICE_CC_SALES_SUBMIT, _INVOICE_CC_SALES_SUBMIT_NAME),
@@ -733,20 +748,28 @@ def _flow_missing_invoice_sales_cc(nodes: list | None, routes: list | None = Non
             return True
         if n.get("name") != want_name:
             return True
-    want_edges = {
-        ("start", _INVOICE_CC_SALES_SUBMIT),
-        ("n1", _INVOICE_CC_SALES_DONE),
-    }
-    have = {
+    initiator = _invoice_node_id(nodes, _INVOICE_INITIATOR_RECV_NAME)
+    invoice_id = _invoice_node_id(nodes, _INVOICE_APPROVE_NAME)
+    if not initiator:
+        return True
+    pairs = {
         (r.get("source"), r.get("target"))
         for r in (routes or [])
-        if isinstance(r, dict) and r.get("always")
+        if isinstance(r, dict)
     }
-    return not want_edges.issubset(have)
+    if ("start", _INVOICE_CC_SALES_SUBMIT) not in pairs:
+        return True
+    if (initiator, _INVOICE_CC_SALES_DONE) not in pairs:
+        return True
+    if (_INVOICE_CC_SALES_DONE, "end") not in pairs:
+        return True
+    if invoice_id and (invoice_id, _INVOICE_CC_SALES_DONE) in pairs:
+        return True
+    return False
 
 
 def apply_invoice_sales_cc(nodes: list[dict], routes: list[dict]) -> bool:
-    """就地补：提交旁路抄送业务员 + 财务开票后抄送业务员（可下载附件）。"""
+    """就地补：提交旁路抄送业务员；发起人接收完成后再抄送「发票已开具可下载」并到结束。"""
     if not isinstance(nodes, list) or not isinstance(routes, list):
         return False
     changed = False
@@ -773,6 +796,11 @@ def apply_invoice_sales_cc(nodes: list[dict], routes: list[dict]) -> bool:
     _upsert_cc(_INVOICE_CC_SALES_SUBMIT, _INVOICE_CC_SALES_SUBMIT_NAME)
     _upsert_cc(_INVOICE_CC_SALES_DONE, _INVOICE_CC_SALES_DONE_NAME)
 
+    initiator = _invoice_node_id(nodes, _INVOICE_INITIATOR_RECV_NAME)
+    invoice_id = _invoice_node_id(nodes, _INVOICE_APPROVE_NAME)
+    if not initiator:
+        return changed
+
     def _ensure_always(rid: str, source: str, target: str) -> None:
         nonlocal changed
         for r in routes:
@@ -787,7 +815,50 @@ def apply_invoice_sales_cc(nodes: list[dict], routes: list[dict]) -> bool:
         changed = True
 
     _ensure_always("r_start_cc_sales_submit", "start", _INVOICE_CC_SALES_SUBMIT)
-    _ensure_always("r_n1_cc_sales_done", "n1", _INVOICE_CC_SALES_DONE)
+
+    has_init_to_done = False
+    has_done_to_end = False
+    for r in routes:
+        if not isinstance(r, dict):
+            continue
+        src, tgt = r.get("source"), r.get("target")
+        if tgt == _INVOICE_CC_SALES_DONE:
+            if invoice_id and src == invoice_id:
+                r["source"] = initiator
+                r.pop("always", None)
+                r.pop("exclusive_group", None)
+                changed = True
+                src = initiator
+            if src == initiator:
+                if r.get("always"):
+                    r.pop("always", None)
+                    changed = True
+                if r.get("exclusive_group"):
+                    r.pop("exclusive_group", None)
+                    changed = True
+                has_init_to_done = True
+        if src == _INVOICE_CC_SALES_DONE and tgt == "end":
+            has_done_to_end = True
+        if src == initiator and tgt == "end":
+            r["source"] = _INVOICE_CC_SALES_DONE
+            r.pop("exclusive_group", None)
+            changed = True
+            has_done_to_end = True
+
+    if not has_init_to_done:
+        routes.append({
+            "id": "r_n4_cc_sales_done",
+            "source": initiator,
+            "target": _INVOICE_CC_SALES_DONE,
+        })
+        changed = True
+    if not has_done_to_end:
+        routes.append({
+            "id": "r_cc_sales_done_end",
+            "source": _INVOICE_CC_SALES_DONE,
+            "target": "end",
+        })
+        changed = True
     return changed
 
 
@@ -1101,16 +1172,22 @@ def _flow_needs_pickable_scope_approver_upgrade(
 
 
 def _drawing_flow_has_cc_end_bug(nodes: list | None, routes: list | None) -> bool:
-    """旧生成器把叶子抄送接到 end，或入抄送边未标 always —— 需再升级。"""
+    """旧生成器把叶子抄送接到 end，或入抄送边未标 always —— 需再升级。
+
+    开票「发票已开具可下载」例外：发起人接收之后串到该抄送再结束，入边不必 always。
+    """
     cc_ids = {n.get("id") for n in (nodes or []) if n.get("type") == "cc" and n.get("id")}
     if not cc_ids:
         return False
     for r in routes or []:
         if not isinstance(r, dict):
             continue
-        if r.get("target") == "end" and r.get("source") in cc_ids:
+        src, tgt = r.get("source"), r.get("target")
+        if tgt == _INVOICE_CC_SALES_DONE or src == _INVOICE_CC_SALES_DONE:
+            continue
+        if tgt == "end" and src in cc_ids:
             return True
-        if r.get("target") in cc_ids and not r.get("always"):
+        if tgt in cc_ids and not r.get("always"):
             return True
     return False
 
@@ -2307,10 +2384,10 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"报价角色审批改为具名用户/可选范围({form_code})",
         )
         return
-    # 开票申请：提交/财务开票后抄送业务员
+    # 开票申请：提交旁路仍挂发起；「可下载」须在发起人接收之后（不依赖 topology_ok，
+    # 否则 cc→end 会被旧 cc_end_bug 判成整图重发，把连线打回开票旁路）
     if (
-        topology_ok
-        and form_code == "invoice_application"
+        form_code == "invoice_application"
         and _flow_missing_invoice_sales_cc(
             version.node_definitions, version.route_definitions,
         )
@@ -2322,7 +2399,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         await _publish_system_default_upgrade(
             db, tenant_id, d, version,
             patched_nodes, patched_routes,
-            DRAWING_FORM_FLOW_DESC, f"开票申请抄送业务员({form_code})",
+            DRAWING_FORM_FLOW_DESC, f"开票申请可下载改到发起人接收后({form_code})",
         )
         return
     # 方案管理：剥离业务打分三项（及总分/日期）节点可填权限

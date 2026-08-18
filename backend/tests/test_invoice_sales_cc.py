@@ -11,6 +11,7 @@ from app.domains.lowcode.workflow_service import (
     _INVOICE_CC_SALES_DONE,
     _INVOICE_CC_SALES_SUBMIT,
     _drawing_flow_graph,
+    _drawing_flow_has_cc_end_bug,
     _flow_missing_invoice_sales_cc,
     apply_invoice_sales_cc,
 )
@@ -39,9 +40,41 @@ def test_apply_invoice_sales_cc_idempotent():
         "type": "form_field_person", "value": "sales_person",
     }
     assert by_id[_INVOICE_CC_SALES_DONE]["name"] == "发票已开具可下载"
-    edge = {(r["source"], r["target"], bool(r.get("always"))) for r in routes}
-    assert ("start", _INVOICE_CC_SALES_SUBMIT, True) in edge
-    assert ("n1", _INVOICE_CC_SALES_DONE, True) in edge
+    edge = {(r["source"], r["target"]) for r in routes}
+    assert ("start", _INVOICE_CC_SALES_SUBMIT) in edge
+    assert ("n4", _INVOICE_CC_SALES_DONE) in edge
+    assert (_INVOICE_CC_SALES_DONE, "end") in edge
+    assert ("n1", _INVOICE_CC_SALES_DONE) not in edge
+    assert ("n4", "end") not in edge
+
+
+def test_apply_invoice_sales_cc_moves_done_off_invoice_node():
+    """旧图：开票旁路「可下载」→ 改到发起人接收之后再结束。"""
+    nodes = [
+        {"id": "start", "type": "start", "name": "发起"},
+        {"id": "n1", "type": "approval", "name": "开票"},
+        {"id": "n4", "type": "approval", "name": "发起人接收"},
+        {"id": "end", "type": "end", "name": "结束"},
+        {"id": _INVOICE_CC_SALES_SUBMIT, "type": "cc", "name": "已提交开票申请",
+         "approver_rule": {"type": "form_field_person", "value": "sales_person"}},
+        {"id": _INVOICE_CC_SALES_DONE, "type": "cc", "name": "发票已开具可下载",
+         "approver_rule": {"type": "form_field_person", "value": "sales_person"}},
+    ]
+    routes = [
+        {"id": "r_2", "source": "start", "target": "n1"},
+        {"id": "r_3", "source": "n1", "target": "n4"},
+        {"id": "r_1", "source": "n4", "target": "end"},
+        {"id": "r_start_cc_sales_submit", "source": "start", "target": _INVOICE_CC_SALES_SUBMIT, "always": True},
+        {"id": "r_n1_cc_sales_done", "source": "n1", "target": _INVOICE_CC_SALES_DONE, "always": True},
+    ]
+    assert _flow_missing_invoice_sales_cc(nodes, routes) is True
+    assert apply_invoice_sales_cc(nodes, routes) is True
+    assert _flow_missing_invoice_sales_cc(nodes, routes) is False
+    pairs = {(r["source"], r["target"]) for r in routes}
+    assert ("n4", _INVOICE_CC_SALES_DONE) in pairs
+    assert (_INVOICE_CC_SALES_DONE, "end") in pairs
+    assert ("n1", _INVOICE_CC_SALES_DONE) not in pairs
+    assert ("n4", "end") not in pairs
 
 
 def test_drawing_flow_graph_invoice_includes_sales_cc():
@@ -49,8 +82,16 @@ def test_drawing_flow_graph_invoice_includes_sales_cc():
     assert graph is not None
     nodes, routes = graph
     assert _flow_missing_invoice_sales_cc(nodes, routes) is False
+    assert _drawing_flow_has_cc_end_bug(nodes, routes) is False
     assert any(n.get("id") == _INVOICE_CC_SALES_SUBMIT for n in nodes)
     assert any(n.get("id") == _INVOICE_CC_SALES_DONE for n in nodes)
+    pairs = {(r.get("source"), r.get("target")) for r in routes}
+    n4 = next(n["id"] for n in nodes if n.get("name") == "发起人接收")
+    n1 = next(n["id"] for n in nodes if n.get("name") == "开票")
+    assert (n4, _INVOICE_CC_SALES_DONE) in pairs
+    assert (_INVOICE_CC_SALES_DONE, "end") in pairs
+    assert (n1, _INVOICE_CC_SALES_DONE) not in pairs
+    assert (n4, "end") not in pairs
 
 
 @pytest.mark.asyncio
