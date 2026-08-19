@@ -24,6 +24,7 @@ export const ATOMIC_APPROVER_TYPES: ApproverTypeMeta[] = [
   { value: 'dept_head', label: '部门负责人' },
   { value: 'multi_level_superior', label: '逐级上级' },
   { value: 'form_field_person', label: '表单人员字段', needValue: 'field_person' },
+  { value: 'form_field_person_dept_head', label: '表单人员·部门负责人', needValue: 'field_person' },
   { value: 'form_field_dept', label: '表单部门字段', needValue: 'field_dept' },
   { value: 'pickable_scope', label: '可选范围', needValue: 'pickable_scope' },
   { value: 'specified_role', label: '指定角色(角色码)', needValue: 'text' },

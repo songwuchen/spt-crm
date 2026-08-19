@@ -161,6 +161,55 @@ async def department_labels(
     return ok(out)
 
 
+@router.get("/person-labels")
+async def person_labels(
+    ids: str = Query(..., description="逗号分隔的用户 id（CRM UUID 或简道云 MongoId）"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """回显人员姓名：先查 CRM，再按简道云 id→姓名 / id→CRM 映射兜底（流程条件历史值）。"""
+    from app.domains.auth.models import User
+    from app.domains.lowcode.jdy_id_remap import (
+        build_jdy_to_crm_user_map,
+        is_jdy_mongo_id,
+        jdy_person_id_to_name,
+    )
+
+    raw = [x.strip() for x in (ids or "").split(",") if x.strip()]
+    if not raw:
+        return ok({})
+    jdy_to_crm = await build_jdy_to_crm_user_map(db, tenant_id)
+    crm_ids = set(raw)
+    for jid in raw:
+        if is_jdy_mongo_id(jid) and jid in jdy_to_crm:
+            crm_ids.add(jdy_to_crm[jid])
+    rows = (
+        await db.execute(
+            select(User.id, User.real_name, User.username).where(
+                User.tenant_id == tenant_id,
+                User.id.in_(list(crm_ids)),
+            )
+        )
+    ).all()
+    crm_names = {str(i): (n or u or str(i)) for i, n, u in rows}
+    out: dict[str, str] = {}
+    for i in raw:
+        if i in crm_names:
+            out[i] = crm_names[i]
+            continue
+        if is_jdy_mongo_id(i):
+            cid = jdy_to_crm.get(i)
+            if cid and cid in crm_names:
+                out[i] = crm_names[cid]
+                continue
+    jdy_names = jdy_person_id_to_name()
+    for i in raw:
+        if i not in out and i in jdy_names:
+            out[i] = jdy_names[i]
+    return ok(out)
+
+
 @router.get("/department-code")
 async def lookup_department_code(
     department_id: str = Query(..., description="CRM 部门 id"),
@@ -348,6 +397,41 @@ async def pickable_customers(
         {"id": r[0], "name": r[1], "customer_code": r[2]}
         for r in rows
     ])
+
+
+@router.get("/customer-form-fill/{customer_id}")
+async def customer_form_fill(
+    customer_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """选客户后联动回填：客户类别（=客户信息·客户类型 A/B/C/D）、货物地址。"""
+    from app.domains.customer.models import Customer
+
+    row = (await db.execute(
+        select(Customer).where(
+            Customer.id == customer_id,
+            Customer.tenant_id == tenant_id,
+            Customer.is_deleted == False,  # noqa: E712
+        )
+    )).scalar_one_or_none()
+    if not row:
+        return ok({})
+    # 简道云 cs_product_replace「客户类别」linkquery → 客户信息「客户类型」(A/B/C/D)
+    category = (row.level or "").strip() or None
+    addr = {
+        "province": row.province,
+        "city": row.city,
+        "district": row.district,
+        "detail": row.address,
+    }
+    return ok({
+        "customer_category": category,
+        # 更换 field_3 / 退回 field_6 均为「货物地址」，同 jdy widget
+        "field_3": addr,
+        "field_6": addr,
+    })
 
 
 @router.get("/pickable-contracts")

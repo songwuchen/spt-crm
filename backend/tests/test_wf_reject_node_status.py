@@ -91,6 +91,42 @@ async def test_build_flow_steps_shows_cc_recipients():
 
 
 @pytest.mark.asyncio
+async def test_build_flow_steps_auto_approve_shows_system():
+    """自动通过节点应显示系统处理人与自动通过意见。"""
+    from app.domains.lowcode.workflow_service import _build_flow_steps
+
+    auto_ni = _ni(
+        id="ni-auto",
+        node_def_id="n1",
+        node_name="业务经理审批",
+        status="completed",
+        completed_at=datetime(2026, 8, 19, 7, 0, 0, tzinfo=timezone.utc),
+        config={"auto_approve": True},
+    )
+    db = AsyncMock()
+    result = MagicMock()
+    result.all.return_value = []
+    db.execute.return_value = result
+
+    steps = await _build_flow_steps(
+        db,
+        nodes=[auto_ni],
+        tasks=[],
+        logs=[_log(
+            node_instance_id="ni-auto",
+            action="auto_approve",
+            actor_name="系统",
+            opinion="节点「业务经理审批」无审批人，自动通过",
+        )],
+        process_status="running",
+    )
+    assert len(steps) == 1
+    assert steps[0]["action"] == "auto_approve"
+    assert steps[0]["handler_name"] == "系统"
+    assert "业务经理审批" in (steps[0]["opinion"] or "")
+
+
+@pytest.mark.asyncio
 async def test_reject_flow_closes_running_nodes():
     """_reject_flow 必须把 running 节点置为 rejected，避免 UI 卡住处理中。"""
     from app.domains.lowcode.workflow_engine import WorkflowEngine

@@ -432,6 +432,8 @@ def _field_defs_fingerprint(defs: list | None) -> str:
                 str(c.get("type") or ""),
                 str(c.get("label") or ""),
                 bool(c.get("required")),
+                bool(c.get("available_on_create", True)),
+                str(c.get("fill_stage") or ""),
                 json.dumps(c.get("options") or [], sort_keys=True, ensure_ascii=False),
             ))
         items.append((
@@ -502,6 +504,11 @@ async def sync_builtin_form_fields(
             raw = raw_by.get(fd.get("id"))
             if not raw:
                 continue
+            # 标签/类型以简道云 builtin 为准，避免租户旧版误标（如「流程编号」「收货地址」）
+            if raw.get("label"):
+                fd["label"] = raw["label"]
+            if raw.get("type"):
+                fd["type"] = raw["type"]
             for k in ("required", "form_editable", "available_on_create", "fill_stage"):
                 if k in raw:
                     fd[k] = raw[k]
@@ -522,15 +529,38 @@ async def sync_builtin_form_fields(
                     rc = raw_cols.get(col.get("id"))
                     if not rc:
                         continue
-                    if "required" in rc:
-                        col["required"] = rc["required"]
-                    else:
-                        col["required"] = False
+                    if rc.get("label"):
+                        col["label"] = rc["label"]
+                    if rc.get("type"):
+                        col["type"] = rc["type"]
+                    for k in ("required", "available_on_create", "fill_stage"):
+                        if k in rc:
+                            col[k] = rc[k]
+                        elif k == "required":
+                            col["required"] = False
         # 长说明类字段：单行输入体验差，填报页用多行（简道云 widget 仍为 text）
         if key == "cs_service_request":
             for fd in want:
                 if isinstance(fd, dict) and fd.get("id") in ("field_5", "field_6", "remark"):
                     fd["type"] = "textarea"
+        if key == "cs_product_return":
+            for fd in want:
+                if not isinstance(fd, dict):
+                    continue
+                if fd.get("id") == "field":
+                    props = dict(fd.get("props") or {})
+                    props["default_current_user"] = True
+                    fd["props"] = props
+                elif fd.get("id") == "field_2":
+                    props = dict(fd.get("props") or {})
+                    props["default_current_dept"] = True
+                    fd["props"] = props
+                elif fd.get("id") == "field_7":
+                    for col in fd.get("detail_table_columns") or []:
+                        if isinstance(col, dict) and col.get("id") == "field_14":
+                            col["available_on_create"] = False
+                            col["fill_stage"] = "approver"
+                            col["required"] = True
     if key == "prod_card_supplement":
         from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_contract_pick_fields
         apply_prod_card_contract_pick_fields(want)
@@ -831,6 +861,9 @@ def _merge_builtin_field_defs(want: list, current: list) -> list:
         for k in _FIELD_TENANT_OVERRIDE_KEYS:
             if k in c:
                 merged[k] = c[k]
+        # 简道云对齐字段：label 以 builtin 为准，避免租户旧版误标（如业务部门标成日期时间）
+        if f.get("jdy_widget") and f.get("label"):
+            merged["label"] = f["label"]
         merged_props = _merge_field_props(
             f.get("props") if isinstance(f.get("props"), dict) else None,
             c.get("props") if isinstance(c.get("props"), dict) else None,

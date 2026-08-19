@@ -26,7 +26,7 @@
 | field_9 | 紧急情况 | checkbox |  |  | approver | `_widget_1646903016596` |
 | field_10 | 主要产品信息 | detail_table |  | 是 | initiator | `_widget_1577495431595` |
 | └ field_11 | 有无合同号 | radio | 是 | | | `_widget_1712128588465` |
-| └ contract_no | 合同号 | text | 是 | | | `_widget_1577495431618` |
+| └ contract_no | 合同号 | contract | 是 | | | `_widget_1577495431618` |
 | └ field_12 | 现场联系人及电话 | text | 是 | | | `_widget_1578108364286` |
 | └ field_13 | 设备名称 | text | 是 | | | `_widget_1577495431631` |
 | └ field_14 | 设备型号 | text | 是 | | | `_widget_1577495431646` |
@@ -36,7 +36,7 @@
 | field_18 | 其它待排查产品 | select | 是 | 是 | initiator | `_widget_1577495432709` |
 | field_19 | 有其它排产产品明细 | detail_table |  | 是 | initiator | `_widget_1577495432749` |
 | └ field_20 | 有无合同号 | radio |  | | | `_widget_1712128588499` |
-| └ contract_no_2 | 合同号 | text | 是 | | | `_widget_1577495432750` |
+| └ contract_no | 合同号 | contract | 是 | | | `_widget_1577495432750` |
 | └ field_21 | 现场联系人及电话 | text | 是 | | | `_widget_1577495433532` |
 | └ field_22 | 设备名称 | text | 是 | | | `_widget_1577495432751` |
 | └ field_23 | 设备型号 | text | 是 | | | `_widget_1577495432752` |
@@ -63,15 +63,15 @@
 
 ### 流程降级备注
 
-- 审批「客服落实」JDY 角色「230902客服内勤」降级为 sales_manager
+- 审批「客服落实」JDY 角色「230902客服内勤」→ 指定用户 ['0236446249514', '181359282120075679', '113236314224043072', '01364955133227249077']
 - 审批「总工审批」具名用户 02364335378133，无匹配用户时 auto_approve
-- 审批「总经理」JDY 角色「总经理」降级为 sales_manager
+- 审批「总经理」JDY 角色「总经理」→ 指定用户 02336214315748
 - 审批「客服安排1」JDY 角色「服务申请及反馈-客服安排」降级为 sales_manager
 - 审批「业务经理」具名用户 01000533004677，无匹配用户时 auto_approve
 - 审批「业务经理」具名用户 02364714147257，无匹配用户时 auto_approve
 - 审批「客服经理」具名用户 02352513566524，无匹配用户时 auto_approve
 - 审批「客服安排2」具名用户 02352513566524，无匹配用户时 auto_approve
-- 审批「总经理」JDY 角色「总经理」降级为 sales_manager
+- 审批「总经理」JDY 角色「总经理」→ 指定用户 02336214315748
 - 节点「n6__1」2 条出边已标互斥组 ex_n6__1
 - 节点「start」6 条出边已标互斥组 ex_start
 - 节点「n4」2 条出边已标互斥组 ex_n4
@@ -82,5 +82,5 @@
 - optAuth：2 个字段发起仅可见（form_editable=false）
 - 节点 validator：6 处审批必填（如「客户种类必填」）
 - edit_raw allowBlank=false：31 个必填 widget
-- fieldShowRules → 8 条显隐/条件必填规则
+- fieldShowRules → 6 条显隐/条件必填规则
 

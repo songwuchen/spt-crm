@@ -11,7 +11,7 @@
 
 | slug | 标签 | type | 必填 | 创建可填 | stage | jdy_widget |
 |------|------|------|------|----------|-------|------------|
-| serial_no | 流程编号 | auto_number |  | 是 | initiator | `_widget_1604021830267` |
+| serial_no | 流程编号 | auto_number |  |  | initiator | `_widget_1604021830267` |
 | contract_no | 合同号 | contract |  | 是 | initiator | `_widget_1585191665097` |
 | sales_person | 业务员 | person |  | 是 | initiator | `_widget_1585191665061` |
 | field | 所属部门 | department |  | 是 | initiator | `_widget_1585191665079` |
@@ -27,9 +27,11 @@
 
 ### 流程降级备注
 
+- 审批「部门经理」→ 表单人员「sales_person」所属部门负责人
 - 审批「客服反馈」JDY 角色「7.5客户服务延期申请-客服反馈」降级为 sales_manager
 - 审批「客服审批」JDY 角色「7.5客户服务延期申请-客服审批」降级为 sales_manager
-- 审批「曹工审批」JDY 角色「曹修国」降级为 sales_manager
-- 审批「总经理审批」JDY 角色「总经理」降级为 sales_manager
+- 审批「曹工审批」JDY 角色「曹修国」→ 指定用户 02364335378133
+- 审批「总经理审批」JDY 角色「总经理」→ 指定用户 02336214315748
 - 审批「客服备案」JDY 角色「7.5客户服务延期申请-客服反馈」降级为 sales_manager
+- optAuth：1 个字段仅审批可写（创建 available_on_create=false，必填下沉到节点 field_perms）
 

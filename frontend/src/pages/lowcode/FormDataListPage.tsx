@@ -1146,9 +1146,10 @@ export default function FormDataListPage({
   }, [colFields, detailColsCount, listFullText, listColWidths])
 
   const showFlowPane = !!viewRec
+  const layoutMaxW = drawingLayout?.contentMaxWidth ?? 0
   const modalWidth = showFlowPane
-    ? 1100
-    : (drawingLayout ? 960 : 780)
+    ? Math.max(1100, layoutMaxW + 300)
+    : (layoutMaxW || (drawingLayout ? 960 : 780))
   const fsProps = modalFullscreenProps(modalFullscreen, modalWidth)
   const contentMaxH = modalFullscreen ? 'calc(100vh - 200px)' : '70vh'
   const displayFields = viewRec

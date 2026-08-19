@@ -15,7 +15,7 @@
 | field | 申请日期 | datetime |  | 是 | initiator | `_widget_1709085809140` |
 | applicant | 申请人 | person |  | 是 | initiator | `_widget_1709085809141` |
 | field_2 | 申请部门 | department |  | 是 | initiator | `_widget_1709085809142` |
-| field_3 | 申请部门（文本） | text |  | 是 |  | `_widget_1709085809854` |
+| field_3 | 申请部门（文本） | text |  |  | approver | `_widget_1709085809854` |
 | field_4 | 选择合同数据 | text |  | 是 | initiator | `_widget_1709085809842` |
 | contract_no | 合同号 | contract |  | 是 | initiator | `_widget_1709085809143` |
 | customer_name | 客户名称 | customer |  | 是 | initiator | `_widget_1709085809144` |
@@ -30,8 +30,9 @@
 ### 流程降级备注
 
 - 审批「客服经理审批」具名用户 02364335378133，无匹配用户时 auto_approve
-- 审批「内勤办理」JDY 角色「230902客服内勤」降级为 sales_manager
+- 审批「内勤办理」JDY 角色「230902客服内勤」→ 指定用户 ['0236446249514', '181359282120075679', '113236314224043072', '01364955133227249077']
 - 节点「start」2 条出边已标互斥组 ex_start
 - 节点「抄送节点」无出边（抄送旁路，不接到结束）
+- optAuth：1 个字段仅审批可写（创建 available_on_create=false，必填下沉到节点 field_perms）
 - optAuth：4 个字段发起仅可见（form_editable=false）
 

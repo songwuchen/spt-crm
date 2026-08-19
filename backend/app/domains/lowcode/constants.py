@@ -152,6 +152,7 @@ class ApproverType(StrEnum):
     SPECIFIED_ROLE = "specified_role"
     SPECIFIED_POST = "specified_post"
     FORM_FIELD_PERSON = "form_field_person"
+    FORM_FIELD_PERSON_DEPT_HEAD = "form_field_person_dept_head"
     FORM_FIELD_DEPT = "form_field_dept"
     DEPT_MEMBERS = "dept_members"
     CREATOR = "creator"

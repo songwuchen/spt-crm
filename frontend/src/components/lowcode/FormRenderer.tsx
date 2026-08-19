@@ -37,6 +37,7 @@ import FormInstanceLookupField, { pricingChecklistClearKeys } from './fields/For
 import ContractSectionTitle from '@/components/ContractSectionTitle'
 import { applySimpleFormulas, recomputeDetailRowOnColChange } from '@/utils/lowcodeSimpleFormulas'
 import { PRICING_CHECKLIST_LINKS, pricingChecklistAllClearKeys } from '@/constants/pricingChecklistLinks'
+import { fetchCustomerFormFill, needsCustomerFormFill, clearCustomerFormFillPatch, pickShipAddressFill } from '@/utils/customerFormFill'
 
 const { TextArea } = Input
 const { Text } = Typography
@@ -62,6 +63,11 @@ const SELF_RENDER_READONLY = new Set([
 
 const GROUP_TYPES = new Set(['tab_group', 'collapse_section'])
 
+/** 发起填报：审批阶段字段不展示、不必填 */
+function isCreateHiddenField(field: FieldDefinition): boolean {
+  return field.available_on_create === false || field.fill_stage === 'approver'
+}
+
 interface Props {
   fields: FieldDefinition[]
   rules?: FormRule[]
@@ -77,6 +83,8 @@ interface Props {
   serialPreviews?: Record<string, string>
   /** 明细子表布局：手机端用 cards */
   detailLayout?: 'table' | 'cards'
+  /** 发起填报：隐藏 available_on_create=false 的明细列；审批填表传 false */
+  detailCreateFill?: boolean
 }
 
 // 由字段的 visible_roles/edit_roles + 当前用户角色，推导出规则引擎可用的 FieldPermission[]。
@@ -104,7 +112,7 @@ export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]):
   return out
 }
 
-export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, detailLayout = 'table' }: Props) {
+export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, detailLayout = 'table', detailCreateFill = true }: Props) {
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const rolePerms = useMemo(
     () => (applyFieldPerms ? deriveRolePerms(fields, userRoles) : []),
@@ -132,7 +140,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
 
   const isShown = (field: FieldDefinition): boolean => {
     if (field.type === 'section' || field.type === 'separator') return false
-    if (mode === 'edit' && field.available_on_create === false) return false
+    if (mode === 'edit' && isCreateHiddenField(field)) return false
     const st = states[field.id]
     if (st && !st.visible) return false
     return true
@@ -159,13 +167,18 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
           )
         }
         // 审批阶段才填的字段：创建/编辑填报页不展示（详情只读仍展示）
-        if (mode === 'edit' && field.available_on_create === false) return null
+        if (mode === 'edit' && isCreateHiddenField(field)) return null
         const st = states[field.id]
         if (st && !st.visible) return null
-        // detail_table 强制整行，避免明细列被挤扁
+        // detail_table 强制整行；附件/图片按 layout span 与简道云 lineWidth 同排
         const span = field.type === 'detail_table' ? 24 : (field.span || 24)
+        const narrowCol = field.type === 'file' || field.type === 'image' || field.type === 'radio'
         return (
-          <Col span={span} key={rowKey}>
+          <Col
+            span={span}
+            key={rowKey}
+            className={narrowCol ? 'min-w-0 max-w-full overflow-hidden' : undefined}
+          >
             <FieldItem
               field={field}
               state={st}
@@ -178,6 +191,8 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
               rules={rules}
               fields={fields}
               detailLayout={detailLayout}
+              detailCreateFill={detailCreateFill}
+              fieldSpan={span}
             />
           </Col>
         )
@@ -187,7 +202,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
 }
 
 function FieldItem({
-  field, state, mode, value, allValues, onChange, onPatch, serialPreview, rules = [], fields = [], detailLayout = 'table',
+  field, state, mode, value, allValues, onChange, onPatch, serialPreview, rules = [], fields = [], detailLayout = 'table', detailCreateFill = true, fieldSpan,
 }: {
   field: FieldDefinition
   state?: FieldState
@@ -200,6 +215,8 @@ function FieldItem({
   rules?: FormRule[]
   fields?: FieldDefinition[]
   detailLayout?: 'table' | 'cards'
+  detailCreateFill?: boolean
+  fieldSpan?: number
 }) {
   const readonly = mode === 'readonly' || state?.readonly
     || !!(field.props as { read_only?: boolean } | undefined)?.read_only
@@ -210,7 +227,7 @@ function FieldItem({
   // 这里也不能把明文渲染出去。
   const masked = state?.masked || field.masked
   return (
-    <div style={{ marginBottom: 16 }} data-lc-field={field.id}>
+    <div className="mb-4 min-w-0 max-w-full overflow-hidden" data-lc-field={field.id}>
       {(field.label || required) ? (
       <div style={{ marginBottom: 4, fontSize: 13, color: 'rgba(0,0,0,0.75)' }}>
         {required && <span style={{ color: '#ff4d4f', marginRight: 4 }}>*</span>}
@@ -236,6 +253,8 @@ function FieldItem({
             rules={rules}
             fields={fields}
             detailLayout={detailLayout}
+            detailCreateFill={detailCreateFill}
+            fieldSpan={fieldSpan}
           />
         )}
     </div>
@@ -243,7 +262,7 @@ function FieldItem({
 }
 
 function FieldWidget({
-  field, readonly, value, allValues, onChange, onPatch, serialPreview, rules = [], fields = [], detailLayout = 'table',
+  field, readonly, value, allValues, onChange, onPatch, serialPreview, rules = [], fields = [], detailLayout = 'table', detailCreateFill = true, fieldSpan, inlineCell,
 }: {
   field: FieldDefinition
   readonly: boolean
@@ -255,6 +274,10 @@ function FieldWidget({
   rules?: FormRule[]
   fields?: FieldDefinition[]
   detailLayout?: 'table' | 'cards'
+  detailCreateFill?: boolean
+  fieldSpan?: number
+  /** 明细子表单元格内的 file/image：简道云 Popover 模式 */
+  inlineCell?: boolean
 }) {
   const opts = field.options || []
   const ph = field.placeholder
@@ -430,8 +453,32 @@ function FieldWidget({
         />
       )
     }
-    case 'customer':
-      return <CustomerField value={value} onChange={onChange} readonly={readonly} placeholder={ph} />
+    case 'customer': {
+      const csFill = !readonly && onPatch && needsCustomerFormFill(fields)
+      return (
+        <CustomerField
+          value={value}
+          readonly={readonly}
+          placeholder={ph}
+          onChange={(v) => {
+            if (!csFill) {
+              onChange(v)
+              return
+            }
+            if (!v) {
+              onPatch!({
+                [field.id]: undefined,
+                ...clearCustomerFormFillPatch(fields),
+              })
+              return
+            }
+            void fetchCustomerFormFill(v).then((fill) => {
+              onPatch!({ [field.id]: v, ...pickShipAddressFill(fields, fill) })
+            }).catch(() => onChange(v))
+          }}
+        />
+      )
+    }
     case 'select_data': {
       const props = (field.props || {}) as {
         source_form_code?: string
@@ -471,10 +518,39 @@ function FieldWidget({
         />
       )
     }
-    case 'file':
-      return <FileField value={value} onChange={onChange} readonly={readonly} downloadDenied={downloadDenied} />
-    case 'image':
-      return <FileField value={value} onChange={onChange} image readonly={readonly} downloadDenied={downloadDenied} />
+    case 'file': {
+      const compact = !!(field.props as { compact_upload?: boolean } | undefined)?.compact_upload
+        || (fieldSpan != null && fieldSpan <= 8 && !inlineCell)
+      const maxCount = Number((field.props as { max_file_count?: number } | undefined)?.max_file_count) || undefined
+      return (
+        <FileField
+          value={value}
+          onChange={onChange}
+          readonly={readonly}
+          downloadDenied={downloadDenied}
+          compact={compact}
+          displayMode={inlineCell ? 'popover' : 'full'}
+          maxCount={maxCount}
+        />
+      )
+    }
+    case 'image': {
+      const compact = !!(field.props as { compact_upload?: boolean } | undefined)?.compact_upload
+        || (fieldSpan != null && fieldSpan <= 8 && !inlineCell)
+      const maxCount = Number((field.props as { max_file_count?: number } | undefined)?.max_file_count) || undefined
+      return (
+        <FileField
+          value={value}
+          onChange={onChange}
+          image
+          readonly={readonly}
+          downloadDenied={downloadDenied}
+          compact={compact}
+          displayMode={inlineCell ? 'popover' : 'full'}
+          maxCount={maxCount}
+        />
+      )
+    }
     case 'address':
       return (
         <AddressField
@@ -595,6 +671,7 @@ function FieldWidget({
           rules={rules}
           fields={fields}
           layout={detailLayout}
+          createFill={detailCreateFill}
         />
       )
     default:
@@ -629,7 +706,7 @@ function isBlankDetailRow(row: unknown): boolean {
 }
 
 function DetailTable({
-  field, readonly, value, onChange, formValues = {}, rules = [], fields = [], layout = 'table',
+  field, readonly, value, onChange, formValues = {}, rules = [], fields = [], layout = 'table', createFill = true,
 }: {
   field: FieldDefinition
   readonly: boolean
@@ -639,9 +716,17 @@ function DetailTable({
   rules?: FormRule[]
   fields?: FieldDefinition[]
   layout?: 'table' | 'cards'
+  /** 发起填报：隐藏 available_on_create=false 的明细列 */
+  createFill?: boolean
 }) {
   const rows = Array.isArray(value) ? value : []
-  const allCols = field.detail_table_columns || []
+  const allCols = (field.detail_table_columns || []).filter((c) => {
+    // 发起填报：隐藏审批阶段列（简道云 optAuth 未授权给发起节点）
+    if (createFill && !readonly && (c.available_on_create === false || c.fill_stage === 'approver')) {
+      return false
+    }
+    return true
+  })
   const ensureMin = Math.max(0, Number(field.props?.ensure_min_rows ?? 0) || 0)
   // 挂载时：配置了 ensure_min_rows 则补空行；否则清掉误灌的「默认空行」
   const didMountInit = useRef(false)
@@ -723,6 +808,7 @@ function DetailTable({
                       value={row[c.id]}
                       allValues={row}
                       onChange={(v) => setCell(idx, c.id, v)}
+                      inlineCell={c.type === 'file' || c.type === 'image'}
                     />
                   </div>
                 ))}
@@ -747,7 +833,7 @@ function DetailTable({
       title: (<span>{c.required && <span style={{ color: '#ff4d4f' }}>*</span>}{c.label}</span>),
       dataIndex: c.id,
       key: c.id,
-      minWidth: 140,
+      minWidth: c.type === 'image' || c.type === 'file' ? 200 : 140,
       render: (_: unknown, _row: Record<string, unknown>, idx: number) => {
         const row = rows[idx] || {}
         const visible = isDetailColVisibleInRow(
@@ -759,6 +845,7 @@ function DetailTable({
             field={c} readonly={readonly}
             value={row[c.id]} allValues={row}
             onChange={(v) => setCell(idx, c.id, v)}
+            inlineCell={c.type === 'file' || c.type === 'image'}
           />
         )
       },
@@ -813,7 +900,7 @@ export function findRequiredError(
     if (f.type === 'formula' || f.type === 'auto_number') continue
     if (f.type === 'section' || f.type === 'separator') continue
     // 审批阶段字段：创建不必填
-    if (f.available_on_create === false) continue
+    if (isCreateHiddenField(f)) continue
     const st = states[f.id]
     if (st && !st.visible) continue
     // 脱敏字段跳过必填：看不到明文就无法填写，脱敏+必填会让记录永远存不下去
@@ -831,6 +918,7 @@ export function findRequiredError(
         const rowStates = computeFieldStates(fields, { ...values, [f.id]: [row] }, rules)
         for (const c of f.detail_table_columns || []) {
           if (c.type === 'formula') continue
+          if (c.available_on_create === false || c.fill_stage === 'approver') continue
           const cst = rowStates[c.id]
           if (cst && !cst.visible) continue
           const colReq = cst ? cst.required : !!c.required

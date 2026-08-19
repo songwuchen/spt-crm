@@ -128,6 +128,41 @@ export function isFieldVisibleByRules(
   return !st || st.visible !== false
 }
 
+function isEmptyValue(v: unknown): boolean {
+  if (v == null) return true
+  if (typeof v === 'string' && !v.trim()) return true
+  if (Array.isArray(v) && v.length === 0) return true
+  return false
+}
+
+/** 审批节点：明细表 fill_stage=approver 的必填列逐行校验。 */
+export function validateApproverDetailRows(
+  fields: FieldDefinition[],
+  fieldId: string,
+  rows: unknown,
+): string | null {
+  const fd = fields.find((f) => f.id === fieldId)
+  if (!fd || fd.type !== 'detail_table') return null
+  const approverCols = (fd.detail_table_columns || []).filter(
+    (c) => c.fill_stage === 'approver' && c.required,
+  )
+  if (!approverCols.length) return null
+  if (!Array.isArray(rows) || !rows.length) {
+    return `「${fd.label || fieldId}」至少需要一行`
+  }
+  for (let i = 0; i < rows.length; i++) {
+    const row = (rows[i] && typeof rows[i] === 'object' && !Array.isArray(rows[i]))
+      ? (rows[i] as Record<string, unknown>)
+      : {}
+    for (const c of approverCols) {
+      if (isEmptyValue(row[c.id])) {
+        return `「${fd.label || fieldId}」第 ${i + 1} 行「${c.label || c.id}」为必填项`
+      }
+    }
+  }
+  return null
+}
+
 /** 明细列在某一行是否可见：把子表收成仅含该行再求值。 */
 export function isDetailColVisibleInRow(
   colId: string,

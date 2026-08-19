@@ -4,8 +4,10 @@ import {
   DownloadOutlined, EyeOutlined, DeleteOutlined, PaperClipOutlined,
 } from '@ant-design/icons'
 import { attachmentApi } from '@/api/attachment'
+import AttachmentPreviewModal from '@/components/AttachmentPreviewModal'
 import client from '@/api/client'
 import type { ApiResponse } from '@/api/types'
+import { isPreviewable } from '@/utils/attachmentPreview'
 import JdyUploadZone, { jdyMaxBytes } from '@/components/lowcode/fields/JdyUploadZone'
 
 interface AttachmentItem {
@@ -30,15 +32,6 @@ interface Props {
   /** 新建态暂存文件（无 bizId 时） */
   pendingFiles?: File[]
   onPendingChange?: (files: File[]) => void
-}
-
-function isPreviewable(contentType?: string, name?: string): 'image' | 'pdf' | false {
-  if (!contentType && !name) return false
-  const ct = (contentType || '').toLowerCase()
-  const ext = (name || '').split('.').pop()?.toLowerCase()
-  if (ct.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext || '')) return 'image'
-  if (ct === 'application/pdf' || ext === 'pdf') return 'pdf'
-  return false
 }
 
 function formatSize(bytes: number) {
@@ -333,27 +326,14 @@ function AttachmentPanelBound({
         />
       </div>
 
-      <Modal
-        title={previewItem?.original_name || '预览'}
+      <AttachmentPreviewModal
         open={!!previewItem}
-        onCancel={() => setPreviewItem(null)}
-        footer={null}
-        width={previewType === 'pdf' ? 900 : 700}
-        centered
-      >
-        {previewItem && !previewUrl && (
-          <div className="flex justify-center items-center py-16 text-slate-400">加载中…</div>
-        )}
-        {previewItem && previewUrl && previewType === 'image' && (
-          <div className="flex justify-center">
-            <img src={previewUrl} alt={previewItem.original_name} className="max-w-full max-h-[70vh] object-contain" />
-          </div>
-        )}
-        {previewItem && previewUrl && previewType === 'pdf' && (
-          <iframe src={previewUrl} title={previewItem.original_name}
-            className="w-full border-0 rounded" style={{ height: '70vh' }} />
-        )}
-      </Modal>
+        title={previewItem?.original_name}
+        url={previewUrl}
+        kind={previewType || false}
+        loading={!!previewItem && !previewUrl}
+        onClose={() => setPreviewItem(null)}
+      />
     </div>
   )
 }

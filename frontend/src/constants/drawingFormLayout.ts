@@ -1,6 +1,7 @@
 // 图纸 / 方案 / 生产卡 / 开票 / 收款：分区布局 + 栅格 span（对齐简道云 lineWidth，×2 为 antd Col span）
 import type { FieldDefinition } from '@/types/lowcode'
 
+/** title 为空时不插入分区标题，字段续接上一段栅格 */
 export type DrawingSection = { title: string; fieldIds: string[] }
 
 export type DrawingFormLayoutSpec = {
@@ -27,6 +28,8 @@ export type DrawingFormLayoutSpec = {
   listColumnWidths?: Record<string, number>
   /** 列表列标题覆盖（如 project_no →「项目号」） */
   listColumnLabels?: Record<string, string>
+  /** 填报页字段标签覆盖（修正租户旧版误标，如业务部门标成日期时间） */
+  fieldLabels?: Record<string, string>
   /**
    * 列表单元格不截断省略号，横向滚动看全（对齐简道云数据管理）。
    */
@@ -805,42 +808,144 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
     },
   },
   cs_product_replace: {
-    contentMaxWidth: 1080,
+    contentMaxWidth: 1200,
+    fieldLabels: {
+      field: '业务部门',
+      serial_no: '流水号',
+      f_0418: '附件',
+    },
     listColumns: [
-      'customer_name', 'sales_person', 'field_2', 'field',
-      'field_6', 'field_5', 'field_4', 'field_27',
+      'serial_no', 'apply_datetime', 'field', 'sales_person', 'field_2',
+      'customer_name', 'customer_category', 'field_3', 'field_4', 'field_5', 'field_6', 'field_24', 'remark',
     ],
-    listExpandDetail: 'field_13',
+    listExpandDetail: 'field_12',
+    listDetailMaxCols: 8,
     sections: [
       {
         title: '基本信息',
         fieldIds: [
-          'serial_no', 'field', 'field_2', 'sales_person', 'field_3',
-          'customer_name', 'field_4', 'field_5', 'remark', 'field_6', 'field_7', 'field_27',
+          // 简道云 4 列栅格（lineWidth=3 → antd span 6）
+          'serial_no', 'apply_datetime', 'field', 'sales_person',
+          'field_2', 'customer_name', 'customer_category', 'field_3',
+          'field_4', 'remark',
+          'field_5', 'field_6',
         ],
       },
-      { title: '更换明细', fieldIds: ['field_13', 'field_22'] },
+      {
+        title: '换货（含补发）',
+        fieldIds: ['field_12'],
+      },
+      {
+        title: '图片',
+        fieldIds: ['images'],
+      },
+      {
+        // 简道云：附件 + 是否小萌 + 图片0418（lineWidth 3+3+6）
+        title: '',
+        fieldIds: ['f_0418', 'field_24', 'f_0418_5'],
+      },
+      {
+        title: '审批填写',
+        fieldIds: [
+          'field_7', 'field_8', 'field_9', 'field_10', 'field_11', 'field_20',
+          'f_0418_2', 'f_0418_3', 'f_0418_4',
+          'field_22', 'field_23', 'field_25', 'field_26', 'field_27', 'field_28', 'field_29',
+        ],
+      },
+      {
+        title: '客服备注',
+        fieldIds: ['field_30'],
+      },
     ],
-    spans: { remark: 24, field_13: 24, field_22: 24 },
+    spans: {
+      serial_no: 6, apply_datetime: 6, field: 6, sales_person: 6,
+      field_2: 6, customer_name: 6, customer_category: 6, field_3: 6,
+      // lineWidth×2：3→6，4→8，6→12，12→24
+      field_4: 6, remark: 12,
+      field_5: 8, field_6: 8,
+      field_12: 24,
+      images: 24,
+      f_0418: 6, field_24: 6, f_0418_5: 12,
+      field_7: 8, field_8: 8, field_9: 8, field_10: 8, field_11: 8, field_20: 12,
+      f_0418_2: 6, f_0418_3: 6, f_0418_4: 6, field_22: 6,
+      field_23: 6, field_25: 6, field_26: 12,
+      field_27: 6, field_28: 6, field_29: 6,
+      field_30: 24,
+    },
   },
   cs_product_return: {
-    contentMaxWidth: 1080,
+    contentMaxWidth: 1200,
+    fieldLabels: {
+      field: '提交人',
+      field_2: '发起部门',
+      field_3: '类型',
+      field_4: '业务部门',
+      field_5: '现场联系人及电话',
+      field_6: '货物地址',
+      images_4: '图片',
+      attachments: '附件',
+      images_5: '图片',
+      f_1: '仓库判定1',
+    },
+    // 简道云 grid-4 + showFields 列序
     listColumns: [
-      'customer_name', 'field_4', 'sales_person', 'field_5',
-      'field', 'field_6', 'field_7', 'field_2',
+      'serial_no', 'apply_datetime', 'field_3', 'customer_name', 'field_4',
+      'sales_person', 'field_5', 'field_6', 'remark',
     ],
-    listExpandDetail: 'field_8',
+    listExpandDetail: 'field_7',
+    listDetailMaxCols: 8,
     sections: [
       {
         title: '基本信息',
         fieldIds: [
-          'serial_no', 'field', 'field_2', 'field_3', 'field_4',
-          'customer_name', 'field_5', 'sales_person', 'field_6', 'field_7', 'remark',
+          'serial_no', 'apply_datetime', 'field', 'field_2',
+          'field_3', 'customer_name',
+          'field_4', 'sales_person',
+          'field_5', 'field_6', 'remark',
         ],
       },
-      { title: '退回明细', fieldIds: ['field_8', 'field_16'] },
+      {
+        title: '售出产品退回',
+        fieldIds: ['field_7'],
+      },
+      {
+        title: '图片',
+        fieldIds: ['images'],
+      },
+      {
+        title: '发起节点上传退回图片',
+        fieldIds: ['field_16'],
+      },
+      {
+        title: '',
+        fieldIds: ['images_4', 'attachments', 'images_5'],
+      },
+      {
+        title: '审批填写',
+        fieldIds: [
+          'field_18', 'field_19', 'field_20', 'field_21', 'field_22',
+          'field_23', 'f_1', 'field_24', 'field_25',
+        ],
+      },
+      {
+        title: '转交相关人员',
+        fieldIds: ['field_26', 'field_27'],
+      },
     ],
-    spans: { remark: 24, field_8: 24, field_16: 24 },
+    spans: {
+      // 简道云 grid-4：lineWidth×2 → antd span
+      serial_no: 6, apply_datetime: 6, field: 6, field_2: 6,
+      field_3: 12, customer_name: 12,
+      field_4: 6, sales_person: 6,
+      field_5: 12, field_6: 12, remark: 12,
+      field_7: 24, images: 24, field_16: 24,
+      images_4: 12, attachments: 12, images_5: 12,
+      field_18: 12,
+      field_19: 8, field_20: 6, field_21: 6, field_22: 6,
+      field_23: 6, f_1: 6,
+      field_24: 12, field_25: 12,
+      field_26: 6, field_27: 6,
+    },
   },
   cs_loan_slip: {
     contentMaxWidth: 960,
@@ -1015,9 +1120,11 @@ export function applyDrawingFormLayout(
   const used = new Set<string>()
   const out: FieldDefinition[] = []
   const spans = layout.spans || {}
+  const fieldLabels = layout.fieldLabels || {}
 
   const withSpan = (f: FieldDefinition): FieldDefinition => ({
     ...f,
+    label: fieldLabels[f.id] ?? f.label,
     span: spans[f.id] ?? f.span ?? defaultSpan(f),
   })
 
@@ -1026,12 +1133,14 @@ export function applyDrawingFormLayout(
       .map((id) => byId.get(id))
       .filter((f): f is FieldDefinition => !!f && !used.has(f.id))
     if (!matched.length) continue
-    out.push({
-      id: `__section_${sec.title}`,
-      type: 'section',
-      label: sec.title,
-      span: 24,
-    })
+    if (sec.title) {
+      out.push({
+        id: `__section_${sec.title}`,
+        type: 'section',
+        label: sec.title,
+        span: 24,
+      })
+    }
     for (const f of matched) {
       used.add(f.id)
       let next = withSpan(f)

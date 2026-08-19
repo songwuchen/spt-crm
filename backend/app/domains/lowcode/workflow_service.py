@@ -531,7 +531,14 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "code": "SYS_CS_PRODUCT_RETURN",
         "name": "售出产品/工具退回",
         "approver_rule": {
-            "type": "specified_role", "value": "service_manager", "exclude_initiator": True,
+            "type": "specified_user",
+            "value": [
+                "0236446249514",
+                "181359282120075679",
+                "113236314224043072",
+                "01364955133227249077",
+            ],
+            "exclude_initiator": True,
         },
         "multi_mode": "or_sign",
         "empty_strategy": "auto_approve",
@@ -652,6 +659,8 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_drawing_pre_chief_opinion_required(nodes)
     if form_code == "invoice_application":
         apply_invoice_sales_cc(nodes, routes)
+    if form_code == "cs_product_return":
+        apply_cs_product_return_approvers(nodes)
     return nodes, routes
 
 
@@ -1195,44 +1204,82 @@ def apply_cs_product_replace_approvers(nodes: list[dict]) -> bool:
 _CS_RETURN_CS_USERS = {
     "type": "specified_user",
     "value": [
-        "0236446249514",
-        "181359282120075679",
-        "113236314224043072",
-        "01364955133227249077",
+        "0236446249514",  # 李红敏（简道云角色 230902客服内勤）
+        "181359282120075679",  # 付加婧
+        "113236314224043072",  # 张丹丹
+        "01364955133227249077",  # 段尉利
     ],
     "exclude_initiator": True,
-    "jdy_role_hint": "230902客服内勤",
 }
 
 
+def _cs_return_user(username: str) -> dict:
+    return {"type": "specified_user", "value": username, "exclude_initiator": True}
+
+
+def _cs_return_field(field_id: str) -> dict:
+    return {"type": "form_field_person", "value": field_id}
+
+
+# 简道云 flowId → CRM 审批人（不用角色；具名用户 / 表单人员字段）
+_CS_RETURN_APPROVER_BY_ID: dict[str, dict] = {
+    "n2": _cs_return_user("02366368263850"),  # 仓库接收1 司丹丹
+    "n3": _CS_RETURN_CS_USERS,  # 客服办理/会签
+    "n4": _cs_return_user("191811255038139135"),  # 质检 韩小超
+    "n5": _cs_return_user("03303022525221387032"),  # 财务判定 刘金花
+    "n9": _cs_return_user("191811255038139135"),  # 质检二次鉴定 韩小超
+    "n12": _cs_return_user("02366368263850"),  # 仓库接收2 司丹丹
+    "n15": _cs_return_user("03303022525221387032"),  # 财务备案 刘金花
+    "n17": {  # 物流中心 马瑞草 / 李娜
+        "type": "specified_user",
+        "value": ["575448583538947351", "02362440128774"],
+        "exclude_initiator": True,
+    },
+    "n19": _cs_return_field("field_22"),  # 分发仓管员2 ← 分发仓库人员
+    "n20": _CS_RETURN_CS_USERS,  # 客服办理/会签
+    "n21": _cs_return_user("191811255038139135"),  # 质检鉴定 韩小超
+    "n23": _cs_return_user("02364437547295"),  # 生产 吕英萍
+    "n24": _cs_return_user("054351591124488512"),  # 采购 张蒙蒙
+    "n25": _cs_return_field("field_19"),  # 分发质检
+    "n26": _cs_return_field("field_20"),  # 分发生产
+    "n27": _cs_return_field("field_21"),  # 分发采购
+    "n28": _cs_return_field("field_22"),  # 分发仓管员1 ← 分发仓库人员
+    "n29": _cs_return_field("field_27"),  # 相关业务员 ← 转相关人员
+    "n31": _cs_return_field("field"),  # 再发起 ← 提交人
+    "n32": _cs_return_user("1135263833366065"),  # 采购 苏金泓
+}
+
+
+def _cs_return_want_for_node(node: dict) -> dict | None:
+    nid = str(node.get("id") or "")
+    if nid in _CS_RETURN_APPROVER_BY_ID:
+        return _CS_RETURN_APPROVER_BY_ID[nid]
+    for key in sorted(_CS_RETURN_APPROVER_BY_ID, key=len, reverse=True):
+        if nid.startswith(key + "__"):
+            return _CS_RETURN_APPROVER_BY_ID[key]
+    return None
+
+
 def _flow_cs_product_return_needs_approver_fix(nodes: list | None) -> bool:
-    want_by_id = {
-        "n3": _CS_RETURN_CS_USERS,
-        "n20": _CS_RETURN_CS_USERS,
-    }
     for n in nodes or []:
-        if not isinstance(n, dict):
-            continue
-        want = want_by_id.get(str(n.get("id") or ""))
-        if not want:
+        if not isinstance(n, dict) or n.get("type") not in ("approval", "cc"):
             continue
         rule = n.get("approver_rule") or {}
-        if not _approver_rule_matches(rule, want):
+        if rule.get("type") in ("specified_role", "pickable_scope"):
+            return True
+        want = _cs_return_want_for_node(n)
+        if want and not _approver_rule_matches(rule, want):
             return True
     return False
 
 
 def apply_cs_product_return_approvers(nodes: list[dict]) -> bool:
-    """售出产品/工具退回：230902客服内勤 → 具名用户或签。"""
-    want_by_id = {
-        "n3": _CS_RETURN_CS_USERS,
-        "n20": _CS_RETURN_CS_USERS,
-    }
+    """售出产品/工具退回：简道云角色展开为具名用户；分发/转交走表单人员字段。不用 CRM 角色。"""
     changed = False
     for n in nodes or []:
         if not isinstance(n, dict):
             continue
-        want = want_by_id.get(str(n.get("id") or ""))
+        want = _cs_return_want_for_node(n)
         if not want:
             continue
         cur = n.get("approver_rule") or {}

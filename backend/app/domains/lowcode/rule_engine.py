@@ -371,6 +371,8 @@ def validate_required_with_rules(
                 )
                 for c in f.get("detail_table_columns") or []:
                     cid = c.get("id")
+                    if c.get("available_on_create") is False:
+                        continue
                     cst = row_states.get(cid) or {}
                     if cst and not cst.get("visible", True):
                         continue

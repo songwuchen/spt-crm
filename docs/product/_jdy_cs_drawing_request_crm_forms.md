@@ -18,7 +18,7 @@
 | contract_no | 合同号 | contract | 是 | 是 | initiator | `_widget_1584324747987` |
 | drawing_no_note | 图号231021 | text | 是 | 是 | initiator | `_widget_1697850315211` |
 | order_person | 订货人 | person | 是 | 是 | initiator | `_widget_1669604044008` |
-| apply_reason | 申请事由* | text |  | 是 |  | `_widget_1584324748032` |
+| apply_reason | 申请事由* | text |  |  | approver | `_widget_1584324748032` |
 | apply_reason_2 | 申请事由 | textarea | 是 | 是 | initiator | `_widget_1669620743951` |
 | designer | 设计人 | person |  | 是 | initiator | `_widget_1625449621349` |
 | product_model | 产品型号 | text |  | 是 | initiator | `_widget_1584324748064` |
@@ -56,7 +56,7 @@
 - 节点「抄送刘松潮」无出边（抄送旁路，不接到结束）
 - 节点「抄送樊磊」无出边（抄送旁路，不接到结束）
 - 节点「抄送组长」无出边（抄送旁路，不接到结束）
-- optAuth：5 个字段仅审批可写（创建 available_on_create=false，必填下沉到节点 field_perms）
+- optAuth：6 个字段仅审批可写（创建 available_on_create=false，必填下沉到节点 field_perms）
 - optAuth：1 个字段发起仅可见（form_editable=false）
 - edit_raw allowBlank=false：14 个必填 widget
 

@@ -43,6 +43,21 @@ async function fetchPickable(params?: Record<string, string>): Promise<UserOpt[]
   return toOpts(res.data || [])
 }
 
+async function fetchPersonLabels(ids: string[]): Promise<Record<string, string>> {
+  const missing = [...new Set(ids.map(String).filter(Boolean))]
+  if (!missing.length) return {}
+  try {
+    const res = await client.get<unknown, ApiResponse<Record<string, string>>>('/api/v1/lc/person-labels', {
+      params: { ids: missing.join(',') },
+    })
+    return res.data || {}
+  } catch {
+    return {}
+  }
+}
+
+const MONGO_ID_RE = /^[0-9a-f]{24}$/i
+
 function mergeOpts(base: UserOpt[], extra: UserOpt[]): UserOpt[] {
   const map = new Map(base.map((o) => [o.value, o]))
   for (const o of extra) map.set(o.value, o)
@@ -79,8 +94,13 @@ async function loadBaseUsers(scope?: PickableScope | null, deptIds?: string[] | 
 
 async function hydrateMissing(raws: string[], opts: UserOpt[]): Promise<UserOpt[]> {
   let next = opts
+  const mongoPending: string[] = []
   for (const raw of raws) {
     if (next.some((o) => o.value === raw || o.username === raw)) continue
+    if (MONGO_ID_RE.test(raw)) {
+      mongoPending.push(raw)
+      continue
+    }
     try {
       // 标准 UUID；兼容旧版宽松匹配
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)
@@ -103,6 +123,16 @@ async function hydrateMissing(raws: string[], opts: UserOpt[]): Promise<UserOpt[
     } catch {
       /* ignore */
     }
+  }
+  const unresolvedMongo = mongoPending.filter((id) => !next.some((o) => o.value === id))
+  if (unresolvedMongo.length) {
+    const labels = await fetchPersonLabels(unresolvedMongo)
+    next = mergeOpts(
+      next,
+      unresolvedMongo
+        .filter((id) => labels[id])
+        .map((id) => ({ value: id, label: labels[id] })),
+    )
   }
   return next
 }
@@ -166,7 +196,7 @@ function dualOptions(opts: UserOpt[], raws: string[]): UserOpt[] {
       out.unshift({ label: hit.label, value: raw, username: hit.username || raw })
       seen.add(raw)
     } else {
-      const isMongo = /^[0-9a-f]{24}$/i.test(raw)
+      const isMongo = MONGO_ID_RE.test(raw)
       const label = isMongo ? `未知人员(${raw.slice(0, 8)}…)` : raw
       out.unshift({ label, value: raw })
       seen.add(raw)
@@ -184,6 +214,10 @@ export async function getPersonLabelMap(ids: string[]): Promise<Record<string, s
   for (const o of opts) {
     map[o.value] = o.label
     if (o.username) map[o.username] = o.label
+  }
+  const missing = raws.filter((id) => !map[id] || map[id].startsWith('未知人员'))
+  if (missing.length) {
+    Object.assign(map, await fetchPersonLabels(missing))
   }
   return map
 }

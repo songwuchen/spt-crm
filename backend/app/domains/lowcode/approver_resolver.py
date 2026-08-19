@@ -308,6 +308,7 @@ class ApproverResolver:
             return []
         from app.domains.organization import pickable_scope_service as pss
 
+        await pss.ensure_preset_scopes(self.db, self.tenant_id)
         out: list[str] = []
         seen: set[str] = set()
         for code in codes:
@@ -354,6 +355,24 @@ class ApproverResolver:
             leader = self._dept_leader(dept_id)
             if leader:
                 out.append(leader)
+        return out
+
+    async def _r_form_field_person_dept_head(self, rule: dict, ctx: ApprovalContext) -> list[str]:
+        """简道云 deptManager.userWidgets：取表单人员所属部门的负责人（业务经理等）。"""
+        fields = self._as_list(rule.get("value"))
+        out: list[str] = []
+        seen: set[str] = set()
+        for field in fields:
+            value = ctx.form_data.get(field, "")
+            for v in self._as_list(value):
+                uid = await self._resolve_user_identifier(v)
+                if not uid:
+                    continue
+                for dept_id in await self._user_dept_ids(uid):
+                    leader = self._dept_leader(dept_id)
+                    if leader and leader not in seen:
+                        seen.add(leader)
+                        out.append(leader)
         return out
 
     async def _r_mixed(self, rule: dict, ctx: ApprovalContext) -> list[str]:

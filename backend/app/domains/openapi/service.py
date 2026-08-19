@@ -1207,6 +1207,7 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
             LeadCreate(**{**payload, "as_draft": False}),
             _pseudo_user(ctx),
             auto_review=False,
+            external_origin="jdy",
         )
         if review_status != "approved":
             lead.review_status = review_status
@@ -1220,6 +1221,7 @@ async def create_lead_from_openapi(db: AsyncSession, ctx, data) -> dict:
             db, ctx.tenant_id,
             LeadCreate(**{**payload, "as_draft": True}),
             _pseudo_user(ctx),
+            external_origin="jdy",
         )
     # create_lead defaults owner to the creator (here the app id) when none resolved;
     # de-own into the pool only in that case.

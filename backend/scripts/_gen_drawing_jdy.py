@@ -196,6 +196,7 @@ def map_type(t: str) -> str:
         "user": "person", "usergroup": "person_multi",
         "dept": "department", "department": "department", "deptgroup": "department_multi",
         "upload": "file", "image": "file", "file": "file",
+        "address": "address",
         "subform": "detail_table", "switch": "switch",
         "separator": "text",  # only used when promoted (paper tip)
     }.get(t, "text")
@@ -513,6 +514,40 @@ def _prefer_screening_star_trigger(cond: dict) -> dict:
     return c
 
 
+def _show_rule_targets(rule: dict) -> list[str]:
+    """简道云 fieldShowRules：兼容 show_fields（对象）与 fields（widget id 列表）。"""
+    out: list[str] = []
+    for sf in rule.get("show_fields") or []:
+        if isinstance(sf, dict) and sf.get("widget"):
+            out.append(str(sf["widget"]))
+        elif isinstance(sf, str) and sf:
+            out.append(sf)
+    for wid in rule.get("fields") or []:
+        if isinstance(wid, str) and wid:
+            out.append(wid)
+    return out
+
+
+def _show_rule_condition(rule: dict, widget_slug: dict[str, str]) -> dict | None:
+    if rule.get("conditions"):
+        return map_show_condition(rule.get("rel"), rule.get("conditions") or [], widget_slug)
+    filt = rule.get("filter")
+    if not isinstance(filt, dict):
+        return None
+    raw_conds = []
+    for c in filt.get("cond") or []:
+        if not isinstance(c, dict):
+            continue
+        raw_conds.append({
+            "trigger_widget": c.get("field") or c.get("trigger_widget"),
+            "method": c.get("method"),
+            "value": c.get("value"),
+            "type": c.get("type"),
+            "mode": c.get("mode"),
+        })
+    return map_show_condition(filt.get("rel"), raw_conds, widget_slug)
+
+
 def build_rule_definitions(linkage: dict, fields: list[dict]) -> list[dict]:
     widget_slug = widget_slug_map(fields)
     req_slugs = required_slug_set(fields)
@@ -520,25 +555,23 @@ def build_rule_definitions(linkage: dict, fields: list[dict]) -> list[dict]:
     by_target: dict[str, list[dict]] = defaultdict(list)
 
     for rule in linkage.get("fieldShowRules") or []:
-        cond = map_show_condition(rule.get("rel"), rule.get("conditions") or [], widget_slug)
+        cond = _show_rule_condition(rule, widget_slug)
         if not cond:
             continue
-        for sf in rule.get("show_fields") or []:
-            wid = (sf or {}).get("widget")
-            slug = widget_slug.get(wid) if wid else None
+        for wid in _show_rule_targets(rule):
+            slug = widget_slug.get(wid)
             if not slug:
                 continue  # orphan / hard-dropped / separator skipped
             by_target[slug].append(cond)
 
     for rule in linkage.get("subformFieldShowRules") or []:
-        cond = map_show_condition(rule.get("rel"), rule.get("conditions") or [], widget_slug)
+        cond = _show_rule_condition(rule, widget_slug)
         if not cond:
             continue
         # 简道云触发器常是文本桩 need_screening_eff；CRM 界面填写的是单选 _star
         cond = _prefer_screening_star_trigger(cond)
-        for sf in rule.get("show_fields") or []:
-            wid = (sf or {}).get("widget")
-            slug = widget_slug.get(wid) if wid else None
+        for wid in _show_rule_targets(rule):
+            slug = widget_slug.get(wid)
             if not slug:
                 continue
             by_target[slug].append(cond)
@@ -602,17 +635,30 @@ def charger_rule(chargers: dict | None, widget_slug: dict[str, str]) -> dict:
         return {"type": "form_field_dept", "value": slug}
     if dm.get("creator") or dm.get("charger"):
         return {"type": "dept_head", "exclude_initiator": True}
+    user_widgets = dm.get("userWidgets") or {}
+    if isinstance(user_widgets, dict) and user_widgets:
+        w = next(iter(user_widgets.keys()))
+        slug = widget_slug.get(w, w)
+        if slug.startswith("_widget_"):
+            slug = widget_slug.get(w) or slug
+        return {
+            "type": "form_field_person_dept_head",
+            "value": slug,
+            "exclude_initiator": True,
+        }
     roles = c.get("roles") or []
     if roles and isinstance(roles[0], dict):
         from app.domains.lowcode.pickable_scope import (
             JDY_ROLE_NAME_TO_APPROVER_SCOPE,
             JDY_ROLE_NAME_TO_SPECIFIED_USER,
+            JDY_ROLE_NAME_TO_SPECIFIED_USERS,
             JDY_ROLE_TO_SCOPE_CODE,
             JDY_ROLE_TO_SPECIFIED_USER,
+            JDY_ROLE_TO_SPECIFIED_USERS,
         )
         rid = str(roles[0].get("_id") or roles[0].get("id") or "")
         rname = str(roles[0].get("name") or "").strip()
-        # 1) 一人专属角色 → 指定用户（与合同评审具名审批一致）
+        # 1) 一人专属角色 → 指定用户
         named = JDY_ROLE_TO_SPECIFIED_USER.get(rid) or JDY_ROLE_NAME_TO_SPECIFIED_USER.get(rname)
         if named:
             return {
@@ -621,7 +667,16 @@ def charger_rule(chargers: dict | None, widget_slug: dict[str, str]) -> dict:
                 "exclude_initiator": True,
                 "jdy_role_hint": rname or None,
             }
-        # 2) 已登记可选范围 → pickable_scope
+        # 2) 多人专属角色 → 指定用户列表（或签）
+        multi = JDY_ROLE_TO_SPECIFIED_USERS.get(rid) or JDY_ROLE_NAME_TO_SPECIFIED_USERS.get(rname)
+        if multi:
+            return {
+                "type": "specified_user",
+                "value": multi if len(multi) > 1 else multi[0],
+                "exclude_initiator": True,
+                "jdy_role_hint": rname or None,
+            }
+        # 3) 已登记可选范围 → pickable_scope（仅少数部门/岗位池；售出产品更换等改用具名用户）
         scope = JDY_ROLE_TO_SCOPE_CODE.get(rid) or JDY_ROLE_NAME_TO_APPROVER_SCOPE.get(rname)
         if scope:
             return {
@@ -668,6 +723,19 @@ def map_condition(cond_obj: dict | None, widget_slug: dict[str, str]) -> dict | 
     if len(mapped) == 1 and (cond_obj.get("rel") or "and") == "and":
         return mapped[0]
     return {"rel": cond_obj.get("rel") or "and", "cond": mapped}
+
+
+def _is_jdy_always_parallel_condition(cond: dict | None) -> bool:
+    """简道云 parents 上 cond=[] → map_condition 为 __always is_empty，表示无条件并行后继。"""
+    return (
+        isinstance(cond, dict)
+        and cond.get("field") == "__always"
+        and cond.get("operator") == "is_empty"
+    )
+
+
+def _route_is_jdy_always_parallel(route: dict) -> bool:
+    return _is_jdy_always_parallel_condition(route.get("condition"))
 
 
 def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list, list[str]]:
@@ -735,6 +803,10 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
                 notes.append(
                     f"审批「{name}」JDY 角色「{rule['jdy_role_hint']}」"
                     f"→ 指定用户 {rule.get('value')}"
+                )
+            elif rule.get("type") == "form_field_person_dept_head":
+                notes.append(
+                    f"审批「{name}」→ 表单人员「{rule.get('value')}」所属部门负责人"
                 )
             elif rule.get("jdy_role_hint"):
                 notes.append(f"审批「{name}」JDY 角色「{rule['jdy_role_hint']}」降级为 sales_manager")
@@ -808,7 +880,7 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
     name_by_id = {n["id"]: (n.get("name") or "") for n in nodes}
     by_src: dict[str, list] = {}
     for r in routes:
-        if r.get("always"):
+        if r.get("always") or _route_is_jdy_always_parallel(r):
             continue
         by_src.setdefault(r["source"], []).append(r)
     for src, outs in by_src.items():
@@ -827,7 +899,11 @@ def build_flow(wf_raw: dict, fields: list[dict], title: str) -> tuple[list, list
         new_routes: list = []
         replaced = False
         for r in routes:
-            if r.get("always") or r.get("source") != src:
+            if (
+                r.get("always")
+                or _route_is_jdy_always_parallel(r)
+                or r.get("source") != src
+            ):
                 new_routes.append(r)
                 continue
             if not replaced:
@@ -908,6 +984,7 @@ def apply_jdy_opt_auth(
     - 发起仅可见 → available_on_create=True 且 form_editable=False（只读展示）
     - 仅审批节点可写 → available_on_create=False，创建隐藏且去掉 required；
       对应节点 field_perms=required（原 allowBlank=false / validator 必填）或 editable
+    - 有 jdy_widget 但发起 optAuth 完全未授权 → 同样视为审批阶段（创建隐藏）
     """
     widget_slug = widget_slug_map(fields)
     by_id = {
@@ -973,7 +1050,15 @@ def apply_jdy_opt_auth(
                 fd["required"] = False
             n_start_readonly += 1
             continue
-        # 无 optAuth 条目：保持生成器原样，避免误藏 CRM 自有字段
+        if fd.get("jdy_widget"):
+            # 表单有该控件但发起 optAuth 未授权 → 创建页不展示（对齐简道云）
+            fd["available_on_create"] = False
+            fd.setdefault("fill_stage", "approver")
+            if fd.get("required"):
+                fd["required"] = False
+            n_approver_only += 1
+            continue
+        # 无 jdy_widget：CRM 自有扩展字段，保持生成器原样
 
     n_validator_req = 0
     for fid, f in by_id.items():

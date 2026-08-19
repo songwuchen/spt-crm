@@ -31,7 +31,8 @@ export function filesFromClipboard(data: DataTransfer | null | undefined): File[
   return out
 }
 
-export function jdyUploadHint(image?: boolean): string {
+export function jdyUploadHint(image?: boolean, inCellPopover?: boolean): string {
+  if (image && inCellPopover) return '拖拽或Ctrl+v粘贴图片，单张20MB以内'
   return image
     ? '拖拽或单击后粘贴图片，单张20MB以内'
     : '拖拽或单击后粘贴文件（含 PDF/OFD/CAD 等），单个50MB以内'
@@ -45,20 +46,28 @@ type Props = {
   image?: boolean
   disabled?: boolean
   uploading?: boolean
+  /** 窄列（lineWidth≤3）：仅「选择 + 暂无内容」，避免同排字段被虚线区撑出重叠 */
+  compact?: boolean
+  /** 明细表单元格 Popover 内：简道云式 Ctrl+v 提示 */
+  inCellPopover?: boolean
   /** 校验并接收文件（由父组件负责上传或暂存） */
   onFiles: (files: File[]) => void | Promise<void>
   extraRight?: ReactNode
   className?: string
 }
 
+export function jdyUploadHintShort(image?: boolean): string {
+  return image ? '粘贴图片' : '粘贴文件'
+}
+
 export default function JdyUploadZone({
-  image, disabled, uploading, onFiles, extraRight, className,
+  image, disabled, uploading, compact, inCellPopover, onFiles, extraRight, className,
 }: Props) {
   const [dragOver, setDragOver] = useState(false)
   const [focused, setFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const zoneRef = useRef<HTMLDivElement>(null)
-  const hint = jdyUploadHint(image)
+  const hint = compact ? jdyUploadHintShort(image) : jdyUploadHint(image, inCellPopover)
 
   const takeFiles = (files: File[]) => {
     if (disabled || !files.length) return
@@ -78,18 +87,32 @@ export default function JdyUploadZone({
     return () => window.removeEventListener('paste', onPaste, true)
   }, [focused, disabled, image]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const rowFixed = inCellPopover && !!extraRight
+  const zoneMinH = compact ? 'min-h-[32px]' : rowFixed ? 'h-full min-h-0' : 'min-h-[40px]'
+  const zonePad = compact ? 'px-2 py-1' : rowFixed ? 'h-full px-3 py-0' : 'px-3 py-2'
+
   return (
-    <div className={['flex w-full items-stretch gap-2', className].filter(Boolean).join(' ')}>
+    <div
+      className={[
+        'flex w-full min-w-0 max-w-full gap-2',
+        rowFixed ? 'h-10 items-stretch' : 'items-stretch',
+        className,
+      ].filter(Boolean).join(' ')}
+    >
       <div
         ref={zoneRef}
         tabIndex={disabled ? -1 : 0}
         role="button"
         className={[
-          'flex min-h-[40px] flex-1 cursor-text items-center gap-2 rounded border border-dashed px-3 py-2 outline-none transition-colors',
+          'flex min-w-0 flex-1 cursor-text items-center gap-2 rounded border border-dashed outline-none transition-colors',
+          zoneMinH,
+          zonePad,
           disabled
             ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
             : dragOver || focused
-              ? 'border-teal-500 bg-teal-50/60 ring-2 ring-teal-200'
+              ? compact || rowFixed
+                ? 'border-teal-500 bg-teal-50/60 ring-1 ring-inset ring-teal-200'
+                : 'border-teal-500 bg-teal-50/60 ring-2 ring-teal-200'
               : 'border-slate-300 bg-white hover:border-teal-400',
         ].join(' ')}
         onClick={() => {
@@ -131,8 +154,8 @@ export default function JdyUploadZone({
         </span>
         <span className="min-w-0 flex-1 truncate text-[12px] text-slate-400">
           {focused && !disabled
-            ? (image ? '已选中，可 Ctrl+V 粘贴图片' : '已选中，可 Ctrl+V 粘贴文件')
-            : hint}
+            ? (image ? '可 Ctrl+V 粘贴' : '可 Ctrl+V 粘贴')
+            : (compact && !focused && !disabled ? '暂无内容' : hint)}
         </span>
         {uploading && <Spin size="small" />}
           <input
@@ -149,7 +172,11 @@ export default function JdyUploadZone({
             }}
           />
       </div>
-      {extraRight}
+      {extraRight ? (
+        <div className={rowFixed ? 'flex h-full w-10 shrink-0' : 'flex shrink-0 items-stretch'}>
+          {extraRight}
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -36,6 +36,7 @@ function stepTagColor(step: WfFlowStep) {
 
 function stepTagText(step: WfFlowStep) {
   if (step.node_type === 'cc') return '抄送'
+  if (step.action === 'auto_approve') return '自动通过'
   return step.status_text || step.status
 }
 

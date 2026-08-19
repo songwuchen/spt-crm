@@ -69,6 +69,11 @@ TITLE_SLUG = {
     "附件": "attachments",
     "附件名称": "attachment_name",
     "图片": "images",
+    "附件0418": "f_0418",
+    "客服附件0418": "f_0418_2",
+    "客服补登附件0418": "f_0418_3",
+    "会签附件0418": "f_0418_4",
+    "图片0418": "f_0418_5",
     "设计单分派": "design_dispatch",
     "设计指派": "design_assignees",
     "转新乡、工艺包装": "transfer_packaging_users",
@@ -89,6 +94,7 @@ FORMS_META = {
         "title": "售出产品更换（补发）",
         "route": "/cs-product-replaces",
         "serial_prefix": "GH",
+        "serial_label": "流水号",
     },
     "cs_product_return": {
         "title": "售出产品/工具退回",
@@ -176,6 +182,21 @@ def load_required_widgets(form_key: str) -> set[str]:
     return out
 
 
+def _jdy_datetime_is_date_only(raw: dict) -> bool:
+    """简道云 datetime 的 format 无时分 → CRM 仅选日期。"""
+    fmt = str(raw.get("format") or "").strip().lower()
+    if not fmt:
+        return False
+    return "h" not in fmt
+
+
+def _apply_datetime_date_only_props(fd: dict, raw: dict) -> None:
+    if fd.get("type") != "datetime":
+        return
+    if _jdy_datetime_is_date_only(raw):
+        fd["props"] = {**(fd.get("props") or {}), "date_only": True, "show_time": False}
+
+
 def sub_columns(f: dict, used: set[str], required_widgets: set[str] | None = None) -> list[dict]:
     req = required_widgets or set()
     cols = f.get("widgets") or []
@@ -203,18 +224,32 @@ def sub_columns(f: dict, used: set[str], required_widgets: set[str] | None = Non
         opts = options_of(c)
         if typ == "select" and not opts:
             typ = "text"
-        fd = {"id": _slug_for(lab, used), "type": typ, "label": lab}
+        slug = _slug_for(lab, used)
+        if slug in ("contract_no", "drawing_no") or lab in ("合同号", "合同编号", "图纸编号"):
+            typ = "contract"
+            opts = []
+            slug = "contract_no"
+        fd = {"id": slug, "type": typ, "label": lab}
+        if typ == "contract":
+            fd["description"] = "从合同管理中选择；按图纸编号搜索，选项以图纸编号显示。"
         if name in req or c.get("required"):
             fd["required"] = True
         if opts and typ in ("select", "radio", "checkbox"):
             fd["options"] = opts
         if name:
             fd["jdy_widget"] = name
+        _apply_datetime_date_only_props(fd, c)
         out.append(fd)
     return out
 
 
-def _serial_field(prefix: str, name: str = "", *, digits: int = 3) -> dict:
+def _serial_field(
+    prefix: str,
+    name: str = "",
+    *,
+    digits: int = 3,
+    label: str | None = None,
+) -> dict:
     rules: list[dict] = []
     if prefix:
         rules.append({"type": "text", "value": prefix})
@@ -229,7 +264,7 @@ def _serial_field(prefix: str, name: str = "", *, digits: int = 3) -> dict:
     fd = {
         "id": "serial_no",
         "type": "auto_number",
-        "label": "流水号" if not prefix else "流程编号",
+        "label": label or ("流水号" if not prefix else "流程编号"),
         "props": {"serial_rules": rules},
         "available_on_create": True,
         "fill_stage": "initiator",
@@ -246,6 +281,7 @@ def build_fields(
     required_widgets: set[str] | None = None,
     *,
     serial_digits: int = 3,
+    serial_label: str | None = None,
 ) -> list[dict]:
     req = required_widgets or set()
     data = raw.get("data", raw)
@@ -258,17 +294,31 @@ def build_fields(
         typ0 = (f.get("type") or "").lower()
         lab = label_of(f)
         name = f.get("name") or ""
+        # 简道云 linkquery「客户类别」→ 只读展示，选客户后回填（须在 SKIP_TYPES 之前）
+        if typ0 == "linkquery" and (lab or "").strip() == "客户类别":
+            out.append({
+                "id": "customer_category",
+                "type": "text",
+                "label": "客户类别",
+                "form_editable": False,
+                "available_on_create": True,
+                "fill_stage": "initiator",
+                "jdy_widget": name or None,
+            })
+            continue
         if typ0 in SKIP_TYPES:
             continue
         if not lab or not should_keep_field(lab, name):
             continue
         slug = _slug_for(lab, used)
         if slug == "serial_no" or lab in ("流程编号", "流水号") or typ0 == "sn":
-            out.append(_serial_field(serial_prefix, name, digits=serial_digits))
+            out.append(_serial_field(serial_prefix, name, digits=serial_digits, label=serial_label))
             continue
         typ = map_type(typ0)
         if typ0 == "linkfield":
             typ = "text"
+        if typ0 == "address":
+            typ = "address"
         if typ0 == "image":
             typ = "image"
         if typ0 == "sn":
@@ -321,14 +371,18 @@ def build_fields(
         if slug == "apply_datetime":
             props = dict(fd.get("props") or {})
             props["default_today"] = True
+            props.setdefault("date_only", True)
+            props.setdefault("show_time", False)
             fd["props"] = props
             fd.setdefault("available_on_create", True)
             fd.setdefault("fill_stage", "initiator")
+        elif typ == "datetime":
+            _apply_datetime_date_only_props(fd, f)
         out.append(fd)
 
     # ensure serial exists
     if not any(f.get("id") == "serial_no" for f in out):
-        out.insert(0, _serial_field(serial_prefix, digits=serial_digits))
+        out.insert(0, _serial_field(serial_prefix, digits=serial_digits, label=serial_label))
     return out
 
 
@@ -338,6 +392,39 @@ def unwrap_wf(raw: dict) -> dict:
     if isinstance(raw, dict) and isinstance(raw.get("data"), dict):
         return raw["data"]
     return raw
+
+
+def apply_cs_product_return_initiator_defaults(fields: list[dict], notes: list[str]) -> None:
+    """提交人/发起部门：发起时默认当前用户及其主部门（对齐简道云）。"""
+    for fd in fields:
+        fid = fd.get("id")
+        if fid == "field":
+            props = dict(fd.get("props") or {})
+            props["default_current_user"] = True
+            fd["props"] = props
+            fd.setdefault("available_on_create", True)
+            fd.setdefault("fill_stage", "initiator")
+        elif fid == "field_2":
+            props = dict(fd.get("props") or {})
+            props["default_current_dept"] = True
+            fd["props"] = props
+            fd.setdefault("available_on_create", True)
+            fd.setdefault("fill_stage", "initiator")
+    notes.append("提交人/发起部门：发起默认当前用户及主部门")
+
+
+def apply_cs_product_return_warehouse_judge_policy(fields: list[dict], notes: list[str]) -> None:
+    """明细「仓库判定*」：发起不可见/不可填，仓库/物流审批节点填写（简道云 optAuth 发起列不含此 widget）。"""
+    for fd in fields:
+        if fd.get("id") != "field_7":
+            continue
+        for col in fd.get("detail_table_columns") or []:
+            if col.get("id") != "field_14" and col.get("jdy_widget") != "_widget_1665817650935":
+                continue
+            col["available_on_create"] = False
+            col["fill_stage"] = "approver"
+            col["required"] = True
+    notes.append("明细「仓库判定*」：仅审批节点可填（发起不展示）")
 
 
 def gen_one(key: str, title: str, entry: str, app: str, meta: dict) -> dict:
@@ -355,10 +442,16 @@ def gen_one(key: str, title: str, entry: str, app: str, meta: dict) -> dict:
         meta["serial_prefix"],
         required_widgets,
         serial_digits=int(meta.get("serial_digits") or 3),
+        serial_label=meta.get("serial_label"),
     )
     # 不再人工硬加必填：以简道云 allowBlank===false 为准（经 optAuth 再拆到发起/审批）
+    notes: list[str] = []
+    if key == "cs_product_return":
+        apply_cs_product_return_initiator_defaults(fields, notes)
+        apply_cs_product_return_warehouse_judge_policy(fields, notes)
 
-    nodes, routes, notes = build_flow(wf_raw, fields, title)
+    nodes, routes, notes_flow = build_flow(wf_raw, fields, title)
+    notes.extend(notes_flow)
     linkage = load_linkage_pack(key)
     rules = build_rule_definitions(linkage, fields) if linkage else []
     if required_widgets:

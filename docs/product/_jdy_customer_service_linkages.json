@@ -705,6 +705,467 @@
         }
       ],
       "subform_field_show_rules": []
+    },
+    "cs_product_replace": {
+      "app": "58e2fbc7ffd1608b4ce92809",
+      "entry": "5e06f4ad2a9eb70007f7c164",
+      "required_fields": [
+        {
+          "widget": "_widget_1578119863142",
+          "label": "业务部门",
+          "allowBlank": false,
+          "parent": null,
+          "type": "dept"
+        },
+        {
+          "widget": "_widget_1577520412656",
+          "label": "业务员",
+          "allowBlank": false,
+          "parent": null,
+          "type": "user"
+        },
+        {
+          "widget": "_widget_1577514157595",
+          "label": "客户名称",
+          "allowBlank": false,
+          "parent": null,
+          "type": "combo"
+        },
+        {
+          "widget": "_widget_1577514157611",
+          "label": "货物地址",
+          "allowBlank": false,
+          "parent": null,
+          "type": "address"
+        },
+        {
+          "widget": "_widget_1577514157633",
+          "label": "现场联系人及电话",
+          "allowBlank": false,
+          "parent": null,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1675673210466",
+          "label": "是否需退回",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1749182322753",
+          "label": "是否关联验收回款",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1675673210468",
+          "label": "是否需打借据",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1739261778534",
+          "label": "紧急程度判定-业务经理",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1739261778536",
+          "label": "紧急程度判定-客服经理",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1739318635777",
+          "label": "紧急程度判定-总经理",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1577519022537",
+          "label": "合同号",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "combo"
+        },
+        {
+          "widget": "_widget_1577519022538",
+          "label": "设备名称",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1577519022539",
+          "label": "规格型号",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1577519022540",
+          "label": "数量",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "number"
+        },
+        {
+          "widget": "_widget_1578287834987",
+          "label": "单位",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1577519022541",
+          "label": "发货日期",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "datetime"
+        },
+        {
+          "widget": "_widget_1577519022542",
+          "label": "退换详细说明",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "textarea"
+        },
+        {
+          "widget": "_widget_1617691334516",
+          "label": "故障分类",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1687499358442",
+          "label": "成本价",
+          "allowBlank": false,
+          "parent": null,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1578452391724",
+          "label": "需要补登",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1675988284441",
+          "label": "货是否发完",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1716164018678",
+          "label": "是否小萌",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1578127027977",
+          "label": "会签",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1617689215015",
+          "label": "责任方",
+          "allowBlank": false,
+          "parent": null,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1593825383660",
+          "label": "是否需要转交相关人员处理后补登",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1593825383717",
+          "label": "相关人员处理",
+          "allowBlank": false,
+          "parent": null,
+          "type": "user"
+        }
+      ],
+      "fieldShowRules": [
+        {
+          "filter": {
+            "cond": [
+              {
+                "field": "_widget_1578127027977",
+                "type": "text",
+                "mode": "custom",
+                "method": "in",
+                "value": [
+                  "是"
+                ]
+              }
+            ],
+            "rel": "and"
+          },
+          "fields": [
+            "_widget_1578127028052"
+          ]
+        },
+        {
+          "filter": {
+            "cond": [
+              {
+                "field": "_widget_1593825383660",
+                "type": "text",
+                "mode": "custom",
+                "method": "in",
+                "value": [
+                  "需要"
+                ]
+              }
+            ],
+            "rel": "and"
+          },
+          "fields": [
+            "_widget_1593825383717"
+          ]
+        },
+        {
+          "filter": {
+            "cond": [
+              {
+                "field": "_widget_1739261778538",
+                "type": "text",
+                "method": "in",
+                "value": [
+                  "待判定"
+                ]
+              }
+            ],
+            "rel": "and"
+          },
+          "fields": [
+            "_widget_1739318635777"
+          ]
+        }
+      ],
+      "subformFieldShowRules": []
+    },
+    "cs_product_return": {
+      "app": "58e2fbc7ffd1608b4ce92809",
+      "entry": "5e10538c0d5a270006df2763",
+      "required_fields": [
+        {
+          "widget": "_widget_1703723955300",
+          "label": "类型",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1577514157595",
+          "label": "客户名称",
+          "allowBlank": false,
+          "parent": null,
+          "type": "combo"
+        },
+        {
+          "widget": "_widget_1578119863142",
+          "label": "业务部门",
+          "allowBlank": false,
+          "parent": null,
+          "type": "dept"
+        },
+        {
+          "widget": "_widget_1577520412656",
+          "label": "业务员",
+          "allowBlank": false,
+          "parent": null,
+          "type": "user"
+        },
+        {
+          "widget": "_widget_1577514157633",
+          "label": "现场联系人及电话",
+          "allowBlank": false,
+          "parent": null,
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1577514157611",
+          "label": "货物地址",
+          "allowBlank": false,
+          "parent": null,
+          "type": "address"
+        },
+        {
+          "widget": "_widget_1577519022537",
+          "label": "合同号",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "combo"
+        },
+        {
+          "widget": "_widget_1577519022538",
+          "label": "设备名称",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1577519022539",
+          "label": "规格型号",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1577519022540",
+          "label": "数量",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "number"
+        },
+        {
+          "widget": "_widget_1578287861127",
+          "label": "单位",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "text"
+        },
+        {
+          "widget": "_widget_1577519022541",
+          "label": "发货日期",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "datetime"
+        },
+        {
+          "widget": "_widget_1577519022542",
+          "label": "退回产品详细说明",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "textarea"
+        },
+        {
+          "widget": "_widget_1665817650935",
+          "label": "仓库判定*",
+          "allowBlank": false,
+          "parent": "_widget_1577519022536",
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1578128358932",
+          "label": "会签成员",
+          "allowBlank": false,
+          "parent": null,
+          "type": "usergroup"
+        },
+        {
+          "widget": "_widget_1703723955512",
+          "label": "分发质检人员",
+          "allowBlank": false,
+          "parent": null,
+          "type": "usergroup"
+        },
+        {
+          "widget": "_widget_1703723955568",
+          "label": "分发生产人员",
+          "allowBlank": false,
+          "parent": null,
+          "type": "usergroup"
+        },
+        {
+          "widget": "_widget_1703723955540",
+          "label": "分发采购人员",
+          "allowBlank": false,
+          "parent": null,
+          "type": "usergroup"
+        },
+        {
+          "widget": "_widget_1586758707499",
+          "label": "分发仓库人员",
+          "allowBlank": false,
+          "parent": null,
+          "type": "usergroup"
+        },
+        {
+          "widget": "_widget_1578127027977",
+          "label": "仓库判定1",
+          "allowBlank": false,
+          "parent": null,
+          "type": "combo"
+        },
+        {
+          "widget": "_widget_1691974761704",
+          "label": "流程判断",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1753923897787",
+          "label": "物流情况",
+          "allowBlank": false,
+          "parent": null,
+          "type": "radiogroup"
+        },
+        {
+          "widget": "_widget_1734925951094",
+          "label": "转相关人员",
+          "allowBlank": false,
+          "parent": null,
+          "type": "usergroup"
+        }
+      ],
+      "fieldShowRules": [
+        {
+          "filter": {
+            "cond": [
+              {
+                "field": "_widget_1703723955300",
+                "type": "text",
+                "method": "in",
+                "value": [
+                  "退回及维修再发货"
+                ],
+                "hasEmpty": false
+              }
+            ],
+            "rel": "and"
+          },
+          "fields": [
+            "_widget_1578128358932"
+          ]
+        },
+        {
+          "filter": {
+            "cond": [
+              {
+                "field": "_widget_1734925951092",
+                "type": "text",
+                "method": "eq",
+                "value": [
+                  "是"
+                ]
+              }
+            ],
+            "rel": "and"
+          },
+          "fields": [
+            "_widget_1734925951094"
+          ]
+        }
+      ],
+      "subformFieldShowRules": {}
     }
   }
 }

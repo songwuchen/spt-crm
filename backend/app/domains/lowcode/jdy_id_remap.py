@@ -58,6 +58,7 @@ DEPT_COND_FIELDS = frozenset({"department", "offices", "offices_multi", "departm
 PERSON_COND_FIELDS = frozenset({
     "transfer_packaging_users", "design_assignees", "transfer_sw_lwt",
     "order_person", "applicant", "designer", "submitter",
+    "sales_person", "salesperson", "owner_id",
 })
 
 # 方案/图纸流条件中出现过的 JDY 成员 id → 姓名（离线兜底）
@@ -71,6 +72,7 @@ JDY_PERSON_NAMES: dict[str, str] = {
     "57f618b6812fa23e8ffe45cc": "崔艳丽",
     "5912cb73c872010b38db842e": "荆焕民",
     "66b986a3daac8bf32617e233": "李海春",
+    "6603dadbd23d27d4d03d8824": "郭椿",
 }
 
 
@@ -105,6 +107,11 @@ def _fetch_live_jdy_dept_names() -> dict[str, str]:
 def jdy_dept_id_to_name() -> dict[str, str]:
     """JDY 部门 id → 名称（静态表 + 可选现网）。"""
     return {**JDY_DEPT_NAMES, **_fetch_live_jdy_dept_names()}
+
+
+def jdy_person_id_to_name() -> dict[str, str]:
+    """JDY 成员 MongoId → 姓名（静态表；CRM 名匹配见 build_jdy_to_crm_user_map）。"""
+    return dict(JDY_PERSON_NAMES)
 
 
 async def build_jdy_to_crm_dept_map(db: AsyncSession, tenant_id: str) -> dict[str, str]:
