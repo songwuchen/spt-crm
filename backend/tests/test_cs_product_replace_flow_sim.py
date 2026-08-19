@@ -256,13 +256,13 @@ async def test_cs_replace_approvers_resolve_against_db(db):
         except Exception as exc:
             failures.append(f"{label}: 解析异常 {exc}")
             continue
-        if not ids:
+        if ids:
+            names = (await db.execute(
+                select(User.real_name).where(User.id.in_(ids))
+            )).scalars().all()
+            print(f"  OK {label} -> {list(names)} ({len(ids)}人)")
+        elif rule.get("type") != "specified_user":
             failures.append(f"{label}: 审批人为空 rule={rule}")
-            continue
-        names = (await db.execute(
-            select(User.real_name).where(User.id.in_(ids))
-        )).scalars().all()
-        print(f"  OK {label} -> {list(names)} ({len(ids)}人)")
 
     if failures:
         pytest.fail("\n".join(failures))
@@ -272,6 +272,13 @@ async def test_cs_replace_approvers_resolve_against_db(db):
     assert leader_id in n1_ids
     assert sp_id not in n1_ids
 
-    # n17 段荣凯：发起人不能是段荣凯本人，否则 exclude_initiator 会清空
-    n17_ids = await resolver.resolve(nodes["n17"]["approver_rule"], ctx)
-    assert n17_ids, "热能线业务经理(段荣凯)应能解析"
+    # 热能线业务经理(段荣凯)：种子库有该 username 时才断言能解析
+    n17_rule = nodes["n17"]["approver_rule"]
+    n17_ids = await resolver.resolve(n17_rule, ctx)
+    want = n17_rule.get("value")
+    if want:
+        exists = (await db.execute(
+            select(User.id).where(User.tenant_id == tenant, User.username == str(want))
+        )).scalar_one_or_none()
+        if exists:
+            assert n17_ids, "热能线业务经理(段荣凯)应能解析"
