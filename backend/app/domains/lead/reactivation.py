@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -705,6 +705,38 @@ def _record_to_dict(record: LeadReactivationRecord, lead: Lead) -> dict:
     }
 
 
+async def reactivation_record_stats(db: AsyncSession, tenant_id: str) -> dict:
+    """180天激活列表顶栏统计（按激活单维度）。"""
+    row = (await db.execute(
+        text("""
+            SELECT
+              count(*) AS total,
+              count(*) FILTER (
+                WHERE l.reactivation_status IN ('awaiting_reporter', 'awaiting_filler', 'pending_review')
+              ) AS active,
+              count(*) FILTER (WHERE l.reactivation_status = 'none') AS completed,
+              count(*) FILTER (WHERE l.reactivation_status = 'closed') AS closed
+            FROM lead_reactivation_records r
+            JOIN leads l ON l.id = r.lead_id
+            WHERE r.tenant_id = :tid
+              AND l.tenant_id = :tid
+              AND l.is_deleted = false
+        """),
+        {"tid": tenant_id},
+    )).mappings().one()
+    total = int(row["total"] or 0)
+    active = int(row["active"] or 0)
+    completed = int(row["completed"] or 0)
+    closed = int(row["closed"] or 0)
+    return {
+        "total": total,
+        "active": active,
+        "completed": completed,
+        "closed": closed,
+        "finished": completed + closed,
+    }
+
+
 async def list_reactivation_records_page(
     db: AsyncSession,
     tenant_id: str,
@@ -751,7 +783,7 @@ async def list_reactivation_records_page(
         if flow_status == "active":
             if item["flow_status"] in ("completed", "closed"):
                 continue
-        elif flow_status == "completed":
+        elif flow_status == "finished":
             if item["flow_status"] not in ("completed", "closed"):
                 continue
         elif flow_status and item["flow_status"] != flow_status:

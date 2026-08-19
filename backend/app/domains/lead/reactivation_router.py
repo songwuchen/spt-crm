@@ -11,6 +11,15 @@ from app.domains.lead import reactivation as react_svc
 router = APIRouter(prefix="/api/v1/lead-reactivations", tags=["180天项目激活"])
 
 
+@router.get("/stats")
+async def lead_reactivation_stats(
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("lead:view")),
+):
+    return ok(await react_svc.reactivation_record_stats(db, tenant_id))
+
+
 @router.get("")
 async def list_lead_reactivations(
     pageNo: int = Query(1, ge=1),
@@ -18,7 +27,7 @@ async def list_lead_reactivations(
     keyword: str | None = Query(None, description="项目编号/名称/公司"),
     flow_status: str | None = Query(
         None,
-        description="流程状态筛选：active=进行中 completed=已结束 closed=关闭",
+        description="流程状态：active=进行中 completed=流程结束 closed=已关闭 finished=已结束+已关闭",
     ),
     reactivation_status: str | None = Query(
         None,

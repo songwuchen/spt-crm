@@ -54,9 +54,19 @@ export const leadApi = {
 }
 
 /** 180天项目激活（独立列表/详情，对齐简道云数据管理） */
+export interface LeadReactivationStats {
+  total: number
+  active: number
+  completed: number
+  closed: number
+  finished: number
+}
+
 export const leadReactivationApi = {
   list: (params: Record<string, unknown>) =>
     client.get<unknown, ApiResponse<PageData<LeadReactivationRecord>>>('/api/v1/lead-reactivations', { params }),
+  stats: () =>
+    client.get<unknown, ApiResponse<LeadReactivationStats>>('/api/v1/lead-reactivations/stats'),
   get: (id: string) =>
     client.get<unknown, ApiResponse<LeadReactivationDetail>>(`/api/v1/lead-reactivations/${id}`),
 }

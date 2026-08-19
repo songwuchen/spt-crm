@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import type { LeadReactivationDetail } from '@/api/types'
 import type { WfInstanceDetail } from '@/types/lowcode'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
-import { leadReactivationStatusConfig } from '@/constants/labels'
+import { leadReactivationFlowLabel } from '@/constants/labels'
 import { sourceLabels } from '@/api/types'
 
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
@@ -47,9 +47,7 @@ export default function LeadReactivationDetailPanel({
   }
 
   const snap = row.lead_snapshot
-  const stCfg = row.is_current_round && row.reactivation_status
-    ? leadReactivationStatusConfig[row.reactivation_status]
-    : null
+  const flowCfg = leadReactivationFlowLabel(row)
   const canHandle = row.is_current_round
     && ['awaiting_reporter', 'awaiting_filler', 'pending_review'].includes(row.reactivation_status || '')
 
@@ -61,11 +59,14 @@ export default function LeadReactivationDetailPanel({
           <div className="text-sm text-slate-500">{row.lead_title}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {stCfg && (
-            <span className="inline-flex px-2.5 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700">
-              {stCfg.label}
-            </span>
-          )}
+          <span className={`inline-flex px-2.5 py-1 rounded text-xs font-bold ${
+            flowCfg.tone === 'blue' ? 'bg-blue-100 text-blue-700'
+              : flowCfg.tone === 'amber' ? 'bg-amber-100 text-amber-700'
+                : flowCfg.tone === 'orange' ? 'bg-orange-100 text-orange-700'
+                  : 'bg-slate-100 text-slate-600'
+          }`}>
+            {flowCfg.label}
+          </span>
           {canHandle && onHandle && (
             <Button type="primary" size="small" onClick={onHandle}>办理待办</Button>
           )}

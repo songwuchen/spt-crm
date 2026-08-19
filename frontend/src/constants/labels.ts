@@ -98,23 +98,50 @@ export const leadReviewStatusConfig: Record<string, { label: string; bg: string;
 }
 
 /** 180天项目激活（关联申报信息/线索） */
+export const leadReactivationFlowStatusConfig: Record<string, { label: string; tone: string }> = {
+  running: { label: '进行中', tone: 'blue' },
+  completed: { label: '流程结束', tone: 'slate' },
+  closed: { label: '已关闭', tone: 'slate' },
+  awaiting_reporter: { label: '待申报人', tone: 'amber' },
+  awaiting_filler: { label: '待内勤', tone: 'orange' },
+  pending_review: { label: '情报审中', tone: 'blue' },
+}
+
 export const leadReactivationStatusConfig: Record<string, { label: string; tone: string }> = {
   none: { label: '计时中', tone: 'slate' },
   awaiting_reporter: { label: '待申报人', tone: 'amber' },
-  awaiting_filler: { label: '待填表人', tone: 'orange' },
+  awaiting_filler: { label: '待内勤', tone: 'orange' },
   pending_review: { label: '情报审中', tone: 'blue' },
-  closed: { label: '已结束', tone: 'slate' },
+  closed: { label: '已关闭', tone: 'slate' },
 }
 
 export const leadReactivationFilterOptions = [
-  { label: '进行中（全部）', value: '__active__' },
-  { label: '待申报人', value: 'awaiting_reporter' },
-  { label: '待填表人/内勤', value: 'awaiting_filler' },
+  { label: '全部', value: '__all__' },
+  { label: '流程进行中', value: '__active__' },
+  { label: '流程已结束', value: '__completed__' },
+  { label: '已关闭（非进行中项目）', value: '__closed__' },
+  { label: '— 进行中细分 —', value: '__sep__', disabled: true },
   { label: '情报审中', value: 'pending_review' },
-  { label: '已结束', value: 'closed' },
-  { label: '计时中', value: 'none' },
-  { label: '全部状态', value: '__all__' },
+  { label: '待申报人', value: 'awaiting_reporter' },
+  { label: '待内勤', value: 'awaiting_filler' },
 ]
+
+export function leadReactivationFlowLabel(row: {
+  flow_status?: string | null
+  reactivation_status?: string | null
+  is_current_round?: boolean
+}): { label: string; tone: string } {
+  if (row.is_current_round && row.reactivation_status && row.reactivation_status !== 'none') {
+    const cfg = leadReactivationFlowStatusConfig[row.reactivation_status]
+      || leadReactivationStatusConfig[row.reactivation_status]
+    if (cfg) return cfg
+  }
+  if (row.flow_status === 'completed') return leadReactivationFlowStatusConfig.completed
+  if (row.flow_status === 'closed') return leadReactivationFlowStatusConfig.closed
+  if (row.flow_status === 'running') return leadReactivationFlowStatusConfig.running
+  const fb = row.flow_status && leadReactivationFlowStatusConfig[row.flow_status]
+  return fb || { label: row.flow_status || '-', tone: 'slate' }
+}
 
 /** 客户信息审批态（对齐简道云客户信息流） */
 export const customerReviewStatusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
