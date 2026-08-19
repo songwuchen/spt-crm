@@ -124,38 +124,16 @@ export default function LeadForm() {
     if (id) {
       leadApi.get(id).then(async (res) => {
         const d = res.data as unknown as Record<string, unknown>
-        if (d.status === 'qualified' || d.status === 'discarded') {
-          message.warning(d.status === 'qualified' ? '已转化的线索不可编辑' : '已废弃的线索不可编辑')
-          navigate(`${leadBase}/${id}`, { replace: true })
-          return
-        }
-        if (
-          (d.review_status === 'rejected' || d.review_status === 'attacked' || d.review_status === 'approved')
-          && !isReviseMode
-        ) {
-          message.warning(
-            d.review_status === 'rejected'
-              ? '线索已被驳回，项目不可再报备，不可继续编辑'
-              : d.review_status === 'attacked'
-                ? '袭击状态的线索不可编辑申报信息'
-                : '线索已收录，不可再编辑；请在详情「动态」中添加互动记录',
-          )
-          navigate(`${leadBase}/${id}`, { replace: true })
-          return
-        }
-        if (d.review_status === 'pending') {
-          // 修订待办：流程已撤回，允许像新建一样改申报
-          if (!isReviseMode) {
-            try {
-              const { workflowApi: wf } = await import('@/api/lowcodeWorkflow')
-              const wfRes = await wf.byBiz({ biz_type: 'lead', biz_id: id! })
-              if (wfRes.data?.status === 'running') {
-                message.warning('审核中的线索不可编辑')
-                navigate(`${leadBase}/${id}`, { replace: true })
-                return
-              }
-            } catch { /* 无流程则允许编辑 */ }
-          }
+        if (!isReviseMode) {
+          try {
+            const { workflowApi: wf } = await import('@/api/lowcodeWorkflow')
+            const wfRes = await wf.byBiz({ biz_type: 'lead', biz_id: id! })
+            if (wfRes.data?.status === 'running') {
+              message.warning('审核中的线索不可编辑')
+              navigate(`${leadBase}/${id}`, { replace: true })
+              return
+            }
+          } catch { /* 无流程则允许编辑 */ }
         }
         form.setFieldsValue({
           ...d,

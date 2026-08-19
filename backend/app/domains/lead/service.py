@@ -389,17 +389,6 @@ _LEAD_OPERATIONAL_FIELDS = frozenset({
 
 async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: LeadUpdate, user: dict) -> Lead:
     lead = await get_lead(db, tenant_id, lead_id, user)
-    if lead.status == "qualified":
-        raise BusinessException(code=LEAD_ALREADY_QUALIFIED, message="已转化的线索不可编辑")
-    if lead.status == "discarded":
-        raise BusinessException(code=LEAD_ALREADY_DISCARDED, message="已废弃的线索不可编辑")
-    from app.common.error_codes import VALIDATION_ERROR
-    # 情报驳回终态：不可再改申报/跟进内容（重激活改写走 reactivation 专用接口）
-    if getattr(lead, "review_status", None) == "rejected":
-        raise BusinessException(
-            code=VALIDATION_ERROR,
-            message="线索已被驳回，项目不可再报备，不可继续编辑或跟进",
-        )
     payload = data.model_dump(exclude_unset=True)
     payload.pop("owner_id", None)  # 负责人字段已废弃
     products_given = "products" in payload
@@ -409,8 +398,7 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
         content_keys.add("products")
     rs = getattr(lead, "review_status", None) or "approved"
     if content_keys:
-        # 收录后申报/跟进字段均不可改；互动记录走 activity 接口，不经此闸门。
-        # 开放平台（SYSTEM_ROLE）幂等回放/补全简道云历史数据须绕过此锁。
+        # 审批中不可改申报；草稿 / 流程结束后可改。开放平台幂等回放须绕过此锁。
         from app.domains.lowcode.field_permission import is_system_principal
         if not is_system_principal(user.get("roles")):
             from app.domains.lowcode.edit_lock import assert_lead_editable

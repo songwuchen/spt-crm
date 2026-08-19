@@ -52,6 +52,7 @@ export default function MobileLeadDetail() {
   const canEditLead = useAuthStore((s) => s.hasPermission('lead:edit'))
   const [lead, setLead] = useState<LeadItem | null>(null)
   const [myTask, setMyTask] = useState<WfTodoItem | null>(null)
+  const [wfRunning, setWfRunning] = useState(false)
   const [editModal, setEditModal] = useState(false)
   const [editForm, setEditForm] = useState<Record<string, string | null>>({})
 
@@ -69,7 +70,17 @@ export default function MobileLeadDetail() {
     } catch { setMyTask(null) }
   }
 
-  useEffect(() => { loadLead(); loadMyTask() }, [id])
+  const loadWf = async () => {
+    if (!id) return
+    try {
+      const res = await workflowApi.byBiz({ biz_type: 'lead', biz_id: id })
+      setWfRunning(res.data?.status === 'running')
+    } catch {
+      setWfRunning(false)
+    }
+  }
+
+  useEffect(() => { loadLead(); loadMyTask(); void loadWf() }, [id])
 
   const openEdit = () => {
     if (!lead) return
@@ -159,9 +170,8 @@ export default function MobileLeadDetail() {
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
   const canOperate = lead.status !== 'qualified' && lead.status !== 'discarded'
-  // 仅草稿/待审可改申报；收录后不可编辑（互动记录另入口）
-  const canEditContent = canEditLead && canOperate
-    && (reviewStatus === 'draft' || reviewStatus === 'pending')
+  // 仅审批进行中锁定
+  const canEditContent = canEditLead && !wfRunning
   const isReviseTask = !!myTask && isLeadReviseTodo({
     taskKind: myTask.task_kind,
     nodeType: myTask.node_type,
@@ -398,8 +408,6 @@ export default function MobileLeadDetail() {
         </div>
       )}
 
-      {/* Action Buttons — 已转化/已废弃不可再编辑 */}
-      {lead.status !== 'qualified' && lead.status !== 'discarded' && (
       <div className="mt-4 flex gap-2">
         {canEditContent && (
         <button onClick={openEdit}
@@ -408,29 +416,25 @@ export default function MobileLeadDetail() {
           编辑
         </button>
         )}
-        {lead.status === 'new' && (
+        {canOperate && lead.status === 'new' && (
           <button onClick={() => handleStatusChange('following')}
             className="flex-1 py-2.5 bg-amber-500 text-white rounded-xl text-sm font-bold">
             开始跟进
           </button>
         )}
-        {lead.status === 'following' && reviewApproved && (
+        {canOperate && lead.status === 'following' && reviewApproved && (
           <button onClick={handleQualify}
             className="flex-1 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold">
             转化为客户
           </button>
         )}
+        {canOperate && (
         <button onClick={() => handleStatusChange('discarded')}
           className="py-2.5 px-4 bg-slate-100 text-slate-500 rounded-xl text-sm font-bold">
           废弃
         </button>
+        )}
       </div>
-      )}
-      {lead.status === 'qualified' && (
-        <div className="mt-4 py-3 px-4 bg-emerald-50 text-emerald-700 rounded-xl text-sm text-center">
-          已转化为客户，不可再编辑
-        </div>
-      )}
 
       {/* Edit Modal */}
       <Modal title="编辑线索" open={editModal} onOk={handleSave} onCancel={() => setEditModal(false)} width="90%">

@@ -463,8 +463,7 @@ export default function LeadList({ mode = 'default' }: { mode?: 'default' | 'rea
           <a onClick={() => navigate(`/leads/${record.id}${isReactivationView ? '?react=1' : ''}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">
             {isReactivationView ? '办理' : t('common.detail')}
           </a>
-          {canEditLead && record.status !== 'qualified' && record.status !== 'discarded'
-            && (record.review_status === 'draft' || record.review_status === 'pending') && (
+          {canEditLead && (
             <a onClick={() => navigate(`/leads/${record.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
           )}
           {canDeleteLead && (

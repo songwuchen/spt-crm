@@ -133,10 +133,10 @@ async def test_qualify_creates_customer_only_by_default(
     assert res["data"]["customer_id"]
     assert res["data"].get("project_id") is None  # 默认不建商机
 
-    # 已转化线索不可再编辑
+    # 已转化仍可改申报内容
     upd = (await client.put(f"/api/v1/leads/{lid}", headers=h, json={"title": "改名"})).json()
-    assert upd["code"] != 0
-    assert "不可编辑" in (upd.get("message") or "")
+    assert upd["code"] == 0
+    assert upd["data"]["title"] == "改名"
 
 
 async def test_qualify_with_create_opportunity_carries_context(

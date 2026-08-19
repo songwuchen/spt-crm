@@ -350,9 +350,8 @@ export default function LeadDetail() {
     || reactStatus === 'awaiting_reporter'
     || reactStatus === 'awaiting_filler'
   const canSubmitReact = reactFollowTodo && !!currentUser
-  // 仅草稿 / 撤回后的待审可整单编辑；收录后不可改（详情「动态」仍可添加互动记录）
-  const canEditLead = hasLeadEdit && canOperate && !reviewInFlight
-    && (reviewStatus === 'draft' || reviewStatus === 'pending')
+  // 仅审批进行中锁定；草稿、驳回、收录、已转化、已废弃均可改
+  const canEditLead = hasLeadEdit && !reviewInFlight
   const canSubmitApproval = canOperate && reviewStatus === 'draft'
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
@@ -433,15 +432,15 @@ export default function LeadDetail() {
                 激活流程
               </Button>
             )}
+            {canEditLead && (
+              <Button icon={<EditOutlined />} onClick={() => navigate(
+                isReviseTask && myTask
+                  ? leadReviseEditPath(id!, myTask.task_id)
+                  : `/leads/${id}/edit`,
+              )}>编辑</Button>
+            )}
             {canOperate && (
               <>
-                {canEditLead && (
-                  <Button icon={<EditOutlined />} onClick={() => navigate(
-                    isReviseTask && myTask
-                      ? leadReviseEditPath(id!, myTask.task_id)
-                      : `/leads/${id}/edit`,
-                  )}>编辑</Button>
-                )}
                 {canSubmitApproval && (
                   <Button type="primary" icon={<AuditOutlined />} loading={submitting} onClick={handleSubmitApproval}>
                     提交审批

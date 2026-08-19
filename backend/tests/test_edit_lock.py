@@ -117,44 +117,37 @@ async def test_assert_lead_pending_without_running_ok():
 
 
 @pytest.mark.asyncio
-async def test_assert_lead_rejected_locked():
+async def test_assert_lead_rejected_editable_when_flow_done():
     db = MagicMock()
     with patch(
         "app.domains.lowcode.edit_lock.has_running_process",
         new_callable=AsyncMock,
         return_value=False,
     ):
-        with pytest.raises(BusinessException) as ei:
-            await assert_lead_editable(db, "t1", "l1", "rejected")
-        assert "驳回" in ei.value.message
+        await assert_lead_editable(db, "t1", "l1", "rejected")
 
 
 @pytest.mark.asyncio
-async def test_assert_lead_approved_locked():
-    """收录后整单不可编辑（详情动态添加记录不经本闸门）。"""
+async def test_assert_lead_approved_editable_when_flow_done():
+    """情报流程结束后（收录）可再编辑申报。"""
     db = MagicMock()
     with patch(
         "app.domains.lowcode.edit_lock.has_running_process",
         new_callable=AsyncMock,
         return_value=False,
     ):
-        with pytest.raises(BusinessException) as ei:
-            await assert_lead_editable(db, "t1", "l1", "approved")
-        assert "收录" in ei.value.message
-        assert "不可再编辑" in ei.value.message
+        await assert_lead_editable(db, "t1", "l1", "approved")
 
 
 @pytest.mark.asyncio
-async def test_assert_lead_attacked_locked():
+async def test_assert_lead_attacked_editable_when_flow_done():
     db = MagicMock()
     with patch(
         "app.domains.lowcode.edit_lock.has_running_process",
         new_callable=AsyncMock,
         return_value=False,
     ):
-        with pytest.raises(BusinessException) as ei:
-            await assert_lead_editable(db, "t1", "l1", "attacked")
-        assert "袭击" in ei.value.message
+        await assert_lead_editable(db, "t1", "l1", "attacked")
 
 
 @pytest.mark.asyncio
