@@ -173,7 +173,7 @@ export default function DrawingPrintDemoPage() {
       }}>
         <Title level={4} style={{ marginTop: 0 }}>打印预览 · 试打</Title>
         <Paragraph type="secondary">
-          对齐客户 Word 模板。安装图意见区：不打流程发起；部门/市场支持/总工显示「同意」等真实意见。
+          对齐客户 Word 模板。安装图：下卡日期=流程发起日；审批意见顺序为总工→市场支持→部门；内容过长自动分页。
         </Paragraph>
         <Space wrap>
           <Button type="primary" loading={busy} onClick={() => openPreview('install')}>

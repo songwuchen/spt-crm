@@ -558,20 +558,18 @@ def _apply_drawing_jdy_fields() -> None:
                 if f.get("id") in ("offices", "offices_multi"):
                     f["type"] = "department_multi"
                     f["label"] = "科室"
-                # 设计指派/设计人：不按科室联动过滤人员
-                if f.get("id") in ("design_assignees", "designer"):
-                    props = dict(f.get("props") or {})
-                    scope = props.get("pickable_scope")
-                    if isinstance(scope, dict) and scope.get("filter_by_fields"):
-                        scope = {k: v for k, v in scope.items() if k != "filter_by_fields"}
-                        props["pickable_scope"] = scope
-                        f["props"] = props
+            from app.domains.lowcode.pickable_scope import apply_scheme_design_person_scope_rules
+            apply_scheme_design_person_scope_rules(defs)
+            for f in defs:
+                if not isinstance(f, dict):
+                    continue
                 if f.get("id") == "order_date":
                     f["type"] = "date"
                     props = dict(f.get("props") or {})
                     props["show_time"] = False
                     props["date_only"] = True
-                    props["default_today"] = True
+                    props.pop("default_today", None)
+                    props["default_today_on_approve"] = True
                     f["props"] = props
                 if f.get("id") == "contract_no":
                     f["type"] = "contract"

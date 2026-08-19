@@ -5321,7 +5321,7 @@ async def _resolve_current_task_for_viewer(
                 props = dict(meta.get("props") or {})
                 props["pickable_scope"] = pub_props["pickable_scope"]
                 meta["props"] = props
-        if fid in ("design_assignees", "designer"):
+        if fid in ("design_assignees",):
             props = dict(meta.get("props") or {})
             scope = props.get("pickable_scope")
             if isinstance(scope, dict) and scope.get("filter_by_fields"):

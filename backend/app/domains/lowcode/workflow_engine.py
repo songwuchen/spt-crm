@@ -1390,7 +1390,7 @@ class WorkflowEngine:
 
             extra_depts: list[str] = []
             # 方案管理设计指派/设计人：提交校验也不按科室收窄
-            skip_dept_filter = key in ("design_assignees", "designer")
+            skip_dept_filter = key == "design_assignees"
             for fid in ([] if skip_dept_filter else filter_by_fields_from_field(fd)):
                 v = merged.get(fid)
                 if isinstance(v, list):

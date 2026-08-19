@@ -91,8 +91,10 @@ def apply_install_drawing_notice_fields(field_defs: list[dict[str, Any]]) -> Non
             props = dict(fd.get("props") or {})
             props["show_time"] = False
             props["date_only"] = True
-            if fid in ("apply_datetime", "card_date", "order_date"):
+            if fid in ("apply_datetime", "card_date"):
                 props["default_today"] = True
+            elif fid == "order_date":
+                props["default_today_on_approve"] = True
             fd["props"] = props
         elif fid == "offices_multi":
             fd["type"] = "department_multi"

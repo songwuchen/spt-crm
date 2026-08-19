@@ -11,9 +11,13 @@ from __future__ import annotations
 DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
 SPT_SCHEME_SCOPE_CODES = frozenset({"room_leaders", "scheme_offices", "fa-zxxgy"})
 SPT_SCHEME_SCOPED_FIELD_IDS = frozenset({
-    "design_assignees", "designer", "transfer_packaging_users",
+    "design_assignees", "transfer_packaging_users",
     "offices", "offices_multi",
 })
+
+# 设计人：不限可选范围（全员）；设计指派：room_leaders
+DESIGNER_FIELD_ID = "designer"
+DESIGN_ASSIGN_FIELD_ID = "design_assignees"
 
 
 def strip_spt_scheme_pickable_scopes(
@@ -101,7 +105,6 @@ def pickable_scope_from_jdy_limit(limit: dict | None) -> dict | None:
         if code and code not in role_codes:
             role_codes.append(code)
     if scope_codes:
-        # 方案管理：设计指派/设计人按 room_leaders 范围选人，不再按科室字段二次收窄
         return {"scope_code": scope_codes[0]}
     if role_codes:
         return {"role_codes": role_codes}
@@ -138,3 +141,24 @@ def filter_by_fields_from_field(fd: dict | None) -> list[str]:
     scope = scope_props_from_field(fd)
     raw = scope.get("filter_by_fields") or []
     return [str(x) for x in raw if x]
+
+
+def apply_scheme_design_person_scope_rules(field_definitions: list | None) -> None:
+    """设计人可选全员；设计指派保留 room_leaders，且不按科室二次收窄。"""
+    for fd in field_definitions or []:
+        if not isinstance(fd, dict):
+            continue
+        fid = fd.get("id")
+        if fid == DESIGNER_FIELD_ID:
+            props = dict(fd.get("props") or {})
+            if "pickable_scope" in props:
+                props.pop("pickable_scope")
+                fd["props"] = props or None
+        elif fid == DESIGN_ASSIGN_FIELD_ID:
+            props = dict(fd.get("props") or {})
+            scope = props.get("pickable_scope")
+            if isinstance(scope, dict) and scope.get("filter_by_fields"):
+                props["pickable_scope"] = {
+                    k: v for k, v in scope.items() if k != "filter_by_fields"
+                }
+                fd["props"] = props

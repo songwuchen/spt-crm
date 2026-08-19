@@ -389,13 +389,14 @@ def build() -> dict:
             props["show_time"] = False
             props["date_only"] = True
             f["props"] = props
-        # 下单日期：审批填写时默认当天
+        # 下单日期：设计指派等审批节点填写时默认处理当天
         if f.get("id") == "order_date":
             f["type"] = "date"
             props = dict(f.get("props") or {})
             props["show_time"] = False
             props["date_only"] = True
-            props["default_today"] = True
+            props.pop("default_today", None)
+            props["default_today_on_approve"] = True
             f["props"] = props
 
     def _cond_refs_drop(cond: dict | None) -> bool:

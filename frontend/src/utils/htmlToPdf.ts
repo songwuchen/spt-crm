@@ -16,16 +16,16 @@ export type HtmlToPdfOptions = {
   scale?: number
   /**
    * 页边距（mm）。默认对齐客户 Word 模板：
-   * 上 5.3 / 右 7.8 / 下 0 / 左 7.9
+   * 上 5.3 / 右 7.8 / 下 5.3 / 左 7.9
    */
   margins?: HtmlToPdfMargins
 }
 
-/** 与客户 Word 模板页边距对齐（横向 297×210） */
+/** 与客户 Word 模板页边距对齐（横向 297×210）；底部留空避免流水号被裁切 */
 export const DRAWING_PRINT_MARGINS: HtmlToPdfMargins = {
   top: 5.3,
   right: 7.8,
-  bottom: 0,
+  bottom: 8,
   left: 7.9,
 }
 
@@ -55,8 +55,9 @@ function injectPdfPageCss(
     margin: 0 !important;
     padding: 0 !important;
     width: ${pageWmm}mm !important;
-    height: ${pageHmm}mm !important;
-    overflow: hidden !important;
+    min-height: auto !important;
+    height: auto !important;
+    overflow: visible !important;
     background: #fff !important;
   }
   body {
@@ -76,6 +77,63 @@ function injectPdfPageCss(
     return html.replace(/<\/head>/i, `${css}</head>`)
   }
   return `<!doctype html><html><head>${css}</head><body>${html}</body></html>`
+}
+
+/** PDF 按页高切图前插入 spacer，避免审批意见/流水号被拦腰截断 */
+function applyPdfPageBreaks(doc: Document, pageHeightPx: number): void {
+  const body = doc.body
+  const TOP_PAD = 14
+  const BOTTOM_GUARD = 22
+
+  const measureEl = (el: Element) => {
+    const r = el.getBoundingClientRect()
+    const br = body.getBoundingClientRect()
+    const top = r.top - br.top + body.scrollTop
+    return { top, height: r.height, bottom: top + r.height }
+  }
+
+  const insertSpacerBefore = (el: Element, heightPx: number) => {
+    if (heightPx <= 0) return
+    const spacer = doc.createElement('div')
+    spacer.setAttribute('data-page-break-spacer', '1')
+    spacer.style.cssText = `height:${heightPx}px;width:100%;margin:0;padding:0;border:0;`
+    el.parentNode?.insertBefore(spacer, el)
+  }
+
+  const crossesPage = (top: number, bottom: number) => {
+    const startPage = Math.floor(top / pageHeightPx)
+    const endPage = Math.floor(Math.max(bottom - 0.5, top) / pageHeightPx)
+    return startPage !== endPage
+  }
+
+  const pushToNextPage = (el: Element, topPad = TOP_PAD) => {
+    const { top, bottom, height } = measureEl(el)
+    const pageIndex = Math.floor(top / pageHeightPx)
+    const pageEnd = (pageIndex + 1) * pageHeightPx
+    if (crossesPage(top, bottom)) {
+      insertSpacerBefore(el, pageEnd - top + topPad)
+      return true
+    }
+    if (pageEnd - bottom < BOTTOM_GUARD && height < pageHeightPx * 0.45) {
+      insertSpacerBefore(el, pageEnd - top + topPad)
+      return true
+    }
+    return false
+  }
+
+  for (let i = 0; i < 24; i += 1) {
+    let changed = false
+    for (const foot of body.querySelectorAll('.approval-foot')) {
+      if (pushToNextPage(foot)) changed = true
+    }
+    for (const op of body.querySelectorAll('.ops .op')) {
+      if (pushToNextPage(op)) changed = true
+    }
+    for (const side of body.querySelectorAll('.foot-side')) {
+      if (pushToNextPage(side)) changed = true
+    }
+    if (!changed) break
+  }
 }
 
 /**
@@ -131,16 +189,21 @@ export async function htmlToPdfBlob(
     }
   })
 
+  applyPdfPageBreaks(doc, heightPx)
+
   try {
-    // 截整页（含边距白边），尺寸锁定为纸张像素，避免内容贴边或被拉变形
-    const canvas = await html2canvas(doc.documentElement, {
+    const bodyEl = doc.body
+    const contentHeightPx = Math.max(bodyEl.scrollHeight, bodyEl.offsetHeight, heightPx)
+    iframe.style.height = `${contentHeightPx}px`
+
+    const canvas = await html2canvas(bodyEl, {
       scale,
       useCORS: true,
       backgroundColor: '#ffffff',
       width: widthPx,
-      height: heightPx,
+      height: contentHeightPx,
       windowWidth: widthPx,
-      windowHeight: heightPx,
+      windowHeight: contentHeightPx,
       x: 0,
       y: 0,
       scrollX: 0,
@@ -154,9 +217,23 @@ export async function htmlToPdfBlob(
       compress: true,
     })
     pdf.setProperties({ title: base })
-    // PNG 比 JPEG 更利于表格细线；整页 1:1 铺入，边距已在图里
+
     const img = canvas.toDataURL('image/png')
-    pdf.addImage(img, 'PNG', 0, 0, pageWmm, pageHmm, undefined, 'FAST')
+    const imgWidthMm = pageWmm
+    const imgHeightMm = (canvas.height * imgWidthMm) / canvas.width
+    let heightLeft = imgHeightMm
+    let position = 0
+
+    pdf.addImage(img, 'PNG', 0, position, imgWidthMm, imgHeightMm, undefined, 'FAST')
+    heightLeft -= pageHmm
+
+    while (heightLeft > 0.5) {
+      position -= pageHmm
+      pdf.addPage()
+      pdf.addImage(img, 'PNG', 0, position, imgWidthMm, imgHeightMm, undefined, 'FAST')
+      heightLeft -= pageHmm
+    }
+
     const raw = pdf.output('blob')
     const fileName = `${base}.pdf`
     const blob = new File([raw], fileName, { type: 'application/pdf' })

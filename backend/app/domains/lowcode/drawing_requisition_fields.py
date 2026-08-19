@@ -20,6 +20,8 @@ _DROP_IDS = frozenset({"order_person_text", "designer_text", "need_decrypt_note"
 
 def apply_drawing_requisition_fields(field_defs: list[dict[str, Any]]) -> None:
     """就地修正 drawing_requisition 字段定义。"""
+    from app.domains.lowcode.pickable_scope import apply_scheme_design_person_scope_rules
+
     defs = field_defs if isinstance(field_defs, list) else []
     keep: list[dict[str, Any]] = []
     for f in defs:
@@ -48,7 +50,8 @@ def apply_drawing_requisition_fields(field_defs: list[dict[str, Any]]) -> None:
             props = dict(f.get("props") or {})
             props["show_time"] = False
             props["date_only"] = True
-            props["default_today"] = True
+            props.pop("default_today", None)
+            props["default_today_on_approve"] = True
             f["props"] = props
         elif fid == "contract_no":
             f["type"] = "contract"
@@ -79,3 +82,4 @@ def apply_drawing_requisition_fields(field_defs: list[dict[str, Any]]) -> None:
     serial["props"] = props
 
     defs[:] = keep
+    apply_scheme_design_person_scope_rules(defs)

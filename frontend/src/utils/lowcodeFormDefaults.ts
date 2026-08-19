@@ -65,7 +65,7 @@ export function buildLowcodeInitialValues(
   return out
 }
 
-/** 审批本节点填写：空值时补 default_today / default_value（如下单日期默认当天）。 */
+/** 审批本节点填写：下单日期等强制为处理当天；其它空值补 default_today / default_value。 */
 export function applyApproveFieldDefaults(
   current: Record<string, unknown>,
   opts: {
@@ -92,17 +92,25 @@ export function applyApproveFieldDefaults(
   const ids = opts.fieldIds?.length ? opts.fieldIds : [...byId.keys()]
   const out = { ...current }
   for (const id of ids) {
-    if (!isEmptyValue(out[id])) continue
-    // 方案管理：下单日期即使旧快照缺 props 也默认当天
+    // 方案管理/安装图：下单日期=本审批节点处理当天（设计指派安排等），非发起日
     const f = byId.get(id) || (
       id === 'order_date'
-        ? { id, type: 'date' as const, label: '下单日期', props: { default_today: true, date_only: true } }
+        ? { id, type: 'date' as const, label: '下单日期', props: { default_today_on_approve: true, date_only: true } }
         : null
     )
     if (!f) continue
     const props = (f.props || {}) as Record<string, unknown>
-    const wantToday = props.default_today || id === 'order_date'
-    if (wantToday && (f.type === 'date' || f.type === 'datetime' || id === 'order_date')) {
+    const wantTodayOnApprove = id === 'order_date' || props.default_today_on_approve === true
+    if (wantTodayOnApprove && (f.type === 'date' || f.type === 'datetime' || id === 'order_date')) {
+      out[id] = dayjs().format(dateFieldFormat({
+        ...f,
+        type: f.type === 'datetime' ? 'datetime' : 'date',
+        props: { date_only: true, show_time: false, ...(f.props || {}) },
+      }))
+      continue
+    }
+    if (!isEmptyValue(out[id])) continue
+    if (props.default_today && (f.type === 'date' || f.type === 'datetime')) {
       out[id] = dayjs().format(dateFieldFormat({
         ...f,
         type: f.type === 'datetime' ? 'datetime' : 'date',

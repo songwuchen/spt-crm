@@ -214,6 +214,9 @@ def jdy_widget_limit(f: dict) -> dict | None:
 
 def apply_pickable_scope(fd: dict, limit: dict | None = None, jdy_field: dict | None = None) -> None:
     """把 JDY limit.roles 写成 props.pickable_scope.role_codes。"""
+    # 设计人：简道云虽绑 room_leaders，CRM 允许全员选择
+    if fd.get("id") == "designer":
+        return
     from app.domains.lowcode.pickable_scope import pickable_scope_from_jdy_limit
     lim = limit if limit is not None else (jdy_widget_limit(jdy_field or {}) if jdy_field else None)
     scope = pickable_scope_from_jdy_limit(lim)

@@ -669,7 +669,8 @@ async def sync_builtin_form_fields(
                 props["show_time"] = False
                 props["date_only"] = True
                 if fd.get("id") == "order_date":
-                    props["default_today"] = True
+                    props.pop("default_today", None)
+                    props["default_today_on_approve"] = True
                 fd["props"] = props
         # 确保下图类型四选项完整（避免旧租户版本被裁过选项后合并不回来）
         for fd in want:
@@ -724,6 +725,8 @@ async def sync_builtin_form_fields(
         for fd in want:
             if isinstance(fd, dict) and fd.get("id") in cond_required_ids:
                 fd["required"] = False
+        from app.domains.lowcode.pickable_scope import apply_scheme_design_person_scope_rules
+        apply_scheme_design_person_scope_rules(want)
         # 附件类 + 备注：只做显隐，强制非必填（对齐业务预期，避免规则「显示」与提交「必填」打架）
         attach_optional = {
             "attachment_name", "attachment_names", "attachments", "attachments_no_image", "images",
@@ -781,11 +784,13 @@ _FIELD_TENANT_OVERRIDE_KEYS = (
 )
 
 
-def _merge_field_props(want_props: dict | None, cur_props: dict | None) -> dict | None:
+def _merge_field_props(
+    want_props: dict | None, cur_props: dict | None, *, field_id: str | None = None,
+) -> dict | None:
     """合并 props：builtin 有的键优先；租户已配的 pickable_scope 在 builtin 未声明时保留。
 
     避免 ensure/sync 用无范围的 builtin 字段把「转新乡、工艺包装」等已配范围冲掉，
-    导致审批选人又变成全员。
+    导致审批选人又变成全员。设计人 builtin 无范围时会清掉租户旧 scope。
     """
     w = dict(want_props or {}) if isinstance(want_props, dict) else {}
     c = dict(cur_props or {}) if isinstance(cur_props, dict) else {}
@@ -793,6 +798,9 @@ def _merge_field_props(want_props: dict | None, cur_props: dict | None) -> dict 
         return None
     out = dict(c)
     out.update(w)
+    if field_id == "designer":
+        out.pop("pickable_scope", None)
+        return out or None
     want_scope = w.get("pickable_scope") if isinstance(w.get("pickable_scope"), dict) else None
     cur_scope = c.get("pickable_scope") if isinstance(c.get("pickable_scope"), dict) else None
     if cur_scope and not (want_scope and want_scope.get("scope_code")):
@@ -826,6 +834,7 @@ def _merge_builtin_field_defs(want: list, current: list) -> list:
         merged_props = _merge_field_props(
             f.get("props") if isinstance(f.get("props"), dict) else None,
             c.get("props") if isinstance(c.get("props"), dict) else None,
+            field_id=fid,
         )
         if merged_props is not None:
             merged["props"] = merged_props
