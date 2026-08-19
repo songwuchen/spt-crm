@@ -1,0 +1,2541 @@
+{
+  "app_id": "5de0b3e85600ec0006f420f2",
+  "entry_id": "5e79b7e9b587cc0006b632d7",
+  "form_name": "售前服务通知流程",
+  "workflow_config": {
+    "editable": false,
+    "flows": [
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b6e",
+        "flowId": -1,
+        "name": "流程结束",
+        "parents": [
+          5,
+          8
+        ],
+        "type": "flow",
+        "condition": {
+          "5": {},
+          "8": {}
+        },
+        "comment": {
+          "enable": false,
+          "checkRule": 1,
+          "options": []
+        },
+        "path": [
+          4,
+          0,
+          2,
+          3,
+          14,
+          15,
+          5,
+          6,
+          7,
+          8
+        ],
+        "backNodes": [],
+        "backRule": 0,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 518,
+        "y": 502,
+        "lines": {
+          "5": {
+            "sp": "B",
+            "tp": "T"
+          },
+          "8": {
+            "sp": "B",
+            "tp": "L",
+            "points": []
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": []
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": []
+          }
+        },
+        "optAuth": {},
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "allowPrint": false,
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b6f",
+        "flowId": 0,
+        "name": "流程发起节点",
+        "parents": [],
+        "type": "flow",
+        "condition": {},
+        "comment": {
+          "enable": false,
+          "checkRule": 1,
+          "options": []
+        },
+        "path": [],
+        "backNodes": [],
+        "backRule": 0,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "submit_text": "",
+        "save_text": "",
+        "print_text": "",
+        "close_text": "",
+        "draft_text": "",
+        "x": 610,
+        "y": 20,
+        "lines": {},
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": []
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "allowPrint": false,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": []
+          }
+        },
+        "allowSaveStart": false,
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 3,
+          "_widget_1585030991969": 3,
+          "_widget_1676250045146": 3,
+          "_widget_1677464667996": 3,
+          "_widget_1672367052763": 3,
+          "_widget_1676250045169": 3,
+          "_widget_1685405177505": 3,
+          "_widget_1676250045148": 3,
+          "_widget_1585030992152": 3,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 3,
+          "_widget_1585030992184": 3,
+          "_widget_1585030992197": 3,
+          "_widget_1585030992213": 3,
+          "_widget_1585030992228": 3,
+          "_widget_1585030992259": 3,
+          "_widget_1585030992272": 115,
+          "_widget_1585030992272._widget_1585030992295": 3,
+          "_widget_1585030992272._widget_1585030992305": 3,
+          "_widget_1585030992321": 3
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b70",
+        "flowId": 2,
+        "name": "总工审批",
+        "parents": [
+          4
+        ],
+        "type": "flow",
+        "condition": {
+          "4": {
+            "rel": "and",
+            "cond": [
+              {
+                "type": "text",
+                "method": "eq",
+                "value": [
+                  "否"
+                ],
+                "field": "_widget_1677464667996"
+              }
+            ]
+          }
+        },
+        "chargers": {
+          "users": [],
+          "roles": [
+            {
+              "id": 2774,
+              "_id": "5f69a4d2d4014600062cdd7f",
+              "role_id": 2774,
+              "role_no": 2774,
+              "name": "24.2.3合同/项目评审-设计-曹修国",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2748,
+              "group_no": 2748,
+              "seq": 210414,
+              "status": 1
+            }
+          ],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "text": "",
+          "checkRule": 1,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          4,
+          0
+        ],
+        "backNodes": [],
+        "backRule": 1,
+        "backFlowType": 1,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "submit_text": "",
+        "save_text": "",
+        "print_text": "",
+        "save_print_text": "",
+        "back_text": "",
+        "transfer_text": "人员协调",
+        "close_text": "",
+        "x": 591,
+        "y": 91,
+        "lines": {
+          "4": {
+            "sp": "L",
+            "tp": "R",
+            "points": [],
+            "label": "是否金微星=否"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "allowPrint": false,
+        "allowSavePrint": false,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "enable": false,
+          "text": "",
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": [],
+            "hasDeptCascade": false
+          }
+        },
+        "noChargersRule": 1,
+        "reject": {
+          "enable": false
+        },
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 1,
+          "_widget_1585030991969": 1,
+          "_widget_1676250045146": 1,
+          "_widget_1677464667996": 1,
+          "_widget_1672367052763": 1,
+          "_widget_1676250045169": 1,
+          "_widget_1685405177505": 1,
+          "_widget_1676250045148": 1,
+          "_widget_1585030992152": 1,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 1,
+          "_widget_1585030992184": 1,
+          "_widget_1585030992197": 1,
+          "_widget_1585030992213": 1,
+          "_widget_1585030992228": 1,
+          "_widget_1585030992259": 1,
+          "_widget_1585030992272": 1,
+          "_widget_1585030992272._widget_1585030992295": 1,
+          "_widget_1585030992272._widget_1585030992305": 1,
+          "_widget_1585030992321": 1,
+          "_widget_1585030992341": 1,
+          "_widget_1585030993520": 3,
+          "_widget_1779413786198": 3,
+          "_widget_1779413786190": 3
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b71",
+        "flowId": 3,
+        "name": "人员协调",
+        "parents": [
+          2
+        ],
+        "type": "flow",
+        "condition": {
+          "2": {}
+        },
+        "chargers": {
+          "users": [],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [
+            "_widget_1585030993520"
+          ],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": false,
+          "text": "",
+          "checkRule": 1,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          4,
+          0,
+          2
+        ],
+        "backNodes": [],
+        "backRule": 0,
+        "backFlowType": 1,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "submit_text": "",
+        "save_text": "",
+        "print_text": "",
+        "save_print_text": "",
+        "back_text": "",
+        "transfer_text": "",
+        "close_text": "",
+        "x": 518,
+        "y": 215,
+        "lines": {
+          "2": {
+            "sp": "B",
+            "tp": "T"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [
+            "5a1f69ecb77d3d7d0e84e768"
+          ],
+          "roles": [],
+          "hasDeptCascade": true
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "allowPrint": false,
+        "allowSavePrint": false,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "enable": false,
+          "text": "",
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": [],
+            "hasDeptCascade": false
+          }
+        },
+        "noChargersRule": 1,
+        "reject": {
+          "enable": false
+        },
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 1,
+          "_widget_1585030991969": 1,
+          "_widget_1677464667996": 1,
+          "_widget_1672367052763": 1,
+          "_widget_1685405177505": 1,
+          "_widget_1585030992152": 1,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 1,
+          "_widget_1585030992184": 1,
+          "_widget_1585030992197": 1,
+          "_widget_1585030992213": 1,
+          "_widget_1585030992228": 1,
+          "_widget_1585030992259": 1,
+          "_widget_1585030992272": 1,
+          "_widget_1585030992272._widget_1585030992295": 1,
+          "_widget_1585030992272._widget_1585030992305": 1,
+          "_widget_1585030992321": 1,
+          "_widget_1585030992341": 1,
+          "_widget_1585030993520": 1,
+          "_widget_1585030992378": 3,
+          "_widget_1585030992393": 3,
+          "_widget_1585030992409": 3,
+          "_widget_1585030992426": 115,
+          "_widget_1585030992426._widget_1585030992438": 3,
+          "_widget_1585030992426._widget_1585030992451": 3,
+          "_widget_1585030992426._widget_1585030992466": 3,
+          "_widget_1585030992426._widget_1585030992541": 3,
+          "_widget_1585030992426._widget_1585030992613": 3,
+          "_widget_1585030992645": 3
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b72",
+        "flowId": 4,
+        "name": "部门审批",
+        "parents": [
+          0
+        ],
+        "type": "flow",
+        "condition": {
+          "0": {
+            "isElse": true
+          }
+        },
+        "chargers": {
+          "users": [],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": [],
+            "deptWidgets": {
+              "_widget_1585030991969": [
+                0
+              ]
+            }
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "text": "",
+          "checkRule": 1,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0
+        ],
+        "backNodes": [],
+        "backRule": 1,
+        "backFlowType": 1,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "submit_text": "",
+        "save_text": "",
+        "print_text": "",
+        "save_print_text": "",
+        "back_text": "",
+        "transfer_text": "",
+        "close_text": "",
+        "x": 901,
+        "y": 103,
+        "lines": {
+          "0": {
+            "sp": "R",
+            "tp": "T",
+            "points": [],
+            "label": "是否智能化=否"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "allowPrint": false,
+        "allowSavePrint": false,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "enable": false,
+          "text": "",
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": [],
+            "hasDeptCascade": false
+          }
+        },
+        "noChargersRule": 1,
+        "reject": {
+          "enable": false
+        },
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 1,
+          "_widget_1585030991969": 1,
+          "_widget_1676250045146": 1,
+          "_widget_1677464667996": 1,
+          "_widget_1672367052763": 1,
+          "_widget_1676250045169": 1,
+          "_widget_1685405177505": 1,
+          "_widget_1676250045148": 1,
+          "_widget_1585030992152": 1,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 1,
+          "_widget_1585030992184": 1,
+          "_widget_1585030992197": 1,
+          "_widget_1585030992213": 1,
+          "_widget_1585030992228": 1,
+          "_widget_1585030992259": 1,
+          "_widget_1585030992272": 1,
+          "_widget_1585030992272._widget_1585030992295": 1,
+          "_widget_1585030992272._widget_1585030992305": 1,
+          "_widget_1585030992321": 1
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b73",
+        "flowId": 5,
+        "name": "流程分发",
+        "parents": [
+          3,
+          14,
+          15
+        ],
+        "type": "flow",
+        "condition": {
+          "3": {},
+          "14": {
+            "isElse": true
+          },
+          "15": {
+            "rel": "and",
+            "cond": [],
+            "isElse": false
+          }
+        },
+        "chargers": {
+          "users": [],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": true,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": false,
+          "text": "",
+          "checkRule": 1,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          4,
+          0,
+          2,
+          3,
+          14,
+          15
+        ],
+        "backNodes": [],
+        "backRule": 0,
+        "backFlowType": 1,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "submit_text": "",
+        "save_text": "",
+        "print_text": "",
+        "save_print_text": "",
+        "back_text": "",
+        "transfer_text": "",
+        "close_text": "",
+        "x": 518,
+        "y": 355,
+        "lines": {
+          "3": {
+            "sp": "B",
+            "tp": "T"
+          },
+          "14": {
+            "sp": "B",
+            "tp": "R",
+            "points": [],
+            "label": "else"
+          },
+          "15": {
+            "sp": "B",
+            "tp": "R",
+            "points": []
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "allowPrint": false,
+        "allowSavePrint": false,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "enable": false,
+          "text": "",
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": [],
+            "hasDeptCascade": false
+          }
+        },
+        "noChargersRule": 2,
+        "pickChargers": {
+          "charger": false,
+          "contacts": [],
+          "creator": false,
+          "departs": [],
+          "deptManager": {
+            "creator": [],
+            "charger": [],
+            "userWidgets": {},
+            "deptWidgets": {}
+          },
+          "deptWidgets": [],
+          "roles": [],
+          "users": [
+            "56ca5bacf83c32e4699dd0f3"
+          ],
+          "widgets": []
+        },
+        "reject": {
+          "enable": false
+        },
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 1,
+          "_widget_1585030991969": 1,
+          "_widget_1676250045146": 1,
+          "_widget_1677464667996": 1,
+          "_widget_1672367052763": 1,
+          "_widget_1676250045169": 1,
+          "_widget_1685405177505": 1,
+          "_widget_1676250045148": 1,
+          "_widget_1585030992152": 1,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 1,
+          "_widget_1585030992184": 1,
+          "_widget_1585030992197": 1,
+          "_widget_1585030992213": 1,
+          "_widget_1585030992228": 1,
+          "_widget_1585030992259": 1,
+          "_widget_1585030992272": 1,
+          "_widget_1585030992272._widget_1585030992295": 1,
+          "_widget_1585030992272._widget_1585030992305": 1,
+          "_widget_1585030992321": 1,
+          "_widget_1585030992341": 1,
+          "_widget_1585030992378": 1,
+          "_widget_1585030992393": 1,
+          "_widget_1585030992409": 1,
+          "_widget_1585030992426": 1,
+          "_widget_1585030992426._widget_1585030992438": 1,
+          "_widget_1585030992426._widget_1585030992451": 1,
+          "_widget_1585030992426._widget_1585030992466": 1,
+          "_widget_1585030992426._widget_1585030992541": 1,
+          "_widget_1585030992426._widget_1585030992613": 1,
+          "_widget_1779930511476": 1,
+          "_widget_1585030992645": 1
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b74",
+        "flowId": 6,
+        "name": "部门审批",
+        "parents": [
+          0
+        ],
+        "type": "flow",
+        "condition": {
+          "0": {
+            "rel": "and",
+            "cond": [
+              {
+                "type": "text",
+                "method": "in",
+                "value": [
+                  "是"
+                ],
+                "hasEmpty": false,
+                "field": "_widget_1676250045146"
+              }
+            ]
+          }
+        },
+        "chargers": {
+          "users": [],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": [],
+            "deptWidgets": {
+              "_widget_1585030991969": [
+                0
+              ]
+            }
+          },
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "text": "",
+          "checkRule": 1,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0
+        ],
+        "backNodes": [],
+        "backRule": 1,
+        "backFlowType": 1,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "submit_text": "",
+        "save_text": "",
+        "print_text": "",
+        "save_print_text": "",
+        "back_text": "",
+        "transfer_text": "",
+        "close_text": "",
+        "x": 286,
+        "y": 138,
+        "lines": {
+          "0": {
+            "sp": "L",
+            "tp": "T",
+            "points": [],
+            "label": "是否智能化=是"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "allowPrint": false,
+        "allowSavePrint": false,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "enable": false,
+          "text": "",
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": [],
+            "hasDeptCascade": false
+          }
+        },
+        "noChargersRule": 1,
+        "reject": {
+          "enable": false
+        },
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 1,
+          "_widget_1585030991969": 1,
+          "_widget_1676250045146": 1,
+          "_widget_1677464667996": 1,
+          "_widget_1672367052763": 1,
+          "_widget_1676250045169": 1,
+          "_widget_1685405177505": 1,
+          "_widget_1676250045148": 1,
+          "_widget_1585030992152": 1,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 1,
+          "_widget_1585030992184": 1,
+          "_widget_1585030992197": 1,
+          "_widget_1585030992213": 1,
+          "_widget_1585030992228": 1,
+          "_widget_1585030992259": 1,
+          "_widget_1585030992272": 1,
+          "_widget_1585030992272._widget_1585030992295": 1,
+          "_widget_1585030992272._widget_1585030992305": 1,
+          "_widget_1585030992321": 1
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b75",
+        "flowId": 7,
+        "name": "生产审批",
+        "parents": [
+          6
+        ],
+        "type": "flow",
+        "condition": {
+          "6": {}
+        },
+        "chargers": {
+          "users": [
+            {
+              "username": "01210720669288",
+              "avatar": "https://static-legacy.dingtalk.com/media/lADPM5j9j7R-iJHNBQDNBQA_1280_1280.jpg",
+              "type": 0,
+              "status": 1,
+              "frozen": 0,
+              "dept": [
+                4430296,
+                4500597,
+                551138197,
+                967044669,
+                1055571322,
+                1058873049
+              ],
+              "role": [
+                2709,
+                2710,
+                2794,
+                2833,
+                2841,
+                2852,
+                2911,
+                2916,
+                -80401481,
+                -80401479,
+                -80401487
+              ],
+              "manage_dept": [
+                4430296,
+                4500597,
+                551138197,
+                967044669,
+                1055571322,
+                1058873049
+              ],
+              "is_global_docker": false,
+              "_id": "56ca5bacf83c32e4699dd08c",
+              "member_id": "56ca5bacf83c32e4699dd08c",
+              "nickname": "周世孔",
+              "name": "周世孔"
+            }
+          ],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "text": "",
+          "checkRule": 1,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0,
+          6
+        ],
+        "backNodes": [],
+        "backRule": 1,
+        "backFlowType": 1,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "submit_text": "",
+        "save_text": "",
+        "print_text": "",
+        "save_print_text": "",
+        "back_text": "",
+        "transfer_text": "",
+        "close_text": "",
+        "x": 286,
+        "y": 243,
+        "lines": {
+          "6": {
+            "sp": "B",
+            "tp": "T",
+            "points": []
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "allowPrint": false,
+        "allowSavePrint": false,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "enable": false,
+          "text": "",
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": [],
+            "hasDeptCascade": false
+          }
+        },
+        "noChargersRule": 1,
+        "reject": {
+          "enable": false
+        },
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 1,
+          "_widget_1585030991969": 1,
+          "_widget_1676250045146": 1,
+          "_widget_1677464667996": 1,
+          "_widget_1672367052763": 1,
+          "_widget_1676250045169": 1,
+          "_widget_1685405177505": 1,
+          "_widget_1676250045148": 1,
+          "_widget_1585030992152": 1,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 1,
+          "_widget_1585030992184": 1,
+          "_widget_1585030992197": 1,
+          "_widget_1585030992213": 1,
+          "_widget_1585030992228": 1,
+          "_widget_1585030992259": 1,
+          "_widget_1585030992272": 1,
+          "_widget_1585030992272._widget_1585030992295": 1,
+          "_widget_1585030992272._widget_1585030992305": 1,
+          "_widget_1585030992321": 1
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b76",
+        "flowId": 8,
+        "name": "流程分发",
+        "parents": [
+          7
+        ],
+        "type": "flow",
+        "condition": {
+          "7": {}
+        },
+        "chargers": {
+          "users": [],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [
+            "_widget_1676250045148"
+          ],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "text": "",
+          "checkRule": 1,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0,
+          6,
+          7
+        ],
+        "backNodes": [],
+        "backRule": 1,
+        "backFlowType": 1,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "submit_text": "",
+        "save_text": "",
+        "print_text": "",
+        "save_print_text": "",
+        "back_text": "",
+        "transfer_text": "",
+        "close_text": "",
+        "x": 286,
+        "y": 349,
+        "lines": {
+          "7": {
+            "sp": "B",
+            "tp": "T",
+            "points": []
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "allowPrint": false,
+        "allowSavePrint": false,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "enable": false,
+          "text": "",
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": [],
+            "hasDeptCascade": false
+          }
+        },
+        "noChargersRule": 1,
+        "reject": {
+          "enable": false
+        },
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 1,
+          "_widget_1585030991969": 1,
+          "_widget_1676250045146": 1,
+          "_widget_1677464667996": 1,
+          "_widget_1672367052763": 1,
+          "_widget_1676250045169": 1,
+          "_widget_1685405177505": 1,
+          "_widget_1676250045148": 1,
+          "_widget_1585030992152": 1,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 1,
+          "_widget_1585030992184": 1,
+          "_widget_1585030992197": 1,
+          "_widget_1585030992213": 1,
+          "_widget_1585030992228": 1,
+          "_widget_1585030992259": 1,
+          "_widget_1585030992272": 1,
+          "_widget_1585030992272._widget_1585030992295": 1,
+          "_widget_1585030992272._widget_1585030992305": 1,
+          "_widget_1585030992321": 1
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b77",
+        "flowId": 9,
+        "name": "抄送节点",
+        "parents": [
+          8
+        ],
+        "type": "cc",
+        "condition": {
+          "8": {}
+        },
+        "ccUsers": {
+          "users": [
+            {
+              "username": "02352839543942",
+              "avatar": "https://static-legacy.dingtalk.com/media/lADPBbCc1dYJAhrNAu7NAu4_750_750.jpg",
+              "type": 0,
+              "status": 1,
+              "frozen": 0,
+              "dept": [
+                1051445238,
+                4368508
+              ],
+              "role": [
+                2581,
+                2616,
+                2644,
+                2670,
+                2681,
+                2682,
+                2683,
+                2684,
+                2685,
+                2690,
+                2787,
+                2788,
+                2891,
+                2896,
+                2897,
+                2939,
+                2954,
+                -80401479,
+                -110463256
+              ],
+              "is_global_docker": false,
+              "_id": "56ca5bacf83c32e4699dd1d3",
+              "member_id": "56ca5bacf83c32e4699dd1d3",
+              "nickname": "李超范",
+              "name": "李超范"
+            },
+            {
+              "username": "02362556584221",
+              "avatar": "https://static-legacy.dingtalk.com/media/lADPBbCc1QOoZOTNAoHNAek_489_641.jpg",
+              "type": 0,
+              "status": 1,
+              "frozen": 0,
+              "dept": [
+                4368508,
+                987232092,
+                1033287609
+              ],
+              "role": [
+                11,
+                2549,
+                2551,
+                2641,
+                2643,
+                2686,
+                2696,
+                2721,
+                2739,
+                2790,
+                2791,
+                2802,
+                2812,
+                2825,
+                2891,
+                2916,
+                2917,
+                4,
+                -80401481,
+                -80401479,
+                -80401486,
+                -80401487,
+                -110259836,
+                -110475126,
+                -368529293,
+                -496333681
+              ],
+              "manage_dept": [
+                4368508,
+                861671571,
+                4502688,
+                987232092
+              ],
+              "is_global_docker": false,
+              "_id": "56ca5bacf83c32e4699dd06a",
+              "member_id": "56ca5bacf83c32e4699dd06a",
+              "nickname": "李晋",
+              "name": "李晋"
+            }
+          ],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": true,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [
+            "_widget_1585030991951"
+          ],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": false,
+          "checkRule": 1,
+          "options": []
+        },
+        "path": [
+          0,
+          6,
+          7,
+          8
+        ],
+        "backNodes": [],
+        "backRule": 0,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 61,
+        "y": 349,
+        "lines": {
+          "8": {
+            "sp": "L",
+            "tp": "R",
+            "points": []
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": []
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": []
+          }
+        },
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 1,
+          "_widget_1585030991969": 1,
+          "_widget_1676250045146": 1,
+          "_widget_1672367052763": 1,
+          "_widget_1685405177505": 1,
+          "_widget_1676250045148": 1,
+          "_widget_1585030992152": 1,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 1,
+          "_widget_1585030992184": 1,
+          "_widget_1585030992197": 1,
+          "_widget_1585030992213": 1,
+          "_widget_1585030992228": 1,
+          "_widget_1585030992259": 1,
+          "_widget_1585030992272": 1,
+          "_widget_1585030992272._widget_1585030992295": 1,
+          "_widget_1585030992272._widget_1585030992305": 1,
+          "_widget_1585030992321": 1
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b78",
+        "flowId": 10,
+        "name": "抄送节点",
+        "parents": [
+          5
+        ],
+        "type": "cc",
+        "condition": {
+          "5": {}
+        },
+        "ccUsers": {
+          "users": [],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": true,
+          "deptManager": {
+            "creator": [],
+            "charger": []
+          },
+          "widgets": [
+            "_widget_1585030991951",
+            "_widget_1779413786190"
+          ],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": true
+        },
+        "comment": {
+          "enable": false,
+          "checkRule": 1,
+          "options": []
+        },
+        "path": [
+          4,
+          0,
+          2,
+          3,
+          14,
+          15,
+          5
+        ],
+        "backNodes": [],
+        "backRule": 0,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "x": 901,
+        "y": 432,
+        "lines": {
+          "5": {
+            "sp": "R",
+            "tp": "L",
+            "points": []
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": []
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": []
+          }
+        },
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 1,
+          "_widget_1585030991969": 1,
+          "_widget_1672367052763": 1,
+          "_widget_1685405177505": 1,
+          "_widget_1585030992152": 1,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 1,
+          "_widget_1585030992184": 1,
+          "_widget_1585030992197": 1,
+          "_widget_1585030992213": 1,
+          "_widget_1585030992228": 1,
+          "_widget_1585030992259": 1,
+          "_widget_1585030992272": 1,
+          "_widget_1585030992272._widget_1585030992295": 1,
+          "_widget_1585030992272._widget_1585030992305": 1,
+          "_widget_1585030992321": 1,
+          "_widget_1585030992341": 1,
+          "_widget_1585030992378": 1,
+          "_widget_1585030992393": 1,
+          "_widget_1585030992409": 1,
+          "_widget_1585030992426": 1,
+          "_widget_1585030992426._widget_1585030992438": 1,
+          "_widget_1585030992426._widget_1585030992451": 1,
+          "_widget_1585030992426._widget_1585030992466": 1,
+          "_widget_1585030992426._widget_1585030992541": 1,
+          "_widget_1585030992426._widget_1585030992613": 1,
+          "_widget_1779413786190": 1,
+          "_widget_1779930511476": 1,
+          "_widget_1585030992645": 1
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbbc1bcec0dc4cfa4b79",
+        "flowId": 14,
+        "name": "韩利民",
+        "parents": [
+          4
+        ],
+        "type": "flow",
+        "condition": {
+          "4": {
+            "isElse": false,
+            "rel": "and",
+            "cond": [
+              {
+                "type": "text",
+                "method": "in",
+                "value": [
+                  "是"
+                ],
+                "hasEmpty": false,
+                "field": "_widget_1677464667996"
+              }
+            ]
+          }
+        },
+        "chargers": {
+          "users": [
+            {
+              "username": "02364307332960",
+              "avatar": "https://static-legacy.dingtalk.com/media/lQDPD37baME2rDHNAiPNAZSwPXOEHj60XvgHIURZ3VRWAA_404_547.jpg",
+              "type": 0,
+              "status": 1,
+              "frozen": 0,
+              "dept": [
+                49621075
+              ],
+              "role": [
+                2756,
+                2789,
+                2916,
+                3,
+                4,
+                -80401481,
+                -80401479,
+                -80401488,
+                -80401486,
+                -80401487
+              ],
+              "manage_dept": [
+                49621075,
+                407048650
+              ],
+              "is_global_docker": false,
+              "_id": "56ca5bacf83c32e4699dd07c",
+              "member_id": "56ca5bacf83c32e4699dd07c",
+              "nickname": "韩利民",
+              "name": "韩利民"
+            }
+          ],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "text": "",
+          "checkRule": 1,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          0,
+          4
+        ],
+        "backNodes": [],
+        "backRule": 1,
+        "backFlowType": 1,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "submit_text": "",
+        "save_text": "",
+        "print_text": "",
+        "save_print_text": "",
+        "back_text": "",
+        "transfer_text": "",
+        "close_text": "",
+        "x": 901,
+        "y": 215,
+        "lines": {
+          "4": {
+            "sp": "B",
+            "tp": "T",
+            "points": [],
+            "label": "是否需要金微星去现场=是"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [],
+          "roles": [],
+          "hasDeptCascade": false
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "allowPrint": false,
+        "allowSavePrint": false,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "enable": false,
+          "text": "",
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": [],
+            "hasDeptCascade": false
+          }
+        },
+        "noChargersRule": 1,
+        "reject": {
+          "enable": false
+        },
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 1,
+          "_widget_1585030991969": 1,
+          "_widget_1676250045146": 1,
+          "_widget_1677464667996": 1,
+          "_widget_1672367052763": 1,
+          "_widget_1676250045169": 1,
+          "_widget_1685405177505": 1,
+          "_widget_1676250045148": 1,
+          "_widget_1585030992152": 1,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 1,
+          "_widget_1585030992184": 1,
+          "_widget_1585030992197": 1,
+          "_widget_1585030992213": 1,
+          "_widget_1585030992228": 1,
+          "_widget_1585030992259": 1,
+          "_widget_1585030992272": 1,
+          "_widget_1585030992272._widget_1585030992295": 1,
+          "_widget_1585030992272._widget_1585030992305": 1,
+          "_widget_1585030992321": 1,
+          "_widget_1779413786198": 3,
+          "_widget_1779413786190": 3
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      },
+      {
+        "_id": "6a0fbbff2a41b92d9cbd4dfd",
+        "flowId": 15,
+        "name": "新疆威猛",
+        "parents": [
+          2,
+          14
+        ],
+        "type": "flow",
+        "condition": {
+          "2": {
+            "isElse": false,
+            "rel": "and",
+            "cond": [
+              {
+                "type": "text",
+                "method": "in",
+                "value": [
+                  "是"
+                ],
+                "hasEmpty": false,
+                "field": "_widget_1779413786198"
+              }
+            ]
+          },
+          "14": {
+            "isElse": false,
+            "rel": "and",
+            "cond": [
+              {
+                "type": "text",
+                "method": "in",
+                "value": [
+                  "是"
+                ],
+                "hasEmpty": false,
+                "field": "_widget_1779413786198"
+              }
+            ]
+          }
+        },
+        "chargers": {
+          "users": [
+            {
+              "username": "02364714147257",
+              "avatar": "https://static-legacy.dingtalk.com/media/lADPDhmOxGhDqFzNAczNAcw_460_460.jpg",
+              "type": 0,
+              "status": 1,
+              "frozen": 0,
+              "dept": [
+                52371059
+              ],
+              "role": [
+                11,
+                2589,
+                2716,
+                2916,
+                4,
+                -80401481,
+                -80401487,
+                -496333681
+              ],
+              "manage_dept": [
+                52371059,
+                938556674,
+                938816357,
+                938954074
+              ],
+              "is_global_docker": false,
+              "_id": "56ca5bacf83c32e4699dd119",
+              "member_id": "56ca5bacf83c32e4699dd119",
+              "nickname": "段荣凯",
+              "name": "段荣凯"
+            }
+          ],
+          "roles": [],
+          "departs": [],
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "ccUsers": {
+          "charger": false,
+          "creator": false,
+          "widgets": [],
+          "deptWidgets": [],
+          "subWidgets": [],
+          "subDeptWidgets": [],
+          "roles": [],
+          "users": [],
+          "departs": [],
+          "contacts": [],
+          "hasDeptCascade": false
+        },
+        "comment": {
+          "enable": true,
+          "text": "",
+          "checkRule": 2,
+          "options": [],
+          "default_option": ""
+        },
+        "path": [
+          4,
+          0,
+          2,
+          14
+        ],
+        "backNodes": [],
+        "backRule": 1,
+        "backFlowType": 1,
+        "allowSave": true,
+        "allowClose": false,
+        "allowBatchForward": false,
+        "validator": [],
+        "schedule": {
+          "enable": false,
+          "mode": "custom",
+          "time": {
+            "offset": "+1d"
+          },
+          "actions": []
+        },
+        "approvalType": 1,
+        "autoApproveRule": -1,
+        "submit_text": "",
+        "save_text": "",
+        "print_text": "",
+        "save_print_text": "",
+        "back_text": "",
+        "transfer_text": "",
+        "close_text": "",
+        "x": 1260,
+        "y": 285,
+        "lines": {
+          "2": {
+            "sp": "B",
+            "tp": "L",
+            "points": [],
+            "label": "是"
+          },
+          "14": {
+            "sp": "R",
+            "tp": "L",
+            "points": [],
+            "label": "是"
+          }
+        },
+        "candidates": {
+          "users": [],
+          "departs": [
+            "59dc5c5f0b18743912395106",
+            "69da913680dd716bc62f2a0d"
+          ],
+          "roles": [],
+          "hasDeptCascade": true
+        },
+        "signature": {
+          "enable": false,
+          "checkRule": 1
+        },
+        "allowSubmit": true,
+        "allowDraft": true,
+        "allowPrint": false,
+        "allowSavePrint": false,
+        "dataInMaps": [],
+        "dataOutMaps": [],
+        "pluginOutMappings": [],
+        "sign": {
+          "enable": false,
+          "text": "",
+          "candidates": {
+            "users": [],
+            "departs": [],
+            "roles": [],
+            "hasDeptCascade": false
+          }
+        },
+        "noChargersRule": 1,
+        "reject": {
+          "enable": false
+        },
+        "optAuth": {
+          "_widget_1585030991874": 1,
+          "_widget_1585030991951": 1,
+          "_widget_1585030991969": 1,
+          "_widget_1676250045146": 1,
+          "_widget_1677464667996": 1,
+          "_widget_1672367052763": 1,
+          "_widget_1676250045169": 1,
+          "_widget_1685405177505": 1,
+          "_widget_1676250045148": 1,
+          "_widget_1585030992152": 1,
+          "_widget_1585030992334": 1,
+          "_widget_1585030992168": 1,
+          "_widget_1585030992184": 1,
+          "_widget_1585030992197": 1,
+          "_widget_1585030992213": 1,
+          "_widget_1585030992228": 1,
+          "_widget_1585030992259": 1,
+          "_widget_1585030992272": 1,
+          "_widget_1585030992272._widget_1585030992295": 1,
+          "_widget_1585030992272._widget_1585030992305": 1,
+          "_widget_1585030992321": 1,
+          "_widget_1779413786198": 1,
+          "_widget_1779413786190": 3
+        },
+        "printIds": [],
+        "appId": "5de0b3e85600ec0006f420f2",
+        "entryId": "5e79b7e9b587cc0006b632d7",
+        "version": "8",
+        "approvalMethod": 1,
+        "printList": []
+      }
+    ],
+    "theme": 1,
+    "flowFormViews": []
+  },
+  "auth_config": {
+    "existAuthGroups": [
+      {
+        "_id": "5e79b7e9b587cc0006b632da",
+        "groupId": -1,
+        "members": {
+          "users": [],
+          "departs": [
+            {
+              "_id": "5a9fa0ada21496c4066c2c4b",
+              "dept_no": 61166000,
+              "parent_no": 1,
+              "name": "市场支持中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 71,
+              "departmentId": 61166000,
+              "parentId": 1,
+              "order": 71,
+              "editable": true
+            }
+          ],
+          "roles": [
+            {
+              "id": 5,
+              "_id": "5c6d03cbeb6c6b3b26370880",
+              "role_id": 5,
+              "role_no": 5,
+              "name": "业务内勤",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2547,
+              "group_no": 2547,
+              "seq": 12782,
+              "status": 1
+            },
+            {
+              "id": 11,
+              "_id": "5de503bc8d3b59000689d8e7",
+              "role_id": 11,
+              "role_no": 11,
+              "name": "销售经理",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2547,
+              "group_no": 2547,
+              "seq": 16878,
+              "status": 1
+            },
+            {
+              "id": 1356,
+              "_id": "5e60bab8dc978400068d5781",
+              "role_id": 1356,
+              "role_no": 1356,
+              "name": "差旅费/付款 内勤",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2547,
+              "group_no": 2547,
+              "seq": 18926,
+              "status": 1
+            }
+          ]
+        },
+        "printIds": [],
+        "status": 1,
+        "seq": 13440,
+        "desc": "在此分组内的成员可以发起流程",
+        "presetName": "发起流程",
+        "enable": true
+      },
+      {
+        "_id": "67b43e9be781d1da877dcbe6",
+        "groupId": 7,
+        "name": "金微星",
+        "desc": "",
+        "members": {
+          "users": [],
+          "departs": [
+            {
+              "_id": "59cb63fa0c8103f131a4333d",
+              "dept_no": 49621075,
+              "parent_no": 1,
+              "name": "金微星建工",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 78,
+              "departmentId": 49621075,
+              "parentId": 1,
+              "order": 78,
+              "editable": true
+            }
+          ],
+          "roles": []
+        },
+        "printIds": [],
+        "viewIds": [],
+        "status": 1,
+        "seq": 13952,
+        "autoProcessIds": [],
+        "displayAutoProcessIds": [],
+        "enable": true
+      },
+      {
+        "_id": "642a5cf3133fe800085bd48b",
+        "members": {
+          "users": [],
+          "departs": [
+            {
+              "_id": "636f5c22bf979e28e3a5d948",
+              "dept_no": 736903803,
+              "parent_no": 4430299,
+              "name": "研管办",
+              "path": [
+                1,
+                54742764,
+                4430299
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 52,
+              "departmentId": 736903803,
+              "parentId": 4430299,
+              "order": 52,
+              "editable": true
+            }
+          ],
+          "roles": []
+        },
+        "printIds": [],
+        "viewIds": [],
+        "seq": 14976,
+        "autoProcessIds": [],
+        "displayAutoProcessIds": [],
+        "name": "导出",
+        "desc": "操作权限：导出",
+        "groupId": 6,
+        "status": 1,
+        "enable": true
+      },
+      {
+        "_id": "61b99372cdd33b000837ee3d",
+        "groupId": -2,
+        "members": {
+          "users": [
+            {
+              "username": "023641581817",
+              "avatar": "https://static-legacy.dingtalk.com/media/lQDPM4hTxZgAfO7NAzTNAmOwpiFSSu9RR94EXr6wVYBnAA_611_820.jpg",
+              "type": 0,
+              "status": 1,
+              "frozen": 0,
+              "dept": [
+                61166000,
+                26426217,
+                4430303,
+                52371059
+              ],
+              "role": [
+                11,
+                2548,
+                2576,
+                2645,
+                2891,
+                2916,
+                2922,
+                2927,
+                4,
+                5,
+                -80401481,
+                -80401479,
+                -80401486,
+                -80401487
+              ],
+              "manage_dept": [
+                63639795,
+                4430304,
+                26426217
+              ],
+              "is_global_docker": false,
+              "_id": "56ca5bacf83c32e4699dd07e",
+              "member_id": "56ca5bacf83c32e4699dd07e",
+              "nickname": "王亚飞",
+              "name": "王亚飞",
+              "editable": true
+            },
+            {
+              "username": "1767691603763250",
+              "avatar": "https://static-legacy.dingtalk.com/media/lADPM5HikxLz6rbNA8DNAhs_539_960.jpg",
+              "type": 0,
+              "status": 1,
+              "frozen": 0,
+              "dept": [
+                61166000,
+                52371059,
+                4507725,
+                4430303
+              ],
+              "role": [
+                1356,
+                2562,
+                2571,
+                2585,
+                2880,
+                2891,
+                2900,
+                2922,
+                2931,
+                5,
+                -80401479
+              ],
+              "is_global_docker": false,
+              "_id": "5befc6899ededaf9744d022a",
+              "member_id": "5befc6899ededaf9744d022a",
+              "nickname": "岳毅",
+              "name": "岳毅",
+              "editable": true
+            }
+          ],
+          "departs": [],
+          "roles": []
+        },
+        "printIds": [],
+        "status": 1,
+        "viewIds": [],
+        "seq": 23168,
+        "desc": "在此分组内的成员可以查看全部流程",
+        "presetName": "查看全部流程",
+        "enable": true
+      },
+      {
+        "_id": "5e79b837bff7bf00063e846c",
+        "members": {
+          "users": [],
+          "departs": [
+            {
+              "_id": "5a9fa0ada21496c4066c2c4b",
+              "dept_no": 61166000,
+              "parent_no": 1,
+              "name": "市场支持中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 71,
+              "departmentId": 61166000,
+              "parentId": 1,
+              "order": 71,
+              "editable": true
+            }
+          ],
+          "roles": [
+            {
+              "id": 5,
+              "_id": "5c6d03cbeb6c6b3b26370880",
+              "role_id": 5,
+              "role_no": 5,
+              "name": "业务内勤",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2547,
+              "group_no": 2547,
+              "seq": 12782,
+              "status": 1
+            },
+            {
+              "id": 1356,
+              "_id": "5e60bab8dc978400068d5781",
+              "role_id": 1356,
+              "role_no": 1356,
+              "name": "差旅费/付款 内勤",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2547,
+              "group_no": 2547,
+              "seq": 18926,
+              "status": 1
+            }
+          ]
+        },
+        "printIds": [],
+        "name": "查看本部门数据",
+        "desc": "",
+        "groupId": 3,
+        "status": 1,
+        "seq": 32896,
+        "enable": true
+      },
+      {
+        "_id": "5e85b18f3bcb7b00069df242",
+        "members": {
+          "users": [
+            {
+              "username": "173066174523908624",
+              "avatar": "https://static-legacy.dingtalk.com/media/lADPDgtYynKiGuHNAkLNAdM_467_578.jpg",
+              "type": 0,
+              "status": 1,
+              "frozen": 0,
+              "dept": [
+                52371059,
+                4430303,
+                61166000
+              ],
+              "role": [
+                2570,
+                2931,
+                5
+              ],
+              "is_global_docker": false,
+              "_id": "5a9642c9340c174950306296",
+              "member_id": "5a9642c9340c174950306296",
+              "nickname": "尚高华",
+              "name": "尚高华",
+              "editable": true
+            }
+          ],
+          "departs": [
+            {
+              "_id": "5a9fa0ada21496c4066c2c4b",
+              "dept_no": 61166000,
+              "parent_no": 1,
+              "name": "市场支持中心",
+              "path": [
+                1
+              ],
+              "type": 0,
+              "status": 1,
+              "seq": 71,
+              "departmentId": 61166000,
+              "parentId": 1,
+              "order": 71,
+              "editable": true
+            }
+          ],
+          "roles": []
+        },
+        "printIds": [],
+        "name": "导出本部门数据",
+        "desc": "",
+        "groupId": 4,
+        "status": 1,
+        "seq": 34048,
+        "enable": true
+      },
+      {
+        "_id": "604588c2b5d5c10007166d4e",
+        "members": {
+          "users": [],
+          "departs": [],
+          "roles": [
+            {
+              "id": 5,
+              "_id": "5c6d03cbeb6c6b3b26370880",
+              "role_id": 5,
+              "role_no": 5,
+              "name": "业务内勤",
+              "type": 0,
+              "source": "internal",
+              "group_id": 2547,
+              "group_no": 2547,
+              "seq": 12782,
+              "status": 1
+            }
+          ]
+        },
+        "printIds": [],
+        "name": "删除本人流程",
+        "desc": "",
+        "groupId": 5,
+        "status": 1,
+        "seq": 35200,
+        "enable": true
+      },
+      {
+        "_id": "695b257afcd73cc31e4f641e",
+        "groupId": 8,
+        "name": "原冶金数据查看",
+        "desc": "",
+        "members": {
+          "users": [
+            {
+              "username": "173066174523908624",
+              "avatar": "https://static-legacy.dingtalk.com/media/lADPDgtYynKiGuHNAkLNAdM_467_578.jpg",
+              "type": 0,
+              "status": 1,
+              "frozen": 0,
+              "dept": [
+                52371059,
+                4430303,
+                61166000
+              ],
+              "role": [
+                2570,
+                2931,
+                5
+              ],
+              "is_global_docker": false,
+              "_id": "5a9642c9340c174950306296",
+              "member_id": "5a9642c9340c174950306296",
+              "nickname": "尚高华",
+              "name": "尚高华",
+              "editable": true
+            }
+          ],
+          "departs": [],
+          "roles": []
+        },
+        "printIds": [],
+        "viewIds": [],
+        "status": 1,
+        "seq": 36224,
+        "autoProcessIds": [],
+        "displayAutoProcessIds": [],
+        "enable": true
+      }
+    ],
+    "optionalAuthGroups": [
+      {
+        "name": "原冶金数据查看",
+        "groupId": 8
+      },
+      {
+        "name": "金微星",
+        "groupId": 7
+      },
+      {
+        "name": "导出",
+        "groupId": 6
+      },
+      {
+        "name": "删除本人流程",
+        "groupId": 5
+      },
+      {
+        "name": "导出本部门数据",
+        "groupId": 4
+      },
+      {
+        "name": "查看本部门数据",
+        "groupId": 3
+      },
+      {
+        "name": "发起流程",
+        "groupId": -1
+      },
+      {
+        "name": "查看全部流程",
+        "groupId": -2
+      },
+      {
+        "name": "管理全部流程",
+        "groupId": -4
+      }
+    ],
+    "allowSwitchAuthGroupDisplayMode": true,
+    "authGroupDisplayMode": 2
+  },
+  "config_synced_at": "2026-07-01T05:49:58.109036"
+}

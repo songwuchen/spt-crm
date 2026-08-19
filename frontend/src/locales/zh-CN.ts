@@ -114,6 +114,7 @@ const zhCN = {
     paymentRegistrations: '收款登记',
     drawingRequisitions: '合同图纸领用',
     installDrawingNotices: '安装图设计通知',
+    presaleServiceNotices: '售前服务通知',
     contractDrawingMaps: '合同图纸对应表',
     kanban: '看板视图',
     products: '产品目录',

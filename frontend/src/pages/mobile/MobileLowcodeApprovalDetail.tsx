@@ -48,7 +48,7 @@ export default function MobileLowcodeApprovalDetail() {
   const [fieldHighlight, setFieldHighlight] = useState(false)
   const [transferTo, setTransferTo] = useState<unknown>(undefined)
   const [returnTo, setReturnTo] = useState<string | undefined>(undefined)
-  const [moreOpen, setMoreOpen] = useState(false)
+  const [moreMode, setMoreMode] = useState<'transfer' | 'return' | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [sideTab, setSideTab] = useState('flow')
@@ -440,31 +440,33 @@ export default function MobileLowcodeApprovalDetail() {
                   message.info('当前流程无可退回节点')
                   return
                 }
-                setMoreOpen(true)
+                setMoreMode((m) => (m === 'return' ? null : 'return'))
               }}
               disabled={busy || !(detail.approval_nodes?.length)}
               className="h-11 rounded-xl bg-slate-100 text-slate-700 font-bold border-0 disabled:opacity-60"
             >
               退回
             </button>
-            <button onClick={() => setMoreOpen(true)} disabled={busy} className="h-11 rounded-xl bg-slate-100 text-slate-700 font-bold border-0 disabled:opacity-60">转交</button>
+            <button onClick={() => setMoreMode((m) => (m === 'transfer' ? null : 'transfer'))} disabled={busy} className="h-11 rounded-xl bg-slate-100 text-slate-700 font-bold border-0 disabled:opacity-60">转交</button>
             <button onClick={() => act('reject')} disabled={busy} className="h-11 rounded-xl bg-red-50 text-red-600 font-bold border-0 disabled:opacity-60">驳回</button>
           </div>
-          {moreOpen && (
+          {moreMode && (
             <div className="mt-3 pt-3 border-t border-dashed border-slate-200 space-y-3">
-              <div>
-                <div className="text-sm font-bold text-slate-600 mb-1">转交接收人</div>
-                <PersonField value={transferTo} onChange={setTransferTo} placeholder="选择转交人员" />
-                <button
-                  type="button"
-                  onClick={() => act('transfer')}
-                  disabled={busy}
-                  className="mt-2 w-full h-10 rounded-lg bg-primary/10 text-primary font-bold border-0 disabled:opacity-60"
-                >
-                  确认转交
-                </button>
-              </div>
-              {(detail.approval_nodes?.length ?? 0) > 0 && (
+              {moreMode === 'transfer' && (
+                <div>
+                  <div className="text-sm font-bold text-slate-600 mb-1">转交接收人</div>
+                  <PersonField value={transferTo} onChange={setTransferTo} placeholder="选择转交人员" />
+                  <button
+                    type="button"
+                    onClick={() => act('transfer')}
+                    disabled={busy}
+                    className="mt-2 w-full h-10 rounded-lg bg-primary/10 text-primary font-bold border-0 disabled:opacity-60"
+                  >
+                    确认转交
+                  </button>
+                </div>
+              )}
+              {moreMode === 'return' && (detail.approval_nodes?.length ?? 0) > 0 && (
                 <div>
                   <div className="text-sm font-bold text-slate-600 mb-1">退回到节点</div>
                   <Select
@@ -485,7 +487,7 @@ export default function MobileLowcodeApprovalDetail() {
                   </button>
                 </div>
               )}
-              <button type="button" onClick={() => setMoreOpen(false)} className="text-sm text-slate-500 bg-transparent border-0 p-0">
+              <button type="button" onClick={() => setMoreMode(null)} className="text-sm text-slate-500 bg-transparent border-0 p-0">
                 收起
               </button>
             </div>

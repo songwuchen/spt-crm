@@ -10,6 +10,7 @@ import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
 import type { WfNode, WfDesign, FieldDefinition } from '@/types/lowcode'
 import { ApproverRuleEditor } from '@/components/lowcode/ApproverRuleEditor'
+import { defaultCcApproverRule } from '@/utils/wfApproverDefaults'
 
 const { Title, Text } = Typography
 
@@ -68,7 +69,9 @@ export default function WorkflowDesignerPage() {
     setMiddle([...middle, {
       id: genId(type === 'approval' ? 'ap' : 'cc'),
       type, name: type === 'approval' ? '审批' : '抄送',
-      approver_rule: { type: type === 'approval' ? 'direct_supervisor' : 'specified_user' },
+      approver_rule: type === 'approval'
+        ? { type: 'direct_supervisor' }
+        : defaultCcApproverRule(formFields),
       ...(type === 'approval' ? { multi_mode: 'or_sign' as const } : {}),
     }])
   }

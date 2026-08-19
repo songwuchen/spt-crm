@@ -417,6 +417,12 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
         _, reporter_name = await _resolve_user_display(db, tenant_id, payload["reporter_id"])
         if reporter_name:
             lead.reporter_name = reporter_name
+    from app.common.audit_diff import compute_entity_changes
+    changes = compute_entity_changes(
+        lead, payload,
+        json_fields={"custom_fields_json"},
+        exclude_fields={"products"},
+    )
     for field, val in payload.items():
         setattr(lead, field, val)
     lead.score = _compute_score(lead)
@@ -427,7 +433,8 @@ async def update_lead(db: AsyncSession, tenant_id: str, lead_id: str, data: Lead
 
     await log_action(db, tenant_id=tenant_id, user_id=user["sub"], user_name=user.get("real_name") or user.get("username"),
                      action="update", resource_type="lead", resource_id=lead.id,
-                     summary=f"更新线索: {lead.title}")
+                     summary=f"更新线索: {lead.title}",
+                     detail={"changes": changes} if changes else None)
     return lead
 
 

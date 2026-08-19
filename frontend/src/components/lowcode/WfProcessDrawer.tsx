@@ -26,6 +26,7 @@ import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { canPrintDrawingDocument, isDrawingApproveAndPrintNode, printSchemeInstance } from '@/pages/drawing/schemePrint'
 import { isLeadOwnerConfirmNode, isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
+import { dataLogFromWfDetail } from '@/utils/dataLogLabels'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 const { Text, Title } = Typography
@@ -75,7 +76,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const [returnTo, setReturnTo] = useState<string | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [moreOpen, setMoreOpen] = useState(false)
+  const [moreMode, setMoreMode] = useState<'transfer' | 'return' | null>(null)
   const [activateOpen, setActivateOpen] = useState(false)
   const [sideTab, setSideTab] = useState('flow')
   const [commenting, setCommenting] = useState(false)
@@ -150,7 +151,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
 
   useEffect(() => {
     if (!open || !instanceId) return
-    setOpinion(''); setTransferTo(undefined); setReturnTo(undefined); setFieldUpdates({}); setFieldHighlight(false); setMoreOpen(false)
+    setOpinion(''); setTransferTo(undefined); setReturnTo(undefined); setFieldUpdates({}); setFieldHighlight(false); setMoreMode(null)
     setSideTab('flow'); setContract(null); setContractVersion(null)
     setLoading(true)
     ;(async () => {
@@ -561,8 +562,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                         onClose()
                       }}
                     />
-                    <Button size="small" type="link" className="!px-0" onClick={() => setMoreOpen((v) => !v)}>
-                      {moreOpen ? '收起转交' : '转交他人处理'}
+                    <Button
+                      size="small"
+                      type="link"
+                      className="!px-0"
+                      onClick={() => setMoreMode((m) => (m === 'transfer' ? null : 'transfer'))}
+                    >
+                      {moreMode === 'transfer' ? '收起转交' : '转交他人处理'}
                     </Button>
                   </div>
                 ) : isReviseTask ? (
@@ -597,7 +603,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                           message.info('当前流程无可退回节点')
                           return
                         }
-                        setMoreOpen(true)
+                        setMoreMode((m) => (m === 'return' ? null : 'return'))
                       }}
                       disabled={!(detail.approval_nodes?.length)}
                     >
@@ -606,7 +612,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     <Button
                       loading={busy}
                       icon={<SwapOutlined />}
-                      onClick={() => setMoreOpen(true)}
+                      onClick={() => setMoreMode((m) => (m === 'transfer' ? null : 'transfer'))}
                     >
                       转交
                     </Button>
@@ -621,17 +627,19 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     </Button>
                   </div>
                 )}
-                {!isLeadIntel && !isReviseTask && moreOpen && (
+                {!isLeadIntel && !isReviseTask && moreMode && (
                   <div className="px-5 pb-3 space-y-2 border-t border-dashed border-slate-100 pt-3">
-                    <Space wrap>
-                      <div style={{ width: 220 }}>
-                        <PersonField value={transferTo} onChange={setTransferTo} placeholder="选择转交人员" />
-                      </div>
-                      <Button type="primary" ghost icon={<SwapOutlined />} loading={busy} onClick={() => act('transfer')}>
-                        确认转交
-                      </Button>
-                    </Space>
-                    {(detail.approval_nodes?.length ?? 0) > 0 && (
+                    {moreMode === 'transfer' && (
+                      <Space wrap>
+                        <div style={{ width: 220 }}>
+                          <PersonField value={transferTo} onChange={setTransferTo} placeholder="选择转交人员" />
+                        </div>
+                        <Button type="primary" ghost icon={<SwapOutlined />} loading={busy} onClick={() => act('transfer')}>
+                          确认转交
+                        </Button>
+                      </Space>
+                    )}
+                    {moreMode === 'return' && (detail.approval_nodes?.length ?? 0) > 0 && (
                       <Space wrap>
                         <Select
                           style={{ width: 220 }}
@@ -646,7 +654,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                         </Button>
                       </Space>
                     )}
-                    <Button type="link" size="small" className="!px-0" onClick={() => setMoreOpen(false)}>
+                    <Button type="link" size="small" className="!px-0" onClick={() => setMoreMode(null)}>
                       收起
                     </Button>
                   </div>
@@ -664,6 +672,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
               onTabChange={setSideTab}
               onSubmitComment={submitComment}
               commenting={commenting}
+              dataLog={dataLogFromWfDetail({ ...detail, form_fields: fields })}
             />
           </div>
         </div>

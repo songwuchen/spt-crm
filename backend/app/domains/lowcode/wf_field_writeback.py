@@ -25,6 +25,21 @@ _REVIEW_JSON_KEYS = frozenset({
 # 合同评审：一等公民列
 _REVIEW_NATIVE_KEYS = frozenset({"payment_term", "conclusion"})
 
+
+def audit_resource_for_process(
+    *,
+    form_instance_id: str | None,
+    biz_type: str | None,
+    biz_id: str | None,
+    process_instance_id: str,
+) -> tuple[str, str]:
+    """数据日志 resource：表单绑定流优先 form_instance，与前端 DataLog 对齐。"""
+    if form_instance_id:
+        return "form_instance", form_instance_id
+    if biz_type and biz_id:
+        return biz_type, biz_id
+    return "wf_process_instance", process_instance_id
+
 # 合同版本 → 合同 registration_json
 _REG_JSON_KEYS = frozenset({
     "purchasers", "inspectors", "fill_code",
@@ -227,6 +242,60 @@ async def load_field_values(
     except Exception:
         pass
     return values
+
+
+async def preview_field_update_changes(
+    db: AsyncSession, tenant_id: str, *,
+    biz_type: str | None, biz_id: str | None, form_instance_id: str | None,
+    updates: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """审批写回前预览字段 diff（供数据日志）。"""
+    from app.common.audit_diff import compute_dict_changes, serialize_value
+    if not updates:
+        return {}
+
+    if form_instance_id:
+        from app.domains.lowcode.models import FormInstance
+        fi = await db.get(FormInstance, form_instance_id)
+        if fi and fi.tenant_id == tenant_id:
+            return compute_dict_changes(dict(fi.form_data or {}), {**(fi.form_data or {}), **updates})
+
+    if biz_type == "contract_review" and biz_id:
+        from app.domains.contract_review.models import ContractReview
+        row = (await db.execute(select(ContractReview).where(
+            ContractReview.id == biz_id, ContractReview.tenant_id == tenant_id,
+        ))).scalar_one_or_none()
+        if not row:
+            return {}
+        rj = dict(row.review_json) if isinstance(row.review_json, dict) else {}
+        changes: dict[str, dict[str, Any]] = {}
+        for k, v in updates.items():
+            if k in _REVIEW_NATIVE_KEYS:
+                old = getattr(row, k, None)
+                if serialize_value(old) != serialize_value(v):
+                    changes[k] = {"old": serialize_value(old), "new": serialize_value(v)}
+            elif k in _REVIEW_JSON_KEYS:
+                old = rj.get(k)
+                if serialize_value(old) != serialize_value(v):
+                    changes[f"review_json.{k}"] = {"old": serialize_value(old), "new": serialize_value(v)}
+        return changes
+
+    if biz_type == "lead" and biz_id:
+        from app.domains.lead.models import Lead
+        row = (await db.execute(select(Lead).where(
+            Lead.id == biz_id, Lead.tenant_id == tenant_id,
+        ))).scalar_one_or_none()
+        if not row:
+            return {}
+        changes = {}
+        for k, v in updates.items():
+            if hasattr(row, k):
+                old = getattr(row, k, None)
+                if serialize_value(old) != serialize_value(v):
+                    changes[k] = {"old": serialize_value(old), "new": serialize_value(v)}
+        return changes
+
+    return {}
 
 
 async def apply_field_updates(

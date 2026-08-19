@@ -429,6 +429,16 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "empty_strategy": "auto_approve",
     },
     {
+        "form_code": "presale_service_notice",
+        "code": "SYS_PRESALE_SERVICE_NOTICE",
+        "name": "售前服务通知",
+        "approver_rule": {
+            "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
         "form_code": "prod_card_supplement",
         "code": "SYS_PROD_CARD_SUPPLEMENT",
         "name": "生产卡/补充流程",
@@ -606,6 +616,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
     try:
         from app.domains.lowcode._customer_service_jdy_generated import CUSTOMER_SERVICE_JDY
         packs.update(CUSTOMER_SERVICE_JDY)
+    except Exception:
+        pass
+    try:
+        from app.domains.lowcode._presale_service_notice_generated import PRESALE_SERVICE_NOTICE_JDY
+        packs.update(PRESALE_SERVICE_NOTICE_JDY)
     except Exception:
         pass
     pack = packs.get(form_code)
@@ -886,6 +901,12 @@ def _flow_is_jdy_quote(nodes: list | None) -> bool:
     return "财务核价" in names and "部门审批" in names and len(nodes or []) >= 15
 
 
+def _flow_is_jdy_presale_service_notice(nodes: list | None) -> bool:
+    """已对齐简道云售前服务通知：总工审批 + 人员协调 + 新疆威猛分支。"""
+    names = {n.get("name") for n in (nodes or [])}
+    return "总工审批" in names and "人员协调" in names and len(nodes or []) >= 10
+
+
 def _flow_has_quote_need_purchase_required(nodes: list | None) -> bool:
     """报价管理：财务核价仍把「是否转采购」标成 required（应改为可填非必填）。"""
     for n in nodes or []:
@@ -1050,6 +1071,94 @@ def apply_quote_named_role_approvers(nodes: list[dict]) -> bool:
     return changed
 
 
+_PRESALE_CHIEF_APPROVER = {
+    "type": "specified_user",
+    "value": "02364335378133",  # 曹修国（简道云 24.2.3合同/项目评审-设计-曹修国）
+    "exclude_initiator": True,
+    "jdy_role_hint": "24.2.3合同/项目评审-设计-曹修国",
+}
+
+
+def _flow_presale_chief_needs_specified_user(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("name") != "总工审批":
+            continue
+        rule = n.get("approver_rule") or {}
+        if (
+            rule.get("type") != _PRESALE_CHIEF_APPROVER["type"]
+            or rule.get("value") != _PRESALE_CHIEF_APPROVER["value"]
+        ):
+            return True
+    return False
+
+
+def apply_presale_chief_specified_user(nodes: list[dict]) -> bool:
+    """售前服务通知：总工审批 → 曹修国（勿用 sales_manager 空批）。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("name") != "总工审批":
+            continue
+        cur = n.get("approver_rule") or {}
+        if (
+            cur.get("type") == _PRESALE_CHIEF_APPROVER["type"]
+            and cur.get("value") == _PRESALE_CHIEF_APPROVER["value"]
+        ):
+            continue
+        n["approver_rule"] = dict(_PRESALE_CHIEF_APPROVER)
+        changed = True
+    return changed
+
+
+_PRESALE_CC_RULE = {
+    "type": "mixed",
+    "value": [
+        {"type": "creator"},
+        {"type": "form_field_person", "value": "applicant"},
+    ],
+}
+
+
+def _presale_cc_rule_ok(rule: dict | None) -> bool:
+    rule = rule or {}
+    if rule.get("type") != "mixed":
+        return False
+    has_creator = False
+    has_applicant = False
+    for sub in rule.get("value") or []:
+        if not isinstance(sub, dict):
+            continue
+        if sub.get("type") == "creator":
+            has_creator = True
+        if sub.get("type") == "form_field_person" and sub.get("value") == "applicant":
+            has_applicant = True
+    return has_creator and has_applicant
+
+
+def _flow_presale_cc_needs_applicant(nodes: list | None) -> bool:
+    """抄送节点应同时通知发起人本人与表单「申请人」。"""
+    for n in nodes or []:
+        if isinstance(n, dict) and n.get("type") == "cc":
+            if not _presale_cc_rule_ok(n.get("approver_rule")):
+                return True
+    return False
+
+
+def apply_presale_cc_initiator_and_applicant(nodes: list[dict]) -> bool:
+    """售前服务通知：抄送 → 发起人 + 申请人（组合去重）。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("type") != "cc":
+            continue
+        if _presale_cc_rule_ok(n.get("approver_rule")):
+            continue
+        n["approver_rule"] = {
+            "type": "mixed",
+            "value": [dict(x) for x in _PRESALE_CC_RULE["value"]],
+        }
+        changed = True
+    return changed
+
+
 def _quote_nodes_named(nodes: list | None, name: str) -> set[str]:
     return {
         str(n["id"])
@@ -1118,6 +1227,8 @@ def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
         return _flow_is_jdy_payment(nodes)
     if form_code == "quote_management":
         return _flow_is_jdy_quote(nodes)
+    if form_code == "presale_service_notice":
+        return _flow_is_jdy_presale_service_notice(nodes)
     if form_code == "pricing_checklist_hjqd":
         return _flow_is_jdy_pricing_checklist(nodes)
     if form_code == "research_coop_card":
@@ -2347,6 +2458,7 @@ async def _upgrade_drawing_form_flow_if_needed(
         "SYS_DRAWING_REQUISITION",
         "SYS_INSTALL_DRAWING_NOTICE",
         "SYS_SCHEME_MANAGEMENT",
+        "SYS_PRESALE_SERVICE_NOTICE",
         "SYS_PROD_CARD_SUPPLEMENT",
         "SYS_INVOICE_APPLICATION",
         "SYS_PAYMENT_REGISTRATION",
@@ -2459,6 +2571,36 @@ async def _upgrade_drawing_form_flow_if_needed(
             db, tenant_id, d, version,
             patched, version.route_definitions,
             DRAWING_FORM_FLOW_DESC, f"报价角色审批改为具名用户/可选范围({form_code})",
+        )
+        return
+    # 售前服务通知：总工审批 sales_manager → 曹修国
+    if (
+        topology_ok
+        and form_code == "presale_service_notice"
+        and _flow_presale_chief_needs_specified_user(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_presale_chief_specified_user(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"总工审批改为指定用户曹修国({form_code})",
+        )
+        return
+    # 售前服务通知：抄送同时通知发起人 + 表单申请人
+    if (
+        topology_ok
+        and form_code == "presale_service_notice"
+        and _flow_presale_cc_needs_applicant(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_presale_cc_initiator_and_applicant(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"抄送改为发起人+申请人({form_code})",
         )
         return
     # 开票申请：提交旁路仍挂发起；「可下载」须在发起人接收之后（不依赖 topology_ok，

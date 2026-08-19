@@ -1094,7 +1094,7 @@ class WorkflowEngine:
         # 审批通过：按节点 field_perms 写回业务字段（对齐简道云 optAuth）
         if action == "approve":
             await self._apply_node_field_updates(
-                inst, version, task, field_updates, opinion=opinion, action=action,
+                inst, version, task, field_updates, opinion=opinion, action=action, actor=actor,
             )
             ctx.form_data = await self._form_data(inst)
 
@@ -1198,10 +1198,11 @@ class WorkflowEngine:
 
     async def _apply_node_field_updates(
         self, inst, version, task, field_updates: dict | None, *,
-        opinion: str | None, action: str,
+        opinion: str | None, action: str, actor: dict,
     ) -> None:
         from app.domains.lowcode.wf_field_writeback import (
             apply_field_updates, parse_field_perms, validate_field_updates,
+            preview_field_update_changes, audit_resource_for_process,
         )
         node_inst = await self.db.get(WfNodeInstance, task.node_instance_id)
         node_def_id = node_inst.node_def_id if node_inst else None
@@ -1247,12 +1248,58 @@ class WorkflowEngine:
             await self._assert_person_field_values(inst.biz_type, filtered)
             await self._assert_pickable_scope(inst, filtered)
         if filtered:
+            changes = await preview_field_update_changes(
+                self.db, self.tenant_id,
+                biz_type=inst.biz_type, biz_id=inst.biz_id,
+                form_instance_id=inst.form_instance_id,
+                updates=filtered,
+            )
             await apply_field_updates(
                 self.db, self.tenant_id,
                 biz_type=inst.biz_type, biz_id=inst.biz_id,
                 form_instance_id=inst.form_instance_id,
                 updates=filtered,
             )
+            if changes:
+                try:
+                    from app.domains.lowcode.form_audit import log_form_instance_changes
+                    node_name = node.get("name") or "审批节点"
+                    resource_type, resource_id = audit_resource_for_process(
+                        form_instance_id=inst.form_instance_id,
+                        biz_type=inst.biz_type,
+                        biz_id=inst.biz_id,
+                        process_instance_id=inst.id,
+                    )
+                    if resource_type == "form_instance":
+                        await log_form_instance_changes(
+                            self.db,
+                            tenant_id=self.tenant_id,
+                            user_id=actor.get("sub"),
+                            user_name=actor.get("real_name") or actor.get("username"),
+                            form_instance_id=resource_id,
+                            field_defs=form_fields,
+                            changes=changes,
+                            action="update",
+                            summary=f"{node_name} 修改字段",
+                        )
+                    else:
+                        from app.domains.audit.service import log_action
+                        from app.common.audit_diff import enrich_changes_with_labels, labels_from_field_defs
+                        labeled = enrich_changes_with_labels(
+                            changes, labels_from_field_defs(form_fields),
+                        )
+                        await log_action(
+                            self.db, tenant_id=self.tenant_id,
+                            user_id=actor.get("sub"),
+                            user_name=actor.get("real_name") or actor.get("username"),
+                            action="update",
+                            resource_type=resource_type,
+                            resource_id=resource_id,
+                            summary=f"{node_name} 修改字段",
+                            detail={"changes": labeled},
+                        )
+                except Exception:
+                    pass
 
     async def _assert_pickable_scope(self, inst, updates: dict) -> None:
         """人员/部门字段若配置了 pickable_scope，所选值必须在范围内。"""

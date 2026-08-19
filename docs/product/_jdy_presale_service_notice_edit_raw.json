@@ -1,0 +1,1165 @@
+{
+  "_id": "5e79b7e9b587cc0006b632d8",
+  "appId": "5de0b3e85600ec0006f420f2",
+  "entryId": "5e79b7e9b587cc0006b632d7",
+  "name": "260818-售前服务通知流程",
+  "content": {
+    "items": [
+      {
+        "description": "",
+        "label": "迁移提醒",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1787019356213",
+          "lineStyle": "thin",
+          "value": "<span style=\"max-width:100%; font-size:18px;\">流程于</span><span style=\"max-width:100%; color:rgb(141, 48, 48); font-size:20px;\">2026.08.18</span><span style=\"max-width:100%; font-size:20px;\">起停止使用。移动到工作台-天涯若邻-搜“售前服务通知”进行提交！</span>"
+        }
+      },
+      {
+        "description": null,
+        "label": "流程编号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": false,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1585030991874",
+          "value": null,
+          "rely": {
+            "widgets": [],
+            "formula": {
+              "type": "formula",
+              "text": "公式",
+              "formula": "CONCATENATE(\"24.13-\",TEXT(TODAY(),\"yyyyMMdd\"),RIGHT(\"0000\"+RECNO(),4))",
+              "remark": ""
+            }
+          },
+          "mask": false,
+          "supportUnmaskedView": false
+        }
+      },
+      {
+        "description": null,
+        "label": "申请人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "user",
+          "widgetName": "_widget_1585030991951",
+          "valueOption": 0
+        }
+      },
+      {
+        "description": null,
+        "label": "所属部门",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "dept",
+          "widgetName": "_widget_1585030991969",
+          "value": {
+            "_id": "110000000000000000000001",
+            "name": "当前用户所处部门"
+          },
+          "valueOption": 0,
+          "rely": null
+        }
+      },
+      {
+        "description": "",
+        "label": "是否智能化",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1676250045146",
+          "items": [
+            {
+              "value": "是",
+              "text": "是",
+              "color": "#FA5353"
+            },
+            {
+              "value": "否",
+              "text": "否",
+              "color": "#F5C13C"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": "",
+        "label": "是否需要金微星去现场",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1677464667996",
+          "items": [
+            {
+              "value": "是",
+              "text": "是",
+              "color": "#FA5353"
+            },
+            {
+              "value": "否",
+              "text": "否",
+              "color": "#F5C13C"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": "",
+        "label": "项目状态",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1672367052763",
+          "items": [
+            {
+              "value": "已签合同",
+              "text": "已签合同",
+              "color": "#FA5353"
+            },
+            {
+              "value": "已中标",
+              "text": "已中标",
+              "color": "#F5C13C"
+            },
+            {
+              "value": "技术交流",
+              "text": "技术交流",
+              "color": "#2FCD6E"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": "",
+        "label": "智能化项目状态",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1676250045169",
+          "items": [
+            {
+              "value": "已签合同",
+              "text": "已签合同",
+              "color": "#FA5353"
+            },
+            {
+              "value": "已中标",
+              "text": "已中标",
+              "color": "#F5C13C"
+            },
+            {
+              "value": "技术交流",
+              "text": "技术交流",
+              "color": "#2FCD6E"
+            },
+            {
+              "value": "试机",
+              "text": "试机",
+              "color": "#3F8CFF"
+            },
+            {
+              "value": "调机",
+              "text": "调机",
+              "color": "#D144F4"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": "",
+        "label": "附件",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "upload",
+          "widgetName": "_widget_1685405177505",
+          "maxFileCount": 10,
+          "maxFileSize": 52428800
+        }
+      },
+      {
+        "description": "",
+        "label": "希望派遣人员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "user",
+          "widgetName": "_widget_1676250045148",
+          "limit": {
+            "users": [
+              "56ca5bacf83c32e4699dd184",
+              "5df7475d4d9dc3000663ffd3",
+              "5c6229011f2d98adcdb2930b"
+            ]
+          }
+        }
+      },
+      {
+        "description": null,
+        "label": "合同号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "combo",
+          "widgetName": "_widget_1585030992152",
+          "colorEnable": false,
+          "sort": {
+            "updateTime": -1
+          },
+          "async": {
+            "data": {
+              "formId": "5d118dc922ba776f27472706",
+              "field": "_widget_1563607519120",
+              "refAppId": "56ca77ce1efc301d279b8a4d"
+            }
+          },
+          "rely": null
+        }
+      },
+      {
+        "description": null,
+        "label": "服务信息",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1585030992334",
+          "lineStyle": "style6",
+          "lineColor": "#00B899",
+          "labelColor": "#141E31"
+        }
+      },
+      {
+        "description": null,
+        "label": "服务地点",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1585030992168",
+          "mask": false,
+          "supportUnmaskedView": false
+        }
+      },
+      {
+        "description": null,
+        "label": "服务时间",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "datetime",
+          "widgetName": "_widget_1585030992184",
+          "format": "yyyy-MM-dd"
+        }
+      },
+      {
+        "description": null,
+        "label": "预计天数",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1585030992197",
+          "mask": false,
+          "supportUnmaskedView": false
+        }
+      },
+      {
+        "description": null,
+        "label": "联系人/联系电话",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "text",
+          "widgetName": "_widget_1585030992213",
+          "mask": false,
+          "supportUnmaskedView": false
+        }
+      },
+      {
+        "description": null,
+        "label": "有无图纸及前期技术",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1585030992228",
+          "mask": false,
+          "supportUnmaskedView": false
+        }
+      },
+      {
+        "description": null,
+        "label": "服务内容",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "textarea",
+          "widgetName": "_widget_1585030992259"
+        }
+      },
+      {
+        "description": null,
+        "label": "工作日程计划",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "subform",
+          "widgetName": "_widget_1585030992272",
+          "subform_create": true,
+          "subform_insert": false,
+          "subform_edit": true,
+          "subform_delete": true,
+          "pc_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_view_style": "vertical",
+          "items": [
+            {
+              "label": "日期时间",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "datetime",
+                "widgetName": "_widget_1585030992295",
+                "format": "yyyy-MM-dd"
+              }
+            },
+            {
+              "label": "工作日程",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1585030992305",
+                "mask": false,
+                "supportUnmaskedView": false
+              }
+            }
+          ],
+          "quick_fill": true
+        }
+      },
+      {
+        "description": null,
+        "label": "备注",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "textarea",
+          "widgetName": "_widget_1585030992321"
+        }
+      },
+      {
+        "description": null,
+        "label": "测绘",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "separator",
+          "widgetName": "_widget_1585030992341",
+          "lineStyle": "style6",
+          "lineColor": "#00B899"
+        }
+      },
+      {
+        "description": null,
+        "label": "人员协调",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "usergroup",
+          "widgetName": "_widget_1585030993520",
+          "limit": {
+            "users": [
+              "56ca5bacf83c32e4699dd0bb",
+              "56ca5bacf83c32e4699dd0c5",
+              "56ca5bacf83c32e4699dd0c7",
+              "56ca5bacf83c32e4699dd0d1",
+              "56ca5bacf83c32e4699dd0d0"
+            ]
+          },
+          "valueOption": 0,
+          "value": []
+        }
+      },
+      {
+        "description": null,
+        "label": "产品名称",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1585030992378",
+          "mask": false,
+          "supportUnmaskedView": false
+        }
+      },
+      {
+        "description": null,
+        "label": "规格型号",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1585030992393",
+          "mask": false,
+          "supportUnmaskedView": false
+        }
+      },
+      {
+        "description": null,
+        "label": "测绘人",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "text",
+          "widgetName": "_widget_1585030992409",
+          "mask": false,
+          "supportUnmaskedView": false
+        }
+      },
+      {
+        "description": null,
+        "label": "测绘数据",
+        "labelHidden": false,
+        "lineWidth": 12,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "subform",
+          "widgetName": "_widget_1585030992426",
+          "subform_create": true,
+          "subform_insert": false,
+          "subform_edit": true,
+          "subform_delete": true,
+          "pc_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_sticky_column": {
+            "enable": false,
+            "limit": 1
+          },
+          "mobile_view_style": "vertical",
+          "items": [
+            {
+              "label": "名称",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1585030992438",
+                "mask": false,
+                "supportUnmaskedView": false
+              }
+            },
+            {
+              "label": "规格型号",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1585030992451",
+                "mask": false,
+                "supportUnmaskedView": false
+              }
+            },
+            {
+              "label": "数量",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "number",
+                "widgetName": "_widget_1585030992466",
+                "fieldWidth": "half",
+                "displayMode": "number",
+                "maxNumber": null,
+                "minNumber": null,
+                "mask": false,
+                "supportUnmaskedView": false
+              }
+            },
+            {
+              "label": "单位",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1585030992541",
+                "fieldWidth": "custom",
+                "customWidth": 121,
+                "mask": false,
+                "supportUnmaskedView": false
+              }
+            },
+            {
+              "label": "单重",
+              "labelHidden": false,
+              "widget": {
+                "visible": true,
+                "enable": true,
+                "allowBlank": true,
+                "type": "text",
+                "widgetName": "_widget_1585030992613",
+                "fieldWidth": "custom",
+                "customWidth": 170,
+                "mask": false,
+                "supportUnmaskedView": false
+              }
+            }
+          ],
+          "quick_fill": true
+        }
+      },
+      {
+        "description": "",
+        "label": "是否需要新疆威猛人员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "radiogroup",
+          "widgetName": "_widget_1779413786198",
+          "items": [
+            {
+              "value": "是",
+              "text": "是",
+              "color": "#EB5050"
+            },
+            {
+              "value": "否",
+              "text": "否",
+              "color": "#F0A800"
+            }
+          ],
+          "layout": "horizontal",
+          "colorEnable": true
+        }
+      },
+      {
+        "description": null,
+        "label": "新疆威猛人员",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": false,
+          "type": "usergroup",
+          "widgetName": "_widget_1779413786190",
+          "limit": {
+            "departs": [
+              "59dc5c5f0b18743912395106"
+            ]
+          },
+          "valueOption": 0,
+          "value": []
+        }
+      },
+      {
+        "description": null,
+        "label": "其他说明",
+        "labelHidden": false,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "textarea",
+          "widgetName": "_widget_1585030992645"
+        }
+      },
+      {
+        "description": "",
+        "label": "人员查看",
+        "labelHidden": true,
+        "lineWidth": 3,
+        "widget": {
+          "visible": true,
+          "enable": true,
+          "allowBlank": true,
+          "type": "linkquery",
+          "widgetName": "_widget_1779930511476",
+          "linkFilter": [
+            {
+              "link": "_widget_1585030991874",
+              "method": "eq",
+              "type": "widget",
+              "rely": "_widget_1585030991874",
+              "fixed": null,
+              "linkType": "text"
+            }
+          ],
+          "linkFilterRel": "and",
+          "linkFields": [
+            {
+              "text": "人员协调",
+              "type": "usergroup",
+              "name": "_widget_1585030993520"
+            },
+            {
+              "text": "新疆威猛人员",
+              "type": "usergroup",
+              "name": "_widget_1779413786190"
+            }
+          ],
+          "linkForm": "100000000000000000000001",
+          "multi": false,
+          "allowAdd": false,
+          "rely": {
+            "widgets": [
+              "_widget_1585030991874"
+            ]
+          },
+          "sort": null
+        }
+      }
+    ],
+    "type": "form",
+    "layout_fields": [],
+    "field_layout": [
+      "_widget_1787019356213",
+      "_widget_1585030991874",
+      "_widget_1585030991951",
+      "_widget_1585030991969",
+      "_widget_1676250045146",
+      "_widget_1677464667996",
+      "_widget_1672367052763",
+      "_widget_1676250045169",
+      "_widget_1685405177505",
+      "_widget_1676250045148",
+      "_widget_1585030992152",
+      "_widget_1585030992334",
+      "_widget_1585030992168",
+      "_widget_1585030992184",
+      "_widget_1585030992197",
+      "_widget_1585030992213",
+      "_widget_1585030992228",
+      "_widget_1585030992259",
+      "_widget_1585030992272",
+      "_widget_1585030992321",
+      "_widget_1585030992341",
+      "_widget_1585030993520",
+      "_widget_1585030992378",
+      "_widget_1585030992393",
+      "_widget_1585030992409",
+      "_widget_1585030992426",
+      "_widget_1779413786198",
+      "_widget_1779413786190",
+      "_widget_1585030992645",
+      "_widget_1779930511476"
+    ],
+    "validators": [],
+    "preSubmitActions": [],
+    "submitRule": 3,
+    "widget_submit_rules": {},
+    "fieldShowRules": [
+      {
+        "filter": {
+          "cond": [
+            {
+              "type": "text",
+              "method": "eq",
+              "value": [
+                "已签合同"
+              ],
+              "field": "_widget_1672367052763"
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1585030992152"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "type": "text",
+              "method": "in",
+              "value": [
+                "是"
+              ],
+              "hasEmpty": false,
+              "field": "_widget_1676250045146"
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1676250045148",
+          "_widget_1676250045169"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "type": "text",
+              "method": "in",
+              "value": [
+                "否"
+              ],
+              "hasEmpty": false,
+              "field": "_widget_1676250045146"
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1672367052763"
+        ]
+      },
+      {
+        "filter": {
+          "cond": [
+            {
+              "field": "_widget_1779413786198",
+              "type": "text",
+              "method": "eq",
+              "value": [
+                "是"
+              ]
+            }
+          ],
+          "rel": "and"
+        },
+        "fields": [
+          "_widget_1779413786190"
+        ]
+      }
+    ],
+    "subformFieldShowRules": {},
+    "layout": "grid-4"
+  },
+  "attr": {
+    "showFields": [
+      "label",
+      "_widget_1585030991874",
+      "_widget_1585030991951",
+      "_widget_1585030991969",
+      "_widget_1676250045146",
+      "_widget_1677464667996",
+      "_widget_1672367052763",
+      "_widget_1676250045169",
+      "_widget_1685405177505",
+      "_widget_1676250045148",
+      "_widget_1585030992152",
+      "_widget_1585030992168",
+      "_widget_1585030992184",
+      "_widget_1585030992197",
+      "_widget_1585030992213",
+      "_widget_1585030992228",
+      "_widget_1585030992259",
+      "_widget_1585030992272._widget_1585030992295",
+      "_widget_1585030992272._widget_1585030992305",
+      "_widget_1585030992321",
+      "_widget_1585030993520",
+      "_widget_1585030992378",
+      "_widget_1585030992393",
+      "_widget_1585030992409",
+      "_widget_1585030992426._widget_1585030992438",
+      "_widget_1585030992426._widget_1585030992451",
+      "_widget_1585030992426._widget_1585030992466",
+      "_widget_1585030992426._widget_1585030992541",
+      "_widget_1585030992426._widget_1585030992613",
+      "_widget_1779413786198",
+      "_widget_1779413786190",
+      "_widget_1585030992645",
+      "creator",
+      "createTime",
+      "updateTime",
+      "flowState",
+      "chargers"
+    ],
+    "showFieldsMeta": {
+      "_widget_1585030992152": {
+        "width": 222
+      },
+      "_widget_1585030992168": {
+        "width": 191
+      },
+      "chargers-node": {
+        "width": 150
+      },
+      "_widget_1779413786198": {
+        "width": 75
+      }
+    },
+    "isPublic": false,
+    "isQuery": false,
+    "hasExtParams": false,
+    "extParams": [],
+    "hasCoop": false,
+    "hasFlow": true,
+    "hasCache": true,
+    "flow": {
+      "designVer": [],
+      "flowVer": "8",
+      "verId": 8,
+      "versions": [
+        {
+          "ver": "1"
+        },
+        {
+          "ver": "2"
+        },
+        {
+          "ver": "3"
+        },
+        {
+          "ver": "4"
+        },
+        {
+          "ver": "5"
+        },
+        {
+          "ver": "6",
+          "hasManagerChainNode": false,
+          "theme": 1
+        },
+        {
+          "ver": "7",
+          "hasManagerChainNode": false,
+          "theme": 2
+        },
+        {
+          "ver": "8",
+          "hasManagerChainNode": false,
+          "theme": 2
+        }
+      ]
+    },
+    "parent": "1",
+    "comment": {
+      "enable": true,
+      "channels": [
+        "site"
+      ]
+    },
+    "mobileLayout": {
+      "label": {
+        "layout": "vertical"
+      },
+      "description": {
+        "visible": true
+      }
+    },
+    "pcLayout": {
+      "label": {
+        "layout": "vertical"
+      },
+      "description": {
+        "visible": true
+      },
+      "input": {
+        "width": "auto"
+      }
+    },
+    "formEvents": [],
+    "submit_btn": {},
+    "draft_btn": {},
+    "maxWidgetCount": 500,
+    "icon": 3,
+    "color": 2,
+    "authGroupDisplayMode": 2,
+    "isPublicData": false,
+    "publicOptAuth": {}
+  },
+  "is_system_form": false,
+  "dataPermOperations": [
+    {
+      "value": "flow_read",
+      "text": "查看"
+    },
+    {
+      "value": "flow_create",
+      "text": "添加"
+    },
+    {
+      "value": "flow_copy",
+      "text": "复制"
+    },
+    {
+      "value": "flow_update",
+      "text": "编辑"
+    },
+    {
+      "value": "flow_delete",
+      "text": "删除"
+    },
+    {
+      "value": "flow_transfer",
+      "text": "调整流程负责人"
+    },
+    {
+      "value": "flow_close",
+      "text": "结束流程"
+    },
+    {
+      "value": "flow_activate",
+      "text": "激活流程"
+    },
+    {
+      "value": "flow_batch_print",
+      "text": "批量打印"
+    },
+    {
+      "value": "flow_batch_update",
+      "text": "批量修改"
+    },
+    {
+      "value": "flow_export",
+      "text": "导出"
+    },
+    {
+      "value": "flow_import",
+      "text": "导入"
+    }
+  ],
+  "optAuthConfigPerm": {
+    "_widget_1787019356213": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1585030991874": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030991951": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030991969": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1676250045146": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1677464667996": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1672367052763": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1676250045169": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1685405177505": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1676250045148": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992152": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992334": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1585030992168": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992184": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992197": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992213": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992228": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992259": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992272": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992321": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992341": {
+      "visible": true,
+      "editable": false
+    },
+    "_widget_1585030993520": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992378": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992393": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992409": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992426": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1779413786198": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1779413786190": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1585030992645": {
+      "visible": true,
+      "editable": true
+    },
+    "_widget_1779930511476": {
+      "visible": true,
+      "editable": false
+    }
+  },
+  "printList": [
+    {
+      "id": "system",
+      "name": "系统打印"
+    }
+  ],
+  "canSearchAllFields": true,
+  "relationshipList": [],
+  "syncFields": {}
+}

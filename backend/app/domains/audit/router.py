@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, extract
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_tenant_id, require_permissions
+from app.dependencies import get_db, get_tenant_id, require_permissions, get_current_user
 from app.common.schemas import ok
 from app.common.export import build_excel, excel_response
 from app.domains.audit.service import list_audit_logs
@@ -183,6 +183,52 @@ async def logs_by_resource(
             "created_at": log.created_at.isoformat() if log.created_at else "",
         })
     return ok({"items": logs, "total": total})
+
+
+@router.get("/data_logs/by_resource")
+async def data_logs_by_resource(
+    resource_type: str = Query(...),
+    resource_id: str = Query(...),
+    pageNo: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """数据日志：单条业务对象的字段变更记录（对齐简道云「数据日志」侧栏）。
+
+    仅需登录，不要求 audit:view —— 能打开详情页的用户即可查看该单据的数据日志。
+    """
+    q = select(AuditLog).where(
+        AuditLog.tenant_id == tenant_id,
+        AuditLog.resource_type == resource_type,
+        AuditLog.resource_id == resource_id,
+    ).order_by(AuditLog.created_at.desc())
+    count_q = select(func.count(AuditLog.id)).where(
+        AuditLog.tenant_id == tenant_id,
+        AuditLog.resource_type == resource_type,
+        AuditLog.resource_id == resource_id,
+    )
+    total = (await db.execute(count_q)).scalar() or 0
+    items = (await db.execute(q.offset((pageNo - 1) * pageSize).limit(pageSize))).scalars().all()
+    logs = []
+    for log in items:
+        detail = log.detail
+        if isinstance(detail, dict) and detail.get("changes"):
+            from app.common.audit_display import hydrate_audit_log_detail
+            detail = await hydrate_audit_log_detail(
+                db, tenant_id, resource_type, resource_id, detail,
+            )
+        logs.append({
+            "id": log.id,
+            "user_id": log.user_id,
+            "user_name": log.user_name,
+            "action": log.action,
+            "summary": log.summary,
+            "detail": detail,
+            "created_at": log.created_at.isoformat() if log.created_at else "",
+        })
+    return ok({"items": logs, "total": total, "pageNo": pageNo, "pageSize": pageSize})
 
 
 @router.get("/export")

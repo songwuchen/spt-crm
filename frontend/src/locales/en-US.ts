@@ -98,6 +98,7 @@ const enUS = {
     paymentRegistrations: 'Payment Registration',
     drawingRequisitions: 'Drawing Requisition',
     installDrawingNotices: 'Install Drawing Notice',
+    presaleServiceNotices: 'Presale Service Notice',
     contractDrawingMaps: 'Contract Drawing Map',
     kanban: 'Kanban',
     products: 'Products',

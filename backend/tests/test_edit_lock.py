@@ -23,6 +23,18 @@ def test_is_status_editable_matrix():
     assert not is_status_editable("contract_version", "approved")
     assert is_status_editable("form_instance", "draft")
     assert not is_status_editable("form_instance", "completed")
+    assert is_status_editable(
+        "form_instance", "completed", template_code="drawing_requisition",
+    )
+    assert is_status_editable(
+        "form_instance", "completed", template_code="install_drawing_notice",
+    )
+    assert not is_status_editable(
+        "form_instance", "completed", template_code="invoice_application",
+    )
+    assert not is_status_editable(
+        "form_instance", "submitted", template_code="drawing_requisition",
+    )
     assert is_status_editable("solution", "draft")
     assert not is_status_editable("solution", "reviewing")
     assert not is_status_editable("service_ticket", "submitted")
@@ -172,3 +184,27 @@ async def test_assert_form_instance_editable_status():
         await assert_form_instance_editable(db, "t1", "fi1", "draft")
         with pytest.raises(BusinessException):
             await assert_form_instance_editable(db, "t1", "fi1", "submitted")
+
+
+@pytest.mark.asyncio
+async def test_assert_form_instance_completed_drawing_ok():
+    """合同图纸领用 / 安装图：流程完成后可改内容。"""
+    db = MagicMock()
+    with patch(
+        "app.domains.lowcode.edit_lock.has_running_process",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        exec_result = MagicMock()
+        exec_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=exec_result)
+        await assert_form_instance_editable(
+            db, "t1", "fi1", "completed", template_code="drawing_requisition",
+        )
+        await assert_form_instance_editable(
+            db, "t1", "fi1", "completed", template_code="install_drawing_notice",
+        )
+        with pytest.raises(BusinessException):
+            await assert_form_instance_editable(
+                db, "t1", "fi1", "completed", template_code="invoice_application",
+            )

@@ -19,6 +19,7 @@ import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { buildContractReviewFieldLabels } from '@/utils/dataLogLabels'
 
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(
   CONTRACT_REVIEW_STATUS.map((s) => [s.value, s.label]),
@@ -257,6 +258,13 @@ export default function ContractReviewDetail() {
     </div>
   )
 
+  const crFieldLabels = buildContractReviewFieldLabels()
+  const sidebarDataLog = id ? {
+    resourceType: 'contract_review',
+    resourceId: id,
+    fieldLabels: crFieldLabels,
+  } : undefined
+
   return (
     <div className="max-w-6xl mx-auto pb-10">
       <div className="flex gap-4 items-start">
@@ -265,25 +273,13 @@ export default function ContractReviewDetail() {
           className="w-[300px] shrink-0 sticky top-4 hidden md:block self-start rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white"
           style={{ height: 'calc(100vh - 140px)', maxHeight: 840 }}
         >
-          {wfInstance ? (
-            <WfFlowDynamics
-              steps={wfInstance.flow_steps || []}
-              comments={wfInstance.comments || []}
-              onSubmitComment={handleWfComment}
-              commenting={wfCommenting}
-            />
-          ) : (
-            <div className="h-full flex flex-col bg-slate-50">
-              <div className="px-3 pt-3 pb-2 text-sm font-medium text-slate-600 border-b border-slate-200">
-                流程动态
-              </div>
-              <div className="flex-1 flex items-center justify-center px-4 text-sm text-slate-400 text-center">
-                {row.status === 'draft'
-                  ? '提交审批后将在此显示流程进度'
-                  : '暂无流程动态'}
-              </div>
-            </div>
-          )}
+          <WfFlowDynamics
+            steps={wfInstance?.flow_steps || []}
+            comments={wfInstance?.comments || []}
+            onSubmitComment={wfInstance ? handleWfComment : undefined}
+            commenting={wfCommenting}
+            dataLog={sidebarDataLog}
+          />
         </aside>
       </div>
 
@@ -291,18 +287,13 @@ export default function ContractReviewDetail() {
         className="md:hidden mt-4 rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white"
         style={{ height: 420 }}
       >
-        {wfInstance ? (
-          <WfFlowDynamics
-            steps={wfInstance.flow_steps || []}
-            comments={wfInstance.comments || []}
-            onSubmitComment={handleWfComment}
-            commenting={wfCommenting}
-          />
-        ) : (
-          <div className="h-full flex items-center justify-center text-sm text-slate-400">
-            {row.status === 'draft' ? '提交审批后将在此显示流程进度' : '暂无流程动态'}
-          </div>
-        )}
+        <WfFlowDynamics
+          steps={wfInstance?.flow_steps || []}
+          comments={wfInstance?.comments || []}
+          onSubmitComment={wfInstance ? handleWfComment : undefined}
+          commenting={wfCommenting}
+          dataLog={sidebarDataLog}
+        />
       </div>
     </div>
   )

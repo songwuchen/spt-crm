@@ -135,6 +135,20 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "sync_fields": True,
     },
     {
+        "key": "presale_service_notice",
+        "name": "售前服务通知",
+        "category": "图纸",
+        "icon": "NotificationOutlined",
+        "description": (
+            "对齐简道云销售中心「售前服务通知流程」"
+            "(app=5de0b3e8… entry=5e79b7e9…)。"
+            "流水号 24.13-+yyyyMMdd+四位日序。"
+            "详见 docs/product/_jdy_presale_service_notice_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
         "key": "prod_card_supplement",
         "name": "生产卡/补充流程",
         "category": "合同",
@@ -455,10 +469,14 @@ def _apply_drawing_jdy_fields() -> None:
         from app.domains.lowcode._customer_service_jdy_generated import CUSTOMER_SERVICE_JDY
     except Exception:
         CUSTOMER_SERVICE_JDY = {}
+    try:
+        from app.domains.lowcode._presale_service_notice_generated import PRESALE_SERVICE_NOTICE_JDY
+    except Exception:
+        PRESALE_SERVICE_NOTICE_JDY = {}
     packs = {
         **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY,
         **INVOICE_PAYMENT_JDY, **QUOTE_MANAGEMENT_JDY, **PRICING_CHECKLIST_HJQD_JDY,
-        **RESEARCH_COOP_CARD_JDY, **CUSTOMER_SERVICE_JDY,
+        **RESEARCH_COOP_CARD_JDY, **CUSTOMER_SERVICE_JDY, **PRESALE_SERVICE_NOTICE_JDY,
     }
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])
@@ -519,6 +537,9 @@ def _apply_drawing_jdy_fields() -> None:
             for f in defs:
                 if isinstance(f, dict) and f.get("id") in ("attachments", "images"):
                     f["download_roles"] = list(_FINANCE_DOWNLOAD)
+        if t["key"] == "presale_service_notice":
+            from app.domains.lowcode.presale_service_notice_fields import apply_presale_service_notice_fields
+            apply_presale_service_notice_fields(defs)
         # 永久删除：文本桩字段（保留选人）；方案管理去掉业务打分字段
         drop_ids = {"pre_designer_text"}
         if t["key"] == "drawing_requisition":

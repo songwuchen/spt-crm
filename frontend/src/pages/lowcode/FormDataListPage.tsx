@@ -36,6 +36,7 @@ import {
 import type { FieldDefinition, FormRule, FormInstance, WfInstanceDetail } from '@/types/lowcode'
 import FormRenderer, { findRequiredError, scrollToLcField, deriveRolePerms } from '@/components/lowcode/FormRenderer'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
+import { buildFormFieldLabels } from '@/utils/dataLogLabels'
 import WfActivateFlowModal from '@/components/lowcode/WfActivateFlowModal'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
 import { fieldShowsTime } from '@/components/lowcode/dateField'
@@ -944,7 +945,13 @@ export default function FormDataListPage({
   const canPrintScheme = templateCode === 'scheme_management'
     || templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
+  /** 草稿/驳回可改；合同图纸领用、安装图设计通知流程通过后也可改内容（审批中仍锁） */
+  const postCompleteEditable = templateCode === 'drawing_requisition'
+    || templateCode === 'install_drawing_notice'
   const canEditRecord = (status?: string | null) =>
+    status === 'draft' || status === 'rejected'
+    || (postCompleteEditable && status === 'completed')
+  const canResubmitRecord = (status?: string | null) =>
     status === 'draft' || status === 'rejected'
   /** 流程一旦发起（含审批中/已结束），不允许直接删除单据 */
   const canDeleteRecord = (rec: ViewRec | null) =>
@@ -1136,10 +1143,8 @@ export default function FormDataListPage({
     return Math.max(1200, biz + detail + fixed + 40)
   }, [colFields, detailColsCount, listFullText, listColWidths])
 
-  const showFlowPane = !!wfDetail || (
-    !!viewRec && ['submitted', 'running', 'completed', 'rejected'].includes(viewRec.status || '')
-  )
-  const modalWidth = wfDetail || showFlowPane
+  const showFlowPane = !!viewRec
+  const modalWidth = showFlowPane
     ? 1100
     : (drawingLayout ? 960 : 780)
   const fsProps = modalFullscreenProps(modalFullscreen, modalWidth)
@@ -1247,8 +1252,20 @@ export default function FormDataListPage({
           viewRec && !viewRec.readonly && canEditRecord(viewRec.status)
             ? [
                 <Button key="c" onClick={closeView}>取消</Button>,
-                <Button key="s" onClick={saveEdit}>存草稿</Button>,
-                <Button key="sub" type="primary" onClick={submitDraft}>提交审批</Button>,
+                <Button
+                  key="s"
+                  type={canResubmitRecord(viewRec.status) ? 'default' : 'primary'}
+                  onClick={saveEdit}
+                >
+                  {canResubmitRecord(viewRec.status) ? '存草稿' : '保存'}
+                </Button>,
+                ...(canResubmitRecord(viewRec.status)
+                  ? [
+                      <Button key="sub" type="primary" onClick={submitDraft}>
+                        提交审批
+                      </Button>,
+                    ]
+                  : []),
               ]
             : [<Button key="c" onClick={closeView}>关闭</Button>]
         }
@@ -1275,7 +1292,7 @@ export default function FormDataListPage({
                   编辑
                 </Button>
               )}
-              {canEditRecord(viewRec.status) && (
+              {canResubmitRecord(viewRec.status) && (
                 <Button type="text" icon={<SendOutlined />} onClick={submitDraft}>
                   提交审批
                 </Button>
@@ -1313,18 +1330,20 @@ export default function FormDataListPage({
                   className="w-[300px] shrink-0 overflow-hidden rounded-md border border-slate-200"
                   style={{ maxHeight: contentMaxH, height: modalFullscreen ? contentMaxH : undefined }}
                 >
-                  {wfDetail ? (
-                    <WfFlowDynamics
-                      steps={wfDetail.flow_steps || []}
-                      comments={wfDetail.comments || []}
-                      onSubmitComment={handleWfComment}
-                      commenting={wfCommenting}
-                    />
-                  ) : (
-                    <div className="h-full flex items-center justify-center bg-slate-50 px-4">
-                      <Text type="secondary" className="text-sm">暂无流程动态</Text>
-                    </div>
-                  )}
+                  <WfFlowDynamics
+                    steps={wfDetail?.flow_steps || []}
+                    comments={wfDetail?.comments || []}
+                    onSubmitComment={wfDetail ? handleWfComment : undefined}
+                    commenting={wfCommenting}
+                    dataLog={viewRec ? {
+                      resourceType: 'form_instance',
+                      resourceId: viewRec.id,
+                      fieldLabels: buildFormFieldLabels(viewRec.fields),
+                      alsoResources: wfDetail?.id
+                        ? [{ resourceType: 'wf_process_instance', resourceId: wfDetail.id }]
+                        : undefined,
+                    } : undefined}
+                  />
                 </div>
               )}
             </div>

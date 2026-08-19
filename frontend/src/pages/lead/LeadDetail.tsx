@@ -1065,25 +1065,13 @@ export default function LeadDetail() {
             className="rounded-xl border border-slate-200 shadow-sm overflow-hidden bg-white"
             style={{ height: 'min(520px, calc(100vh - 280px))', minHeight: 360 }}
           >
-            {wfInstance ? (
-              <WfFlowDynamics
-                steps={wfInstance.flow_steps || []}
-                comments={wfInstance.comments || []}
-                onSubmitComment={handleWfComment}
-                commenting={wfCommenting}
-              />
-            ) : (
-              <div className="h-full flex flex-col bg-slate-50">
-                <div className="px-3 pt-3 pb-2 text-sm font-medium text-slate-600 border-b border-slate-200">
-                  流程动态
-                </div>
-                <div className="flex-1 flex items-center justify-center px-4 text-sm text-slate-400 text-center">
-                  {reviewStatus === 'draft'
-                    ? '提交审批后将在此显示流程进度'
-                    : '暂无流程动态'}
-                </div>
-              </div>
-            )}
+            <WfFlowDynamics
+              steps={wfInstance?.flow_steps || []}
+              comments={wfInstance?.comments || []}
+              onSubmitComment={wfInstance ? handleWfComment : undefined}
+              commenting={wfCommenting}
+              dataLog={id ? { resourceType: 'lead', resourceId: id } : undefined}
+            />
           </div>
           <div className="bg-blue-50/50 rounded-xl border border-blue-100 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-5">

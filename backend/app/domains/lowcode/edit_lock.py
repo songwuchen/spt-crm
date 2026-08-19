@@ -1,5 +1,6 @@
-"""提交后锁编辑：审批中/已通过单据不可改内容，驳回（或撤回回草稿）后可再编辑。
+"""提交后锁编辑：审批中单据不可改内容；驳回（或撤回回草稿）后可再编辑。
 
+部分表单（合同图纸领用 / 安装图设计通知）流程通过后仍允许改内容。
 权威边界在各业务 update_*；审批人字段写回走 wf act / field_updates，不经本闸门。
 """
 from __future__ import annotations
@@ -30,6 +31,12 @@ EDITABLE_STATUSES: dict[str, frozenset[str]] = {
     "customer": frozenset({"draft"}),
 }
 
+# 流程通过后仍允许改内容的低代码表单（审批中仍锁；仅 completed 放开）
+POST_COMPLETE_EDITABLE_FORM_CODES: frozenset[str] = frozenset({
+    "drawing_requisition",
+    "install_drawing_notice",
+})
+
 _LOCK_MSG = "审批中或已提交的单据不可编辑，驳回后可由发起人修改再提交"
 
 
@@ -51,11 +58,20 @@ async def has_running_process(
     return row is not None
 
 
-def is_status_editable(biz_type: str, status: str | None) -> bool:
+def is_status_editable(
+    biz_type: str, status: str | None, *, template_code: str | None = None,
+) -> bool:
+    st = status or "draft"
+    if (
+        biz_type == "form_instance"
+        and st == "completed"
+        and (template_code or "") in POST_COMPLETE_EDITABLE_FORM_CODES
+    ):
+        return True
     allowed = EDITABLE_STATUSES.get(biz_type)
     if allowed is None:
         return True
-    return (status or "draft") in allowed
+    return st in allowed
 
 
 async def assert_biz_editable(
@@ -66,11 +82,12 @@ async def assert_biz_editable(
     status: str | None,
     *,
     message: str | None = None,
+    template_code: str | None = None,
 ) -> None:
     """有 running 流程或 status 不在可编辑集合 → 拒绝。"""
     if await has_running_process(db, tenant_id, biz_type, biz_id):
         raise BusinessException(code=VALIDATION_ERROR, message=message or _LOCK_MSG)
-    if not is_status_editable(biz_type, status):
+    if not is_status_editable(biz_type, status, template_code=template_code):
         raise BusinessException(code=VALIDATION_ERROR, message=message or _LOCK_MSG)
 
 
@@ -156,12 +173,35 @@ async def assert_contract_record_editable(
 
 
 async def assert_form_instance_editable(
-    db: AsyncSession, tenant_id: str, inst_id: str, status: str | None,
+    db: AsyncSession,
+    tenant_id: str,
+    inst_id: str,
+    status: str | None,
+    *,
+    template_code: str | None = None,
 ) -> None:
-    """表单实例：status 闸门 + biz/form_instance_id 任一 running 流程。"""
+    """表单实例：status 闸门 + biz/form_instance_id 任一 running 流程。
+
+    ``drawing_requisition`` / ``install_drawing_notice``：流程完成后(completed)
+    仍可改内容；审批中(running)依旧锁定。
+    """
+    code = (template_code or "").strip() or None
+    if code is None:
+        from app.domains.lowcode.models import FormInstance, FormTemplate
+
+        row = (await db.execute(
+            select(FormTemplate.code).join(
+                FormInstance, FormInstance.template_id == FormTemplate.id,
+            ).where(
+                FormInstance.id == inst_id,
+                FormInstance.tenant_id == tenant_id,
+            ).limit(1)
+        )).scalar_one_or_none()
+        code = row
     await assert_biz_editable(
         db, tenant_id, "form_instance", inst_id, status,
         message="审批中或已提交的表单不可编辑，驳回后可由发起人修改再提交",
+        template_code=code,
     )
     from app.domains.lowcode.workflow_models import WfProcessInstance
 

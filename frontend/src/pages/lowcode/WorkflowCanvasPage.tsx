@@ -21,6 +21,7 @@ import type { WfNode, WfRoute, WfDesign, FieldDefinition, WfFieldPerm } from '@/
 import PersonField from '@/components/lowcode/fields/PersonField'
 import DeptField from '@/components/lowcode/fields/DeptField'
 import { ApproverRuleEditor } from '@/components/lowcode/ApproverRuleEditor'
+import { defaultCcApproverRule } from '@/utils/wfApproverDefaults'
 import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
 
 const { Title, Text } = Typography
@@ -296,7 +297,7 @@ function DesignerInner() {
     const node: WfNode = {
       id: nid, type, name: names[type],
       ...(type === 'approval' ? { approver_rule: { type: 'direct_supervisor' }, multi_mode: 'or_sign' as const } : {}),
-      ...(type === 'cc' ? { approver_rule: { type: 'specified_user' } } : {}),
+      ...(type === 'cc' ? { approver_rule: defaultCcApproverRule(formFields) } : {}),
     }
     setNodes((nds) => [...nds, { id: nid, type: 'wf', position: { x: 120 + Math.random() * 80, y: 160 + nds.length * 40 }, data: { node } }])
   }
@@ -503,6 +504,11 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
             roleLabel={node.type === 'approval' ? '审批人' : '抄送人'}
             onChange={onRule}
           />
+          {node.type === 'cc' && (
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              抄送人与审批人共用同一套规则类型；可切换为「组合选人」以同时抄送发起人与表单人员字段。
+            </Text>
+          )}
           {node.type === 'approval' && (
             <>
               <div><Text type="secondary" style={{ fontSize: 12 }}>多人模式</Text>

@@ -483,6 +483,64 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       special_reminder: 12, cost_price: 12,
     },
   },
+  // 售前服务通知（销售中心；grid-4，span = 简道云 lineWidth×2）
+  presale_service_notice: {
+    contentMaxWidth: 1100,
+    listColumns: [
+      'serial_no', 'applicant', 'department', 'is_smart',
+      'need_jwx_onsite', 'service_location', 'service_time',
+      'contract_no', 'project_status', 'smart_project_status',
+    ],
+    listFullText: true,
+    listColumnWidths: {
+      serial_no: 160,
+      applicant: 88,
+      department: 200,
+      is_smart: 96,
+      need_jwx_onsite: 150,
+      service_location: 200,
+      service_time: 118,
+      contract_no: 220,
+      project_status: 110,
+      smart_project_status: 130,
+    },
+    sections: [
+      {
+        title: '基本信息（创建时填写）',
+        fieldIds: [
+          'serial_no', 'applicant', 'department', 'is_smart',
+          'need_jwx_onsite', 'project_status', 'smart_project_status',
+          'attachments', 'desired_staff', 'contract_no',
+        ],
+      },
+      {
+        title: '服务信息',
+        fieldIds: [
+          'service_location', 'service_time', 'estimated_days', 'contact_phone',
+          'drawing_tech_status', 'service_content',
+          'work_schedule', 'remark',
+        ],
+      },
+      {
+        title: '测绘（审批时填写）',
+        fieldIds: [
+          'staff_coordination', 'product_name', 'spec_model', 'surveyor',
+          'survey_data', 'need_xjwm_staff', 'xjwm_staff', 'other_notes',
+        ],
+      },
+    ],
+    spans: {
+      serial_no: 6, applicant: 6, department: 6, is_smart: 6,
+      need_jwx_onsite: 6, project_status: 6, smart_project_status: 6,
+      attachments: 6, desired_staff: 6, contract_no: 6,
+      service_location: 6, service_time: 6, estimated_days: 6, contact_phone: 6,
+      drawing_tech_status: 6, service_content: 18,
+      work_schedule: 24, remark: 24,
+      staff_coordination: 6, product_name: 6, spec_model: 6, surveyor: 6,
+      survey_data: 24,
+      need_xjwm_staff: 6, xjwm_staff: 6, other_notes: 24,
+    },
+  },
   // 核价清单传递（中央研究院 HJQD）
   pricing_checklist_hjqd: {
     contentMaxWidth: 1080,

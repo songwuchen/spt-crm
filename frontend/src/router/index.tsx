@@ -251,6 +251,8 @@ export const router = createBrowserRouter([
       { path: 'drawing-requisitions', element: <Guard permission="form_data:view"><FormModulePage templateCode="drawing_requisition" title="合同图纸领用" basePath="/drawing-requisitions" /></Guard> },
       { path: 'install-drawing-notices/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="install_drawing_notice" listPath="/install-drawing-notices" title="安装图设计通知" /></Guard> },
       { path: 'install-drawing-notices', element: <Guard permission="form_data:view"><FormModulePage templateCode="install_drawing_notice" title="安装图设计通知" basePath="/install-drawing-notices" /></Guard> },
+      { path: 'presale-service-notices/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="presale_service_notice" listPath="/presale-service-notices" title="售前服务通知" /></Guard> },
+      { path: 'presale-service-notices', element: <Guard permission="form_data:view"><FormModulePage templateCode="presale_service_notice" title="售前服务通知" basePath="/presale-service-notices" /></Guard> },
       { path: 'contract-drawing-maps/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="contract_drawing_map" listPath="/contract-drawing-maps" title="合同图纸对应表" /></Guard> },
       { path: 'contract-drawing-maps', element: <Guard permission="form_data:view"><FormModulePage templateCode="contract_drawing_map" title="合同图纸对应表" basePath="/contract-drawing-maps" /></Guard> },
       { path: 'application-fields/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="application_field" listPath="/application-fields" title="应用领域" /></Guard> },

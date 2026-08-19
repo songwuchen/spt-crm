@@ -41,9 +41,28 @@ _TITLE_LABEL_HINTS = (
 )
 # 报价等：单号 + 客户 + 业务员拼进审批标题（人员/客户存 UUID，需 id_labels）
 _COMPOSITE_TITLE_FIELD_IDS = ("serial_no", "quote_no", "customer_name", "sales_person")
+# 售前服务通知：单号 + 服务地点 + 合同号 + 申请人
+_PRESALE_TITLE_FIELD_IDS = ("serial_no", "service_location", "contract_no", "applicant")
 _UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
+
+
+def _field_ids_from_defs(field_defs: list | None) -> set[str]:
+    if not field_defs:
+        return set()
+    return {
+        str(f.get("id"))
+        for f in field_defs if isinstance(f, dict) and f.get("id")
+    }
+
+
+def _is_presale_template(template_name: str | None, field_defs: list | None) -> bool:
+    name = (template_name or "").strip()
+    if "售前服务" in name:
+        return True
+    ids = _field_ids_from_defs(field_defs)
+    return {"service_location", "need_jwx_onsite", "is_smart"}.issubset(ids)
 
 
 def _title_snippet(val, id_labels: dict[str, str] | None = None) -> str:
@@ -108,6 +127,8 @@ def _should_use_composite_title(
     name = template_name or ""
     if "报价" in name:
         return True
+    if _is_presale_template(name, field_defs):
+        return True
     if any(form_data.get(fid) not in (None, "", []) for fid in _COMPOSITE_TITLE_FIELD_IDS):
         # 同时具备客户+业务员（或流水号）时，按组合标题拼，避免只抽到申请事由类字段
         has_customer = form_data.get("customer_name") not in (None, "", [])
@@ -135,6 +156,15 @@ def derive_form_instance_title(
     name = (template_name or "表单申请").strip() or "表单申请"
     data = form_data or {}
     labels = id_labels or {}
+
+    if _is_presale_template(name, field_defs):
+        parts = [
+            _title_snippet(data.get(fid), labels)
+            for fid in _PRESALE_TITLE_FIELD_IDS
+        ]
+        composed = _compose_multi_snippet_title(name, parts)
+        if composed != name:
+            return composed
 
     if _should_use_composite_title(name, data, field_defs):
         parts = [
@@ -203,21 +233,26 @@ async def resolve_form_title_labels(
         ("sales_person", "person"),
         ("customer_name", "customer"),
         ("purchaser", "person"),
+        ("applicant", "person"),
+        ("contract_no", "contract"),
     ):
         type_by_id.setdefault(fid, ftype)
 
     person_ids: set[str] = set()
     customer_ids: set[str] = set()
+    contract_ids: set[str] = set()
     for fid, ftype in type_by_id.items():
-        if fid not in data and fid not in _COMPOSITE_TITLE_FIELD_IDS:
+        if fid not in data and fid not in _COMPOSITE_TITLE_FIELD_IDS and fid not in _PRESALE_TITLE_FIELD_IDS:
             continue
         ids = _collect_title_ref_ids(data.get(fid))
         if ftype in ("person", "person_multi", "user"):
             person_ids.update(i for i in ids if _UUID_RE.match(i))
         elif ftype == "customer":
             customer_ids.update(i for i in ids if _UUID_RE.match(i))
+        elif ftype == "contract":
+            contract_ids.update(i for i in ids if _UUID_RE.match(i))
     # 组合标题字段即使类型未知也尝试解析
-    for fid in ("sales_person", "customer_name"):
+    for fid in ("sales_person", "customer_name", "applicant"):
         for i in _collect_title_ref_ids(data.get(fid)):
             if not _UUID_RE.match(i):
                 continue
@@ -225,6 +260,10 @@ async def resolve_form_title_labels(
                 customer_ids.add(i)
             else:
                 person_ids.add(i)
+    for fid in ("contract_no",):
+        for i in _collect_title_ref_ids(data.get(fid)):
+            if _UUID_RE.match(i):
+                contract_ids.add(i)
 
     labels: dict[str, str] = {}
     if person_ids:
@@ -248,6 +287,17 @@ async def resolve_form_title_labels(
         for cid, cname in rows:
             if cname:
                 labels[str(cid)] = str(cname).strip()
+    if contract_ids:
+        from app.domains.contract.models import Contract
+        rows = (await db.execute(
+            select(Contract.id, Contract.contract_no, Contract.drawing_no).where(
+                Contract.tenant_id == tenant_id,
+                Contract.id.in_(contract_ids),
+            )
+        )).all()
+        for cid, cno, dno in rows:
+            label = (str(dno or cno or "").strip()) or str(cid)
+            labels[str(cid)] = label
     return labels
 
 
@@ -493,6 +543,9 @@ async def sync_builtin_form_fields(
     if key == "quote_management":
         from app.domains.lowcode.quote_management_fields import apply_quote_management_fields
         apply_quote_management_fields(want)
+    if key == "presale_service_notice":
+        from app.domains.lowcode.presale_service_notice_fields import apply_presale_service_notice_fields
+        apply_presale_service_notice_fields(want)
     if key == "drawing_requisition":
         from app.domains.lowcode.drawing_requisition_fields import (
             apply_drawing_requisition_fields,
@@ -1303,6 +1356,21 @@ async def create_instance(
             inst.process_instance_id = pinst.id
             await db.commit()
             await db.refresh(inst)
+        from app.common.audit_diff import compute_dict_changes
+        from app.domains.lowcode.form_audit import log_form_instance_changes
+        create_changes = compute_dict_changes({}, form_data)
+        await log_form_instance_changes(
+            db,
+            tenant_id=tenant_id,
+            user_id=user["sub"],
+            user_name=user.get("real_name") or user.get("username"),
+            form_instance_id=inst.id,
+            field_defs=field_defs,
+            changes=create_changes,
+            action="create",
+            summary=inst.business_no or inst.title or inst.id,
+            create_mode=True,
+        )
     return inst
 
 
@@ -1944,16 +2012,27 @@ async def update_instance(
     if not inst:
         raise BusinessException(code=NOT_FOUND, message="表单数据不存在")
 
+    old_title, old_remark = inst.title, inst.remark
     if data.title is not None:
         inst.title = data.title
     if data.remark is not None:
         inst.remark = data.remark
+    form_changes: dict[str, dict] = {}
     if data.form_data is not None:
         from app.domains.lowcode.edit_lock import assert_form_instance_editable
-        await assert_form_instance_editable(db, tenant_id, inst.id, inst.status)
+        tpl_code = (await db.execute(
+            select(FormTemplate.code).where(
+                FormTemplate.id == inst.template_id,
+                FormTemplate.tenant_id == tenant_id,
+            ).limit(1)
+        )).scalar_one_or_none()
+        await assert_form_instance_editable(
+            db, tenant_id, inst.id, inst.status, template_code=tpl_code,
+        )
         version = await db.get(FormTemplateVersion, inst.template_version_id)
         field_defs = (version.field_definitions if version else inst.field_definitions) or []
         user_name = user.get("real_name") or user.get("username") or ""
+        old_form_data = dict(inst.form_data or {})
         # 字段级权限：不可编辑字段保留原值，忽略用户改动（后端权威边界）
         raw = sanitize_write(
             data.form_data, inst.form_data, field_defs, user.get("roles"),
@@ -1968,6 +2047,9 @@ async def update_instance(
                                     role_field_permissions(field_defs, user.get("roles")))
             if err:
                 raise BusinessException(code=VALIDATION_ERROR, message=err)
+        from app.common.audit_diff import compute_dict_changes
+        raw_changes = compute_dict_changes(old_form_data, form_data)
+        form_changes = raw_changes
         inst.form_data = form_data
         inst.amount = _extract_amount(form_data, field_defs)
         biz = _pick_business_no(form_data, field_defs)
@@ -1976,6 +2058,28 @@ async def update_instance(
 
     await db.commit()
     await db.refresh(inst)
+
+    if form_changes or data.title is not None or data.remark is not None:
+        from app.domains.lowcode.form_audit import log_form_instance_changes
+        from app.common.audit_diff import serialize_value
+        meta_changes: dict[str, dict] = {}
+        if data.title is not None and data.title != old_title:
+            meta_changes["title"] = {"old": serialize_value(old_title), "new": serialize_value(data.title), "label": "标题"}
+        if data.remark is not None and data.remark != old_remark:
+            meta_changes["remark"] = {"old": serialize_value(old_remark), "new": serialize_value(data.remark), "label": "备注"}
+        all_changes = {**meta_changes, **form_changes}
+        if all_changes:
+            await log_form_instance_changes(
+                db,
+                tenant_id=tenant_id,
+                user_id=user["sub"],
+                user_name=user.get("real_name") or user.get("username"),
+                form_instance_id=inst.id,
+                field_defs=field_defs if data.form_data is not None else (inst.field_definitions or []),
+                changes=all_changes,
+                action="update",
+                summary=f"更新表单: {inst.title or inst.business_no or inst.id}",
+            )
     return inst
 
 

@@ -1,0 +1,350 @@
+[
+  {
+    "name": "_widget_1787019356213",
+    "title": "迁移提醒",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030991874",
+    "title": "流程编号",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030991951",
+    "title": "申请人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030991969",
+    "title": "所属部门",
+    "type": "dept",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676250045146",
+    "title": "是否智能化",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1677464667996",
+    "title": "是否需要金微星去现场",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1672367052763",
+    "title": "项目状态",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "已签合同",
+      "已中标",
+      "技术交流"
+    ]
+  },
+  {
+    "name": "_widget_1676250045169",
+    "title": "智能化项目状态",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "已签合同",
+      "已中标",
+      "技术交流",
+      "试机",
+      "调机"
+    ]
+  },
+  {
+    "name": "_widget_1685405177505",
+    "title": "附件",
+    "type": "upload",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1676250045148",
+    "title": "希望派遣人员",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992152",
+    "title": "合同号",
+    "type": "combo",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992334",
+    "title": "服务信息",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992168",
+    "title": "服务地点",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992184",
+    "title": "服务时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992197",
+    "title": "预计天数",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992213",
+    "title": "联系人/联系电话",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992228",
+    "title": "有无图纸及前期技术",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992259",
+    "title": "服务内容",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992272",
+    "title": "工作日程计划",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "日期时间",
+      "工作日程"
+    ]
+  },
+  {
+    "name": "_widget_1585030992295",
+    "title": "日期时间",
+    "type": "datetime",
+    "required": false,
+    "parent": "_widget_1585030992272",
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992305",
+    "title": "工作日程",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1585030992272",
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992321",
+    "title": "备注",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992341",
+    "title": "测绘",
+    "type": "separator",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030993520",
+    "title": "人员协调",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992378",
+    "title": "产品名称",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992393",
+    "title": "规格型号",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992409",
+    "title": "测绘人",
+    "type": "text",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992426",
+    "title": "测绘数据",
+    "type": "subform",
+    "required": false,
+    "parent": null,
+    "options": [
+      "名称",
+      "规格型号",
+      "数量",
+      "单位",
+      "单重"
+    ]
+  },
+  {
+    "name": "_widget_1585030992438",
+    "title": "名称",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1585030992426",
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992451",
+    "title": "规格型号",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1585030992426",
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992466",
+    "title": "数量",
+    "type": "number",
+    "required": false,
+    "parent": "_widget_1585030992426",
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992541",
+    "title": "单位",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1585030992426",
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992613",
+    "title": "单重",
+    "type": "text",
+    "required": false,
+    "parent": "_widget_1585030992426",
+    "options": []
+  },
+  {
+    "name": "_widget_1779413786198",
+    "title": "是否需要新疆威猛人员",
+    "type": "radiogroup",
+    "required": false,
+    "parent": null,
+    "options": [
+      "是",
+      "否"
+    ]
+  },
+  {
+    "name": "_widget_1779413786190",
+    "title": "新疆威猛人员",
+    "type": "usergroup",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1585030992645",
+    "title": "其他说明",
+    "type": "textarea",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "_widget_1779930511476",
+    "title": "人员查看",
+    "type": "linkquery",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "creator",
+    "title": "提交人",
+    "type": "user",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "createTime",
+    "title": "提交时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  },
+  {
+    "name": "updateTime",
+    "title": "更新时间",
+    "type": "datetime",
+    "required": false,
+    "parent": null,
+    "options": []
+  }
+]

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Avatar, Button, Input, Modal, Tag, Tabs, Typography, message } from 'antd'
 import type { WfFlowStep, WfInstanceDetail } from '@/types/lowcode'
 import { WF_ACTION_TEXT as ACTION_TXT } from '@/utils/lowcodeWorkflowLabels'
+import DataLog from '@/components/DataLog'
 
 const { Text } = Typography
 
@@ -45,6 +46,7 @@ function avatarLetter(name: string) {
 
 export default function WfFlowDynamics({
   steps, comments, tab, onTabChange, onSubmitComment, commenting, variant = 'drawer',
+  dataLog,
 }: {
   steps: WfFlowStep[]
   comments: WfInstanceDetail['comments']
@@ -54,6 +56,13 @@ export default function WfFlowDynamics({
   commenting?: boolean
   /** drawer=PC 右侧栏；page=移动端整页嵌入 */
   variant?: 'drawer' | 'page'
+  /** 数据日志（对齐简道云「数据日志」Tab） */
+  dataLog?: {
+    resourceType: string
+    resourceId: string
+    fieldLabels?: Record<string, string>
+    alsoResources?: Array<{ resourceType: string; resourceId: string }>
+  }
 }) {
   const [innerTab, setInnerTab] = useState('flow')
   const [draft, setDraft] = useState('')
@@ -73,6 +82,12 @@ export default function WfFlowDynamics({
     setDraft('')
   }
 
+  const tabItems = [
+    { key: 'flow', label: '流程动态' },
+    ...(dataLog ? [{ key: 'dataLog', label: '数据日志' }] : []),
+    { key: 'comments', label: `评论${comments?.length ? ` (${comments.length})` : ''}` },
+  ]
+
   return (
     <div className={isPage
       ? 'flex flex-col bg-white rounded-xl border border-slate-100 overflow-hidden'
@@ -83,10 +98,7 @@ export default function WfFlowDynamics({
         activeKey={active}
         onChange={setActive}
         className="px-3 pt-2 shrink-0"
-        items={[
-          { key: 'flow', label: '流程动态' },
-          { key: 'comments', label: `评论${comments?.length ? ` (${comments.length})` : ''}` },
-        ]}
+        items={tabItems}
       />
       {active === 'flow' ? (
         <div className={isPage ? 'px-3 pb-4' : 'flex-1 overflow-y-auto px-3 pb-4'}>
@@ -145,6 +157,15 @@ export default function WfFlowDynamics({
               )
             })}
           </div>
+        </div>
+      ) : active === 'dataLog' && dataLog ? (
+        <div className={isPage ? 'px-3 pb-4' : 'flex-1 overflow-y-auto px-3 pb-4'}>
+          <DataLog
+            resourceType={dataLog.resourceType}
+            resourceId={dataLog.resourceId}
+            alsoResources={dataLog.alsoResources}
+            fieldLabels={dataLog.fieldLabels}
+          />
         </div>
       ) : (
         <div className={isPage ? 'flex flex-col' : 'flex-1 min-h-0 flex flex-col'}>
