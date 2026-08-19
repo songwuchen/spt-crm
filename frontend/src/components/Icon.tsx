@@ -65,7 +65,7 @@ const MAP: Record<string, IconComp> = {
   touch_app: SelectOutlined, swap_horiz: SwapOutlined, merge: MergeCellsOutlined,
   settings: SettingOutlined, tune: ControlOutlined, rule: ControlOutlined,
   map: GlobalOutlined, translate: GlobalOutlined,
-  draft: FormOutlined, architecture: BuildOutlined,
+  draft: FormOutlined, architecture: BuildOutlined, engineering: ToolOutlined,
   menu: MenuOutlined, menu_open: MenuUnfoldOutlined, more_horiz: EllipsisOutlined,
   attach_file: PaperClipOutlined, stop_circle: StopOutlined,
   light_mode: SunOutlined, dark_mode: MoonOutlined,

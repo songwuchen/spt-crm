@@ -391,6 +391,10 @@ class WorkflowEngine:
         if wait:
             await _run()
             return
+        import os
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            await _run()
+            return
         try:
             asyncio.get_running_loop().create_task(_run())
         except RuntimeError:

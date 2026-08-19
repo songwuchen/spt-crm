@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*
+# -*- coding: utf-8 -*-
 """Auto-generated from docs/product/_jdy_presale_service_notice_* dumps. Do not edit by hand."""
 from __future__ import annotations
 import json
