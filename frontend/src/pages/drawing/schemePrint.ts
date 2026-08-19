@@ -40,6 +40,37 @@ function fmtDate(v: unknown): string {
   return d.isValid() ? d.format('YYYY-MM-DD') : String(v)
 }
 
+/** 下卡日期：流程发起日（业务内勤提交日），非设计指派节点的下单日期 */
+function flowInitiateDate(
+  steps?: WfFlowStep[] | null,
+  form?: Record<string, unknown>,
+): string {
+  for (const s of steps || []) {
+    const name = (s.node_name || '').trim()
+    if (s.node_type === 'start' || name === '流程发起' || name === '发起') {
+      if (s.completed_at) return fmtDate(s.completed_at)
+      if (s.started_at) return fmtDate(s.started_at)
+    }
+  }
+  const times = (steps || [])
+    .map((s) => s.started_at || s.completed_at)
+    .filter(Boolean)
+    .sort()
+  if (times.length) return fmtDate(times[0])
+  return fmtDate(form?.apply_datetime || form?.card_date)
+}
+
+/** 打印审批意见顺序：总工 → 市场支持 → 部门（对齐 Word / 试打 DEMO） */
+const DRAWING_PRINT_APPROVAL_ORDER = ['总工审批', '市场支持中心', '部门审批'] as const
+
+function approvalNodePrintRank(nodeName: string): number {
+  const n = (nodeName || '').trim()
+  const idx = DRAWING_PRINT_APPROVAL_ORDER.findIndex(
+    (key) => n.includes(key) || key.includes(n),
+  )
+  return idx >= 0 ? idx : 100
+}
+
 function optionLabel(fields: FieldDefinition[], fieldId: string, value: unknown): string {
   if (value == null || value === '') return ''
   const fd = fields.find((f) => f.id === fieldId)
@@ -391,14 +422,24 @@ function printCss(): string {
     .sheet.install .meta span {
       white-space: nowrap;
     }
-    /* 表下审批区：无表格边框，左标签 + 小字记录 + 右打印信息 */
+    /* 表下审批区：左=审批意见（标签+记录），右=打印时间/流水号上下叠 */
     .approval-foot {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12pt 16pt;
+      width: 100%;
+      margin-top: 6pt;
+      padding-bottom: 3pt;
+      border: none;
+    }
+    .approval-main {
       display: flex;
       align-items: flex-start;
       gap: 6pt 10pt;
-      width: 100%;
-      margin-top: 4pt;
-      border: none;
+      flex: 1;
+      min-width: 0;
     }
     .approval-foot .approval-label {
       flex: 0 0 auto;
@@ -408,11 +449,15 @@ function printCss(): string {
     }
     .approval-foot .ops { flex: 1; min-width: 0; }
     .approval-foot .foot-side {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
       flex: 0 0 auto;
-      text-align: right;
       font-size: 10.5pt;
       line-height: 1.55;
       white-space: nowrap;
+      text-align: right;
+      gap: 2pt;
     }
     /* 审批记录：偏小、像流水日志 */
     .ops {
@@ -423,11 +468,14 @@ function printCss(): string {
     }
     .ops .op {
       display: block;
-      width: max-content;
+      width: 100%;
       max-width: 100%;
       padding: 1pt 0 2pt;
       border-bottom: 1px dotted #888;
-      white-space: nowrap;
+      white-space: normal;
+      word-break: break-word;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .ops .op:last-child { border-bottom: none; padding-bottom: 0; }
     /* 子表明细（设备/原料）：多行扩展，表头+数据行 */
@@ -451,11 +499,14 @@ function printCss(): string {
       line-height: 1.15;
     }
     table.detail td.dl { text-align: left; }
-    /* 对齐 Word 模板：横向 A4（297×210），边距上5.3/右7.8/下0/左7.9 */
-    @page { size: A4 landscape; margin: 5.3mm 7.8mm 0 7.9mm; }
+    /* 对齐 Word 模板：横向 A4（297×210），底部留边避免流水号被裁 */
+    @page { size: A4 landscape; margin: 5.3mm 7.8mm 8mm 7.9mm; }
     @media print {
       html, body { width: 100%; }
-      .sheet { width: 100%; }
+      .sheet { width: 100%; page-break-inside: auto; }
+      table.form tr { page-break-inside: avoid; }
+      .approval-foot { page-break-inside: avoid; break-inside: avoid; }
+      .foot-side { page-break-before: avoid; break-before: avoid; }
     }
   `
 }
@@ -635,16 +686,15 @@ function materialDetailTableHtml(
 function approvalOpsHtml(steps?: WfFlowStep[] | null): string {
   const done = (steps || []).filter(isPrintableApprovalStep)
   if (!done.length) return ''
-  // 打印按完成时间正序（先审在前）；无时间时保持相对顺序
-  const chrono = [...done].sort((a, b) => {
+  const sorted = [...done].sort((a, b) => {
+    const ra = approvalNodePrintRank(a.node_name)
+    const rb = approvalNodePrintRank(b.node_name)
+    if (ra !== rb) return ra - rb
     const ta = a.completed_at || a.started_at || ''
     const tb = b.completed_at || b.started_at || ''
-    if (ta && tb) return String(ta).localeCompare(String(tb))
-    if (ta) return -1
-    if (tb) return 1
-    return 0
+    return String(tb).localeCompare(String(ta))
   })
-  const rows = chrono.map((s) => {
+  const rows = sorted.map((s) => {
     const when = s.completed_at ? dayjs(s.completed_at).format('YYYY-MM-DD HH:mm') : ''
     const who = s.handler_name || (s.assignees || []).map((a) => a.name).filter(Boolean).join('、') || ''
     const opinion = stepPrintOpinion(s)
@@ -713,7 +763,7 @@ function stepsThroughNode(
   return chrono.slice(0, cut + 1).reverse()
 }
 
-/** 表下审批意见区（非表格）：标签 + 小字记录 + 打印时间；安装图另带流水号 */
+/** 表下审批意见区：左=标签+记录，右=打印时间/流水号（上下叠，对齐 Word） */
 function approvalFootHtml(
   steps: WfFlowStep[] | null | undefined,
   form: Record<string, unknown>,
@@ -727,11 +777,13 @@ function approvalFootHtml(
   const serial = businessNo || ''
   const showSerial = opts?.showSerial !== false && !!serial
   const side = showSerial
-    ? `<div class="foot-side"><div>打印时间：${escHtml(printAt)}</div><div>流水号：${escHtml(serial)}</div></div>`
-    : `<div class="foot-side"><div>打印时间：${escHtml(printAt)}</div></div>`
+    ? `<div class="foot-side"><span>打印时间：${escHtml(printAt)}</span><span>流水号：${escHtml(serial)}</span></div>`
+    : `<div class="foot-side"><span>打印时间：${escHtml(printAt)}</span></div>`
   return `<div class="approval-foot">
-    <div class="approval-label">审批意见：</div>
-    ${ops}
+    <div class="approval-main">
+      <div class="approval-label">审批意见：</div>
+      ${ops}
+    </div>
     ${side}
   </div>`
 }
@@ -747,7 +799,7 @@ function buildRequisitionHtml(ctx: {
   const orderPerson = personName(form.order_person, labels)
   const dept = deptName(form.department, labels)
   const applicant = personName(form.applicant, labels)
-  const cardDate = fmtDate(form.order_date || form.apply_datetime)
+  const cardDate = flowInitiateDate(steps, form)
   const serial = businessNo || ''
   const contractNo = printDrawingNo(form.contract_no, labels, form)
   const transfer = optionLabel(fields, 'transfer_channel', form.transfer_channel)
@@ -886,7 +938,7 @@ function buildInstallHtml(ctx: {
   const orderPerson = personName(form.order_person, labels)
   const dept = deptName(form.department, labels)
   const applicant = personName(form.applicant, labels)
-  const cardDate = fmtDate(form.card_date || form.order_date || form.apply_datetime)
+  const cardDate = flowInitiateDate(steps, form)
   const designCard = form.design_card_no != null ? String(form.design_card_no) : ''
   const issueType = optionLabel(fields, 'drawing_issue_type', form.drawing_issue_type)
   const purpose = optionLabel(fields, 'pickup_purpose', form.pickup_purpose)
