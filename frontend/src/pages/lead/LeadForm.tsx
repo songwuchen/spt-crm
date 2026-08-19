@@ -128,7 +128,8 @@ export default function LeadForm() {
           try {
             const { workflowApi: wf } = await import('@/api/lowcodeWorkflow')
             const wfRes = await wf.byBiz({ biz_type: 'lead', biz_id: id! })
-            if (wfRes.data?.status === 'running') {
+            if (wfRes.data?.status === 'running'
+              && (d.review_status === 'draft' || d.review_status === 'pending')) {
               message.warning('审核中的线索不可编辑')
               navigate(`${leadBase}/${id}`, { replace: true })
               return

@@ -94,11 +94,13 @@ async def assert_biz_editable(
 async def assert_lead_editable(
     db: AsyncSession, tenant_id: str, lead_id: str, review_status: str | None,
 ) -> None:
-    """线索整单内容锁：仅 running 流程锁定；其余审核态（含驳回/收录/袭击）可改。"""
-    running = await has_running_process(db, tenant_id, "lead", lead_id)
-    if running:
+    """线索内容锁：仅情报审进行中（pending/draft + running）锁定。
+
+    收录后流程常继续走到「业务员确认」，实例仍 running，但 review 已结束，允许改申报。
+    """
+    rs = review_status or "approved"
+    if rs in ("draft", "pending") and await has_running_process(db, tenant_id, "lead", lead_id):
         raise BusinessException(code=VALIDATION_ERROR, message=_LOCK_MSG)
-    _ = review_status  # 驳回/收录等审核态及已转化/已废弃均不拦编辑
 
 
 async def assert_customer_editable(

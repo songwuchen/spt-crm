@@ -350,8 +350,9 @@ export default function LeadDetail() {
     || reactStatus === 'awaiting_reporter'
     || reactStatus === 'awaiting_filler'
   const canSubmitReact = reactFollowTodo && !!currentUser
-  // 仅审批进行中锁定；草稿、驳回、收录、已转化、已废弃均可改
-  const canEditLead = hasLeadEdit && !reviewInFlight
+  // 仅情报审进行中锁定；收录后即使还有业务员确认节点也可改
+  const reviewInFlightLock = reviewInFlight && (reviewStatus === 'draft' || reviewStatus === 'pending')
+  const canEditLead = hasLeadEdit && !reviewInFlightLock
   const canSubmitApproval = canOperate && reviewStatus === 'draft'
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null

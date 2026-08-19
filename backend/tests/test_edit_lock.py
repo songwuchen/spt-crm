@@ -163,6 +163,20 @@ async def test_assert_lead_pending_with_running_locked():
 
 
 @pytest.mark.asyncio
+async def test_assert_lead_approved_editable_while_confirm_node_running():
+    """收录后常仍有「业务员确认」节点 running，申报应可改。"""
+    db = MagicMock()
+    with patch(
+        "app.domains.lowcode.edit_lock.has_running_process",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        await assert_lead_editable(db, "t1", "l1", "approved")
+        await assert_lead_editable(db, "t1", "l1", "rejected")
+        await assert_lead_editable(db, "t1", "l1", "attacked")
+
+
+@pytest.mark.asyncio
 async def test_assert_form_instance_editable_status():
     db = MagicMock()
     with patch(

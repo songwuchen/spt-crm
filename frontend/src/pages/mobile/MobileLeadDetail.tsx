@@ -170,8 +170,7 @@ export default function MobileLeadDetail() {
   const reviewApproved = reviewStatus === 'approved'
   const reviewCfg = !reviewApproved ? leadReviewStatusConfig[reviewStatus] : null
   const canOperate = lead.status !== 'qualified' && lead.status !== 'discarded'
-  // 仅审批进行中锁定
-  const canEditContent = canEditLead && !wfRunning
+  const canEditContent = canEditLead && !(wfRunning && (reviewStatus === 'draft' || reviewStatus === 'pending'))
   const isReviseTask = !!myTask && isLeadReviseTodo({
     taskKind: myTask.task_kind,
     nodeType: myTask.node_type,
