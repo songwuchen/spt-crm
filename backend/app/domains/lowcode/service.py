@@ -1286,9 +1286,9 @@ def _extract_amount(form_data: dict, field_defs: list[dict]) -> Decimal | None:
 
 
 def _pick_business_no(form_data: dict | None, field_defs: list[dict] | None) -> str | None:
-    """业务编号：只用流水号类字段，不用设计卡号（二者规则不同）。"""
+    """业务编号：只用流水号类字段，不用图纸编号/设计卡号（二者规则不同）。"""
     data = form_data or {}
-    for fid in ("serial_no", "drawing_no", "quote_no", "business_no", "payment_no"):
+    for fid in ("serial_no", "quote_no", "business_no", "payment_no"):
         v = data.get(fid)
         if v is not None and str(v).strip() != "":
             return str(v).strip()[:64]

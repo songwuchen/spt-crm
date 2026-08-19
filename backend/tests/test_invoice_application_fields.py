@@ -6,6 +6,19 @@ from app.domains.lowcode.invoice_application_fields import (
 )
 
 
+def test_serial_no_is_auto_number_with_jdy_rules():
+    defs = [{"id": "serial_no", "type": "text", "label": "流水号"}]
+    apply_invoice_application_fields(defs)
+    serial = next(f for f in defs if f["id"] == "serial_no")
+    assert serial["type"] == "auto_number"
+    assert serial["form_editable"] is False
+    rules = (serial.get("props") or {}).get("serial_rules") or []
+    assert rules[0] == {"type": "text", "value": "KPSQ-"}
+    assert rules[1]["type"] == "counter"
+    assert rules[1]["digits"] == 5
+    assert rules[1]["reset_period"] == "none"
+
+
 def test_contract_lines_new_is_form_editable():
     defs = [
         {"id": "drawing_no_select", "type": "text", "label": "选择图纸编号"},

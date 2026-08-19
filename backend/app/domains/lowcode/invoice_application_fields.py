@@ -30,6 +30,19 @@ _DROP_IDS = frozenset({
     "line_amount_chg",
 })
 
+# CRM 开票流水号：固定前缀 KPSQ- + 5 位数字递增（不自动重置）
+INVOICE_SERIAL_PREFIX = "KPSQ-"
+INVOICE_SERIAL_NO_RULES: list[dict[str, Any]] = [
+    {"type": "text", "value": INVOICE_SERIAL_PREFIX},
+    {
+        "type": "counter",
+        "digits": 5,
+        "fixed": True,
+        "reset_period": "none",
+        "initial_value": 1,
+    },
+]
+
 # 选合同后写入的只读字段（清空时一并清）
 INVOICE_FILL_CLEAR = [
     "drawing_no",
@@ -151,7 +164,17 @@ def apply_invoice_application_fields(defs: list) -> None:
         if not isinstance(f, dict):
             continue
         fid = f.get("id")
-        if fid == "drawing_no_select":
+        if fid == "serial_no":
+            f["type"] = "auto_number"
+            f["label"] = f.get("label") or "流水号"
+            f["form_editable"] = False
+            f["available_on_create"] = True
+            f["fill_stage"] = "initiator"
+            props = dict(f.get("props") or {})
+            props["serial_rules"] = [dict(r) for r in INVOICE_SERIAL_NO_RULES]
+            f["props"] = props
+            f["description"] = f"系统流水号：{INVOICE_SERIAL_PREFIX} + 5 位递增序号（不自动重置）。"
+        elif fid == "drawing_no_select":
             f["type"] = "contract"
             f["label"] = "选择合同号"
             f["description"] = "从合同管理选择；选中后带出图纸号、单位、业务员、开票信息与合同明细。"

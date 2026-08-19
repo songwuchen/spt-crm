@@ -249,12 +249,14 @@ function recordListNo(r: FormInstance, fields: FieldDefinition[]): string {
     const v = data[serialField.id]
     if (v != null && v !== '') return String(v)
   }
-  // business_no 若与设计卡号相同，说明历史误把卡号写入业务编号，列表不展示为流水号
+  // business_no 若与设计卡号/图纸编号相同，说明历史误把合同号写入业务编号
   if (r.business_no) {
     const card = data.design_card_no
-    if (card == null || card === '' || String(card) !== String(r.business_no)) {
-      return r.business_no
-    }
+    const drawing = data.drawing_no
+    const biz = String(r.business_no)
+    if (card != null && card !== '' && biz === String(card)) return '—'
+    if (drawing != null && drawing !== '' && biz === String(drawing)) return '—'
+    return r.business_no
   }
   return '—'
 }
