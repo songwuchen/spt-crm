@@ -12,6 +12,29 @@ async def test_list_leads(client: AsyncClient, auth_headers: dict):
     assert "items" in data["data"]
 
 
+async def test_list_leads_reactivation_active(client: AsyncClient, auth_headers: dict):
+    resp = await client.get(
+        "/api/v1/leads",
+        headers=auth_headers,
+        params={"reactivation_active": True, "pageSize": 5},
+    )
+    data = resp.json()
+    assert data["code"] == 0
+    for item in data["data"]["items"]:
+        assert item["reactivation_status"] in (
+            "awaiting_reporter", "awaiting_filler", "pending_review",
+        )
+
+
+async def test_list_tasks_biz_type_filter(client: AsyncClient, auth_headers: dict):
+    resp = await client.get(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        params={"biz_type": "lead_reactivation", "pageSize": 5},
+    )
+    assert resp.json()["code"] == 0
+
+
 async def test_lead_crud(client: AsyncClient, auth_headers: dict):
     # as_draft：提交后会启审并可能卡在「业务员确认」待办，整单不可编辑
     resp = await client.post("/api/v1/leads", headers=auth_headers, json={

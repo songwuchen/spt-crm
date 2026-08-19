@@ -258,12 +258,16 @@ class WorkflowEngine:
         return "转商机" in name or "确认转化" in name
 
     @staticmethod
-    def _is_lead_intel_task_node(node_inst) -> bool:
+    def _is_lead_intel_task_node(node_inst, *, biz_type: str | None = None) -> bool:
         """是否信息情报部审批节点（需走收录/袭击/回退）。业务员确认 / 修订待办返回 False。"""
         if not node_inst:
-            return True
+            return biz_type != "lead_reactivation"
         ntype = getattr(node_inst, "node_type", None) or ""
         ndef = getattr(node_inst, "node_def_id", None) or ""
+        if biz_type == "lead_reactivation":
+            if ntype == "revise" or ndef == REVISE_NODE_DEF_ID:
+                return False
+            return ndef == "approval_intel" or "情报" in (getattr(node_inst, "node_name", None) or "")
         if ntype == "revise" or ndef == REVISE_NODE_DEF_ID:
             return False
         if WorkflowEngine._is_lead_owner_confirm_node(node_inst):
@@ -324,7 +328,7 @@ class WorkflowEngine:
         """
         if inst.biz_type != "lead" or not inst.biz_id:
             return
-        if not self._is_lead_intel_task_node(node):
+        if not self._is_lead_intel_task_node(node, biz_type=inst.biz_type):
             return
         if await self._lead_is_attacked(inst):
             return
@@ -558,6 +562,7 @@ class WorkflowEngine:
         form_data: dict | None = None, title: str | None = None,
         biz_type: str | None = None, biz_id: str | None = None,
         nominated: dict | None = None,
+        entry_node_id: str | None = None,
     ) -> WfProcessInstance:
         start = self._start_node(version)
         if not start:
@@ -588,7 +593,17 @@ class WorkflowEngine:
         # approved/rejected,否则流程在提交过程中直接走完时下游会先收到结束事件。
         from app.domains.lowcode import wf_notify
         await wf_notify.enqueue_wf_event(self.db, self.tenant_id, "workflow.submitted", inst)
-        await self._advance(inst, version, start["id"], ctx)
+        if entry_node_id:
+            nodes = self._nodes_by_id(version)
+            entry = nodes.get(entry_node_id)
+            if not entry:
+                raise BusinessException(
+                    code=VALIDATION_ERROR,
+                    message=f"流程缺少入口节点: {entry_node_id}",
+                )
+            await self._activate_node(inst, version, entry, ctx)
+        else:
+            await self._advance(inst, version, start["id"], ctx)
         await self.db.commit()
         await self.db.refresh(inst)
         await self.flush_notifications(inst)
@@ -882,9 +897,21 @@ class WorkflowEngine:
                 await self._complete_instance(inst, "rejected", reason=f"节点「{node_name}」无审批人,流程终止")
                 self._log(inst.id, None, None, {"sub": "system"}, "auto_reject", "无审批人,流程终止")
                 return
-            # auto_approve: 跳过本节点。这是「无人审批却放行」的高风险路径 —— 必须留痕并
-            # 通知发起人，否则单据会在无人知情的情况下被自动置为已通过(历史上的静默缺陷)。
-            self._log(inst.id, None, None, {"sub": "system"}, "auto_approve", "无审批人,自动通过")
+            # auto_approve: 跳过本节点。须落 wf_node_instance，否则流程动态只见首尾（对齐简道云每步可见）。
+            now = _now()
+            ni = WfNodeInstance(
+                id=generate_uuid(), tenant_id=self.tenant_id, process_instance_id=inst.id,
+                node_def_id=node["id"], node_type="approval",
+                node_name=node_name, status="completed",
+                config={"auto_approve": True, "empty_strategy": strategy},
+                started_at=now, completed_at=now,
+            )
+            self.db.add(ni)
+            await self.db.flush()
+            self._log(
+                inst.id, ni.id, None, {"sub": "system", "real_name": "系统"},
+                "auto_approve", f"节点「{node_name}」无审批人，自动通过",
+            )
             self._queue("empty_auto_approved", node_name, inst)
             await self._mark_lead_approved_after_intel(inst, node)
             await self._advance(inst, version, node["id"], ctx)
@@ -920,6 +947,31 @@ class WorkflowEngine:
         await self.db.flush()
         # 待办已落库,登记通知(站内 + 钉钉待办),提交后统一下发
         self._queue("tasks_created", fresh, inst)
+        if inst.biz_type == "lead_reactivation" and inst.biz_id:
+            from app.domains.lead.reactivation import sync_reactivation_status_from_wf
+            await sync_reactivation_status_from_wf(self.db, self.tenant_id, inst.biz_id)
+
+    async def _after_lead_reactivation_node_done(self, inst, ni, task) -> None:
+        """业务员/内勤节点完成后写入激活单。"""
+        from app.domains.lead.models import Lead
+        from app.domains.lead.reactivation import (
+            REACT_FILLER_FILL_NODE_IDS,
+            REACT_NODE_SALES,
+            upsert_reactivation_record_for_user,
+        )
+        if ni.node_def_id != REACT_NODE_SALES and ni.node_def_id not in REACT_FILLER_FILL_NODE_IDS:
+            return
+        lead = await self.db.get(Lead, inst.biz_id)
+        if not lead:
+            return
+        actor = {
+            "sub": task.assignee_id,
+            "real_name": getattr(task, "assignee_name", None),
+            "username": getattr(task, "assignee_name", None),
+        }
+        await upsert_reactivation_record_for_user(
+            self.db, self.tenant_id, lead, actor,
+        )
 
     async def _create_cc(self, inst, version, node, ctx) -> None:
         users = await self._resolve_approvers(version, node, ctx)
@@ -1079,17 +1131,19 @@ class WorkflowEngine:
         if inst.status != "running":
             raise BusinessException(code=BUSINESS_ERROR, message="流程已结束")
 
-        # 线索审核：信息情报部节点必须走情报裁定；「业务员确认是否转商机」允许普通通过/驳回
+        # 线索 / 180天激活：情报节点必须走情报裁定
         if (
-            inst.biz_type == "lead"
+            inst.biz_type in ("lead", "lead_reactivation")
             and action in ("approve", "reject")
             and not allow_lead_intel
-            and self._is_lead_intel_task_node(node_inst)
+            and self._is_lead_intel_task_node(node_inst, biz_type=inst.biz_type)
         ):
-            raise BusinessException(
-                code=VALIDATION_ERROR,
-                message="线索审核请使用情报审批（收录/袭击/回退/驳回），不可直接通过或驳回",
+            msg = (
+                "180天激活请使用情报审批（收录/袭击/回退）"
+                if inst.biz_type == "lead_reactivation"
+                else "线索审核请使用情报审批（收录/袭击/回退/驳回），不可直接通过或驳回"
             )
+            raise BusinessException(code=VALIDATION_ERROR, message=msg)
 
         version = await self.db.get(WfProcessDefinitionVersion, inst.process_version_id)
         ctx = ApprovalContext(initiator_id=inst.initiator_id, form_data=await self._form_data(inst),
@@ -1551,8 +1605,13 @@ class WorkflowEngine:
             ni.status = "completed"
             ni.completed_at = _now()
             await self.db.flush()
+            if inst.biz_type == "lead_reactivation" and inst.biz_id:
+                await self._after_lead_reactivation_node_done(inst, ni, task)
             await self._mark_lead_approved_after_intel(inst, ni)
             await self._advance(inst, version, ni.node_def_id, ctx)
+            if inst.biz_type == "lead_reactivation" and inst.biz_id:
+                from app.domains.lead.reactivation import sync_reactivation_status_from_wf
+                await sync_reactivation_status_from_wf(self.db, self.tenant_id, inst.biz_id)
 
     async def _return_to_node(self, inst, version, target: dict, ctx) -> None:
         """退回：作废所有未处理待办与进行中的节点实例，然后重新激活目标审批节点。"""

@@ -120,6 +120,14 @@ async def list_leads(
     start_date: date = Query(None),
     end_date: date = Query(None),
     date_field: str = Query(None, description="日期区间筛选字段：created_at(默认) / biz_date"),
+    reactivation_status: str = Query(
+        None,
+        description="180天重激活状态：none/awaiting_reporter/awaiting_filler/pending_review/closed",
+    ),
+    reactivation_active: bool = Query(
+        None,
+        description="true=仅进行中重激活（待申报人/内勤/情报审）",
+    ),
     filter: str = Query(None, description="高级筛选 FilterDsl(JSON)"),
     sort_by: str = Query(None),
     sort_order: str = Query(None),
@@ -133,7 +141,10 @@ async def list_leads(
         customer_type=customer_type, category=category, country_type=country_type,
         province=province, department_id=department_id, industry=industry,
         company_name=company_name, start_date=start_date, end_date=end_date,
-        date_field=date_field, current_user=_user,
+        date_field=date_field,
+        reactivation_status=reactivation_status,
+        reactivation_active=reactivation_active,
+        current_user=_user,
         adv_filter=filter, sort_by=sort_by, sort_order=sort_order,
     )
     dept_names = await _lead_department_names(db, tenant_id, items)  # 一次查询，避免逐条取部门名
@@ -480,6 +491,8 @@ class IntelReviewBody(BaseModel):
     return_reason: Optional[str] = None
     opinion: Optional[str] = None
     assess_remark: Optional[str] = None
+    has_internal_conflict: Optional[str] = None  # 是 | 否
+    conflict_note: Optional[str] = None
 
 
 @router.post("/{lead_id}/intel_review")
@@ -547,6 +560,37 @@ async def list_lead_reactivation_records(
     await service.get_lead(db, tenant_id, lead_id, current_user)
     rows = await react_svc.list_reactivation_records(db, tenant_id, lead_id)
     return ok([_reactivation_record_dict(r) for r in rows])
+
+
+@router.post("/{lead_id}/reactivation/intel_review")
+async def reactivation_intel_review_lead(
+    lead_id: str,
+    body: IntelReviewBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("lead:view")),
+):
+    """180天激活情报审：收录/袭击重置计时；回退退回内勤/业务员。"""
+    from app.domains.lead.schemas import LeadIntelReviewIn
+    from app.domains.lead import reactivation as react_svc
+    payload = LeadIntelReviewIn(**body.model_dump())
+    l = await react_svc.reactivation_intel_review(
+        db, tenant_id, lead_id, current_user,
+        decision=payload.decision,
+        task_id=payload.task_id,
+        customer_newness=payload.customer_newness,
+        return_reason=payload.return_reason,
+        opinion=payload.opinion,
+        assess_remark=payload.assess_remark,
+        has_internal_conflict=body.has_internal_conflict,
+        conflict_note=body.conflict_note,
+    )
+    products = await service.list_lead_products(db, tenant_id, l.id)
+    return await ok_entity(
+        db, tenant_id, "lead",
+        _lead_dict(l, products, await _lead_department_names(db, tenant_id, [l])),
+        current_user.get("roles"),
+    )
 
 
 @router.post("/{lead_id}/reactivation/submit")

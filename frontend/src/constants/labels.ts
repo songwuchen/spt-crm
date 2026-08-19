@@ -97,6 +97,25 @@ export const leadReviewStatusConfig: Record<string, { label: string; bg: string;
   attacked: { label: '袭击', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-100' },
 }
 
+/** 180天项目激活（关联申报信息/线索） */
+export const leadReactivationStatusConfig: Record<string, { label: string; tone: string }> = {
+  none: { label: '计时中', tone: 'slate' },
+  awaiting_reporter: { label: '待申报人', tone: 'amber' },
+  awaiting_filler: { label: '待填表人', tone: 'orange' },
+  pending_review: { label: '情报审中', tone: 'blue' },
+  closed: { label: '已结束', tone: 'slate' },
+}
+
+export const leadReactivationFilterOptions = [
+  { label: '进行中（全部）', value: '__active__' },
+  { label: '待申报人', value: 'awaiting_reporter' },
+  { label: '待填表人/内勤', value: 'awaiting_filler' },
+  { label: '情报审中', value: 'pending_review' },
+  { label: '已结束', value: 'closed' },
+  { label: '计时中', value: 'none' },
+  { label: '全部状态', value: '__all__' },
+]
+
 /** 客户信息审批态（对齐简道云客户信息流） */
 export const customerReviewStatusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
   draft: { label: '草稿', bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' },

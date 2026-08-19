@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # biz_type -> {table, status_col, approved, rejected, withdrawn?, submitted?, reason_col?}
@@ -69,6 +69,38 @@ async def _lead_reactivation_on_reject(db: AsyncSession, tenant_id: str, lead_id
     )
 
 
+async def _lead_reactivation_on_complete(
+    db: AsyncSession, tenant_id: str, lead_id: str,
+) -> None:
+    """流程正常结束：收录/袭击重置计时，或业务员/内勤提前结束本轮。"""
+    from app.domains.lead.models import Lead
+    from app.domains.lead.reactivation import (
+        CLOSE_PROJECT_STATUSES,
+        REACT_CLOSED,
+        REACT_NONE,
+        ends_reactivation_round,
+        mark_cycle_reset,
+    )
+
+    ld = (await db.execute(
+        select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if not ld:
+        return
+    ps = (ld.report_project_status or "").strip()
+    if ps == "进行中":
+        mark_cycle_reset(ld)
+        await db.flush()
+        return
+    if ps in CLOSE_PROJECT_STATUSES:
+        ld.reactivation_status = REACT_CLOSED
+    elif ends_reactivation_round(ps):
+        ld.reactivation_status = REACT_NONE
+    else:
+        mark_cycle_reset(ld)
+    await db.flush()
+
+
 async def writeback(
     db: AsyncSession, tenant_id: str, biz_type: str, biz_id: str, flow_status: str,
     reason: str | None = None,
@@ -77,6 +109,14 @@ async def writeback(
 
     reason 为审批意见：注册了 reason_col 的业务，驳回时写入该列、通过时清空。
     """
+    # 180天项目激活：独立流程，只动 reactivation_status / 计时，不改申报信息 review_status
+    if biz_type == "lead_reactivation":
+        if flow_status == "completed":
+            await _lead_reactivation_on_complete(db, tenant_id, biz_id)
+        elif flow_status in ("rejected", "withdrawn"):
+            await _lead_reactivation_on_reject(db, tenant_id, biz_id)
+        return
+
     reg = REGISTRY.get(biz_type)
     if not reg or not biz_id:
         return

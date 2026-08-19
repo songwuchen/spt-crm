@@ -9,6 +9,8 @@ export type IntelFinalStatus = 'pending' | 'include' | 'return' | 'revise' | 'at
 type Props = {
   leadId: string
   taskId: string
+  /** 申报信息 vs 180天激活（API 不同） */
+  mode?: 'lead' | 'reactivation'
   initialNewness?: string | null
   initialOpinion?: string | null
   initialReturnReason?: string | null
@@ -42,7 +44,7 @@ function parseNewness(v: unknown): CustomerNewness | undefined {
  * - actionsOnly：接入通用审批抽屉（本节点字段 + 底部意见另渲染）
  */
 export default function LeadIntelReviewForm({
-  leadId, taskId, initialNewness, initialOpinion, initialReturnReason,
+  leadId, taskId, mode = 'lead', initialNewness, initialOpinion, initialReturnReason,
   initialAssessRemark, compact, actionsOnly, showFinalStatus = true,
   finalStatus: finalStatusProp, onFinalStatusChange,
   fieldValues, opinion: opinionProp, onDone,
@@ -74,6 +76,8 @@ export default function LeadIntelReviewForm({
         customer_newness: parseNewness(fv.customer_newness),
         return_reason: String(fv.reject_reason ?? '').trim() || undefined,
         assess_remark: String(fv.assess_remark ?? '').trim() || undefined,
+        has_internal_conflict: String(fv.has_internal_conflict ?? '').trim() || undefined,
+        conflict_note: String(fv.conflict_note ?? '').trim() || undefined,
         opinion: String(opinionProp ?? '').trim() || undefined,
       }
     }
@@ -97,16 +101,17 @@ export default function LeadIntelReviewForm({
     }
     setLoading(true)
     try {
-      await leadApi.intelReview(leadId, {
+      const api = mode === 'reactivation' ? leadApi.reactivationIntelReview : leadApi.intelReview
+      await api(leadId, {
         decision,
         task_id: taskId,
         ...payload,
       })
       const labels: Record<IntelDecision, string> = {
-        include: '已收录',
-        attack: '已标记袭击',
-        return: '已驳回（不可再报备）',
-        revise: '已回退，等待申报人修改后重新提交',
+        include: mode === 'reactivation' ? '已收录，180天计时已重置' : '已收录',
+        attack: mode === 'reactivation' ? '已标记袭击，180天计时已重置' : '已标记袭击',
+        return: mode === 'reactivation' ? '已回退' : '已驳回（不可再报备）',
+        revise: mode === 'reactivation' ? '已回退至内勤/业务员' : '已回退，等待申报人修改后重新提交',
         draft: '已暂存',
       }
       message.success(labels[decision])
@@ -120,17 +125,31 @@ export default function LeadIntelReviewForm({
   }
 
   const primaryDecision = (): IntelDecision => {
-    if (finalStatus === 'return') return 'return'
+    if (finalStatus === 'return') return mode === 'reactivation' ? 'revise' : 'return'
     if (finalStatus === 'revise') return 'revise'
     if (finalStatus === 'attack') return 'attack'
     return 'include'
   }
 
   const primaryLabel =
-    finalStatus === 'return' ? '驳回'
-      : finalStatus === 'revise' ? '回退'
+    finalStatus === 'return' && mode !== 'reactivation' ? '驳回'
+      : finalStatus === 'revise' || (finalStatus === 'return' && mode === 'reactivation') ? '回退'
         : finalStatus === 'attack' ? '袭击'
           : '收录'
+
+  const statusOptions = mode === 'reactivation'
+    ? [
+        { value: 'include', label: '收录' },
+        { value: 'revise', label: '回退' },
+        { value: 'attack', label: '袭击' },
+      ]
+    : [
+        { value: 'pending', label: '待审', disabled: true },
+        { value: 'include', label: '收录' },
+        { value: 'revise', label: '回退' },
+        { value: 'return', label: '驳回' },
+        { value: 'attack', label: '袭击' },
+      ]
 
   const statusBlock = (
     <div>
@@ -142,22 +161,18 @@ export default function LeadIntelReviewForm({
         onChange={(e) => setFinalStatus(e.target.value)}
         optionType="button"
         buttonStyle="solid"
-        options={[
-          { value: 'pending', label: '待审', disabled: true },
-          { value: 'include', label: '收录' },
-          { value: 'revise', label: '回退' },
-          { value: 'return', label: '驳回' },
-          { value: 'attack', label: '袭击' },
-        ]}
+        options={statusOptions}
       />
-      {actionsOnly && finalStatus === 'return' && (
+      {actionsOnly && finalStatus === 'return' && mode !== 'reactivation' && (
         <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1.5">
           驳回后流程结束，项目不可再报备；请在上方「本节点填写」中填写驳回原因
         </div>
       )}
       {actionsOnly && finalStatus === 'revise' && (
         <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1.5">
-          回退后申报人可修改并重新提交审批；请在上方填写回退原因
+          {mode === 'reactivation'
+            ? '回退后将退回内勤或业务员重新处理；请在上方填写回退原因'
+            : '回退后申报人可修改并重新提交审批；请在上方填写回退原因'}
         </div>
       )}
     </div>

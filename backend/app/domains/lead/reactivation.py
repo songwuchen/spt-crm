@@ -1,10 +1,14 @@
 """线索 180 天循环重激活。
 
-计时锚点 cycle_anchor_at 对齐简道云「申报时间」：收录状态下，
-自该日期起满 N 天的当天上午（可配）触发激活流程——不是「≥N 天」积压全扫。
-触发后：申报人待办填写近况；暂缓/取消/落标 → 结束本轮；
+计时锚点 cycle_anchor_at 对齐简道云「申报时间」：收录/袭击状态下，
+自该日期起满 N 天（可配）且尚未进入本轮重激活的线索视为到期；
+每日 09:00 扫描「精确满 N 天当天」的线索（与简道云一致，非积压全扫）。
+触发建待办需 activate_on_scan=true。
 否则 → 填表人确认 → 信息情报部审批；再收录/袭击后重新计时。
 张贺等配置姓名跳过申报人，直接给填表人。
+
+编号约定：简道云迁移线索保留原号（申报信息-/24.23.1- 等）；
+CRM 自建线索用 YYYYMM###，二者通过 lead_code 格式区分。
 """
 from __future__ import annotations
 
@@ -27,15 +31,41 @@ REACT_AWAITING_FILLER = "awaiting_filler"
 REACT_PENDING_REVIEW = "pending_review"
 REACT_CLOSED = "closed"
 
+# 简道云 180天激活：仅「进行中」进内勤→情报审；其它（中标/已签合同等）业务员 else 直接结束
+PROGRESS_STATUS = "进行中"
+
 # 选这些结果则流程结束，不再进情报审 / 不再自动重激活
 CLOSE_PROJECT_STATUSES = frozenset({"暂缓", "暂停", "取消", "落标"})
 
 TASK_BIZ_TYPE = "lead_reactivation"
+WF_BIZ_TYPE = "lead_reactivation"
+# 流程节点 id（与 workflow_service 默认图一致）
+REACT_NODE_SALES = "approval_sales"
+REACT_NODE_FILLER_SKIP = "approval_filler_skip"
+REACT_NODE_FILLER = "approval_filler"
+REACT_FILLER_NODE_IDS = frozenset({REACT_NODE_FILLER_SKIP, REACT_NODE_FILLER})
+# 需要填写跟进字段的内勤（简道云 flowId=5；flowId=3 仅确认）
+REACT_FILLER_FILL_NODE_IDS = frozenset({REACT_NODE_FILLER_SKIP})
+REACT_NODE_INTEL = "approval_intel"
+
+LEAD_REACT_FLOW_CODE = "SYS_LEAD_REACTIVATION_REVIEW"
 POLICY_KEY = "lead_reactivation"
+
+# 跟进字段（业务员/内勤节点可填）
+REACT_FOLLOW_FIELDS = (
+    "project_recent", "follow_progress", "site_visit", "report_project_status",
+)
+
+SYSTEM_INITIATOR = {
+    "sub": "00000000-0000-0000-0000-000000000001",
+    "username": "system",
+    "real_name": "系统",
+}
 
 # 页面可配字段默认值；.env 仅作未落库时的全局兜底
 DEFAULT_CONFIG = {
     "enabled": True,
+    "activate_on_scan": False,
     "days": 180,
     "scan_time": "09:00",
     "skip_reporter_names": ["张贺"],
@@ -83,6 +113,7 @@ def normalize_config(raw: dict | None) -> dict:
         names = list(base["skip_reporter_names"])
     return {
         "enabled": bool(src["enabled"]) if "enabled" in src else True,
+        "activate_on_scan": bool(src["activate_on_scan"]) if "activate_on_scan" in src else False,
         "days": days,
         "scan_time": scan_time,
         "skip_reporter_names": names,
@@ -113,7 +144,7 @@ async def save_tenant_config(db: AsyncSession, tenant_id: str, data: dict) -> di
     if cleaned.get("last_scan_at") is None and prev.get("last_scan_at"):
         cleaned["last_scan_at"] = prev.get("last_scan_at")
     # 页面 API 不暴露 last_scan_at
-    public = {k: cleaned[k] for k in ("enabled", "days", "scan_time", "skip_reporter_names")}
+    public = {k: cleaned[k] for k in ("enabled", "activate_on_scan", "days", "scan_time", "skip_reporter_names")}
     policy[POLICY_KEY] = {**public, "last_scan_at": cleaned.get("last_scan_at")}
     p.security_policy_json = policy
     flag_modified(p, "security_policy_json")
@@ -179,11 +210,156 @@ def mark_cycle_reset(lead: Lead, *, now: datetime | None = None) -> None:
     lead.reactivation_notified_at = None
 
 
+def needs_intel_review(project_status: str | None) -> bool:
+    """对齐简道云业务员节点：仅「进行中」进入内勤/情报审。"""
+    return (project_status or "").strip() == PROGRESS_STATUS
+
+
+def ends_reactivation_round(project_status: str | None) -> bool:
+    """非进行中且非暂缓/取消/落标：简道云 else 分支直接结束本轮（不重置计时）。"""
+    ps = (project_status or "").strip()
+    return bool(ps and ps not in CLOSE_PROJECT_STATUSES and ps != PROGRESS_STATUS)
+
+
 def _anchor_of(lead: Lead) -> datetime | None:
     return lead.cycle_anchor_at or lead.reported_at or lead.created_at
 
 
+def reactivation_status_for_node(node_def_id: str | None) -> str | None:
+    """workflow 节点 → leads.reactivation_status。"""
+    nid = (node_def_id or "").strip()
+    if nid == REACT_NODE_SALES:
+        return REACT_AWAITING_REPORTER
+    if nid in REACT_FILLER_NODE_IDS:
+        return REACT_AWAITING_FILLER
+    if nid == REACT_NODE_INTEL:
+        return REACT_PENDING_REVIEW
+    return None
+
+
+async def build_reactivation_wf_context(
+    db: AsyncSession, tenant_id: str, lead: Lead, cfg: dict | None = None,
+) -> dict:
+    """流程条件分支上下文（跳过申报人 / 是否需内勤核对）。"""
+    cfg = cfg or await get_tenant_config(db, tenant_id)
+    reporter_id = lead.reporter_id or lead.owner_id or lead.created_by_id
+    filler_id = lead.created_by_id
+    return {
+        "report_project_status": lead.report_project_status,
+        "reporter_name": lead.reporter_name,
+        "reporter_id": lead.reporter_id,
+        "created_by_id": lead.created_by_id,
+        "owner_id": lead.owner_id,
+        "department_id": lead.department_id,
+        "react_skip_reporter": should_skip_reporter(lead, cfg),
+        "react_need_filler": bool(filler_id and reporter_id and filler_id != reporter_id),
+    }
+
+
+async def resolve_intel_return_node(
+    db: AsyncSession, process_instance_id: str,
+) -> str:
+    """情报审退回：对齐简道云 backNodes=[内勤3, 业务员, 内勤5]。
+
+    优先退回本轮已完成的内勤；若业务员直接进情报审（无内勤），则退回业务员。
+    """
+    from app.domains.lowcode.workflow_models import WfNodeInstance
+
+    row = (await db.execute(
+        select(WfNodeInstance.node_def_id).where(
+            WfNodeInstance.process_instance_id == process_instance_id,
+            WfNodeInstance.node_def_id.in_(
+                tuple(REACT_FILLER_NODE_IDS | {REACT_NODE_SALES}),
+            ),
+            WfNodeInstance.status == "completed",
+        ).order_by(WfNodeInstance.completed_at.desc()).limit(1)
+    )).scalar_one_or_none()
+    return row or REACT_NODE_FILLER
+
+
+async def sync_reactivation_status_from_wf(
+    db: AsyncSession, tenant_id: str, lead_id: str,
+) -> None:
+    """按当前 running 流程的 pending 节点同步 reactivation_status。"""
+    from app.domains.lowcode.workflow_models import WfProcessInstance, WfNodeInstance, WfTaskInstance
+
+    inst = (await db.execute(
+        select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == tenant_id,
+            WfProcessInstance.biz_type == WF_BIZ_TYPE,
+            WfProcessInstance.biz_id == lead_id,
+            WfProcessInstance.status == "running",
+        ).order_by(WfProcessInstance.started_at.desc()).limit(1)
+    )).scalar_one_or_none()
+    if not inst:
+        return
+    node_def_id = (await db.execute(
+        select(WfNodeInstance.node_def_id)
+        .join(WfTaskInstance, WfTaskInstance.node_instance_id == WfNodeInstance.id)
+        .where(
+            WfTaskInstance.process_instance_id == inst.id,
+            WfTaskInstance.status == "pending",
+        ).limit(1)
+    )).scalar_one_or_none()
+    # scalar_one_or_none 直接返回 node_def_id 字符串，不可再按下标取首字符
+    st = reactivation_status_for_node(node_def_id)
+    if not st:
+        return
+    lead = (await db.execute(
+        select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if lead:
+        lead.reactivation_status = st
+        await db.flush()
+
+
+async def start_reactivation_workflow(
+    db: AsyncSession, tenant_id: str, lead: Lead, *, cfg: dict | None = None,
+):
+    """触发 180 天激活：起 lead_reactivation 全流程实例（替代 UserTask）。"""
+    from app.domains.lowcode.workflow_models import WfProcessInstance
+    from app.domains.lowcode.workflow_service import (
+        _lead_intel_approver_rule,
+        ensure_default_definition,
+        start_for_biz,
+    )
+
+    existing = (await db.execute(
+        select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == tenant_id,
+            WfProcessInstance.biz_type == WF_BIZ_TYPE,
+            WfProcessInstance.biz_id == lead.id,
+            WfProcessInstance.status == "running",
+        ).limit(1)
+    )).scalar_one_or_none()
+    if existing:
+        await sync_reactivation_status_from_wf(db, tenant_id, lead.id)
+        return existing
+
+    cfg = cfg or await get_tenant_config(db, tenant_id)
+    await ensure_default_definition(
+        db, tenant_id,
+        biz_type=WF_BIZ_TYPE,
+        code=LEAD_REACT_FLOW_CODE,
+        name="180天项目激活审批",
+        approver_rule=_lead_intel_approver_rule(),
+        multi_mode="or_sign",
+        empty_strategy="auto_approve",
+    )
+    ctx = await build_reactivation_wf_context(db, tenant_id, lead, cfg)
+    # 180天由系统扫描触发（对齐简道云递呈），发起人须为 system，否则 reporter 节点 exclude_initiator 会空审自动过
+    initiator = dict(SYSTEM_INITIATOR)
+    title = f"180天项目激活: {(lead.lead_code + ' ') if lead.lead_code else ''}{lead.title}"
+    inst = await start_for_biz(
+        db, tenant_id, WF_BIZ_TYPE, lead.id, initiator, title=title, form_data=ctx,
+    )
+    if inst:
+        await sync_reactivation_status_from_wf(db, tenant_id, lead.id)
+    return inst
+
+
 async def _complete_open_tasks(db: AsyncSession, tenant_id: str, lead_id: str) -> None:
+    """清理历史 UserTask（全链路 workflow 后仅作兼容）。"""
     from app.domains.task.models import UserTask
     await db.execute(
         update(UserTask).where(
@@ -287,21 +463,22 @@ async def activate_lead(
     if not cfg.get("enabled", True):
         return False
 
-    assignee_id, assignee_name, stage = _resolve_assignee(lead, prefer_filler=False, cfg=cfg)
+    assignee_id, _, _ = _resolve_assignee(lead, prefer_filler=False, cfg=cfg)
     if not assignee_id:
         logger.warning("lead reactivation skip (no assignee): %s", lead.id)
         return False
 
     if not lead.cycle_anchor_at:
         lead.cycle_anchor_at = _anchor_of(lead) or utcnow()
-    lead.reactivation_status = stage
     lead.reactivation_notified_at = utcnow()
     lead.reactivation_round = int(lead.reactivation_round or 0) + 1
-    await _create_task_and_notify(
-        db, tenant_id, lead,
-        assignee_id=assignee_id, assignee_name=assignee_name, stage=stage,
-        days=reactivation_days(cfg),
-    )
+    await _create_round_record_on_activate(db, tenant_id, lead)
+    await _complete_open_tasks(db, tenant_id, lead.id)
+    try:
+        await start_reactivation_workflow(db, tenant_id, lead, cfg=cfg)
+    except Exception as e:
+        logger.warning("reactivation workflow start failed lead=%s: %s", lead.id, e)
+        return False
     return True
 
 
@@ -330,7 +507,11 @@ def _tenant_due_for_scan(cfg: dict, now_cn: datetime) -> bool:
 
 
 async def scan_and_activate(db: AsyncSession, *, limit: int = 200) -> int:
-    """按租户配置扫描到期线索并起待办（系统设置可配天数/时刻/跳过名单）。"""
+    """按租户配置扫描到期线索并起待办（系统设置可配天数/时刻/跳过名单）。
+
+    到期口径（对齐简道云）：锚点北京时间日期 == 今天 - N 天（精确当天）。
+    仅当 activate_on_scan=true 时才会真正建待办，否则只扫描并写 last_scan_at。
+    """
     from datetime import timezone as tz
     from app.domains.tenant.models import PlatformTenant
 
@@ -347,10 +528,9 @@ async def scan_and_activate(db: AsyncSession, *, limit: int = 200) -> int:
             if not _tenant_due_for_scan(cfg, now_cn):
                 continue
             days = reactivation_days(cfg)
-            # 对齐简道云：「申报时间」满 N 天的当天 09:00 触发（日历日相等，非 ≤ 积压）
+            # 锚点满 N 天当天（对齐简道云「180天前上午9点触发」）
             target_date = now_cn.date() - timedelta(days=days)
             anchor = func.coalesce(Lead.cycle_anchor_at, Lead.reported_at, Lead.created_at)
-            # timestamptz → 北京时间日期
             anchor_cn_date = func.date(func.timezone("Asia/Shanghai", anchor))
             q = (
                 select(Lead)
@@ -367,6 +547,15 @@ async def scan_and_activate(db: AsyncSession, *, limit: int = 200) -> int:
                 .limit(limit)
             )
             leads = (await db.execute(q)).scalars().all()
+            if not cfg.get("activate_on_scan", False):
+                if leads:
+                    logger.info(
+                        "lead reactivation due tenant=%s count=%s (activate_on_scan=false, skipped)",
+                        tenant_id,
+                        len(leads),
+                    )
+                await _mark_tenant_scanned(db, tenant_id, now_cn)
+                continue
             for lead in leads:
                 try:
                     if await activate_lead(db, tenant_id, lead, cfg=cfg):
@@ -388,6 +577,32 @@ async def scan_and_activate(db: AsyncSession, *, limit: int = 200) -> int:
             except Exception:
                 pass
     return activated
+
+
+async def _create_round_record_on_activate(
+    db: AsyncSession, tenant_id: str, lead: Lead,
+) -> LeadReactivationRecord:
+    """触发时新建本轮激活单（对齐简道云满 180 天自动建 180天项目激活数据）。"""
+    round_no = max(1, int(lead.reactivation_round or 0))
+    existing = (await db.execute(
+        select(LeadReactivationRecord).where(
+            LeadReactivationRecord.tenant_id == tenant_id,
+            LeadReactivationRecord.lead_id == lead.id,
+            LeadReactivationRecord.round_no == round_no,
+        ).limit(1)
+    )).scalar_one_or_none()
+    if existing:
+        return existing
+    row = LeadReactivationRecord(
+        id=generate_uuid(),
+        tenant_id=tenant_id,
+        lead_id=lead.id,
+        original_lead_code=lead.lead_code,
+        round_no=round_no,
+    )
+    db.add(row)
+    await db.flush()
+    return row
 
 
 async def _upsert_reactivation_record(
@@ -448,111 +663,303 @@ async def list_reactivation_records(
     )).scalars().all())
 
 
+def derive_record_flow_status(record: LeadReactivationRecord, lead: Lead) -> str:
+    """单条激活记录的流程状态（对齐简道云 flowState 列）。"""
+    is_current = int(record.round_no or 0) == int(lead.reactivation_round or 0)
+    if not is_current:
+        return "completed"
+    st = lead.reactivation_status or REACT_NONE
+    if st == REACT_NONE:
+        return "completed" if record.submitted_at else "running"
+    if st == REACT_CLOSED:
+        return "closed"
+    return st
+
+
+def _record_to_dict(record: LeadReactivationRecord, lead: Lead) -> dict:
+    """列表/详情公共字段。"""
+    flow_status = derive_record_flow_status(record, lead)
+    is_current = int(record.round_no or 0) == int(lead.reactivation_round or 0)
+    return {
+        "id": record.id,
+        "lead_id": lead.id,
+        "original_lead_code": record.original_lead_code or lead.lead_code,
+        "round_no": record.round_no,
+        "project_recent": record.project_recent,
+        "follow_progress": record.follow_progress,
+        "site_visit": record.site_visit,
+        "report_project_status": record.report_project_status,
+        "submitted_by_id": record.submitted_by_id,
+        "submitted_by_name": record.submitted_by_name,
+        "submitted_at": record.submitted_at.isoformat() if record.submitted_at else None,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+        "lead_title": lead.title,
+        "lead_company_name": lead.company_name,
+        "lead_reporter_name": lead.reporter_name,
+        "lead_filler_name": lead.created_by_name,
+        "lead_department_name": getattr(lead, "department_name", None),
+        "reactivation_status": lead.reactivation_status if is_current else "none",
+        "flow_status": flow_status,
+        "is_current_round": is_current,
+    }
+
+
+async def list_reactivation_records_page(
+    db: AsyncSession,
+    tenant_id: str,
+    *,
+    page_no: int = 1,
+    page_size: int = 20,
+    keyword: str | None = None,
+    flow_status: str | None = None,
+    reactivation_status: str | None = None,
+) -> tuple[list[dict], int]:
+    """180天项目激活列表（按激活单维度，对齐简道云数据管理）。"""
+    base = (
+        select(LeadReactivationRecord, Lead)
+        .join(Lead, Lead.id == LeadReactivationRecord.lead_id)
+        .where(
+            LeadReactivationRecord.tenant_id == tenant_id,
+            Lead.tenant_id == tenant_id,
+            Lead.is_deleted == False,  # noqa: E712
+        )
+    )
+    if keyword:
+        kw = f"%{keyword.strip()}%"
+        base = base.where(
+            LeadReactivationRecord.original_lead_code.ilike(kw)
+            | Lead.lead_code.ilike(kw)
+            | Lead.title.ilike(kw)
+            | Lead.company_name.ilike(kw)
+        )
+    rows = list((await db.execute(
+        base.order_by(
+            LeadReactivationRecord.created_at.desc(),
+            LeadReactivationRecord.round_no.desc(),
+        )
+    )).all())
+
+    items: list[dict] = []
+    for record, lead in rows:
+        item = _record_to_dict(record, lead)
+        if reactivation_status and item.get("is_current_round"):
+            if (lead.reactivation_status or REACT_NONE) != reactivation_status:
+                continue
+        elif reactivation_status and not item.get("is_current_round"):
+            continue
+        if flow_status == "active":
+            if item["flow_status"] in ("completed", "closed"):
+                continue
+        elif flow_status == "completed":
+            if item["flow_status"] not in ("completed", "closed"):
+                continue
+        elif flow_status and item["flow_status"] != flow_status:
+            continue
+        items.append(item)
+
+    total = len(items)
+    start = max(0, (page_no - 1) * page_size)
+    return items[start:start + page_size], total
+
+
+async def get_reactivation_record_detail(
+    db: AsyncSession, tenant_id: str, record_id: str,
+) -> dict | None:
+    """单条 180 天激活详情（含原申报信息快照）。"""
+    row = (await db.execute(
+        select(LeadReactivationRecord, Lead).join(
+            Lead, Lead.id == LeadReactivationRecord.lead_id,
+        ).where(
+            LeadReactivationRecord.id == record_id,
+            LeadReactivationRecord.tenant_id == tenant_id,
+            Lead.tenant_id == tenant_id,
+            Lead.is_deleted == False,  # noqa: E712
+        ).limit(1)
+    )).first()
+    if not row:
+        return None
+    record, lead = row
+    data = _record_to_dict(record, lead)
+    data["lead_snapshot"] = {
+        "lead_code": lead.lead_code,
+        "title": lead.title,
+        "company_name": lead.company_name,
+        "source": lead.source,
+        "category": lead.category,
+        "customer_type": lead.customer_type,
+        "industry": lead.industry,
+        "region": lead.region,
+        "province": lead.province,
+        "city": lead.city,
+        "district": lead.district,
+        "country_type": lead.country_type,
+        "has_internal_conflict": lead.has_internal_conflict,
+        "project_activity": lead.project_activity,
+        "reporter_name": lead.reporter_name,
+        "created_by_name": lead.created_by_name,
+        "reported_at": lead.reported_at.isoformat() if lead.reported_at else None,
+        "review_status": lead.review_status,
+    }
+    return data
+
+
+async def _finish_reactivation_round(
+    db: AsyncSession, tenant_id: str, lead: Lead, *,
+    status: str = REACT_NONE, reset_cycle: bool = False,
+) -> None:
+    """结束本轮重激活待办；仅情报审收录/袭击时 reset_cycle=True。"""
+    if reset_cycle:
+        mark_cycle_reset(lead)
+    else:
+        lead.reactivation_status = status
+    await _complete_open_tasks(db, tenant_id, lead.id)
+
+
+async def apply_early_end_from_status(
+    db: AsyncSession, tenant_id: str, lead: Lead, *,
+    notify: bool = True,
+) -> None:
+    """业务员/内勤选非「进行中」后流程提前结束时的业务态。"""
+    ps = (lead.report_project_status or "").strip()
+    if ps in CLOSE_PROJECT_STATUSES:
+        lead.reactivation_status = REACT_CLOSED
+        if notify:
+            await _notify_cycle_closed(db, tenant_id, lead)
+    elif ends_reactivation_round(ps):
+        lead.reactivation_status = REACT_NONE
+    await _complete_open_tasks(db, tenant_id, lead.id)
+    await db.flush()
+
+
+async def upsert_reactivation_record_for_user(
+    db: AsyncSession, tenant_id: str, lead: Lead, user: dict,
+) -> None:
+    """业务员/内勤节点通过后写入激活单。"""
+    await _upsert_reactivation_record(db, tenant_id, lead, user)
+
+
+async def reactivation_intel_review(
+    db: AsyncSession, tenant_id: str, lead_id: str, user: dict,
+    decision: str, task_id: str,
+    customer_newness: str | None = None,
+    return_reason: str | None = None,
+    opinion: str | None = None,
+    assess_remark: str | None = None,
+    has_internal_conflict: str | None = None,
+    conflict_note: str | None = None,
+) -> Lead:
+    """180天激活情报审：收录/袭击重置计时；回退退回内勤/业务员（不改申报 review_status）。
+
+    对齐简道云：无「驳回」终态，仅 收录/袭击/回退/暂存。
+    """
+    from app.common.error_codes import VALIDATION_ERROR, FORBIDDEN, BUSINESS_ERROR, NOT_FOUND
+    from app.common.exceptions import BusinessException
+    from app.domains.lead import service as lead_service
+    from app.domains.lead.schemas import LeadIntelReviewIn
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+    from app.domains.lowcode.workflow_models import WfNodeInstance, WfProcessInstance, WfTaskInstance
+    from app.domains.lead.service import _intel_field_updates
+
+    # 简道云 180天激活无「驳回」；若前端误传 return，按回退处理
+    if decision == "return":
+        decision = "revise"
+
+    LeadIntelReviewIn(
+        decision=decision, task_id=task_id, customer_newness=customer_newness,
+        return_reason=return_reason, opinion=opinion, assess_remark=assess_remark,
+    )
+    task = (await db.execute(select(WfTaskInstance).where(
+        WfTaskInstance.id == task_id, WfTaskInstance.tenant_id == tenant_id,
+    ))).scalar_one_or_none()
+    if not task:
+        raise BusinessException(code=NOT_FOUND, message="待办不存在")
+    if task.status != "pending":
+        raise BusinessException(code=BUSINESS_ERROR, message="该待办已处理")
+    inst = await db.get(WfProcessInstance, task.process_instance_id)
+    if not inst or inst.tenant_id != tenant_id:
+        raise BusinessException(code=NOT_FOUND, message="流程实例不存在")
+    if inst.biz_type != WF_BIZ_TYPE or inst.biz_id != lead_id:
+        raise BusinessException(code=VALIDATION_ERROR, message="待办与180天激活不匹配")
+    if task.assignee_id != user.get("sub"):
+        raise BusinessException(code=FORBIDDEN, message="非当前待办的处理人")
+
+    node_inst = await db.get(WfNodeInstance, task.node_instance_id)
+    if not node_inst or node_inst.node_def_id != REACT_NODE_INTEL:
+        raise BusinessException(code=VALIDATION_ERROR, message="当前不在重激活情报审批阶段")
+
+    lead = await lead_service.get_lead(db, tenant_id, lead_id)
+    # 以流程节点为准；同步 status 便于列表筛选
+    lead.reactivation_status = REACT_PENDING_REVIEW
+
+    if customer_newness is not None:
+        lead.customer_newness = customer_newness
+    if opinion is not None:
+        lead.review_opinion = opinion or None
+    if assess_remark is not None:
+        lead.assess_remark = assess_remark.strip() or None
+    if has_internal_conflict is not None:
+        lead.has_internal_conflict = has_internal_conflict.strip() or None
+    if conflict_note is not None:
+        lead.conflict_note = conflict_note.strip() or None
+
+    field_updates = _intel_field_updates(
+        customer_newness=customer_newness,
+        return_reason=return_reason,
+        assess_remark=assess_remark,
+        has_internal_conflict=has_internal_conflict,
+        conflict_note=conflict_note,
+    )
+
+    if decision == "draft":
+        if return_reason is not None:
+            lead.reject_reason = return_reason.strip() or None
+        if opinion is not None:
+            task.opinion = opinion or None
+        await db.commit()
+        await db.refresh(lead)
+        return lead
+
+    engine = WorkflowEngine(db, tenant_id)
+    if decision == "revise":
+        reason = (return_reason or "").strip()
+        lead.reject_reason = reason or None
+        await db.commit()
+        return_to = await resolve_intel_return_node(db, inst.id)
+        await engine.act(
+            task_id, user, "return", opinion=reason or opinion,
+            return_to=return_to,
+            field_updates=field_updates,
+            allow_lead_intel=True,
+        )
+        await db.refresh(lead)
+        await sync_reactivation_status_from_wf(db, tenant_id, lead.id)
+        await db.commit()
+        await db.refresh(lead)
+        return lead
+
+    # include / attack：仅重置 180 天计时，不动申报信息 review_status
+    lead.reject_reason = None
+    await db.commit()
+    await engine.act(
+        task_id, user, "approve", opinion=opinion,
+        field_updates=field_updates,
+        allow_lead_intel=True,
+    )
+    await db.refresh(lead)
+    return lead
+
+
 async def submit_reactivation(
     db: AsyncSession, tenant_id: str, lead_id: str, user: dict, data,
 ) -> Lead:
-    """申报人/填表人提交重激活跟进。"""
-    from app.common.error_codes import VALIDATION_ERROR, FORBIDDEN, BUSINESS_ERROR
+    """已迁移至 workflow 待办；保留 API 返回明确提示。"""
+    from app.common.error_codes import VALIDATION_ERROR
     from app.common.exceptions import BusinessException
-    from app.domains.lead import service as lead_service
-
-    lead = await lead_service.get_lead(db, tenant_id, lead_id, user)
-    status = lead.reactivation_status or REACT_NONE
-    if status not in (REACT_AWAITING_REPORTER, REACT_AWAITING_FILLER):
-        raise BusinessException(code=VALIDATION_ERROR, message="当前线索不在重激活待办阶段")
-
-    uid = user.get("sub")
-    if status == REACT_AWAITING_REPORTER:
-        expected = lead.reporter_id or lead.owner_id or lead.created_by_id
-    else:
-        expected = lead.created_by_id or lead.reporter_id or lead.owner_id
-    if not expected or expected != uid:
-        # 管理员可代填
-        roles = user.get("roles") or []
-        if not ({"admin", "super_admin", "tenant_admin"} & set(roles)):
-            raise BusinessException(code=FORBIDDEN, message="仅当前待办人可提交重激活跟进")
-
-    project_status = (data.report_project_status or "").strip()
-    if not project_status:
-        raise BusinessException(code=VALIDATION_ERROR, message="请选择项目状态")
-
-    lead.project_recent = (data.project_recent or "").strip() or None
-    lead.follow_progress = (data.follow_progress or "").strip() or None
-    lead.site_visit = (data.site_visit or "").strip() or None
-    lead.report_project_status = project_status
-    await _upsert_reactivation_record(db, tenant_id, lead, user)
-
-    # 暂缓/取消/落标 → 结束
-    if project_status in CLOSE_PROJECT_STATUSES:
-        lead.reactivation_status = REACT_CLOSED
-        await _complete_open_tasks(db, tenant_id, lead.id)
-        await db.commit()
-        await db.refresh(lead)
-        await _notify_cycle_closed(db, tenant_id, lead)
-        await log_action(
-            db, tenant_id=tenant_id, user_id=user["sub"],
-            user_name=user.get("real_name") or user.get("username"),
-            action="reactivation_close", resource_type="lead", resource_id=lead.id,
-            summary=f"重激活结束({project_status}): {lead.title}",
-        )
-        return lead
-
-    # 申报人阶段且存在不同填表人 → 转填表人
-    filler_id = lead.created_by_id
-    if status == REACT_AWAITING_REPORTER and filler_id and filler_id != uid:
-        lead.reactivation_status = REACT_AWAITING_FILLER
-        await _create_task_and_notify(
-            db, tenant_id, lead,
-            assignee_id=filler_id, assignee_name=lead.created_by_name,
-            stage=REACT_AWAITING_FILLER,
-        )
-        await db.commit()
-        await db.refresh(lead)
-        await log_action(
-            db, tenant_id=tenant_id, user_id=user["sub"],
-            user_name=user.get("real_name") or user.get("username"),
-            action="reactivation_to_filler", resource_type="lead", resource_id=lead.id,
-            summary=f"重激活转填表人: {lead.title}",
-        )
-        return lead
-
-    # 提交信息情报部审批（可对已收录/袭击线索再起一轮）
-    if lead.review_status not in ("approved", "attacked", "rejected", "draft"):
-        if lead.review_status == "pending":
-            raise BusinessException(code=BUSINESS_ERROR, message="线索已在审批中，请勿重复提交")
-
-    lead.review_status = "pending"
-    lead.reject_reason = None
-    lead.reactivation_status = REACT_PENDING_REVIEW
-    await _complete_open_tasks(db, tenant_id, lead.id)
-    await db.commit()
-
-    try:
-        inst = await lead_service.submit_lead_review(db, tenant_id, lead, user)
-    except Exception as e:
-        logger.warning("reactivation review submit failed for %s: %s", lead.id, e)
-        await db.rollback()
-        lead = await lead_service.get_lead(db, tenant_id, lead_id)
-        lead.reactivation_status = REACT_AWAITING_FILLER if filler_id else REACT_AWAITING_REPORTER
-        lead.review_status = "approved"  # 回退到可再提交态
-        await db.commit()
-        raise BusinessException(code=BUSINESS_ERROR, message=f"提交情报审批失败: {e}") from e
-
-    await lead_service._apply_review_flow(db, tenant_id, lead, inst, user)
-    await db.refresh(lead)
-    # 若免审直接通过，writeback/apply 会重置周期
-    if lead.review_status in ("approved", "attacked"):
-        mark_cycle_reset(lead)
-        await db.commit()
-        await db.refresh(lead)
-
-    await log_action(
-        db, tenant_id=tenant_id, user_id=user["sub"],
-        user_name=user.get("real_name") or user.get("username"),
-        action="reactivation_submit_review", resource_type="lead", resource_id=lead.id,
-        summary=f"重激活提交情报审批: {lead.title}",
+    raise BusinessException(
+        code=VALIDATION_ERROR,
+        message="180天重激活已改为流程待办办理，请在线索详情或审批中心打开 workflow 待办",
     )
-    return lead
 
 
 async def _notify_cycle_closed(db: AsyncSession, tenant_id: str, lead: Lead) -> None:

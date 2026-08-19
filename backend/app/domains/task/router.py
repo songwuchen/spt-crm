@@ -92,6 +92,7 @@ async def list_tasks(
     priority: str = Query(None),
     assignee_id: str = Query(None),
     keyword: str = Query(None),
+    biz_type: str = Query(None, description="业务类型，如 lead_reactivation"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -117,6 +118,8 @@ async def list_tasks(
         q = q.where(UserTask.priority == priority)
     if keyword:
         q = q.where(UserTask.title.ilike(f"%{keyword}%"))
+    if biz_type:
+        q = q.where(UserTask.biz_type == biz_type)
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
     items = (await db.execute(
         q.order_by(UserTask.due_date.asc().nullslast(), UserTask.created_at.desc())

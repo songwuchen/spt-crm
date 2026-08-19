@@ -3,10 +3,13 @@ import MobileIcon from '@/components/MobileIcon'
 import { message } from 'antd'
 import { taskApi } from '@/api/task'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useNavigate } from 'react-router-dom'
+import { taskNavigatePath } from '@/utils/taskNavigation'
 
 interface TaskItem {
   id: string; title: string; due_date: string | null; priority: string
   status: string; is_completed: boolean; biz_name: string | null
+  biz_type: string | null; biz_id: string | null
 }
 
 const priorityColors: Record<string, string> = {
@@ -15,6 +18,7 @@ const priorityColors: Record<string, string> = {
 
 export default function MobileTasks() {
   usePageTitle('待办任务')
+  const navigate = useNavigate()
   const [tasks, setTasks] = useState<TaskItem[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [title, setTitle] = useState('')
@@ -25,6 +29,15 @@ export default function MobileTasks() {
   }
 
   useEffect(() => { fetch() }, [])
+
+  const handleTaskClick = (t: TaskItem) => {
+    const path = taskNavigatePath(t)
+    if (path && !t.is_completed) {
+      navigate(path.startsWith('/leads/') ? `/m${path}` : path)
+      return
+    }
+    toggleComplete(t)
+  }
 
   const toggleComplete = async (t: TaskItem) => {
     await taskApi.update(t.id, { is_completed: !t.is_completed, status: !t.is_completed ? 'done' : 'todo' })
@@ -64,20 +77,29 @@ export default function MobileTasks() {
 
       {todoTasks.length > 0 && (
         <div className="space-y-2 mb-4">
-          {todoTasks.map(t => (
-            <div key={t.id} role="button" tabIndex={0} onClick={() => toggleComplete(t)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleComplete(t) } }}
+          {todoTasks.map(t => {
+            const navPath = taskNavigatePath(t)
+            return (
+            <div key={t.id} role="button" tabIndex={0} onClick={() => handleTaskClick(t)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTaskClick(t) } }}
               className="bg-white rounded-xl border border-slate-100 shadow-sm p-3 flex items-center gap-3 cursor-pointer active:bg-slate-50">
               <div className="w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-slate-800 truncate">{t.title}</div>
+                {t.biz_name && (
+                  <div className="text-[12px] text-primary mt-0.5 truncate">
+                    {t.biz_type === 'lead_reactivation' ? '180天重激活 · ' : ''}{t.biz_name}
+                  </div>
+                )}
                 {t.due_date && (
                   <div className="text-[12px] text-slate-400 mt-0.5">{t.due_date}</div>
                 )}
               </div>
-              <MobileIcon name={t.priority === 'urgent' || t.priority === 'high' ? 'priority_high' : 'remove'} className={`${priorityColors[t.priority] || 'text-slate-400'}`} style={{ fontSize: 14 }} />
+              {navPath
+                ? <span className="text-[12px] text-primary font-bold shrink-0">办理</span>
+                : <MobileIcon name={t.priority === 'urgent' || t.priority === 'high' ? 'priority_high' : 'remove'} className={`${priorityColors[t.priority] || 'text-slate-400'}`} style={{ fontSize: 14 }} />}
             </div>
-          ))}
+          )})}
         </div>
       )}
 

@@ -18,7 +18,7 @@ import TechAgreementReviewField, {
   fetchProdCardTarFill, PROD_CARD_TAR_FILL_CLEAR, resolveTarFilterIds,
 } from '@/components/lowcode/fields/TechAgreementReviewField'
 import FormRenderer from '@/components/lowcode/FormRenderer'
-import { computeFieldStates } from '@/components/lowcode/RuleEngine'
+import { computeFieldStates, validateApproverDetailRows } from '@/components/lowcode/RuleEngine'
 import { dateFieldFormat, fieldShowsTime } from '@/components/lowcode/dateField'
 
 const { Text } = Typography
@@ -99,7 +99,8 @@ export function missingRequiredFields(
   const merged = { ...(opts?.formData || {}), ...values }
   const permissions: FieldPermission[] = perms.map((p) => ({
     fieldId: p.field,
-    access: p.access === 'required' ? 'required' : 'editable',
+    access: p.access === 'required' ? 'required'
+      : p.access === 'readonly' ? 'readonly' : 'editable',
   }))
   const states = computeFieldStates(fields, merged, rules, permissions)
   return perms
@@ -108,7 +109,9 @@ export function missingRequiredFields(
       // 被显隐规则藏掉的字段不校验（如设计单分派=总部单时「转新乡」）
       if (st && !st.visible) return false
       const req = st ? st.required : p.access === 'required'
-      return req && isEmpty(values[p.field])
+      if (req && isEmpty(values[p.field])) return true
+      const detailErr = validateApproverDetailRows(fields, p.field, values[p.field])
+      return !!detailErr
     })
     .map((p) => p.field)
 }
@@ -164,7 +167,8 @@ export default function ApproveFieldForm({
     if (!rules.length) return null
     const permissions: FieldPermission[] = perms.map((p) => ({
       fieldId: p.field,
-      access: p.access === 'required' ? 'required' : 'editable',
+      access: p.access === 'required' ? 'required'
+        : p.access === 'readonly' ? 'readonly' : 'editable',
     }))
     return computeFieldStates(fieldsForRules, mergedValues, rules, permissions)
   }, [rules, perms, fieldsForRules, mergedValues])
@@ -201,7 +205,8 @@ export default function ApproveFieldForm({
 
           const formFd = formFields.find((f) => f.id === p.field)
           const meta = metaById[p.field] || { id: p.field, label: p.field, type: 'text' as const }
-          const required = st ? st.required : p.access === 'required'
+          const isReadonly = p.access === 'readonly' || st?.readonly === true
+          const required = !isReadonly && (st ? st.required : p.access === 'required')
           const err = missing.has(p.field)
           // field_meta 已按已发布模板覆盖 type；实例 form_fields 快照可能仍是旧类型（如科室单选）
           // 科室字段业务固定多选，避免在途单快照/缓存仍按 department 渲染成单选
@@ -217,6 +222,31 @@ export default function ApproveFieldForm({
           const fieldProps = {
             ...((formFd?.props as Record<string, unknown> | undefined) || {}),
             ...((meta.props as Record<string, unknown> | undefined) || {}),
+          }
+
+          if (isReadonly) {
+            const fd: FieldDefinition = {
+              id: p.field,
+              label,
+              type: t as FieldDefinition['type'],
+              options,
+              props: fieldProps,
+            }
+            const displayVal = values[p.field] ?? formData[p.field]
+            return (
+              <div key={p.field}>
+                <FieldLabel label={label} required={false} />
+                <div style={{ marginTop: 4 }}>
+                  <FormRenderer
+                    fields={[fd]}
+                    mode="readonly"
+                    value={{ [p.field]: displayVal }}
+                    rules={[]}
+                    applyFieldPerms={false}
+                  />
+                </div>
+              </div>
+            )
           }
 
           if (t === 'detail_table') {
@@ -236,6 +266,7 @@ export default function ApproveFieldForm({
                   value={{ [p.field]: val }}
                   onChange={(next) => setField(p.field, next[p.field])}
                   rules={[]}
+                  detailCreateFill={false}
                 />
                 {err && <Text type="danger" style={{ fontSize: 12 }}>请填写{label}</Text>}
               </div>

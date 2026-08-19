@@ -96,6 +96,7 @@ const zhCN = {
     customerPool: '客户公海',
     contacts: '联系人',
     leads: '线索管理',
+    leadReactivations: '180天项目激活',
     opportunities: '商机管理',
     solutions: '方案管理',
     quotes: '报价管理',

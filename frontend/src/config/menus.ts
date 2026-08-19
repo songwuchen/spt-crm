@@ -52,6 +52,7 @@ export const menuGroups: MenuGroup[] = [
       { key: '/customer-pool', icon: 'waves', labelKey: 'nav.customerPool', permission: 'customer:view' },
       { key: '/contacts', icon: 'contacts', labelKey: 'nav.contacts', permission: 'contact:view' },
       { key: '/leads', icon: 'trending_up', labelKey: 'nav.leads', permission: 'lead:view' },
+      { key: '/lead-reactivations', icon: 'schedule', labelKey: 'nav.leadReactivations', permission: 'lead:view' },
     ],
   },
   {

@@ -254,6 +254,37 @@ export interface LeadReactivationRecord {
   submitted_at?: string | null
   created_at?: string | null
   updated_at?: string | null
+  /** 列表 API 扩展字段 */
+  lead_title?: string | null
+  lead_company_name?: string | null
+  lead_reporter_name?: string | null
+  lead_filler_name?: string | null
+  flow_status?: string | null
+  reactivation_status?: string | null
+  is_current_round?: boolean
+}
+
+export interface LeadReactivationDetail extends LeadReactivationRecord {
+  lead_snapshot?: {
+    lead_code?: string | null
+    title?: string | null
+    company_name?: string | null
+    source?: string | null
+    category?: string | null
+    customer_type?: string | null
+    industry?: string | null
+    region?: string | null
+    province?: string | null
+    city?: string | null
+    district?: string | null
+    country_type?: string | null
+    has_internal_conflict?: string | null
+    project_activity?: string | null
+    reporter_name?: string | null
+    created_by_name?: string | null
+    reported_at?: string | null
+    review_status?: string | null
+  }
 }
 
 export interface Department {

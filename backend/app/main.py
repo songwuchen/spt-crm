@@ -23,6 +23,7 @@ from app.domains.organization.pickable_scope_router import lc_router as pickable
 from app.domains.customer.router import router as customer_router
 from app.domains.customer.router import pool_router as customer_pool_router
 from app.domains.lead.router import router as lead_router, public_router as lead_public_router
+from app.domains.lead.reactivation_router import router as lead_reactivation_router
 from app.domains.attachment.router import router as attachment_router
 from app.domains.audit.router import router as audit_router
 from app.domains.dashboard.router import router as dashboard_router
@@ -153,6 +154,7 @@ app.include_router(pickable_scope_lc_router)
 app.include_router(customer_router)
 app.include_router(customer_pool_router)
 app.include_router(lead_router)
+app.include_router(lead_reactivation_router)
 app.include_router(attachment_router)
 app.include_router(audit_router)
 app.include_router(dashboard_router)

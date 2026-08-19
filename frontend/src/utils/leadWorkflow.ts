@@ -34,8 +34,36 @@ export function isLeadIntelTodo(opts: {
   nodeType?: string | null
   taskKind?: string | null
 }): boolean {
+  if (opts.bizType === 'lead_reactivation') {
+    return isLeadReactivationIntelTodo(opts)
+  }
   if (opts.bizType !== 'lead') return false
   if (isLeadReviseTodo(opts)) return false
   if (isLeadOwnerConfirmNode(opts.nodeName, opts.nodeId)) return false
   return true
+}
+
+/** 180天激活：情报审节点 */
+export function isLeadReactivationIntelTodo(opts: {
+  bizType?: string | null
+  nodeName?: string | null
+  nodeId?: string | null
+}): boolean {
+  if (opts.bizType !== 'lead_reactivation') return false
+  const id = (opts.nodeId || '').trim()
+  if (id === 'approval_intel') return true
+  const name = (opts.nodeName || '').trim()
+  return name.includes('情报') || name.includes('激活')
+}
+
+/** 180天激活：业务员/内勤跟进节点 */
+export function isLeadReactivationFollowTodo(opts: {
+  bizType?: string | null
+  nodeName?: string | null
+  nodeId?: string | null
+}): boolean {
+  if (opts.bizType !== 'lead_reactivation') return false
+  if (isLeadReactivationIntelTodo(opts)) return false
+  const id = (opts.nodeId || '').trim()
+  return id === 'approval_sales' || id === 'approval_filler' || id === 'approval_filler_skip' || !!opts.nodeName
 }

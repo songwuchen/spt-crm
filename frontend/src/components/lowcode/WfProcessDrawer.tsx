@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Button, Space, Tag, Drawer, Input, message, Typography, Select, Spin, Radio,
+  Button, Space, Tag, Drawer, Input, message, Typography, Select, Spin, Radio, Tabs,
 } from 'antd'
 import {
   CheckCircleOutlined, CloseCircleOutlined, SwapOutlined,
@@ -25,11 +25,39 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
 import { applyApproveFieldDefaults } from '@/utils/lowcodeFormDefaults'
 import { canPrintDrawingDocument, isDrawingApproveAndPrintNode, printSchemeInstance } from '@/pages/drawing/schemePrint'
-import { isLeadOwnerConfirmNode, isLeadReviseTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
+import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadReactivationIntelTodo, isLeadReactivationFollowTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
 import { dataLogFromWfDetail } from '@/utils/dataLogLabels'
 import { useAuthStore } from '@/stores/useAuthStore'
 
 const { Text, Title } = Typography
+
+/** 180天激活：biz_detail 中属于「本次激活」的字段（对齐简道云 Tab） */
+const REACT_BIZ_LABELS = new Set(['项目近况', '跟进进度', '实地拜访情况', '项目状态'])
+const WIDE_BIZ_LABELS = new Set([
+  '备注1（线索内容）', '备注：请示部门经理的结果', '详细地址', '回退原因',
+  '备注2', '操作意见', '备注', '核心需求', '母公司或者控股公司情况及性质说明',
+])
+
+function BizDetailGrid({ entries }: { entries: [string, unknown][] }) {
+  if (!entries.length) {
+    return <Text type="secondary">暂无内容</Text>
+  }
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 rounded-lg bg-slate-50 border border-slate-100 p-4">
+      {entries.map(([k, v]) => (
+        <div
+          key={k}
+          className={`flex gap-2 text-sm min-w-0 ${WIDE_BIZ_LABELS.has(k) ? 'sm:col-span-2' : ''}`}
+        >
+          <span className="shrink-0 w-36 text-slate-500">{k}</span>
+          <span className="text-slate-800 font-medium break-all whitespace-pre-wrap">
+            {v == null || v === '' ? '—' : String(v)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 /** 业务单据审批 → 完整详情页路径 */
 export function bizEntityPath(
@@ -42,6 +70,7 @@ export function bizEntityPath(
   const p = mobile ? '/m' : ''
   const map: Record<string, string> = {
     lead: `${p}/leads/${bizId}`,
+    lead_reactivation: `${p}/leads/${bizId}?react=1`,
     customer: `${p}/customers/${bizId}`,
     order: `${p}/orders/${bizId}`,
     service_ticket: `${p}/service-tickets/${bizId}`,
@@ -79,6 +108,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   const [moreMode, setMoreMode] = useState<'transfer' | 'return' | null>(null)
   const [activateOpen, setActivateOpen] = useState(false)
   const [sideTab, setSideTab] = useState('flow')
+  const [mainTab, setMainTab] = useState('original')
   const [commenting, setCommenting] = useState(false)
   const [leadFinalStatus, setLeadFinalStatus] = useState<'include' | 'return' | 'revise' | 'attack'>('include')
   const [contract, setContract] = useState<ContractItem | null>(null)
@@ -152,7 +182,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
   useEffect(() => {
     if (!open || !instanceId) return
     setOpinion(''); setTransferTo(undefined); setReturnTo(undefined); setFieldUpdates({}); setFieldHighlight(false); setMoreMode(null)
-    setSideTab('flow'); setContract(null); setContractVersion(null)
+    setSideTab('flow'); setMainTab('original'); setContract(null); setContractVersion(null)
     setLoading(true)
     ;(async () => {
       try {
@@ -178,6 +208,20 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       navigate(leadReviseEditPath(detail.biz_id, ct.task_id))
     }
   }, [open, detail, navigate, onClose])
+
+  // 180天激活待办：默认打开「本次激活内容」Tab（对齐简道云）
+  useEffect(() => {
+    if (!open || !detail || detail.biz_type !== 'lead_reactivation') return
+    const ct = detail.current_task
+    const revise = ct?.task_kind === 'revise' || ct?.node_type === 'revise'
+    const act = !!ct?.task_id && (detail.status === 'running' || revise)
+    const followTodo = isLeadReactivationFollowTodo({
+      bizType: detail.biz_type,
+      nodeId: ct?.node_id,
+      nodeName: ct?.node_name,
+    })
+    if (act && ((ct?.field_perms?.length ?? 0) > 0 || followTodo)) setMainTab('activation')
+  }, [open, detail])
 
   // URL/调用方传入的 taskId 仅作加载提示；能否操作以 current_task 为准（已办任务 id 不能误开操作区）
   const effectiveTaskId = detail?.current_task?.task_id || null
@@ -282,6 +326,10 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
 
   const bizPath = detail ? bizEntityPath(detail.biz_type, detail.biz_id, detail.biz_ref_id) : null
   const bizEntries = detail?.biz_detail ? Object.entries(detail.biz_detail) : []
+  const isLeadReactivation = detail?.biz_type === 'lead_reactivation'
+  const originalBizEntries = bizEntries.filter(([k]) => !REACT_BIZ_LABELS.has(k))
+  const activationBizEntries = bizEntries.filter(([k]) => REACT_BIZ_LABELS.has(k))
+  const hasNodeFields = canAct && (detail?.current_task?.field_perms?.length ?? 0) > 0
   const currentNode = detail?.current_task?.node_name
     || detail?.flow_steps?.find((s) => s.is_current)?.node_name
     || '审批'
@@ -289,8 +337,161 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
     detail?.current_task?.node_name,
     detail?.current_task?.node_id,
   )
-  const isLeadIntel = detail?.biz_type === 'lead' && canAct && !!effectiveTaskId && !!detail?.biz_id
-    && !isReviseTask && !isLeadOwnerConfirm
+  const isLeadReactivationIntel = detail?.biz_type === 'lead_reactivation' && canAct && !!effectiveTaskId
+    && isLeadReactivationIntelTodo({
+      bizType: detail.biz_type,
+      nodeId: detail.current_task?.node_id,
+      nodeName: detail.current_task?.node_name,
+    })
+  const isLeadIntel = (detail?.biz_type === 'lead' && canAct && !!effectiveTaskId && !!detail?.biz_id
+    && !isReviseTask && !isLeadOwnerConfirm)
+    || isLeadReactivationIntel
+
+  const isLeadReactivationFollow = detail?.biz_type === 'lead_reactivation' && canAct && !!effectiveTaskId
+    && isLeadReactivationFollowTodo({
+      bizType: detail.biz_type,
+      nodeId: detail.current_task?.node_id,
+      nodeName: detail.current_task?.node_name,
+    })
+  const isLeadReactivationFillerConfirm = isLeadReactivationFollow
+    && detail?.current_task?.node_id === 'approval_filler'
+    && !(detail.current_task.field_perms?.length)
+
+  const nodeFieldSection = hasNodeFields && detail?.current_task ? (
+    <section className="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
+      <div className="text-sm font-semibold text-slate-700 mb-2">
+        本节点{(detail.current_task.field_perms || []).every((p) => p.access === 'readonly') ? '核对' : '填写'}
+        （{detail.current_task.node_name || '审批'}）
+      </div>
+      <ApproveFieldForm
+        currentTask={{
+          ...detail.current_task,
+          field_perms: (detail.current_task.field_perms || []).filter(
+            (p) => p.field !== 'review_opinion',
+          ),
+        }}
+        values={fieldUpdates}
+        onChange={setFieldUpdates}
+        showTitle={false}
+        highlightMissing={fieldHighlight}
+        rules={detail.form_rules || []}
+        formData={formData}
+        formFields={fields}
+      />
+      {isLeadIntel && (
+        <div className="mt-4 pt-3 border-t border-amber-100/80">
+          <div className="text-sm font-medium text-slate-700 mb-2">
+            <span className="text-red-500 mr-0.5">*</span>项目最终状态
+          </div>
+          <Radio.Group
+            value={leadFinalStatus}
+            onChange={(e) => setLeadFinalStatus(e.target.value)}
+            optionType="button"
+            buttonStyle="solid"
+            options={isLeadReactivationIntel
+              ? [
+                  { value: 'include', label: '收录' },
+                  { value: 'revise', label: '回退' },
+                  { value: 'attack', label: '袭击' },
+                ]
+              : [
+                  { value: 'include', label: '收录' },
+                  { value: 'revise', label: '回退' },
+                  { value: 'return', label: '驳回' },
+                  { value: 'attack', label: '袭击' },
+                ]}
+          />
+          {!isLeadReactivationIntel && leadFinalStatus === 'return' && (
+            <div className="mt-2 text-xs text-amber-700">驳回须在上方填写原因；驳回后不可再报备</div>
+          )}
+          {leadFinalStatus === 'revise' && (
+            <div className="mt-2 text-xs text-blue-700">
+              {isLeadReactivationIntel
+                ? '回退须在上方填写原因；将退回内勤或业务员重新处理'
+                : '回退须在上方填写原因；申报人可修改后重新提交'}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  ) : isLeadReactivationFillerConfirm ? (
+    <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+      <div className="text-sm text-slate-600">
+        请核对左侧「本次激活内容」中业务员填写的跟进信息，确认无误后点击「通过」提交情报审。
+      </div>
+    </section>
+  ) : null
+
+  const defaultBizSection = (
+    <>
+      <div className="text-sm font-semibold text-slate-700 mb-2">
+        {detail?.biz_type === 'contract_version' && contract
+          ? '合同登记信息'
+          : detail?.biz_type === 'lead'
+            ? '申报信息（创建时填写）'
+            : detail?.biz_type === 'customer'
+              ? '客户信息'
+              : detail?.biz_type === 'contract_review'
+                ? '合同评审信息'
+                : detail?.biz_type === 'tech_agreement_review'
+                  ? '技术协议评审信息'
+                  : '业务信息'}
+      </div>
+      {detail?.biz_type === 'lead' && detail.biz_id && (
+        <div className="mb-4">
+          <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
+        </div>
+      )}
+      {fields.length ? (
+        <FormRenderer
+          fields={fields}
+          mode={isReviseTask ? 'edit' : 'readonly'}
+          value={isReviseTask ? { ...formData, ...fieldUpdates } : formData}
+          onChange={isReviseTask ? ((v) => {
+            setFormData(v)
+            setFieldUpdates(v)
+          }) : undefined}
+          rules={detail?.form_rules || []}
+          applyFieldPerms={false}
+        />
+      ) : detail?.biz_type === 'contract_version' ? (
+        contractLoading ? (
+          <div className="py-8 text-center"><Spin /></div>
+        ) : contract ? (
+          <ContractRegistrationReadonly contract={contract} version={contractVersion} />
+        ) : bizEntries.length ? (
+          <BizDetailGrid entries={bizEntries} />
+        ) : (
+          <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
+        )
+      ) : bizEntries.length ? (
+        <BizDetailGrid entries={bizEntries} />
+      ) : (
+        <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
+      )}
+      {detail?.biz_type === 'customer' && detail.biz_id && (
+        <div className="mt-4">
+          <AttachmentPanel bizType="customer" bizId={detail.biz_id} title="附件" compact />
+        </div>
+      )}
+      {detail?.biz_type === 'tech_agreement_review' && detail.biz_id && (
+        <div className="mt-4 space-y-3">
+          <AttachmentPanel
+            bizType="tech_agreement_review_drawing"
+            bizId={detail.biz_id}
+            title="认可图（附件）"
+            compact
+          />
+          <AttachmentPanel
+            bizType="tech_agreement_review"
+            bizId={detail.biz_id}
+            title="技术协议（附件）"
+            compact
+          />
+        </div>
+      )}
+    </>
+  )
 
   return (
     <Drawer
@@ -365,148 +566,46 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              <section>
-                <div className="text-sm font-semibold text-slate-700 mb-2">
-                  {detail.biz_type === 'contract_version' && contract
-                    ? '合同登记信息'
-                    : detail.biz_type === 'lead'
-                      ? '申报信息（创建时填写）'
-                      : detail.biz_type === 'customer'
-                        ? '客户信息'
-                        : detail.biz_type === 'contract_review'
-                          ? '合同评审信息'
-                          : detail.biz_type === 'tech_agreement_review'
-                            ? '技术协议评审信息'
-                            : '业务信息'}
-                </div>
-                {detail.biz_type === 'lead' && detail.biz_id && (
-                  <div className="mb-4">
-                    <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
-                  </div>
-                )}
-                {fields.length ? (
-                  <FormRenderer
-                    fields={fields}
-                    mode={isReviseTask ? 'edit' : 'readonly'}
-                    value={isReviseTask ? { ...formData, ...fieldUpdates } : formData}
-                    onChange={isReviseTask ? ((v) => {
-                      setFormData(v)
-                      setFieldUpdates(v)
-                    }) : undefined}
-                    rules={detail.form_rules || []}
-                    applyFieldPerms={false}
-                  />
-                ) : detail.biz_type === 'contract_version' ? (
-                  contractLoading ? (
-                    <div className="py-8 text-center"><Spin /></div>
-                  ) : contract ? (
-                    <ContractRegistrationReadonly contract={contract} version={contractVersion} />
-                  ) : bizEntries.length ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 rounded-lg bg-slate-50 border border-slate-100 p-4">
-                      {bizEntries.map(([k, v]) => (
-                        <div key={k} className="flex gap-2 text-sm min-w-0">
-                          <span className="shrink-0 w-28 text-slate-500">{k}</span>
-                          <span className="text-slate-800 font-medium break-all">
-                            {v == null || v === '' ? '—' : String(v)}
-                          </span>
+              {isLeadReactivation ? (
+                <Tabs
+                  activeKey={mainTab}
+                  onChange={setMainTab}
+                  className="wf-reactivation-main-tabs"
+                  items={[
+                    {
+                      key: 'original',
+                      label: '原申报信息内容',
+                      children: (
+                        <div className="space-y-4 pt-1">
+                          {detail.biz_id && (
+                            <AttachmentPanel bizType="lead" bizId={detail.biz_id} title="附件" compact />
+                          )}
+                          <BizDetailGrid entries={originalBizEntries} />
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
-                  )
-                ) : bizEntries.length ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 rounded-lg bg-slate-50 border border-slate-100 p-4">
-                    {bizEntries.map(([k, v]) => (
-                      <div
-                        key={k}
-                        className={`flex gap-2 text-sm min-w-0 ${
-                          ['备注1（线索内容）', '备注：请示部门经理的结果', '详细地址', '回退原因', '备注2', '操作意见', '备注', '核心需求', '母公司或者控股公司情况及性质说明'].includes(k)
-                            ? 'sm:col-span-2'
-                            : ''
-                        }`}
-                      >
-                        <span className="shrink-0 w-36 text-slate-500">{k}</span>
-                        <span className="text-slate-800 font-medium break-all whitespace-pre-wrap">
-                          {v == null || v === '' ? '—' : String(v)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <Text type="secondary">暂无业务明细{bizPath ? '，可点击上方「查看完整单据」' : ''}</Text>
-                )}
-                {detail.biz_type === 'customer' && detail.biz_id && (
-                  <div className="mt-4">
-                    <AttachmentPanel bizType="customer" bizId={detail.biz_id} title="附件" compact />
-                  </div>
-                )}
-                {detail.biz_type === 'tech_agreement_review' && detail.biz_id && (
-                  <div className="mt-4 space-y-3">
-                    <AttachmentPanel
-                      bizType="tech_agreement_review_drawing"
-                      bizId={detail.biz_id}
-                      title="认可图（附件）"
-                      compact
-                    />
-                    <AttachmentPanel
-                      bizType="tech_agreement_review"
-                      bizId={detail.biz_id}
-                      title="技术协议（附件）"
-                      compact
-                    />
-                  </div>
-                )}
-              </section>
-
-              {/* 本节点可填业务字段（通用：含线索情报节点 field_perms） */}
-              {canAct && detail.current_task && (detail.current_task.field_perms?.length ?? 0) > 0 && (
-                <section className="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
-                  <div className="text-sm font-semibold text-slate-700 mb-2">
-                    本节点填写（{detail.current_task.node_name || '审批'}）
-                  </div>
-                  <ApproveFieldForm
-                    currentTask={{
-                      ...detail.current_task,
-                      // 操作意见走底部通用栏，不在节点字段里再渲染一遍
-                      field_perms: (detail.current_task.field_perms || []).filter(
-                        (p) => p.field !== 'review_opinion',
                       ),
-                    }}
-                    values={fieldUpdates}
-                    onChange={setFieldUpdates}
-                    showTitle={false}
-                    highlightMissing={fieldHighlight}
-                    rules={detail.form_rules || []}
-                    formData={formData}
-                    formFields={fields}
-                  />
-                  {isLeadIntel && (
-                    <div className="mt-4 pt-3 border-t border-amber-100/80">
-                      <div className="text-sm font-medium text-slate-700 mb-2">
-                        <span className="text-red-500 mr-0.5">*</span>项目最终状态
-                      </div>
-                      <Radio.Group
-                        value={leadFinalStatus}
-                        onChange={(e) => setLeadFinalStatus(e.target.value)}
-                        optionType="button"
-                        buttonStyle="solid"
-                        options={[
-                          { value: 'include', label: '收录' },
-                          { value: 'revise', label: '回退' },
-                          { value: 'return', label: '驳回' },
-                          { value: 'attack', label: '袭击' },
-                        ]}
-                      />
-                      {leadFinalStatus === 'return' && (
-                        <div className="mt-2 text-xs text-amber-700">驳回须在上方填写原因；驳回后不可再报备</div>
-                      )}
-                      {leadFinalStatus === 'revise' && (
-                        <div className="mt-2 text-xs text-blue-700">回退须在上方填写原因；申报人可修改后重新提交</div>
-                      )}
-                    </div>
-                  )}
-                </section>
+                    },
+                    {
+                      key: 'activation',
+                      label: '本次激活内容',
+                      children: (
+                        <div className="space-y-4 pt-1">
+                          {activationBizEntries.length > 0 && (
+                            <BizDetailGrid entries={activationBizEntries} />
+                          )}
+                          {nodeFieldSection}
+                          {!hasNodeFields && !activationBizEntries.length && (
+                            <Text type="secondary">暂无激活填写内容</Text>
+                          )}
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+              ) : (
+                <>
+                  <section>{defaultBizSection}</section>
+                  {!isLeadReactivation && nodeFieldSection}
+                </>
               )}
             </div>
 
@@ -531,6 +630,7 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                       actionsOnly
                       showFinalStatus={false}
                       compact
+                      mode={detail.biz_type === 'lead_reactivation' ? 'reactivation' : 'lead'}
                       leadId={detail.biz_id!}
                       taskId={effectiveTaskId!}
                       fieldValues={fieldUpdates}

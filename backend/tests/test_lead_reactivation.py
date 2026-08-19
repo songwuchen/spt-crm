@@ -3,13 +3,26 @@ from types import SimpleNamespace
 
 from app.domains.lead.reactivation import (
     CLOSE_PROJECT_STATUSES,
+    PROGRESS_STATUS,
     REACT_AWAITING_FILLER,
     REACT_AWAITING_REPORTER,
+    REACT_NODE_FILLER,
+    REACT_NODE_FILLER_SKIP,
     _resolve_assignee,
+    ends_reactivation_round,
     lead_confirm_assignee_id,
     mark_cycle_reset,
+    needs_intel_review,
     normalize_config,
+    reactivation_status_for_node,
     should_skip_reporter,
+)
+from app.domains.lowcode.workflow_service import (
+    _LEAD_REACT_FILLER_NODE_ID,
+    _LEAD_REACT_FILLER_SKIP_NODE_ID,
+    _flow_is_jdy_lead_reactivation,
+    _lead_intel_approver_rule,
+    _lead_reactivation_flow_graph,
 )
 
 
@@ -88,6 +101,21 @@ def test_close_statuses_include_customer_terms():
     assert "落标" in CLOSE_PROJECT_STATUSES
 
 
+def test_needs_intel_review_only_in_progress():
+    assert needs_intel_review("进行中") is True
+    assert needs_intel_review("中标") is False
+    assert needs_intel_review("已签合同") is False
+    assert needs_intel_review("落标") is False
+
+
+def test_ends_reactivation_round_direct_end_statuses():
+    assert ends_reactivation_round("中标") is True
+    assert ends_reactivation_round("已签合同") is True
+    assert ends_reactivation_round("进行中") is False
+    assert ends_reactivation_round("落标") is False
+    assert ends_reactivation_round("暂缓") is False
+
+
 def test_mark_cycle_reset():
     lead = SimpleNamespace(
         cycle_anchor_at=None,
@@ -100,11 +128,59 @@ def test_mark_cycle_reset():
     assert lead.reactivation_notified_at is None
 
 
-def test_scan_doc_uses_exact_day_not_backlog():
-    """扫描应对齐简道云：满 N 天当天触发，避免 ≥N 天一次扫出数万积压。"""
+def test_scan_due_exact_day_like_jdy():
+    """到期扫描对齐简道云：精确满 N 天当天（==），非积压全扫。"""
     import inspect
     from app.domains.lead import reactivation as mod
     src = inspect.getsource(mod.scan_and_activate)
-    assert "target_date" in src
-    assert "Asia/Shanghai" in src
-    assert "anchor <=" not in src.replace("anchor_cn_date == target_date", "")
+    assert "anchor_cn_date == target_date" in src
+    assert "activate_on_scan" in src
+    assert "anchor_cn_date <= target_date" not in src
+    src_activate = inspect.getsource(mod.activate_lead)
+    assert "_create_round_record_on_activate" in src_activate
+
+
+def test_reactivation_status_for_both_filler_nodes():
+    assert reactivation_status_for_node(REACT_NODE_FILLER) == REACT_AWAITING_FILLER
+    assert reactivation_status_for_node(REACT_NODE_FILLER_SKIP) == REACT_AWAITING_FILLER
+    assert reactivation_status_for_node("approval_sales") == REACT_AWAITING_REPORTER
+
+
+def test_lead_reactivation_flow_has_two_filler_nodes():
+    nodes, routes = _lead_reactivation_flow_graph(
+        "180天项目激活审批", _lead_intel_approver_rule(), "or_sign", "auto_approve",
+    )
+    ids = {n["id"] for n in nodes}
+    assert _LEAD_REACT_FILLER_SKIP_NODE_ID in ids
+    assert _LEAD_REACT_FILLER_NODE_ID in ids
+    assert "cc_reporter" in ids
+    assert _flow_is_jdy_lead_reactivation(nodes, routes) is True
+    by_id = {n["id"]: n for n in nodes}
+    assert by_id[_LEAD_REACT_FILLER_SKIP_NODE_ID].get("field_perms")
+    assert not by_id[_LEAD_REACT_FILLER_NODE_ID].get("field_perms")
+    intel = by_id["approval_intel"]
+    assert intel.get("name") == "信息情报部审批"
+    intel_fields = {p["field"] for p in (intel.get("field_perms") or [])}
+    assert "has_internal_conflict" in intel_fields
+    assert "conflict_note" in intel_fields
+
+
+def test_sync_reactivation_status_uses_node_def_id_string():
+    """regression: scalar_one_or_none 返回 str，不可再取 [0]。"""
+    import inspect
+    from app.domains.lead import reactivation as mod
+    src = inspect.getsource(mod.sync_reactivation_status_from_wf)
+    assert "row[0]" not in src
+    assert "reactivation_status_for_node(node_def_id)" in src
+
+
+def test_reactivation_uses_separate_workflow():
+    """180天激活全链路走 lead_reactivation workflow，不复用申报 lead 审批。"""
+    import inspect
+    from app.domains.lead import reactivation as mod
+    src_activate = inspect.getsource(mod.activate_lead)
+    assert "start_reactivation_workflow" in src_activate
+    assert "_create_task_and_notify" not in src_activate
+    src_intel = inspect.getsource(mod.reactivation_intel_review)
+    assert "WF_BIZ_TYPE" in src_intel or "lead_reactivation" in src_intel
+    assert "review_status" not in src_intel or "review_status =" not in src_intel

@@ -51,6 +51,8 @@ const CustomerForm = lazy(() => import('@/pages/customer/CustomerForm'))
 const CustomerPool = lazy(() => import('@/pages/customer/CustomerPool'))
 const ContactList = lazy(() => import('@/pages/customer/ContactList'))
 const LeadList = lazy(() => import('@/pages/lead/LeadList'))
+const LeadReactivationList = lazy(() => import('@/pages/lead/LeadReactivationList'))
+const LeadReactivationDetail = lazy(() => import('@/pages/lead/LeadReactivationDetail'))
 const LeadDetail = lazy(() => import('@/pages/lead/LeadDetail'))
 const LeadForm = lazy(() => import('@/pages/lead/LeadForm'))
 const OpportunityList = lazy(() => import('@/pages/opportunity/OpportunityList'))
@@ -200,6 +202,8 @@ export const router = createBrowserRouter([
       { path: 'customer-pool', element: <Guard permission="customer:view"><CustomerPool /></Guard> },
       { path: 'contacts', element: <Guard permission="contact:view"><ContactList /></Guard> },
       { path: 'leads', element: <Guard permission="lead:view"><LeadList /></Guard> },
+      { path: 'lead-reactivations', element: <Guard permission="lead:view"><LeadReactivationList /></Guard> },
+      { path: 'lead-reactivations/:recordId', element: <Guard permission="lead:view"><LeadReactivationDetail /></Guard> },
       { path: 'leads/new', element: <Guard permission="lead:create"><LeadForm /></Guard> },
       { path: 'leads/:id', element: <Guard permission="lead:view"><LeadDetail /></Guard> },
       { path: 'leads/:id/edit', element: <Guard permission="lead:edit"><LeadForm /></Guard> },

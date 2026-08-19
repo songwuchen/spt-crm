@@ -382,6 +382,14 @@ BIZ_DEFAULT_SPECS: list[dict] = [
         "empty_strategy": "auto_approve",
     },
     {
+        "biz_type": "lead_reactivation",
+        "code": "SYS_LEAD_REACTIVATION_REVIEW",
+        "name": "180天项目激活审批",
+        "approver_rule": _lead_intel_approver_rule(),
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
         "biz_type": "customer",
         "code": "SYS_CUSTOMER_INFO",
         "name": "客户信息审批",
@@ -1071,6 +1079,170 @@ def apply_quote_named_role_approvers(nodes: list[dict]) -> bool:
     return changed
 
 
+_CS_REPLACE_CS_USERS = {
+    "type": "specified_user",
+    "value": [
+        "0236446249514",
+        "181359282120075679",
+        "113236314224043072",
+        "01364955133227249077",
+    ],
+    "exclude_initiator": True,
+    "jdy_role_hint": "7.1.2售出产品更换（补发）流程-客服补登",
+}
+_CS_REPLACE_BIZ_MGR = {
+    "type": "form_field_person_dept_head",
+    "value": "sales_person",
+    "exclude_initiator": True,
+}
+_CS_REPLACE_CHIEF = {
+    "type": "specified_user",
+    "value": "02364335378133",
+    "exclude_initiator": True,
+    "jdy_role_hint": "7.1.1售后服务申请及反馈-总工审批",
+}
+_CS_REPLACE_CEO = {
+    "type": "specified_user",
+    "value": "02336214315748",
+    "exclude_initiator": True,
+    "jdy_role_hint": "总经理",
+}
+_CS_REPLACE_WANG = {
+    "type": "specified_user",
+    "value": "01000533004677",
+    "exclude_initiator": True,
+    "jdy_role_hint": "7.1.1售后服务申请及反馈-王玲玲",
+}
+_CS_REPLACE_DUAN = {
+    "type": "specified_user",
+    "value": "02364714147257",
+    "exclude_initiator": True,
+    "jdy_role_hint": "热能利用-段荣凯",
+}
+_CS_REPLACE_FINANCE = {
+    "type": "specified_user",
+    "value": "0433406811775721",
+    "exclude_initiator": True,
+    "jdy_role_hint": "7.1.2售出产品更换（补发）流程-财务开票抄送",
+}
+
+
+def _approver_rule_value_equal(a: object, b: object) -> bool:
+    if isinstance(a, list) and isinstance(b, list):
+        return sorted(str(x) for x in a) == sorted(str(x) for x in b)
+    return a == b
+
+
+def _approver_rule_matches(have: dict, want: dict) -> bool:
+    return (
+        have.get("type") == want.get("type")
+        and _approver_rule_value_equal(have.get("value"), want.get("value"))
+    )
+
+
+def _flow_cs_product_replace_needs_approver_fix(nodes: list | None) -> bool:
+    want_by_id = {
+        "n1": _CS_REPLACE_BIZ_MGR,
+        "n4": _CS_REPLACE_CS_USERS,
+        "n6": _CS_REPLACE_CHIEF,
+        "n8": _CS_REPLACE_CEO,
+        "n9": _CS_REPLACE_CS_USERS,
+        "n12": _CS_REPLACE_WANG,
+        "n16": _CS_REPLACE_CS_USERS,
+        "n17": _CS_REPLACE_DUAN,
+        "n18": _CS_REPLACE_FINANCE,
+    }
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = want_by_id.get(str(n.get("id") or ""))
+        if not want:
+            continue
+        rule = n.get("approver_rule") or {}
+        if not _approver_rule_matches(rule, want):
+            return True
+    return False
+
+
+def apply_cs_product_replace_approvers(nodes: list[dict]) -> bool:
+    """售出产品更换：简道云角色展开为具名用户；业务经理=业务员部门负责人。"""
+    want_by_id = {
+        "n1": _CS_REPLACE_BIZ_MGR,
+        "n4": _CS_REPLACE_CS_USERS,
+        "n6": _CS_REPLACE_CHIEF,
+        "n8": _CS_REPLACE_CEO,
+        "n9": _CS_REPLACE_CS_USERS,
+        "n12": _CS_REPLACE_WANG,
+        "n16": _CS_REPLACE_CS_USERS,
+        "n17": _CS_REPLACE_DUAN,
+        "n18": _CS_REPLACE_FINANCE,
+    }
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = want_by_id.get(str(n.get("id") or ""))
+        if not want:
+            continue
+        cur = n.get("approver_rule") or {}
+        if _approver_rule_matches(cur, want):
+            continue
+        n["approver_rule"] = dict(want)
+        changed = True
+    return changed
+
+
+_CS_RETURN_CS_USERS = {
+    "type": "specified_user",
+    "value": [
+        "0236446249514",
+        "181359282120075679",
+        "113236314224043072",
+        "01364955133227249077",
+    ],
+    "exclude_initiator": True,
+    "jdy_role_hint": "230902客服内勤",
+}
+
+
+def _flow_cs_product_return_needs_approver_fix(nodes: list | None) -> bool:
+    want_by_id = {
+        "n3": _CS_RETURN_CS_USERS,
+        "n20": _CS_RETURN_CS_USERS,
+    }
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = want_by_id.get(str(n.get("id") or ""))
+        if not want:
+            continue
+        rule = n.get("approver_rule") or {}
+        if not _approver_rule_matches(rule, want):
+            return True
+    return False
+
+
+def apply_cs_product_return_approvers(nodes: list[dict]) -> bool:
+    """售出产品/工具退回：230902客服内勤 → 具名用户或签。"""
+    want_by_id = {
+        "n3": _CS_RETURN_CS_USERS,
+        "n20": _CS_RETURN_CS_USERS,
+    }
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = want_by_id.get(str(n.get("id") or ""))
+        if not want:
+            continue
+        cur = n.get("approver_rule") or {}
+        if _approver_rule_matches(cur, want):
+            continue
+        n["approver_rule"] = dict(want)
+        changed = True
+    return changed
+
+
 _PRESALE_CHIEF_APPROVER = {
     "type": "specified_user",
     "value": "02364335378133",  # 曹修国（简道云 24.2.3合同/项目评审-设计-曹修国）
@@ -1212,6 +1384,74 @@ def _flow_quote_purchase_not_parallel(nodes: list | None, routes: list | None) -
             if r.get("exclusive_group") or r.get("fork") != "parallel":
                 return True
         if src in purchase_ids and tgt in finance_ids and not r.get("reenter"):
+            return True
+    return False
+
+
+def apply_quote_finance_dept_notify_parallel(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """财务核价后部门通知边：多条件可同时命中，不能进互斥组。
+
+    简道云同源出边是「条件为真则进入」，不是严格 if/else。通知发起人条件
+    含新疆/冶金/矿山，同时又有子集边「热能→段荣凯」「冶金事业部」「矿山销售」；
+    若标 ``exclusive_group``，先命中超集边后子集永远走不到。
+    有条件的部门边标 ``fork=parallel``；无条件 else（通知销售经理）仅作
+    全未命中时的兜底，且不进互斥组。
+    """
+    finance_ids = _quote_nodes_named(nodes, "财务核价")
+    purchase_ids = _quote_nodes_named(nodes, "采购")
+    if not finance_ids:
+        return False
+    by_id = {
+        str(n["id"]): n
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id")
+    }
+    changed = False
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        src = str(r.get("source") or "")
+        if src not in finance_ids:
+            continue
+        tgt = str(r.get("target") or "")
+        if tgt in purchase_ids:
+            continue
+        if r.get("condition"):
+            if r.get("exclusive_group") or r.get("fork") != "parallel":
+                r.pop("exclusive_group", None)
+                r["fork"] = "parallel"
+                changed = True
+            continue
+        # else：通知销售经理等无条件兜底，禁止进互斥组
+        name = (by_id.get(tgt) or {}).get("name") or ""
+        if name == "通知销售经理" or not r.get("condition"):
+            if r.get("exclusive_group"):
+                r.pop("exclusive_group", None)
+                changed = True
+    return changed
+
+
+def _flow_quote_finance_dept_not_parallel(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """财务核价→有条件部门通知仍在互斥组，或 else 仍带互斥组。"""
+    finance_ids = _quote_nodes_named(nodes, "财务核价")
+    purchase_ids = _quote_nodes_named(nodes, "采购")
+    if not finance_ids:
+        return False
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        if str(r.get("source") or "") not in finance_ids:
+            continue
+        if str(r.get("target") or "") in purchase_ids:
+            continue
+        if r.get("condition"):
+            if r.get("exclusive_group") or r.get("fork") != "parallel":
+                return True
+        elif r.get("exclusive_group"):
             return True
     return False
 
@@ -2241,8 +2481,210 @@ def _default_flow_graph(
     return nodes, routes
 
 
+LEAD_REACTIVATION_DEFAULT_DESC = (
+    "系统默认（对齐简道云 180天项目激活）："
+    "触发即起流程；跳过申报人→内勤(填跟进)，否则业务员→进行中且需内勤→内勤(确认)"
+    "→信息情报部审批→抄送申报人→结束。"
+)
+
+_LEAD_REACT_ENTRY_NODE_ID = "approval_intel"
+_LEAD_REACT_SALES_NODE_ID = "approval_sales"
+_LEAD_REACT_FILLER_SKIP_NODE_ID = "approval_filler_skip"
+_LEAD_REACT_FILLER_NODE_ID = "approval_filler"
+_LEAD_REACT_CC_NODE_ID = "cc_reporter"
+_LEAD_REACT_INTEL_NODE_NAME = "信息情报部审批"
+
+_REPORT_STATUS_OPTS = [
+    {"value": "进行中", "label": "进行中"},
+    {"value": "暂缓", "label": "暂缓"},
+    {"value": "暂停", "label": "暂停"},
+    {"value": "取消", "label": "取消"},
+    {"value": "落标", "label": "落标"},
+    {"value": "中标", "label": "中标"},
+    {"value": "已签合同", "label": "已签合同"},
+]
+
+_LEAD_REACT_FOLLOW_FIELD_PERMS = _fp(
+    ("project_recent", "editable"),
+    ("follow_progress", "editable"),
+    ("site_visit", "editable"),
+    ("report_project_status", "required"),
+)
+
+# 简道云 flowId=3：业务员已填跟进，内勤仅确认转发（无可填字段）
+
+
+def _node_field_access(nodes: list | None, nid: str, field: str) -> str | None:
+    by_id = {n.get("id"): n for n in (nodes or []) if isinstance(n, dict)}
+    node = by_id.get(nid) or {}
+    for p in node.get("field_perms") or []:
+        if isinstance(p, dict) and p.get("field") == field:
+            return str(p.get("access") or "")
+    return None
+
+
+def _node_has_field_perms(nodes: list | None, nid: str) -> bool:
+    by_id = {n.get("id"): n for n in (nodes or []) if isinstance(n, dict)}
+    perms = (by_id.get(nid) or {}).get("field_perms") or []
+    return bool(perms)
+
+
+def _lead_reactivation_flow_graph(
+    name: str, approver_rule: dict, multi_mode: str, empty_strategy: str,
+) -> tuple[list[dict], list[dict]]:
+    """180天项目激活：全链路 workflow（递呈→业务员/内勤×2→情报审→抄送）。"""
+    progress = {"field": "report_project_status", "operator": "eq", "value": "进行中"}
+    skip_reporter = {"field": "react_skip_reporter", "operator": "in", "value": [True, "true", 1]}
+    need_filler = {"field": "react_need_filler", "operator": "in", "value": [True, "true", 1]}
+    sales = _field_person_approval_node(
+        _LEAD_REACT_SALES_NODE_ID, "业务员", "reporter_id",
+        field_perms=_LEAD_REACT_FOLLOW_FIELD_PERMS,
+    )
+    # 简道云 flowId=5：跳过申报人时内勤代填跟进（同业务员字段权限）
+    filler_skip = _field_person_approval_node(
+        _LEAD_REACT_FILLER_SKIP_NODE_ID, "内勤", "created_by_id",
+        field_perms=_LEAD_REACT_FOLLOW_FIELD_PERMS,
+    )
+    # 简道云 flowId=3：业务员后内勤只点通过，不填字段
+    filler = _field_person_approval_node(
+        _LEAD_REACT_FILLER_NODE_ID, "内勤", "created_by_id",
+    )
+    # 简道云 flowId=4：情报审通过后抄送申报人
+    cc_reporter = _cc_node(
+        _LEAD_REACT_CC_NODE_ID, "抄送申报人",
+        {"type": "form_field_person", "value": "reporter_id"},
+    )
+    nodes: list[dict] = [
+        {"id": "start", "type": "start", "name": "递呈信息"},
+        sales,
+        filler_skip,
+        filler,
+        {
+            "id": _LEAD_REACT_ENTRY_NODE_ID, "type": "approval",
+            "name": _LEAD_REACT_INTEL_NODE_NAME,
+            "approver_rule": approver_rule, "multi_mode": multi_mode,
+            "empty_strategy": empty_strategy,
+            "field_perms": _LEAD_REACT_INTEL_FIELD_PERMS,
+        },
+        cc_reporter,
+        {"id": "end", "type": "end", "name": "流程结束"},
+    ]
+    g_start = "g_react_start"
+    g_sales = "g_react_sales"
+    g_filler_skip = "g_react_filler_skip"
+    g_filler = "g_react_filler"
+    routes: list[dict] = [
+        {
+            "id": "r_start_skip_reporter", "source": "start",
+            "target": _LEAD_REACT_FILLER_SKIP_NODE_ID,
+            "exclusive_group": g_start, "condition": _and_cond(skip_reporter),
+        },
+        {
+            "id": "r_start_sales", "source": "start", "target": _LEAD_REACT_SALES_NODE_ID,
+            "exclusive_group": g_start,
+        },
+        {
+            "id": "r_sales_filler", "source": _LEAD_REACT_SALES_NODE_ID,
+            "target": _LEAD_REACT_FILLER_NODE_ID,
+            "exclusive_group": g_sales, "condition": _and_cond(progress, need_filler),
+        },
+        {
+            "id": "r_sales_intel", "source": _LEAD_REACT_SALES_NODE_ID,
+            "target": _LEAD_REACT_ENTRY_NODE_ID,
+            "exclusive_group": g_sales, "condition": _and_cond(progress),
+        },
+        {
+            "id": "r_sales_end", "source": _LEAD_REACT_SALES_NODE_ID, "target": "end",
+            "exclusive_group": g_sales,
+        },
+        {
+            "id": "r_filler_skip_intel", "source": _LEAD_REACT_FILLER_SKIP_NODE_ID,
+            "target": _LEAD_REACT_ENTRY_NODE_ID,
+            "exclusive_group": g_filler_skip, "condition": _and_cond(progress),
+        },
+        {
+            "id": "r_filler_skip_end", "source": _LEAD_REACT_FILLER_SKIP_NODE_ID, "target": "end",
+            "exclusive_group": g_filler_skip,
+        },
+        {
+            "id": "r_filler_intel", "source": _LEAD_REACT_FILLER_NODE_ID,
+            "target": _LEAD_REACT_ENTRY_NODE_ID,
+            "exclusive_group": g_filler, "condition": _and_cond(progress),
+        },
+        {
+            "id": "r_filler_end", "source": _LEAD_REACT_FILLER_NODE_ID, "target": "end",
+            "exclusive_group": g_filler,
+        },
+        {
+            "id": "r_intel_cc", "source": _LEAD_REACT_ENTRY_NODE_ID,
+            "target": _LEAD_REACT_CC_NODE_ID,
+        },
+        {"id": "r_cc_end", "source": _LEAD_REACT_CC_NODE_ID, "target": "end"},
+    ]
+    return nodes, routes
+
+
+def _flow_is_jdy_lead_reactivation(nodes: list | None, routes: list | None = None) -> bool:
+    """已是 workflow 全链路 180天激活图（双内勤 + 情报字段 + 抄送申报人）。"""
+    ids = {n.get("id") for n in (nodes or [])}
+    required = {
+        _LEAD_REACT_SALES_NODE_ID, _LEAD_REACT_FILLER_SKIP_NODE_ID,
+        _LEAD_REACT_FILLER_NODE_ID, _LEAD_REACT_ENTRY_NODE_ID, _LEAD_REACT_CC_NODE_ID,
+    }
+    if not required <= ids:
+        return False
+    if _node_field_access(nodes, _LEAD_REACT_SALES_NODE_ID, "report_project_status") != "required":
+        return False
+    if _node_field_access(nodes, _LEAD_REACT_FILLER_SKIP_NODE_ID, "report_project_status") != "required":
+        return False
+    if _node_has_field_perms(nodes, _LEAD_REACT_FILLER_NODE_ID):
+        return False
+    if _node_field_access(nodes, _LEAD_REACT_ENTRY_NODE_ID, "has_internal_conflict") != "editable":
+        return False
+    by_id = {n.get("id"): n for n in (nodes or []) if isinstance(n, dict)}
+    intel = by_id.get(_LEAD_REACT_ENTRY_NODE_ID) or {}
+    if (intel.get("name") or "").strip() != _LEAD_REACT_INTEL_NODE_NAME:
+        return False
+    skip_to_filler_skip = need_filler_route = has_sales_intel = has_intel_cc = False
+    for r in routes or []:
+        fields = _route_cond_fields(r)
+        if (
+            r.get("source") == "start"
+            and r.get("target") == _LEAD_REACT_FILLER_SKIP_NODE_ID
+            and "react_skip_reporter" in fields
+        ):
+            skip_to_filler_skip = True
+        if (
+            r.get("source") == _LEAD_REACT_SALES_NODE_ID
+            and r.get("target") == _LEAD_REACT_FILLER_NODE_ID
+            and "react_need_filler" in fields
+        ):
+            need_filler_route = True
+        if (
+            r.get("source") == _LEAD_REACT_SALES_NODE_ID
+            and r.get("target") == _LEAD_REACT_ENTRY_NODE_ID
+            and "report_project_status" in fields
+        ):
+            has_sales_intel = True
+        if (
+            r.get("source") == _LEAD_REACT_ENTRY_NODE_ID
+            and r.get("target") == _LEAD_REACT_CC_NODE_ID
+        ):
+            has_intel_cc = True
+    return skip_to_filler_skip and need_filler_route and has_sales_intel and has_intel_cc
+
+
 _LEAD_INTEL_FIELD_PERMS = _fp(
     ("customer_newness", "required"),
+    ("reject_reason", "editable"),
+    ("assess_remark", "editable"),
+)
+
+# 简道云 180天激活情报审：新/老 + 内部冲突 + 最终状态(UI) + 回退原因 + 备注2
+_LEAD_REACT_INTEL_FIELD_PERMS = _fp(
+    ("customer_newness", "required"),
+    ("has_internal_conflict", "editable"),
+    ("conflict_note", "editable"),
     ("reject_reason", "editable"),
     ("assess_remark", "editable"),
 )
@@ -2573,6 +3015,36 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"报价角色审批改为具名用户/可选范围({form_code})",
         )
         return
+    # 售出产品更换：业务经理/客服会签 勿用空 sales_manager
+    if (
+        topology_ok
+        and form_code == "cs_product_replace"
+        and _flow_cs_product_replace_needs_approver_fix(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_cs_product_replace_approvers(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"售出产品更换审批人改为具名用户/部门负责人({form_code})",
+        )
+        return
+    # 售出产品/工具退回：客服办理 230902客服内勤 → 具名用户
+    if (
+        topology_ok
+        and form_code == "cs_product_return"
+        and _flow_cs_product_return_needs_approver_fix(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_cs_product_return_approvers(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"售出产品退回审批人改为具名用户({form_code})",
+        )
+        return
     # 售前服务通知：总工审批 sales_manager → 曹修国
     if (
         topology_ok
@@ -2708,6 +3180,10 @@ async def _upgrade_drawing_form_flow_if_needed(
             version.node_definitions, patched_routes,
         ):
             tags.append("转采购并行询价")
+        if form_code == "quote_management" and apply_quote_finance_dept_notify_parallel(
+            version.node_definitions, patched_routes,
+        ):
+            tags.append("财务核价部门通知并行")
         if _flow_missing_exclusive_groups(patched_routes):
             by_src: dict[str, list] = {}
             for r in patched_routes:
@@ -2878,6 +3354,16 @@ async def ensure_default_definition(
         if sys_def and sys_def.status == "published":
             await _upgrade_tech_agreement_jdy_if_needed(db, tenant_id, sys_def)
 
+    if biz_type == "lead_reactivation":
+        sys_def = (await db.execute(select(WfProcessDefinition).where(
+            WfProcessDefinition.tenant_id == tenant_id,
+            WfProcessDefinition.code == code,
+            WfProcessDefinition.is_deleted == False,  # noqa: E712
+        ).limit(1))).scalar_one_or_none()
+        if sys_def and sys_def.status == "published":
+            await _upgrade_lead_reactivation_label_if_needed(db, tenant_id, sys_def)
+            await _upgrade_lead_reactivation_jdy_graph_if_needed(db, tenant_id, sys_def)
+
     existing = (await db.execute(select(WfProcessDefinition).where(
         WfProcessDefinition.tenant_id == tenant_id,
         WfProcessDefinition.biz_type == biz_type,
@@ -2899,6 +3385,11 @@ async def ensure_default_definition(
     elif biz_type == "customer":
         nodes, routes = _customer_info_flow_graph()
         description = CUSTOMER_INFO_DEFAULT_DESC
+    elif biz_type == "lead_reactivation":
+        nodes, routes = _lead_reactivation_flow_graph(
+            name, approver_rule, multi_mode, empty_strategy,
+        )
+        description = LEAD_REACTIVATION_DEFAULT_DESC
     else:
         nodes, routes = _default_flow_graph(
             name, approver_rule, multi_mode, empty_strategy, with_owner_cc=with_owner_cc,
@@ -3147,10 +3638,56 @@ async def _publish_system_default_upgrade(
         d.name = "合同登记审批（运营）"
     if d.biz_type == "contract_review" and (not d.name or d.name == "合同评审审批"):
         d.name = "合同评审会签"
+    if d.biz_type == "lead_reactivation" and d.name == "信息情报部审批":
+        d.name = "180天项目激活审批"
     await db.commit()
     logger.info(
         "已升级系统兜底流程 %s(tenant=%s) → v%s：%s（废弃草稿 %s 条）",
         d.code, tenant_id, next_ver, log_tag, len(drafts),
+    )
+
+
+async def _upgrade_lead_reactivation_label_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition,
+) -> None:
+    """180天激活兜底流：流程管理里与「申报信息」情报审区分展示名。"""
+    if d.code != "SYS_LEAD_REACTIVATION_REVIEW":
+        return
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    target = "180天项目激活审批"
+    changed = False
+    if (d.name or "").strip() in ("信息情报部审批", ""):
+        d.name = target
+        changed = True
+    if not d.description or LEAD_REACTIVATION_DEFAULT_DESC not in (d.description or ""):
+        d.description = LEAD_REACTIVATION_DEFAULT_DESC
+        changed = True
+    if changed:
+        await db.commit()
+
+
+async def _upgrade_lead_reactivation_jdy_graph_if_needed(
+    db, tenant_id: str, d: WfProcessDefinition,
+) -> None:
+    """旧三节点兜底图 → 简道云 180天激活完整拓扑。"""
+    if d.code != "SYS_LEAD_REACTIVATION_REVIEW":
+        return
+    if d.category and d.category != SYSTEM_DEFAULT_CATEGORY:
+        return
+    version = await _published_version(db, tenant_id, d.id)
+    if not version:
+        return
+    if _flow_is_jdy_lead_reactivation(version.node_definitions, version.route_definitions):
+        return
+    intel_rule = _lead_intel_approver_rule()
+    new_nodes, new_routes = _lead_reactivation_flow_graph(
+        d.name or "180天项目激活审批",
+        intel_rule, "or_sign", "auto_approve",
+    )
+    await _publish_system_default_upgrade(
+        db, tenant_id, d, version, new_nodes, new_routes,
+        LEAD_REACTIVATION_DEFAULT_DESC, "简道云180天激活流(双内勤/情报审/抄送申报人)",
     )
 
 
@@ -4074,6 +4611,7 @@ async def _revive_default_definition(
 
 async def start_for_biz(
     db, tenant_id, biz_type, biz_id, user, title=None, form_data=None,
+    entry_node_id: str | None = None,
 ) -> WfProcessInstance | None:
     """既有业务单据(报价/合同/订单/线索...)提交审批: 若该 biz_type 绑定了已发布流程,
     起新引擎流程并承载 (biz_type, biz_id);完成/驳回后由引擎回写业务表状态(wf_biz_writeback)。
@@ -4113,7 +4651,8 @@ async def start_for_biz(
         except Exception:
             ctx = {}
     return await WorkflowEngine(db, tenant_id).submit(
-        d.id, version, user, biz_type=biz_type, biz_id=biz_id, title=title, form_data=ctx or {},
+        d.id, version, user, biz_type=biz_type, biz_id=biz_id, title=title,
+        form_data=ctx or {}, entry_node_id=entry_node_id,
     )
 
 
@@ -4858,6 +5397,12 @@ async def _build_flow_steps(
         action = getattr(lg, "action", None) if lg else None
         actor_name = getattr(lg, "actor_name", None) if lg else None
         opinion = getattr(lg, "opinion", None) if lg else None
+        cfg = n.config if isinstance(getattr(n, "config", None), dict) else {}
+        if cfg.get("auto_approve") or action == "auto_approve":
+            action = action or "auto_approve"
+            actor_name = actor_name or "系统"
+            if not opinion:
+                opinion = f"节点「{n.node_name}」无审批人，自动通过"
         # 历史数据兼容：旧版驳回未关闭节点，仍为 running，但操作已是驳回 / 流程已结束
         display_status = n.status
         if display_status == "running":

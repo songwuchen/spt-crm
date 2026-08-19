@@ -5,13 +5,15 @@ import { PlusOutlined, DeleteOutlined, CheckOutlined, UserSwitchOutlined } from 
 import { taskApi } from '@/api/task'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUserSelect } from '@/hooks/useSelectOptions'
+import { useNavigate } from 'react-router-dom'
+import { taskNavigatePath } from '@/utils/taskNavigation'
 import dayjs from 'dayjs'
 
 interface TaskItem {
   id: string; title: string; description: string | null
   due_date: string | null; priority: string; status: string
   assignee_name: string | null; created_by_name: string | null
-  biz_type: string | null; biz_name: string | null
+  biz_type: string | null; biz_id: string | null; biz_name: string | null
   is_completed: boolean; created_at: string
 }
 
@@ -29,17 +31,19 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 }
 
 const bizTypeLabels: Record<string, string> = {
-  customer: '客户', project: '商机', lead: '线索', ticket: '工单',
-  quote: '报价', contract: '合同', order: '订单',
+  customer: '客户', project: '商机', lead: '线索', lead_reactivation: '180天重激活',
+  ticket: '工单', quote: '报价', contract: '合同', order: '订单',
 }
 
 export default function TaskPage() {
   usePageTitle('待办任务')
+  const navigate = useNavigate()
   const [items, setItems] = useState<TaskItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [filterStatus, setFilterStatus] = useState<string | undefined>()
   const [filterPriority, setFilterPriority] = useState<string | undefined>()
+  const [filterBizType, setFilterBizType] = useState<string | undefined>()
   const [loading, setLoading] = useState(false)
   const [modal, setModal] = useState(false)
   const [assignModal, setAssignModal] = useState(false)
@@ -51,13 +55,24 @@ export default function TaskPage() {
   const fetch = async (p = page) => {
     setLoading(true)
     try {
-      const res = await taskApi.list({ pageNo: p, pageSize: 20, status: filterStatus, priority: filterPriority })
+      const res = await taskApi.list({
+        pageNo: p,
+        pageSize: 20,
+        status: filterStatus,
+        priority: filterPriority,
+        biz_type: filterBizType,
+      })
       setItems(res.data?.items || [])
       setTotal(res.data?.total || 0)
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { fetch(page) }, [page, filterStatus, filterPriority])
+  useEffect(() => { fetch(page) }, [page, filterStatus, filterPriority, filterBizType])
+
+  const openTask = (task: TaskItem) => {
+    const path = taskNavigatePath(task)
+    if (path) navigate(path)
+  }
 
   const handleCreate = async () => {
     const values = await form.validateFields()
@@ -121,6 +136,7 @@ export default function TaskPage() {
           <h1 className="text-2xl font-bold text-slate-900">待办任务</h1>
           <p className="text-sm text-slate-500 mt-1">
             {todoCount} 项待办{overdueCount > 0 ? <span className="text-rose-500 font-bold ml-1">{overdueCount} 项已逾期</span> : ''}
+            <span className="text-slate-400 ml-2">180天重激活待办请点「办理」进入关联线索</span>
           </p>
         </div>
         <Space>
@@ -134,6 +150,7 @@ export default function TaskPage() {
               </Button>
             </>
           )}
+          <Button onClick={() => navigate('/lead-reactivations')}>180天项目激活</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setModal(true) }}>新建任务</Button>
         </Space>
       </div>
@@ -143,6 +160,13 @@ export default function TaskPage() {
           options={Object.entries(statusConfig).map(([k, v]) => ({ label: v.label, value: k }))} />
         <Select placeholder="优先级" allowClear style={{ width: 120 }} value={filterPriority} onChange={(v) => { setFilterPriority(v); setPage(1) }}
           options={Object.entries(priorityConfig).map(([k, v]) => ({ label: v.label, value: k }))} />
+        <Select placeholder="业务类型" allowClear style={{ width: 150 }} value={filterBizType} onChange={(v) => { setFilterBizType(v); setPage(1) }}
+          options={[
+            { label: '180天重激活', value: 'lead_reactivation' },
+            { label: '线索', value: 'lead' },
+            { label: '客户', value: 'customer' },
+            { label: '商机', value: 'project' },
+          ]} />
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -160,9 +184,13 @@ export default function TaskPage() {
               ),
             },
             { title: '任务', dataIndex: 'title', width: 250,
-              render: (v: string, r: TaskItem) => (
-                <span className={`font-semibold ${r.is_completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>{v}</span>
-              ),
+              render: (v: string, r: TaskItem) => {
+                const path = taskNavigatePath(r)
+                const cls = `font-semibold ${r.is_completed ? 'line-through text-slate-400' : 'text-slate-800'}`
+                return path
+                  ? <a className={`${cls} hover:text-primary cursor-pointer`} onClick={() => openTask(r)}>{v}</a>
+                  : <span className={cls}>{v}</span>
+              },
             },
             { title: '优先级', dataIndex: 'priority', width: 80,
               render: (v: string) => { const c = priorityConfig[v] || priorityConfig.normal; return <Tag color={c.color}>{c.label}</Tag> },
@@ -182,12 +210,26 @@ export default function TaskPage() {
                 )
               },
             },
-            { title: '关联', dataIndex: 'biz_name', width: 120, ellipsis: true,
-              render: (v: string | null, r: TaskItem) => v ? <Tag>{(r.biz_type ? bizTypeLabels[r.biz_type] || r.biz_type : '')}: {v}</Tag> : '-' },
+            { title: '关联', dataIndex: 'biz_name', width: 140, ellipsis: true,
+              render: (v: string | null, r: TaskItem) => {
+                if (!v) return '-'
+                const label = r.biz_type ? bizTypeLabels[r.biz_type] || r.biz_type : ''
+                const path = taskNavigatePath(r)
+                const text = `${label ? `${label}: ` : ''}${v}`
+                return path
+                  ? <a onClick={() => openTask(r)}><Tag className="cursor-pointer">{text}</Tag></a>
+                  : <Tag>{text}</Tag>
+              },
+            },
             { title: '负责人', dataIndex: 'assignee_name', width: 80 },
-            { title: '', key: 'actions', width: 60,
+            { title: '', key: 'actions', width: 88,
               render: (_, r: TaskItem) => (
-                <a className="text-rose-500 text-sm" onClick={() => handleDelete(r.id)}><DeleteOutlined /></a>
+                <Space size={0}>
+                  {taskNavigatePath(r) && !r.is_completed && (
+                    <a className="text-primary text-sm px-1" onClick={() => openTask(r)}>办理</a>
+                  )}
+                  <a className="text-rose-500 text-sm px-1" onClick={() => handleDelete(r.id)}><DeleteOutlined /></a>
+                </Space>
               ),
             },
           ]}

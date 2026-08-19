@@ -269,6 +269,29 @@ async def _build_policy_context(db: AsyncSession, tenant_id: str, biz_type: str,
                 context["reporter_id"] = ld.reporter_id
                 context["created_by_id"] = ld.created_by_id
                 context["department_id"] = ld.department_id
+        elif biz_type == "lead_reactivation":
+            from app.domains.lead.models import Lead
+            from app.domains.lead.reactivation import get_tenant_config, should_skip_reporter
+            ld = (await db.execute(
+                select(Lead).where(Lead.id == biz_id, Lead.tenant_id == tenant_id)
+            )).scalar_one_or_none()
+            if ld:
+                cfg = await get_tenant_config(db, tenant_id)
+                reporter_id = ld.reporter_id or ld.owner_id or ld.created_by_id
+                filler_id = ld.created_by_id
+                context["report_project_status"] = ld.report_project_status
+                context["project_recent"] = ld.project_recent
+                context["follow_progress"] = ld.follow_progress
+                context["site_visit"] = ld.site_visit
+                context["reporter_name"] = ld.reporter_name
+                context["owner_id"] = ld.owner_id
+                context["reporter_id"] = ld.reporter_id
+                context["created_by_id"] = ld.created_by_id
+                context["department_id"] = ld.department_id
+                context["react_skip_reporter"] = should_skip_reporter(ld, cfg)
+                context["react_need_filler"] = bool(
+                    filler_id and reporter_id and filler_id != reporter_id
+                )
         elif biz_type == "customer":
             from app.domains.customer.models import Customer
             cu = (await db.execute(
@@ -1406,9 +1429,10 @@ async def _resolve_biz_detail(db: AsyncSession, tenant_id: str, biz_type: str, b
                 detail["change_no"] = cr.change_no
                 detail["change_type"] = cr.change_type
                 detail["scope_description"] = cr.scope_description
-        elif biz_type == "lead":
-            # 线索审核已切到扩展平台工作流：审批抽屉无自定义表单，必须靠 biz_detail
+        elif biz_type in ("lead", "lead_reactivation"):
+            # 线索审核 / 180天激活：审批抽屉无自定义表单，必须靠 biz_detail
             # 把「申报信息（创建时填写）」铺全，并翻译字典码为中文标签。
+            # lead_reactivation 的 biz_id 即原线索 id。
             from app.domains.lead.models import Lead
             ld = (await db.execute(
                 select(Lead).where(Lead.id == biz_id, Lead.tenant_id == tenant_id)

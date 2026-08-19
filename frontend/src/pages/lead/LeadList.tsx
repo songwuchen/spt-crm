@@ -8,7 +8,7 @@ import { leadApi } from '@/api/lead'
 import type { Lead } from '@/api/types'
 import { sourceLabels } from '@/api/types'
 import type { ColumnsType } from 'antd/es/table'
-import { leadStatusConfig as statusConfig, leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
+import { leadStatusConfig as statusConfig, leadReviewStatusConfig, customerNewnessLabels, leadReactivationStatusConfig, leadReactivationFilterOptions } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useListView } from '@/hooks/useListView'
@@ -76,8 +76,9 @@ function customerTypeTone(value: string): string {
   return CUSTOMER_TYPE_TONES[h]
 }
 
-export default function LeadList() {
-  usePageTitle(t('lead.title'))
+export default function LeadList({ mode = 'default' }: { mode?: 'default' | 'reactivation' }) {
+  const isReactivationView = mode === 'reactivation'
+  usePageTitle(isReactivationView ? '180天项目激活' : t('lead.title'))
   const navigate = useNavigate()
   const hasPermission = useAuthStore((s) => s.hasPermission)
   const canDeleteLead = hasPermission('lead:delete')
@@ -99,7 +100,8 @@ export default function LeadList() {
   const startDate = searchParams.get('start_date') || undefined
   const endDate = searchParams.get('end_date') || undefined
   const dateField = searchParams.get('date_field') || 'created_at'
-  const [pageSize, setPageSize] = usePageSize('leads')
+  const reactivationFilter = searchParams.get('reactivation') ?? (isReactivationView ? '__active__' : undefined)
+  const [pageSize, setPageSize] = usePageSize(isReactivationView ? 'lead_reactivations' : 'leads')
   const customerTypeDict = useDataDict('customer_type')
   const industryDict = useDataDict('industry')
 
@@ -130,6 +132,10 @@ export default function LeadList() {
   })
   // created_at 是默认维度，不写进 URL 以保持链接干净
   const setDateField = (v: string) => updateParams({ date_field: v === 'created_at' ? undefined : v, page: undefined })
+  const setReactivationFilter = (v: string | undefined) => updateParams({
+    reactivation: v || undefined,
+    page: undefined,
+  })
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [importModal, setImportModal] = useState(false)
   const [reload, setReload] = useState(0)
@@ -173,6 +179,12 @@ export default function LeadList() {
   const fetchData = async (page = pageNo) => {
     setLoading(true)
     try {
+      const reactivationParams: Record<string, unknown> = {}
+      if (reactivationFilter === '__active__') {
+        reactivationParams.reactivation_active = true
+      } else if (reactivationFilter) {
+        reactivationParams.reactivation_status = reactivationFilter
+      }
       const res = await leadApi.list({
         pageNo: page, pageSize,
         keyword: keyword || undefined,
@@ -186,6 +198,7 @@ export default function LeadList() {
         start_date: startDate,
         end_date: endDate,
         date_field: dateField === 'created_at' ? undefined : dateField,
+        ...reactivationParams,
         ...view.buildParams(),
       })
       setData(res.data.items)
@@ -212,9 +225,27 @@ export default function LeadList() {
     {
       title: '项目编号', dataIndex: 'lead_code', key: 'lead_code', width: 168, fixed: 'left',
       render: (v: string, r) => v
-        ? <a onClick={() => navigate(`/leads/${r.id}`)} className="font-mono text-sm text-slate-700 hover:text-primary">{v}</a>
+        ? <a onClick={() => navigate(`/leads/${r.id}${isReactivationView ? '?react=1' : ''}`)} className="font-mono text-sm text-slate-700 hover:text-primary">{v}</a>
         : emptyCell(),
     },
+    ...(isReactivationView ? [{
+      title: '重激活状态',
+      dataIndex: 'reactivation_status',
+      key: 'reactivation_status',
+      width: 108,
+      render: (v: string | null | undefined, r: Lead) => {
+        const st = v || 'none'
+        const cfg = leadReactivationStatusConfig[st] || leadReactivationStatusConfig.none
+        return (
+          <span className="inline-flex flex-col gap-0.5">
+            <JdyTag text={cfg.label} tone={cfg.tone} />
+            {r.reactivation_round ? (
+              <span className="text-[11px] text-slate-400 pl-0.5">第 {r.reactivation_round} 轮</span>
+            ) : null}
+          </span>
+        )
+      },
+    }] as ColumnsType<Lead> : []),
     {
       title: '来源', dataIndex: 'category', key: 'category', width: 80,
       render: (v: string) => v
@@ -414,6 +445,12 @@ export default function LeadList() {
       { title: '业务日期', dataIndex: 'biz_date', width: 110 },
       { title: '联系电话', dataIndex: 'contact_phone', width: 130 },
       { title: '联系邮箱', dataIndex: 'contact_email', width: 180 },
+      { title: '重激活状态', dataIndex: 'reactivation_status', width: 100,
+        render: (v: string | null | undefined) => {
+          const st = v || 'none'
+          const cfg = leadReactivationStatusConfig[st] || leadReactivationStatusConfig.none
+          return <JdyTag text={cfg.label} tone={cfg.tone} />
+        } },
     ] as ColumnsType<Lead>).map((c) => ({
       ...c,
       __optIn: true,
@@ -423,7 +460,9 @@ export default function LeadList() {
     { title: '', key: 'actions', width: 150, fixed: 'right',
       render: (_, record) => (
         <Space size={0}>
-          <a onClick={() => navigate(`/leads/${record.id}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">{t('common.detail')}</a>
+          <a onClick={() => navigate(`/leads/${record.id}${isReactivationView ? '?react=1' : ''}`)} className="text-primary text-sm font-bold uppercase tracking-widest px-2">
+            {isReactivationView ? '办理' : t('common.detail')}
+          </a>
           {canEditLead && record.status !== 'qualified' && record.status !== 'discarded'
             && (record.review_status === 'draft' || record.review_status === 'pending') && (
             <a onClick={() => navigate(`/leads/${record.id}/edit`)} className="text-slate-500 text-sm font-bold uppercase tracking-widest px-2 hover:text-primary">{t('common.edit')}</a>
@@ -447,7 +486,11 @@ export default function LeadList() {
   ]
 
   // pageKey 换新版本，避免旧列配置覆盖简道云默认列
-  const view = useListView<Lead>('lead', allColumns, { pageKey: 'leads_jdy_v1', entityType: 'lead' })
+  const view = useListView<Lead>(
+    'lead',
+    allColumns,
+    { pageKey: isReactivationView ? 'lead_reactivations_v1' : 'leads_jdy_v1', entityType: 'lead' },
+  )
   const hasSavedColWidths = Object.keys(view.colState.widths || {}).length > 0
 
   return (
@@ -455,10 +498,18 @@ export default function LeadList() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 shrink-0">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{t('lead.title')}</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{t('lead.subtitle')}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+            {isReactivationView ? '180天项目激活' : t('lead.title')}
+          </h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {isReactivationView
+              ? '关联申报信息（线索管理），查看与办理进行中的 180 天重激活流程'
+              : t('lead.subtitle')}
+          </p>
         </div>
         <Space wrap>
+          {!isReactivationView && (
+            <>
           <Button icon={<UploadOutlined />} onClick={() => setImportModal(true)}>
             {t('common.import')}
           </Button>
@@ -473,6 +524,9 @@ export default function LeadList() {
             const q = qs.toString()
             downloadFile(`/api/v1/leads/export/excel${q ? `?${q}` : ''}`, 'leads.xlsx')
           }}>{t('common.export')}</Button>
+            </>
+          )}
+          {!isReactivationView && (
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -481,6 +535,10 @@ export default function LeadList() {
           >
             {t('lead.createLead')}
           </Button>
+          )}
+          {isReactivationView && (
+            <Button onClick={() => navigate('/leads')}>查看全部线索</Button>
+          )}
         </Space>
       </div>
 
@@ -536,6 +594,15 @@ export default function LeadList() {
             />
           </Space.Compact>
           <Select
+            placeholder="重激活状态"
+            allowClear={!isReactivationView}
+            style={{ width: 160 }}
+            value={reactivationFilter ?? (isReactivationView ? '__active__' : undefined)}
+            onChange={(v) => setReactivationFilter(v)}
+            options={leadReactivationFilterOptions}
+          />
+          {!isReactivationView && (
+          <Select
             placeholder={t('lead.status')}
             allowClear
             style={{ width: 140 }}
@@ -543,6 +610,8 @@ export default function LeadList() {
             onChange={(v) => setStatus(v)}
             options={Object.entries(statusConfig).map(([k, v]) => ({ label: v.label, value: k }))}
           />
+          )}
+          {!isReactivationView && (
           <Select
             placeholder={t('lead.source')}
             allowClear
@@ -551,6 +620,9 @@ export default function LeadList() {
             onChange={(v) => setSource(v)}
             options={Object.entries(sourceLabels).map(([k, v]) => ({ label: v, value: k }))}
           />
+          )}
+          {!isReactivationView && (
+          <>
           <Select
             placeholder="客户类型"
             allowClear
@@ -589,6 +661,8 @@ export default function LeadList() {
           <div style={{ width: 180 }}>
             <DepartmentSelect value={departmentId} onChange={setDepartmentId} placeholder="部门" />
           </div>
+          </>
+          )}
           <Button onClick={doSearch}>
             <Icon name="filter_list" className="text-sm mr-1" />
             {t('common.filter')}

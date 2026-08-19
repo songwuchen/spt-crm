@@ -107,18 +107,17 @@ def validate_field_updates(
     if action == "approve":
         if opinion_required and _is_empty(opinion):
             raise BusinessException(code=VALIDATION_ERROR, message="请填写审批意见")
+        field_by_id: dict[str, dict] = {}
+        for fd in form_fields or []:
+            if isinstance(fd, dict) and fd.get("id"):
+                field_by_id[str(fd["id"])] = dict(fd)
+        for fid in allowed:
+            field_by_id.setdefault(fid, {"id": fid, "type": "text", "label": fid, "required": False})
         required_ids = {f for f, acc in allowed.items() if acc == "required"}
         if form_rules and required_ids:
             from app.domains.lowcode.rule_engine import compute_field_states
 
-            # 合成字段定义：保证节点字段 + 条件依赖字段都在 states 里
-            by_id: dict[str, dict] = {}
-            for fd in form_fields or []:
-                if isinstance(fd, dict) and fd.get("id"):
-                    by_id[str(fd["id"])] = dict(fd)
-            for fid in allowed:
-                by_id.setdefault(fid, {"id": fid, "type": "text", "label": fid, "required": False})
-            fields = list(by_id.values())
+            fields = list(field_by_id.values())
             merged = {**(form_data or {}), **filtered}
             permissions = [
                 {"fieldId": f, "access": "required" if acc == "required" else "editable"}
@@ -141,13 +140,65 @@ def validate_field_updates(
                 code=VALIDATION_ERROR,
                 message=f"请填写必填项: {', '.join(missing)}",
             )
+        # 明细表：审批节点可填列（fill_stage=approver）逐行校验
+        for fid, acc in allowed.items():
+            if acc not in ("editable", "required"):
+                continue
+            fd = field_by_id.get(fid)
+            if not fd or fd.get("type") != "detail_table":
+                continue
+            rows = filtered.get(fid)
+            if rows is None and form_data:
+                rows = (form_data or {}).get(fid)
+            approver_cols = [
+                c for c in (fd.get("detail_table_columns") or [])
+                if isinstance(c, dict)
+                and c.get("fill_stage") == "approver"
+                and c.get("required")
+            ]
+            if not approver_cols:
+                continue
+            if not isinstance(rows, list) or not rows:
+                raise BusinessException(
+                    code=VALIDATION_ERROR,
+                    message=f"「{fd.get('label') or fid}」至少需要一行",
+                )
+            merged_rows = rows
+            if filtered.get(fid) is not None and form_data and isinstance(form_data.get(fid), list):
+                # 审批只 patch 了部分行时，以 form_data 为底、updates 覆盖
+                base = [dict(r) if isinstance(r, dict) else {} for r in form_data[fid]]
+                upd = filtered[fid]
+                if isinstance(upd, list):
+                    for i, row in enumerate(upd):
+                        if i < len(base) and isinstance(row, dict):
+                            base[i] = {**base[i], **row}
+                        elif isinstance(row, dict):
+                            base.append(row)
+                    merged_rows = base
+            for i, row in enumerate(merged_rows):
+                row_map = row if isinstance(row, dict) else {}
+                for c in approver_cols:
+                    cid = c.get("id")
+                    if _is_empty(row_map.get(cid)):
+                        raise BusinessException(
+                            code=VALIDATION_ERROR,
+                            message=(
+                                f"「{fd.get('label') or fid}」第 {i + 1} 行"
+                                f"「{c.get('label') or cid}」为必填项"
+                            ),
+                        )
     return filtered
 
 
 # 线索：审批节点可填的原生列
 _LEAD_NATIVE_KEYS = frozenset({
     "customer_newness", "assess_remark", "reject_reason", "review_opinion",
+    "has_internal_conflict", "conflict_note",
     "score", "industry", "customer_type", "category", "country_type",
+})
+
+_LEAD_REACT_FIELD_KEYS = frozenset({
+    "project_recent", "follow_progress", "site_visit", "report_project_status",
 })
 
 
@@ -181,6 +232,19 @@ async def load_field_values(
             return values
         for f in fields:
             if f in _LEAD_NATIVE_KEYS or hasattr(row, f):
+                values[f] = getattr(row, f, None)
+        return values
+
+    if biz_type == "lead_reactivation":
+        from app.domains.lead.models import Lead
+        row = (await db.execute(select(Lead).where(
+            Lead.id == biz_id, Lead.tenant_id == tenant_id,
+        ))).scalar_one_or_none()
+        if not row:
+            return values
+        allowed = _LEAD_NATIVE_KEYS | _LEAD_REACT_FIELD_KEYS
+        for f in fields:
+            if f in allowed or hasattr(row, f):
                 values[f] = getattr(row, f, None)
         return values
 
@@ -280,7 +344,7 @@ async def preview_field_update_changes(
                     changes[f"review_json.{k}"] = {"old": serialize_value(old), "new": serialize_value(v)}
         return changes
 
-    if biz_type == "lead" and biz_id:
+    if biz_type in ("lead", "lead_reactivation") and biz_id:
         from app.domains.lead.models import Lead
         row = (await db.execute(select(Lead).where(
             Lead.id == biz_id, Lead.tenant_id == tenant_id,
@@ -324,8 +388,8 @@ async def apply_field_updates(
             await db.flush()
             return
 
-    if biz_type == "lead" and biz_id:
-        await _patch_lead(db, tenant_id, biz_id, updates)
+    if biz_type in ("lead", "lead_reactivation") and biz_id:
+        await _patch_lead(db, tenant_id, biz_id, updates, biz_type=biz_type)
         return
     if biz_type == "contract_review" and biz_id:
         await _patch_contract_review(db, tenant_id, biz_id, updates)
@@ -340,6 +404,7 @@ async def apply_field_updates(
 
 async def _patch_lead(
     db: AsyncSession, tenant_id: str, lead_id: str, updates: dict[str, Any],
+    *, biz_type: str = "lead",
 ) -> None:
     from app.domains.lead.models import Lead
     row = (await db.execute(select(Lead).where(
@@ -347,8 +412,13 @@ async def _patch_lead(
     ))).scalar_one_or_none()
     if not row:
         return
+    allowed = (
+        (_LEAD_NATIVE_KEYS | _LEAD_REACT_FIELD_KEYS)
+        if biz_type == "lead_reactivation"
+        else _LEAD_NATIVE_KEYS
+    )
     for k, v in updates.items():
-        if k in _LEAD_NATIVE_KEYS and hasattr(row, k):
+        if k in allowed and hasattr(row, k):
             setattr(row, k, v)
     await db.flush()
 

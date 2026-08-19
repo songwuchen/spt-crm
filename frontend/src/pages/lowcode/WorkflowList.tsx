@@ -20,7 +20,8 @@ const STATUS_TAG: Record<string, { color: string; text: string }> = {
 /** 业务类型展示名（与新建弹窗选项一致） */
 const BIZ_TYPE_LABEL: Record<string, string> = {
   order: '订单',
-  lead: '线索',
+  lead: '申报信息/线索',
+  lead_reactivation: '180天项目激活',
   customer: '客户信息',
   service_ticket: '售后工单',
   quote_version: '报价单',
@@ -154,7 +155,7 @@ export default function WorkflowList() {
         <div>
           <Title level={4} style={{ margin: 0 }}>流程管理</Title>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            系统会自动补齐默认流：「合同版本」= 财务审核后按标准交付/旋振筛并行运营部门；「合同评审」= 业务部门→多部门会签→总经理/财务；「申报信息/线索」= 递呈信息→信息情报部审批→业务员确认是否转商机。
+            系统会自动补齐默认流：「申报信息/线索」= 递呈→信息情报部→业务员确认；「180天项目激活」= 递呈→信息情报部（无转商机）；「合同版本」= 财务审核后运营并行；「合同评审」= 多部门会签。
           </Text>
         </div>
         {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建流程</Button>}

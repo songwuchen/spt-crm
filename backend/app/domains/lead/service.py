@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import generate_uuid
 from app.common.exceptions import BusinessException
-from app.common.error_codes import NOT_FOUND, LEAD_ALREADY_QUALIFIED, LEAD_ALREADY_DISCARDED
+from app.common.error_codes import NOT_FOUND, LEAD_ALREADY_QUALIFIED, LEAD_ALREADY_DISCARDED, VALIDATION_ERROR
 from app.common.code_generator import generate_code
 from app.domains.lead.models import Lead, LeadProduct
 from app.domains.lead.schemas import LeadCreate, LeadUpdate
@@ -56,6 +56,8 @@ async def list_leads(
     department_id: str | None = None, industry: str | None = None,
     company_name: str | None = None,
     start_date=None, end_date=None, date_field: str | None = None,
+    reactivation_status: str | None = None,
+    reactivation_active: bool | None = None,
     current_user: dict | None = None,
     adv_filter: str | None = None, sort_by: str | None = None, sort_order: str | None = None,
 ):
@@ -93,6 +95,19 @@ async def list_leads(
         base = base.where(Lead.department_id == department_id)
     if industry:
         base = base.where(Lead.industry == industry)
+    if reactivation_active:
+        from app.domains.lead.reactivation import (
+            REACT_AWAITING_FILLER,
+            REACT_AWAITING_REPORTER,
+            REACT_PENDING_REVIEW,
+        )
+        base = base.where(Lead.reactivation_status.in_([
+            REACT_AWAITING_REPORTER,
+            REACT_AWAITING_FILLER,
+            REACT_PENDING_REVIEW,
+        ]))
+    elif reactivation_status:
+        base = base.where(Lead.reactivation_status == reactivation_status)
 
     # 高级筛选（多字段/多条件，含自定义扩展字段）
     from app.common.search import (
@@ -206,7 +221,8 @@ async def _resolve_user_display(
 
 
 async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: dict,
-                      auto_review: bool | None = None) -> Lead:
+                      auto_review: bool | None = None,
+                      *, external_origin: str | None = None) -> Lead:
     payload = data.model_dump()
     products = data.products  # 产品明细单独处理，不能 setattr 到模型
     payload.pop("products", None)
@@ -235,9 +251,18 @@ async def create_lead(db: AsyncSession, tenant_id: str, data: LeadCreate, user: 
     # 报备时间：未传则默认当前时间
     from app.database import utcnow
     reported_at = payload.pop("reported_at", None) or utcnow()
-    # 外部指定项目号（开放平台/简道云）优先；否则走 CRM 自增规则
+    # 外部指定项目号（开放平台/简道云）优先；否则走 CRM 自增规则 YYYYMM###
     external_code = (payload.pop("lead_code", None) or "").strip() or None
-    lead_code = external_code or await generate_code(db, tenant_id, "lead")
+    if external_code:
+        from app.domains.lead.origin import is_jdy_lead_code
+        if external_origin != "jdy" and is_jdy_lead_code(external_code):
+            raise BusinessException(
+                code=VALIDATION_ERROR,
+                message="CRM 自建线索请使用系统编号；简道云编号仅能通过开放平台同步",
+            )
+        lead_code = external_code
+    else:
+        lead_code = await generate_code(db, tenant_id, "lead")
 
     lead = Lead(
         id=generate_uuid(), tenant_id=tenant_id,
@@ -311,13 +336,10 @@ async def _apply_review_flow(db: AsyncSession, tenant_id: str, lead: Lead, inst,
         return
     if inst.status != "running":
         await db.refresh(lead)
-        # 发起即结束（空审批人自动通过等）：writeback 已重置周期；ORM 再刷一次
-        if lead.review_status in ("approved", "attacked"):
+        # 首次收录：writeback 已重置周期；仅补未设锚点的历史数据
+        if lead.review_status in ("approved", "attacked") and not getattr(lead, "cycle_anchor_at", None):
             from app.domains.lead.reactivation import mark_cycle_reset
-            if not getattr(lead, "cycle_anchor_at", None) or (
-                getattr(lead, "reactivation_status", None) == "pending_review"
-            ):
-                mark_cycle_reset(lead)
+            mark_cycle_reset(lead)
     lead.review_flow_id = inst.id
     await db.commit()
 
@@ -674,6 +696,8 @@ def _intel_field_updates(
     customer_newness: str | None,
     return_reason: str | None,
     assess_remark: str | None,
+    has_internal_conflict: str | None = None,
+    conflict_note: str | None = None,
 ) -> dict:
     """情报裁定 → 引擎节点 field_updates（与 SYS_LEAD_REVIEW field_perms 对齐）。
 
@@ -686,6 +710,10 @@ def _intel_field_updates(
         updates["reject_reason"] = return_reason
     if assess_remark is not None:
         updates["assess_remark"] = assess_remark
+    if has_internal_conflict is not None:
+        updates["has_internal_conflict"] = has_internal_conflict
+    if conflict_note is not None:
+        updates["conflict_note"] = conflict_note
     return updates
 
 

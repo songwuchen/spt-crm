@@ -25,6 +25,7 @@ const breadcrumbNameMap: Record<string, string> = {
   '/customers': '客户管理',
   '/customers/new': '新建客户',
   '/leads': '线索管理',
+  '/lead-reactivations': '180天项目激活',
   '/leads/new': '新建线索',
   '/opportunities': '商机管理',
   '/opportunities/new': '新建商机',

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Button, Space, Modal, Tabs, Checkbox, message, Form, Input, Select, Table } from 'antd'
 import { EditOutlined, DeleteOutlined, AuditOutlined, ThunderboltOutlined } from '@ant-design/icons'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { leadApi } from '@/api/lead'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import type { WfInstanceDetail, WfTodoItem } from '@/types/lowcode'
@@ -12,7 +12,6 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import ActivityTimeline from '@/components/ActivityTimeline'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { leadStatusConfig as statusConfig, leadReviewStatusConfig, customerNewnessLabels } from '@/constants/labels'
-import { REPORT_PROJECT_STATUS_OPTIONS, REACTIVATION_CLOSE_STATUSES } from '@/constants/leadForm'
 import { useDataDict } from '@/hooks/useDataDict'
 import { useAuthStore } from '@/stores/useAuthStore'
 import EntityCustomFields from '@/components/lowcode/EntityCustomFields'
@@ -21,7 +20,8 @@ import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import WfActivateFlowModal from '@/components/lowcode/WfActivateFlowModal'
-import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadIntelTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
+import { useWfProcessDrawer } from '@/components/lowcode/WfProcessDrawer'
+import { isLeadOwnerConfirmNode, isLeadReviseTodo, isLeadIntelTodo, isLeadReactivationFollowTodo, leadReviseEditPath } from '@/utils/leadWorkflow'
 
 import Icon from '@/components/Icon'
 const categoryLabels: Record<string, string> = { self_reported: '自报', distributed: '分发' }
@@ -79,19 +79,26 @@ export default function LeadDetail() {
   usePageTitle('线索详情')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [reactIntent, setReactIntent] = useState(searchParams.get('react') === '1')
   const [lead, setLead] = useState<Lead | null>(null)
   const [activeTab, setActiveTab] = useState('detail')
   const [followUpSignal, setFollowUpSignal] = useState(0)
   // 当前用户对该线索的待审批任务（有则可在本页直接情报裁定）
   const [myTask, setMyTask] = useState<WfTodoItem | null>(null)
+  const [myReactTask, setMyReactTask] = useState<WfTodoItem | null>(null)
   const [reviewInFlight, setReviewInFlight] = useState(false)
   const [wfInstance, setWfInstance] = useState<WfInstanceDetail | null>(null)
   const [activateOpen, setActivateOpen] = useState(false)
   const [wfCommenting, setWfCommenting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [reactModalOpen, setReactModalOpen] = useState(false)
-  const [reactSubmitting, setReactSubmitting] = useState(false)
-  const [reactForm] = Form.useForm()
+  const reloadAfterWf = () => {
+    void fetchLead()
+    void fetchMyApproval()
+    if (id) void loadWf(id)
+    void fetchReactivationRecords()
+  }
+  const { openWith: openWfDrawer, node: wfDrawerNode } = useWfProcessDrawer(reloadAfterWf)
   const [reactRecords, setReactRecords] = useState<LeadReactivationRecord[]>([])
   const [reactRecordsLoading, setReactRecordsLoading] = useState(false)
   const currentUser = useAuthStore((s) => s.user)
@@ -126,24 +133,37 @@ export default function LeadDetail() {
 
   const loadWf = async (bizId: string) => {
     try {
-      const res = await workflowApi.byBiz({ biz_type: 'lead', biz_id: bizId })
-      setWfInstance(res.data || null)
-      setReviewInFlight(res.data?.status === 'running')
+      const [leadWf, reactWf] = await Promise.all([
+        workflowApi.byBiz({ biz_type: 'lead', biz_id: bizId }),
+        workflowApi.byBiz({ biz_type: 'lead_reactivation', biz_id: bizId }),
+      ])
+      const inst =
+        reactWf.data?.status === 'running' ? reactWf.data
+          : leadWf.data?.status === 'running' ? leadWf.data
+            : reactWf.data || leadWf.data
+      setWfInstance(inst || null)
+      setReviewInFlight(inst?.status === 'running')
     } catch {
       setWfInstance(null)
       setReviewInFlight(false)
     }
   }
 
-  // 查询「我的待办审批」里是否有这条线索的、且轮到我处理的任务。
-  // 线索审核已整体切到扩展平台工作流引擎，待办来自 wf_task_instance 而非旧 approval_tasks。
+  // 查询「我的待办审批」：申报信息(lead) 与 180天激活(lead_reactivation) 各自独立流程
   const fetchMyApproval = async () => {
     try {
-      // 直接按业务单据查，避免「拉一页待办再前端过滤」在待办多时漏掉本条
-      const res = await workflowApi.todo({ pageNo: 1, pageSize: 20, biz_type: 'lead', biz_id: id })
-      const t = (res.data?.items || []).find((p) => p.status === 'pending')
-      setMyTask(t || null)
-    } catch { setMyTask(null) }
+      const [leadTodo, reactTodo] = await Promise.all([
+        workflowApi.todo({ pageNo: 1, pageSize: 20, biz_type: 'lead', biz_id: id }),
+        workflowApi.todo({ pageNo: 1, pageSize: 20, biz_type: 'lead_reactivation', biz_id: id }),
+      ])
+      const leadItems = leadTodo.data?.items || []
+      const reactItems = reactTodo.data?.items || []
+      setMyTask(leadItems.find((p) => p.status === 'pending') || null)
+      setMyReactTask(reactItems.find((p) => p.status === 'pending') || null)
+    } catch {
+      setMyTask(null)
+      setMyReactTask(null)
+    }
   }
 
   useEffect(() => {
@@ -154,6 +174,25 @@ export default function LeadDetail() {
       void fetchReactivationRecords()
     }
   }, [id])
+
+  useEffect(() => {
+    if (searchParams.get('react') === '1') setReactIntent(true)
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!lead || !reactIntent) return
+    setActiveTab('detail')
+    const pending = myReactTask || myTask
+    if (pending?.instance_id) {
+      openWfDrawer(pending.instance_id, pending.task_id)
+    }
+    setReactIntent(false)
+    if (searchParams.get('react') === '1') {
+      const next = new URLSearchParams(searchParams)
+      next.delete('react')
+      setSearchParams(next, { replace: true })
+    }
+  }, [lead, reactIntent, myReactTask, myTask, openWfDrawer, searchParams, setSearchParams])
 
   const handleWfComment = async (content: string) => {
     if (!wfInstance?.id || !id) return
@@ -277,35 +316,13 @@ export default function LeadDetail() {
     })
   }
 
-  const openReactivationModal = () => {
-    reactForm.setFieldsValue({
-      project_recent: lead?.project_recent || undefined,
-      follow_progress: lead?.follow_progress || undefined,
-      site_visit: lead?.site_visit || undefined,
-      report_project_status: lead?.report_project_status || undefined,
-    })
-    setReactModalOpen(true)
-  }
-
-  const handleReactivationSubmit = async () => {
-    if (!id) return
-    try {
-      const values = await reactForm.validateFields()
-      setReactSubmitting(true)
-      const res = await leadApi.submitReactivation(id, values)
-      setLead(res.data)
-      setReactModalOpen(false)
-      const closed = REACTIVATION_CLOSE_STATUSES.includes(values.report_project_status)
-      message.success(closed ? '本轮重激活已结束' : '已提交，将进入下一环节')
-      await loadWf(id)
-      await fetchMyApproval()
-      await fetchReactivationRecords()
-    } catch (err: unknown) {
-      if ((err as { errorFields?: unknown })?.errorFields) return
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      message.error(msg || '提交失败')
-    } finally {
-      setReactSubmitting(false)
+  const openReactivationDrawer = () => {
+    if (myReactTask?.instance_id) {
+      openWfDrawer(myReactTask.instance_id, myReactTask.task_id)
+      return
+    }
+    if (wfInstance?.biz_type === 'lead_reactivation' && wfInstance.id) {
+      openWfDrawer(wfInstance.id, undefined)
     }
   }
 
@@ -316,14 +333,23 @@ export default function LeadDetail() {
   const canOperate = lead.status !== 'qualified' && lead.status !== 'discarded'
   const reviewStatus = lead.review_status || 'approved'
   const reactStatus = lead.reactivation_status || 'none'
+  const reactFollowTodo = !!myReactTask && isLeadReactivationFollowTodo({
+    bizType: myReactTask.biz_type,
+    nodeId: myReactTask.node_id,
+    nodeName: myReactTask.node_name,
+  })
+  const reactIntelTodo = !!myReactTask && isLeadIntelTodo({
+    bizType: myReactTask.biz_type,
+    nodeName: myReactTask.node_name,
+    nodeId: myReactTask.node_id,
+    nodeType: myReactTask.node_type,
+    taskKind: myReactTask.task_kind,
+  })
   const reactTodo =
-    reactStatus === 'awaiting_reporter' || reactStatus === 'awaiting_filler'
-  const canSubmitReact =
-    reactTodo &&
-    !!currentUser &&
-    (reactStatus === 'awaiting_reporter'
-      ? [lead.reporter_id, lead.created_by_id].includes(currentUser.id)
-      : [lead.created_by_id, lead.reporter_id].includes(currentUser.id))
+    reactFollowTodo
+    || reactStatus === 'awaiting_reporter'
+    || reactStatus === 'awaiting_filler'
+  const canSubmitReact = reactFollowTodo && !!currentUser
   // 仅草稿 / 撤回后的待审可整单编辑；收录后不可改（详情「动态」仍可添加互动记录）
   const canEditLead = hasLeadEdit && canOperate && !reviewInFlight
     && (reviewStatus === 'draft' || reviewStatus === 'pending')
@@ -602,7 +628,39 @@ export default function LeadDetail() {
       )}
 
       {/* 180 天重激活跟进 */}
-      {reactTodo && (
+      {reactFollowTodo && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-6 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Icon name="schedule" className="text-amber-600" />
+            <div>
+              <div className="text-sm font-bold text-amber-800">
+                180天重激活待办：{myReactTask?.node_name || '填写跟进'}
+              </div>
+              <div className="text-sm text-slate-600 mt-1">
+                在流程待办中填写项目近况 / 跟进进度 / 实地拜访与项目状态。
+                仅「进行中」进入内勤与情报审；中标/已签合同等直接结束本轮。
+                {lead.reactivation_round ? `（第 ${lead.reactivation_round} 轮）` : ''}
+              </div>
+            </div>
+          </div>
+          {canSubmitReact && (
+            <Button type="primary" onClick={openReactivationDrawer}>办理待办</Button>
+          )}
+        </div>
+      )}
+      {reactIntelTodo && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 mb-6 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Icon name="approval" className="text-primary" />
+            <div>
+              <div className="text-sm font-bold text-slate-900">180天激活待您情报审批</div>
+              <div className="text-sm text-slate-500">{myReactTask?.node_name || '180天项目激活审批'}</div>
+            </div>
+          </div>
+          <Button type="primary" onClick={openReactivationDrawer}>办理审批</Button>
+        </div>
+      )}
+      {reactTodo && !reactFollowTodo && !reactIntelTodo && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-6 flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <Icon name="schedule" className="text-amber-600" />
@@ -611,13 +669,14 @@ export default function LeadDetail() {
                 {reactStatus === 'awaiting_reporter' ? '线索已满周期，请申报人更新近况' : '请填表人核对并提交情报审批'}
               </div>
               <div className="text-sm text-slate-600 mt-1">
-                填写项目近况 / 跟进进度 / 实地拜访与项目状态。选暂缓、取消、落标将结束本轮；其他结果将进入信息情报部审批。
+                填写项目近况 / 跟进进度 / 实地拜访与项目状态。仅「进行中」进入内勤与情报审；
+                中标/已签合同等直接结束本轮；暂缓/取消/落标不再自动重激活。
                 {lead.reactivation_round ? `（第 ${lead.reactivation_round} 轮）` : ''}
               </div>
             </div>
           </div>
           {canSubmitReact && (
-            <Button type="primary" onClick={openReactivationModal}>填写跟进</Button>
+            <Button type="primary" onClick={openReactivationDrawer}>办理待办</Button>
           )}
         </div>
       )}
@@ -642,37 +701,6 @@ export default function LeadDetail() {
         </div>
       )}
 
-      <Modal
-        title="重激活跟进"
-        open={reactModalOpen}
-        onCancel={() => setReactModalOpen(false)}
-        onOk={() => void handleReactivationSubmit()}
-        confirmLoading={reactSubmitting}
-        okText="提交"
-        destroyOnClose
-      >
-        <Form form={reactForm} layout="vertical" className="mt-2">
-          <Form.Item name="project_recent" label="项目近况">
-            <Input.TextArea rows={3} maxLength={500} showCount placeholder="请填写项目近况" />
-          </Form.Item>
-          <Form.Item name="follow_progress" label="跟进进度">
-            <Input.TextArea rows={3} maxLength={500} showCount placeholder="请填写跟进进度" />
-          </Form.Item>
-          <Form.Item name="site_visit" label="实地拜访情况">
-            <Input.TextArea rows={3} maxLength={500} showCount placeholder="请填写实地拜访情况" />
-          </Form.Item>
-          <Form.Item
-            name="report_project_status"
-            label="项目状态"
-            rules={[{ required: true, message: '请选择项目状态' }]}
-            extra="暂缓 / 取消 / 落标将结束本轮；其他状态将进入下一审批环节"
-          >
-            <Select options={REPORT_PROJECT_STATUS_OPTIONS} placeholder="请选择" />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Content Grid：主栏详情 + 右侧 AI */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-9">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -908,6 +936,10 @@ export default function LeadDetail() {
                           scroll={{ x: 960 }}
                           locale={{ emptyText: '暂无激活记录' }}
                           dataSource={reactRecords}
+                          onRow={(rec) => ({
+                            onClick: () => navigate(`/lead-reactivations/${rec.id}`),
+                            className: 'cursor-pointer hover:bg-slate-50',
+                          })}
                           columns={[
                             {
                               title: '原项目编号',
@@ -1151,6 +1183,7 @@ export default function LeadDetail() {
           if (id) void loadWf(id)
         }}
       />
+      {wfDrawerNode}
     </div>
   )
 }
