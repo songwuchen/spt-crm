@@ -195,7 +195,9 @@ def test_primary_path_scenarios(name, form_data, expect_tail):
 @pytest.mark.asyncio
 async def test_cs_replace_approvers_resolve_against_db(db):
     """关键节点审批人应能解析到活跃用户（非空、非 auto_approve 兜底）。"""
+    from app.database import generate_uuid
     from app.domains.auth.models import User
+    from app.domains.organization.models import Department, UserDepartment
     from app.domains.lowcode.workflow_models import WfProcessDefinition, WfProcessDefinitionVersion
     from app.domains.lowcode import service as lc
 
@@ -213,7 +215,7 @@ async def test_cs_replace_approvers_resolve_against_db(db):
     nodes = {n["id"]: n for n in (v.node_definitions or []) if isinstance(n, dict)}
     resolver = ApproverResolver(db, tenant)
 
-    # 找一位有部门的业务员用于 n1 部门负责人
+    # 找一位有部门的业务员用于 n1 部门负责人；CI seed 通常没有「业务员≠负责人」，则自建
     sp_row = (await db.execute(text("""
         SELECT u.id, u.real_name, ud.department_id, d.leader_id
         FROM users u
@@ -223,62 +225,105 @@ async def test_cs_replace_approvers_resolve_against_db(db):
           AND d.leader_id IS NOT NULL AND u.id != d.leader_id
         LIMIT 1
     """), {"t": tenant})).first()
-    assert sp_row, "测试库需至少一名「业务员≠部门负责人」的用户"
-    sp_id, sp_name, dept_id, leader_id = sp_row
 
-    ctx = ApprovalContext(
-        initiator_id=sp_id,
-        form_data={
-            "sales_person": sp_id,
-            "field": dept_id,
-            "field_2": sp_id,
-            "field_26": sp_id,
-            "field_29": sp_id,
-        },
-    )
+    created_ids: list[str] = []
+    created_dept_ids: list[str] = []
+    if sp_row:
+        sp_id, _sp_name, dept_id, leader_id = sp_row
+    else:
+        leader_id = generate_uuid()
+        sp_id = generate_uuid()
+        dept_id = generate_uuid()
+        db.add(User(
+            id=leader_id, tenant_id=tenant, username="cs_replace_leader",
+            real_name="更换流程部门负责人", password_hash="x", is_active=True,
+        ))
+        db.add(User(
+            id=sp_id, tenant_id=tenant, username="cs_replace_salesperson",
+            real_name="更换流程业务员", password_hash="x", is_active=True,
+        ))
+        db.add(Department(
+            id=dept_id, tenant_id=tenant, name="更换流程测试部",
+            path="/更换流程测试部/", sort_order=0, leader_id=leader_id,
+        ))
+        db.add(UserDepartment(
+            id=generate_uuid(), tenant_id=tenant, user_id=leader_id, department_id=dept_id,
+        ))
+        db.add(UserDepartment(
+            id=generate_uuid(), tenant_id=tenant, user_id=sp_id, department_id=dept_id,
+        ))
+        await db.commit()
+        created_ids = [leader_id, sp_id]
+        created_dept_ids = [dept_id]
 
-    checks = [
-        ("n1", "业务经理审批·部门负责人"),
-        ("n4", "客服会签·4人或签"),
-        ("n6", "总工审批"),
-        ("n8", "总经理审批"),
-        ("n18", "财务核算"),
-    ]
-    failures = []
-    for nid, label in checks:
-        node = nodes.get(nid)
-        if not node:
-            failures.append(f"{label}: 节点 {nid} 缺失")
-            continue
-        rule = node.get("approver_rule") or {}
-        try:
-            ids = await resolver.resolve(rule, ctx)
-        except Exception as exc:
-            failures.append(f"{label}: 解析异常 {exc}")
-            continue
-        if ids:
-            names = (await db.execute(
-                select(User.real_name).where(User.id.in_(ids))
-            )).scalars().all()
-            print(f"  OK {label} -> {list(names)} ({len(ids)}人)")
-        elif rule.get("type") != "specified_user":
-            failures.append(f"{label}: 审批人为空 rule={rule}")
+    try:
+        ctx = ApprovalContext(
+            initiator_id=sp_id,
+            form_data={
+                "sales_person": sp_id,
+                "field": dept_id,
+                "field_2": sp_id,
+                "field_26": sp_id,
+                "field_29": sp_id,
+            },
+        )
 
-    if failures:
-        pytest.fail("\n".join(failures))
+        checks = [
+            ("n1", "业务经理审批·部门负责人"),
+            ("n4", "客服会签·4人或签"),
+            ("n6", "总工审批"),
+            ("n8", "总经理审批"),
+            ("n18", "财务核算"),
+        ]
+        failures = []
+        for nid, label in checks:
+            node = nodes.get(nid)
+            if not node:
+                failures.append(f"{label}: 节点 {nid} 缺失")
+                continue
+            rule = node.get("approver_rule") or {}
+            try:
+                ids = await resolver.resolve(rule, ctx)
+            except Exception as exc:
+                failures.append(f"{label}: 解析异常 {exc}")
+                continue
+            if ids:
+                names = (await db.execute(
+                    select(User.real_name).where(User.id.in_(ids))
+                )).scalars().all()
+                print(f"  OK {label} -> {list(names)} ({len(ids)}人)")
+            elif rule.get("type") != "specified_user":
+                failures.append(f"{label}: 审批人为空 rule={rule}")
 
-    # n1 应解析到部门负责人（且业务员本人被 exclude_initiator 排除）
-    n1_ids = await resolver.resolve(nodes["n1"]["approver_rule"], ctx)
-    assert leader_id in n1_ids
-    assert sp_id not in n1_ids
+        if failures:
+            pytest.fail("\n".join(failures))
 
-    # 热能线业务经理(段荣凯)：种子库有该 username 时才断言能解析
-    n17_rule = nodes["n17"]["approver_rule"]
-    n17_ids = await resolver.resolve(n17_rule, ctx)
-    want = n17_rule.get("value")
-    if want:
-        exists = (await db.execute(
-            select(User.id).where(User.tenant_id == tenant, User.username == str(want))
-        )).scalar_one_or_none()
-        if exists:
-            assert n17_ids, "热能线业务经理(段荣凯)应能解析"
+        # n1 应解析到部门负责人（且业务员本人被 exclude_initiator 排除）
+        n1_ids = await resolver.resolve(nodes["n1"]["approver_rule"], ctx)
+        assert leader_id in n1_ids
+        assert sp_id not in n1_ids
+
+        # 热能线业务经理(段荣凯)：种子库有该 username 时才断言能解析
+        n17_rule = nodes["n17"]["approver_rule"]
+        n17_ids = await resolver.resolve(n17_rule, ctx)
+        want = n17_rule.get("value")
+        if want:
+            exists = (await db.execute(
+                select(User.id).where(User.tenant_id == tenant, User.username == str(want))
+            )).scalar_one_or_none()
+            if exists:
+                assert n17_ids, "热能线业务经理(段荣凯)应能解析"
+    finally:
+        if created_ids:
+            await db.execute(text(
+                "DELETE FROM user_departments WHERE user_id = ANY(:uids)"
+            ), {"uids": created_ids})
+            await db.execute(text(
+                "DELETE FROM users WHERE id = ANY(:uids)"
+            ), {"uids": created_ids})
+        if created_dept_ids:
+            await db.execute(text(
+                "DELETE FROM departments WHERE id = ANY(:ids)"
+            ), {"ids": created_dept_ids})
+        if created_ids or created_dept_ids:
+            await db.commit()
