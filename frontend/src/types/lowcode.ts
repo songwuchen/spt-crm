@@ -220,7 +220,7 @@ export interface WfApproverRule {
 
 export interface WfFieldPerm {
   field: string
-  access: 'editable' | 'required'
+  access: 'editable' | 'required' | 'readonly'
 }
 
 export interface WfNode {
@@ -307,6 +307,8 @@ export interface WfTodoItem {
   process_status?: string
   /** 当前待办节点名，如「财务审核」 */
   node_name?: string | null
+  /** 当前待办节点定义 id，如 approval_intel */
+  node_id?: string | null
   node_type?: string | null
   /** approve=普通审批；revise=撤回/驳回后待修改重提 */
   task_kind?: 'approve' | 'revise' | string

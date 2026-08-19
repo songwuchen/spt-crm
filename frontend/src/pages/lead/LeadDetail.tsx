@@ -183,8 +183,8 @@ export default function LeadDetail() {
     if (!lead || !reactIntent) return
     setActiveTab('detail')
     const pending = myReactTask || myTask
-    if (pending?.instance_id) {
-      openWfDrawer(pending.instance_id, pending.task_id)
+    if (pending?.process_instance_id) {
+      openWfDrawer(pending.process_instance_id, pending.task_id)
     }
     setReactIntent(false)
     if (searchParams.get('react') === '1') {
@@ -317,8 +317,8 @@ export default function LeadDetail() {
   }
 
   const openReactivationDrawer = () => {
-    if (myReactTask?.instance_id) {
-      openWfDrawer(myReactTask.instance_id, myReactTask.task_id)
+    if (myReactTask?.process_instance_id) {
+      openWfDrawer(myReactTask.process_instance_id, myReactTask.task_id)
       return
     }
     if (wfInstance?.biz_type === 'lead_reactivation' && wfInstance.id) {

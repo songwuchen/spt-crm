@@ -30,7 +30,7 @@ type Props = {
   row: LeadReactivationDetail | null
   wfInstance: WfInstanceDetail | null
   loading?: boolean
-  onWfComment?: (content: string) => void | Promise<void>
+  onWfComment?: (content: string) => Promise<void>
   onHandle?: () => void
   compact?: boolean
 }
