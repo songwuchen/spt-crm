@@ -6,6 +6,12 @@ from pydantic import BaseModel, Field
 JsonTerms = Union[dict, list]
 
 
+class AllocateDrawingNoRequest(BaseModel):
+    """新建合同登记「重新取号」。"""
+    drawing_no: Optional[str] = Field(None, max_length=100, description="当前表单上的图纸编号")
+    order_date: Optional[str] = Field(None, description="订货日期，影响 WMGF 年月段")
+
+
 class ContractCreate(BaseModel):
     title: Optional[str] = None
     project_id: Optional[str] = Field(None, max_length=36)  # 可选；合同管理入口可不挂商机

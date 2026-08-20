@@ -29,6 +29,76 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+async def _assert_drawing_no_unique(
+    db: AsyncSession,
+    tenant_id: str,
+    template_id: str,
+    drawing_no: str,
+    *,
+    exclude_id: str | None = None,
+) -> None:
+    """合同图纸对应表：图纸编号在对应表与合同登记两侧唯一。"""
+    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken
+
+    dn = (drawing_no or "").strip()
+    if not dn:
+        return
+    if await is_drawing_no_taken(
+        db, tenant_id, dn,
+        map_template_id=template_id,
+        exclude_instance_id=exclude_id,
+    ):
+        raise BusinessException(
+            code=DUPLICATE_ENTRY,
+            message=f"图纸编号「{dn}」已存在，请点击刷新重新取号",
+        )
+
+
+async def _ensure_cdm_drawing_no(
+    db: AsyncSession,
+    tenant_id: str,
+    template_id: str,
+    field_defs: list,
+    form_data: dict,
+    *,
+    exclude_id: str | None = None,
+) -> dict:
+    """合同图纸对应表取号后：若与合同登记撞号则继续占号跳过（共用号池）。"""
+    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken
+    from app.domains.lowcode.serial_number import allocate_unique_serials
+
+    dn = str((form_data or {}).get("drawing_no") or "").strip()
+    if dn and not await is_drawing_no_taken(
+        db, tenant_id, dn,
+        map_template_id=template_id,
+        exclude_instance_id=exclude_id,
+    ):
+        return form_data
+
+    async def is_taken(_fid: str, value: str) -> bool:
+        return await is_drawing_no_taken(
+            db, tenant_id, value,
+            map_template_id=template_id,
+            exclude_instance_id=exclude_id,
+        )
+
+    # 当前空或已占用：走共用号池 allocate（会跳过合同侧占用）
+    allocated = await allocate_unique_serials(
+        db, tenant_id, template_id, field_defs, form_data or {},
+        field_ids=["drawing_no"],
+        is_taken=is_taken,
+    )
+    if allocated.get("drawing_no"):
+        form_data = dict(form_data or {})
+        form_data["drawing_no"] = allocated["drawing_no"]
+    await _assert_drawing_no_unique(
+        db, tenant_id, template_id,
+        str((form_data or {}).get("drawing_no") or ""),
+        exclude_id=exclude_id,
+    )
+    return form_data
+
+
 # 表单填报未传 title 时，从模板名 + 关键业务字段拼审批标题（对齐合同评审/线索「有意义的标题」）
 _TITLE_FIELD_IDS = (
     "apply_reason", "apply_or_change", "apply_reason_star",
@@ -1394,13 +1464,25 @@ async def create_instance(
                                 role_field_permissions(field_defs, user.get("roles")))
         if err:
             raise BusinessException(code=VALIDATION_ERROR, message=err)
+    # 正式提交取号；合同图纸对应表存草稿也占号（对齐简道云，列表要能看到图纸编号）
+    if (not data.as_draft) or (tpl.code == "contract_drawing_map"):
         form_data = await generate_serials_for_submit(db, tenant_id, data.template_id, field_defs, form_data)
+    if tpl.code == "contract_drawing_map":
+        form_data = await _ensure_cdm_drawing_no(
+            db, tenant_id, data.template_id, field_defs, form_data or {},
+        )
 
     title = (data.title or "").strip() or None
     if not title or is_weak_form_title(title, tpl.name):
         title = await derive_form_instance_title_resolved(
             db, tenant_id, tpl.name, form_data, field_defs,
         )
+
+    business_no = _pick_business_no(form_data, field_defs)
+    if tpl.code == "contract_drawing_map":
+        dn = str((form_data or {}).get("drawing_no") or "").strip()
+        if dn:
+            business_no = dn[:64]
 
     inst = FormInstance(
         id=generate_uuid(), tenant_id=tenant_id,
@@ -1409,7 +1491,7 @@ async def create_instance(
         status="draft" if data.as_draft else "submitted",
         initiator_id=user.get("sub"), initiator_dept_id=user.get("dept_id"),
         amount=_extract_amount(form_data, field_defs),
-        business_no=_pick_business_no(form_data, field_defs),
+        business_no=business_no,
         form_data=form_data, field_definitions=field_defs,
         created_by=user.get("sub"),
     )
@@ -2165,6 +2247,14 @@ async def update_instance(
                                     role_field_permissions(field_defs, user.get("roles")))
             if err:
                 raise BusinessException(code=VALIDATION_ERROR, message=err)
+        if tpl_code == "contract_drawing_map":
+            form_data = await generate_serials_for_submit(
+                db, tenant_id, inst.template_id, field_defs, form_data,
+            )
+            form_data = await _ensure_cdm_drawing_no(
+                db, tenant_id, inst.template_id, field_defs, form_data or {},
+                exclude_id=inst.id,
+            )
         from app.common.audit_diff import compute_dict_changes
         raw_changes = compute_dict_changes(old_form_data, form_data)
         form_changes = raw_changes
@@ -2173,6 +2263,11 @@ async def update_instance(
         biz = _pick_business_no(form_data, field_defs)
         if biz:
             inst.business_no = biz
+        # 图纸编号作列表主号展示（本表无 serial_no）
+        if tpl_code == "contract_drawing_map":
+            dn = str((form_data or {}).get("drawing_no") or "").strip()
+            if dn:
+                inst.business_no = dn[:64]
 
     await db.commit()
     await db.refresh(inst)

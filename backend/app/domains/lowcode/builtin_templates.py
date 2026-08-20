@@ -313,10 +313,13 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
             {"id": "number_attr", "type": "radio", "label": "编号属性", "required": True,
              "options": _opt("WMGF", "SY"), "default_value": "WMGF"},
             {"id": "contract_no", "type": "text", "label": "合同号", "required": True},
-            {"id": "department", "type": "department", "label": "业务部门"},
+            {"id": "department", "type": "department", "label": "业务部门", "required": True},
             {
                 "id": "drawing_no", "type": "auto_number", "label": "图纸编号",
+                # 对齐简道云：预填流水号，允许手改
+                "form_editable": True,
                 "props": {
+                    "manual_edit": True,
                     "serial_rules": [
                         {"type": "field", "field_id": "number_attr"},
                         {

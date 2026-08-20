@@ -53,6 +53,12 @@ export const lowcodeApi = {
       `/api/v1/lc/form-templates/${id}/peek-serials`,
       { form_data },
     ),
+  /** 重新取号：正式占号并避开库中已有值 */
+  allocateSerials: (id: string, form_data: Record<string, unknown>, field_ids?: string[]) =>
+    client.post<unknown, ApiResponse<Record<string, string>>>(
+      `/api/v1/lc/form-templates/${id}/allocate-serials`,
+      { form_data, field_ids },
+    ),
 
   /** 按部门 id 查部门编号基础表 */
   lookupDeptCode: (departmentId: string) =>

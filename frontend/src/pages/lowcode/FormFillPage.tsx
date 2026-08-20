@@ -1,7 +1,7 @@
 // 扩展平台 → 表单填报: 按已发布 schema 渲染, 提交生成一条数据。
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Button, Space, message, Typography, Result } from 'antd'
+import { Card, Button, Space, message, Typography, Result, Modal } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
 import { lowcodeApi } from '@/api/lowcode'
 import type { FieldDefinition, FormRule } from '@/types/lowcode'
@@ -12,6 +12,7 @@ import { DRAWING_FORM_LAYOUT, applyDrawingFormLayout } from '@/constants/drawing
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
 import { buildLowcodeInitialValues } from '@/utils/lowcodeFormDefaults'
+import ContractDrawingMapExtras from '@/components/ContractDrawingMapExtras'
 
 const { Title, Text } = Typography
 
@@ -62,13 +63,18 @@ export default function FormFillPage({
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [extrasRefresh, setExtrasRefresh] = useState(0)
+  const [refreshingSerialId, setRefreshingSerialId] = useState<string | null>(null)
   const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** 可编辑 auto_number：上一档预览号，用于区分「仍跟预览」与「用户已手改」 */
+  const lastAutoPreviewRef = useRef<Record<string, string>>({})
   const depKey = serialDepKey(fields, value)
   const currentUser = useAuthStore((s) => s.user)
 
   const layout = templateCode ? DRAWING_FORM_LAYOUT[templateCode] : undefined
   const displayFields = layout ? applyDrawingFormLayout(templateCode, fields) : fields
   const maxWidth = contentMaxWidth ?? layout?.contentMaxWidth ?? 760
+  const isDrawingMap = templateCode === 'contract_drawing_map'
 
   useEffect(() => {
     if (!id) return
@@ -287,7 +293,33 @@ export default function FormFillPage({
     if (peekTimer.current) clearTimeout(peekTimer.current)
     peekTimer.current = setTimeout(() => {
       lowcodeApi.peekSerials(id, value).then((res) => {
-        setSerialPreviews(res.data || {})
+        const peeks = res.data || {}
+        setSerialPreviews(peeks)
+        // 可编辑流水号：空值或仍等于上一预览时跟随新预览，手改后不覆盖
+        const editableAuto = fields.filter(
+          (f) => f.type === 'auto_number' && (
+            f.form_editable === true
+            || !!(f.props as { manual_edit?: boolean } | undefined)?.manual_edit
+          ),
+        )
+        if (!editableAuto.length) return
+        setValue((prev) => {
+          let changed = false
+          const next = { ...prev }
+          for (const f of editableAuto) {
+            const peek = peeks[f.id]
+            if (!peek) continue
+            const cur = next[f.id]
+            const curS = cur == null || cur === '' ? '' : String(cur)
+            const last = lastAutoPreviewRef.current[f.id] || ''
+            if (!curS || curS === last) {
+              next[f.id] = peek
+              lastAutoPreviewRef.current[f.id] = peek
+              changed = true
+            }
+          }
+          return changed ? next : prev
+        })
       }).catch(() => { /* 预览失败不阻断填报 */ })
     }, 200)
     return () => {
@@ -296,6 +328,32 @@ export default function FormFillPage({
   }, [id, loading, fields, depKey])
 
   const userRoles = useAuthStore((s) => s.user?.roles) || []
+
+  const refreshSerial = async (fieldId: string) => {
+    if (!id || !fieldId) return
+    setRefreshingSerialId(fieldId)
+    try {
+      const prevNo = String(value[fieldId] ?? '').trim()
+      const res = await lowcodeApi.allocateSerials(id, value, [fieldId])
+      const next = res.data?.[fieldId]
+      if (!next) {
+        message.error('重新取号失败，请稍后重试')
+        return
+      }
+      lastAutoPreviewRef.current[fieldId] = next
+      setSerialPreviews((prev) => ({ ...prev, [fieldId]: next }))
+      setValue((prev) => ({ ...prev, [fieldId]: next }))
+      if (prevNo && prevNo === next) {
+        message.info(`当前编号仍可用：${next}`)
+      } else {
+        message.success(`已重新取号：${next}`)
+      }
+    } catch {
+      // 拦截器已 toast
+    } finally {
+      setRefreshingSerialId(null)
+    }
+  }
 
   const submit = async (asDraft: boolean) => {
     if (!asDraft) {
@@ -312,7 +370,27 @@ export default function FormFillPage({
       // 不把预览号写入 form_data，由后端提交时正式取号，避免并发撞号
       await lowcodeApi.createInstance({ template_id: id, form_data: value, as_draft: asDraft })
       message.success(asDraft ? '已存为草稿' : '提交成功')
+      if (isDrawingMap) {
+        setExtrasRefresh((n) => n + 1)
+        if (!asDraft) {
+          setValue(buildLowcodeInitialValues(fields, useAuthStore.getState().user))
+          lastAutoPreviewRef.current = {}
+        }
+        return
+      }
       nav(backPath)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : ''
+      // 图纸编号冲突：提示用户确认后再刷新取号
+      if (isDrawingMap && /图纸编号/.test(msg) && /已存在/.test(msg)) {
+        Modal.confirm({
+          title: '图纸编号已存在',
+          content: msg.includes('刷新') ? msg : `${msg || '该编号已被占用'}，请刷新重新取号后再保存。`,
+          okText: '刷新取号',
+          cancelText: '取消',
+          onOk: () => refreshSerial('drawing_no'),
+        })
+      }
     } finally { setSubmitting(false) }
   }
 
@@ -341,14 +419,34 @@ export default function FormFillPage({
           value={value}
           onChange={(next) => setValue((prev) => ({ ...prev, ...next }))}
           serialPreviews={serialPreviews}
+          onRefreshSerial={isDrawingMap ? refreshSerial : undefined}
+          refreshingSerialId={refreshingSerialId}
         />
+        {isDrawingMap && (
+          <ContractDrawingMapExtras
+            templateId={id}
+            contractNo={String(value.contract_no || '')}
+            refreshKey={extrasRefresh}
+          />
+        )}
         <Space style={{ marginTop: 16 }}>
-          <Button onClick={() => submit(true)} loading={submitting}>存草稿</Button>
-          <Button type="primary" onClick={() => submit(false)} loading={submitting}>提交</Button>
+          {isDrawingMap ? (
+            <>
+              <Button type="primary" onClick={() => submit(false)} loading={submitting}>提交</Button>
+              <Button onClick={() => submit(true)} loading={submitting}>保存草稿</Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={() => submit(true)} loading={submitting}>存草稿</Button>
+              <Button type="primary" onClick={() => submit(false)} loading={submitting}>提交</Button>
+            </>
+          )}
         </Space>
-        <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
-          「提交」会发起审批；「存草稿」仅保存，可稍后在列表中打开草稿再点「提交审批」。
-        </Text>
+        {!isDrawingMap && (
+          <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+            「提交」会发起审批；「存草稿」仅保存，可稍后在列表中打开草稿再点「提交审批」。
+          </Text>
+        )}
       </div>
     </Card>
   )

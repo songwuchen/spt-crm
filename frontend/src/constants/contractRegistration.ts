@@ -151,7 +151,7 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
       {
         key: 'drawing_no', label: '图纸编号', source: 'native', widget: 'text', readOnly: true,
         availableOnCreate: true,
-        placeholder: '系统按 WMGF+年月+月序 规则预生成',
+        placeholder: '系统按 WMGF+年月+月序 预生成，可刷新或手改',
       },
       { key: 'project_name', label: '项目名称', source: 'reg', widget: 'text' },
       { key: 'peer_contract_no', label: '对方合同号', source: 'native', widget: 'text' },

@@ -65,7 +65,6 @@ export const menuGroups: MenuGroup[] = [
         icon: 'lightbulb',
         labelKey: 'nav.solutions',
         children: [
-          { key: '/contract-drawing-maps', icon: 'map', labelKey: 'nav.contractDrawingMaps', permission: 'form_data:view' },
           { key: '/drawing-requisitions', icon: 'draft', labelKey: 'nav.drawingRequisitions', permission: 'form_data:view' },
           { key: '/install-drawing-notices', icon: 'architecture', labelKey: 'nav.installDrawingNotices', permission: 'form_data:view' },
           { key: '/presale-service-notices', icon: 'engineering', labelKey: 'nav.presaleServiceNotices', permission: 'form_data:view' },
@@ -76,6 +75,7 @@ export const menuGroups: MenuGroup[] = [
       { key: '/research-coop-cards', icon: 'hub', labelKey: 'nav.researchCoopCards', permission: 'form_data:view' },
       { key: '/contract-reviews', icon: 'fact_check', labelKey: 'nav.contractReviews', permission: 'contract_review:view' },
       { key: '/tech-agreement-reviews', icon: 'description', labelKey: 'nav.techAgreementReviews', permission: 'tech_agreement_review:view' },
+      { key: '/contract-drawing-maps', icon: 'map', labelKey: 'nav.contractDrawingMaps', permission: 'form_data:view' },
       { key: '/contracts', icon: 'contract', labelKey: 'nav.contracts', permission: 'contract:view' },
       { key: '/prod-card-supplements', icon: 'assignment', labelKey: 'nav.prodCardSupplements', permission: 'form_data:view' },
       { key: '/invoice-applications', icon: 'receipt_long', labelKey: 'nav.invoiceApplications', permission: 'form_data:view' },

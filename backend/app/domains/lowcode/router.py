@@ -964,14 +964,108 @@ async def peek_form_serials(
     db: AsyncSession = Depends(get_db),
     _user=Depends(require_permissions("form_data:create")),
 ):
-    """填报页预览下一流水号（不消耗计数），对齐简道云「点添加即显示编号」。"""
-    from app.domains.lowcode.serial_number import peek_serials_for_form
+    """填报页预览下一流水号（不消耗计数），对齐简道云「点添加即显示编号」。
+
+    合同图纸对应表图纸编号：与合同登记共用号池，预览时跳过两边已占用号。
+    """
+    from app.domains.lowcode.models import FormTemplate
+    from app.domains.lowcode.serial_number import peek_serials_for_form, peek_serial_value
+    from app.domains.lowcode.drawing_no_pool import peek_drawing_no_skipping_taken
+    from sqlalchemy import select
+
     version = await service.get_published_version(db, tenant_id, template_id)
     field_defs = version.field_definitions or []
+    form_data = body.form_data or {}
+    tpl_code = (
+        await db.execute(
+            select(FormTemplate.code).where(
+                FormTemplate.id == template_id,
+                FormTemplate.tenant_id == tenant_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if tpl_code == "contract_drawing_map":
+        previews: dict[str, str] = {}
+        for fd in field_defs:
+            fid = fd.get("id")
+            if fd.get("type") != "auto_number" or not fid:
+                continue
+            if str(fid) == "drawing_no":
+                previews[str(fid)] = await peek_drawing_no_skipping_taken(
+                    db, tenant_id, template_id, fd, form_data, field_defs,
+                    map_template_id=template_id,
+                )
+            else:
+                previews[str(fid)] = await peek_serial_value(
+                    db, tenant_id, template_id, fd, form_data, field_defs,
+                )
+        await db.commit()  # 跳过已占用号时可能推进了计数空洞
+        return ok(previews)
     previews = await peek_serials_for_form(
-        db, tenant_id, template_id, field_defs, body.form_data or {},
+        db, tenant_id, template_id, field_defs, form_data,
     )
     return ok(previews)
+
+
+@router.post("/form-templates/{template_id}/allocate-serials")
+async def allocate_form_serials(
+    template_id: str,
+    body: schemas.AllocateSerialsRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(require_permissions("form_data:create")),
+):
+    """填报页重新取号：当前号仍可用则原样返回；否则占计数并跳过已存在编号。"""
+    from app.domains.lowcode.serial_number import allocate_unique_serials
+    from app.domains.lowcode.models import FormTemplate
+    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken
+    from sqlalchemy import select
+
+    version = await service.get_published_version(db, tenant_id, template_id)
+    field_defs = version.field_definitions or []
+    form_data = dict(body.form_data or {})
+    tpl_code = (
+        await db.execute(
+            select(FormTemplate.code).where(
+                FormTemplate.id == template_id,
+                FormTemplate.tenant_id == tenant_id,
+            )
+        )
+    ).scalar_one_or_none()
+
+    async def is_taken(field_id: str, value: str) -> bool:
+        v = (value or "").strip()
+        if not v:
+            return False
+        if tpl_code == "contract_drawing_map" and field_id == "drawing_no":
+            return await is_drawing_no_taken(
+                db, tenant_id, v, map_template_id=template_id,
+            )
+        from app.domains.lowcode.models import FormInstance
+        hit = (
+            await db.execute(
+                select(FormInstance.id)
+                .where(
+                    FormInstance.tenant_id == tenant_id,
+                    FormInstance.template_id == template_id,
+                    FormInstance.is_deleted == False,  # noqa: E712
+                    FormInstance.form_data[field_id].astext == v,
+                )
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        return hit is not None
+
+    try:
+        allocated = await allocate_unique_serials(
+            db, tenant_id, template_id, field_defs, form_data,
+            field_ids=body.field_ids,
+            is_taken=is_taken,
+        )
+    except ValueError as e:
+        raise BusinessException(code=VALIDATION_ERROR, message=str(e)) from e
+    await db.commit()
+    return ok(allocated)
 
 
 # ==================== 实体扩展字段(统一自定义字段到表单引擎) ====================

@@ -136,6 +136,12 @@ class PeekSerialsRequest(BaseModel):
     form_data: dict[str, Any] = Field(default_factory=dict)
 
 
+class AllocateSerialsRequest(BaseModel):
+    """填报页「重新取号」：正式占号并避开库中已有值。"""
+    form_data: dict[str, Any] = Field(default_factory=dict)
+    field_ids: list[str] | None = None
+
+
 class FormInstanceUpdate(BaseModel):
     form_data: dict[str, Any] | None = None
     title: str | None = None

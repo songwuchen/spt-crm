@@ -44,6 +44,7 @@ export default function ContractList() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [refreshingDrawingNo, setRefreshingDrawingNo] = useState(false)
   const [createForm] = Form.useForm()
   const [customFields, setCustomFields] = useState<Record<string, unknown>>({})
   const customFieldsRef = useRef<EntityCustomFieldsRef>(null)
@@ -120,6 +121,32 @@ export default function ContractList() {
       const no = (r.data?.drawing_no || '').trim()
       if (no) createForm.setFieldsValue({ drawing_no: no })
     } catch { /* ignore */ }
+  }
+  const refreshDrawingNoAllocate = async () => {
+    setRefreshingDrawingNo(true)
+    try {
+      const prev = String(createForm.getFieldValue('drawing_no') || '').trim()
+      const od = formatFormDate(createForm.getFieldValue('order_date')) || undefined
+      const r = await contractApi.allocateDrawingNo({
+        ...(prev ? { drawing_no: prev } : {}),
+        ...(od ? { order_date: od } : {}),
+      })
+      const next = (r.data?.drawing_no || '').trim()
+      if (!next) {
+        message.error('重新取号失败，请稍后重试')
+        return
+      }
+      createForm.setFieldsValue({ drawing_no: next })
+      if (prev && prev === next) {
+        message.info(`当前编号仍可用：${next}`)
+      } else {
+        message.success(`已重新取号：${next}`)
+      }
+    } catch {
+      // 拦截器已 toast
+    } finally {
+      setRefreshingDrawingNo(false)
+    }
   }
   const openCreate = () => {
     createForm.resetFields()
@@ -264,10 +291,22 @@ export default function ContractList() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : ''
       if (msg) {
-        message.warning(msg)
         if (msg.includes('合同号')) {
+          message.warning(msg)
           createForm.setFields([{ name: 'contract_no', errors: [msg] }])
           createForm.scrollToField('contract_no', { behavior: 'smooth', block: 'center' })
+        } else if (/图纸编号/.test(msg) && /已存在/.test(msg)) {
+          createForm.setFields([{ name: 'drawing_no', errors: [msg] }])
+          createForm.scrollToField('drawing_no', { behavior: 'smooth', block: 'center' })
+          Modal.confirm({
+            title: '图纸编号已存在',
+            content: msg.includes('刷新') ? msg : `${msg}，请刷新重新取号后再保存。`,
+            okText: '刷新取号',
+            cancelText: '取消',
+            onOk: () => refreshDrawingNoAllocate(),
+          })
+        } else {
+          message.warning(msg)
         }
       }
     } finally { setCreating(false) }
@@ -437,6 +476,8 @@ export default function ContractList() {
           <ContractRegistrationFields
             form={createForm}
             mode="create"
+            onRefreshDrawingNo={refreshDrawingNoAllocate}
+            refreshingDrawingNo={refreshingDrawingNo}
             slots={{
               line_items: (
                 <div>

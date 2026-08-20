@@ -1092,7 +1092,7 @@ export default function FormDataListPage({
         },
       ]
     : [
-        listNoCol,
+        ...(templateCode === 'contract_drawing_map' ? [] : [listNoCol]),
         // 通用填报入口保留标题；侧栏业务模块以业务列为主（对齐简道云数据管理）
         ...(!isModule ? [
           {

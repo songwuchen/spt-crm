@@ -12,7 +12,7 @@ from app.common.field_mask import load_mask_policies, apply_field_mask, masked_n
 from app.domains.contract import service
 from app.domains.contract.schemas import (
     ContractCreate, ContractUpdate, ContractVersionUpdate, ContractVersionSubmit,
-    ContractSign, ContractFromQuote,
+    ContractSign, ContractFromQuote, AllocateDrawingNoRequest,
 )
 from app.domains.lowcode import workflow_service as wsvc
 
@@ -243,10 +243,28 @@ async def peek_drawing_no(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("contract:create")),
 ):
-    """新建合同登记时预览下一图纸编号（不消耗序号）。"""
+    """新建合同登记时预览下一可用图纸编号（跳过合同登记/图纸对应表已占用；必要时推进计数空洞）。"""
     drawing_no = await service.peek_create_drawing_no(
         db, tenant_id, current_user, apply_date=order_date,
     )
+    await db.commit()
+    return ok({"drawing_no": drawing_no})
+
+
+@router.post("/api/v1/contracts/allocate-drawing-no")
+async def allocate_drawing_no(
+    body: AllocateDrawingNoRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("contract:create")),
+):
+    """新建合同登记重新取号：当前号仍可用则保留，否则占号避开已占用。"""
+    drawing_no = await service.allocate_create_drawing_no(
+        db, tenant_id, current_user,
+        current=body.drawing_no,
+        apply_date=body.order_date,
+    )
+    await db.commit()
     return ok({"drawing_no": drawing_no})
 
 

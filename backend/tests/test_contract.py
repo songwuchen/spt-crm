@@ -13,14 +13,36 @@ async def test_contract_peek_drawing_no(client: AsyncClient, auth_headers: dict)
     assert len(no) >= 11
 
 
+async def test_contract_allocate_drawing_no_keeps_available(client: AsyncClient, auth_headers: dict):
+    """重新取号：当前号未占用时不空耗号段。"""
+    h = auth_headers
+    peek = (await client.get("/api/v1/contracts/peek-drawing-no", headers=h)).json()["data"]["drawing_no"]
+    r1 = await client.post(
+        "/api/v1/contracts/allocate-drawing-no",
+        json={"drawing_no": peek},
+        headers=h,
+    )
+    assert r1.json()["code"] == 0, r1.text
+    assert r1.json()["data"]["drawing_no"] == peek
+    r2 = await client.post(
+        "/api/v1/contracts/allocate-drawing-no",
+        json={"drawing_no": peek},
+        headers=h,
+    )
+    assert r2.json()["code"] == 0, r2.text
+    assert r2.json()["data"]["drawing_no"] == peek
+    peek2 = (await client.get("/api/v1/contracts/peek-drawing-no", headers=h)).json()["data"]["drawing_no"]
+    assert peek2 == peek
+
+
 async def test_contract_create_draft_without_required(client: AsyncClient, auth_headers: dict):
-    """存草稿：跳过必填，可连续保存且不因预览图纸号冲突 409。"""
+    """存草稿：跳过必填；图纸号撞号时报错，不静默换号。"""
     h = auth_headers
     peek = (await client.get("/api/v1/contracts/peek-drawing-no", headers=h)).json()["data"]["drawing_no"]
     body = {
         "as_draft": True,
         "title": "草稿测试",
-        "drawing_no": peek,  # 模拟旧前端把预览号一并提交
+        "drawing_no": peek,  # 模拟前端把预览号一并提交
     }
     r1 = await client.post("/api/v1/contracts", json=body, headers=h)
     assert r1.status_code == 200, r1.text
@@ -31,13 +53,21 @@ async def test_contract_create_draft_without_required(client: AsyncClient, auth_
 
     r2 = await client.post("/api/v1/contracts", json=body, headers=h)
     assert r2.status_code == 200, r2.text
-    assert r2.json()["code"] == 0
-    c2 = r2.json()["data"]["contract"]
-    assert c2["id"] != c1["id"]
-    assert c2["drawing_no"] != c1["drawing_no"]
+    assert r2.json()["code"] == 42201
+    assert "图纸编号" in (r2.json().get("message") or "")
+    assert "已存在" in (r2.json().get("message") or "")
+
+    # 不传图纸号：系统自动取号，可再存一条草稿
+    r3 = await client.post("/api/v1/contracts", json={
+        "as_draft": True, "title": "草稿自动取号",
+    }, headers=h)
+    assert r3.json()["code"] == 0, r3.text
+    c3 = r3.json()["data"]["contract"]
+    assert c3["drawing_no"]
+    assert c3["drawing_no"] != c1["drawing_no"]
 
     await client.delete(f"/api/v1/contracts/{c1['id']}", headers=h)
-    await client.delete(f"/api/v1/contracts/{c2['id']}", headers=h)
+    await client.delete(f"/api/v1/contracts/{c3['id']}", headers=h)
 
 
 async def test_contract_draft_duplicate_contract_no_prompts(client: AsyncClient, auth_headers: dict):

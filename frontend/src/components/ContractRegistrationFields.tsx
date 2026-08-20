@@ -6,8 +6,9 @@
  */
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Form, Input, InputNumber, DatePicker, Select, Radio, Checkbox, AutoComplete } from 'antd'
+import { Form, Input, InputNumber, DatePicker, Select, Radio, Checkbox, AutoComplete, Button, Space, Tooltip } from 'antd'
 import type { FormInstance } from 'antd'
+import { ReloadOutlined } from '@ant-design/icons'
 import {
   CONTRACT_REGISTRATION_SECTIONS,
   type RegAfterSlot,
@@ -36,6 +37,9 @@ type Props = {
   mode?: 'create' | 'edit'
   regOnly?: boolean
   slots?: Partial<Record<RegAfterSlot, ReactNode>>
+  /** 新建：图纸编号旁「重新取号」 */
+  onRefreshDrawingNo?: () => void
+  refreshingDrawingNo?: boolean
 }
 
 function readDepValue(
@@ -247,12 +251,16 @@ function FieldControl({
   form,
   value,
   onChange,
+  onRefreshDrawingNo,
+  refreshingDrawingNo,
   ...rest
 }: {
   field: RegFieldDef
   form: FormInstance
   value?: unknown
   onChange?: (...args: any[]) => void
+  onRefreshDrawingNo?: () => void
+  refreshingDrawingNo?: boolean
   [k: string]: unknown
 }) {
   const widget = field.widget || 'text'
@@ -267,6 +275,25 @@ function FieldControl({
         value={value as string | undefined}
         onChange={onChange as ((v: string) => void) | undefined}
       />
+    )
+  }
+
+  if (field.key === 'drawing_no' && onRefreshDrawingNo) {
+    return (
+      <Space.Compact className="w-full">
+        <Input
+          {...control}
+          allowClear
+          placeholder={field.placeholder}
+        />
+        <Tooltip title="重新取号">
+          <Button
+            icon={<ReloadOutlined />}
+            loading={!!refreshingDrawingNo}
+            onClick={() => onRefreshDrawingNo()}
+          />
+        </Tooltip>
+      </Space.Compact>
     )
   }
 
@@ -405,11 +432,15 @@ function FieldGrid({
   mode: _mode,
   regOnly,
   form,
+  onRefreshDrawingNo,
+  refreshingDrawingNo,
 }: {
   fields: RegFieldDef[]
   mode: 'create' | 'edit'
   regOnly: boolean
   form: FormInstance
+  onRefreshDrawingNo?: () => void
+  refreshingDrawingNo?: boolean
 }) {
   const policy = useFieldPolicy()
   const catalogById = new Map(
@@ -483,7 +514,12 @@ function FieldGrid({
               if (f.source === 'native' || inCatalog) {
                 return (
                   <PolicyItem key={f.key} name={namePath} {...itemProps}>
-                    <FieldControl field={f} form={form} />
+                    <FieldControl
+                      field={f}
+                      form={form}
+                      onRefreshDrawingNo={onRefreshDrawingNo}
+                      refreshingDrawingNo={refreshingDrawingNo}
+                    />
                   </PolicyItem>
                 )
               }
@@ -493,7 +529,12 @@ function FieldGrid({
                   name={['registration_json', f.key]}
                   {...itemProps}
                 >
-                  <FieldControl field={f} form={form} />
+                  <FieldControl
+                    field={f}
+                    form={form}
+                    onRefreshDrawingNo={onRefreshDrawingNo}
+                    refreshingDrawingNo={refreshingDrawingNo}
+                  />
                 </Form.Item>
               )
             })}
@@ -509,7 +550,12 @@ export default function ContractRegistrationFields({
   mode = 'edit',
   regOnly = false,
   slots,
+  onRefreshDrawingNo,
+  refreshingDrawingNo,
 }: Props) {
+  const refreshProps = mode === 'create'
+    ? { onRefreshDrawingNo, refreshingDrawingNo }
+    : {}
   return (
     <div className="space-y-5">
       {/* companion 显示名：选人/选部门时同步写入，提交落库但不单独展示 */}
@@ -523,12 +569,12 @@ export default function ContractRegistrationFields({
         return (
           <div key={sec.key}>
             <ContractSectionTitle title={sec.title} />
-            <FieldGrid fields={sec.fields} mode={mode} regOnly={regOnly} form={form} />
+            <FieldGrid fields={sec.fields} mode={mode} regOnly={regOnly} form={form} {...refreshProps} />
             {sec.afterSlot && slots?.[sec.afterSlot] ? (
               <div className="my-4">{slots[sec.afterSlot]}</div>
             ) : null}
             {sec.fieldsAfterSlot?.length ? (
-              <FieldGrid fields={sec.fieldsAfterSlot} mode={mode} regOnly={regOnly} form={form} />
+              <FieldGrid fields={sec.fieldsAfterSlot} mode={mode} regOnly={regOnly} form={form} {...refreshProps} />
             ) : null}
           </div>
         )

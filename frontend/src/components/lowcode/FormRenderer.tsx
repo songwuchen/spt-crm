@@ -4,9 +4,9 @@
 import { useEffect, useMemo, useRef } from 'react'
 import {
   Row, Col, Input, InputNumber, DatePicker, Select, Radio, Checkbox, Switch,
-  Button, Table, Typography, Tag, Empty,
+  Button, Table, Typography, Tag, Empty, Space, Tooltip,
 } from 'antd'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlusOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { FieldDefinition, FormRule, FieldState, FieldPermission } from '@/types/lowcode'
 import { computeFieldStates, isDetailColVisibleInRow } from './RuleEngine'
@@ -81,6 +81,9 @@ interface Props {
   ruleContext?: Record<string, unknown>
   /** 填报页流水号预览（未落库）；有已存值时仍优先展示 value */
   serialPreviews?: Record<string, string>
+  /** 可手改流水号：重新取号 */
+  onRefreshSerial?: (fieldId: string) => void
+  refreshingSerialId?: string | null
   /** 明细子表布局：手机端用 cards */
   detailLayout?: 'table' | 'cards'
   /** 发起填报：隐藏 available_on_create=false 的明细列；审批填表传 false */
@@ -112,7 +115,7 @@ export function deriveRolePerms(fields: FieldDefinition[], userRoles: string[]):
   return out
 }
 
-export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, detailLayout = 'table', detailCreateFill = true }: Props) {
+export default function FormRenderer({ fields, rules = [], mode = 'edit', value, onChange, applyFieldPerms = true, ruleContext, serialPreviews, onRefreshSerial, refreshingSerialId, detailLayout = 'table', detailCreateFill = true }: Props) {
   const userRoles = useAuthStore((s) => s.user?.roles) || []
   const rolePerms = useMemo(
     () => (applyFieldPerms ? deriveRolePerms(fields, userRoles) : []),
@@ -188,6 +191,8 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
               onChange={(v) => setField(field.id, v)}
               onPatch={patchFields}
               serialPreview={serialPreviews?.[field.id]}
+              onRefreshSerial={onRefreshSerial}
+              refreshingSerial={refreshingSerialId === field.id}
               rules={rules}
               fields={fields}
               detailLayout={detailLayout}
@@ -202,7 +207,7 @@ export default function FormRenderer({ fields, rules = [], mode = 'edit', value,
 }
 
 function FieldItem({
-  field, state, mode, value, allValues, onChange, onPatch, serialPreview, rules = [], fields = [], detailLayout = 'table', detailCreateFill = true, fieldSpan,
+  field, state, mode, value, allValues, onChange, onPatch, serialPreview, onRefreshSerial, refreshingSerial, rules = [], fields = [], detailLayout = 'table', detailCreateFill = true, fieldSpan,
 }: {
   field: FieldDefinition
   state?: FieldState
@@ -212,6 +217,8 @@ function FieldItem({
   onChange: (v: unknown) => void
   onPatch?: (patch: Record<string, unknown>) => void
   serialPreview?: string
+  onRefreshSerial?: (fieldId: string) => void
+  refreshingSerial?: boolean
   rules?: FormRule[]
   fields?: FieldDefinition[]
   detailLayout?: 'table' | 'cards'
@@ -250,6 +257,8 @@ function FieldItem({
             onChange={onChange}
             onPatch={onPatch}
             serialPreview={serialPreview}
+            onRefreshSerial={onRefreshSerial}
+            refreshingSerial={refreshingSerial}
             rules={rules}
             fields={fields}
             detailLayout={detailLayout}
@@ -262,7 +271,7 @@ function FieldItem({
 }
 
 function FieldWidget({
-  field, readonly, value, allValues, onChange, onPatch, serialPreview, rules = [], fields = [], detailLayout = 'table', detailCreateFill = true, fieldSpan, inlineCell,
+  field, readonly, value, allValues, onChange, onPatch, serialPreview, onRefreshSerial, refreshingSerial, rules = [], fields = [], detailLayout = 'table', detailCreateFill = true, fieldSpan, inlineCell,
 }: {
   field: FieldDefinition
   readonly: boolean
@@ -271,6 +280,8 @@ function FieldWidget({
   onChange: (v: unknown) => void
   onPatch?: (patch: Record<string, unknown>) => void
   serialPreview?: string
+  onRefreshSerial?: (fieldId: string) => void
+  refreshingSerial?: boolean
   rules?: FormRule[]
   fields?: FieldDefinition[]
   detailLayout?: 'table' | 'cards'
@@ -648,15 +659,48 @@ function FieldWidget({
       return <Switch checked={!!value} onChange={(v) => onChange(v)} />
     case 'formula':
     case 'auto_number': {
-      // 系统计算/生成字段: 只读展示。auto_number 优先已存值，否则展示预览号（提交时后端正式取号）
-      const display = value != null && value !== ''
-        ? String(value)
-        : (field.type === 'auto_number' && serialPreview ? serialPreview : '')
+      // 默认只读展示；form_editable=true 时可手改（合同图纸对应表图纸编号对齐简道云）
+      const preview = field.type === 'auto_number' && serialPreview ? serialPreview : ''
+      const display = value != null && value !== '' ? String(value) : preview
+      const allowEdit = field.type === 'auto_number'
+        && !readonly
+        && (field.form_editable === true
+          || !!(field.props as { manual_edit?: boolean } | undefined)?.manual_edit)
+      if (!allowEdit) {
+        return (
+          <Input
+            value={display}
+            disabled
+            placeholder={field.type === 'auto_number' ? '提交后自动生成' : '自动计算'}
+          />
+        )
+      }
+      const refreshBtn = onRefreshSerial ? (
+        <Tooltip title="重新取号">
+          <Button
+            icon={<ReloadOutlined />}
+            loading={!!refreshingSerial}
+            onClick={() => onRefreshSerial(field.id)}
+          />
+        </Tooltip>
+      ) : null
+      if (refreshBtn) {
+        return (
+          <Space.Compact className="w-full max-w-full">
+            <Input
+              value={display}
+              placeholder={preview || '可修改自动编号'}
+              onChange={(e) => onChange(e.target.value)}
+            />
+            {refreshBtn}
+          </Space.Compact>
+        )
+      }
       return (
         <Input
           value={display}
-          disabled
-          placeholder={field.type === 'auto_number' ? '提交后自动生成' : '自动计算'}
+          placeholder={preview || '可修改自动编号'}
+          onChange={(e) => onChange(e.target.value)}
         />
       )
     }

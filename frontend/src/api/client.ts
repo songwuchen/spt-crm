@@ -122,10 +122,20 @@ client.interceptors.response.use(
         return Promise.reject(err)
       }
 
-      // Pass through gate_check_failed with data for custom handling
+      // 42201：阶段门控带 failed_rules，留给业务页自定义弹窗；普通重复等仍 toast
       if (data.code === 42201) {
         const err = new Error(data.message) as Error & { gateData: unknown }
         err.gateData = data.data
+        const isGate = !!(
+          data.data
+          && typeof data.data === 'object'
+          && Array.isArray((data.data as { failed_rules?: unknown }).failed_rules)
+        )
+        const silent = response.config.headers?.['X-Silent-Error'] === '1'
+          || response.config.headers?.['x-silent-error'] === '1'
+        if (!isGate && !silent) {
+          message.error(data.message || '请求失败')
+        }
         return Promise.reject(err)
       }
 
@@ -197,6 +207,16 @@ client.interceptors.response.use(
     if (code === 42201) {
       const err = new Error(data.message) as Error & { gateData: unknown }
       err.gateData = data.data
+      const isGate = !!(
+        data.data
+        && typeof data.data === 'object'
+        && Array.isArray((data.data as { failed_rules?: unknown }).failed_rules)
+      )
+      const silent = error.config?.headers?.['X-Silent-Error'] === '1'
+        || error.config?.headers?.['x-silent-error'] === '1'
+      if (!isGate && !silent && !isCanceled(error)) {
+        message.error(data?.message || '请求失败')
+      }
       return Promise.reject(err)
     }
 

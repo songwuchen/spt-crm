@@ -62,28 +62,24 @@ async def _resolve_create_drawing_no(
     apply_date: str | date_type | None = None,
     trust_requested: bool = False,
 ) -> str:
-    """图纸编号：优先采用前端预览号（唯一则落库并推进流水）；冲突或未传则 consume 新号。
+    """图纸编号：与合同图纸对应表共用号池；传入值须两边均未占用，未传则 consume 新号。
 
-    trust_requested=True（开放平台）时：传入号唯一即直接采用，不推进流水。
+    trust_requested=True（开放平台）：传入号唯一即直接采用，不推进流水；撞号报错。
     """
+    from app.domains.lowcode import service as lc_svc
+    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken
+
     no = (requested or "").strip()
+    tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
     if no:
-        exists = (await db.execute(
-            select(Contract.id).where(
-                Contract.tenant_id == tenant_id,
-                Contract.drawing_no == no,
-            ).limit(1)
-        )).scalar_one_or_none()
-        if exists:
-            if trust_requested:
-                raise BusinessException(code=DUPLICATE_ENTRY, message=f"图纸编号「{no}」已存在")
-            # 预览号已被占用 → 重新取号
-            return await peek_create_drawing_no(
-                db, tenant_id, user, apply_date=apply_date, consume=True,
+        if await is_drawing_no_taken(db, tenant_id, no, map_template_id=tpl.id):
+            raise BusinessException(
+                code=DUPLICATE_ENTRY,
+                message=f"图纸编号「{no}」已存在，请点击刷新重新取号",
             )
         if trust_requested:
             return no
-        # 与当前下一号一致时 consume，保证流水与落库同步；否则直接采用预览号
+        # 与当前下一可用预览号一致时 consume，保证流水与落库同步；否则直接采用（手改/已 allocate）
         nxt = await peek_create_drawing_no(
             db, tenant_id, user, apply_date=apply_date, consume=False,
         )
@@ -105,10 +101,14 @@ async def peek_create_drawing_no(
     apply_date: str | date_type | None = None,
     consume: bool = False,
 ) -> str:
-    """预览/生成合同登记图纸编号（WMGF+yyyyMM+三位月序）。"""
+    """预览/生成合同登记图纸编号（WMGF+yyyyMM+三位月序）；预览会跳过两边已占用号。"""
     from app.domains.lowcode import service as lc_svc
     from app.domains.lowcode.builtin_templates import get_builtin
-    from app.domains.lowcode.serial_number import generate_serial_value, peek_serial_value
+    from app.domains.lowcode.drawing_no_pool import (
+        is_drawing_no_taken,
+        peek_drawing_no_skipping_taken,
+    )
+    from app.domains.lowcode.serial_number import generate_serial_value
 
     tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
     bt = get_builtin("contract_drawing_map") or {}
@@ -124,12 +124,64 @@ async def peek_create_drawing_no(
 
     form_data = {"number_attr": "WMGF", "apply_date": apply_s}
     if consume:
-        return await generate_serial_value(
-            db, tenant_id, tpl.id, drawing_fd, form_data, field_defs,
-        )
-    return await peek_serial_value(
+        # 正式取号：跳过合同登记 + 图纸对应表已占用
+        last = ""
+        for _ in range(50):
+            last = await generate_serial_value(
+                db, tenant_id, tpl.id, drawing_fd, form_data, field_defs,
+            )
+            if not await is_drawing_no_taken(db, tenant_id, last, map_template_id=tpl.id):
+                return last
+        raise BusinessException(code=BUSINESS_ERROR, message="无法分配唯一图纸编号，请稍后重试")
+    return await peek_drawing_no_skipping_taken(
         db, tenant_id, tpl.id, drawing_fd, form_data, field_defs,
+        map_template_id=tpl.id,
     )
+
+
+async def allocate_create_drawing_no(
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict,
+    *,
+    current: str | None = None,
+    apply_date: str | date_type | None = None,
+) -> str:
+    """新建合同登记「重新取号」：当前号仍可用则保留，否则占号并跳过已占用。"""
+    from app.domains.lowcode import service as lc_svc
+    from app.domains.lowcode.builtin_templates import get_builtin
+    from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken
+    from app.domains.lowcode.serial_number import allocate_unique_serials
+
+    tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
+    bt = get_builtin("contract_drawing_map") or {}
+    field_defs = list(bt.get("field_definitions") or [])
+    drawing_fd = next((f for f in field_defs if f.get("id") == "drawing_no"), None)
+    if not drawing_fd:
+        raise BusinessException(code=BUSINESS_ERROR, message="图纸编号规则未配置")
+
+    if isinstance(apply_date, date_type):
+        apply_s = apply_date.isoformat()
+    else:
+        apply_s = (str(apply_date).strip() if apply_date else "") or datetime.now(timezone.utc).date().isoformat()
+
+    cur = (current or "").strip()
+    form_data: dict = {"number_attr": "WMGF", "apply_date": apply_s}
+    if cur:
+        form_data["drawing_no"] = cur
+
+    async def is_taken(_fid: str, value: str) -> bool:
+        return await is_drawing_no_taken(db, tenant_id, value, map_template_id=tpl.id)
+
+    try:
+        out = await allocate_unique_serials(
+            db, tenant_id, tpl.id, field_defs, form_data,
+            field_ids=["drawing_no"],
+            is_taken=is_taken,
+        )
+    except ValueError as e:
+        raise BusinessException(code=BUSINESS_ERROR, message=str(e)) from e
+    return out.get("drawing_no") or ""
 
 
 async def list_drawing_map_lookups(
@@ -261,7 +313,7 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     # 历史残留字段清理：编号属性已从合同登记移除
     reg = {k: v for k, v in reg.items() if k not in ("number_attr", "number_lookup")}
     apply_date = native.get("order_date", data.order_date) or reg.get("apply_date")
-    # 采用表单预览的图纸编号（唯一则落库）；冲突时再 consume 新号
+    # 采用表单图纸编号（唯一则落库）；撞号报错，由前端提示刷新取号
     drawing_no = await _resolve_create_drawing_no(
         db, tenant_id, user,
         native.get("drawing_no") or data.drawing_no,

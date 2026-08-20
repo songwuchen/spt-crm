@@ -287,10 +287,38 @@ async def generate_serials_for_submit(
     db: AsyncSession, tenant_id: str, template_id: str,
     field_defs: list[dict[str, Any]], form_data: dict[str, Any],
 ) -> dict[str, Any]:
-    """提交链路入口: 为所有值为空的 auto_number 字段生成流水号(编辑/重提保留原值)。"""
+    """提交链路入口: 为空的 auto_number 正式取号并占计数。
+
+    可手改流水号（``form_editable`` / ``props.manual_edit``）：
+    - 值为空 → 取号占号；
+    - 值等于当前预览号 → 仍占号（避免前端把 peek 写入后不推进计数导致撞号，对齐简道云）；
+    - 值与预览不同 → 视为手改，保留原值（唯一性由业务侧校验）。
+    """
     for fd in field_defs or []:
-        if fd.get("type") == "auto_number" and not (form_data or {}).get(fd.get("id")):
-            form_data[fd["id"]] = await generate_serial_value(db, tenant_id, template_id, fd, form_data, field_defs)
+        if fd.get("type") != "auto_number":
+            continue
+        fid = fd.get("id")
+        if not fid:
+            continue
+        cur = (form_data or {}).get(fid)
+        cur_s = str(cur).strip() if cur not in (None, "") else ""
+        props = fd.get("props") if isinstance(fd.get("props"), dict) else {}
+        manual = fd.get("form_editable") is True or bool(props.get("manual_edit"))
+        if not cur_s:
+            form_data[fid] = await generate_serial_value(
+                db, tenant_id, template_id, fd, form_data, field_defs,
+            )
+            continue
+        if not manual:
+            continue
+        peek = await peek_serial_value(
+            db, tenant_id, template_id, fd, form_data, field_defs,
+        )
+        if cur_s == str(peek or "").strip():
+            # 仍是「下一号」预览：必须 consume，否则多单会共用同一 peek
+            form_data[fid] = await generate_serial_value(
+                db, tenant_id, template_id, fd, form_data, field_defs,
+            )
     return form_data
 
 
@@ -304,4 +332,64 @@ async def peek_serials_for_form(
         fid = fd.get("id")
         if fd.get("type") == "auto_number" and fid:
             out[str(fid)] = await peek_serial_value(db, tenant_id, template_id, fd, form_data, field_defs)
+    return out
+
+
+def _serial_manual_editable(fd: dict[str, Any]) -> bool:
+    props = fd.get("props") if isinstance(fd.get("props"), dict) else {}
+    return fd.get("form_editable") is True or bool(props.get("manual_edit"))
+
+
+async def allocate_unique_serials(
+    db: AsyncSession,
+    tenant_id: str,
+    template_id: str,
+    field_defs: list[dict[str, Any]],
+    form_data: dict[str, Any],
+    *,
+    field_ids: list[str] | None = None,
+    is_taken=None,
+    max_tries: int = 50,
+) -> dict[str, str]:
+    """「重新取号」：仅在空号或当前号已被占用时正式占号。
+
+    - 当前值非空且库中未占用 → 原样返回，**不推进计数**（已是可用/最新号段时连点无效）；
+    - 否则生成下一号，并用 ``is_taken`` 跳过已占用值。
+    """
+    want = {str(x) for x in (field_ids or []) if x}
+    out: dict[str, str] = {}
+    for fd in field_defs or []:
+        if fd.get("type") != "auto_number":
+            continue
+        fid = str(fd.get("id") or "")
+        if not fid:
+            continue
+        if want and fid not in want:
+            continue
+        if not want and not _serial_manual_editable(fd):
+            continue
+        cur = (form_data or {}).get(fid)
+        cur_s = str(cur).strip() if cur not in (None, "") else ""
+        if cur_s and is_taken is not None and not await is_taken(fid, cur_s):
+            # 当前号仍可用：不浪费号段
+            out[fid] = cur_s
+            continue
+        if cur_s and is_taken is None:
+            # 无占用检测时：已是下一预览号则保持，避免连点空耗
+            peek = await peek_serial_value(
+                db, tenant_id, template_id, fd, form_data, field_defs,
+            )
+            if cur_s == str(peek or "").strip():
+                out[fid] = cur_s
+                continue
+        last = ""
+        for _ in range(max(1, max_tries)):
+            last = await generate_serial_value(
+                db, tenant_id, template_id, fd, form_data, field_defs,
+            )
+            if is_taken is None or not await is_taken(fid, last):
+                out[fid] = last
+                break
+        else:
+            raise ValueError(f"无法为「{fd.get('label') or fid}」分配唯一编号，请稍后重试")
     return out

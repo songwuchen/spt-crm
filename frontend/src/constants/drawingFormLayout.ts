@@ -39,6 +39,43 @@ export type DrawingFormLayoutSpec = {
 }
 
 export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
+  /** 合同图纸对应表：对齐简道云一行四列 + 无分区标题 */
+  contract_drawing_map: {
+    contentMaxWidth: 1100,
+    listColumns: [
+      'pre_issue', 'apply_date', 'number_attr', 'contract_no',
+      'department', 'drawing_no', 'remark',
+    ],
+    listFullText: true,
+    listColumnWidths: {
+      pre_issue: 72,
+      apply_date: 118,
+      number_attr: 88,
+      contract_no: 140,
+      department: 200,
+      drawing_no: 150,
+      remark: 220,
+    },
+    sections: [
+      {
+        title: '',
+        fieldIds: [
+          'pre_issue', 'apply_date', 'number_attr', 'contract_no',
+          'department', 'drawing_no', 'remark',
+        ],
+      },
+    ],
+    // 简道云 lineWidth≈6 → span 6（一行四列）；备注通栏
+    spans: {
+      pre_issue: 6,
+      apply_date: 6,
+      number_attr: 6,
+      contract_no: 6,
+      department: 6,
+      drawing_no: 6,
+      remark: 24,
+    },
+  },
   drawing_requisition: {
     contentMaxWidth: 1080,
     // 对齐简道云数据管理列序（已去掉订货人/设计人文本、是否解密*）
