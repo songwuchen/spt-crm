@@ -916,7 +916,10 @@ export default function OpportunityDetail() {
                         { title: '', key: 'actions', render: (_, r) => (
                           <Space size={4}>
                             <a onClick={() => navigate(`/opportunities/${id}/contracts/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
-                            {canDeleteContract && isContractDraftDeletable(v, (r as { current_version_status?: string }).current_version_status) && (
+                            {canDeleteContract && isContractDraftDeletable(
+                              String((r as { status?: string }).status || ''),
+                              (r as { current_version_status?: string }).current_version_status,
+                            ) && (
                               <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
                                 title: '确认删除', content: `确定要删除合同「${r.contract_no}」？仅草稿可删除。`, okType: 'danger',

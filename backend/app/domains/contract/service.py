@@ -215,9 +215,9 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     await validate_entity_custom_fields(
         db, tenant_id, "contract", cfj, user.get("roles"), skip_required=as_draft,
     )
-    # 商机侧「快速建合同」往往只带金额/条款；登记表一长串 default_required 只在表单
+    # 商机侧「快速建合同」往往只带金额/条款；登记表一长串 default_required 只在
     # 实际提交的字段上校验（与 update 的 payload scope 一致）。exclude_unset 避免把
-    # 未传字段以 None 塞进 payload 后被误判为「已提交但为空」。
+    # 未传字段以 None 塞进 payload 后被误判为「已提交但为空」。草稿可跳过必填。
     _NATIVE_CREATE_KEYS = (
         "contract_no", "amount_total", "end_date", "drawing_no", "peer_contract_no",
         "acquire_method", "delivery_date", "change_type", "order_date", "card_date",
@@ -228,7 +228,7 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     native_payload = {k: raw[k] for k in _NATIVE_CREATE_KEYS if k in raw}
     native = await enforce_native_field_policy(
         db, tenant_id, "contract", native_payload, None, user.get("roles"),
-        required_scope="payload" if as_draft else "all",
+        required_scope="payload",
         skip_required=as_draft,
     )
 
