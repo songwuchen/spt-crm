@@ -11,7 +11,7 @@ class ContractCreate(BaseModel):
     project_id: Optional[str] = Field(None, max_length=36)  # 可选；合同管理入口可不挂商机
     # 直接关联客户主数据（可不挂商机）；有商机时可与商机客户一致或单独指定
     customer_id: Optional[str] = Field(None, max_length=36)
-    # 合同号由业务手填；图纸编号空则按 WMGF/SY 规则系统生成
+    # 合同号由业务手填；图纸编号打开表单时预览，创建时沿用（冲突则系统另取）
     contract_no: Optional[str] = Field(None, max_length=64)
     amount_total: Optional[float] = Field(None, ge=0)
     end_date: Optional[date] = None

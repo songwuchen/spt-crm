@@ -62,9 +62,12 @@ async def _resolve_create_drawing_no(
     apply_date: str | date_type | None = None,
     trust_requested: bool = False,
 ) -> str:
-    """图纸编号：CRM 新建一律 consume 流水号；开放平台可 trust_requested 传入已存在的号。"""
+    """图纸编号：优先采用前端预览号（唯一则落库并推进流水）；冲突或未传则 consume 新号。
+
+    trust_requested=True（开放平台）时：传入号唯一即直接采用，不推进流水。
+    """
     no = (requested or "").strip()
-    if trust_requested and no:
+    if no:
         exists = (await db.execute(
             select(Contract.id).where(
                 Contract.tenant_id == tenant_id,
@@ -72,7 +75,22 @@ async def _resolve_create_drawing_no(
             ).limit(1)
         )).scalar_one_or_none()
         if exists:
-            raise BusinessException(code=DUPLICATE_ENTRY, message=f"图纸编号「{no}」已存在")
+            if trust_requested:
+                raise BusinessException(code=DUPLICATE_ENTRY, message=f"图纸编号「{no}」已存在")
+            # 预览号已被占用 → 重新取号
+            return await peek_create_drawing_no(
+                db, tenant_id, user, apply_date=apply_date, consume=True,
+            )
+        if trust_requested:
+            return no
+        # 与当前下一号一致时 consume，保证流水与落库同步；否则直接采用预览号
+        nxt = await peek_create_drawing_no(
+            db, tenant_id, user, apply_date=apply_date, consume=False,
+        )
+        if no == nxt:
+            return await peek_create_drawing_no(
+                db, tenant_id, user, apply_date=apply_date, consume=True,
+            )
         return no
     return await peek_create_drawing_no(
         db, tenant_id, user, apply_date=apply_date, consume=True,
@@ -243,9 +261,11 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     # 历史残留字段清理：编号属性已从合同登记移除
     reg = {k: v for k, v in reg.items() if k not in ("number_attr", "number_lookup")}
     apply_date = native.get("order_date", data.order_date) or reg.get("apply_date")
-    # 前端 peek 仅作展示；落库必须 consume 流水号，否则预览号反复提交会 409
+    # 采用表单预览的图纸编号（唯一则落库）；冲突时再 consume 新号
     drawing_no = await _resolve_create_drawing_no(
-        db, tenant_id, user, None, apply_date=apply_date,
+        db, tenant_id, user,
+        native.get("drawing_no") or data.drawing_no,
+        apply_date=apply_date,
     )
 
     # 显式指定优先；未传时从关联商机带出客户，保证列表「客户名称」可补全

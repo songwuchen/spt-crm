@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""客服领图字段后处理：指派节点人选范围 / 下单日期对齐图纸领用·安装图。"""
+"""客服领图字段后处理：指派节点人选范围 / 下单日期 / 设计单分派联动。"""
 from __future__ import annotations
 
 from typing import Any
@@ -12,6 +12,57 @@ _ASSIGN_SCOPES: dict[str, dict[str, Any]] = {
     "design_assignees": {"scope_code": "room_leaders"},
     "offices": {"scope_code": "scheme_offices"},
 }
+
+# 简道云 field_show_rules（_jdy_customer_service_linkages.json）：
+# 总部单/共同 → 设计指派；新乡单/郑州单/共同/包装单 → 转新乡、工艺包装
+CS_DRAWING_DISPATCH_RULES: list[dict[str, Any]] = [
+    {
+        "id": "jdy_vis_design_assignees",
+        "type": "visibility",
+        "target_field_id": "design_assignees",
+        "condition": {
+            "field": "design_dispatch",
+            "operator": "in",
+            "value": ["总部单", "共同"],
+        },
+        "action": {"visible": True},
+    },
+    {
+        "id": "jdy_req_design_assignees",
+        "type": "required",
+        "target_field_id": "design_assignees",
+        "condition": {
+            "field": "design_dispatch",
+            "operator": "in",
+            "value": ["总部单", "共同"],
+        },
+        "action": {"required": True},
+    },
+    {
+        "id": "jdy_vis_transfer_packaging_users",
+        "type": "visibility",
+        "target_field_id": "transfer_packaging_users",
+        "condition": {
+            "field": "design_dispatch",
+            "operator": "in",
+            "value": ["新乡单", "郑州单", "共同", "包装单"],
+        },
+        "action": {"visible": True},
+    },
+    {
+        "id": "jdy_req_transfer_packaging_users",
+        "type": "required",
+        "target_field_id": "transfer_packaging_users",
+        "condition": {
+            "field": "design_dispatch",
+            "operator": "in",
+            "value": ["新乡单", "郑州单", "共同", "包装单"],
+        },
+        "action": {"required": True},
+    },
+]
+
+_DISPATCH_RULE_IDS = {r["id"] for r in CS_DRAWING_DISPATCH_RULES}
 
 
 def apply_cs_drawing_request_fields(field_defs: list[dict[str, Any]]) -> None:
@@ -55,3 +106,13 @@ def apply_cs_drawing_request_fields(field_defs: list[dict[str, Any]]) -> None:
                 fd["props"] = props or None
 
     apply_scheme_design_person_scope_rules(field_defs)
+
+
+def apply_cs_drawing_request_rules(rules: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """合并设计单分派显隐/条件必填；替换同 id 旧规则，保留其它规则。"""
+    out: list[dict[str, Any]] = [
+        r for r in (rules or [])
+        if isinstance(r, dict) and r.get("id") not in _DISPATCH_RULE_IDS
+    ]
+    out.extend(dict(r) for r in CS_DRAWING_DISPATCH_RULES)
+    return out

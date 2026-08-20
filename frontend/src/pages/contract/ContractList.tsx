@@ -209,7 +209,8 @@ export default function ContractList() {
         ...(orderDate ? { order_date: orderDate } : {}),
         ...(cardDate ? { card_date: cardDate } : {}),
         ...(contractNo ? { contract_no: contractNo } : {}),
-        // 图纸编号由后端 consume 流水号生成；表单里仅为预览展示
+        // 打开表单时已 peek 自动编号，提交时沿用该号（后端冲突则另取）
+        ...((String(v.drawing_no || '').trim()) ? { drawing_no: String(v.drawing_no).trim() } : {}),
         ...(v.peer_contract_no ? { peer_contract_no: v.peer_contract_no } : {}),
         ...(v.acquire_method ? { acquire_method: v.acquire_method } : {}),
         ...(v.change_type ? { change_type: v.change_type } : {}),

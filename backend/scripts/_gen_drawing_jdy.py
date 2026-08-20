@@ -554,7 +554,13 @@ def build_rule_definitions(linkage: dict, fields: list[dict]) -> list[dict]:
     # target_slug -> list of CRM conditions that show it
     by_target: dict[str, list[dict]] = defaultdict(list)
 
-    for rule in linkage.get("fieldShowRules") or []:
+    # 图纸包 dump 用 camelCase；客服包 linkages 用 snake_case
+    show_rules = (
+        linkage.get("fieldShowRules")
+        or linkage.get("field_show_rules")
+        or []
+    )
+    for rule in show_rules:
         cond = _show_rule_condition(rule, widget_slug)
         if not cond:
             continue
@@ -564,7 +570,12 @@ def build_rule_definitions(linkage: dict, fields: list[dict]) -> list[dict]:
                 continue  # orphan / hard-dropped / separator skipped
             by_target[slug].append(cond)
 
-    for rule in linkage.get("subformFieldShowRules") or []:
+    sub_show_rules = (
+        linkage.get("subformFieldShowRules")
+        or linkage.get("subform_field_show_rules")
+        or []
+    )
+    for rule in sub_show_rules:
         cond = _show_rule_condition(rule, widget_slug)
         if not cond:
             continue

@@ -632,8 +632,10 @@ async def sync_builtin_form_fields(
     if key == "cs_drawing_request":
         from app.domains.lowcode.cs_drawing_request_fields import (
             apply_cs_drawing_request_fields,
+            apply_cs_drawing_request_rules,
         )
         apply_cs_drawing_request_fields(want)
+        want_rules = apply_cs_drawing_request_rules(want_rules)
     if key == "install_drawing_notice":
         from app.domains.lowcode.base_lookups import remap_scheme_material_rule_triggers
         from app.domains.lowcode.dept_code import (

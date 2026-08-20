@@ -609,6 +609,11 @@ def _apply_drawing_jdy_fields() -> None:
             if r.get("target_field_id") not in drop_ids
             and not (set(r.get("target_field_ids") or []) & drop_ids)
         ]
+        if t["key"] == "cs_drawing_request":
+            from app.domains.lowcode.cs_drawing_request_fields import (
+                apply_cs_drawing_request_rules,
+            )
+            rules = apply_cs_drawing_request_rules(rules)
         if t["key"] in ("scheme_management", "install_drawing_notice"):
             from app.domains.lowcode.base_lookups import remap_scheme_material_rule_triggers
             remap_scheme_material_rule_triggers(rules)

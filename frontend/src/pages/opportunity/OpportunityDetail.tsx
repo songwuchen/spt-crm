@@ -299,6 +299,7 @@ export default function OpportunityDetail() {
   // 新建合同（可直接录入条款）
   const [contractModal, setContractModal] = useState(false)
   const [ctContractNo, setCtContractNo] = useState('')
+  const [ctDrawingNo, setCtDrawingNo] = useState('')
   const [ctAmount, setCtAmount] = useState<number | null>(null)
   const [ctEndDate, setCtEndDate] = useState<dayjs.Dayjs | null>(null)
   const [ctPay, setCtPay] = useState<Record<string, unknown>[]>([])
@@ -307,11 +308,16 @@ export default function OpportunityDetail() {
 
   const handleCreateContract = () => {
     setCtContractNo('')
+    setCtDrawingNo('')
     setCtAmount(null)
     setCtEndDate(null)
     setCtPay([])
     setCtLines([])
     setContractModal(true)
+    void contractApi.peekDrawingNo().then((r) => {
+      const no = (r.data?.drawing_no || '').trim()
+      if (no) setCtDrawingNo(no)
+    }).catch(() => {})
   }
 
   const doCreateContract = async () => {
@@ -322,9 +328,11 @@ export default function OpportunityDetail() {
     }
     setCtSaving(true)
     try {
+      const drawingNo = ctDrawingNo.trim()
       await contractApi.create(id!, {
         title: 'V1',
         contract_no: no,
+        ...(drawingNo ? { drawing_no: drawingNo } : {}),
         ...(ctAmount != null ? { amount_total: ctAmount } : {}),
         ...(ctEndDate ? { end_date: ctEndDate.format('YYYY-MM-DD') } : {}),
         ...(ctPay.length ? { payment_terms_json: ctPay } : {}),
@@ -1704,6 +1712,10 @@ export default function OpportunityDetail() {
               <Input value={ctContractNo} onChange={(e) => setCtContractNo(e.target.value)} style={{ width: 220 }} placeholder="请填写合同号" allowClear />
             </div>
             <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">图纸编号</label>
+              <Input value={ctDrawingNo} readOnly placeholder="自动生成中…" style={{ width: 220 }} />
+            </div>
+            <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">合同金额</label>
               <InputNumber value={ctAmount} min={0} onChange={(v) => setCtAmount(v)} style={{ width: 220 }} addonBefore="¥" placeholder="输入金额" />
             </div>
@@ -1712,7 +1724,7 @@ export default function OpportunityDetail() {
               <DatePicker value={ctEndDate} onChange={(d) => setCtEndDate(d)} style={{ width: 220 }} />
             </div>
           </div>
-          <p className="text-xs text-slate-400 -mt-2">图纸编号将在保存时按 WMGF 规则自动生成</p>
+          <p className="text-xs text-slate-400 -mt-2">图纸编号按 WMGF 规则自动生成，创建时沿用上方编号</p>
           <div>
             <ContractSubtableTitle fieldId={PAYMENT_TERMS_FIELD_ID} fallback="收款计划" />
             <PaymentTermsEditor value={ctPay} onChange={setCtPay} />
