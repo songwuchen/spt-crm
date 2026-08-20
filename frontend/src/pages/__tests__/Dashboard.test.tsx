@@ -74,7 +74,7 @@ const mockUser: UserInfo = {
   username: 'admin',
   real_name: 'Admin',
   roles: ['admin'],
-  permissions: [],
+  permissions: ['project:create'],
   tenant_id: 't-1',
 }
 

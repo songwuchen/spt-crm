@@ -48,8 +48,9 @@ vi.mock('@/hooks/useSelectOptions', () => ({
 vi.mock('@/stores/useAuthStore', () => ({
   useAuthStore: vi.fn((selector: any) => {
     const state = {
-      user: { id: 'u-1', username: 'admin', real_name: '管理员', roles: [] },
+      user: { id: 'u-1', username: 'admin', real_name: '管理员', roles: [], permissions: ['project:create'] },
       token: 't',
+      hasPermission: () => true,
     }
     return selector ? selector(state) : state
   }),
