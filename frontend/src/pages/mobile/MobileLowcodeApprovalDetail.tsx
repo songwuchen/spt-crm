@@ -177,6 +177,11 @@ export default function MobileLowcodeApprovalDetail() {
             fieldDefinitions: fields,
             businessNo: detail?.business_no,
             flowSteps: detail?.flow_steps,
+            injectApproval: {
+              node_name: ct?.node_name,
+              opinion: opinion.trim() || undefined,
+              action: 'approve',
+            },
           })
         } catch (err: unknown) {
           const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -212,11 +217,20 @@ export default function MobileLowcodeApprovalDetail() {
 
   const handlePrintScheme = async () => {
     try {
+      const ct = detail.current_task
+      const inject = ct && isDrawingApproveAndPrintNode(ct.node_name) && opinion.trim()
+        ? {
+          node_name: ct.node_name,
+          opinion: opinion.trim(),
+          action: 'approve',
+        }
+        : null
       await printSchemeInstance({
         formData: { ...formData, ...fieldUpdates },
         fieldDefinitions: fields,
         businessNo: detail.business_no,
         flowSteps: detail.flow_steps,
+        injectApproval: inject,
       })
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message

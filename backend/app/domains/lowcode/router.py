@@ -604,6 +604,14 @@ async def pickable_contract_prod_card_fill(
             names = await customer_names_map(db, tenant_id, [cust_id])
             customer_name = names.get(cust_id)
 
+    # 无主数据客户时，回落到合同登记里的单位/客户名称（生产卡「单位名称」带出）
+    if not (customer_name or "").strip() and isinstance(c.registration_json, dict):
+        for key in ("customer_name", "company_name", "单位名称", "客户名称"):
+            raw = c.registration_json.get(key)
+            if raw is not None and str(raw).strip():
+                customer_name = str(raw).strip()
+                break
+
     if mode == "invoice_application":
         fill = build_invoice_fill_from_contract(
             contract_no=c.contract_no,

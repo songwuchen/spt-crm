@@ -32,6 +32,11 @@ const DEMO_STEPS: WfFlowStep[] = [
     handler_name: '张贺', completed_at: '2026-08-15T10:31:00',
   },
   {
+    node_instance_id: 's0', node_name: '研究院安排', status: 'completed', status_text: '已完成',
+    action: 'approve', opinion: '请优先出安装图，注意筛分参数',
+    handler_name: '郑志颖', completed_at: '2026-08-15T09:45:00',
+  },
+  {
     node_instance_id: 'start', node_name: '流程发起', node_type: 'start',
     status: 'completed', status_text: '已完成', action: 'submit',
     handler_name: '尚高华', completed_at: '2026-08-15T09:00:00',

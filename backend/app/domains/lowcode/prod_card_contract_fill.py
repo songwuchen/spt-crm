@@ -60,19 +60,28 @@ def build_prod_card_fill_from_contract(
     reg = registration_json if isinstance(registration_json, dict) else {}
     lines = map_contract_lines_to_prod_card(key_clauses_json)
     sales = assignee_id or None
+    # 客户名：主数据优先；否则合同登记里的单位/客户名称
+    unit = (customer_name or "").strip()
+    if not unit:
+        for key in ("customer_name", "company_name", "单位名称", "客户名称"):
+            raw = reg.get(key)
+            if raw is not None and str(raw).strip():
+                unit = str(raw).strip()
+                break
 
     if mode == "contract_no_select":
         return {
             "yes_contract_no": contract_no or "",
             "yes_sales_person": sales,
-            "yes_customer_name": customer_name or "",
+            "yes_customer_name": unit,
             "contract_tech_review_sn": reg.get("review_sn") or "",
         }
 
-    # drawing_no_query（非补充）
+    # drawing_no_query（非补充）：图纸/明细等 + 单位名称（表单上（是）单位名称也会展示）
     return {
         "no_drawing_no": drawing_no or "",
         "no_sales_person": sales,
+        "yes_customer_name": unit,
         "prod_card_line_items": lines,
         "tech_params": reg.get("tech_requirements") or "",
         "packaging_req": reg.get("packaging") or "",
@@ -89,7 +98,7 @@ def prod_card_fill_clear_keys(mode: str) -> list[str]:
     if mode == "contract_no_select":
         return ["yes_contract_no", "yes_sales_person", "yes_customer_name", "contract_tech_review_sn"]
     return [
-        "no_drawing_no", "no_sales_person", "prod_card_line_items",
+        "no_drawing_no", "no_sales_person", "yes_customer_name", "prod_card_line_items",
         "tech_params", "packaging_req", "remark_prod_card", "paint_req",
         "special_reminder", "no_warranty_period", "project_name",
         "contract_tech_review_sn",
@@ -101,6 +110,8 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
 
     同时默认「是否为补充」=否：显隐规则在未选时会把两个选合同字段都藏掉，
     新建打开时必须能立刻看到合同下拉。
+    提交人 / 所在部门默认当前用户与当前部门。
+    「确认协议 / 设计指派填写」仅审批节点可见（对齐简道云，不在发起页展示）。
     """
     for f in defs:
         if not isinstance(f, dict):
@@ -109,6 +120,14 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
         if fid == "is_supplement":
             # 未选时两边合同字段均隐藏；默认否 → 显示「图纸编号查询」合同选择
             f["default_value"] = "否"
+        elif fid == "submitter":
+            props = dict(f.get("props") or {})
+            props["default_current_user"] = True
+            f["props"] = props
+        elif fid == "department":
+            props = dict(f.get("props") or {})
+            props["default_current_dept"] = True
+            f["props"] = props
         elif fid == "drawing_no_query":
             f["type"] = "contract"
             f["label"] = "选择合同（图纸编号查询）"
@@ -120,11 +139,17 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
         elif fid == "contract_no_select":
             f["type"] = "contract"
             f["label"] = "选择合同（合同号）"
-            f["description"] = "从合同管理选择；按所在部门过滤；选中后带出合同号/客户/业务员。"
+            f["description"] = "从合同管理选择；按所在部门过滤；选中后带出合同号/单位名称/业务员。"
             props = dict(f.get("props") or {})
             props["filter_by_department_field"] = "department"
             props["contract_fill"] = "contract_no_select"
             f["props"] = props
+        elif fid == "yes_customer_name":
+            # 与「(否)图纸编号」同排：用普通输入框展示（选合同自动带出），勿 props.readonly（会变纯文本）
+            props = dict(f.get("props") or {})
+            props.pop("readonly", None)
+            f["props"] = props or None
+            f["description"] = f.get("description") or "由所选合同自动带出单位名称。"
         elif fid == "select_contract_tech_review":
             # 简道云 linkfield → 技术协议评审；选中后带出流水号（linkDataMaps）
             f["type"] = "tech_agreement_review"
@@ -143,6 +168,64 @@ def apply_prod_card_contract_pick_fields(defs: list) -> None:
             props["readonly"] = True
             f["props"] = props
             f["description"] = f.get("description") or "由所选技术协议评审自动带出，不可手改。"
+
+    apply_prod_card_approver_only_fields(defs)
+
+
+# 圈选区：确认协议 + 设计指派填写（安装图项目号 / 室主任0414 等）——发起页不展示
+_PROD_CARD_APPROVER_ONLY: dict[str, str] = {
+    "confirm_agreement": "required",
+    "install_project_no": "editable",
+    "f_0414": "required",
+    "has_install_project": "required",
+    "design_assignees": "required",
+}
+
+
+def apply_prod_card_approver_only_fields(defs: list) -> None:
+    """确认协议 / 设计指派填写：仅审批可填，创建页隐藏；字段级必填下沉到节点 perms。"""
+    for f in defs:
+        if not isinstance(f, dict):
+            continue
+        fid = f.get("id")
+        if fid not in _PROD_CARD_APPROVER_ONLY:
+            continue
+        f["available_on_create"] = False
+        f["fill_stage"] = "approver"
+        # 发起不再校验；审批节点 field_perms 再要求
+        f["required"] = False
+
+
+def apply_prod_card_design_assign_field_perms(nodes: list | None) -> bool:
+    """研管办安排节点补上确认协议 / 安装图项目号 / 室主任0414 等可写权限。"""
+    if not nodes:
+        return False
+    changed = False
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        name = str(n.get("name") or "")
+        if "研管办安排" not in name:
+            continue
+        perms = list(n.get("field_perms") or [])
+        by_field = {
+            str(p.get("field")): p
+            for p in perms
+            if isinstance(p, dict) and p.get("field")
+        }
+        node_changed = False
+        for fid, access in _PROD_CARD_APPROVER_ONLY.items():
+            cur = by_field.get(fid)
+            if not cur:
+                perms.append({"field": fid, "access": access})
+                node_changed = True
+            elif access == "required" and cur.get("access") != "required":
+                cur["access"] = "required"
+                node_changed = True
+        if node_changed:
+            n["field_perms"] = perms
+            changed = True
+    return changed
 
 
 def build_prod_card_fill_from_tar(*, review_code: str | None) -> dict[str, Any]:

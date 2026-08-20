@@ -680,6 +680,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_cs_drawing_approvers(nodes)
     if form_code == "shipment_notice":
         apply_shipment_notice_approvers(nodes)
+    if form_code == "prod_card_supplement":
+        from app.domains.lowcode.prod_card_contract_fill import (
+            apply_prod_card_design_assign_field_perms,
+        )
+        apply_prod_card_design_assign_field_perms(nodes)
     return nodes, routes
 
 

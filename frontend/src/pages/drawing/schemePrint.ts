@@ -61,8 +61,15 @@ function flowInitiateDate(
   return fmtDate(form?.apply_datetime || form?.card_date)
 }
 
-/** 打印审批意见顺序：总工 → 市场支持 → 部门（对齐 Word / 试打 DEMO） */
-const DRAWING_PRINT_APPROVAL_ORDER = ['总工审批', '市场支持中心', '部门审批'] as const
+/** 打印审批意见顺序：总工 → 市场支持 → 部门 → 指派（对齐 Word / 试打 DEMO） */
+const DRAWING_PRINT_APPROVAL_ORDER = [
+  '总工审批',
+  '市场支持中心',
+  '部门审批',
+  '研究院安排',
+  '部门指派',
+  '设计指派安排',
+] as const
 
 function approvalNodePrintRank(nodeName: string): number {
   const n = (nodeName || '').trim()
@@ -1488,12 +1495,74 @@ function printFileNameFromHtml(html: string): string {
     .trim()
 }
 
+/**
+ * 通过并打印时 flow_steps 尚未刷新：把当前指派节点意见并入打印列表。
+ * 有意见才注入；无意见不占位。
+ */
+export type DrawingPrintInjectApproval = {
+  node_name?: string | null
+  handler_name?: string | null
+  opinion?: string | null
+  action?: string | null
+}
+
+function mergeInjectedApprovalStep(
+  steps: WfFlowStep[] | null | undefined,
+  inj?: DrawingPrintInjectApproval | null,
+): WfFlowStep[] {
+  const list = [...(steps || [])]
+  if (!inj) return list
+  const opinion = String(inj.opinion ?? '').trim()
+  if (!opinion) return list
+  const nodeName = String(inj.node_name ?? '').trim()
+  const handler = String(inj.handler_name ?? '').trim()
+  const action = String(inj.action ?? 'approve').trim() || 'approve'
+  const now = new Date().toISOString()
+
+  const matchIdx = list.findIndex((s) => {
+    const n = (s.node_name || '').trim()
+    if (nodeName) {
+      return n === nodeName || n.includes(nodeName) || nodeName.includes(n)
+    }
+    return !!(s.is_current || s.status === 'running' || s.status === 'pending')
+  })
+  if (matchIdx >= 0) {
+    const prev = list[matchIdx]
+    list[matchIdx] = {
+      ...prev,
+      is_current: false,
+      status: 'completed',
+      status_text: prev.status_text || '已完成',
+      action: action || prev.action || 'approve',
+      opinion,
+      handler_name: handler || prev.handler_name || null,
+      completed_at: prev.completed_at || now,
+    }
+    return list
+  }
+
+  list.push({
+    node_instance_id: `print-inject-${Date.now()}`,
+    node_name: nodeName || '研究院安排',
+    node_type: 'approve',
+    status: 'completed',
+    status_text: '已完成',
+    action,
+    opinion,
+    handler_name: handler || null,
+    completed_at: now,
+  })
+  return list
+}
+
 /** 生成图纸类打印 PDF（版式不变），并打开简道云式预览弹层。 */
 export async function printSchemeInstance(opts: {
   formData: Record<string, unknown>
   fieldDefinitions: FieldDefinition[]
   businessNo?: string | null
   flowSteps?: WfFlowStep[] | null
+  /** 通过并打印：并入当前节点意见（act 后 flow_steps 尚未刷新） */
+  injectApproval?: DrawingPrintInjectApproval | null
   /** true 时退回浏览器打印框（调试用） */
   legacyBrowserPrint?: boolean
 }): Promise<void> {
@@ -1505,22 +1574,23 @@ export async function printSchemeInstance(opts: {
     || (opts.businessNo && opts.businessNo !== String(form.design_card_no || '')
       ? String(opts.businessNo)
       : '')
+  const flowSteps = mergeInjectedApprovalStep(opts.flowSteps, opts.injectApproval)
   const useInstall = schemeType === 'install'
     || isInstallDrawingNoticeForm(fields, form)
   const useCsDrawing = !useInstall && isCsDrawingRequestForm(fields, form)
   const html = useInstall
     ? buildInstallHtml({
       form, fields, labels,
-      businessNo: serial, steps: opts.flowSteps,
+      businessNo: serial, steps: flowSteps,
     })
     : useCsDrawing
       ? buildCsDrawingHtml({
         form, fields, labels,
-        businessNo: serial, steps: opts.flowSteps,
+        businessNo: serial, steps: flowSteps,
       })
       : buildRequisitionHtml({
         form, fields, labels,
-        businessNo: serial, steps: opts.flowSteps,
+        businessNo: serial, steps: flowSteps,
       })
   const fileName = printFileNameFromHtml(html) || 'print'
   if (opts.legacyBrowserPrint) {

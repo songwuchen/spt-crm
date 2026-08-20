@@ -153,7 +153,7 @@ export const PROD_CARD_FILL_CLEAR: Record<
   string[]
 > = {
   drawing_no_query: [
-    'no_drawing_no', 'no_sales_person', 'prod_card_line_items',
+    'no_drawing_no', 'no_sales_person', 'yes_customer_name', 'prod_card_line_items',
     'tech_params', 'packaging_req', 'remark_prod_card', 'paint_req',
     'special_reminder', 'no_warranty_period', 'project_name',
     'contract_tech_review_sn',
