@@ -819,20 +819,34 @@ class WorkflowEngine:
             if existing_running:
                 return
             if not allow_reenter:
-                already_done = (await self.db.execute(
-                    select(WfNodeInstance.id).where(
+                done_ni = (await self.db.execute(
+                    select(WfNodeInstance).where(
                         WfNodeInstance.process_instance_id == inst.id,
                         WfNodeInstance.node_def_id == node["id"],
                         WfNodeInstance.status == "completed",
-                    ).limit(1)
+                    ).order_by(WfNodeInstance.completed_at.desc()).limit(1)
                 )).scalar_one_or_none()
-                if already_done:
-                    self._skipped_reactivate_this_batch = True
-                    self._log(
-                        inst.id, None, None, {"sub": "system"}, "skip_reactivate",
-                        f"节点「{node.get('name') or node['id']}」已完成，跳过晚到汇入的重复激活",
-                    )
-                    return
+                if done_ni:
+                    cfg = done_ni.config if isinstance(done_ni.config, dict) else {}
+                    # 曾因无审批人 auto_approve：表单已补人则允许重开（如售前人员协调）
+                    if cfg.get("auto_approve"):
+                        retry = await self._resolve_approvers(version, node, ctx)
+                        if retry:
+                            pass
+                        else:
+                            self._skipped_reactivate_this_batch = True
+                            self._log(
+                                inst.id, None, None, {"sub": "system"}, "skip_reactivate",
+                                f"节点「{node.get('name') or node['id']}」已完成，跳过晚到汇入的重复激活",
+                            )
+                            return
+                    else:
+                        self._skipped_reactivate_this_batch = True
+                        self._log(
+                            inst.id, None, None, {"sub": "system"}, "skip_reactivate",
+                            f"节点「{node.get('name') or node['id']}」已完成，跳过晚到汇入的重复激活",
+                        )
+                        return
 
         # 线索袭击：不可转化，跳过「业务员确认是否转商机」待办，改为知会申报人后直通结束
         if (

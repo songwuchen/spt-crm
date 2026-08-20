@@ -1472,6 +1472,49 @@ def apply_presale_chief_specified_user(nodes: list[dict]) -> bool:
     return changed
 
 
+def _presale_chief_staff_coordination_required(perms: list | None) -> bool:
+    for p in perms or []:
+        if isinstance(p, dict) and p.get("field") == "staff_coordination":
+            return p.get("access") == "required"
+    return False
+
+
+def _flow_presale_chief_needs_staff_coordination_required(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if isinstance(n, dict) and n.get("name") == "总工审批":
+            return not _presale_chief_staff_coordination_required(n.get("field_perms"))
+    return False
+
+
+def apply_presale_chief_staff_coordination_required(nodes: list[dict]) -> bool:
+    """总工审批须先指定「人员协调」，否则下一节点 form_field_person 空审自动通过。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("name") != "总工审批":
+            continue
+        perms: list[dict] = []
+        for p in n.get("field_perms") or []:
+            if not isinstance(p, dict):
+                continue
+            rec = dict(p)
+            if rec.get("field") == "staff_coordination":
+                rec["access"] = "required"
+            perms.append(rec)
+        if not _presale_chief_staff_coordination_required(perms):
+            seen = {p.get("field") for p in perms if isinstance(p, dict)}
+            if "staff_coordination" not in seen:
+                perms.append({"field": "staff_coordination", "access": "required"})
+            else:
+                for p in perms:
+                    if p.get("field") == "staff_coordination":
+                        p["access"] = "required"
+        if _presale_chief_staff_coordination_required(n.get("field_perms")):
+            continue
+        n["field_perms"] = perms
+        changed = True
+    return changed
+
+
 _PRESALE_CC_RULE = {
     "type": "mixed",
     "value": [
@@ -1579,6 +1622,111 @@ def _flow_quote_purchase_not_parallel(nodes: list | None, routes: list | None) -
     return False
 
 
+def _quote_finance_out_count(nodes: list | None, routes: list | None) -> int:
+    finance_ids = _quote_nodes_named(nodes, "财务核价")
+    if not finance_ids:
+        return 0
+    return sum(
+        1 for r in (routes or [])
+        if isinstance(r, dict)
+        and str(r.get("source") or "") in finance_ids
+        and not r.get("always")
+    )
+
+
+def _flow_quote_finance_outs_incomplete(
+    nodes: list | None, routes: list | None,
+    new_nodes: list | None, new_routes: list | None,
+) -> bool:
+    """财务核价出边比生成图少（部门条件边曾被 sanitize 整段删掉）→ 须整图重发。"""
+    have = _quote_finance_out_count(nodes, routes)
+    want = _quote_finance_out_count(new_nodes, new_routes)
+    return want > 0 and have < want
+
+
+def _quote_and_need_purchase_ne_yes(cond: dict | None) -> dict:
+    """部门条件 ∧ 是否转采购≠是（转采购时不走通知发起人，对齐简道云实单）。"""
+    gate = {"field": "need_purchase", "operator": "ne", "value": "是"}
+    if not cond:
+        return gate
+    if (
+        isinstance(cond, dict)
+        and cond.get("field") == "need_purchase"
+        and cond.get("operator") == "ne"
+        and str(cond.get("value")) == "是"
+    ):
+        return cond
+    nodes = cond.get("cond") if isinstance(cond, dict) else None
+    if isinstance(nodes, list) and nodes:
+        if any(
+            isinstance(n, dict)
+            and n.get("field") == "need_purchase"
+            and n.get("operator") == "ne"
+            and str(n.get("value")) == "是"
+            for n in nodes
+        ):
+            return cond
+        return {"rel": "and", "cond": [*nodes, gate]}
+    if isinstance(cond, dict) and cond.get("field"):
+        return {"rel": "and", "cond": [cond, gate]}
+    return {"rel": "and", "cond": [gate]}
+
+
+def apply_quote_notify_initiator_after_no_purchase(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """通知发起人：仅当「是否转采购≠是」才进入。
+
+    简道云实单（冶金矿山）：第一次转采购=是 → 采购+通知矿山，不走通知尚高华/发起人；
+    第二次改为否 → 才走通知发起人+矿山。导出条件里没有该门闩，按实单补上。
+    """
+    finance_ids = _quote_nodes_named(nodes, "财务核价")
+    initiator_ids = _quote_nodes_named(nodes, "通知发起人") | _quote_nodes_named(
+        nodes, "通知尚高华",
+    )
+    if not finance_ids or not initiator_ids:
+        return False
+    changed = False
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        if str(r.get("source") or "") not in finance_ids:
+            continue
+        if str(r.get("target") or "") not in initiator_ids:
+            continue
+        new_cond = _quote_and_need_purchase_ne_yes(
+            r.get("condition") if isinstance(r.get("condition"), dict) else None,
+        )
+        if r.get("condition") != new_cond:
+            r["condition"] = new_cond
+            changed = True
+    return changed
+
+
+def _flow_quote_notify_initiator_missing_purchase_gate(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    finance_ids = _quote_nodes_named(nodes, "财务核价")
+    initiator_ids = _quote_nodes_named(nodes, "通知发起人") | _quote_nodes_named(
+        nodes, "通知尚高华",
+    )
+    if not finance_ids or not initiator_ids:
+        return False
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        if str(r.get("source") or "") not in finance_ids:
+            continue
+        if str(r.get("target") or "") not in initiator_ids:
+            continue
+        want = _quote_and_need_purchase_ne_yes(
+            r.get("condition") if isinstance(r.get("condition"), dict) else None,
+        )
+        if r.get("condition") != want:
+            return True
+    return False
+
+
 def apply_quote_finance_dept_notify_parallel(
     nodes: list | None, routes: list | None,
 ) -> bool:
@@ -1589,6 +1737,9 @@ def apply_quote_finance_dept_notify_parallel(
     若标 ``exclusive_group``，先命中超集边后子集永远走不到。
     有条件的部门边标 ``fork=parallel``；无条件 else（通知销售经理）仅作
     全未命中时的兜底，且不进互斥组。
+
+    采购回路回到财务核价后须再次激活部门通知：财务→部门/else 审批边标
+    ``reenter``，否则引擎 skip_reactivate 已完成节点，第二次核价只剩抄送就结束。
     """
     finance_ids = _quote_nodes_named(nodes, "财务核价")
     purchase_ids = _quote_nodes_named(nodes, "采购")
@@ -1609,6 +1760,11 @@ def apply_quote_finance_dept_notify_parallel(
         tgt = str(r.get("target") or "")
         if tgt in purchase_ids:
             continue
+        tgt_node = by_id.get(tgt) or {}
+        # 采购回路二次财务核价后，部门/else 审批须可重入
+        if tgt_node.get("type") == "approval" and not r.get("reenter"):
+            r["reenter"] = True
+            changed = True
         if r.get("condition"):
             if r.get("exclusive_group") or r.get("fork") != "parallel":
                 r.pop("exclusive_group", None)
@@ -1616,7 +1772,7 @@ def apply_quote_finance_dept_notify_parallel(
                 changed = True
             continue
         # else：通知销售经理等无条件兜底，禁止进互斥组
-        name = (by_id.get(tgt) or {}).get("name") or ""
+        name = tgt_node.get("name") or ""
         if name == "通知销售经理" or not r.get("condition"):
             if r.get("exclusive_group"):
                 r.pop("exclusive_group", None)
@@ -1627,18 +1783,27 @@ def apply_quote_finance_dept_notify_parallel(
 def _flow_quote_finance_dept_not_parallel(
     nodes: list | None, routes: list | None,
 ) -> bool:
-    """财务核价→有条件部门通知仍在互斥组，或 else 仍带互斥组。"""
+    """财务核价→部门通知仍在互斥组，或二次核价后部门边未标重入。"""
     finance_ids = _quote_nodes_named(nodes, "财务核价")
     purchase_ids = _quote_nodes_named(nodes, "采购")
     if not finance_ids:
         return False
+    by_id = {
+        str(n["id"]): n
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id")
+    }
     for r in routes or []:
         if not isinstance(r, dict) or r.get("always"):
             continue
         if str(r.get("source") or "") not in finance_ids:
             continue
-        if str(r.get("target") or "") in purchase_ids:
+        tgt = str(r.get("target") or "")
+        if tgt in purchase_ids:
             continue
+        tgt_node = by_id.get(tgt) or {}
+        if tgt_node.get("type") == "approval" and not r.get("reenter"):
+            return True
         if r.get("condition"):
             if r.get("exclusive_group") or r.get("fork") != "parallel":
                 return True
@@ -3147,6 +3312,14 @@ async def _upgrade_drawing_form_flow_if_needed(
         )
         # 条件被清成 null 后互斥组多 else：节点拓扑仍「对齐」，但连线已坏，须整图重发
         and not _flow_exclusive_group_multi_blank(version.route_definitions)
+        # 报价：财务核价部门出边被 sanitize 删光后节点仍在，须整图重发
+        and not (
+            form_code == "quote_management"
+            and _flow_quote_finance_outs_incomplete(
+                version.node_definitions, version.route_definitions,
+                new_nodes, new_routes,
+            )
+        )
     )
     # 报价管理：财务核价「是否转采购」取消必填 → editable
     if (
@@ -3301,6 +3474,21 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"抄送改为发起人+申请人({form_code})",
         )
         return
+    # 售前服务通知：总工审批必填「人员协调」（下游节点审批人取自该字段）
+    if (
+        topology_ok
+        and form_code == "presale_service_notice"
+        and _flow_presale_chief_needs_staff_coordination_required(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_presale_chief_staff_coordination_required(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"总工审批必填人员协调({form_code})",
+        )
+        return
     # 开票申请：提交旁路仍挂发起；「可下载」须在发起人接收之后（不依赖 topology_ok，
     # 否则 cc→end 会被旧 cc_end_bug 判成整图重发，把连线打回开票旁路）
     if (
@@ -3397,7 +3585,7 @@ async def _upgrade_drawing_form_flow_if_needed(
                 DRAWING_FORM_FLOW_DESC, f"工艺包装分叉改为互斥优先({form_code})",
             )
             return
-    # 报价：转采购与部门通知并行；同源互斥组只覆盖非 parallel 出边
+    # 报价：转采购与部门通知并行；二次核价可重入；同源互斥组只覆盖非 parallel 出边
     if topology_ok:
         import copy
         patched_routes = copy.deepcopy(version.route_definitions or [])
@@ -3409,7 +3597,11 @@ async def _upgrade_drawing_form_flow_if_needed(
         if form_code == "quote_management" and apply_quote_finance_dept_notify_parallel(
             version.node_definitions, patched_routes,
         ):
-            tags.append("财务核价部门通知并行")
+            tags.append("财务核价部门通知并行可重入")
+        if form_code == "quote_management" and apply_quote_notify_initiator_after_no_purchase(
+            version.node_definitions, patched_routes,
+        ):
+            tags.append("通知发起人须转采购≠是")
         if _flow_missing_exclusive_groups(patched_routes):
             by_src: dict[str, list] = {}
             for r in patched_routes:

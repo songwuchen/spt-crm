@@ -344,6 +344,7 @@ def gen_one() -> dict:
         from app.domains.lowcode.workflow_service import (
             apply_quote_named_role_approvers,
             apply_quote_finance_dept_notify_parallel,
+            apply_quote_notify_initiator_after_no_purchase,
             apply_quote_purchase_inquiry_parallel,
         )
         if apply_quote_named_role_approvers(nodes):
@@ -351,7 +352,9 @@ def gen_one() -> dict:
         if apply_quote_purchase_inquiry_parallel(nodes, routes):
             notes.append("财务核价→采购：并行（不与部门通知互斥）；采购→财务核价可重入")
         if apply_quote_finance_dept_notify_parallel(nodes, routes):
-            notes.append("财务核价→部门通知：多条件并行（通知发起人与热能等可同时命中）")
+            notes.append("财务核价→部门通知：多条件并行可重入（通知发起人与热能等可同时命中）")
+        if apply_quote_notify_initiator_after_no_purchase(nodes, routes):
+            notes.append("通知发起人：是否转采购≠是才进入（对齐简道云采购回路实单）")
     except Exception as ex:  # pragma: no cover
         notes.append(f"报价角色/转采购补丁跳过: {ex}")
     notes.append("客户类别/价格类型：创建隐藏，部门审批可填（非必填）")

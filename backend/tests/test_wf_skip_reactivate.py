@@ -109,8 +109,9 @@ async def test_activate_approval_skips_when_already_completed():
 
     running_miss = MagicMock()
     running_miss.scalar_one_or_none.return_value = None
+    done_ni = SimpleNamespace(config={})
     done_hit = MagicMock()
-    done_hit.scalar_one_or_none.return_value = "ni-old-completed"
+    done_hit.scalar_one_or_none.return_value = done_ni
     eng.db.execute = AsyncMock(side_effect=[running_miss, done_hit])
 
     inst = SimpleNamespace(id="pi-1", biz_type="form", biz_id=None)
@@ -189,3 +190,38 @@ async def test_activate_approval_allow_reenter_after_completed():
 
     eng.db.add.assert_called()
     eng._resolve_approvers.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_activate_approval_reopens_auto_approved_when_approver_now_resolves():
+    """曾因无审批人 auto_approve 的节点，表单补人后应允许重开（售前人员协调）。"""
+    from app.domains.lowcode.workflow_engine import WorkflowEngine
+
+    eng = WorkflowEngine(db=AsyncMock(), tenant_id="t")
+    eng._queue = MagicMock()
+    eng._log = MagicMock()
+    eng._resolve_approvers = AsyncMock(return_value=["u-wang"])
+    eng._advance = AsyncMock()
+    eng.db.flush = AsyncMock()
+
+    running_miss = MagicMock()
+    running_miss.scalar_one_or_none.return_value = None
+    done_ni = SimpleNamespace(config={"auto_approve": True})
+    done_hit = MagicMock()
+    done_hit.scalar_one_or_none.return_value = done_ni
+    eng.db.execute = AsyncMock(side_effect=[running_miss, done_hit])
+
+    inst = SimpleNamespace(id="pi-1", biz_type="form", biz_id=None, tenant_id="t")
+    node = {
+        "id": "n3", "type": "approval", "name": "人员协调",
+        "approver_rule": {"type": "form_field_person", "value": "staff_coordination"},
+        "multi_mode": "or_sign",
+    }
+    version = SimpleNamespace(node_definitions=[node], route_definitions=[])
+    ctx = SimpleNamespace(form_data={"staff_coordination": ["u-wang"]}, initiator_id="u1", nominated={})
+
+    await eng._activate_approval(inst, version, node, ctx)
+
+    eng._resolve_approvers.assert_awaited()
+    eng.db.add.assert_called()
+    assert not any(c[0][4] == "skip_reactivate" for c in eng._log.call_args_list)

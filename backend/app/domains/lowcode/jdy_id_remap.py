@@ -114,8 +114,31 @@ def jdy_person_id_to_name() -> dict[str, str]:
     return dict(JDY_PERSON_NAMES)
 
 
+def _dept_name_aliases(name: str) -> list[str]:
+    """简道云名 ↔ CRM 名常见差异（暂存前缀等）。"""
+    n = (name or "").strip()
+    if not n:
+        return []
+    out = [n]
+    for prefix in ("（暂存）", "(暂存)", "【暂存】"):
+        if n.startswith(prefix):
+            stripped = n[len(prefix):].strip()
+            if stripped:
+                out.append(stripped)
+        else:
+            out.append(f"{prefix}{n}")
+    # 去重保序
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for x in out:
+        if x not in seen:
+            seen.add(x)
+            uniq.append(x)
+    return uniq
+
+
 async def build_jdy_to_crm_dept_map(db: AsyncSession, tenant_id: str) -> dict[str, str]:
-    """JDY 部门 MongoId → 本租户 CRM department.id（按名称精确匹配）。"""
+    """JDY 部门 MongoId → 本租户 CRM department.id（按名称精确匹配，含暂存别名）。"""
     rows = (
         await db.execute(
             select(Department.id, Department.name).where(Department.tenant_id == tenant_id)
@@ -123,11 +146,18 @@ async def build_jdy_to_crm_dept_map(db: AsyncSession, tenant_id: str) -> dict[st
     ).all()
     by_name: dict[str, str] = {}
     for did, name in rows:
-        if name and name not in by_name:
-            by_name[name] = did
+        if not name:
+            continue
+        for alias in _dept_name_aliases(str(name)):
+            if alias not in by_name:
+                by_name[alias] = did
     out: dict[str, str] = {}
     for jid, jname in jdy_dept_id_to_name().items():
-        cid = by_name.get(jname)
+        cid = None
+        for alias in _dept_name_aliases(jname):
+            cid = by_name.get(alias)
+            if cid:
+                break
         if cid:
             out[jid] = cid
     return out
