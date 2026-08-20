@@ -1783,6 +1783,12 @@ async def _form_data_filter_clause_resolved(
     return _form_data_filter_clause(rule)
 
 
+def _form_data_field_empty(field: str):
+    """form_data 部门/文本字段为空（未填、空串、字面 null）。"""
+    txt = FormInstance.form_data.op("->>")(field)
+    return or_(txt.is_(None), txt == "", txt == "null")
+
+
 def _instance_list_conds(
     tenant_id: str, template_id: str,
     keyword: str | None = None, status: str | None = None,
@@ -1793,6 +1799,7 @@ def _instance_list_conds(
     template_code: str | None = None,
     form_dept_scope_ids: list[str] | None = None,
     form_dept_name_literals: list[str] | None = None,
+    scope_viewer_id: str | None = None,
 ) -> list:
     conds = [
         FormInstance.tenant_id == tenant_id,
@@ -1809,22 +1816,46 @@ def _instance_list_conds(
     if status:
         conds.append(FormInstance.status == status)
     if owner_ids is not None:  # 数据范围: 发起人；开票/核价等可并入业务员/部门字段
-        owner_clause = FormInstance.initiator_id.in_(owner_ids or ["__none__"])
-        for pf in owner_person_fields or []:
-            owner_clause = or_(owner_clause, _form_data_person_in_owner_ids(pf, owner_ids or []))
         code = template_code or ""
-        if form_dept_scope_ids:
+        ids = owner_ids or ["__none__"]
+        # 报价/开票/发货通知：以单据部门为准（对齐线索），避免「本部门同事跨事业部开单」被带进列表
+        if code in _FORM_DEPT_PRIMARY_TEMPLATES and form_dept_scope_ids:
+            parts: list = []
             for df in _FORM_DEPT_FIELDS_BY_TEMPLATE.get(code, []):
-                owner_clause = or_(
-                    owner_clause,
-                    _form_data_ids_match_clause(df, form_dept_scope_ids),
-                )
-        if form_dept_name_literals:
-            for nf in _FORM_DEPT_NAME_FIELDS_BY_TEMPLATE.get(code, []):
-                owner_clause = or_(
-                    owner_clause,
-                    _form_data_text_in_literals(nf, form_dept_name_literals),
-                )
+                parts.append(_form_data_ids_match_clause(df, form_dept_scope_ids))
+            if form_dept_name_literals:
+                for nf in _FORM_DEPT_NAME_FIELDS_BY_TEMPLATE.get(code, []):
+                    parts.append(_form_data_text_in_literals(nf, form_dept_name_literals))
+            # 本人发起 / 本人是业务员等：始终可见
+            if scope_viewer_id:
+                parts.append(FormInstance.initiator_id == scope_viewer_id)
+                for pf in owner_person_fields or []:
+                    parts.append(_form_data_person_in_owner_ids(pf, [scope_viewer_id]))
+            # 部门未填时回退到本部门成员发起/业务员（兼容历史脏数据）
+            dept_fields = _FORM_DEPT_FIELDS_BY_TEMPLATE.get(code, [])
+            if dept_fields:
+                empty_all = and_(*[_form_data_field_empty(df) for df in dept_fields])
+                team_parts = [FormInstance.initiator_id.in_(ids)]
+                for pf in owner_person_fields or []:
+                    team_parts.append(_form_data_person_in_owner_ids(pf, ids))
+                parts.append(and_(empty_all, or_(*team_parts)))
+            owner_clause = or_(*parts) if parts else FormInstance.initiator_id.in_(ids)
+        else:
+            owner_clause = FormInstance.initiator_id.in_(ids)
+            for pf in owner_person_fields or []:
+                owner_clause = or_(owner_clause, _form_data_person_in_owner_ids(pf, ids))
+            if form_dept_scope_ids:
+                for df in _FORM_DEPT_FIELDS_BY_TEMPLATE.get(code, []):
+                    owner_clause = or_(
+                        owner_clause,
+                        _form_data_ids_match_clause(df, form_dept_scope_ids),
+                    )
+            if form_dept_name_literals:
+                for nf in _FORM_DEPT_NAME_FIELDS_BY_TEMPLATE.get(code, []):
+                    owner_clause = or_(
+                        owner_clause,
+                        _form_data_text_in_literals(nf, form_dept_name_literals),
+                    )
         conds.append(owner_clause)
     if filter_clauses is not None:
         if filter_clauses:
@@ -1880,7 +1911,17 @@ _FORM_DEPT_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
         "install_department", "req_department", "cs_department", "coop_order_dept",
     ],
     "shipment_notice": ["department"],
+    "quote_management": ["department"],
+    "invoice_application": ["department"],
 }
+
+# 以单据部门为主的模板：可见 = 部门∈子树 | 本人参与 |（部门空且本部门成员参与）
+# 不用「本部门任意同事是发起人」放大到其他事业部单据（报价跨部门开单场景）
+_FORM_DEPT_PRIMARY_TEMPLATES: frozenset[str] = frozenset({
+    "quote_management",
+    "invoice_application",
+    "shipment_notice",
+})
 
 # 部门档：业务部门等文本字段按部门名称匹配
 _FORM_DEPT_NAME_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
@@ -1996,6 +2037,7 @@ async def list_instances(
                 db, tenant_id, template_id,
             )
     filter_bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters)
+    viewer_id = (user or {}).get("sub") if user else None
     conds = _instance_list_conds(
         tenant_id, template_id, keyword=keyword, status=status,
         owner_ids=owner_ids, filters=None if filter_bundle is not None else filters,
@@ -2004,6 +2046,7 @@ async def list_instances(
         template_code=template_code,
         form_dept_scope_ids=form_dept_scope_ids,
         form_dept_name_literals=form_dept_name_literals,
+        scope_viewer_id=viewer_id,
     )
 
     total = (await db.execute(
@@ -2052,6 +2095,7 @@ async def export_instances(
                 db, tenant_id, template_id,
             )
     filter_bundle = await _instance_list_filter_bundle(db, tenant_id, template_id, filters)
+    viewer_id = (user or {}).get("sub") if user else None
     conds = _instance_list_conds(
         tenant_id, template_id, keyword=keyword, status=status,
         owner_ids=owner_ids, filters=None if filter_bundle is not None else filters,
@@ -2060,6 +2104,7 @@ async def export_instances(
         template_code=template_code,
         form_dept_scope_ids=form_dept_scope_ids,
         form_dept_name_literals=form_dept_name_literals,
+        scope_viewer_id=viewer_id,
     )
     rows = (await db.execute(
         select(FormInstance).where(*conds)
