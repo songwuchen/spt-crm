@@ -1957,6 +1957,60 @@ class WorkflowEngine:
         await self.flush_notifications(inst)
         await self._audit(inst, actor, "withdraw")
 
+    async def end_process(self, process_instance_id: str, actor: dict, *, reason: str | None = None) -> None:
+        """驳回/撤回后发起人手动结束：清掉「修改并重新提交」待办，避免永久挂在审批中心。
+
+        不改变业务单据状态（仍为 rejected/withdrawn），也不新建修订待办。
+        """
+        inst = (await self.db.execute(
+            select(WfProcessInstance).where(
+                WfProcessInstance.id == process_instance_id,
+                WfProcessInstance.tenant_id == self.tenant_id,
+            )
+        )).scalar_one_or_none()
+        if not inst:
+            raise BusinessException(code=NOT_FOUND, message="流程不存在")
+        if inst.status not in ("rejected", "withdrawn"):
+            raise BusinessException(code=BUSINESS_ERROR, message="仅已驳回或已撤回的流程可手动结束")
+
+        uid = actor.get("sub")
+        revise_assignees = (await self.db.execute(
+            select(WfTaskInstance.assignee_id).join(
+                WfNodeInstance, WfTaskInstance.node_instance_id == WfNodeInstance.id,
+            ).where(
+                WfTaskInstance.process_instance_id == inst.id,
+                WfTaskInstance.status == "pending",
+                (
+                    (WfNodeInstance.node_type == "revise")
+                    | (WfNodeInstance.node_def_id == REVISE_NODE_DEF_ID)
+                ),
+            )
+        )).scalars().all()
+        allowed = {inst.initiator_id, *(a for a in revise_assignees if a)}
+        if uid not in allowed:
+            raise BusinessException(code=FORBIDDEN, message="仅发起人或修订待办人可手动结束")
+
+        await self._cancel_initiator_revise_todos(inst.id)
+        self._log(
+            inst.id, None, None, actor, "end_process",
+            reason or "发起人手动结束流程",
+        )
+        await self.db.commit()
+        await self.flush_notifications(inst)
+        await self._audit(inst, actor, "end_process")
+
+    async def end_process_by_task(self, task_id: str, actor: dict, *, reason: str | None = None) -> None:
+        """从修订待办入口结束流程（线索修订页等仅持有 task_id 的场景）。"""
+        task = (await self.db.execute(
+            select(WfTaskInstance).where(
+                WfTaskInstance.id == task_id,
+                WfTaskInstance.tenant_id == self.tenant_id,
+            )
+        )).scalar_one_or_none()
+        if not task:
+            raise BusinessException(code=NOT_FOUND, message="待办不存在")
+        await self.end_process(task.process_instance_id, actor, reason=reason)
+
     async def resubmit(self, process_instance_id: str, actor: dict) -> WfProcessInstance:
         """已撤回/已驳回流程由发起人重新发起：新建流程实例，挂回同一表单或业务单据。"""
         inst = (await self.db.execute(

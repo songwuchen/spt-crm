@@ -441,6 +441,8 @@ async def pickable_contracts(
     department_id: str | None = Query(
         None, description="按合同所属部门过滤（生产卡：只能选所在部门关联合同）",
     ),
+    page: int | None = Query(None, ge=1, description="传 page 时返回弹窗分页结构"),
+    page_size: int = Query(20, ge=1, le=50),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
@@ -450,6 +452,14 @@ async def pickable_contracts(
     from sqlalchemy import case
 
     id_list = [x.strip() for x in (ids or "").split(",") if x.strip()]
+    if page is not None:
+        from app.domains.lowcode.contract_pick import list_pickable_contracts_page
+        data = await list_pickable_contracts_page(
+            db, tenant_id,
+            keyword=keyword, ids=id_list or None,
+            department_id=department_id, page=page, page_size=page_size,
+        )
+        return ok(data)
     q = select(Contract.id, Contract.contract_no, Contract.drawing_no).where(
         Contract.tenant_id == tenant_id,
     )
@@ -519,18 +529,19 @@ async def pickable_contract_prod_card_fill(
     contract_id: str,
     mode: str = Query(
         "drawing_no_query",
-        description="drawing_no_query / contract_no_select / invoice_application",
+        description="drawing_no_query / contract_no_select / invoice_application / shipment_notice",
     ),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ):
-    """选合同后带出字段（生产卡 / 开票申请；不要求 contract:view）。"""
+    """选合同后带出字段（生产卡 / 开票申请 / 发货通知；不要求 contract:view）。"""
     from app.domains.contract.models import Contract, ContractVersion
     from app.domains.lowcode.prod_card_contract_fill import build_prod_card_fill_from_contract
     from app.domains.lowcode.invoice_application_fields import build_invoice_fill_from_contract
+    from app.domains.lowcode.shipment_notice_fields import build_shipment_fill_from_contract
 
-    if mode not in ("drawing_no_query", "contract_no_select", "invoice_application"):
+    if mode not in ("drawing_no_query", "contract_no_select", "invoice_application", "shipment_notice"):
         mode = "drawing_no_query"
     c = (
         await db.execute(
@@ -605,6 +616,18 @@ async def pickable_contract_prod_card_fill(
             taxpayer_id=taxpayer_id,
             invoice_address_phone=invoice_address_phone,
             bank_account=bank_account,
+            key_clauses_json=ver.key_clauses_json if ver else None,
+        )
+    elif mode == "shipment_notice":
+        fill = build_shipment_fill_from_contract(
+            contract_no=c.contract_no,
+            drawing_no=c.drawing_no,
+            peer_contract_no=c.peer_contract_no,
+            assignee_id=c.assignee_id,
+            department_id=c.department_id,
+            customer_name=customer_name,
+            amount_total=c.amount_total,
+            registration_json=c.registration_json if isinstance(c.registration_json, dict) else {},
             key_clauses_json=ver.key_clauses_json if ver else None,
         )
     else:

@@ -15,10 +15,37 @@ def test_jdy_room_leader_role_mapped():
 
 
 def test_jdy_dept_dispatch_ygb_role_mapped():
-    assert JDY_ROLE_TO_SCOPE_CODE["5f46008a6344180006bfa81a"] == "dept_dispatch_ygb"
+    from app.domains.lowcode.pickable_scope import (
+        JDY_ROLE_TO_SPECIFIED_USER,
+        JDY_ROLE_NAME_TO_SPECIFIED_USER,
+    )
+    # 简道云角色仅郑志颖一人 → 审批直接指定用户，不再走可选范围
+    assert JDY_ROLE_TO_SCOPE_CODE.get("5f46008a6344180006bfa81a") is None
+    assert JDY_ROLE_TO_SPECIFIED_USER["5f46008a6344180006bfa81a"] == "013807685436426800"
+    assert JDY_ROLE_NAME_TO_SPECIFIED_USER["27.3图纸领用申请-研究院安排"] == "013807685436426800"
     assert pickable_scope_from_jdy_limit(
         {"roles": ["5f46008a6344180006bfa81a"]}
-    ) == {"scope_code": "dept_dispatch_ygb"}
+    ) is None
+
+
+def test_cs_drawing_ygb_approver_is_zhengzhiying():
+    from app.domains.lowcode.workflow_service import (
+        _drawing_flow_graph,
+        apply_cs_drawing_approvers,
+        _CS_DRAWING_YGB_APPROVER,
+    )
+    graph = _drawing_flow_graph("cs_drawing_request")
+    assert graph
+    nodes, _ = graph
+    hit = next(n for n in nodes if n.get("name") == "部门指派-研管办")
+    assert hit["approver_rule"]["type"] == "specified_user"
+    assert hit["approver_rule"]["value"] == "013807685436426800"
+
+    # 旧 pickable_scope 可就地升级
+    legacy = [{"id": "n5", "name": "部门指派-研管办", "type": "approval",
+               "approver_rule": {"type": "pickable_scope", "value": "dept_dispatch_ygb"}}]
+    assert apply_cs_drawing_approvers(legacy) is True
+    assert legacy[0]["approver_rule"] == _CS_DRAWING_YGB_APPROVER
 
 
 def test_pickable_scope_from_jdy_limit():

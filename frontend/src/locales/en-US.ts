@@ -96,6 +96,8 @@ const enUS = {
     prodCardSupplements: 'Prod Card / Supplement',
     invoiceApplications: 'Invoice Application',
     paymentRegistrations: 'Payment Registration',
+    shipping: 'Shipping',
+    shipmentNotices: 'Shipment Notice',
     drawingRequisitions: 'Drawing Requisition',
     installDrawingNotices: 'Install Drawing Notice',
     presaleServiceNotices: 'Presale Service Notice',

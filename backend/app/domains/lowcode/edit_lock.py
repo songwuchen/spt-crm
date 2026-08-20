@@ -149,6 +149,51 @@ async def assert_contract_record_editable(
     await assert_biz_editable(db, tenant_id, "contract_version", ver_id, ver_status)
 
 
+async def assert_contract_deletable(
+    db: AsyncSession, tenant_id: str, contract, *, version=None,
+) -> None:
+    """合同删除：仅未提交审批的草稿可删（对齐合同评审/低代码表单）。"""
+    st = getattr(contract, "status", None) or "draft"
+    if st in ("signed", "terminated"):
+        raise BusinessException(
+            code=VALIDATION_ERROR,
+            message="已签署或已终止的合同不可删除",
+        )
+    ver = version
+    if ver is None:
+        from app.domains.contract.models import ContractVersion
+
+        ver = (await db.execute(
+            select(ContractVersion).where(
+                ContractVersion.tenant_id == tenant_id,
+                ContractVersion.contract_id == contract.id,
+                ContractVersion.version_no == contract.current_version_no,
+            )
+        )).scalar_one_or_none()
+    ver_status = getattr(ver, "status", None) if ver else "draft"
+    if ver_status != "draft":
+        raise BusinessException(
+            code=VALIDATION_ERROR,
+            message="当前状态不可删除（仅草稿可删除）",
+        )
+    ver_id = getattr(ver, "id", None) if ver else None
+    if await has_running_process(db, tenant_id, "contract_version", ver_id):
+        raise BusinessException(code=VALIDATION_ERROR, message="审批中的合同不可删除")
+    if ver_id:
+        from app.domains.approval.models import ApprovalFlow
+
+        pending = (await db.execute(
+            select(ApprovalFlow.id).where(
+                ApprovalFlow.tenant_id == tenant_id,
+                ApprovalFlow.biz_type == "contract_version",
+                ApprovalFlow.biz_id == ver_id,
+                ApprovalFlow.status == "pending",
+            ).limit(1)
+        )).scalar_one_or_none()
+        if pending:
+            raise BusinessException(code=VALIDATION_ERROR, message="审批中的合同不可删除")
+
+
 async def assert_form_instance_editable(
     db: AsyncSession,
     tenant_id: str,

@@ -14,12 +14,33 @@ from app.domains.audit.service import log_action
 logger = logging.getLogger("spt_crm.contract")
 
 
+async def _alloc_draft_contract_no(db: AsyncSession, tenant_id: str) -> str:
+    """生成唯一 DRAFT- 占位合同号。"""
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    base = f"DRAFT-{ts}"
+    suffix = 0
+    while True:
+        candidate = base if suffix == 0 else f"{base}-{suffix}"
+        exists = (await db.execute(
+            select(Contract.id).where(
+                Contract.tenant_id == tenant_id,
+                Contract.contract_no == candidate,
+            ).limit(1)
+        )).scalar_one_or_none()
+        if not exists:
+            return candidate
+        suffix += 1
+
+
 async def _resolve_create_contract_no(
     db: AsyncSession, tenant_id: str, requested: str | None,
+    *, allow_draft: bool = False,
 ) -> str:
-    """合同号由业务手填，不可为空；系统不再自动生成 CT- 流水。"""
+    """合同号由业务手填；草稿未填时可生成 DRAFT- 占位号。已填则无论草稿/提交均校验唯一并提示。"""
     no = (requested or "").strip()
     if not no:
+        if allow_draft:
+            return await _alloc_draft_contract_no(db, tenant_id)
         raise BusinessException(code=BUSINESS_ERROR, message="请填写合同号")
     exists = (await db.execute(
         select(Contract.id).where(
@@ -28,7 +49,7 @@ async def _resolve_create_contract_no(
         ).limit(1)
     )).scalar_one_or_none()
     if exists:
-        raise BusinessException(code=DUPLICATE_ENTRY, message=f"合同号「{no}」已存在")
+        raise BusinessException(code=DUPLICATE_ENTRY, message=f"合同号「{no}」已存在，请更换后再保存")
     return no
 
 
@@ -39,10 +60,11 @@ async def _resolve_create_drawing_no(
     requested: str | None,
     *,
     apply_date: str | date_type | None = None,
+    trust_requested: bool = False,
 ) -> str:
-    """图纸编号：有传入则校验唯一后沿用；空则按 WMGF+yyyyMM+三位月序自动生成。"""
+    """图纸编号：CRM 新建一律 consume 流水号；开放平台可 trust_requested 传入已存在的号。"""
     no = (requested or "").strip()
-    if no:
+    if trust_requested and no:
         exists = (await db.execute(
             select(Contract.id).where(
                 Contract.tenant_id == tenant_id,
@@ -52,10 +74,23 @@ async def _resolve_create_drawing_no(
         if exists:
             raise BusinessException(code=DUPLICATE_ENTRY, message=f"图纸编号「{no}」已存在")
         return no
+    return await peek_create_drawing_no(
+        db, tenant_id, user, apply_date=apply_date, consume=True,
+    )
 
+
+async def peek_create_drawing_no(
+    db: AsyncSession,
+    tenant_id: str,
+    user: dict,
+    *,
+    apply_date: str | date_type | None = None,
+    consume: bool = False,
+) -> str:
+    """预览/生成合同登记图纸编号（WMGF+yyyyMM+三位月序）。"""
     from app.domains.lowcode import service as lc_svc
     from app.domains.lowcode.builtin_templates import get_builtin
-    from app.domains.lowcode.serial_number import generate_serial_value
+    from app.domains.lowcode.serial_number import generate_serial_value, peek_serial_value
 
     tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
     bt = get_builtin("contract_drawing_map") or {}
@@ -69,9 +104,12 @@ async def _resolve_create_drawing_no(
     else:
         apply_s = (str(apply_date).strip() if apply_date else "") or datetime.now(timezone.utc).date().isoformat()
 
-    # 合同登记固定 WMGF 前缀（不再暴露编号属性）
     form_data = {"number_attr": "WMGF", "apply_date": apply_s}
-    return await generate_serial_value(
+    if consume:
+        return await generate_serial_value(
+            db, tenant_id, tpl.id, drawing_fd, form_data, field_defs,
+        )
+    return await peek_serial_value(
         db, tenant_id, tpl.id, drawing_fd, form_data, field_defs,
     )
 
@@ -162,6 +200,7 @@ async def get_contract(db: AsyncSession, tenant_id: str, contract_id: str,
 
 
 async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | None, data: ContractCreate, user: dict) -> dict:
+    as_draft = bool(getattr(data, "as_draft", False))
     # 关联商机可选：有则校验可见性；无则允许独立建合同（合同管理列表入口）
     project = None
     if project_id:
@@ -173,7 +212,9 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     )
     cfj = await sanitize_entity_write(
         db, tenant_id, "contract", data.custom_fields_json, None, user.get("roles"))
-    await validate_entity_custom_fields(db, tenant_id, "contract", cfj, user.get("roles"))
+    await validate_entity_custom_fields(
+        db, tenant_id, "contract", cfj, user.get("roles"), skip_required=as_draft,
+    )
     # 商机侧「快速建合同」往往只带金额/条款；登记表一长串 default_required 只在表单
     # 实际提交的字段上校验（与 update 的 payload scope 一致）。exclude_unset 避免把
     # 未传字段以 None 塞进 payload 后被误判为「已提交但为空」。
@@ -187,11 +228,13 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     native_payload = {k: raw[k] for k in _NATIVE_CREATE_KEYS if k in raw}
     native = await enforce_native_field_policy(
         db, tenant_id, "contract", native_payload, None, user.get("roles"),
-        required_scope="payload",
+        required_scope="payload" if as_draft else "all",
+        skip_required=as_draft,
     )
 
     contract_no = await _resolve_create_contract_no(
         db, tenant_id, native.get("contract_no") or data.contract_no,
+        allow_draft=as_draft,
     )
 
     reg = native.get("registration_json", data.registration_json) or {}
@@ -200,10 +243,9 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     # 历史残留字段清理：编号属性已从合同登记移除
     reg = {k: v for k, v in reg.items() if k not in ("number_attr", "number_lookup")}
     apply_date = native.get("order_date", data.order_date) or reg.get("apply_date")
+    # 前端 peek 仅作展示；落库必须 consume 流水号，否则预览号反复提交会 409
     drawing_no = await _resolve_create_drawing_no(
-        db, tenant_id, user,
-        native.get("drawing_no", data.drawing_no),
-        apply_date=apply_date,
+        db, tenant_id, user, None, apply_date=apply_date,
     )
 
     # 显式指定优先；未传时从关联商机带出客户，保证列表「客户名称」可补全
@@ -256,7 +298,9 @@ async def update_contract(db: AsyncSession, tenant_id: str, contract_id: str, da
     contract = await get_contract(db, tenant_id, contract_id, user)
     from app.domains.lowcode.edit_lock import assert_contract_record_editable
     await assert_contract_record_editable(db, tenant_id, contract)
+    as_draft = bool(getattr(data, "as_draft", False))
     payload = data.model_dump(exclude_unset=True)
+    payload.pop("as_draft", None)
     from app.domains.lowcode.field_permission import (
         enforce_native_field_policy, sanitize_entity_write, validate_entity_custom_fields,
     )
@@ -265,11 +309,39 @@ async def update_contract(db: AsyncSession, tenant_id: str, contract_id: str, da
             db, tenant_id, "contract", payload["custom_fields_json"],
             contract.custom_fields_json, user.get("roles"))
         await validate_entity_custom_fields(
-            db, tenant_id, "contract", payload["custom_fields_json"], user.get("roles"))
+            db, tenant_id, "contract", payload["custom_fields_json"], user.get("roles"),
+            skip_required=as_draft,
+        )
+    # 改合同号：校验唯一（不含本条）；空串不允许覆盖正式号
+    if "contract_no" in payload:
+        new_no = (str(payload.get("contract_no") or "")).strip()
+        if not new_no:
+            if as_draft:
+                payload.pop("contract_no", None)
+            else:
+                raise BusinessException(code=BUSINESS_ERROR, message="请填写合同号")
+        elif new_no != (contract.contract_no or ""):
+            exists = (await db.execute(
+                select(Contract.id).where(
+                    Contract.tenant_id == tenant_id,
+                    Contract.contract_no == new_no,
+                    Contract.id != contract_id,
+                ).limit(1)
+            )).scalar_one_or_none()
+            if exists:
+                raise BusinessException(
+                    code=DUPLICATE_ENTRY,
+                    message=f"合同号「{new_no}」已存在，请更换后再保存",
+                )
+            payload["contract_no"] = new_no
+        else:
+            payload.pop("contract_no", None)
     # 原生字段策略：合同金额被脱敏成 "***" 后，编辑弹窗会把它绑进 InputNumber，
     # 用户随手一存就会用 null 覆盖真实金额 —— 写入侧必须与读取侧对称拦截。
     payload = await enforce_native_field_policy(
-        db, tenant_id, "contract", payload, contract, user.get("roles"), required_scope="payload")
+        db, tenant_id, "contract", payload, contract, user.get("roles"),
+        required_scope="payload", skip_required=as_draft,
+    )
     for field, val in payload.items():
         setattr(contract, field, val)
     await db.commit()
@@ -288,6 +360,12 @@ async def delete_contract(db: AsyncSession, tenant_id: str, contract_id: str, us
     versions = (await db.execute(
         select(ContractVersion).where(ContractVersion.tenant_id == tenant_id, ContractVersion.contract_id == contract_id)
     )).scalars().all()
+
+    current_version = next(
+        (v for v in versions if v.version_no == contract.current_version_no), None,
+    )
+    from app.domains.lowcode.edit_lock import assert_contract_deletable
+    await assert_contract_deletable(db, tenant_id, contract, version=current_version)
 
     # Cascade: cancel pending approval flows for contract versions
     version_ids = [v.id for v in versions]

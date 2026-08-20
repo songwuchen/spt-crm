@@ -5,6 +5,7 @@
 import { useState } from 'react'
 import { Button, Space, Typography, message } from 'antd'
 import {
+  buildCsDrawingPrintDocument,
   buildInstallPrintDocument,
   buildRequisitionPrintDocument,
 } from '@/pages/drawing/schemePrint'
@@ -109,11 +110,13 @@ const INSTALL_LABELS = {
 export default function DrawingPrintDemoPage() {
   const [busy, setBusy] = useState(false)
 
-  const openPreview = async (kind: 'install' | 'requisition') => {
+  const openPreview = async (kind: 'install' | 'requisition' | 'cs') => {
     setBusy(true)
     const fileStem = kind === 'install'
       ? 'PRJ202608005-02-2026081501孙家兴'
-      : 'WMGF202507027肖海华合同资料领用2026-08-13'
+      : kind === 'cs'
+        ? 'WMGF202404162刘伟客户服务部2026-08-17'
+        : 'WMGF202507027肖海华合同资料领用2026-08-13'
     setPdfPreviewLoading(true, fileStem)
     try {
       const html = kind === 'install'
@@ -124,23 +127,53 @@ export default function DrawingPrintDemoPage() {
           flowSteps: DEMO_STEPS,
           labels: INSTALL_LABELS,
         })
-        : buildRequisitionPrintDocument({
-          formData: {
-            serial_no: '2026081301',
-            order_person: { real_name: '肖海华' },
-            applicant: { real_name: '肖海华' },
-            department: 'dept_xunhan',
-            apply_datetime: '2026-08-13',
-            drawing_no: 'WMGF202507027',
-            contract_no: 'WMGF202507027',
-            transfer_channel: '邮箱',
-            attachment_name: '无',
-            apply_reason: '客户需要正式图纸资料',
-          },
-          fieldDefinitions: [],
-          flowSteps: DEMO_STEPS,
-          labels: { depts: { dept_xunhan: '迅焊业务部' }, users: {}, projects: {}, contracts: {} },
-        })
+        : kind === 'cs'
+          ? buildCsDrawingPrintDocument({
+            formData: {
+              serial_no: '2026081703',
+              order_person: { real_name: '刘伟' },
+              applicant: { real_name: '付加婧' },
+              department: 'dept_cs',
+              apply_datetime: '2026-08-17',
+              contract_no: 'WMGF202404162',
+              drawing_no_note: '01KF03',
+              transfer_channel: '下生产',
+              attachment_name: '客服部 刘伟20260817-1',
+              apply_reason_2:
+                '1、激振器密封圈毡条 高幅筛 GFS-X-800-10配 2米；2、软连接 6片。请出图。',
+            },
+            fieldDefinitions: [
+              {
+                id: 'transfer_channel', type: 'radio', label: '图纸传递途径',
+                options: [{ label: '下生产', value: '下生产' }],
+              },
+            ],
+            businessNo: '2026081703',
+            flowSteps: DEMO_STEPS,
+            labels: {
+              depts: { dept_cs: '客户服务部' },
+              users: {},
+              projects: {},
+              contracts: {},
+            },
+          })
+          : buildRequisitionPrintDocument({
+            formData: {
+              serial_no: '2026081301',
+              order_person: { real_name: '肖海华' },
+              applicant: { real_name: '肖海华' },
+              department: 'dept_xunhan',
+              apply_datetime: '2026-08-13',
+              drawing_no: 'WMGF202507027',
+              contract_no: 'WMGF202507027',
+              transfer_channel: '邮箱',
+              attachment_name: '无',
+              apply_reason: '客户需要正式图纸资料',
+            },
+            fieldDefinitions: [],
+            flowSteps: DEMO_STEPS,
+            labels: { depts: { dept_xunhan: '迅焊业务部' }, users: {}, projects: {}, contracts: {} },
+          })
       const { blob, fileName } = await htmlToPdfBlob(html, {
         orientation: 'landscape',
         fileName: fileStem,
@@ -173,7 +206,7 @@ export default function DrawingPrintDemoPage() {
       }}>
         <Title level={4} style={{ marginTop: 0 }}>打印预览 · 试打</Title>
         <Paragraph type="secondary">
-          对齐客户 Word 模板。安装图：下卡日期=流程发起日；审批意见顺序为总工→市场支持→部门；内容过长自动分页。
+          对齐客户 Word 模板。安装图 / 合同图纸领用 / 客服领图均可预览。
         </Paragraph>
         <Space wrap>
           <Button type="primary" loading={busy} onClick={() => openPreview('install')}>
@@ -181,6 +214,9 @@ export default function DrawingPrintDemoPage() {
           </Button>
           <Button loading={busy} onClick={() => openPreview('requisition')}>
             预览合同图纸领用
+          </Button>
+          <Button loading={busy} onClick={() => openPreview('cs')}>
+            预览客服领图
           </Button>
         </Space>
       </div>

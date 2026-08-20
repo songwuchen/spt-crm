@@ -2,11 +2,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Button, Space, Tag, Drawer, Input, message, Typography, Select, Spin, Radio, Tabs,
+  Button, Space, Tag, Drawer, Input, message, Typography, Select, Spin, Radio, Tabs, Modal,
 } from 'antd'
 import {
   CheckCircleOutlined, CloseCircleOutlined, SwapOutlined,
-  RollbackOutlined, FileTextOutlined, PrinterOutlined, ThunderboltOutlined,
+  RollbackOutlined, FileTextOutlined, PrinterOutlined, ThunderboltOutlined, StopOutlined,
 } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
@@ -245,6 +245,31 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       message.error(msg || '打印失败')
     }
+  }
+
+  const handleEndProcess = () => {
+    if (!detail?.id) return
+    Modal.confirm({
+      title: '确认手动结束？',
+      content: '结束后将取消「修改并重新提交」待办，流程不再出现在待办列表。如需再走审批，可在「我发起的」中重新发起。',
+      okText: '结束流程',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        setBusy(true)
+        try {
+          await workflowApi.endProcess(detail.id)
+          message.success('已手动结束流程')
+          onDone()
+          onClose()
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : ''
+          if (msg) message.warning(msg)
+        } finally {
+          setBusy(false)
+        }
+      },
+    })
   }
 
   const act = async (action: string) => {
@@ -681,8 +706,16 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
                     >
                       保存并重新提交
                     </Button>
+                    <Button
+                      danger
+                      icon={<StopOutlined />}
+                      loading={busy}
+                      onClick={handleEndProcess}
+                    >
+                      手动结束
+                    </Button>
                     <Text type="secondary" className="text-xs">
-                      修改表单内容后提交，将重新进入审批流程
+                      修改后重新提交，或结束流程以关闭待办
                     </Text>
                   </div>
                 ) : (

@@ -449,6 +449,25 @@ export default function ApprovalCenter() {
     }
   }
 
+  const handleEndProcess = (instanceId: string) => {
+    Modal.confirm({
+      title: '确认手动结束？',
+      content: '结束后将取消「修改并重新提交」待办，流程不再出现在待办列表。',
+      okText: '结束流程',
+      okType: 'danger',
+      onOk: async () => {
+        setSubmitting(true)
+        try {
+          await workflowApi.endProcess(instanceId)
+          message.success('已手动结束流程')
+          fetchData()
+        } finally {
+          setSubmitting(false)
+        }
+      },
+    })
+  }
+
   // Statistics
   const loadStats = async () => {
     setStatsLoading(true)
@@ -639,14 +658,21 @@ export default function ApprovalCenter() {
           )}
           {((r.engine === 'wf' && (r.status === 'withdrawn' || r.status === 'rejected'))
             || (r.engine === 'legacy' && (r.status === 'rejected' || r.status === 'withdrawn'))) && (
-            <Button
-              size="small"
-              type="primary"
-              icon={<RedoOutlined />}
-              onClick={() => handleResubmit(r.instanceId, r.engine)}
-            >
-              重新发起
-            </Button>
+            <>
+              <Button
+                size="small"
+                type="primary"
+                icon={<RedoOutlined />}
+                onClick={() => handleResubmit(r.instanceId, r.engine)}
+              >
+                重新发起
+              </Button>
+              {r.engine === 'wf' && (
+                <Button size="small" danger onClick={() => handleEndProcess(r.instanceId)}>
+                  手动结束
+                </Button>
+              )}
+            </>
           )}
         </Space>
       ),

@@ -176,6 +176,18 @@ async def act_task(task_id: str, body: ws.WfActRequest, tenant_id: str = Depends
     return ok(None)
 
 
+@router.post("/tasks/{task_id}/end")
+async def end_process_by_task(
+    task_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """修订待办入口：手动结束所属流程（取消修订待办）。"""
+    await WorkflowEngine(db, tenant_id).end_process_by_task(task_id, user)
+    return ok(None)
+
+
 @router.post("/instances/{instance_id}/comments")
 async def add_comment(
     instance_id: str,
@@ -193,6 +205,18 @@ async def add_comment(
 async def withdraw(instance_id: str, tenant_id: str = Depends(get_tenant_id),
                    db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
     await WorkflowEngine(db, tenant_id).withdraw(instance_id, user)
+    return ok(None)
+
+
+@router.post("/instances/{instance_id}/end")
+async def end_process(
+    instance_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """已驳回/已撤回：发起人手动结束，取消「修改并重新提交」待办。"""
+    await WorkflowEngine(db, tenant_id).end_process(instance_id, user)
     return ok(None)
 
 

@@ -544,6 +544,84 @@ export const DRAWING_FORM_LAYOUT: Record<string, DrawingFormLayoutSpec> = {
       need_xjwm_staff: 6, xjwm_staff: 6, other_notes: 24,
     },
   },
+  // 发货通知（销售中心「CRM-发货通知流程」）
+  shipment_notice: {
+    contentMaxWidth: 1100,
+    listColumns: [
+      'serial_no', 'ship_type', 'ship_status', 'contract_no',
+      'department', 'sales_person', 'consignee_unit', 'require_arrive_time',
+    ],
+    listFullText: true,
+    listColumnWidths: {
+      serial_no: 160,
+      ship_type: 96,
+      ship_status: 88,
+      contract_no: 200,
+      department: 160,
+      sales_person: 88,
+      consignee_unit: 180,
+      require_arrive_time: 118,
+    },
+    sections: [
+      {
+        title: '基本信息',
+        fieldIds: [
+          'serial_no', 'biz_datetime', 'ship_type', 'purchasers',
+          'ship_status', 'is_after_sales', 'purchaser', 'contract_no',
+          'need_install', 'counterparty_contract_no', 'contract_amount',
+          'shipped_amount_incl', 'unshipped_amount', 'contract_no_text',
+          'dept_contract_no', 'exit_pass_no', 'department', 'sales_person',
+          'sales_phone',
+        ],
+      },
+      {
+        title: '收货与运输',
+        fieldIds: [
+          'consignee_unit', 'consignee_contact', 'require_arrive_time',
+          'multi_unload', 'address', 'address_2', 'freight_payer',
+          'holiday_receive', 'need_weigh', 'is_reship', 'need_return_goods',
+          'return_goods_content', 'truck_limit', 'allow_other_goods',
+          'payment_method',
+        ],
+      },
+      {
+        title: '发货明细',
+        fieldIds: ['ship_lines', 'ship_amount', 'notes'],
+      },
+      {
+        title: '仓库 / 出库（审批填写）',
+        fieldIds: [
+          'is_sales_outbound', 'warehouse_handler', 'warehouse_transfer',
+          'pack_first', 'finance_check_note',
+        ],
+      },
+      {
+        title: '验收与回执',
+        fieldIds: [
+          'accept_method', 'accept_docs', 'accept_attachments',
+          'attachments', 'images', 'receipt_images', 'receipt_files',
+        ],
+      },
+    ],
+    spans: {
+      serial_no: 6, biz_datetime: 6, ship_type: 6, purchasers: 6,
+      ship_status: 6, is_after_sales: 6, purchaser: 6, contract_no: 6,
+      need_install: 6, counterparty_contract_no: 6, contract_amount: 6,
+      shipped_amount_incl: 6, unshipped_amount: 6, contract_no_text: 6,
+      dept_contract_no: 6, exit_pass_no: 6, department: 6, sales_person: 6,
+      sales_phone: 6,
+      consignee_unit: 12, consignee_contact: 12, require_arrive_time: 6,
+      multi_unload: 6, address: 12, address_2: 12, freight_payer: 6,
+      holiday_receive: 6, need_weigh: 6, is_reship: 6, need_return_goods: 6,
+      return_goods_content: 24, truck_limit: 6, allow_other_goods: 6,
+      payment_method: 6,
+      ship_lines: 24, ship_amount: 6, notes: 18,
+      is_sales_outbound: 6, warehouse_handler: 6, warehouse_transfer: 6,
+      pack_first: 6, finance_check_note: 12,
+      accept_method: 6, accept_docs: 6, accept_attachments: 12,
+      attachments: 12, images: 12, receipt_images: 12, receipt_files: 12,
+    },
+  },
   // 核价清单传递（中央研究院 HJQD）
   pricing_checklist_hjqd: {
     contentMaxWidth: 1080,

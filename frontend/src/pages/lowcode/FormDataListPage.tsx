@@ -947,6 +947,7 @@ export default function FormDataListPage({
   const canPrintScheme = templateCode === 'scheme_management'
     || templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'
+    || templateCode === 'cs_drawing_request'
   /** 草稿/驳回可改；合同图纸领用、安装图设计通知流程通过后也可改内容（审批中仍锁） */
   const postCompleteEditable = templateCode === 'drawing_requisition'
     || templateCode === 'install_drawing_notice'

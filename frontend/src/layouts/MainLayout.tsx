@@ -50,6 +50,8 @@ const breadcrumbNameMap: Record<string, string> = {
   '/prod-card-supplements/fill': '新增',
   '/invoice-applications': '开票申请',
   '/invoice-applications/fill': '新增',
+  '/shipment-notices': '发货通知',
+  '/shipment-notices/fill': '新增',
   '/payment-registrations': '收款登记',
   '/payment-registrations/fill': '新增',
   '/solutions': '方案管理',

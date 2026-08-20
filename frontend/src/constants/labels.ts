@@ -227,6 +227,14 @@ export function resolveContractDisplayStatus(
   return 'draft'
 }
 
+/** 仅展示态为「草稿」且未进入审批的可删除 */
+export function isContractDraftDeletable(
+  contractStatus: string,
+  versionStatus?: string | null,
+): boolean {
+  return resolveContractDisplayStatus(contractStatus, versionStatus) === 'draft'
+}
+
 // --- Solution ---
 export const solutionStatusLabels: Record<string, string> = {
   draft: '草稿', reviewing: '评审中', approved: '已批准', rejected: '已驳回', obsolete: '已废弃',

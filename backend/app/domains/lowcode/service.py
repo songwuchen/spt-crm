@@ -43,6 +43,7 @@ _TITLE_LABEL_HINTS = (
 _COMPOSITE_TITLE_FIELD_IDS = ("serial_no", "quote_no", "customer_name", "sales_person")
 # 售前服务通知：单号 + 服务地点 + 合同号 + 申请人
 _PRESALE_TITLE_FIELD_IDS = ("serial_no", "service_location", "contract_no", "applicant")
+_SHIPMENT_TITLE_FIELD_IDS = ("serial_no", "consignee_unit", "contract_no", "sales_person")
 _UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
@@ -63,6 +64,14 @@ def _is_presale_template(template_name: str | None, field_defs: list | None) -> 
         return True
     ids = _field_ids_from_defs(field_defs)
     return {"service_location", "need_jwx_onsite", "is_smart"}.issubset(ids)
+
+
+def _is_shipment_template(template_name: str | None, field_defs: list | None) -> bool:
+    name = (template_name or "").strip()
+    if "发货通知" in name:
+        return True
+    ids = _field_ids_from_defs(field_defs)
+    return {"ship_lines", "consignee_unit", "ship_type"}.issubset(ids)
 
 
 def _title_snippet(val, id_labels: dict[str, str] | None = None) -> str:
@@ -166,6 +175,15 @@ def derive_form_instance_title(
         if composed != name:
             return composed
 
+    if _is_shipment_template(name, field_defs):
+        parts = [
+            _title_snippet(data.get(fid), labels)
+            for fid in _SHIPMENT_TITLE_FIELD_IDS
+        ]
+        composed = _compose_multi_snippet_title(name, parts)
+        if composed != name:
+            return composed
+
     if _should_use_composite_title(name, data, field_defs):
         parts = [
             _title_snippet(data.get(fid), labels)
@@ -242,7 +260,7 @@ async def resolve_form_title_labels(
     customer_ids: set[str] = set()
     contract_ids: set[str] = set()
     for fid, ftype in type_by_id.items():
-        if fid not in data and fid not in _COMPOSITE_TITLE_FIELD_IDS and fid not in _PRESALE_TITLE_FIELD_IDS:
+        if fid not in data and fid not in _COMPOSITE_TITLE_FIELD_IDS and fid not in _PRESALE_TITLE_FIELD_IDS and fid not in _SHIPMENT_TITLE_FIELD_IDS:
             continue
         ids = _collect_title_ref_ids(data.get(fid))
         if ftype in ("person", "person_multi", "user"):
@@ -576,6 +594,9 @@ async def sync_builtin_form_fields(
     if key == "presale_service_notice":
         from app.domains.lowcode.presale_service_notice_fields import apply_presale_service_notice_fields
         apply_presale_service_notice_fields(want)
+    if key == "shipment_notice":
+        from app.domains.lowcode.shipment_notice_fields import apply_shipment_notice_fields
+        apply_shipment_notice_fields(want)
     if key == "drawing_requisition":
         from app.domains.lowcode.drawing_requisition_fields import (
             apply_drawing_requisition_fields,
@@ -608,6 +629,11 @@ async def sync_builtin_form_fields(
                 )
             )
         ]
+    if key == "cs_drawing_request":
+        from app.domains.lowcode.cs_drawing_request_fields import (
+            apply_cs_drawing_request_fields,
+        )
+        apply_cs_drawing_request_fields(want)
     if key == "install_drawing_notice":
         from app.domains.lowcode.base_lookups import remap_scheme_material_rule_triggers
         from app.domains.lowcode.dept_code import (
@@ -1835,11 +1861,13 @@ async def _instance_list_filter_bundle(
 _OWNER_PERSON_FIELD_BY_TEMPLATE = {
     "invoice_application": "sales_person",
     "quote_management": "sales_person",
+    "shipment_notice": "sales_person",
 }
 
 _OWNER_PERSON_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
     "invoice_application": ["sales_person"],
     "quote_management": ["sales_person"],
+    "shipment_notice": ["sales_person", "purchasers", "purchaser"],
     "pricing_checklist_hjqd": [
         "install_applicant", "req_applicant", "cs_applicant",
         "coop_applicant", "coop_order_person",
@@ -1851,6 +1879,7 @@ _FORM_DEPT_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
     "pricing_checklist_hjqd": [
         "install_department", "req_department", "cs_department", "coop_order_dept",
     ],
+    "shipment_notice": ["department"],
 }
 
 # 部门档：业务部门等文本字段按部门名称匹配

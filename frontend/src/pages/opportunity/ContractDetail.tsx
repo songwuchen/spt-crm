@@ -23,7 +23,7 @@ import { LINE_ITEMS_FIELD_ID, PAYMENT_TERMS_FIELD_ID } from '@/constants/contrac
 import ContractRegistrationFields, { DATE_KEYS } from '@/components/ContractRegistrationFields'
 import type { ContractItem, ContractVersion } from '@/api/types'
 import { riskLabels, riskColors } from '@/api/types'
-import { contractDisplayStatusColors, contractDisplayStatusLabels, resolveContractDisplayStatus, contractVersionStatusColors, contractVersionStatusLabels } from '@/constants/labels'
+import { contractDisplayStatusColors, contractDisplayStatusLabels, resolveContractDisplayStatus, isContractDraftDeletable, contractVersionStatusColors, contractVersionStatusLabels } from '@/constants/labels'
 import type { WfInstanceDetail } from '@/types/lowcode'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
 import { CONTRACT_REGISTRATION_SECTIONS, formatChangeType, formatRegFieldValue } from '@/constants/contractRegistration'
@@ -32,6 +32,7 @@ import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
 import { lowcodeApi } from '@/api/lowcode'
 import type { FieldDefinition } from '@/types/lowcode'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePermission } from '@/hooks/usePermission'
 import DetailSkeleton from '@/components/DetailSkeleton'
 import { useUserSelect, useCustomerSelect } from '@/hooks/useSelectOptions'
 import { customerApi } from '@/api/customer'
@@ -59,6 +60,8 @@ export default function ContractDetail() {
   usePageTitle('合同详情')
   const { id: projectIdParam, cid } = useParams<{ id?: string; cid: string }>()
   const navigate = useNavigate()
+  const { hasPermission } = usePermission()
+  const canDeleteContract = hasPermission('contract:delete')
   const [contract, setContract] = useState<ContractItem | null>(null)
   const [versions, setVersions] = useState<ContractVersion[]>([])
   const [currentVersion, setCurrentVersion] = useState<ContractVersion | null>(null)
@@ -118,6 +121,7 @@ export default function ContractDetail() {
     delete reg.number_attr
     editForm.setFieldsValue({
       amount_total: typeof contract?.amount_total === 'number' ? contract.amount_total : undefined,
+      contract_no: contract?.contract_no || undefined,
       drawing_no: contract?.drawing_no || undefined,
       peer_contract_no: contract?.peer_contract_no || undefined,
       acquire_method: contract?.acquire_method || undefined,
@@ -148,10 +152,30 @@ export default function ContractDetail() {
     setEditModal(true)
   }
 
-  const handleEditSave = async () => {
+  const handleEditSave = async (andSubmit: boolean) => {
     setEditSaving(true)
     try {
-      const v = await editForm.validateFields()
+      let v: Record<string, unknown>
+      if (andSubmit) {
+        try {
+          v = await editForm.validateFields()
+        } catch (err: unknown) {
+          const fields = (err as { errorFields?: { name: (string | number)[]; errors: string[] }[] })?.errorFields || []
+          const first = fields[0]?.errors?.[0]
+          message.warning(first || '请完善必填项后再保存')
+          const name = fields[0]?.name
+          if (name?.length) {
+            editForm.scrollToField(name, { behavior: 'smooth', block: 'center' })
+          }
+          return
+        }
+      } else {
+        const stale = editForm.getFieldsError().filter((f) => f.errors?.length)
+        if (stale.length) {
+          editForm.setFields(stale.map((f) => ({ name: f.name, errors: [] })))
+        }
+        v = editForm.getFieldsValue(true) as Record<string, unknown>
+      }
       const nativeDates: { name: string; label: string; value: unknown }[] = [
         { name: 'card_date', label: '下卡日期', value: v.card_date },
         { name: 'order_date', label: '订货日期', value: v.order_date },
@@ -183,11 +207,14 @@ export default function ContractDetail() {
         const s = formatFormDate(d)
         return s === undefined ? null : s
       }
+      const contractNo = String(v.contract_no || '').trim()
       const payload: Record<string, unknown> = {
+        as_draft: !andSubmit,
         payment_terms_json: editPay,
         registration_json: regRaw,
         // 图纸编号系统生成后不可在编辑里清空；有值才回写
         ...(v.drawing_no ? { drawing_no: v.drawing_no } : {}),
+        ...(contractNo ? { contract_no: contractNo } : {}),
         peer_contract_no: v.peer_contract_no || null,
         acquire_method: v.acquire_method || null,
         change_type: v.change_type || null,
@@ -204,12 +231,19 @@ export default function ContractDetail() {
       if (v.amount_total != null) payload.amount_total = v.amount_total
       await contractApi.update(cid!, payload)
       if (currentVersion) await contractApi.updateVersion(currentVersion.id, { key_clauses_json: editLines })
-      message.success('合同登记信息已保存')
+      message.success(andSubmit ? '合同登记信息已保存' : '已存为草稿')
       setEditModal(false)
       fetchContract()
     } catch (e: unknown) {
       if (e && typeof e === 'object' && 'errorFields' in e) return
-      // 业务错误已由 api client 拦截器提示
+      const msg = e instanceof Error ? e.message : ''
+      if (msg) {
+        message.warning(msg)
+        if (msg.includes('合同号')) {
+          editForm.setFields([{ name: 'contract_no', errors: [msg] }])
+          editForm.scrollToField('contract_no', { behavior: 'smooth', block: 'center' })
+        }
+      }
     } finally {
       setEditSaving(false)
     }
@@ -527,6 +561,8 @@ export default function ContractDetail() {
     && contract.status !== 'signed'
     && contract.status !== 'terminated'
   const canSign = contract.status === 'draft'
+  const canDelete = canDeleteContract
+    && isContractDraftDeletable(contract.status, verStatus)
   const stepCurrent = (() => {
     if (contract.status === 'signed' || contract.status === 'terminated') return 3
     if (verStatus === 'approved' || verStatus === 'signed') return 2
@@ -606,6 +642,22 @@ export default function ContractDetail() {
           )}
           <Button icon={<FilePdfOutlined />} onClick={() => downloadFile(`/api/v1/contracts/${cid}/export/pdf`, `contract_${contract.contract_no}.pdf`)}>导出PDF</Button>
           <Button icon={<PrinterOutlined />} onClick={() => window.print()}>打印</Button>
+          {canDelete && (
+            <Button danger icon={<DeleteOutlined />} onClick={() => {
+              Modal.confirm({
+                title: '确认删除',
+                content: `确定删除合同「${contract.contract_no}」？仅草稿可删除，删除后不可恢复。`,
+                okType: 'danger',
+                okText: '删除',
+                onOk: async () => {
+                  await contractApi.delete(cid!)
+                  message.success('已删除')
+                  if (projectIdParam) navigate(`/opportunities/${projectIdParam}`)
+                  else navigate('/contracts')
+                },
+              })
+            }}>删除</Button>
+          )}
           {projectIdParam ? (
             <Button onClick={() => navigate(`/opportunities/${projectIdParam}`)}>返回商机</Button>
           ) : (
@@ -618,9 +670,18 @@ export default function ContractDetail() {
         <div className="flex-1 min-w-0">
 
       {/* 编辑合同登记 */}
-      <Modal title="编辑合同登记" open={editModal} onOk={handleEditSave} confirmLoading={editSaving}
-        onCancel={() => setEditModal(false)} width={980} okText="保存" cancelText="取消"
-        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
+      <Modal
+        title="编辑合同登记"
+        open={editModal}
+        onCancel={() => setEditModal(false)}
+        width={980}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+        footer={[
+          <Button key="cancel" htmlType="button" onClick={() => setEditModal(false)}>取消</Button>,
+          <Button key="draft" htmlType="button" loading={editSaving} onClick={() => void handleEditSave(false)}>存草稿</Button>,
+          <Button key="save" type="primary" htmlType="button" loading={editSaving} onClick={() => void handleEditSave(true)}>保存</Button>,
+        ]}
+      >
         <FieldPolicyProvider entityType="contract" form={editForm}>
         <Form form={editForm} layout="vertical" className="py-2">
           <Form.Item name="customer_id" label="关联客户">
@@ -674,6 +735,9 @@ export default function ContractDetail() {
               accept_files: <ContractAttachmentSlots slot="accept_files" contractId={cid} />,
             }}
           />
+          <div className="text-[12px] text-slate-400">
+            「保存」会校验必填项；「存草稿」仅保存当前已填内容，可稍后补全再保存或提交审批。
+          </div>
         </Form>
         </FieldPolicyProvider>
       </Modal>

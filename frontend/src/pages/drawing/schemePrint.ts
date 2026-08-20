@@ -1,9 +1,10 @@
 /**
  * 图纸类打印：横向 A4 HTML → 浏览器打印「另存为 PDF」（不直接打 Word）。
- * 版式对齐官方 Word 模板（H:\CRM系统打印所用模板）：
+ * 版式对齐官方 Word 模板：
  * - 合同图纸（资料）领用申请.docx
  * - 安装图设计通知卡.docx
- * 适用：方案管理 / 合同图纸领用 / 安装图设计通知。
+ * - 客服领图（G:\K3SQL整理\…客户服务部…模板.docx）
+ * 适用：方案管理 / 合同图纸领用 / 安装图设计通知 / 客服领图。
  */
 import dayjs from 'dayjs'
 import { printHtml, escHtml } from '@/utils/printHtml'
@@ -922,6 +923,152 @@ function buildRequisitionHtml(ctx: {
   return wrapDoc(fileTitle, body, 'requisition')
 }
 
+function csDrawingPrintFileName(opts: {
+  form: Record<string, unknown>
+  labels: Labels
+  orderPerson: string
+  dept: string
+  cardDate: string
+}): string {
+  const no = contractNoForFileName(opts.form, opts.labels)
+  const date = opts.cardDate || fmtDate(opts.form.apply_datetime) || dayjs().format('YYYY-MM-DD')
+  const dept = printableToken(opts.dept) || '客户服务部'
+  // 对齐 Word 文件名：WMGF…刘伟客户服务部2026-08-17
+  return sanitizePrintFileName(
+    `${no}${opts.orderPerson}${dept}${date}`,
+    '客服领图',
+  )
+}
+
+/** 客服领图打印版式（对齐 Word：合同号/图号/产品型号/设计人/传递途径/附件） */
+function buildCsDrawingHtml(ctx: {
+  form: Record<string, unknown>
+  fields: FieldDefinition[]
+  labels: Labels
+  businessNo?: string | null
+  steps?: WfFlowStep[] | null
+}): string {
+  const { form, fields, labels, businessNo, steps } = ctx
+  const orderPerson = personName(form.order_person, labels)
+  const dept = deptName(form.department, labels)
+  const applicant = personName(form.applicant, labels)
+  const cardDate = flowInitiateDate(steps, form)
+  const serial = businessNo || ''
+  const contractNo = printDrawingNo(form.contract_no, labels, form)
+  const drawingNo = form.drawing_no_note != null && String(form.drawing_no_note).trim()
+    ? String(form.drawing_no_note).trim()
+    : ''
+  const transfer = optionLabel(fields, 'transfer_channel', form.transfer_channel)
+  const designer = personName(form.designer, labels)
+    || (form.designer_text != null ? String(form.designer_text).trim() : '')
+  const attachName = attachmentLabel(form, 'attachment_name', 'attachments', 'images') || '无'
+  const applyReason = [form.apply_reason_2, form.apply_reason, form.apply_or_change]
+    .map((v) => (v != null && String(v).trim() ? String(v).trim() : ''))
+    .find(Boolean) || ''
+  const approvalFoot = approvalFootHtml(
+    stepsThroughNode(steps, '总工审批'),
+    form,
+    serial,
+    { showSerial: false },
+  )
+
+  const body = `
+    <h1>客服领图</h1>
+    ${metaLine([
+      ['订货人', orderPerson],
+      ['销售部门', dept],
+      ['申请人', applicant],
+      ['日期', cardDate],
+      ['流水号', serial],
+    ])}
+    <table class="form">
+      ${colgroup12()}
+      <tr>
+        <td class="lbl" colspan="2">合同号</td>
+        <td class="lbl" colspan="1">图号</td>
+        <td class="lbl" colspan="2">产品型号</td>
+        <td class="lbl" colspan="1">设计人</td>
+        <td class="lbl" colspan="3">图纸传递途径</td>
+        <td class="lbl" colspan="3">附件名称</td>
+      </tr>
+      <tr>
+        <td class="val contract-no" colspan="2">${cell(contractNo)}</td>
+        <td class="val" colspan="1">${cell(drawingNo)}</td>
+        <td class="val" colspan="2">${cell(form.product_model)}</td>
+        <td class="val" colspan="1">${cell(designer)}</td>
+        <td class="val" colspan="3">${cell(transfer)}</td>
+        <td class="val-left" colspan="3">${cell(attachName)}</td>
+      </tr>
+      <tr>
+        <td class="lbl" colspan="1">申请事由</td>
+        <td class="val-left matter" colspan="11">${cell(applyReason)}</td>
+      </tr>
+      <tr class="form-nest">
+        <td class="nest" colspan="12">
+          <table class="sign-block">
+            <colgroup>
+              <col style="width:10%">
+              <col style="width:14%">
+              <col style="width:8%">
+              <col style="width:14%">
+              <col style="width:14%">
+              <col style="width:12%">
+              <col style="width:10%">
+              <col style="width:18%">
+            </colgroup>
+            <tr class="sign-head">
+              <td class="lbl">设计人</td>
+              <td class="lbl">审核<span class="sub">（室主任签）</span></td>
+              <td class="lbl yn">是否需要客服内勤请示总经理</td>
+              <td class="lbl">标准化<span class="sub">（标准化室签）</span></td>
+              <td class="lbl">审定<span class="sub">（总工助理签）</span></td>
+              <td class="lbl">批准<span class="sub">（总工签）</span></td>
+              <td class="lbl">工作量</td>
+              <td class="lbl">实际交图日期</td>
+            </tr>
+            <tr class="sign-body">
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val yn">${yesNoInline('')}</td>
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val"></td>
+              <td class="val"></td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td class="lbl" colspan="1">设计思路</td>
+        <td class="val-left idea" colspan="11"></td>
+      </tr>
+      <tr>
+        <td class="lbl" colspan="1">计算过程</td>
+        <td class="val-left idea" colspan="11"></td>
+      </tr>
+      <tr>
+        <td class="lbl" colspan="1">室主任意见</td>
+        <td class="val-left opin" colspan="11"></td>
+      </tr>
+      <tr>
+        <td class="lbl" colspan="1">总工助理意见</td>
+        <td class="val-left opin" colspan="11"></td>
+      </tr>
+      <tr>
+        <td class="lbl" colspan="1">总工意见</td>
+        <td class="val-left opin" colspan="11"></td>
+      </tr>
+      <tr>
+        <td class="lbl" colspan="1">最后结果</td>
+        <td class="val-left result" colspan="11"></td>
+      </tr>
+    </table>
+    ${approvalFoot}`
+  const fileTitle = csDrawingPrintFileName({ form, labels, orderPerson, dept, cardDate })
+  return wrapDoc(fileTitle, body, 'requisition')
+}
+
 function buildInstallHtml(ctx: {
   form: Record<string, unknown>
   fields: FieldDefinition[]
@@ -1172,8 +1319,10 @@ export function isDrawingRequisitionForm(
 ): boolean {
   if (isSchemeManagementForm(fields, formData, processName)) return false
   if (isInstallDrawingNoticeForm(fields, formData, processName)) return false
+  if (processName && /客服领图/.test(processName)) return false
   if (processName && /(合同图纸|图纸领用|资料[）)]领用)/.test(processName)) return true
   const ids = new Set((fields || []).map((f) => f.id))
+  if (ids.has('drawing_no_note') && ids.has('dept_dispatch')) return false
   if (ids.has('transfer_channel') && ids.has('drawing_type') && ids.has('involve_std_drawing')) {
     return true
   }
@@ -1201,7 +1350,31 @@ export function isInstallDrawingNoticeForm(
   return false
 }
 
-/** 方案管理 / 合同图纸领用 / 安装图设计通知：可打印对应单据 */
+/** 是否客服领图（独立 builtin；版式对齐客服领图 Word 模板） */
+export function isCsDrawingRequestForm(
+  fields?: FieldDefinition[] | null,
+  formData?: Record<string, unknown> | null,
+  processName?: string | null,
+): boolean {
+  if (isSchemeManagementForm(fields, formData, processName)) return false
+  if (isInstallDrawingNoticeForm(fields, formData, processName)) return false
+  if (isDrawingRequisitionForm(fields, formData, processName)) return false
+  if (processName && /客服领图/.test(processName)) return true
+  const ids = new Set((fields || []).map((f) => f.id))
+  // 客服领图：有图号字段 + 部门指派，无图纸类型/企标等领用专属字段
+  if (
+    ids.has('drawing_no_note')
+    && ids.has('dept_dispatch')
+    && ids.has('transfer_channel')
+    && !ids.has('drawing_type')
+    && !ids.has('involve_std_drawing')
+  ) {
+    return true
+  }
+  return false
+}
+
+/** 方案管理 / 合同图纸领用 / 安装图设计通知 / 客服领图：可打印对应单据 */
 export function canPrintDrawingDocument(
   fields?: FieldDefinition[] | null,
   formData?: Record<string, unknown> | null,
@@ -1210,15 +1383,18 @@ export function canPrintDrawingDocument(
   return isSchemeManagementForm(fields, formData, processName)
     || isDrawingRequisitionForm(fields, formData, processName)
     || isInstallDrawingNoticeForm(fields, formData, processName)
+    || isCsDrawingRequestForm(fields, formData, processName)
 }
 
-/** 图纸类流程指派节点：通过时顺带打开打印预览（领用=研究院安排，安装图=设计指派安排） */
+/** 图纸类流程指派节点：通过时顺带打开打印预览 */
 export function isDrawingApproveAndPrintNode(nodeName?: string | null): boolean {
   const name = (nodeName || '').trim()
   // 「设计指派安排*」为转包装后的第二指派节点，同样需要通过并打印
+  // 客服领图：部门指派-研管办 / 何伟 / 孙伟 等
   return name === '研究院安排'
     || name === '设计指派安排'
     || name === '设计指派安排*'
+    || name.startsWith('部门指派')
 }
 
 /** 仅拼装领用单 HTML（试打/预览用，可不打接口解析标签） */
@@ -1275,6 +1451,33 @@ export function buildInstallPrintDocument(opts: {
   })
 }
 
+/** 仅拼装客服领图 HTML（试打/预览用） */
+export function buildCsDrawingPrintDocument(opts: {
+  formData: Record<string, unknown>
+  fieldDefinitions?: FieldDefinition[]
+  businessNo?: string | null
+  flowSteps?: WfFlowStep[] | null
+  labels?: Partial<Labels>
+}): string {
+  const form = opts.formData || {}
+  const fields = opts.fieldDefinitions || []
+  const labels: Labels = {
+    users: opts.labels?.users || {},
+    depts: opts.labels?.depts || {},
+    projects: opts.labels?.projects || {},
+    contracts: opts.labels?.contracts || {},
+  }
+  const serial = (form.serial_no != null && form.serial_no !== '' ? String(form.serial_no) : '')
+    || (opts.businessNo ? String(opts.businessNo) : '')
+  return buildCsDrawingHtml({
+    form,
+    fields,
+    labels,
+    businessNo: serial,
+    steps: opts.flowSteps,
+  })
+}
+
 function printFileNameFromHtml(html: string): string {
   const m = html.match(/<title[^>]*>([^<]*)<\/title>/i)
   return (m?.[1] || '')
@@ -1304,15 +1507,21 @@ export async function printSchemeInstance(opts: {
       : '')
   const useInstall = schemeType === 'install'
     || isInstallDrawingNoticeForm(fields, form)
+  const useCsDrawing = !useInstall && isCsDrawingRequestForm(fields, form)
   const html = useInstall
     ? buildInstallHtml({
       form, fields, labels,
       businessNo: serial, steps: opts.flowSteps,
     })
-    : buildRequisitionHtml({
-      form, fields, labels,
-      businessNo: serial, steps: opts.flowSteps,
-    })
+    : useCsDrawing
+      ? buildCsDrawingHtml({
+        form, fields, labels,
+        businessNo: serial, steps: opts.flowSteps,
+      })
+      : buildRequisitionHtml({
+        form, fields, labels,
+        businessNo: serial, steps: opts.flowSteps,
+      })
   const fileName = printFileNameFromHtml(html) || 'print'
   if (opts.legacyBrowserPrint) {
     printHtml(html, { orientation: 'landscape', fileName: fileName || undefined })

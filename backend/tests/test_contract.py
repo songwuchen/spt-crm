@@ -4,6 +4,79 @@ from httpx import AsyncClient
 import datetime
 
 
+async def test_contract_peek_drawing_no(client: AsyncClient, auth_headers: dict):
+    """新建合同登记可预览图纸编号。"""
+    r = await client.get("/api/v1/contracts/peek-drawing-no", headers=auth_headers)
+    assert r.json()["code"] == 0
+    no = (r.json()["data"] or {}).get("drawing_no") or ""
+    assert no.startswith("WMGF")
+    assert len(no) >= 11
+
+
+async def test_contract_create_draft_without_required(client: AsyncClient, auth_headers: dict):
+    """存草稿：跳过必填，可连续保存且不因预览图纸号冲突 409。"""
+    h = auth_headers
+    peek = (await client.get("/api/v1/contracts/peek-drawing-no", headers=h)).json()["data"]["drawing_no"]
+    body = {
+        "as_draft": True,
+        "title": "草稿测试",
+        "drawing_no": peek,  # 模拟旧前端把预览号一并提交
+    }
+    r1 = await client.post("/api/v1/contracts", json=body, headers=h)
+    assert r1.status_code == 200, r1.text
+    assert r1.json()["code"] == 0
+    c1 = r1.json()["data"]["contract"]
+    assert c1["contract_no"].startswith("DRAFT-")
+    assert c1["drawing_no"]
+
+    r2 = await client.post("/api/v1/contracts", json=body, headers=h)
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["code"] == 0
+    c2 = r2.json()["data"]["contract"]
+    assert c2["id"] != c1["id"]
+    assert c2["drawing_no"] != c1["drawing_no"]
+
+    await client.delete(f"/api/v1/contracts/{c1['id']}", headers=h)
+    await client.delete(f"/api/v1/contracts/{c2['id']}", headers=h)
+
+
+async def test_contract_draft_duplicate_contract_no_prompts(client: AsyncClient, auth_headers: dict):
+    """存草稿时合同号已存在：提示用户，不静默改号。"""
+    h = auth_headers
+    no = f"YJ-DRAFT-DUP-{datetime.datetime.now().strftime('%H%M%S%f')}"
+    first = await client.post("/api/v1/contracts", json={
+        "as_draft": True, "title": "先占号", "contract_no": no,
+    }, headers=h)
+    assert first.json()["code"] == 0, first.text
+    c1 = first.json()["data"]["contract"]
+    assert c1["contract_no"] == no
+
+    second = await client.post("/api/v1/contracts", json={
+        "as_draft": True, "title": "撞号草稿", "contract_no": no,
+    }, headers=h)
+    assert second.json()["code"] != 0
+    assert "已存在" in (second.json().get("message") or "")
+
+    await client.delete(f"/api/v1/contracts/{c1['id']}", headers=h)
+
+
+async def test_contract_delete_draft_only(client: AsyncClient, auth_headers: dict):
+    """仅草稿可删除；已提交/审批中由后端拦截。"""
+    h = auth_headers
+    created = await client.post("/api/v1/contracts", json={
+        "as_draft": True,
+        "title": "待删草稿",
+    }, headers=h)
+    assert created.json()["code"] == 0, created.text
+    cid = created.json()["data"]["contract"]["id"]
+
+    ok = await client.delete(f"/api/v1/contracts/{cid}", headers=h)
+    assert ok.json()["code"] == 0
+
+    gone = await client.get(f"/api/v1/contracts/{cid}", headers=h)
+    assert gone.json()["code"] != 0
+
+
 async def test_contract_full_flow(client: AsyncClient, auth_headers: dict):
     """Create project → contract → version → sign → list."""
     h = auth_headers

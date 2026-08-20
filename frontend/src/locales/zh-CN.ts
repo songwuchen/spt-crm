@@ -113,6 +113,8 @@ const zhCN = {
     prodCardSupplements: '生产卡/补充流程',
     invoiceApplications: '开票申请',
     paymentRegistrations: '收款登记',
+    shipping: '发货',
+    shipmentNotices: '发货通知',
     drawingRequisitions: '合同图纸领用',
     installDrawingNotices: '安装图设计通知',
     presaleServiceNotices: '售前服务通知',

@@ -70,20 +70,8 @@ async def main():
                 )
                 rule = (hit or {}).get("approver_rule") or {}
                 print(f"  部门指派-研管办 rule={rule}")
-                if rule.get("type") != "pickable_scope" or rule.get("value") != "dept_dispatch_ygb":
-                    print("  FAIL: expected pickable_scope=dept_dispatch_ygb")
-                    ok = False
-                from app.domains.organization.pickable_scope_service import (
-                    ensure_preset_scopes, get_scope_by_code,
-                )
-                await ensure_preset_scopes(db, tenant)
-                scope = await get_scope_by_code(db, tenant, "dept_dispatch_ygb")
-                print(
-                    f"  scope dept_dispatch_ygb="
-                    f"{'ok' if scope else 'MISSING'} name={getattr(scope, 'name', None)}"
-                )
-                if not scope or scope.name != "部门指派-研管办":
-                    print("  FAIL: pickable scope 部门指派-研管办 missing")
+                if rule.get("type") != "specified_user" or rule.get("value") != "013807685436426800":
+                    print("  FAIL: expected specified_user=013807685436426800 郑志颖")
                     ok = False
             if d.code != code or not jdy:
                 ok = False

@@ -135,6 +135,20 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "sync_fields": True,
     },
     {
+        "key": "shipment_notice",
+        "name": "发货通知",
+        "category": "发货",
+        "icon": "CarOutlined",
+        "description": (
+            "对齐简道云销售中心「CRM-发货通知流程」"
+            "(app=5de0b3e8… entry=5de5f57e…)。"
+            "单据编号 24.1-+yyyyMMdd+四位日序。"
+            "详见 docs/product/_jdy_shipment_notice_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
         "key": "presale_service_notice",
         "name": "售前服务通知",
         "category": "图纸",
@@ -473,10 +487,15 @@ def _apply_drawing_jdy_fields() -> None:
         from app.domains.lowcode._presale_service_notice_generated import PRESALE_SERVICE_NOTICE_JDY
     except Exception:
         PRESALE_SERVICE_NOTICE_JDY = {}
+    try:
+        from app.domains.lowcode._shipment_notice_generated import SHIPMENT_NOTICE_JDY
+    except Exception:
+        SHIPMENT_NOTICE_JDY = {}
     packs = {
         **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY,
         **INVOICE_PAYMENT_JDY, **QUOTE_MANAGEMENT_JDY, **PRICING_CHECKLIST_HJQD_JDY,
         **RESEARCH_COOP_CARD_JDY, **CUSTOMER_SERVICE_JDY, **PRESALE_SERVICE_NOTICE_JDY,
+        **SHIPMENT_NOTICE_JDY,
     }
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])
@@ -512,6 +531,12 @@ def _apply_drawing_jdy_fields() -> None:
                 apply_drawing_requisition_fields,
             )
             apply_drawing_requisition_fields(defs)
+        # 客服领图：指派人选范围 / 下单日期对齐图纸领用·安装图
+        if t["key"] == "cs_drawing_request":
+            from app.domains.lowcode.cs_drawing_request_fields import (
+                apply_cs_drawing_request_fields,
+            )
+            apply_cs_drawing_request_fields(defs)
         # 安装图：创建/审批阶段 + 业务打分（方案管理已去掉三项分数）
         if t["key"] == "install_drawing_notice":
             from app.domains.lowcode.install_drawing_notice_fields import (
@@ -540,6 +565,9 @@ def _apply_drawing_jdy_fields() -> None:
         if t["key"] == "presale_service_notice":
             from app.domains.lowcode.presale_service_notice_fields import apply_presale_service_notice_fields
             apply_presale_service_notice_fields(defs)
+        if t["key"] == "shipment_notice":
+            from app.domains.lowcode.shipment_notice_fields import apply_shipment_notice_fields
+            apply_shipment_notice_fields(defs)
         # 永久删除：文本桩字段（保留选人）；方案管理去掉业务打分字段
         drop_ids = {"pre_designer_text"}
         if t["key"] == "drawing_requisition":

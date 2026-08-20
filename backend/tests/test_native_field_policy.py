@@ -422,6 +422,14 @@ def test_catalog_ids_are_real_columns(entity):
     assert entity in CATALOG, f"{entity} 应在 CATALOG 中"
 
 
+def test_contract_drawing_no_visible_on_create():
+    """合同登记新建页应展示只读图纸编号（预生成预览）。"""
+    from app.domains.lowcode.native_field_catalog import CATALOG
+    fd = next(f for f in CATALOG["contract"] if f["id"] == "drawing_no")
+    assert fd.get("available_on_create") is True
+    assert fd.get("form_editable") is False
+
+
 def test_every_catalog_entity_is_covered_by_column_check():
     """新增实体目录时必须同步补 _ENTITY_MODELS，否则字段名校验会静默跳过它。"""
     from app.domains.lowcode.native_field_catalog import CATALOG

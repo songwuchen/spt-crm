@@ -236,6 +236,20 @@ async def create_contract(
     })
 
 
+@router.get("/api/v1/contracts/peek-drawing-no")
+async def peek_drawing_no(
+    order_date: str | None = Query(None, description="订货日期，影响 WMGF 年月段"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_permissions("contract:create")),
+):
+    """新建合同登记时预览下一图纸编号（不消耗序号）。"""
+    drawing_no = await service.peek_create_drawing_no(
+        db, tenant_id, current_user, apply_date=order_date,
+    )
+    return ok({"drawing_no": drawing_no})
+
+
 @router.get("/api/v1/contracts/drawing-map-lookups")
 async def drawing_map_lookups(
     keyword: str | None = Query(None),

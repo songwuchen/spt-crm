@@ -78,6 +78,12 @@ export const workflowApi = {
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/tasks/${taskId}/act`, data),
   withdraw: (instanceId: string) =>
     client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/instances/${instanceId}/withdraw`),
+  /** 已驳回/已撤回：发起人手动结束，取消修订待办 */
+  endProcess: (instanceId: string) =>
+    client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/instances/${instanceId}/end`),
+  /** 修订待办入口结束流程（仅持有 taskId 时） */
+  endProcessByTask: (taskId: string) =>
+    client.post<unknown, ApiResponse<void>>(`/api/v1/lc/wf/tasks/${taskId}/end`),
   resubmit: (instanceId: string) =>
     client.post<unknown, ApiResponse<{ id: string; status: string; title?: string }>>(
       `/api/v1/lc/wf/instances/${instanceId}/resubmit`,

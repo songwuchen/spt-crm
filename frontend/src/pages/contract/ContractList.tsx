@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { Tag, Select, Input, Button, Modal, Form, message } from 'antd'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { Tag, Select, Input, Button, Modal, Form, message, Space } from 'antd'
 import FillHeightTable from '@/components/list/FillHeightTable'
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
@@ -8,7 +8,7 @@ import { contractApi } from '@/api/contract'
 import { projectApi } from '@/api/project'
 import { customerApi } from '@/api/customer'
 import type { ContractItem } from '@/api/types'
-import { contractDisplayStatusLabels, contractDisplayStatusColors, resolveContractDisplayStatus } from '@/constants/labels'
+import { contractDisplayStatusLabels, contractDisplayStatusColors, resolveContractDisplayStatus, isContractDraftDeletable } from '@/constants/labels'
 import { formatChangeType } from '@/constants/contractRegistration'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
@@ -40,6 +40,7 @@ export default function ContractList() {
 
   const { hasPermission } = usePermission()
   const canCreate = hasPermission('contract:create')
+  const canDelete = hasPermission('contract:delete')
 
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -112,6 +113,14 @@ export default function ContractList() {
   const syncAmountFromLines = (total: number) => {
     createForm.setFieldsValue({ amount_total: total || undefined })
   }
+  const refreshDrawingNoPreview = async (orderDate?: unknown) => {
+    try {
+      const od = formatFormDate(orderDate) || undefined
+      const r = await contractApi.peekDrawingNo(od ? { order_date: od } : undefined)
+      const no = (r.data?.drawing_no || '').trim()
+      if (no) createForm.setFieldsValue({ drawing_no: no })
+    } catch { /* ignore */ }
+  }
   const openCreate = () => {
     createForm.resetFields()
     createForm.setFieldsValue({ change_type: 'new', registration_json: {} })
@@ -122,29 +131,37 @@ export default function ContractList() {
     setProjOpts([])
     searchProjects()
     setCreateOpen(true)
+    void refreshDrawingNoPreview()
   }
   const handleCreate = async (andSubmit: boolean) => {
-    let v
-    try {
-      v = await createForm.validateFields()
-    } catch (err: unknown) {
-      const fields = (err as { errorFields?: { name: (string | number)[]; errors: string[] }[] })?.errorFields || []
-      const first = fields[0]?.errors?.[0]
-      message.warning(first || (andSubmit ? '请完善必填项后再提交' : '请完善必填项后再存草稿'))
-      // 滚到第一个报错项（Modal body 可滚动）
-      const name = fields[0]?.name
-      if (name?.length) {
-        createForm.scrollToField(name, { behavior: 'smooth', block: 'center' })
+    let v: Record<string, unknown>
+    if (andSubmit) {
+      try {
+        v = await createForm.validateFields()
+      } catch (err: unknown) {
+        const fields = (err as { errorFields?: { name: (string | number)[]; errors: string[] }[] })?.errorFields || []
+        const first = fields[0]?.errors?.[0]
+        message.warning(first || '请完善必填项后再提交')
+        const name = fields[0]?.name
+        if (name?.length) {
+          createForm.scrollToField(name, { behavior: 'smooth', block: 'center' })
+        }
+        return
       }
-      return
-    }
       const cfError = customFieldsRef.current?.validate()
-    if (cfError) {
-      message.error(cfError)
-      return
+      if (cfError) {
+        message.error(cfError)
+        return
+      }
+    } else {
+      // 存草稿：不跑 validateFields；清掉上次点「提交」留下的红字提示
+      const stale = createForm.getFieldsError().filter((f) => f.errors?.length)
+      if (stale.length) {
+        createForm.setFields(stale.map((f) => ({ name: f.name, errors: [] })))
+      }
+      v = createForm.getFieldsValue(true) as Record<string, unknown>
     }
     const contractNo = String(v.contract_no || '').trim()
-    // 拦截 DatePicker 手输产生的 invalid dayjs，避免打成 "Invalid Date" 触发后端 422
     const nativeDates: { name: string; label: string; value: unknown }[] = [
       { name: 'card_date', label: '下卡日期', value: v.card_date },
       { name: 'order_date', label: '订货日期', value: v.order_date },
@@ -181,16 +198,18 @@ export default function ContractList() {
       const cardDate = formatFormDate(v.card_date)
       const lines = createLines.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
       const pays = createPay.filter((r) => Object.values(r).some((x) => x != null && x !== ''))
-      const res = await contractApi.create(v.project_id || null, {
+      const projectId = typeof v.project_id === 'string' ? v.project_id : null
+      const res = await contractApi.create(projectId, {
         title: v.title || 'V1',
+        as_draft: !andSubmit,
         ...(v.project_id ? { project_id: v.project_id } : {}),
         ...(v.amount_total != null ? { amount_total: v.amount_total } : {}),
         ...(endDate ? { end_date: endDate } : {}),
         ...(deliveryDate ? { delivery_date: deliveryDate } : {}),
         ...(orderDate ? { order_date: orderDate } : {}),
         ...(cardDate ? { card_date: cardDate } : {}),
-        contract_no: contractNo,
-        // 图纸编号由后端按编号属性规则自动生成，不传 drawing_no
+        ...(contractNo ? { contract_no: contractNo } : {}),
+        // 图纸编号由后端 consume 流水号生成；表单里仅为预览展示
         ...(v.peer_contract_no ? { peer_contract_no: v.peer_contract_no } : {}),
         ...(v.acquire_method ? { acquire_method: v.acquire_method } : {}),
         ...(v.change_type ? { change_type: v.change_type } : {}),
@@ -241,8 +260,15 @@ export default function ContractList() {
       setPendingAtts({})
       if (cid) navigate(`/contracts/${cid}`)
       else fetchData()
-    } catch {
-      // 业务错误（如合同号已存在）已由 api client 拦截器提示，不再盖「创建失败」
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg) {
+        message.warning(msg)
+        if (msg.includes('合同号')) {
+          createForm.setFields([{ name: 'contract_no', errors: [msg] }])
+          createForm.scrollToField('contract_no', { behavior: 'smooth', block: 'center' })
+        }
+      }
     } finally { setCreating(false) }
   }
 
@@ -262,7 +288,22 @@ export default function ContractList() {
     fetchData(1)
   }, [reload])
 
-  const columns: ColumnsType<ContractItem> = [
+  const handleDelete = useCallback((row: ContractItem) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定删除合同「${row.contract_no}」？仅草稿可删除，删除后不可恢复。`,
+      okType: 'danger',
+      okText: '删除',
+      onOk: async () => {
+        await contractApi.delete(row.id)
+        message.success('已删除')
+        fetchData()
+      },
+    })
+  }, [])
+
+  const columns: ColumnsType<ContractItem> = useMemo(() => {
+    const cols: ColumnsType<ContractItem> = [
     { title: '合同编号', dataIndex: 'contract_no', width: 160,
       render: (v: string, r: ContractItem) => (
         <a className="font-mono font-bold text-primary" onClick={() => navigate(`/contracts/${r.id}`)}>{v}</a>
@@ -300,7 +341,25 @@ export default function ContractList() {
     { title: '负责人', dataIndex: 'assignee_name', width: 90, render: (v: string) => v || '-' },
     { title: '创建时间', dataIndex: 'created_at', width: 110,
       render: (v: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-' },
-  ]
+    ]
+    if (canDelete) {
+      cols.push({
+        title: '操作',
+        key: 'actions',
+        width: 100,
+        fixed: 'right',
+        render: (_: unknown, r: ContractItem) => (
+          <Space size={0}>
+            <a className="text-primary text-sm px-2" onClick={() => navigate(`/contracts/${r.id}`)}>详情</a>
+            {isContractDraftDeletable(r.status, r.current_version_status) && (
+              <a className="text-rose-500 text-sm px-2" onClick={() => handleDelete(r)}>删除</a>
+            )}
+          </Space>
+        ),
+      })
+    }
+    return cols
+  }, [canDelete, handleDelete, navigate])
 
   const view = useListView<ContractItem>('contract', columns, { pageKey: 'contracts', entityType: 'contract' })
 
@@ -345,13 +404,17 @@ export default function ContractList() {
         destroyOnClose
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
         footer={[
-          <Button key="cancel" onClick={() => setCreateOpen(false)}>取消</Button>,
-          <Button key="draft" loading={creating} onClick={() => void handleCreate(false)}>存草稿</Button>,
-          <Button key="submit" type="primary" loading={creating} onClick={() => void handleCreate(true)}>提交</Button>,
+          <Button key="cancel" htmlType="button" onClick={() => setCreateOpen(false)}>取消</Button>,
+          <Button key="draft" htmlType="button" loading={creating} onClick={() => void handleCreate(false)}>存草稿</Button>,
+          <Button key="submit" type="primary" htmlType="button" loading={creating} onClick={() => void handleCreate(true)}>提交</Button>,
         ]}
       >
-       <FieldPolicyProvider entityType="contract" form={createForm} customFieldValues={customFields}>
-        <Form form={createForm} layout="vertical" className="mt-3" scrollToFirstError>
+       <FieldPolicyProvider entityType="contract" form={createForm} customFieldValues={customFields} formMode="create">
+        <Form form={createForm} layout="vertical" className="mt-3" scrollToFirstError
+          onValuesChange={(changed) => {
+            if ('order_date' in changed) void refreshDrawingNoPreview(changed.order_date)
+          }}
+        >
           <Form.Item name="project_id" label="关联商机">
             <Select allowClear showSearch filterOption={false} placeholder="可选：搜索商机名称 / 编号"
               options={projOpts} loading={projLoading} onSearch={searchProjects}
@@ -409,7 +472,7 @@ export default function ContractList() {
           <CustomFieldsPanel ref={customFieldsRef} entityType="contract"
             value={customFields} onChange={setCustomFields} />
           <div className="text-[12px] text-slate-400">
-            「提交」会直接发起审批；「存草稿」仅保存，可稍后在详情页再提交审批。合同编号将自动生成。
+            「提交」会直接发起审批并校验必填；「存草稿」仅保存当前已填内容，可稍后在详情页补全再提交。
           </div>
         </Form>
        </FieldPolicyProvider>

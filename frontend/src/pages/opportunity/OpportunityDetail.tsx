@@ -24,7 +24,7 @@ import PaymentGantt from '@/components/PaymentGantt'
 import { roleApi } from '@/api/user'
 import type { OpportunityProject, ProjectStageHistory, QuoteItem, ContractItem, SolutionItem, DeliveryMilestone, ErpOrderLink, PaymentPlanItem, PaymentRecordItem, InvoiceItem, ChangeRequestItem, Customer, AclShareItem, ProjectMember } from '@/api/types'
 import { stageLabels, stageColors, riskLabels, riskColors } from '@/api/types'
-import { opportunityStatusMap, quoteStatusLabels, quoteStatusColors, contractDisplayStatusLabels, contractDisplayStatusColors, resolveContractDisplayStatus } from '@/constants/labels'
+import { opportunityStatusMap, quoteStatusLabels, quoteStatusColors, contractDisplayStatusLabels, contractDisplayStatusColors, resolveContractDisplayStatus, isContractDraftDeletable } from '@/constants/labels'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePermission } from '@/hooks/usePermission'
 import { useUserSelect } from '@/hooks/useSelectOptions'
@@ -916,12 +916,13 @@ export default function OpportunityDetail() {
                         { title: '', key: 'actions', render: (_, r) => (
                           <Space size={4}>
                             <a onClick={() => navigate(`/opportunities/${id}/contracts/${r.id}`)} className="text-primary text-sm font-bold">查看</a>
-                            {canDeleteContract && <a className="text-rose-500 text-sm font-bold" onClick={() => {
+                            {canDeleteContract && isContractDraftDeletable(v, (r as { current_version_status?: string }).current_version_status) && (
+                              <a className="text-rose-500 text-sm font-bold" onClick={() => {
                               Modal.confirm({
-                                title: '确认删除', content: `确定要删除合同「${r.contract_no}」？`, okType: 'danger',
+                                title: '确认删除', content: `确定要删除合同「${r.contract_no}」？仅草稿可删除。`, okType: 'danger',
                                 onOk: async () => { await contractApi.delete(r.id); message.success('已删除'); contractApi.listByProject(id!).then((res) => setContracts(res.data)) },
                               })
-                            }}>删除</a>}
+                            }}>删除</a>)}
                           </Space>
                         )},
                       ]}

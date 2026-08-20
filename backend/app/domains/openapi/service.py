@@ -1866,6 +1866,7 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         {"sub": ctx.app_id, "real_name": "开放平台", "username": "openapi"},
         getattr(data, "drawing_no", None),
         apply_date=getattr(data, "order_date", None) or reg.get("apply_date"),
+        trust_requested=bool(getattr(data, "drawing_no", None)),
     )
 
     contract = Contract(

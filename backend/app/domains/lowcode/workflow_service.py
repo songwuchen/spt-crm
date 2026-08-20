@@ -437,6 +437,16 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "empty_strategy": "auto_approve",
     },
     {
+        "form_code": "shipment_notice",
+        "code": "SYS_SHIPMENT_NOTICE",
+        "name": "发货通知",
+        "approver_rule": {
+            "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
         "form_code": "presale_service_notice",
         "code": "SYS_PRESALE_SERVICE_NOTICE",
         "name": "售前服务通知",
@@ -638,6 +648,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         packs.update(PRESALE_SERVICE_NOTICE_JDY)
     except Exception:
         pass
+    try:
+        from app.domains.lowcode._shipment_notice_generated import SHIPMENT_NOTICE_JDY
+        packs.update(SHIPMENT_NOTICE_JDY)
+    except Exception:
+        pass
     pack = packs.get(form_code)
     if not pack:
         return None
@@ -661,6 +676,10 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         apply_invoice_sales_cc(nodes, routes)
     if form_code == "cs_product_return":
         apply_cs_product_return_approvers(nodes)
+    if form_code == "cs_drawing_request":
+        apply_cs_drawing_approvers(nodes)
+    if form_code == "shipment_notice":
+        apply_shipment_notice_approvers(nodes)
     return nodes, routes
 
 
@@ -922,6 +941,48 @@ def _flow_is_jdy_presale_service_notice(nodes: list | None) -> bool:
     """已对齐简道云售前服务通知：总工审批 + 人员协调 + 新疆威猛分支。"""
     names = {n.get("name") for n in (nodes or [])}
     return "总工审批" in names and "人员协调" in names and len(nodes or []) >= 10
+
+
+def _flow_is_jdy_shipment_notice(nodes: list | None) -> bool:
+    """已对齐简道云发货通知：物流审批 + 财务查款 + 开具提货单。"""
+    names = {n.get("name") for n in (nodes or [])}
+    return "物流审批" in names and "财务查款" in names and "开具提货单" in names and len(nodes or []) >= 15
+
+
+_SHIPMENT_LOGISTICS_APPROVER = {
+    "type": "specified_user",
+    "value": ["575448583538947351", "02362440128774"],  # 马瑞草、李娜
+    "exclude_initiator": True,
+    "jdy_role_hint": "物流审批",
+}
+
+
+def apply_shipment_notice_approvers(nodes: list[dict]) -> bool:
+    """发货通知：物流审批用具名用户或签，不用 CRM 角色空批。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("name") != "物流审批":
+            continue
+        cur = n.get("approver_rule") or {}
+        if (
+            cur.get("type") == _SHIPMENT_LOGISTICS_APPROVER["type"]
+            and cur.get("value") == _SHIPMENT_LOGISTICS_APPROVER["value"]
+        ):
+            continue
+        n["approver_rule"] = dict(_SHIPMENT_LOGISTICS_APPROVER)
+        n["multi_mode"] = "or_sign"
+        changed = True
+    return changed
+
+
+def _flow_shipment_logistics_needs_fix(nodes: list | None) -> bool:
+    want = _SHIPMENT_LOGISTICS_APPROVER["value"]
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("name") != "物流审批":
+            continue
+        rule = n.get("approver_rule") or {}
+        return not (rule.get("type") == "specified_user" and rule.get("value") == want)
+    return False
 
 
 def _flow_has_quote_need_purchase_required(nodes: list | None) -> bool:
@@ -1290,6 +1351,84 @@ def apply_cs_product_return_approvers(nodes: list[dict]) -> bool:
     return changed
 
 
+# 客服领图「部门指派-研管办」：简道云角色仅郑志颖一人 → 直接指定用户
+_CS_DRAWING_YGB_APPROVER = {
+    "type": "specified_user",
+    "value": "013807685436426800",  # 郑志颖
+    "exclude_initiator": True,
+    "jdy_role_hint": "27.3图纸领用申请-研究院安排",
+}
+
+# 部门指派节点填写项（对齐图纸领用「研究院安排」）
+_CS_DRAWING_ASSIGN_PERMS = [
+    {"field": "design_dispatch", "access": "required"},
+    {"field": "transfer_packaging_users", "access": "required"},
+    {"field": "design_assignees", "access": "required"},
+    {"field": "offices", "access": "required"},
+    {"field": "order_date", "access": "required"},
+]
+
+
+def _cs_drawing_is_assign_node(n: dict) -> bool:
+    nid = n.get("id")
+    name = (n.get("name") or "").strip()
+    if nid in ("n5", "n18"):
+        return True
+    # 简道云/现网命名可能是「部门指派-研管办 / 何伟 / 孙伟」等
+    return name.startswith("部门指派")
+
+
+def _field_perms_equal(have: object, want: list[dict]) -> bool:
+    if not isinstance(have, list) or len(have) != len(want):
+        return False
+    for a, b in zip(have, want):
+        if not isinstance(a, dict):
+            return False
+        if a.get("field") != b.get("field") or a.get("access") != b.get("access"):
+            return False
+    return True
+
+
+def _flow_cs_drawing_needs_approver_fix(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        if n.get("name") != "部门指派-研管办" and n.get("id") != "n5":
+            continue
+        rule = n.get("approver_rule") or {}
+        if not _approver_rule_matches(rule, _CS_DRAWING_YGB_APPROVER):
+            return True
+    return False
+
+
+def _flow_cs_drawing_needs_assign_perms(nodes: list | None) -> bool:
+    """何伟指派节点缺本节点填写项，或研管办 perms 被改坏时需升级。"""
+    for n in nodes or []:
+        if not isinstance(n, dict) or not _cs_drawing_is_assign_node(n):
+            continue
+        if not _field_perms_equal(n.get("field_perms"), _CS_DRAWING_ASSIGN_PERMS):
+            return True
+    return False
+
+
+def apply_cs_drawing_approvers(nodes: list[dict]) -> bool:
+    """客服领图：研管办→郑志颖；部门指派节点填写项对齐图纸领用。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        if n.get("name") == "部门指派-研管办" or n.get("id") == "n5":
+            cur = n.get("approver_rule") or {}
+            if not _approver_rule_matches(cur, _CS_DRAWING_YGB_APPROVER):
+                n["approver_rule"] = dict(_CS_DRAWING_YGB_APPROVER)
+                changed = True
+        if _cs_drawing_is_assign_node(n):
+            if not _field_perms_equal(n.get("field_perms"), _CS_DRAWING_ASSIGN_PERMS):
+                n["field_perms"] = [dict(p) for p in _CS_DRAWING_ASSIGN_PERMS]
+                changed = True
+    return changed
+
+
 _PRESALE_CHIEF_APPROVER = {
     "type": "specified_user",
     "value": "02364335378133",  # 曹修国（简道云 24.2.3合同/项目评审-设计-曹修国）
@@ -1516,6 +1655,8 @@ def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
         return _flow_is_jdy_quote(nodes)
     if form_code == "presale_service_notice":
         return _flow_is_jdy_presale_service_notice(nodes)
+    if form_code == "shipment_notice":
+        return _flow_is_jdy_shipment_notice(nodes)
     if form_code == "pricing_checklist_hjqd":
         return _flow_is_jdy_pricing_checklist(nodes)
     if form_code == "research_coop_card":
@@ -3092,6 +3233,39 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"售出产品退回审批人改为具名用户({form_code})",
         )
         return
+    # 客服领图：研管办→郑志颖；部门指派节点填写项对齐图纸领用
+    if (
+        topology_ok
+        and form_code == "cs_drawing_request"
+        and (
+            _flow_cs_drawing_needs_approver_fix(version.node_definitions)
+            or _flow_cs_drawing_needs_assign_perms(version.node_definitions)
+        )
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_cs_drawing_approvers(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"客服领图部门指派对齐图纸领用({form_code})",
+        )
+        return
+    # 发货通知：物流审批 sales_manager → 马瑞草/李娜
+    if (
+        topology_ok
+        and form_code == "shipment_notice"
+        and _flow_shipment_logistics_needs_fix(version.node_definitions)
+    ):
+        import copy
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_shipment_notice_approvers(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"物流审批改为指定用户({form_code})",
+        )
+        return
     # 售前服务通知：总工审批 sales_manager → 曹修国
     if (
         topology_ok
@@ -3334,6 +3508,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "客户服务延期申请"
     elif form_code == "cs_correspondence":
         d.name = "客服往来函件"
+    elif form_code == "shipment_notice":
+        d.name = "发货通知"
     await _publish_system_default_upgrade(
         db, tenant_id, d, version, new_nodes, new_routes,
         DRAWING_FORM_FLOW_DESC, f"简道云表单流({form_code})",

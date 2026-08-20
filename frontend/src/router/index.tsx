@@ -301,6 +301,8 @@ export const router = createBrowserRouter([
       { path: 'prod-card-supplements', element: <Guard permission="form_data:view"><FormModulePage templateCode="prod_card_supplement" title="生产卡/补充流程" basePath="/prod-card-supplements" /></Guard> },
       { path: 'invoice-applications/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="invoice_application" listPath="/invoice-applications" title="开票申请" /></Guard> },
       { path: 'invoice-applications', element: <Guard permission="form_data:view"><FormModulePage templateCode="invoice_application" title="开票申请" basePath="/invoice-applications" /></Guard> },
+      { path: 'shipment-notices/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="shipment_notice" listPath="/shipment-notices" title="发货通知" /></Guard> },
+      { path: 'shipment-notices', element: <Guard permission="form_data:view"><FormModulePage templateCode="shipment_notice" title="发货通知" basePath="/shipment-notices" /></Guard> },
       { path: 'payment-registrations/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="payment_registration" listPath="/payment-registrations" title="收款登记" /></Guard> },
       { path: 'payment-registrations', element: <Guard permission="form_data:view"><FormModulePage templateCode="payment_registration" title="收款登记" basePath="/payment-registrations" /></Guard> },
       { path: 'change-requests', element: <Guard permission="change:view"><ChangeRequestList /></Guard> },

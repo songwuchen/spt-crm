@@ -379,7 +379,7 @@ function FieldWidget({
     case 'contract': {
       const props = (field.props || {}) as {
         filter_by_department_field?: string
-        contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application'
+        contract_fill?: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice'
       }
       const deptField = props.filter_by_department_field
       let departmentId: string | undefined

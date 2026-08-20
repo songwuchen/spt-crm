@@ -2,7 +2,7 @@ import {
   useEffect, useRef, useState, cloneElement, isValidElement,
   type ReactElement, type ReactNode,
 } from 'react'
-import { Form, Input, Select, Button, DatePicker, Radio, message } from 'antd'
+import { Form, Input, Select, Button, DatePicker, Radio, message, Modal } from 'antd'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { leadApi } from '@/api/lead'
@@ -516,6 +516,35 @@ export default function LeadForm() {
                   <Button type="primary" loading={loading} onClick={() => void handleSave(true)} className="font-bold">
                     {isReviseMode ? '重新提交' : '提交审批'}
                   </Button>
+                  {isReviseMode && reviseTaskId && (
+                    <Button
+                      danger
+                      loading={loading}
+                      onClick={() => {
+                        Modal.confirm({
+                          title: '确认手动结束？',
+                          content: '结束后将取消「修改并重新提交」待办，不再出现在审批待办中。',
+                          okText: '结束流程',
+                          okType: 'danger',
+                          onOk: async () => {
+                            setLoading(true)
+                            try {
+                              await workflowApi.endProcessByTask(reviseTaskId)
+                              message.success('已手动结束流程')
+                              navigate(isEdit ? `${leadBase}/${id}` : leadBase)
+                            } catch (err: unknown) {
+                              const msg = err instanceof Error ? err.message : ''
+                              if (msg) message.warning(msg)
+                            } finally {
+                              setLoading(false)
+                            }
+                          },
+                        })
+                      }}
+                    >
+                      手动结束
+                    </Button>
+                  )}
                 </>
               ) : (
                 <Button type="primary" loading={loading} onClick={() => void handleSave(false)} className="font-bold">
@@ -526,7 +555,7 @@ export default function LeadForm() {
               {canSubmitApproval && (
                 <span className="text-xs text-slate-400">
                   {isReviseMode
-                    ? '「重新提交」会校验必填项并回到情报审批；「仅保存」可稍后继续改。'
+                    ? '「重新提交」会校验必填项并回到情报审批；也可「手动结束」关闭待办。'
                     : '「提交审批」会校验必填项并发起情报审核；「存草稿」只需填写项目名称，可稍后补全再提交。'}
                 </span>
               )}

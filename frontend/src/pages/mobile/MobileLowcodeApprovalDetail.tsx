@@ -401,13 +401,34 @@ export default function MobileLowcodeApprovalDetail() {
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3 max-h-[60vh] overflow-y-auto z-30" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
           {isReviseTask ? (
             <>
-              <div className="text-sm text-slate-500 mb-2">修改内容后提交，将重新进入审批流程</div>
+              <div className="text-sm text-slate-500 mb-2">修改内容后重新提交，或手动结束以关闭待办</div>
               <button
                 onClick={() => act('resubmit')}
                 disabled={busy}
-                className="w-full h-11 rounded-xl bg-primary text-white font-bold border-0 disabled:opacity-60"
+                className="w-full h-11 rounded-xl bg-primary text-white font-bold border-0 disabled:opacity-60 mb-2"
               >
                 保存并重新提交
+              </button>
+              <button
+                onClick={() => {
+                  if (!detail?.id) return
+                  if (!window.confirm('确认手动结束？结束后将取消修订待办。')) return
+                  setBusy(true)
+                  workflowApi.endProcess(detail.id)
+                    .then(() => {
+                      message.success('已手动结束流程')
+                      nav('/m/approvals')
+                    })
+                    .catch((err: unknown) => {
+                      const msg = err instanceof Error ? err.message : ''
+                      if (msg) message.warning(msg)
+                    })
+                    .finally(() => setBusy(false))
+                }}
+                disabled={busy}
+                className="w-full h-11 rounded-xl bg-white text-rose-500 font-bold border border-rose-200 disabled:opacity-60"
+              >
+                手动结束
               </button>
             </>
           ) : (
