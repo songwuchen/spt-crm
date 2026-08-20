@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   Button, Space, Tag, Modal, message, Popconfirm, Typography,
-  Input, Select,
+  Input, Select, Dropdown,
 } from 'antd'
+import type { MenuProps } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { ReactNode } from 'react'
 import dayjs from 'dayjs'
@@ -20,7 +21,7 @@ import {
   saveAppliedFilters,
 } from '@/components/lowcode/formInstanceFilterUtils'
 import {
-  ArrowLeftOutlined, PlusOutlined, DownloadOutlined,
+  ArrowLeftOutlined, PlusOutlined, DownloadOutlined, DownOutlined,
   PrinterOutlined, EditOutlined, DeleteOutlined, SendOutlined,
   SearchOutlined, ReloadOutlined, PaperClipOutlined, ThunderboltOutlined,
 } from '@ant-design/icons'
@@ -705,13 +706,37 @@ export default function FormDataListPage({
     setPageNo(1)
   }
 
-  const exportUrl = useMemo(() => {
+  const buildExportUrl = useCallback((mode: 'filtered' | 'all') => {
     const q = new URLSearchParams({ template_id: id || '' })
-    if (keyword) q.set('keyword', keyword)
-    if (statusFilter) q.set('status', statusFilter)
-    if (fieldFilters?.rules?.length) q.set('filters', JSON.stringify(fieldFilters))
+    if (mode === 'filtered') {
+      if (keyword) q.set('keyword', keyword)
+      if (statusFilter) q.set('status', statusFilter)
+      if (fieldFilters?.rules?.length) q.set('filters', JSON.stringify(fieldFilters))
+    }
     return `/api/v1/lc/form-instances/export?${q.toString()}`
   }, [id, keyword, statusFilter, fieldFilters])
+
+  const runExport = useCallback((mode: 'filtered' | 'all') => {
+    const label = mode === 'filtered' ? '筛选后的数据' : '全部数据'
+    void downloadFile(buildExportUrl(mode), `${name || '表单数据'}_${label}.xlsx`).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : '导出失败'
+      message.error(msg)
+    })
+  }, [buildExportUrl, name])
+
+  const exportMenuItems = useMemo<MenuProps['items']>(() => [
+    {
+      key: 'filtered',
+      label: '筛选后的数据',
+      disabled: total === 0,
+      onClick: () => runExport('filtered'),
+    },
+    {
+      key: 'all',
+      label: '全部数据',
+      onClick: () => runExport('all'),
+    },
+  ], [runExport, total])
 
   // 列表里 person/department/project/contract/customer 存的是 id，需解析成显示名
   useEffect(() => {
@@ -1167,15 +1192,11 @@ export default function FormDataListPage({
           <Title level={4} style={{ margin: 0 }}>{moduleTitle || name}{isModule ? '' : ' · 数据'}</Title>
         </Space>
         <Space>
-          <Button icon={<DownloadOutlined />} disabled={total === 0}
-            onClick={() => {
-              void downloadFile(exportUrl, `${name || '表单数据'}.xlsx`).catch((err: unknown) => {
-                const msg = err instanceof Error ? err.message : '导出失败'
-                message.error(msg)
-              })
-            }}>
-            导出
-          </Button>
+          <Dropdown menu={{ items: exportMenuItems }} trigger={['click']}>
+            <Button icon={<DownloadOutlined />}>
+              导出 <DownOutlined className="text-xs" />
+            </Button>
+          </Dropdown>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => nav(fillPath)}>新增</Button>
         </Space>
       </div>

@@ -65,6 +65,16 @@ def _is_contract_attachment_biz(biz_type: str | None) -> bool:
     return bt == "contract" or bt.startswith("contract_")
 
 
+def _wf_biz_for_attachment_slot(biz_type: str | None) -> str | None:
+    """附件槽位 → 流程实例 biz_type（合同评审 / 技术协议评审）。"""
+    bt = biz_type or ""
+    if bt.startswith("contract_review"):
+        return "contract_review"
+    if bt.startswith("tech_agreement_review"):
+        return "tech_agreement_review"
+    return None
+
+
 async def _can_download_via_wf(
     db: AsyncSession,
     tenant_id: str,
@@ -74,15 +84,30 @@ async def _can_download_via_wf(
     biz_id: str | None = None,
     attachment_id: str | None = None,
 ) -> bool:
-    """审批相关人可只读合同附件（不必有 attachment:download）。"""
+    """审批相关人可只读附件（不必有 attachment:download）。
+
+    覆盖：合同登记、合同/技术协议评审、低代码表单流程（form_data 内 file/image 引用）。
+    """
     if not user_id:
         return False
-    from sqlalchemy import select
+    from sqlalchemy import String, cast, select
     from app.domains.attachment.models import AttachmentLink
+    from app.domains.lowcode.models import FormInstance
 
     contract_ids: set[str] = set()
-    if biz_type and biz_id and _is_contract_attachment_biz(biz_type):
-        contract_ids.add(biz_id)
+    review_pairs: set[tuple[str, str]] = set()  # (process_biz_type, biz_id)
+
+    def _collect(bt: str | None, bid: str | None) -> None:
+        if not bt or not bid:
+            return
+        if _is_contract_attachment_biz(bt):
+            contract_ids.add(bid)
+            return
+        proc = _wf_biz_for_attachment_slot(bt)
+        if proc:
+            review_pairs.add((proc, bid))
+
+    _collect(biz_type, biz_id)
     if attachment_id:
         links = (await db.execute(
             select(AttachmentLink.biz_type, AttachmentLink.biz_id).where(
@@ -91,11 +116,27 @@ async def _can_download_via_wf(
             )
         )).all()
         for bt, bid in links:
-            if _is_contract_attachment_biz(bt) and bid:
-                contract_ids.add(bid)
+            _collect(bt, bid)
+        # 低代码表单：附件 id 写在 form_data（含明细子表 image/file 列）而非 attachment_links
+        form_ids = (await db.execute(
+            select(FormInstance.id).where(
+                FormInstance.tenant_id == tenant_id,
+                FormInstance.is_deleted.is_(False),  # noqa: E712
+                cast(FormInstance.form_data, String).contains(attachment_id),
+            ).limit(20)
+        )).scalars().all()
+        for fid in form_ids:
+            if await wsvc.can_access_form_via_workflow(db, tenant_id, user_id, fid):
+                return True
+
     for cid in contract_ids:
         if await wsvc.can_access_contract_via_workflow(
             db, tenant_id, user_id, contract_id=cid,
+        ):
+            return True
+    for proc_bt, bid in review_pairs:
+        if await wsvc.can_access_biz_via_workflow(
+            db, tenant_id, user_id, biz_type=proc_bt, biz_id=bid,
         ):
             return True
     return False
@@ -110,7 +151,7 @@ async def _require_attachment_download_or_wf(
     biz_id: str | None = None,
     attachment_id: str | None = None,
 ) -> bool:
-    """有 attachment:download，或合同审批相关人；返回是否走审批旁路（跳过数据范围）。"""
+    """有 attachment:download，或流程审批相关人；返回是否走审批旁路（跳过数据范围）。"""
     via_wf = await _can_download_via_wf(
         db, tenant_id, current_user.get("sub"),
         biz_type=biz_type, biz_id=biz_id, attachment_id=attachment_id,

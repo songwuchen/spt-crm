@@ -335,8 +335,13 @@ export default function FileField({
                     preview={false}
                   />
                 ) : (
-                  <div className="flex h-[72px] w-[72px] items-center justify-center rounded bg-slate-100 text-slate-400">
-                    <PaperClipOutlined />
+                  <div className="flex max-w-[120px] flex-col items-center gap-1">
+                    <div className="flex h-[72px] w-[72px] items-center justify-center rounded bg-slate-100 text-slate-400">
+                      <PaperClipOutlined />
+                    </div>
+                    <span className="w-full truncate text-center text-xs text-slate-500" title={a.name}>
+                      {a.name}
+                    </span>
                   </div>
                 )}
               </div>

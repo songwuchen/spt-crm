@@ -131,3 +131,31 @@ async def test_attachment_rejects_exe(client: AsyncClient, auth_headers: dict):
     data = resp.json()
     assert data["code"] != 0
     assert "不支持" in (data.get("message") or "")
+
+
+@pytest.mark.asyncio
+async def test_can_download_via_wf_lowcode_form_participant(db):
+    """流程审批人预览表单内附件，不必单独授予 attachment:download。"""
+    from sqlalchemy import text
+
+    from app.domains.attachment.router import _can_download_via_wf
+
+    tenant = "00000000-0000-0000-0000-000000000001"
+    row = (await db.execute(text("""
+        SELECT fi.id AS form_id,
+               fi.form_data->'attachments'->0->>'id' AS att_id,
+               ti.assignee_id
+        FROM lc_form_instance fi
+        JOIN lc_form_template t ON t.id = fi.template_id
+        JOIN wf_process_instance pi ON pi.form_instance_id = fi.id
+        JOIN wf_task_instance ti ON ti.process_instance_id = pi.id AND ti.status = 'pending'
+        WHERE t.code = 'cs_product_return'
+          AND jsonb_array_length(COALESCE(fi.form_data->'attachments', '[]'::jsonb)) > 0
+        LIMIT 1
+    """))).mappings().first()
+    if not row or not row["att_id"]:
+        pytest.skip("本地无带附件的 cs_product_return 流程待办")
+    ok = await _can_download_via_wf(
+        db, tenant, row["assignee_id"], attachment_id=row["att_id"],
+    )
+    assert ok is True
