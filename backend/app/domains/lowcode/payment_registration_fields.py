@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""收款登记字段修正：合计公式 + 单位名称选客户。"""
+"""收款登记字段修正：合计公式 + 单位名称选客户 + 来款日期仅选日。"""
 from __future__ import annotations
 
 
@@ -18,6 +18,7 @@ def apply_payment_registration_fields(defs: list) -> None:
     """对齐简道云：
 
     - 单位名称：从客户信息选择
+    - 来款日期：只选到日（不选手选时分）
     - 来款合计 / 分配金额合计：明细汇总公式（只读）
     - 内勤填写区：仅审批可填（available_on_create=false）
     """
@@ -25,7 +26,13 @@ def apply_payment_registration_fields(defs: list) -> None:
         if not isinstance(f, dict):
             continue
         fid = f.get("id")
-        if fid == "customer_name":
+        if fid == "payment_date":
+            f["type"] = "date"
+            props = dict(f.get("props") or {})
+            props["show_time"] = False
+            props["date_only"] = True
+            f["props"] = props
+        elif fid == "customer_name":
             f["type"] = "customer"
             f["label"] = f.get("label") or "单位名称"
             f["description"] = "从客户信息中选择。"

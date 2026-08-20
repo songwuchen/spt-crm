@@ -5,6 +5,7 @@ from app.domains.lowcode.formula_engine import compute_formula_fields
 
 def test_apply_payment_registration_fields():
     defs = [
+        {"id": "payment_date", "type": "datetime", "label": "来款日期", "required": True},
         {"id": "customer_name", "type": "text", "label": "单位名称"},
         {"id": "payment_total", "type": "number", "label": "来款合计", "available_on_create": True},
         {"id": "sales_person", "type": "person", "label": "业务人员", "available_on_create": True},
@@ -13,15 +14,18 @@ def test_apply_payment_registration_fields():
         {"id": "remark_2", "type": "textarea", "label": "备注"},
     ]
     apply_payment_registration_fields(defs)
-    assert defs[0]["type"] == "customer"
-    assert defs[1]["type"] == "formula"
-    assert defs[1]["props"]["formula"] == "SUM($payment_details.amount#)"
-    assert defs[2]["available_on_create"] is False
-    assert defs[2]["fill_stage"] == "approver"
+    assert defs[0]["type"] == "date"
+    assert defs[0]["props"]["date_only"] is True
+    assert defs[0]["props"]["show_time"] is False
+    assert defs[1]["type"] == "customer"
+    assert defs[2]["type"] == "formula"
+    assert defs[2]["props"]["formula"] == "SUM($payment_details.amount#)"
     assert defs[3]["available_on_create"] is False
-    assert defs[4]["type"] == "formula"
+    assert defs[3]["fill_stage"] == "approver"
     assert defs[4]["available_on_create"] is False
+    assert defs[5]["type"] == "formula"
     assert defs[5]["available_on_create"] is False
+    assert defs[6]["available_on_create"] is False
 
 
 def test_payment_total_formula_sums_details():
