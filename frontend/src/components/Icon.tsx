@@ -27,7 +27,7 @@ import {
   DiffOutlined, FormOutlined, ReadOutlined, AccountBookOutlined, AuditOutlined,
   UnorderedListOutlined, TableOutlined, ProjectOutlined, MergeCellsOutlined,
   TagOutlined, InboxOutlined, ShoppingCartOutlined, DollarOutlined, PayCircleOutlined,
-  WalletOutlined, MoneyCollectOutlined, TrophyOutlined,
+  WalletOutlined, MoneyCollectOutlined, TrophyOutlined, CarOutlined,
   DashboardOutlined, LineChartOutlined, BarChartOutlined, PieChartOutlined, FundOutlined,
   RiseOutlined, FallOutlined, RadarChartOutlined,
   BulbOutlined, ThunderboltOutlined, RocketOutlined, RobotOutlined, StarOutlined,
@@ -117,6 +117,8 @@ const MAP: Record<string, IconComp> = {
   category: AppstoreOutlined,
   shopping_cart: ShoppingCartOutlined, request_quote: DollarOutlined,
   payments: PayCircleOutlined, paid: PayCircleOutlined,
+  // 发货通知：运输/物流
+  local_shipping: CarOutlined,
   account_balance_wallet: WalletOutlined, savings: MoneyCollectOutlined,
   emoji_events: TrophyOutlined,
 
