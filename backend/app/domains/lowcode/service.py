@@ -649,6 +649,15 @@ async def sync_builtin_form_fields(
                             col["available_on_create"] = False
                             col["fill_stage"] = "approver"
                             col["required"] = True
+        if key == "cs_product_replace":
+            for fd in want:
+                if not isinstance(fd, dict) or fd.get("id") != "field_12":
+                    continue
+                for col in fd.get("detail_table_columns") or []:
+                    if isinstance(col, dict) and col.get("id") == "field_19":
+                        col["available_on_create"] = False
+                        col["fill_stage"] = "approver"
+                        col["required"] = True
     if key == "prod_card_supplement":
         from app.domains.lowcode.prod_card_contract_fill import apply_prod_card_contract_pick_fields
         apply_prod_card_contract_pick_fields(want)

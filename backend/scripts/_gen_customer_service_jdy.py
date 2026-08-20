@@ -427,6 +427,20 @@ def apply_cs_product_return_warehouse_judge_policy(fields: list[dict], notes: li
     notes.append("明细「仓库判定*」：仅审批节点可填（发起不展示）")
 
 
+def apply_cs_product_replace_fault_class_policy(fields: list[dict], notes: list[str]) -> None:
+    """换货明细「故障分类」：简道云发起 optAuth 未授权，客服补登节点填写。"""
+    for fd in fields:
+        if fd.get("id") != "field_12":
+            continue
+        for col in fd.get("detail_table_columns") or []:
+            if col.get("id") != "field_19" and col.get("jdy_widget") != "_widget_1617691334516":
+                continue
+            col["available_on_create"] = False
+            col["fill_stage"] = "approver"
+            col["required"] = True
+    notes.append("换货明细「故障分类」：仅客服补登可填（发起不展示）")
+
+
 def gen_one(key: str, title: str, entry: str, app: str, meta: dict) -> dict:
     fields_file = OUT / f"_jdy_{key}_fields.json"
     wf_file = OUT / f"_jdy_{key}_workflows_raw.json"
@@ -449,6 +463,8 @@ def gen_one(key: str, title: str, entry: str, app: str, meta: dict) -> dict:
     if key == "cs_product_return":
         apply_cs_product_return_initiator_defaults(fields, notes)
         apply_cs_product_return_warehouse_judge_policy(fields, notes)
+    if key == "cs_product_replace":
+        apply_cs_product_replace_fault_class_policy(fields, notes)
 
     nodes, routes, notes_flow = build_flow(wf_raw, fields, title)
     notes.extend(notes_flow)

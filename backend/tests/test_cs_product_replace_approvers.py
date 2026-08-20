@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
+import pytest
+
 from scripts._gen_drawing_jdy import charger_rule, _route_is_jdy_always_parallel
+from app.domains.lowcode._customer_service_jdy_generated import CUSTOMER_SERVICE_JDY
 from app.domains.lowcode.workflow_service import (
     apply_cs_product_replace_approvers,
     _flow_cs_product_replace_needs_approver_fix,
@@ -83,3 +86,63 @@ def test_jdy_always_parallel_route_not_exclusive():
     assert not _route_is_jdy_always_parallel(
         {"source": "n6", "target": "n20", "condition": {"field": "field_24", "operator": "in", "value": ["是"]}},
     )
+
+
+def test_cs_product_replace_fault_class_not_at_create():
+    """换货明细「故障分类」对齐简道云：发起不可填，客服补登填写。"""
+    f12 = next(
+        f for f in CUSTOMER_SERVICE_JDY["cs_product_replace"]["field_definitions"]
+        if f["id"] == "field_12"
+    )
+    col = next(c for c in f12["detail_table_columns"] if c["id"] == "field_19")
+    assert col["available_on_create"] is False
+    assert col["fill_stage"] == "approver"
+    assert col["required"] is True
+    # 发起列仍必填
+    col18 = next(c for c in f12["detail_table_columns"] if c["id"] == "field_18")
+    assert col18.get("fill_stage") != "approver"
+
+
+def test_cs_product_replace_create_skips_fault_class_required():
+    """发起提交：明细有行但未填故障分类时不应拦截。"""
+    from app.domains.lowcode.rule_engine import validate_required_with_rules
+
+    fields = CUSTOMER_SERVICE_JDY["cs_product_replace"]["field_definitions"]
+    values = {
+        "field": "dept-1",
+        "sales_person": "u1",
+        "customer_name": "cust-1",
+        "field_3": "addr",
+        "field_4": "contact",
+        "field_5": "否",
+        "field_6": "是",
+        "field_24": "否",
+        "field_12": [{
+            "contract_no": "c1",
+            "field_13": "设备",
+            "field_14": "型号",
+            "field_15": 1,
+            "field_16": "台",
+            "field_17": "2025-11-20",
+            "field_18": "说明",
+        }],
+    }
+    assert validate_required_with_rules(fields, values) is None
+
+
+def test_cs_product_replace_cs_register_requires_fault_class():
+    """客服补登通过：换货明细每行须填故障分类。"""
+    from app.common.exceptions import BusinessException
+    from app.domains.lowcode.wf_field_writeback import validate_field_updates
+
+    fields = CUSTOMER_SERVICE_JDY["cs_product_replace"]["field_definitions"]
+    perms = [{"field": "field_12", "access": "editable"}]
+    form_data = {"field_12": [{"field_18": "说明"}]}
+    with pytest.raises(BusinessException):
+        validate_field_updates(
+            perms,
+            {"field_12": form_data["field_12"]},
+            action="approve",
+            form_fields=fields,
+            form_data=form_data,
+        )

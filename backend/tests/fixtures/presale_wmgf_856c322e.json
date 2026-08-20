@@ -1,0 +1,732 @@
+{
+  "process_id": "856c322e-960f-4727-995e-f9eba6df9447",
+  "business_no": "24.13-202608190001",
+  "title": "售前服务通知: 24.13-202608190001 · 天津市宁河区七里海大道 · WMGF202201020 · 孟令颖",
+  "initiator_id": "e69ac066-9473-493d-a407-ae0310a54552",
+  "wf_status": "completed",
+  "form_data": {
+    "is_smart": "否",
+    "applicant": "b8e46dc3-70d6-48b6-88af-c35b442821b4",
+    "serial_no": "24.13-202608190001",
+    "department": "fc25d8a7-c1ac-4d59-8c81-010bbffdc505",
+    "contract_no": "7efabd77-f977-40e3-bca1-9f0447135303",
+    "service_time": "2026-08-27",
+    "contact_phone": "焦总13833920086",
+    "estimated_days": "3",
+    "project_status": "已签合同",
+    "need_jwx_onsite": "否",
+    "need_xjwm_staff": "否",
+    "service_content": "WMGF202201020合同天津市新天钢联合特钢有限公司，\n废钢预热设备客户现在要拆除装到另一个地方，需要派技术人员去现场和客户技术交流并测绘现场，出方案。\n",
+    "service_location": "天津市宁河区七里海大道",
+    "staff_coordination": [
+      "1ba1708e-62ee-45af-8f52-483b5637ce0b"
+    ]
+  },
+  "field_definitions": [
+    {
+      "id": "serial_no",
+      "type": "auto_number",
+      "label": "流程编号",
+      "props": {
+        "serial_rules": [
+          {
+            "type": "text",
+            "value": "24.13-"
+          },
+          {
+            "type": "date",
+            "format": "yyyyMMdd"
+          },
+          {
+            "type": "counter",
+            "fixed": true,
+            "digits": 4,
+            "reset_period": "daily",
+            "initial_value": 1
+          }
+        ]
+      },
+      "fill_stage": "initiator",
+      "form_editable": false,
+      "available_on_create": true
+    },
+    {
+      "id": "applicant",
+      "type": "person",
+      "label": "申请人",
+      "props": {
+        "default_current_user": true
+      },
+      "required": true,
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "department",
+      "type": "department",
+      "label": "所属部门",
+      "required": true,
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "is_smart",
+      "type": "radio",
+      "label": "是否智能化",
+      "options": [
+        {
+          "label": "是",
+          "value": "是"
+        },
+        {
+          "label": "否",
+          "value": "否"
+        }
+      ],
+      "required": true,
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "need_jwx_onsite",
+      "type": "radio",
+      "label": "是否需要金微星去现场",
+      "options": [
+        {
+          "label": "是",
+          "value": "是"
+        },
+        {
+          "label": "否",
+          "value": "否"
+        }
+      ],
+      "required": true,
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "project_status",
+      "type": "radio",
+      "label": "项目状态",
+      "options": [
+        {
+          "label": "已签合同",
+          "value": "已签合同"
+        },
+        {
+          "label": "已中标",
+          "value": "已中标"
+        },
+        {
+          "label": "技术交流",
+          "value": "技术交流"
+        }
+      ],
+      "required": false,
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "smart_project_status",
+      "type": "radio",
+      "label": "智能化项目状态",
+      "options": [
+        {
+          "label": "已签合同",
+          "value": "已签合同"
+        },
+        {
+          "label": "已中标",
+          "value": "已中标"
+        },
+        {
+          "label": "技术交流",
+          "value": "技术交流"
+        },
+        {
+          "label": "试机",
+          "value": "试机"
+        },
+        {
+          "label": "调机",
+          "value": "调机"
+        }
+      ],
+      "required": false,
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "attachments",
+      "type": "file",
+      "label": "附件",
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "desired_staff",
+      "type": "person",
+      "label": "希望派遣人员",
+      "required": false,
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "contract_no",
+      "type": "contract",
+      "label": "合同号",
+      "required": false,
+      "fill_stage": "initiator",
+      "description": "从合同管理中选择。",
+      "available_on_create": true
+    },
+    {
+      "id": "service_location",
+      "type": "text",
+      "label": "服务地点",
+      "required": true,
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "service_time",
+      "type": "date",
+      "label": "服务时间",
+      "props": {
+        "date_only": true,
+        "show_time": false
+      },
+      "required": true,
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "estimated_days",
+      "type": "text",
+      "label": "预计天数",
+      "required": true,
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "contact_phone",
+      "type": "text",
+      "label": "联系人/联系电话",
+      "required": true,
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "drawing_tech_status",
+      "type": "text",
+      "label": "有无图纸及前期技术",
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "service_content",
+      "type": "textarea",
+      "label": "服务内容",
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "work_schedule",
+      "type": "detail_table",
+      "label": "工作日程计划",
+      "fill_stage": "initiator",
+      "available_on_create": true,
+      "detail_table_columns": [
+        {
+          "id": "schedule_datetime",
+          "type": "datetime",
+          "label": "日期时间"
+        },
+        {
+          "id": "schedule_item",
+          "type": "text",
+          "label": "工作日程"
+        }
+      ]
+    },
+    {
+      "id": "remark",
+      "type": "textarea",
+      "label": "备注",
+      "fill_stage": "initiator",
+      "available_on_create": true
+    },
+    {
+      "id": "staff_coordination",
+      "type": "person_multi",
+      "label": "人员协调",
+      "required": false,
+      "fill_stage": "approver",
+      "available_on_create": false
+    },
+    {
+      "id": "product_name",
+      "type": "text",
+      "label": "产品名称",
+      "required": false,
+      "fill_stage": "approver",
+      "available_on_create": false
+    },
+    {
+      "id": "spec_model",
+      "type": "text",
+      "label": "规格型号",
+      "required": false,
+      "fill_stage": "approver",
+      "available_on_create": false
+    },
+    {
+      "id": "surveyor",
+      "type": "text",
+      "label": "测绘人",
+      "required": false,
+      "fill_stage": "approver",
+      "available_on_create": false
+    },
+    {
+      "id": "survey_data",
+      "type": "detail_table",
+      "label": "测绘数据",
+      "required": false,
+      "fill_stage": "approver",
+      "available_on_create": false,
+      "detail_table_columns": [
+        {
+          "id": "item_name",
+          "type": "text",
+          "label": "名称"
+        },
+        {
+          "id": "spec_model_2",
+          "type": "text",
+          "label": "规格型号"
+        },
+        {
+          "id": "qty",
+          "type": "number",
+          "label": "数量"
+        },
+        {
+          "id": "unit",
+          "type": "text",
+          "label": "单位"
+        },
+        {
+          "id": "unit_weight",
+          "type": "text",
+          "label": "单重"
+        }
+      ]
+    },
+    {
+      "id": "need_xjwm_staff",
+      "type": "radio",
+      "label": "是否需要新疆威猛人员",
+      "options": [
+        {
+          "label": "是",
+          "value": "是"
+        },
+        {
+          "label": "否",
+          "value": "否"
+        }
+      ],
+      "required": false,
+      "fill_stage": "approver",
+      "available_on_create": false
+    },
+    {
+      "id": "xjwm_staff",
+      "type": "person_multi",
+      "label": "新疆威猛人员",
+      "required": false,
+      "fill_stage": "approver",
+      "available_on_create": false
+    },
+    {
+      "id": "other_notes",
+      "type": "textarea",
+      "label": "其他说明",
+      "fill_stage": "approver",
+      "available_on_create": false
+    }
+  ],
+  "node_definitions": [
+    {
+      "id": "start",
+      "name": "流程发起节点",
+      "type": "start"
+    },
+    {
+      "id": "n2",
+      "name": "总工审批",
+      "type": "approval",
+      "multi_mode": "or_sign",
+      "field_perms": [
+        {
+          "field": "staff_coordination",
+          "access": "editable"
+        },
+        {
+          "field": "need_xjwm_staff",
+          "access": "required"
+        },
+        {
+          "field": "xjwm_staff",
+          "access": "editable"
+        }
+      ],
+      "approver_rule": {
+        "type": "specified_user",
+        "value": "02364335378133",
+        "jdy_role_hint": "24.2.3合同/项目评审-设计-曹修国",
+        "exclude_initiator": true
+      },
+      "empty_strategy": "auto_approve"
+    },
+    {
+      "id": "n3",
+      "name": "人员协调",
+      "type": "approval",
+      "multi_mode": "or_sign",
+      "field_perms": [
+        {
+          "field": "product_name",
+          "access": "editable"
+        },
+        {
+          "field": "spec_model",
+          "access": "editable"
+        },
+        {
+          "field": "surveyor",
+          "access": "editable"
+        },
+        {
+          "field": "survey_data",
+          "access": "editable"
+        },
+        {
+          "field": "other_notes",
+          "access": "editable"
+        }
+      ],
+      "approver_rule": {
+        "type": "form_field_person",
+        "value": "staff_coordination"
+      },
+      "empty_strategy": "auto_approve"
+    },
+    {
+      "id": "n4",
+      "name": "部门审批",
+      "type": "approval",
+      "multi_mode": "or_sign",
+      "approver_rule": {
+        "type": "form_field_dept",
+        "value": "department"
+      },
+      "empty_strategy": "auto_approve"
+    },
+    {
+      "id": "n5",
+      "name": "流程分发",
+      "type": "approval",
+      "multi_mode": "or_sign",
+      "approver_rule": {
+        "type": "creator"
+      },
+      "empty_strategy": "auto_approve"
+    },
+    {
+      "id": "n6",
+      "name": "部门审批",
+      "type": "approval",
+      "multi_mode": "or_sign",
+      "approver_rule": {
+        "type": "form_field_dept",
+        "value": "department"
+      },
+      "empty_strategy": "auto_approve"
+    },
+    {
+      "id": "n7",
+      "name": "生产审批",
+      "type": "approval",
+      "multi_mode": "or_sign",
+      "approver_rule": {
+        "type": "specified_user",
+        "value": "01210720669288"
+      },
+      "empty_strategy": "auto_approve"
+    },
+    {
+      "id": "n8",
+      "name": "流程分发",
+      "type": "approval",
+      "multi_mode": "or_sign",
+      "approver_rule": {
+        "type": "form_field_person",
+        "value": "desired_staff"
+      },
+      "empty_strategy": "auto_approve"
+    },
+    {
+      "id": "n9",
+      "name": "抄送节点",
+      "type": "cc",
+      "approver_rule": {
+        "type": "mixed",
+        "value": [
+          {
+            "type": "creator"
+          },
+          {
+            "type": "form_field_person",
+            "value": "applicant"
+          }
+        ]
+      }
+    },
+    {
+      "id": "n10",
+      "name": "抄送节点",
+      "type": "cc",
+      "approver_rule": {
+        "type": "mixed",
+        "value": [
+          {
+            "type": "creator"
+          },
+          {
+            "type": "form_field_person",
+            "value": "applicant"
+          }
+        ]
+      }
+    },
+    {
+      "id": "n14",
+      "name": "韩利民",
+      "type": "approval",
+      "multi_mode": "or_sign",
+      "field_perms": [
+        {
+          "field": "need_xjwm_staff",
+          "access": "required"
+        },
+        {
+          "field": "xjwm_staff",
+          "access": "editable"
+        }
+      ],
+      "approver_rule": {
+        "type": "specified_user",
+        "value": "02364307332960"
+      },
+      "empty_strategy": "auto_approve"
+    },
+    {
+      "id": "n15",
+      "name": "新疆威猛",
+      "type": "approval",
+      "multi_mode": "or_sign",
+      "field_perms": [
+        {
+          "field": "xjwm_staff",
+          "access": "editable"
+        }
+      ],
+      "approver_rule": {
+        "type": "specified_user",
+        "value": "02364714147257"
+      },
+      "empty_strategy": "auto_approve"
+    },
+    {
+      "id": "end",
+      "name": "结束",
+      "type": "end"
+    }
+  ],
+  "route_definitions": [
+    {
+      "id": "r_1",
+      "source": "n5",
+      "target": "end"
+    },
+    {
+      "id": "r_2",
+      "source": "n8",
+      "target": "end"
+    },
+    {
+      "id": "r_3",
+      "source": "n4",
+      "target": "n2",
+      "condition": {
+        "field": "need_jwx_onsite",
+        "value": "否",
+        "operator": "eq"
+      },
+      "exclusive_group": "ex_n4"
+    },
+    {
+      "id": "r_14",
+      "source": "n4",
+      "target": "n14",
+      "condition": {
+        "field": "need_jwx_onsite",
+        "value": [
+          "是"
+        ],
+        "operator": "in"
+      },
+      "exclusive_group": "ex_n4"
+    },
+    {
+      "id": "r_15",
+      "source": "n2",
+      "target": "n15",
+      "condition": {
+        "field": "need_xjwm_staff",
+        "value": [
+          "是"
+        ],
+        "operator": "in"
+      },
+      "exclusive_group": "ex_n2"
+    },
+    {
+      "id": "r_4",
+      "source": "n2",
+      "target": "n3",
+      "exclusive_group": "ex_n2"
+    },
+    {
+      "id": "r_9",
+      "source": "start",
+      "target": "n6",
+      "condition": {
+        "field": "is_smart",
+        "value": [
+          "是"
+        ],
+        "operator": "in"
+      },
+      "exclusive_group": "ex_start"
+    },
+    {
+      "id": "r_5",
+      "source": "start",
+      "target": "n4",
+      "exclusive_group": "ex_start"
+    },
+    {
+      "id": "r_6",
+      "source": "n15",
+      "target": "n5",
+      "condition": {
+        "field": "__always",
+        "operator": "is_empty"
+      }
+    },
+    {
+      "id": "r_7",
+      "source": "n3",
+      "target": "n5"
+    },
+    {
+      "id": "r_16",
+      "source": "n14",
+      "target": "n15",
+      "condition": {
+        "field": "need_xjwm_staff",
+        "value": [
+          "是"
+        ],
+        "operator": "in"
+      },
+      "exclusive_group": "ex_n14"
+    },
+    {
+      "id": "r_8",
+      "source": "n14",
+      "target": "n5",
+      "exclusive_group": "ex_n14"
+    },
+    {
+      "id": "r_10",
+      "source": "n6",
+      "target": "n7"
+    },
+    {
+      "id": "r_11",
+      "source": "n7",
+      "target": "n8"
+    },
+    {
+      "id": "r_12",
+      "always": true,
+      "source": "n8",
+      "target": "n9"
+    },
+    {
+      "id": "r_13",
+      "always": true,
+      "source": "n5",
+      "target": "n10"
+    }
+  ],
+  "action_logs": [
+    {
+      "action": "submit",
+      "opinion": null,
+      "actor_name": "尚高华",
+      "created_at": "2026-08-20 03:56:28.324124+00"
+    },
+    {
+      "action": "approve",
+      "opinion": null,
+      "actor_name": "段荣凯",
+      "created_at": "2026-08-20 04:15:46.743969+00"
+    },
+    {
+      "action": "approve",
+      "opinion": null,
+      "actor_name": "曹修国",
+      "created_at": "2026-08-20 04:38:23.1144+00"
+    },
+    {
+      "action": "auto_approve",
+      "opinion": "节点「人员协调」无审批人，自动通过",
+      "actor_name": "系统",
+      "created_at": "2026-08-20 04:38:23.127371+00"
+    },
+    {
+      "action": "return",
+      "opinion": null,
+      "actor_name": "尚高华",
+      "created_at": "2026-08-20 06:27:17.398747+00"
+    },
+    {
+      "action": "approve",
+      "opinion": "同意",
+      "actor_name": "曹修国",
+      "created_at": "2026-08-20 06:28:15.739656+00"
+    },
+    {
+      "action": "skip_reactivate",
+      "opinion": "节点「人员协调」已完成，跳过晚到汇入的重复激活",
+      "actor_name": null,
+      "created_at": "2026-08-20 06:28:15.745793+00"
+    }
+  ]
+}

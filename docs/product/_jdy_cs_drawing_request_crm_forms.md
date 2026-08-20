@@ -35,7 +35,7 @@
 
 ### 流程降级备注
 
-- 审批「部门指派-研管办」JDY 角色「27.3图纸领用申请-研究院安排」仅郑志颖 → 指定用户 `013807685436426800`
+- 审批「部门指派-研管办」JDY 角色「27.3图纸领用申请-研究院安排」→ 指定用户 013807685436426800
 - CC「抄送客服部长」绑定具名用户 02364335378133，CRM 无对应用户时 empty→auto_approve 不适用 CC，可能跳过
 - CC「抄送节点」绑定具名用户 02364335378133，CRM 无对应用户时 empty→auto_approve 不适用 CC，可能跳过
 - CC「抄送李兴玉」绑定具名用户 02365312411349，CRM 无对应用户时 empty→auto_approve 不适用 CC，可能跳过
@@ -59,4 +59,5 @@
 - optAuth：6 个字段仅审批可写（创建 available_on_create=false，必填下沉到节点 field_perms）
 - optAuth：1 个字段发起仅可见（form_editable=false）
 - edit_raw allowBlank=false：14 个必填 widget
+- fieldShowRules → 2 条显隐/条件必填规则
 
