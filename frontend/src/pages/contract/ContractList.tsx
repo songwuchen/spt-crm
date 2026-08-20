@@ -114,10 +114,14 @@ export default function ContractList() {
   const syncAmountFromLines = (total: number) => {
     createForm.setFieldsValue({ amount_total: total || undefined })
   }
-  const refreshDrawingNoPreview = async (orderDate?: unknown) => {
+  const refreshDrawingNoPreview = async (orderDate?: unknown, numberAttr?: unknown) => {
     try {
       const od = formatFormDate(orderDate) || undefined
-      const r = await contractApi.peekDrawingNo(od ? { order_date: od } : undefined)
+      const attr = String(numberAttr || createForm.getFieldValue(['registration_json', 'number_attr']) || 'WMGF').trim() || 'WMGF'
+      const r = await contractApi.peekDrawingNo({
+        ...(od ? { order_date: od } : {}),
+        number_attr: attr,
+      })
       const no = (r.data?.drawing_no || '').trim()
       if (no) createForm.setFieldsValue({ drawing_no: no })
     } catch { /* ignore */ }
@@ -127,9 +131,11 @@ export default function ContractList() {
     try {
       const prev = String(createForm.getFieldValue('drawing_no') || '').trim()
       const od = formatFormDate(createForm.getFieldValue('order_date')) || undefined
+      const attr = String(createForm.getFieldValue(['registration_json', 'number_attr']) || 'WMGF').trim() || 'WMGF'
       const r = await contractApi.allocateDrawingNo({
         ...(prev ? { drawing_no: prev } : {}),
         ...(od ? { order_date: od } : {}),
+        number_attr: attr,
       })
       const next = (r.data?.drawing_no || '').trim()
       if (!next) {
@@ -150,7 +156,10 @@ export default function ContractList() {
   }
   const openCreate = () => {
     createForm.resetFields()
-    createForm.setFieldsValue({ change_type: 'new', registration_json: {} })
+    createForm.setFieldsValue({
+      change_type: 'new',
+      registration_json: { number_attr: 'WMGF' },
+    })
     setCustomFields({})
     setCreateLines([{}])
     setCreatePay([{}])
@@ -158,7 +167,7 @@ export default function ContractList() {
     setProjOpts([])
     searchProjects()
     setCreateOpen(true)
-    void refreshDrawingNoPreview()
+    void refreshDrawingNoPreview(undefined, 'WMGF')
   }
   const handleCreate = async (andSubmit: boolean) => {
     let v: Record<string, unknown>
@@ -209,7 +218,8 @@ export default function ContractList() {
     try {
       const regRaw = { ...(v.registration_json || {}) } as Record<string, unknown>
       delete regRaw.number_lookup
-      delete regRaw.number_attr
+      const numberAttr = String(regRaw.number_attr || 'WMGF').trim().toUpperCase()
+      regRaw.number_attr = numberAttr === 'SY' ? 'SY' : 'WMGF'
       for (const [k, val] of Object.entries(regRaw)) {
         if (val && typeof val === 'object' && dayjs.isDayjs(val)) {
           if (!val.isValid()) {
@@ -451,8 +461,18 @@ export default function ContractList() {
       >
        <FieldPolicyProvider entityType="contract" form={createForm} customFieldValues={customFields} formMode="create">
         <Form form={createForm} layout="vertical" className="mt-3" scrollToFirstError
-          onValuesChange={(changed) => {
-            if ('order_date' in changed) void refreshDrawingNoPreview(changed.order_date)
+          onValuesChange={(changed, all) => {
+            if ('order_date' in changed) {
+              void refreshDrawingNoPreview(
+                changed.order_date,
+                (all.registration_json as { number_attr?: string } | undefined)?.number_attr,
+              )
+              return
+            }
+            const regCh = changed.registration_json as Record<string, unknown> | undefined
+            if (regCh && Object.prototype.hasOwnProperty.call(regCh, 'number_attr')) {
+              void refreshDrawingNoPreview(all.order_date, regCh.number_attr)
+            }
           }}
         >
           <Form.Item name="project_id" label="关联商机">

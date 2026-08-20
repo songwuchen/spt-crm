@@ -149,9 +149,16 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
       },
       { key: 'contract_no', label: '合同号', source: 'native', widget: 'text', required: true, placeholder: '请填写合同号' },
       {
+        key: 'number_attr', label: '编号属性', source: 'reg', widget: 'radio', required: true,
+        options: [
+          { value: 'WMGF', label: 'WMGF' },
+          { value: 'SY', label: 'SY' },
+        ],
+      },
+      {
         key: 'drawing_no', label: '图纸编号', source: 'native', widget: 'text', readOnly: true,
         availableOnCreate: true,
-        placeholder: '系统按 WMGF+年月+月序 预生成，可刷新或手改',
+        placeholder: '按编号属性生成：WMGF+年月+月序 / SY+年+年序',
       },
       { key: 'project_name', label: '项目名称', source: 'reg', widget: 'text' },
       { key: 'peer_contract_no', label: '对方合同号', source: 'native', widget: 'text' },

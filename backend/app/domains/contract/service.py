@@ -53,6 +53,18 @@ async def _resolve_create_contract_no(
     return no
 
 
+def normalize_number_attr(raw: str | None) -> str:
+    """编号属性：仅 WMGF / SY（对齐合同图纸对应表）。"""
+    s = str(raw or "").strip().upper()
+    return s if s in ("WMGF", "SY") else "WMGF"
+
+
+def drawing_no_matches_attr(drawing_no: str | None, number_attr: str | None) -> bool:
+    no = (drawing_no or "").strip().upper()
+    attr = normalize_number_attr(number_attr)
+    return bool(no) and no.startswith(attr)
+
+
 async def _resolve_create_drawing_no(
     db: AsyncSession,
     tenant_id: str,
@@ -60,6 +72,7 @@ async def _resolve_create_drawing_no(
     requested: str | None,
     *,
     apply_date: str | date_type | None = None,
+    number_attr: str | None = None,
     trust_requested: bool = False,
 ) -> str:
     """图纸编号：与合同图纸对应表共用号池；传入值须两边均未占用，未传则 consume 新号。
@@ -69,7 +82,11 @@ async def _resolve_create_drawing_no(
     from app.domains.lowcode import service as lc_svc
     from app.domains.lowcode.drawing_no_pool import is_drawing_no_taken
 
+    attr = normalize_number_attr(number_attr)
     no = (requested or "").strip()
+    # 前缀与编号属性不一致时按新属性重新取号（切换 WMGF↔SY）
+    if no and not drawing_no_matches_attr(no, attr):
+        no = ""
     tpl = await lc_svc.ensure_builtin_form(db, tenant_id, "contract_drawing_map", user)
     if no:
         if await is_drawing_no_taken(db, tenant_id, no, map_template_id=tpl.id):
@@ -81,15 +98,15 @@ async def _resolve_create_drawing_no(
             return no
         # 与当前下一可用预览号一致时 consume，保证流水与落库同步；否则直接采用（手改/已 allocate）
         nxt = await peek_create_drawing_no(
-            db, tenant_id, user, apply_date=apply_date, consume=False,
+            db, tenant_id, user, apply_date=apply_date, number_attr=attr, consume=False,
         )
         if no == nxt:
             return await peek_create_drawing_no(
-                db, tenant_id, user, apply_date=apply_date, consume=True,
+                db, tenant_id, user, apply_date=apply_date, number_attr=attr, consume=True,
             )
         return no
     return await peek_create_drawing_no(
-        db, tenant_id, user, apply_date=apply_date, consume=True,
+        db, tenant_id, user, apply_date=apply_date, number_attr=attr, consume=True,
     )
 
 
@@ -99,9 +116,10 @@ async def peek_create_drawing_no(
     user: dict,
     *,
     apply_date: str | date_type | None = None,
+    number_attr: str | None = None,
     consume: bool = False,
 ) -> str:
-    """预览/生成合同登记图纸编号（WMGF+yyyyMM+三位月序）；预览会跳过两边已占用号。"""
+    """预览/生成合同登记图纸编号（与合同图纸对应表同规则；WMGF 月序 / SY 年序）。"""
     from app.domains.lowcode import service as lc_svc
     from app.domains.lowcode.builtin_templates import get_builtin
     from app.domains.lowcode.drawing_no_pool import (
@@ -122,7 +140,7 @@ async def peek_create_drawing_no(
     else:
         apply_s = (str(apply_date).strip() if apply_date else "") or datetime.now(timezone.utc).date().isoformat()
 
-    form_data = {"number_attr": "WMGF", "apply_date": apply_s}
+    form_data = {"number_attr": normalize_number_attr(number_attr), "apply_date": apply_s}
     if consume:
         # 正式取号：跳过合同登记 + 图纸对应表已占用
         last = ""
@@ -146,6 +164,7 @@ async def allocate_create_drawing_no(
     *,
     current: str | None = None,
     apply_date: str | date_type | None = None,
+    number_attr: str | None = None,
 ) -> str:
     """新建合同登记「重新取号」：当前号仍可用则保留，否则占号并跳过已占用。"""
     from app.domains.lowcode import service as lc_svc
@@ -165,8 +184,12 @@ async def allocate_create_drawing_no(
     else:
         apply_s = (str(apply_date).strip() if apply_date else "") or datetime.now(timezone.utc).date().isoformat()
 
+    attr = normalize_number_attr(number_attr)
     cur = (current or "").strip()
-    form_data: dict = {"number_attr": "WMGF", "apply_date": apply_s}
+    # 切换编号属性后旧号前缀不匹配，必须重新取号
+    if cur and not drawing_no_matches_attr(cur, attr):
+        cur = ""
+    form_data: dict = {"number_attr": attr, "apply_date": apply_s}
     if cur:
         form_data["drawing_no"] = cur
 
@@ -310,14 +333,17 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
     reg = native.get("registration_json", data.registration_json) or {}
     if not isinstance(reg, dict):
         reg = {}
-    # 历史残留字段清理：编号属性已从合同登记移除
-    reg = {k: v for k, v in reg.items() if k not in ("number_attr", "number_lookup")}
+    # number_lookup 为历史选数残留；编号属性 number_attr 需保留（驱动 WMGF/SY 规则）
+    reg = {k: v for k, v in reg.items() if k != "number_lookup"}
     apply_date = native.get("order_date", data.order_date) or reg.get("apply_date")
+    number_attr = normalize_number_attr(reg.get("number_attr"))
+    reg["number_attr"] = number_attr
     # 采用表单图纸编号（唯一则落库）；撞号报错，由前端提示刷新取号
     drawing_no = await _resolve_create_drawing_no(
         db, tenant_id, user,
         native.get("drawing_no") or data.drawing_no,
         apply_date=apply_date,
+        number_attr=number_attr,
     )
 
     # 显式指定优先；未传时从关联商机带出客户，保证列表「客户名称」可补全

@@ -2,7 +2,7 @@
  * 合同登记表单分区（对齐简道云「合同登记表」字段顺序 + 控件类型 + 动态显隐）。
  * native → 表单顶层字段；reg → registration_json.*
  * 子表通过 slots 插在简道云 subform 对应位置。
- * 合同/项目评审流水号支持选数带出；合同号手填；图纸编号按规则系统生成。
+ * 合同/项目评审流水号支持选数带出；合同号手填；图纸编号按编号属性（WMGF/SY）生成。
  */
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -249,6 +249,7 @@ function BaseFormLookupSelect({
 function FieldControl({
   field,
   form,
+  mode = 'edit',
   value,
   onChange,
   onRefreshDrawingNo,
@@ -257,6 +258,7 @@ function FieldControl({
 }: {
   field: RegFieldDef
   form: FormInstance
+  mode?: 'create' | 'edit'
   value?: unknown
   onChange?: (...args: any[]) => void
   onRefreshDrawingNo?: () => void
@@ -354,6 +356,8 @@ function FieldControl({
       onChange?.(e)
       if (trigger) patchReg(field.key, e.target.value)
     }
+    // 编辑态图纸号已落库：编号属性只读，避免与现号前缀脱节
+    const disabled = field.key === 'number_attr' && mode === 'edit'
     if (useBtn) {
       return (
         <Radio.Group
@@ -361,6 +365,7 @@ function FieldControl({
           optionType="button"
           buttonStyle="solid"
           className="flex flex-wrap gap-1"
+          disabled={disabled}
           onChange={handleRadio}
         >
           {opts.map((o) => (
@@ -373,6 +378,7 @@ function FieldControl({
       <Radio.Group
         {...control}
         className="flex flex-wrap gap-x-3 gap-y-1"
+        disabled={disabled}
         onChange={handleRadio}
       >
         {opts.map((o) => (
@@ -428,7 +434,7 @@ function FieldControl({
 
 function FieldGrid({
   fields,
-  mode: _mode,
+  mode,
   regOnly,
   form,
   onRefreshDrawingNo,
@@ -516,6 +522,7 @@ function FieldGrid({
                     <FieldControl
                       field={f}
                       form={form}
+                      mode={mode}
                       onRefreshDrawingNo={onRefreshDrawingNo}
                       refreshingDrawingNo={refreshingDrawingNo}
                     />
@@ -531,6 +538,7 @@ function FieldGrid({
                   <FieldControl
                     field={f}
                     form={form}
+                    mode={mode}
                     onRefreshDrawingNo={onRefreshDrawingNo}
                     refreshingDrawingNo={refreshingDrawingNo}
                   />

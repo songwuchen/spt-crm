@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Button, Space, Modal, Input, InputNumber, Select, Spin, Tabs, Table, Tag, Timeline, DatePicker, Form, Alert, message } from 'antd'
+import { Button, Space, Modal, Input, InputNumber, Select, Spin, Tabs, Table, Tag, Timeline, DatePicker, Form, Alert, message, Radio } from 'antd'
 import { EditOutlined, DeleteOutlined, PlusOutlined, FilePdfOutlined, UserSwitchOutlined, PaperClipOutlined } from '@ant-design/icons'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -300,24 +300,30 @@ export default function OpportunityDetail() {
   const [contractModal, setContractModal] = useState(false)
   const [ctContractNo, setCtContractNo] = useState('')
   const [ctDrawingNo, setCtDrawingNo] = useState('')
+  const [ctNumberAttr, setCtNumberAttr] = useState<'WMGF' | 'SY'>('WMGF')
   const [ctAmount, setCtAmount] = useState<number | null>(null)
   const [ctEndDate, setCtEndDate] = useState<dayjs.Dayjs | null>(null)
   const [ctPay, setCtPay] = useState<Record<string, unknown>[]>([])
   const [ctLines, setCtLines] = useState<Record<string, unknown>[]>([])
   const [ctSaving, setCtSaving] = useState(false)
 
+  const peekCtDrawingNo = (attr: 'WMGF' | 'SY') => {
+    void contractApi.peekDrawingNo({ number_attr: attr }).then((r) => {
+      const no = (r.data?.drawing_no || '').trim()
+      if (no) setCtDrawingNo(no)
+    }).catch(() => {})
+  }
+
   const handleCreateContract = () => {
     setCtContractNo('')
     setCtDrawingNo('')
+    setCtNumberAttr('WMGF')
     setCtAmount(null)
     setCtEndDate(null)
     setCtPay([])
     setCtLines([])
     setContractModal(true)
-    void contractApi.peekDrawingNo().then((r) => {
-      const no = (r.data?.drawing_no || '').trim()
-      if (no) setCtDrawingNo(no)
-    }).catch(() => {})
+    peekCtDrawingNo('WMGF')
   }
 
   const doCreateContract = async () => {
@@ -333,6 +339,7 @@ export default function OpportunityDetail() {
         title: 'V1',
         contract_no: no,
         ...(drawingNo ? { drawing_no: drawingNo } : {}),
+        registration_json: { number_attr: ctNumberAttr },
         ...(ctAmount != null ? { amount_total: ctAmount } : {}),
         ...(ctEndDate ? { end_date: ctEndDate.format('YYYY-MM-DD') } : {}),
         ...(ctPay.length ? { payment_terms_json: ctPay } : {}),
@@ -1712,6 +1719,22 @@ export default function OpportunityDetail() {
               <Input value={ctContractNo} onChange={(e) => setCtContractNo(e.target.value)} style={{ width: 220 }} placeholder="请填写合同号" allowClear />
             </div>
             <div>
+              <label className="text-sm font-medium text-slate-700 mb-1 block">编号属性</label>
+              <Radio.Group
+                value={ctNumberAttr}
+                options={[
+                  { value: 'WMGF', label: 'WMGF' },
+                  { value: 'SY', label: 'SY' },
+                ]}
+                onChange={(e) => {
+                  const next = e.target.value as 'WMGF' | 'SY'
+                  setCtNumberAttr(next)
+                  setCtDrawingNo('')
+                  peekCtDrawingNo(next)
+                }}
+              />
+            </div>
+            <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">图纸编号</label>
               <Input value={ctDrawingNo} readOnly placeholder="自动生成中…" style={{ width: 220 }} />
             </div>
@@ -1724,7 +1747,7 @@ export default function OpportunityDetail() {
               <DatePicker value={ctEndDate} onChange={(d) => setCtEndDate(d)} style={{ width: 220 }} />
             </div>
           </div>
-          <p className="text-xs text-slate-400 -mt-2">图纸编号按 WMGF 规则自动生成，创建时沿用上方编号</p>
+          <p className="text-xs text-slate-400 -mt-2">图纸编号与合同图纸对应表同规则：WMGF+年月+月序 / SY+年+年序</p>
           <div>
             <ContractSubtableTitle fieldId={PAYMENT_TERMS_FIELD_ID} fallback="收款计划" />
             <PaymentTermsEditor

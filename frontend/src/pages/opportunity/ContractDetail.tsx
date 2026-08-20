@@ -118,7 +118,12 @@ export default function ContractDetail() {
     if (changeType === '新增') changeType = 'new'
     if (changeType === '变动') changeType = 'change'
     delete reg.number_lookup
-    delete reg.number_attr
+    // 无历史编号属性时从图纸号前缀推断，便于编辑回显
+    if (!reg.number_attr && contract?.drawing_no) {
+      const dn = String(contract.drawing_no).trim().toUpperCase()
+      if (dn.startsWith('SY')) reg.number_attr = 'SY'
+      else if (dn.startsWith('WMGF')) reg.number_attr = 'WMGF'
+    }
     editForm.setFieldsValue({
       amount_total: typeof contract?.amount_total === 'number' ? contract.amount_total : undefined,
       contract_no: contract?.contract_no || undefined,
@@ -193,7 +198,8 @@ export default function ContractDetail() {
       }
       const regRaw = { ...(v.registration_json || {}) } as Record<string, unknown>
       delete regRaw.number_lookup
-      delete regRaw.number_attr
+      const numberAttr = String(regRaw.number_attr || 'WMGF').trim().toUpperCase()
+      regRaw.number_attr = numberAttr === 'SY' ? 'SY' : 'WMGF'
       for (const [k, val] of Object.entries(regRaw)) {
         if (val && typeof val === 'object' && dayjs.isDayjs(val)) {
           if (!val.isValid()) {

@@ -9,7 +9,11 @@ JsonTerms = Union[dict, list]
 class AllocateDrawingNoRequest(BaseModel):
     """新建合同登记「重新取号」。"""
     drawing_no: Optional[str] = Field(None, max_length=100, description="当前表单上的图纸编号")
-    order_date: Optional[str] = Field(None, description="订货日期，影响 WMGF 年月段")
+    order_date: Optional[str] = Field(None, description="订货日期，影响年月/年段")
+    number_attr: Optional[str] = Field(
+        None, max_length=16,
+        description="编号属性 WMGF|SY，与合同图纸对应表一致；默认 WMGF",
+    )
 
 
 class ContractCreate(BaseModel):

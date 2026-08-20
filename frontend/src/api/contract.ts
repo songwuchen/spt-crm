@@ -26,12 +26,20 @@ export const contractApi = {
       name: string
       label: string
     }>>>('/api/v1/contracts/base-lookups', { params }),
-  /** 新建登记：预览下一图纸编号（WMGF+年月+月序） */
-  peekDrawingNo: (params?: { order_date?: string }) =>
-    client.get<unknown, ApiResponse<{ drawing_no: string }>>('/api/v1/contracts/peek-drawing-no', { params }),
+  /** 新建合同登记：预览下一图纸编号（WMGF / SY 与合同图纸对应表同规则） */
+  peekDrawingNo: (params?: { order_date?: string; number_attr?: string }) =>
+    client.get<unknown, ApiResponse<{ drawing_no: string; number_attr?: string }>>(
+      '/api/v1/contracts/peek-drawing-no', { params },
+    ),
   /** 新建登记：重新取号（当前号仍可用则保留） */
-  allocateDrawingNo: (body?: { drawing_no?: string; order_date?: string }) =>
-    client.post<unknown, ApiResponse<{ drawing_no: string }>>('/api/v1/contracts/allocate-drawing-no', body || {}),
+  allocateDrawingNo: (body?: {
+    drawing_no?: string
+    order_date?: string
+    number_attr?: string
+  }) =>
+    client.post<unknown, ApiResponse<{ drawing_no: string; number_attr?: string }>>(
+      '/api/v1/contracts/allocate-drawing-no', body || {},
+    ),
   create: (projectId: string | null | undefined, data: Record<string, unknown>) =>
     projectId
       ? client.post<unknown, ApiResponse<{ contract: ContractItem; version: ContractVersion }>>(

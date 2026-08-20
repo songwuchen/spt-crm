@@ -5,12 +5,45 @@ import datetime
 
 
 async def test_contract_peek_drawing_no(client: AsyncClient, auth_headers: dict):
-    """新建合同登记可预览图纸编号。"""
+    """新建合同登记可预览图纸编号（默认 WMGF）。"""
     r = await client.get("/api/v1/contracts/peek-drawing-no", headers=auth_headers)
     assert r.json()["code"] == 0
     no = (r.json()["data"] or {}).get("drawing_no") or ""
     assert no.startswith("WMGF")
     assert len(no) >= 11
+
+
+async def test_contract_peek_drawing_no_sy(client: AsyncClient, auth_headers: dict):
+    """编号属性 SY：预览号按 SY+yy+年序。"""
+    r = await client.get(
+        "/api/v1/contracts/peek-drawing-no",
+        params={"number_attr": "SY"},
+        headers=auth_headers,
+    )
+    assert r.json()["code"] == 0, r.text
+    data = r.json()["data"] or {}
+    no = data.get("drawing_no") or ""
+    assert data.get("number_attr") == "SY"
+    assert no.startswith("SY")
+    assert len(no) >= 5
+
+
+async def test_contract_allocate_switches_number_attr(client: AsyncClient, auth_headers: dict):
+    """切换编号属性后重新取号：旧前缀号不保留。"""
+    h = auth_headers
+    peek_w = (await client.get(
+        "/api/v1/contracts/peek-drawing-no", params={"number_attr": "WMGF"}, headers=h,
+    )).json()["data"]["drawing_no"]
+    assert peek_w.startswith("WMGF")
+    r = await client.post(
+        "/api/v1/contracts/allocate-drawing-no",
+        json={"drawing_no": peek_w, "number_attr": "SY"},
+        headers=h,
+    )
+    assert r.json()["code"] == 0, r.text
+    next_no = r.json()["data"]["drawing_no"]
+    assert next_no.startswith("SY")
+    assert next_no != peek_w
 
 
 async def test_contract_allocate_drawing_no_keeps_available(client: AsyncClient, auth_headers: dict):

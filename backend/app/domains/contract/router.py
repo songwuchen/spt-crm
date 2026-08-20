@@ -238,17 +238,23 @@ async def create_contract(
 
 @router.get("/api/v1/contracts/peek-drawing-no")
 async def peek_drawing_no(
-    order_date: str | None = Query(None, description="订货日期，影响 WMGF 年月段"),
+    order_date: str | None = Query(None, description="订货日期，影响年月/年段"),
+    number_attr: str | None = Query(None, description="编号属性 WMGF|SY，默认 WMGF"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("contract:create")),
 ):
     """新建合同登记时预览下一可用图纸编号（跳过合同登记/图纸对应表已占用；必要时推进计数空洞）。"""
     drawing_no = await service.peek_create_drawing_no(
-        db, tenant_id, current_user, apply_date=order_date,
+        db, tenant_id, current_user,
+        apply_date=order_date,
+        number_attr=number_attr,
     )
     await db.commit()
-    return ok({"drawing_no": drawing_no})
+    return ok({
+        "drawing_no": drawing_no,
+        "number_attr": service.normalize_number_attr(number_attr),
+    })
 
 
 @router.post("/api/v1/contracts/allocate-drawing-no")
@@ -263,9 +269,13 @@ async def allocate_drawing_no(
         db, tenant_id, current_user,
         current=body.drawing_no,
         apply_date=body.order_date,
+        number_attr=body.number_attr,
     )
     await db.commit()
-    return ok({"drawing_no": drawing_no})
+    return ok({
+        "drawing_no": drawing_no,
+        "number_attr": service.normalize_number_attr(body.number_attr),
+    })
 
 
 @router.get("/api/v1/contracts/drawing-map-lookups")
