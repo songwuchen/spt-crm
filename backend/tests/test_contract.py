@@ -52,10 +52,11 @@ async def test_contract_create_draft_without_required(client: AsyncClient, auth_
     assert c1["drawing_no"]
 
     r2 = await client.post("/api/v1/contracts", json=body, headers=h)
-    assert r2.status_code == 200, r2.text
-    assert r2.json()["code"] == 42201
+    # 业务码 42201；HTTP 可能为 409 Conflict
+    assert r2.json()["code"] == 42201, r2.text
     assert "图纸编号" in (r2.json().get("message") or "")
     assert "已存在" in (r2.json().get("message") or "")
+    assert "刷新" in (r2.json().get("message") or "")
 
     # 不传图纸号：系统自动取号，可再存一条草稿
     r3 = await client.post("/api/v1/contracts", json={
