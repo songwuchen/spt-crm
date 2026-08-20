@@ -2014,6 +2014,7 @@ _OWNER_PERSON_FIELD_BY_TEMPLATE = {
     "quote_management": "sales_person",
     "shipment_notice": "sales_person",
     "payment_registration": "sales_person",
+    "xunhan_contract_review": "sales_person",
 }
 
 _OWNER_PERSON_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
@@ -2021,6 +2022,7 @@ _OWNER_PERSON_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
     "quote_management": ["sales_person"],
     "shipment_notice": ["sales_person", "purchasers", "purchaser"],
     "payment_registration": ["sales_person"],
+    "xunhan_contract_review": ["sales_person"],
     "pricing_checklist_hjqd": [
         "install_applicant", "req_applicant", "cs_applicant",
         "coop_applicant", "coop_order_person",
@@ -2036,6 +2038,7 @@ _FORM_DEPT_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
     "quote_management": ["department"],
     "invoice_application": ["department"],
     "payment_registration": ["department"],
+    "xunhan_contract_review": ["department"],
 }
 
 # 以单据部门为主的模板：可见 = 部门∈子树 | 本人参与 |（部门空且本部门成员参与）
@@ -2045,6 +2048,7 @@ _FORM_DEPT_PRIMARY_TEMPLATES: frozenset[str] = frozenset({
     "invoice_application",
     "shipment_notice",
     "payment_registration",
+    "xunhan_contract_review",
 })
 
 # 部门档：业务部门等文本字段按部门名称匹配

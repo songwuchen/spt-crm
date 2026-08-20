@@ -17,8 +17,7 @@ import { useListView } from '@/hooks/useListView'
 import { usePageSize } from '@/hooks/usePageSize'
 import ListToolbar from '@/components/list/ListToolbar'
 import { isMasked, MASK_VALUE } from '@/utils/mask'
-import { useAuthStore } from '@/stores/useAuthStore'
-import { canDirectCreateOpportunity } from '@/utils/opportunityCreate'
+import { usePermission } from '@/hooks/usePermission'
 
 import Icon from '@/components/Icon'
 const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
@@ -26,7 +25,8 @@ const STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']
 export default function OpportunityList() {
   usePageTitle(t('opportunity.title'))
   const navigate = useNavigate()
-  const canCreate = canDirectCreateOpportunity(useAuthStore((s) => s.user))
+  const { hasPermission } = usePermission()
+  const canCreate = hasPermission('project:create')
   const [searchParams, setSearchParams] = useSearchParams()
   const [data, setData] = useState<OpportunityProject[]>([])
   const [total, setTotal] = useState(0)

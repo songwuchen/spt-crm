@@ -13,7 +13,6 @@ import FloatingAssistant from '@/components/ai/FloatingAssistant'
 import MustChangePasswordBanner from '@/components/MustChangePasswordBanner'
 import { useAppStore } from '@/stores/useAppStore'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { canDirectCreateOpportunity } from '@/utils/opportunityCreate'
 import { useUiSettingsStore } from '@/stores/useUiSettingsStore'
 import { authApi } from '@/api/auth'
 
@@ -52,6 +51,8 @@ const breadcrumbNameMap: Record<string, string> = {
   '/invoice-applications/fill': '新增',
   '/shipment-notices': '发货通知',
   '/shipment-notices/fill': '新增',
+  '/xunhan-contract-reviews': '迅焊公司合同评审',
+  '/xunhan-contract-reviews/fill': '新增',
   '/payment-registrations': '收款登记',
   '/payment-registrations/fill': '新增',
   '/solutions': '方案管理',
@@ -208,7 +209,7 @@ export default function MainLayout() {
       const path = location.pathname
       if (path.startsWith('/customers')) navigate('/customers/new')
       else if (path.startsWith('/leads')) navigate('/leads/new')
-      else if (path.startsWith('/opportunities') && canDirectCreateOpportunity(useAuthStore.getState().user)) {
+      else if (path.startsWith('/opportunities') && useAuthStore.getState().hasPermission('project:create')) {
         navigate('/opportunities/new')
       }
     },

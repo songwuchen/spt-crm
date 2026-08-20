@@ -13,8 +13,7 @@ import AttachmentPanel from '@/components/AttachmentPanel'
 import CustomFieldsPanel, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider, PolicyItem } from '@/components/lowcode/FieldPolicy'
 import dayjs from 'dayjs'
-import { useAuthStore } from '@/stores/useAuthStore'
-import { canDirectCreateOpportunity } from '@/utils/opportunityCreate'
+import { usePermission } from '@/hooks/usePermission'
 import NoPermission from '@/pages/NoPermission'
 
 const defaultRiskOptions = [
@@ -59,7 +58,8 @@ export default function OpportunityForm() {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const isEdit = !!id
-  const canCreate = canDirectCreateOpportunity(useAuthStore((s) => s.user))
+  const { hasPermission } = usePermission()
+  const canCreate = hasPermission('project:create')
   usePageTitle(isEdit ? '编辑商机' : '新建商机')
 
   const riskDict = useDataDict('risk_level', defaultRiskOptions)

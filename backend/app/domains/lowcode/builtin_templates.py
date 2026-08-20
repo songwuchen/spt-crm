@@ -149,6 +149,20 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "sync_fields": True,
     },
     {
+        "key": "xunhan_contract_review",
+        "name": "迅焊公司合同评审",
+        "category": "合同",
+        "icon": "AuditOutlined",
+        "description": (
+            "对齐简道云销售中心「迅焊公司合同评审」"
+            "(app=5de0b3e8… entry=67d3d515…)。"
+            "流水号 24.2.3+yyyyMMdd+五位月序。"
+            "详见 docs/product/_jdy_xunhan_contract_review_crm_forms.md。"
+        ),
+        "field_definitions": [],
+        "sync_fields": True,
+    },
+    {
         "key": "presale_service_notice",
         "name": "售前服务通知",
         "category": "图纸",
@@ -494,11 +508,15 @@ def _apply_drawing_jdy_fields() -> None:
         from app.domains.lowcode._shipment_notice_generated import SHIPMENT_NOTICE_JDY
     except Exception:
         SHIPMENT_NOTICE_JDY = {}
+    try:
+        from app.domains.lowcode._xunhan_contract_review_generated import XUNHAN_CONTRACT_REVIEW_JDY
+    except Exception:
+        XUNHAN_CONTRACT_REVIEW_JDY = {}
     packs = {
         **DRAWING_JDY, **SCHEME_MANAGEMENT_JDY, **PROD_CARD_JDY,
         **INVOICE_PAYMENT_JDY, **QUOTE_MANAGEMENT_JDY, **PRICING_CHECKLIST_HJQD_JDY,
         **RESEARCH_COOP_CARD_JDY, **CUSTOMER_SERVICE_JDY, **PRESALE_SERVICE_NOTICE_JDY,
-        **SHIPMENT_NOTICE_JDY,
+        **SHIPMENT_NOTICE_JDY, **XUNHAN_CONTRACT_REVIEW_JDY,
     }
     for t in BUILTIN_TEMPLATES:
         pack = packs.get(t["key"])

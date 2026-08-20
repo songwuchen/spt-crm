@@ -74,6 +74,7 @@ export const menuGroups: MenuGroup[] = [
       { key: '/pricing-checklists', icon: 'request_quote', labelKey: 'nav.pricingChecklists', permission: 'form_data:view' },
       { key: '/research-coop-cards', icon: 'hub', labelKey: 'nav.researchCoopCards', permission: 'form_data:view' },
       { key: '/contract-reviews', icon: 'fact_check', labelKey: 'nav.contractReviews', permission: 'contract_review:view' },
+      { key: '/xunhan-contract-reviews', icon: 'fact_check', labelKey: 'nav.xunhanContractReviews', permission: 'form_data:view' },
       { key: '/tech-agreement-reviews', icon: 'description', labelKey: 'nav.techAgreementReviews', permission: 'tech_agreement_review:view' },
       { key: '/contract-drawing-maps', icon: 'map', labelKey: 'nav.contractDrawingMaps', permission: 'form_data:view' },
       { key: '/contracts', icon: 'contract', labelKey: 'nav.contracts', permission: 'contract:view' },

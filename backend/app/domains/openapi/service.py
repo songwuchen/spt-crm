@@ -1939,6 +1939,7 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
 _OPENAPI_FORM_CODES = frozenset({
     "drawing_requisition",
     "install_drawing_notice",
+    "prod_card_supplement",
 })
 _FILE_FIELD_TYPES = frozenset({"file", "image"})
 

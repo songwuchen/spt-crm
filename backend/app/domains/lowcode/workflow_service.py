@@ -663,6 +663,11 @@ def _drawing_flow_graph(form_code: str) -> tuple[list[dict], list[dict]] | None:
         packs.update(SHIPMENT_NOTICE_JDY)
     except Exception:
         pass
+    try:
+        from app.domains.lowcode._xunhan_contract_review_generated import XUNHAN_CONTRACT_REVIEW_JDY
+        packs.update(XUNHAN_CONTRACT_REVIEW_JDY)
+    except Exception:
+        pass
     pack = packs.get(form_code)
     if not pack:
         return None
@@ -4005,6 +4010,8 @@ async def _upgrade_drawing_form_flow_if_needed(
         d.name = "客服往来函件"
     elif form_code == "shipment_notice":
         d.name = "发货通知"
+    elif form_code == "xunhan_contract_review":
+        d.name = "迅焊公司合同评审"
     await _publish_system_default_upgrade(
         db, tenant_id, d, version, new_nodes, new_routes,
         DRAWING_FORM_FLOW_DESC, f"简道云表单流({form_code})",

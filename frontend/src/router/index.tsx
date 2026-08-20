@@ -314,6 +314,8 @@ export const router = createBrowserRouter([
       { path: 'invoice-applications', element: <Guard permission="form_data:view"><FormModulePage templateCode="invoice_application" title="开票申请" basePath="/invoice-applications" /></Guard> },
       { path: 'shipment-notices/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="shipment_notice" listPath="/shipment-notices" title="发货通知" /></Guard> },
       { path: 'shipment-notices', element: <Guard permission="form_data:view"><FormModulePage templateCode="shipment_notice" title="发货通知" basePath="/shipment-notices" /></Guard> },
+      { path: 'xunhan-contract-reviews/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="xunhan_contract_review" listPath="/xunhan-contract-reviews" title="迅焊公司合同评审" /></Guard> },
+      { path: 'xunhan-contract-reviews', element: <Guard permission="form_data:view"><FormModulePage templateCode="xunhan_contract_review" title="迅焊公司合同评审" basePath="/xunhan-contract-reviews" /></Guard> },
       { path: 'payment-registrations/fill', element: <Guard permission="form_data:create"><FormModuleFillPage templateCode="payment_registration" listPath="/payment-registrations" title="收款登记" /></Guard> },
       { path: 'payment-registrations', element: <Guard permission="form_data:view"><FormModulePage templateCode="payment_registration" title="收款登记" basePath="/payment-registrations" /></Guard> },
       { path: 'change-requests', element: <Guard permission="change:view"><ChangeRequestList /></Guard> },

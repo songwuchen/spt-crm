@@ -35,6 +35,8 @@ export const approvalBizTypeLabels: Record<string, string> = {
   '开票申请': '开票申请',
   payment_registration: '收款登记',
   '收款登记': '收款登记',
+  xunhan_contract_review: '迅焊公司合同评审',
+  '迅焊公司合同评审': '迅焊公司合同评审',
   presale_service_notice: '售前服务通知',
   '售前服务通知': '售前服务通知',
   '售前服务通知流程': '售前服务通知',

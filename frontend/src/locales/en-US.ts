@@ -92,6 +92,7 @@ const enUS = {
     departmentCodes: 'Department Codes',
     salespersonRegionMap: 'Salesperson Region Map',
     contractReviews: 'Contract Reviews',
+    xunhanContractReviews: 'Xunhan Contract Review',
     techAgreementReviews: 'Tech Agreement Reviews',
     prodCardSupplements: 'Prod Card / Supplement',
     invoiceApplications: 'Invoice Application',

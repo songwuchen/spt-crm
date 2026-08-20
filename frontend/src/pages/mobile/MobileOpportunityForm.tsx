@@ -8,15 +8,15 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import EntityCustomFields, { type EntityCustomFieldsRef } from '@/components/lowcode/EntityCustomFields'
 import { FieldPolicyProvider } from '@/components/lowcode/FieldPolicy'
 import { MField, MoreFields, reportFirstFormError } from './MobilePolicyField'
-import { useAuthStore } from '@/stores/useAuthStore'
-import { canDirectCreateOpportunity } from '@/utils/opportunityCreate'
+import { usePermission } from '@/hooks/usePermission'
 import NoPermission from '@/pages/NoPermission'
 
 
 export default function MobileOpportunityForm() {
   usePageTitle('新建商机')
   const navigate = useNavigate()
-  const canCreate = canDirectCreateOpportunity(useAuthStore((s) => s.user))
+  const { hasPermission } = usePermission()
+  const canCreate = hasPermission('project:create')
   const [loading, setLoading] = useState(false)
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([])
   const [form] = Form.useForm()

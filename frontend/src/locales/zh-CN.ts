@@ -109,6 +109,7 @@ const zhCN = {
     departmentCodes: '部门编号',
     salespersonRegionMap: '业务员区域经理',
     contractReviews: '合同评审',
+    xunhanContractReviews: '迅焊公司合同评审',
     techAgreementReviews: '技术协议评审',
     prodCardSupplements: '生产卡/补充流程',
     invoiceApplications: '开票申请',

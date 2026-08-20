@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { canDirectCreateOpportunity } from '@/utils/opportunityCreate'
 
 import Icon from '@/components/Icon'
 interface Command {
@@ -19,7 +18,8 @@ export default function CommandPalette() {
   const [selectedIdx, setSelectedIdx] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
-  const canCreateOpportunity = canDirectCreateOpportunity(useAuthStore((s) => s.user))
+  const hasPermission = useAuthStore((s) => s.hasPermission)
+  const canCreateOpportunity = hasPermission('project:create')
 
   const commands: Command[] = useMemo(() => {
     const items: Command[] = [
