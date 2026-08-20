@@ -183,9 +183,9 @@ export const CONTRACT_REGISTRATION_SECTIONS: RegSection[] = [
         showWhen: { field: 'info_complete', source: 'reg', equals: ['否'] },
       },
       {
+        // 对齐简道云：始终可见、allowBlank=true，无 fieldShowRules / 条件必填
         key: 'export_type', label: '出口类型', source: 'reg', widget: 'text',
-        showWhen: { field: 'is_export', source: 'reg', equals: ['是'] },
-        requiredWhen: { field: 'is_export', source: 'reg', equals: ['是'] },
+        placeholder: '如：FOB,CIF,CFR',
       },
       {
         key: 'contract_form', label: '合同形式', source: 'reg', widget: 'radio', required: true,

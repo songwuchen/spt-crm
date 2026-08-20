@@ -152,11 +152,15 @@ _CONTRACT_PAY_COLUMNS: list[dict[str, Any]] = [
          aliases=["_widget_1561431500818", "付款方式", "款项性质"], width=110),
     _col("ratio", "付款比例", "number", aliases=["_widget_1561431500832", "付款比例（%）"],
          width=110, align="right", percent=True),
+    # 对齐简道云：付款金额 = 合同总金额 × 付款比例（公式列）
     _col("amount", "付款金额", "amount", aliases=["_widget_1561431500855", "付款金额"],
-         width=130, align="right"),
+         width=130, align="right", computed=True),
+    # 发起填报不展示；财务维护收款计划时填写（JDY 亦有公式，CRM 留给财务手维）
     _col("remind", "是否提醒", "radio", options=_YES_NO,
-         aliases=["_widget_1665380028160", "是否提醒"], width=110, align="center"),
-    _col("note", "消息辅助", aliases=["_widget_1665380027757"], width=140),
+         aliases=["_widget_1665380028160", "是否提醒"], width=110, align="center",
+         available_on_create=False),
+    _col("note", "消息辅助", aliases=["_widget_1665380027757"], width=140,
+         available_on_create=False),
 ]
 
 
@@ -684,20 +688,7 @@ SYSTEM_RULES: dict[str, list[dict[str, Any]]] = {
             "condition": {"field": "info_complete", "operator": "eq", "value": "否"},
             "action": {"required": True},
         },
-        {
-            "id": "__sys_export_type_when_export",
-            "type": "visibility",
-            "target_field_id": "export_type",
-            "condition": {"field": "is_export", "operator": "eq", "value": "是"},
-            "action": {"visible": True},
-        },
-        {
-            "id": "__sys_export_type_required",
-            "type": "required",
-            "target_field_id": "export_type",
-            "condition": {"field": "is_export", "operator": "eq", "value": "是"},
-            "action": {"required": True},
-        },
+        # 出口类型：简道云始终可见且非必填，不设显隐/条件必填
         {
             "id": "__sys_delivery_mode_when_standard",
             "type": "visibility",

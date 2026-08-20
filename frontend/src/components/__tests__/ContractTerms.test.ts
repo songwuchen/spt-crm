@@ -3,6 +3,7 @@ import {
   columnsToFieldSpecs,
   toCanonicalRows,
   recomputeLineRow,
+  recomputePayRow,
   sumLineAmounts,
 } from '@/components/ContractTerms'
 import { FALLBACK_LINE_COLUMNS, FALLBACK_PAY_COLUMNS } from '@/constants/contractDetailTables'
@@ -26,6 +27,12 @@ describe('合同明细列（与目录对齐）', () => {
     expect(specs.find((s) => s.key === 'amount')?.computed).toBe(true)
     const pay = columnsToFieldSpecs(FALLBACK_PAY_COLUMNS)
     expect(pay.find((s) => s.key === 'ratio')?.kind).toBe('pct')
+    expect(pay.find((s) => s.key === 'amount')?.computed).toBe(true)
+  })
+
+  it('recomputePayRow：总金额 × 比例', () => {
+    expect(recomputePayRow({ ratio: 0.3 }, 100000).amount).toBe(30000)
+    expect(recomputePayRow({ ratio: 0.5 }, 200).amount).toBe(100)
   })
 
   it('toCanonicalRows 能吃旧 _widget_* 别名', () => {

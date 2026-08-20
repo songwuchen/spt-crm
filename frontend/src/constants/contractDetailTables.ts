@@ -53,9 +53,11 @@ export const FALLBACK_PAY_COLUMNS: FieldDefinition[] = [
   col('due_date', '日期时间', 'date', { aliases: ['_widget_1661242797064'], width: 150 }),
   col('kind', '付款方式', 'select', { aliases: ['_widget_1561431500818', '付款方式', '款项性质'], width: 110 }, PAY_KIND_OPTS),
   col('ratio', '付款比例', 'number', { aliases: ['_widget_1561431500832', '付款比例（%）'], width: 110, align: 'right', percent: true }),
-  col('amount', '付款金额', 'amount', { aliases: ['_widget_1561431500855', '付款金额'], width: 130, align: 'right' }),
-  col('remind', '是否提醒', 'radio', { aliases: ['_widget_1665380028160', '是否提醒'], width: 110, align: 'center' }, LINE_YES_NO_OPTS),
-  col('note', '消息辅助', 'text', { aliases: ['_widget_1665380027757'], width: 140 }),
+  // 简道云：合同总金额 × 付款比例
+  col('amount', '付款金额', 'amount', { aliases: ['_widget_1561431500855', '付款金额'], width: 130, align: 'right', computed: true }),
+  // 发起不展示；财务维护时填写
+  col('remind', '是否提醒', 'radio', { aliases: ['_widget_1665380028160', '是否提醒'], width: 110, align: 'center', available_on_create: false }, LINE_YES_NO_OPTS),
+  col('note', '消息辅助', 'text', { aliases: ['_widget_1665380027757'], width: 140, available_on_create: false }),
 ]
 
 export const LINE_ITEMS_FIELD_ID = 'line_items'

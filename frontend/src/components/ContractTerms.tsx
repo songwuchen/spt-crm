@@ -321,6 +321,21 @@ export function sumLineAmounts(rows: Row[]): number {
   return rows.reduce((s, r) => s + numOf(r.amount), 0)
 }
 
+/** 对齐简道云：付款金额 = 合同总金额 × 付款比例（比例存 0~1） */
+export function recomputePayRow(row: Row, contractTotal: number): Row {
+  const ratio = numOf(row.ratio)
+  const total = numOf(contractTotal)
+  if (!ratio && !total) {
+    return { ...row, amount: row.amount ?? null }
+  }
+  const amount = Math.round(total * ratio * 100) / 100
+  return { ...row, amount }
+}
+
+export function recomputePayRows(rows: Row[], contractTotal: number): Row[] {
+  return rows.map((r) => recomputePayRow(r, contractTotal))
+}
+
 function CellEditor({
   f, value, row, onChange,
 }: {
@@ -406,13 +421,16 @@ function EditableTermsTable({
   onChange,
   onTotalChange,
   recompute = false,
+  contractTotal,
 }: {
   fields: FieldSpec[]
   rows: Row[]
   onChange: (rows: Row[]) => void
   onTotalChange?: (total: number) => void
-  /** 合同明细行需要外币/总价重算；收款计划不需要 */
+  /** 合同明细行需要外币/总价重算 */
   recompute?: boolean
+  /** 收款计划：传入合同总金额后按比例重算付款金额 */
+  contractTotal?: number
 }) {
   const emit = (next: Row[]) => {
     onChange(next)
@@ -427,6 +445,9 @@ function EditableTermsTable({
       if (['qty', 'price', 'fx_price', 'fx_rate', 'is_fx'].includes(key)) {
         row = recomputeLineRow(row)
       }
+    }
+    if (contractTotal != null && key === 'ratio') {
+      row = recomputePayRow(row, contractTotal)
     }
     emit(rows.map((r, j) => (j === i ? row : r)))
   }
@@ -489,14 +510,43 @@ function EditableTermsTable({
 
 /** 付款条款（收款计划）编辑器 */
 export function PaymentTermsEditor({
-  value, onChange, columns,
+  value, onChange, columns, contractTotal, hideFinanceFields = false,
 }: {
   value: Row[]
   onChange: (v: Row[]) => void
   columns?: FieldDefinition[]
+  /** 合同总金额；有值时付款金额 = 总金额 × 比例（只读） */
+  contractTotal?: number
+  /** 新建/发起：隐藏「是否提醒」「消息辅助」（留给财务维护） */
+  hideFinanceFields?: boolean
 }) {
   const cols = useDetailColumns(PAYMENT_TERMS_FIELD_ID, FALLBACK_PAY_COLUMNS, columns)
-  return <EditableTermsTable fields={columnsToFieldSpecs(cols)} rows={value} onChange={onChange} />
+  const visibleCols = hideFinanceFields
+    ? cols.filter((c) => {
+      const props = (c.props || {}) as { available_on_create?: boolean }
+      if (props.available_on_create === false) return false
+      if (c.id === 'remind' || c.id === 'note') return false
+      return true
+    })
+    : cols
+
+  useEffect(() => {
+    if (contractTotal == null || !value.length) return
+    const next = recomputePayRows(value, contractTotal)
+    const changed = next.some((r, i) => numOf(r.amount) !== numOf(value[i]?.amount))
+    if (changed) onChange(next)
+    // 仅随合同总额变化重算；行内改比例在 EditableTermsTable.update 处理
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contractTotal])
+
+  return (
+    <EditableTermsTable
+      fields={columnsToFieldSpecs(visibleCols)}
+      rows={value}
+      onChange={onChange}
+      contractTotal={contractTotal}
+    />
+  )
 }
 
 /** 合同明细编辑器；onTotalChange 对齐简道云 SUM(总价)→合同总金额 */

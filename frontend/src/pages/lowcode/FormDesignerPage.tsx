@@ -406,7 +406,12 @@ export default function FormDesignerPage() {
                           fieldId={PAYMENT_TERMS_FIELD_ID}
                           fallback={fields.find((f) => f.id === PAYMENT_TERMS_FIELD_ID)?.label || '收款计划'}
                         />
-                        <PaymentTermsEditor value={previewPay} onChange={setPreviewPay} columns={previewPayCols} />
+                        <PaymentTermsEditor
+                          value={previewPay}
+                          onChange={setPreviewPay}
+                          columns={previewPayCols}
+                          hideFinanceFields
+                        />
                       </div>
                     ),
                     contract_files: (

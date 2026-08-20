@@ -1727,7 +1727,12 @@ export default function OpportunityDetail() {
           <p className="text-xs text-slate-400 -mt-2">图纸编号按 WMGF 规则自动生成，创建时沿用上方编号</p>
           <div>
             <ContractSubtableTitle fieldId={PAYMENT_TERMS_FIELD_ID} fallback="收款计划" />
-            <PaymentTermsEditor value={ctPay} onChange={setCtPay} />
+            <PaymentTermsEditor
+              value={ctPay}
+              onChange={setCtPay}
+              contractTotal={Number(ctAmount) || 0}
+              hideFinanceFields
+            />
           </div>
           <div>
             <ContractSubtableTitle fieldId={LINE_ITEMS_FIELD_ID} fallback="合同明细" />

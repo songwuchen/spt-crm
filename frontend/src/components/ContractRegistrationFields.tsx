@@ -332,7 +332,7 @@ function FieldControl({
 
   // 显隐依赖字段：写入时展开新对象，避免 antd 对嵌套 registration_json 原地改值导致不刷新
   const SHOW_TRIGGERS = new Set([
-    'info_complete', 'is_export', 'standard_delivery', 'is_rotary_sieve', 'has_intelligence',
+    'info_complete', 'standard_delivery', 'is_rotary_sieve', 'has_intelligence',
   ])
   const patchReg = (key: string, val: unknown) => {
     const reg = { ...(form.getFieldValue('registration_json') || {}) } as Record<string, unknown>
@@ -342,7 +342,6 @@ function FieldControl({
       delete reg.missing_items
       delete reg.info_incomplete_note
     }
-    if (key === 'is_export' && val !== '是') delete reg.export_type
     if (key === 'is_rotary_sieve' && val !== '是') delete reg.fill_code
     if (key === 'has_intelligence' && val !== '是') delete reg.smart_points
     form.setFieldsValue({ registration_json: reg })

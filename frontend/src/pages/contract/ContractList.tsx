@@ -492,7 +492,16 @@ export default function ContractList() {
               payment_terms: (
                 <div>
                   <ContractSubtableTitle fieldId={PAYMENT_TERMS_FIELD_ID} fallback="收款计划" />
-                  <PaymentTermsEditor value={createPay} onChange={setCreatePay} />
+                  <Form.Item noStyle shouldUpdate={(prev, cur) => prev.amount_total !== cur.amount_total}>
+                    {() => (
+                      <PaymentTermsEditor
+                        value={createPay}
+                        onChange={setCreatePay}
+                        contractTotal={Number(createForm.getFieldValue('amount_total')) || 0}
+                        hideFinanceFields
+                      />
+                    )}
+                  </Form.Item>
                 </div>
               ),
               contract_files: (

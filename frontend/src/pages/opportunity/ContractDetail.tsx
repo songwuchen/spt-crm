@@ -728,7 +728,15 @@ export default function ContractDetail() {
               payment_terms: (
                 <div>
                   <ContractSubtableTitle fieldId={PAYMENT_TERMS_FIELD_ID} fallback="收款计划" />
-                  <PaymentTermsEditor value={editPay} onChange={setEditPay} />
+                  <Form.Item noStyle shouldUpdate={(prev, cur) => prev.amount_total !== cur.amount_total}>
+                    {() => (
+                      <PaymentTermsEditor
+                        value={editPay}
+                        onChange={setEditPay}
+                        contractTotal={Number(editForm.getFieldValue('amount_total')) || 0}
+                      />
+                    )}
+                  </Form.Item>
                 </div>
               ),
               contract_files: <ContractAttachmentSlots slot="contract_files" contractId={cid} />,
@@ -963,7 +971,11 @@ export default function ContractDetail() {
                     </Space>
                   </div>
                   {canEdit ? (
-                    <PaymentTermsEditor value={detailPay} onChange={setDetailPay} />
+                    <PaymentTermsEditor
+                      value={detailPay}
+                      onChange={setDetailPay}
+                      contractTotal={Number(contract.amount_total) || 0}
+                    />
                   ) : (
                     contract.payment_terms_json
                       ? <PaymentTermsView value={contract.payment_terms_json} />
