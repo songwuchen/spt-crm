@@ -1,14 +1,15 @@
 /** 流程节点审批人/抄送人规则编辑（含组合选人 mixed）。 */
 import { useEffect, useState } from 'react'
 import { Button, Input, Select, Space, Typography } from 'antd'
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons'
 import PersonField from '@/components/lowcode/fields/PersonField'
 import { pickableScopeApi } from '@/api/pickableScope'
+import { lowcodeApi } from '@/api/lowcode'
 import type { ApproverType, FieldDefinition, WfApproverRule } from '@/types/lowcode'
 
 const { Text } = Typography
 
-type NeedValue = 'user' | 'field_person' | 'field_dept' | 'text' | 'pickable_scope' | 'mixed'
+type NeedValue = 'user' | 'field_person' | 'field_dept' | 'role' | 'pickable_scope' | 'mixed'
 
 export type ApproverTypeMeta = {
   value: ApproverType
@@ -27,7 +28,7 @@ export const ATOMIC_APPROVER_TYPES: ApproverTypeMeta[] = [
   { value: 'form_field_person_dept_head', label: '表单人员·部门负责人', needValue: 'field_person' },
   { value: 'form_field_dept', label: '表单部门字段', needValue: 'field_dept' },
   { value: 'pickable_scope', label: '可选范围', needValue: 'pickable_scope' },
-  { value: 'specified_role', label: '指定角色(角色码)', needValue: 'text' },
+  { value: 'specified_role', label: '指定角色', needValue: 'role' },
 ]
 
 export const APPROVER_TYPES: ApproverTypeMeta[] = [
@@ -93,6 +94,80 @@ function PickableScopeSelect({
   )
 }
 
+/** 指定角色：从角色管理列表点选，展示中文名（对齐简道云） */
+function RoleSelect({
+  value,
+  onChange,
+}: {
+  value: unknown
+  onChange: (value: unknown) => void
+}) {
+  const [opts, setOpts] = useState<{ value: string; label: string; name: string; member_count: number }[]>([])
+  const selected = Array.isArray(value)
+    ? value.map(String).filter(Boolean)
+    : (typeof value === 'string' && value ? [value] : [])
+
+  useEffect(() => {
+    lowcodeApi.pickableRoles({ codes: selected.join(',') || undefined }).then((r) => {
+      const list = Array.isArray(r.data) ? r.data : []
+      setOpts(list.map((role) => ({
+        value: role.code,
+        name: role.name || role.code,
+        member_count: role.member_count ?? 0,
+        label: `${role.name || role.code}${typeof role.member_count === 'number' ? `（${role.member_count}人）` : ''}`,
+      })))
+    }).catch(() => setOpts([]))
+  // 仅挂载时拉全量；回显靠 options 补全
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const options = [...opts]
+  for (const code of selected) {
+    if (!options.some((o) => o.value === code)) {
+      options.unshift({ value: code, name: code, member_count: 0, label: code })
+    }
+  }
+
+  return (
+    <Select
+      size="small"
+      mode="multiple"
+      allowClear
+      style={{ width: '100%' }}
+      placeholder="选择角色（显示中文名）"
+      value={selected}
+      options={options}
+      optionFilterProp="label"
+      showSearch
+      optionRender={(opt) => (
+        <div className="flex items-center gap-2 py-0.5">
+          <TeamOutlined className="text-blue-500" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-slate-800">{String(opt.data?.name || opt.label)}</div>
+            <div className="text-xs text-slate-400 truncate">
+              {String(opt.value)}
+              {typeof opt.data?.member_count === 'number' ? ` · ${opt.data.member_count} 人` : ''}
+            </div>
+          </div>
+        </div>
+      )}
+      tagRender={({ value: code, closable, onClose }) => {
+        const opt = options.find((o) => o.value === code)
+        return (
+          <span className="ant-select-selection-item inline-flex items-center gap-1 !me-1 !ps-1.5">
+            <TeamOutlined className="text-blue-500 text-xs" />
+            <span className="max-w-[160px] truncate">{opt?.name || String(code)}</span>
+            {closable ? (
+              <span className="ant-select-selection-item-remove cursor-pointer" onClick={onClose}>×</span>
+            ) : null}
+          </span>
+        )
+      }}
+      onChange={(codes) => onChange(codes.length <= 1 ? (codes[0] || undefined) : codes)}
+    />
+  )
+}
+
 /** 单一规则的取值区（不含 type 选择） */
 function AtomicValueEditor({
   rule,
@@ -142,6 +217,9 @@ function AtomicValueEditor({
   }
   if (meta.needValue === 'pickable_scope') {
     return <PickableScopeSelect value={rule.value} onChange={onChange} />
+  }
+  if (meta.needValue === 'role') {
+    return <RoleSelect value={rule.value} onChange={onChange} />
   }
   return (
     <Input

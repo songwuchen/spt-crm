@@ -53,6 +53,11 @@ def strip_spt_scheme_pickable_scopes(
 # 简道云角色 ID → CRM Role.code（生成器仍可用）
 JDY_ROLE_TO_CRM_CODE: dict[str, str] = {
     "63815e3a7fb607000acc9195": "room_leader",
+    # 230902客服内勤（客服落实 / 客服补登）
+    "64f2a247187194000af416be": "cs_office",
+    "62e9bfe0527ea90008320fab": "cs_office",
+    # 服务申请及反馈-客服安排（客服安排1）
+    "5f6597fda1d94000063f43ee": "cs_arrange",
 }
 
 # 简道云角色 → 预置可选范围 code

@@ -20,6 +20,7 @@ import ContractRegistrationReadonly from '@/components/lowcode/ContractRegistrat
 import LeadIntelReviewForm from '@/components/lead/LeadIntelReviewForm'
 import LeadOwnerConfirmActions from '@/components/lead/LeadOwnerConfirmActions'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
+import FormInstanceSystemMeta from '@/components/lowcode/FormInstanceSystemMeta'
 import WfActivateFlowModal from '@/components/lowcode/WfActivateFlowModal'
 import AttachmentPanel from '@/components/AttachmentPanel'
 import { WF_STATUS as PSTATUS } from '@/utils/lowcodeWorkflowLabels'
@@ -669,6 +670,13 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
               ) : (
                 <>
                   <section>{defaultBizSection}</section>
+                  <FormInstanceSystemMeta
+                    initiatorName={detail.initiator_name}
+                    createdAt={detail.created_at || detail.started_at}
+                    updatedAt={detail.updated_at}
+                    status={detail.status}
+                    flowSteps={detail.flow_steps}
+                  />
                   {!isLeadReactivation && nodeFieldSection}
                 </>
               )}

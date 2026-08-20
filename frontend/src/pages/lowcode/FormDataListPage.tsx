@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   Button, Space, Tag, Modal, message, Popconfirm, Typography,
-  Input, Select, Dropdown, Descriptions,
+  Input, Select, Dropdown,
 } from 'antd'
 import type { MenuProps } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -37,6 +37,7 @@ import {
 import type { FieldDefinition, FormRule, FormInstance, WfInstanceDetail } from '@/types/lowcode'
 import FormRenderer, { findRequiredError, scrollToLcField, deriveRolePerms } from '@/components/lowcode/FormRenderer'
 import WfFlowDynamics from '@/components/lowcode/WfFlowDynamics'
+import FormInstanceSystemMeta from '@/components/lowcode/FormInstanceSystemMeta'
 import { buildFormFieldLabels } from '@/utils/dataLogLabels'
 import WfActivateFlowModal from '@/components/lowcode/WfActivateFlowModal'
 import { computeFieldStates } from '@/components/lowcode/RuleEngine'
@@ -1109,7 +1110,7 @@ export default function FormDataListPage({
         })),
         ...detailGroupCols,
         {
-          title: '创建人', key: 'initiator_name', width: 100,
+          title: '提交人', key: 'initiator_name', width: 100,
           onCell: (row) => ({ rowSpan: (row as DetailFlatRow).rowSpan }),
           render: (_: unknown, row) => {
             const r = (row as DetailFlatRow).record
@@ -1150,7 +1151,7 @@ export default function FormDataListPage({
             cellNode(f, (r as FormInstance).form_data?.[f.id], nameMaps),
         })),
         {
-          title: '创建人', dataIndex: 'initiator_name', key: 'initiator_name',
+          title: '提交人', dataIndex: 'initiator_name', key: 'initiator_name',
           width: 100, fixed: 'right' as const,
           ellipsis: { showTitle: true } as const,
           render: (v: string | null | undefined) => v || '—',
@@ -1189,7 +1190,7 @@ export default function FormDataListPage({
   const tableScrollX = useMemo(() => {
     const biz = colFields.reduce((n, f) => n + colWidth(f), 0)
     const detail = detailColsCount ? 120 * detailColsCount + 80 : 0
-    // 序号/标题余量 + 创建人 + 流程状态 + 提交时间(+更新时间) + 操作
+    // 序号/标题余量 + 提交人 + 流程状态 + 提交时间(+更新时间) + 操作
     const fixed = listFullText
       ? 120 + 100 + 100 + 178 + 178 + 72
       : 140 + 100 + 100 + 160 + 72
@@ -1206,15 +1207,6 @@ export default function FormDataListPage({
   const displayFields = viewRec
     ? (drawingLayout ? applyDrawingFormLayout(templateCode, viewRec.fields) : viewRec.fields)
     : []
-
-  const currentWfSteps = (wfDetail?.flow_steps || []).filter((s) => s.is_current)
-  const currentNodeName = currentWfSteps.map((s) => s.node_name).filter(Boolean).join('、') || '—'
-  const currentAssignees = currentWfSteps
-    .flatMap((s) => (s.assignees || []).map((a) => a.name).filter(Boolean))
-  const currentAssigneeText = [...new Set(currentAssignees)].join('、') || '—'
-  const viewStatusTag = viewRec?.status
-    ? (STATUS_TAG[viewRec.status] || { color: 'default', text: viewRec.status })
-    : null
 
   return (
     <div>
@@ -1375,36 +1367,6 @@ export default function FormDataListPage({
             </div>
             <div className="flex gap-0 flex-1 min-h-0" style={{ minHeight: modalFullscreen ? undefined : 480 }}>
               <div className="flex-1 overflow-y-auto pr-3" style={{ maxHeight: contentMaxH }}>
-                <Descriptions
-                  size="small"
-                  column={2}
-                  bordered
-                  className="mb-4"
-                  styles={{ label: { width: 96, whiteSpace: 'nowrap' } }}
-                >
-                  <Descriptions.Item label="创建人">
-                    {viewRec.initiator_name || '—'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="提交时间">
-                    {viewRec.created_at ? formatCellDateTime(viewRec.created_at, true) : '—'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="更新时间">
-                    {(viewRec.updated_at || viewRec.created_at)
-                      ? formatCellDateTime(viewRec.updated_at || viewRec.created_at, true)
-                      : '—'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="流程状态">
-                    {viewStatusTag
-                      ? <Tag color={viewStatusTag.color}>{viewStatusTag.text}</Tag>
-                      : '—'}
-                  </Descriptions.Item>
-                  {wfDetail ? (
-                    <>
-                      <Descriptions.Item label="当前节点">{currentNodeName}</Descriptions.Item>
-                      <Descriptions.Item label="当前负责人">{currentAssigneeText}</Descriptions.Item>
-                    </>
-                  ) : null}
-                </Descriptions>
                 <FormRenderer
                   fields={displayFields}
                   rules={viewRec.rules}
@@ -1412,6 +1374,13 @@ export default function FormDataListPage({
                   value={viewRec.value}
                   onChange={(v) => setViewRec((s) => (s ? { ...s, value: v } : s))}
                   serialPreviews={serialPreviews}
+                />
+                <FormInstanceSystemMeta
+                  initiatorName={viewRec.initiator_name}
+                  createdAt={viewRec.created_at}
+                  updatedAt={viewRec.updated_at}
+                  status={viewRec.status}
+                  flowSteps={wfDetail?.flow_steps}
                 />
               </div>
               {showFlowPane && (

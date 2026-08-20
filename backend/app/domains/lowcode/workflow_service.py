@@ -447,6 +447,16 @@ FORM_DEFAULT_SPECS: list[dict] = [
         "empty_strategy": "auto_approve",
     },
     {
+        "form_code": "xunhan_contract_review",
+        "code": "SYS_XUNHAN_CONTRACT_REVIEW",
+        "name": "迅焊公司合同评审",
+        "approver_rule": {
+            "type": "specified_role", "value": "sales_manager", "exclude_initiator": True,
+        },
+        "multi_mode": "or_sign",
+        "empty_strategy": "auto_approve",
+    },
+    {
         "form_code": "presale_service_notice",
         "code": "SYS_PRESALE_SERVICE_NOTICE",
         "name": "售前服务通知",
@@ -1267,6 +1277,86 @@ def apply_cs_product_replace_approvers(nodes: list[dict]) -> bool:
     return changed
 
 
+# 简道云「客户服务申请及反馈」客服落实 ← 角色 230902客服内勤（CRM: cs_office）
+_CS_SERVICE_CS_OFFICE_ROLE = {
+    "type": "specified_role",
+    "value": "cs_office",
+    "exclude_initiator": True,
+    "jdy_role_hint": "230902客服内勤",
+}
+# 简道云「客户服务申请及反馈」客服安排1 ← 角色 服务申请及反馈-客服安排（CRM: cs_arrange）
+_CS_SERVICE_CS_ARRANGE_ROLE = {
+    "type": "specified_role",
+    "value": "cs_arrange",
+    "exclude_initiator": True,
+    "jdy_role_hint": "服务申请及反馈-客服安排",
+}
+_CS_SERVICE_CHIEF = {
+    "type": "specified_user",
+    "value": "02364335378133",  # 曹修国
+    "exclude_initiator": True,
+    "jdy_role_hint": "7.1.1售后服务申请及反馈-总工审批",
+}
+_CS_SERVICE_CEO = {
+    "type": "specified_user",
+    "value": "02336214315748",  # 王思民
+    "exclude_initiator": True,
+    "jdy_role_hint": "总经理",
+}
+_CS_SERVICE_CS_LEADER_FIELD = {
+    "type": "form_field_person",
+    "value": "field_37",  # 客服组长（客服落实节点填写）
+}
+# 按节点 id / 名称 纠正审批人（勿用空 sales_manager / 勿写死指定人员）
+_CS_SERVICE_APPROVER_BY_ID: dict[str, dict] = {
+    "n2": _CS_SERVICE_CS_OFFICE_ROLE,  # 客服落实
+    "n4": _CS_SERVICE_CHIEF,  # 总工审批
+    "n5": _CS_SERVICE_CEO,  # 总经理
+    "n6__1": _CS_SERVICE_CS_ARRANGE_ROLE,  # 客服安排1
+    "n21": _CS_SERVICE_CEO,
+    "n24": _CS_SERVICE_CS_LEADER_FIELD,  # 客服组长
+}
+_CS_SERVICE_APPROVER_BY_NAME: dict[str, dict] = {
+    "客服落实": _CS_SERVICE_CS_OFFICE_ROLE,
+    "客服安排1": _CS_SERVICE_CS_ARRANGE_ROLE,
+    "总工审批": _CS_SERVICE_CHIEF,
+    "客服组长": _CS_SERVICE_CS_LEADER_FIELD,
+}
+
+
+def _flow_cs_service_request_needs_approver_fix(nodes: list[dict] | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _CS_SERVICE_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _CS_SERVICE_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
+            continue
+        if not _approver_rule_matches(n.get("approver_rule") or {}, want):
+            return True
+    return False
+
+
+def apply_cs_service_request_approvers(nodes: list[dict]) -> bool:
+    """客户服务申请及反馈：客服落实→cs_office；客服安排1→cs_arrange。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _CS_SERVICE_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _CS_SERVICE_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
+            continue
+        cur = n.get("approver_rule") or {}
+        if _approver_rule_matches(cur, want):
+            continue
+        n["approver_rule"] = dict(want)
+        changed = True
+    return changed
+
+
 _CS_RETURN_CS_USERS = {
     "type": "specified_user",
     "value": [
@@ -1812,15 +1902,20 @@ def _flow_quote_finance_dept_not_parallel(
     return False
 
 
-def apply_cs_service_request_start_parallel(
+def apply_cs_service_request_start_region_first(
     nodes: list | None, routes: list | None,
 ) -> bool:
-    """客服类表单（申请及反馈 / 售出产品更换等）：发起多条件出边不得互斥。
+    """客服类表单：有区域经理时先审区域，再进业务经理（串行绕行，非并行）。
 
-    简道云里「区域经理/组长不为空 → 区域经理或组长」与其它部门/补登条件可同时成立；
-    ``业务经理(审批)`` 多为 else（仅无条件命中时）。互斥组按序会吞掉区域经理。
-    区域经理→业务经理* 标 reenter，避免并行已亮业务经理时回路被 skip。
+    对齐简道云「条件流程」示例（数量>10→小组长→内务；否则直达内务）及实单日志：
+    业务经理 ``startAt`` = 区域经理 ``finishAt``。配置上发起→业务经理与发起→区域
+    条件可能重叠，但运行按互斥优先走区域；区域审完经区域→业务经理汇合。
+
+    做法：发起出边保持/恢复互斥组，去掉误标的 ``fork=parallel``，并把
+    「区域经理或组长」排到互斥组最前，避免业务经理直达边抢先吞掉区域。
     """
+    if not isinstance(routes, list):
+        return False
     start_ids = {
         str(n["id"])
         for n in (nodes or [])
@@ -1828,47 +1923,76 @@ def apply_cs_service_request_start_parallel(
     }
     if not start_ids:
         return False
-    by_id = {
-        str(n["id"]): n
+    name_by_id = {
+        str(n["id"]): str(n.get("name") or "")
         for n in (nodes or [])
         if isinstance(n, dict) and n.get("id")
     }
     region_ids = {
-        str(n["id"])
-        for n in (nodes or [])
-        if isinstance(n, dict) and n.get("id") and n.get("name") == "区域经理或组长"
+        nid for nid, nm in name_by_id.items() if nm == "区域经理或组长"
     }
-    biz_ids = {
-        str(n["id"])
-        for n in (nodes or [])
-        if isinstance(n, dict) and n.get("id")
-        and str(n.get("name") or "").startswith("业务经理")
-    }
+    if not region_ids:
+        return False
+
     changed = False
-    for r in routes or []:
+    start_outs: list[dict] = []
+    for r in routes:
         if not isinstance(r, dict) or r.get("always"):
             continue
-        src = str(r.get("source") or "")
+        if str(r.get("source") or "") not in start_ids:
+            continue
+        start_outs.append(r)
+        if r.get("fork") == "parallel":
+            r.pop("fork", None)
+            changed = True
+        if r.get("exclusive_group") != "ex_start":
+            r["exclusive_group"] = "ex_start"
+            changed = True
+
+    if len(start_outs) < 2:
+        return changed
+
+    def _rank(r: dict) -> tuple:
         tgt = str(r.get("target") or "")
-        if src in start_ids:
-            if r.get("exclusive_group") or r.get("fork") != "parallel":
-                r.pop("exclusive_group", None)
-                r["fork"] = "parallel"
-                changed = True
-        if src in region_ids and tgt in biz_ids and by_id.get(tgt, {}).get("type") == "approval":
-            if not r.get("reenter"):
-                r["reenter"] = True
-                changed = True
+        if tgt in region_ids:
+            return (0, 0)
+        if r.get("condition"):
+            return (1, 0)
+        return (2, 0)
+
+    ordered = sorted(start_outs, key=_rank)
+    need_reorder = [str(r.get("target")) for r in ordered] != [
+        str(r.get("target")) for r in start_outs
+    ]
+    if need_reorder:
+        new_routes: list = []
+        replaced = False
+        for r in routes:
+            if not isinstance(r, dict):
+                new_routes.append(r)
+                continue
+            if r.get("always") or str(r.get("source") or "") not in start_ids:
+                new_routes.append(r)
+                continue
+            if not replaced:
+                new_routes.extend(ordered)
+                replaced = True
+        routes[:] = new_routes
+        changed = True
+
     return changed
 
 
-# 售出产品更换等同构：发起并行 + 区域经理回路重入
-apply_cs_product_replace_start_parallel = apply_cs_service_request_start_parallel
+# 兼容旧名：语义已改为区域优先串行，不再并行
+apply_cs_service_request_start_parallel = apply_cs_service_request_start_region_first
+apply_cs_product_replace_start_parallel = apply_cs_service_request_start_region_first
+apply_cs_product_replace_start_region_first = apply_cs_service_request_start_region_first
 
 
-def _flow_cs_service_start_not_parallel(
+def _flow_cs_service_start_not_region_first(
     nodes: list | None, routes: list | None,
 ) -> bool:
+    """True = 需要升级：发起仍并行，或互斥组内区域未排在业务经理之前。"""
     start_ids = {
         str(n["id"])
         for n in (nodes or [])
@@ -1881,26 +2005,41 @@ def _flow_cs_service_start_not_parallel(
         for n in (nodes or [])
         if isinstance(n, dict) and n.get("id") and n.get("name") == "区域经理或组长"
     }
+    if not region_ids:
+        return False
+    start_outs = [
+        r for r in (routes or [])
+        if isinstance(r, dict) and not r.get("always")
+        and str(r.get("source") or "") in start_ids
+    ]
+    if len(start_outs) < 2:
+        return False
+    if any(r.get("fork") == "parallel" for r in start_outs):
+        return True
+    if any(not r.get("exclusive_group") for r in start_outs):
+        return True
     biz_ids = {
         str(n["id"])
         for n in (nodes or [])
         if isinstance(n, dict) and n.get("id")
         and str(n.get("name") or "").startswith("业务经理")
     }
-    for r in routes or []:
-        if not isinstance(r, dict) or r.get("always"):
-            continue
-        src = str(r.get("source") or "")
-        tgt = str(r.get("target") or "")
-        if src in start_ids:
-            if r.get("exclusive_group") or r.get("fork") != "parallel":
-                return True
-        if src in region_ids and tgt in biz_ids and not r.get("reenter"):
-            return True
+    region_pos = next(
+        (i for i, r in enumerate(start_outs) if str(r.get("target") or "") in region_ids),
+        None,
+    )
+    biz_pos = next(
+        (i for i, r in enumerate(start_outs) if str(r.get("target") or "") in biz_ids),
+        None,
+    )
+    if region_pos is not None and biz_pos is not None and region_pos > biz_pos:
+        return True
     return False
 
 
-_flow_cs_product_replace_start_not_parallel = _flow_cs_service_start_not_parallel
+_flow_cs_service_start_not_parallel = _flow_cs_service_start_not_region_first
+_flow_cs_product_replace_start_not_parallel = _flow_cs_service_start_not_region_first
+_flow_cs_product_replace_start_not_region_first = _flow_cs_service_start_not_region_first
 
 
 def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
@@ -3525,6 +3664,28 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"售出产品更换审批人改为具名用户/部门负责人({form_code})",
         )
         return
+    # 客户服务申请及反馈：客服落实→cs_office；客服安排1→cs_arrange
+    # 不依赖 topology_ok：画布已手改/拓扑判定失败时也要把错误角色改回
+    if (
+        form_code == "cs_service_request"
+        and _flow_cs_service_request_needs_approver_fix(version.node_definitions)
+    ):
+        import copy
+        from app.common.rbac_sync import (
+            ensure_cs_arrange_role_members,
+            ensure_cs_office_role_members,
+        )
+        await ensure_cs_office_role_members(db, tenant_id)
+        await ensure_cs_arrange_role_members(db, tenant_id)
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_cs_service_request_approvers(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC,
+            f"客服落实/客服安排改为指定角色cs_office+cs_arrange({form_code})",
+        )
+        return
     # 售出产品/工具退回：客服办理 230902客服内勤 → 具名用户
     if (
         topology_ok
@@ -3732,11 +3893,11 @@ async def _upgrade_drawing_form_flow_if_needed(
         ):
             tags.append("通知发起人须转采购≠是")
         if form_code in ("cs_service_request", "cs_product_replace") and (
-            apply_cs_service_request_start_parallel(
+            apply_cs_service_request_start_region_first(
                 version.node_definitions, patched_routes,
             )
         ):
-            tags.append("发起节点区域经理等多条件并行")
+            tags.append("发起节点区域经理优先串行（对齐简道云实单）")
         if fix_always_parallel_exclusive_groups(patched_routes):
             tags.append(f"恒真并行边退出互斥组({form_code})")
         if _flow_missing_exclusive_groups(patched_routes):
@@ -5842,6 +6003,7 @@ def _inst_dict(i: WfProcessInstance) -> dict:
         "started_at": i.started_at.isoformat() if i.started_at else None,
         "completed_at": i.completed_at.isoformat() if i.completed_at else None,
         "created_at": i.created_at.isoformat() if i.created_at else None,
+        "updated_at": i.updated_at.isoformat() if getattr(i, "updated_at", None) else None,
     }
 
 
@@ -6226,15 +6388,15 @@ async def get_instance_detail(
         db, list(nodes), list(tasks), list(logs), process_status=inst.status,
     )
     # 补一条「发起」动态（对齐简道云流程发起节点）
+    initiator_name = None
     if inst.started_at:
         from app.domains.auth.models import User
-        iname = None
         if inst.initiator_id:
             u = (await db.execute(
                 select(User.real_name, User.username).where(User.id == inst.initiator_id)
             )).first()
             if u:
-                iname = u[0] or u[1]
+                initiator_name = u[0] or u[1]
         flow_steps.append({
             "node_instance_id": f"start:{inst.id}",
             "node_def_id": "start",
@@ -6243,7 +6405,7 @@ async def get_instance_detail(
             "status": "completed",
             "status_text": "已完成",
             "assignees": [],
-            "handler_name": iname,
+            "handler_name": initiator_name,
             "action": "submit",
             "opinion": None,
             "started_at": inst.started_at.isoformat(),
@@ -6251,11 +6413,19 @@ async def get_instance_detail(
             "duration": "1秒",
             "is_current": False,
         })
+    elif inst.initiator_id:
+        from app.domains.auth.models import User
+        u = (await db.execute(
+            select(User.real_name, User.username).where(User.id == inst.initiator_id)
+        )).first()
+        if u:
+            initiator_name = u[0] or u[1]
 
     # 轨迹补充节点名
     ni_name = {n.id: n.node_name for n in nodes}
     return {
         **_inst_dict(inst),
+        "initiator_name": initiator_name,
         "process_name": process_name,
         "approval_nodes": approval_nodes,
         "activate_nodes": activate_nodes,

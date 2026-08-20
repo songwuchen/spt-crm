@@ -1,10 +1,11 @@
 // 扩展平台 → 流程可视化设计器(@xyflow 拖拽画布)。节点(开始/审批/抄送/结束)+ 连线(可挂条件分支)。
 // 复用后端 save_design/publish;节点位置存 node.position(JSONB),条件存 route.condition。
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, Handle, Position,
-  addEdge, useNodesState, useEdgesState, type Node, type Edge, type Connection, type NodeProps,
+  ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap, Handle, Position,
+  addEdge, useNodesState, useEdgesState, useReactFlow,
+  type Node, type Edge, type Connection, type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import dagre from '@dagrejs/dagre'
@@ -13,7 +14,8 @@ import {
   Checkbox,
 } from 'antd'
 import {
-  ArrowLeftOutlined, PlusOutlined, DeleteOutlined, AuditOutlined, SendOutlined, PlayCircleOutlined, StopOutlined,
+  ArrowLeftOutlined, PlusOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined,
+  UserOutlined, NotificationOutlined, PartitionOutlined, ColumnHeightOutlined,
 } from '@ant-design/icons'
 import { workflowApi } from '@/api/lowcodeWorkflow'
 import { lowcodeApi } from '@/api/lowcode'
@@ -23,6 +25,9 @@ import DeptField from '@/components/lowcode/fields/DeptField'
 import { ApproverRuleEditor } from '@/components/lowcode/ApproverRuleEditor'
 import { defaultCcApproverRule } from '@/utils/wfApproverDefaults'
 import { fieldOption } from '@/components/lowcode/fieldTypeIcon'
+import {
+  routeEdgeLabel, edgeStroke,
+} from '@/utils/wfCanvasEdgeLabel'
 
 const { Title, Text } = Typography
 
@@ -42,27 +47,24 @@ const OPERATORS = [
 
 type CondLeaf = { field: string; operator: string; value?: unknown }
 
-function condLabel(cond: WfRoute['condition']): string | undefined {
-  if (!cond) return undefined
-  const n = Array.isArray(cond.cond) ? cond.cond.length : (cond as { field?: string }).field ? 1 : 0
-  if (n <= 0) return '条件'
-  return n === 1 ? '条件' : `条件×${n}`
-}
-
-/** 画布连线文案：条件 / else / 旁路（旁路可带条件）；有激活序时带「序N」 */
-function routeEdgeLabel(route: WfRoute, all: WfRoute[]): string | undefined {
-  const ord = typeof route.activate_order === 'number' ? `序${route.activate_order}` : ''
-  const withOrd = (base: string) => (ord ? `${base}·${ord}` : base)
-  if (route.always) {
-    if (route.condition) return withOrd('旁路·条件')
-    return withOrd('旁路')
+function buildRfEdge(route: WfRoute, all: WfRoute[], fields: FieldDefinition[]): Edge {
+  const lab = routeEdgeLabel(route, all, fields)
+  const labelNode: ReactNode = lab?.text
+    ? <span title={lab.title}>{lab.text}</span>
+    : undefined
+  return {
+    id: route.id,
+    source: route.source,
+    target: route.target,
+    type: 'smoothstep',
+    label: labelNode,
+    data: { route },
+    style: { stroke: edgeStroke(route), strokeWidth: 1.6 },
+    labelStyle: { fill: '#334155', fontSize: 11, fontWeight: 500 },
+    labelBgStyle: { fill: '#ffffff', fillOpacity: 0.95 },
+    labelBgPadding: [5, 7] as [number, number],
+    labelBgBorderRadius: 4,
   }
-  if (route.condition) return withOrd(condLabel(route.condition) || '条件')
-  const siblings = all.filter((r) => r.source === route.source && !r.always && r.id !== route.id)
-  if (route.exclusive_group || siblings.some((s) => !!s.condition || !!s.exclusive_group)) {
-    return withOrd('else')
-  }
-  return ord || undefined
 }
 
 function valueToInput(v: unknown): string {
@@ -182,10 +184,13 @@ function CondValueInput({
 }
 const genId = (p: string) => p + Math.random().toString(36).slice(2, 7)
 
-const NODE_META: Record<string, { color: string; label: string }> = {
-  start: { color: '#12b876', label: '开始' }, approval: { color: '#2f6bff', label: '审批' },
-  cc: { color: '#12b876', label: '抄送' }, end: { color: '#8c8c8c', label: '结束' },
-  parallel: { color: '#fa8c16', label: '并行' }, merge: { color: '#fa8c16', label: '汇聚' },
+const NODE_META: Record<string, { color: string; label: string; icon: ReactNode }> = {
+  start: { color: '#12b876', label: '开始', icon: <PlayCircleOutlined /> },
+  approval: { color: '#2f6bff', label: '审批', icon: <UserOutlined /> },
+  cc: { color: '#64748b', label: '抄送', icon: <NotificationOutlined /> },
+  end: { color: '#8c8c8c', label: '结束', icon: <StopOutlined /> },
+  parallel: { color: '#fa8c16', label: '并行', icon: <PartitionOutlined /> },
+  merge: { color: '#fa8c16', label: '汇聚', icon: <PartitionOutlined /> },
 }
 const TIMEOUT_ACTIONS = [
   { value: 'notify', label: '仅提醒' },
@@ -196,38 +201,69 @@ const TIMEOUT_ACTIONS = [
 
 // ---- 自定义节点 ----
 function WfNodeComp({ data, selected }: NodeProps) {
-  const d = data as { node: WfNode }
+  const d = data as { node: WfNode; pathRole?: 'self' | 'from' | 'to' }
   const meta = NODE_META[d.node.type] || NODE_META.approval
+  const role = d.pathRole
+  const ring =
+    selected || role === 'self' ? meta.color
+      : role === 'from' ? '#13c2c2'
+        : role === 'to' ? '#1677ff'
+          : '#e5e7eb'
+  const ringWidth = selected || role === 'self' || role === 'from' || role === 'to' ? 2 : 1.5
   return (
     <div style={{
-      minWidth: 150, padding: '8px 14px', borderRadius: 22, background: '#fff',
-      border: `2px solid ${selected ? meta.color : '#e5e7eb'}`, boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-      display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
+      minWidth: 158, maxWidth: 220, padding: '10px 16px', borderRadius: 10, background: '#fff',
+      border: `${ringWidth}px solid ${ring}`,
+      boxShadow: (selected || role === 'self')
+        ? `0 0 0 2px ${meta.color}33`
+        : role === 'from' || role === 'to'
+          ? `0 0 0 2px ${ring}22`
+          : '0 1px 4px rgba(15,23,42,0.08)',
+      display: 'flex', alignItems: 'center', gap: 10, fontSize: 13,
     }}>
-      <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.color }} />
-      <span style={{ fontWeight: 500 }}>{d.node.name}</span>
-      <Handle type="target" position={Position.Top} style={{ background: '#9aa2af' }} />
-      <Handle type="source" position={Position.Bottom} style={{ background: '#9aa2af' }} />
+      <span style={{
+        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+        background: `${meta.color}14`, color: meta.color,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
+      }}>
+        {meta.icon}
+      </span>
+      <span style={{ fontWeight: 500, color: '#1e293b', lineHeight: 1.3, flex: 1 }}>{d.node.name}</span>
+      {role === 'from' && (
+        <span style={{ fontSize: 10, color: '#13c2c2', fontWeight: 600, flexShrink: 0 }}>来</span>
+      )}
+      {role === 'to' && (
+        <span style={{ fontSize: 10, color: '#1677ff', fontWeight: 600, flexShrink: 0 }}>去</span>
+      )}
+      <Handle type="target" position={Position.Top} style={{ background: '#94a3b8', width: 8, height: 8 }} />
+      <Handle type="source" position={Position.Bottom} style={{ background: '#94a3b8', width: 8, height: 8 }} />
     </div>
   )
 }
 const nodeTypes = { wf: WfNodeComp }
 
+const NODE_W = 180
+const NODE_H = 52
+
 function autoLayout(nodes: WfNode[], routes: WfRoute[]): Record<string, { x: number; y: number }> {
   const g = new dagre.graphlib.Graph()
-  g.setGraph({ rankdir: 'TB', ranksep: 70, nodesep: 50 })
+  g.setGraph({ rankdir: 'TB', ranksep: 110, nodesep: 80, marginx: 40, marginy: 40 })
   g.setDefaultEdgeLabel(() => ({}))
-  nodes.forEach((n) => g.setNode(n.id, { width: 160, height: 44 }))
+  nodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }))
   routes.forEach((r) => g.setEdge(r.source, r.target))
   dagre.layout(g)
   const pos: Record<string, { x: number; y: number }> = {}
-  nodes.forEach((n) => { const gn = g.node(n.id); if (gn) pos[n.id] = { x: gn.x - 80, y: gn.y - 22 } })
+  nodes.forEach((n) => {
+    const gn = g.node(n.id)
+    if (gn) pos[n.id] = { x: gn.x - NODE_W / 2, y: gn.y - NODE_H / 2 }
+  })
   return pos
 }
 
 function DesignerInner() {
   const { id = '' } = useParams()
   const nav = useNavigate()
+  const { fitView } = useReactFlow()
   const [name, setName] = useState('')
   const [bizType, setBizType] = useState<string | null>(null)
   const [formTemplateId, setFormTemplateId] = useState<string | null>(null)
@@ -245,21 +281,24 @@ function DesignerInner() {
         setName(def.data.name)
         setBizType(def.data.biz_type || null)
         setFormTemplateId(def.data.form_template_id || null)
+        let fields: FieldDefinition[] = []
         if (def.data.form_template_id) {
           try {
             const v = await lowcodeApi.publishedVersion(def.data.form_template_id)
-            setFormFields((v.data.field_definitions as FieldDefinition[]) || [])
+            fields = (v.data.field_definitions as FieldDefinition[]) || []
+            setFormFields(fields)
           } catch { /* 未发布 */ }
         } else if (def.data.biz_type) {
           // 绑定业务类型的审批流没有表单：用业务字段目录填充条件分支/「表单人员字段」
           try {
             const r = await workflowApi.bizFields(def.data.biz_type)
             const list = Array.isArray(r.data) ? r.data : []
-            setFormFields(list.map((f) => ({
+            fields = list.map((f) => ({
               id: f.id,
               label: f.label,
               type: f.type as FieldDefinition['type'],
-            })))
+            }))
+            setFormFields(fields)
           } catch {
             message.warning('业务字段目录加载失败，抄送「表单人员字段」可能无选项')
             setFormFields([])
@@ -274,21 +313,24 @@ function DesignerInner() {
         }
         const needLayout = nodes.some((n) => !n.position)
         const pos = needLayout ? autoLayout(nodes, routes) : {}
-        setNodes(nodes.map((n) => ({ id: n.id, type: 'wf', position: n.position || pos[n.id] || { x: 100, y: 100 }, data: { node: n } })))
-        setEdges(routes.map((r) => ({
-          id: r.id, source: r.source, target: r.target,
-          label: routeEdgeLabel(r, routes),
-          data: { route: r },
-          animated: !!r.condition || !!r.always,
+        setNodes(nodes.map((n) => ({
+          id: n.id, type: 'wf',
+          position: n.position || pos[n.id] || { x: 100, y: 100 },
+          data: { node: n },
         })))
+        setEdges(routes.map((r) => buildRfEdge(r, routes, fields)))
       } finally { setLoading(false) }
     })()
   }, [id])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const onConnect = useCallback((c: Connection) => {
     const rid = genId('r')
-    setEdges((eds) => addEdge({ ...c, id: rid, data: { route: { id: rid, source: c.source!, target: c.target! } } }, eds))
-  }, [setEdges])
+    const route: WfRoute = { id: rid, source: c.source!, target: c.target! }
+    setEdges((eds) => {
+      const routes = [...eds.map((e) => (e.data as { route: WfRoute }).route), route]
+      return addEdge(buildRfEdge(route, routes, formFields), eds)
+    })
+  }, [setEdges, formFields])
 
   const addNode = (type: 'approval' | 'cc' | 'parallel' | 'merge') => {
     const prefix = { approval: 'ap', cc: 'cc', parallel: 'par', merge: 'mrg' }[type]
@@ -299,7 +341,11 @@ function DesignerInner() {
       ...(type === 'approval' ? { approver_rule: { type: 'direct_supervisor' }, multi_mode: 'or_sign' as const } : {}),
       ...(type === 'cc' ? { approver_rule: defaultCcApproverRule(formFields) } : {}),
     }
-    setNodes((nds) => [...nds, { id: nid, type: 'wf', position: { x: 120 + Math.random() * 80, y: 160 + nds.length * 40 }, data: { node } }])
+    setNodes((nds) => [...nds, {
+      id: nid, type: 'wf',
+      position: { x: 120 + Math.random() * 80, y: 160 + nds.length * 40 },
+      data: { node },
+    }])
   }
 
   const patchNode = (nid: string, patch: Partial<WfNode>) => {
@@ -312,18 +358,20 @@ function DesignerInner() {
       return { ...n, data: { node: { ...node, approver_rule: rule } } }
     }))
   }
+
+  const remapEdges = useCallback((eds: Edge[]) => {
+    const routes = eds.map((e) => (e.data as { route: WfRoute }).route)
+    return eds.map((e) => buildRfEdge((e.data as { route: WfRoute }).route, routes, formFields))
+  }, [formFields])
+
   const patchEdgeCond = (eid: string, cond: WfRoute['condition']) => {
     setEdges((eds) => {
       const next = eds.map((e) => {
         if (e.id !== eid) return e
         const route = { ...(e.data as { route: WfRoute }).route, condition: cond }
-        return { ...e, animated: !!cond || !!route.always, data: { route } }
+        return { ...e, data: { route } }
       })
-      const routes = next.map((e) => (e.data as { route: WfRoute }).route)
-      return next.map((e) => ({
-        ...e,
-        label: routeEdgeLabel((e.data as { route: WfRoute }).route, routes),
-      }))
+      return remapEdges(next)
     })
   }
 
@@ -332,13 +380,9 @@ function DesignerInner() {
       const next = eds.map((e) => {
         if (e.id !== eid) return e
         const route = { ...(e.data as { route: WfRoute }).route, ...patch }
-        return { ...e, animated: !!route.condition || !!route.always, data: { route } }
+        return { ...e, data: { route } }
       })
-      const routes = next.map((e) => (e.data as { route: WfRoute }).route)
-      return next.map((e) => ({
-        ...e,
-        label: routeEdgeLabel((e.data as { route: WfRoute }).route, routes),
-      }))
+      return remapEdges(next)
     })
   }
 
@@ -352,15 +396,32 @@ function DesignerInner() {
         const updated = { ...route, exclusive_group: gid }
         return { ...e, data: { route: updated } }
       })
-      const routes = next.map((e) => (e.data as { route: WfRoute }).route)
-      return next.map((e) => ({
-        ...e,
-        label: routeEdgeLabel((e.data as { route: WfRoute }).route, routes),
-      }))
+      return remapEdges(next)
     })
   }
+
+  const rearrangeLayout = () => {
+    const nodes = rfNodes.map((n) => (n.data as { node: WfNode }).node)
+    const routes = rfEdges.map((e) => (e.data as { route: WfRoute }).route)
+    if (!nodes.length) return
+    const pos = autoLayout(nodes, routes)
+    setNodes((nds) => nds.map((n) => ({
+      ...n,
+      position: pos[n.id] || n.position,
+    })))
+    setEdges(routes.map((r) => buildRfEdge(r, routes, formFields)))
+    requestAnimationFrame(() => {
+      setTimeout(() => fitView({ padding: 0.18, duration: 220 }), 40)
+    })
+    message.success('已重新整理布局（保存草稿后生效）')
+  }
+
   const delSelected = () => {
-    if (selNode && !['start', 'end'].includes(selNode)) { setNodes((n) => n.filter((x) => x.id !== selNode)); setEdges((e) => e.filter((x) => x.source !== selNode && x.target !== selNode)); setSelNode(null) }
+    if (selNode && !['start', 'end'].includes(selNode)) {
+      setNodes((n) => n.filter((x) => x.id !== selNode))
+      setEdges((e) => e.filter((x) => x.source !== selNode && x.target !== selNode))
+      setSelNode(null)
+    }
     if (selEdge) { setEdges((e) => e.filter((x) => x.id !== selEdge)); setSelEdge(null) }
   }
 
@@ -377,6 +438,78 @@ function DesignerInner() {
 
   const selectedNode = useMemo(() => rfNodes.find((n) => n.id === selNode), [rfNodes, selNode])
   const selectedEdge = useMemo(() => rfEdges.find((e) => e.id === selEdge), [rfEdges, selEdge])
+
+  /** 对齐简道云：点选节点后，出边+入边高亮，并点亮相邻节点 */
+  const displayNodes = useMemo(() => {
+    const preds = new Set<string>()
+    const succs = new Set<string>()
+    if (selNode) {
+      for (const e of rfEdges) {
+        if (e.target === selNode) preds.add(e.source)
+        if (e.source === selNode) succs.add(e.target)
+      }
+    }
+    return rfNodes.map((n) => {
+      const isSel = n.id === selNode
+      const isPred = preds.has(n.id)
+      const isSucc = succs.has(n.id)
+      return {
+        ...n,
+        selected: isSel,
+        style: {
+          ...(n.style || {}),
+          opacity: selNode && !isSel && !isPred && !isSucc ? 0.4 : 1,
+        },
+        data: {
+          ...(n.data as object),
+          pathRole: isSel ? 'self' : isPred ? 'from' : isSucc ? 'to' : undefined,
+        },
+      }
+    })
+  }, [rfNodes, rfEdges, selNode])
+  const displayEdges = useMemo(() => {
+    const OUT = '#1677ff'      // 往哪走
+    const IN = '#13c2c2'       // 从哪来
+    const DIM = '#cbd5e1'
+    return rfEdges.map((e) => {
+      const route = (e.data as { route: WfRoute } | undefined)?.route
+      const baseStroke = route ? edgeStroke(route) : '#94a3b8'
+      const isOut = !!selNode && e.source === selNode
+      const isIn = !!selNode && e.target === selNode
+      const isEdgePick = !!selEdge && e.id === selEdge
+      if (isOut || isEdgePick) {
+        return {
+          ...e,
+          style: { ...(e.style || {}), stroke: OUT, strokeWidth: 2.6, opacity: 1 },
+          labelStyle: { ...(e.labelStyle || {}), fill: OUT, fontWeight: 600, fontSize: 11 },
+          labelBgStyle: { fill: '#ffffff', fillOpacity: 0.98 },
+          zIndex: 20,
+        }
+      }
+      if (isIn) {
+        return {
+          ...e,
+          style: { ...(e.style || {}), stroke: IN, strokeWidth: 2.4, opacity: 1 },
+          labelStyle: { ...(e.labelStyle || {}), fill: IN, fontWeight: 600, fontSize: 11 },
+          labelBgStyle: { fill: '#ffffff', fillOpacity: 0.98 },
+          zIndex: 18,
+        }
+      }
+      if (selNode) {
+        return {
+          ...e,
+          style: { ...(e.style || {}), stroke: DIM, strokeWidth: 1.2, opacity: 0.35 },
+          labelStyle: { ...(e.labelStyle || {}), fill: '#94a3b8', fontWeight: 400, fontSize: 11 },
+          zIndex: 1,
+        }
+      }
+      return {
+        ...e,
+        style: { ...(e.style || {}), stroke: baseStroke, strokeWidth: 1.6, opacity: 1 },
+        zIndex: 2,
+      }
+    })
+  }, [rfEdges, selNode, selEdge])
 
   if (loading) return <Card loading />
 
@@ -406,27 +539,45 @@ function DesignerInner() {
             <Tag>未绑定</Tag>
           )}
         </Space>
-        <Space>
+        <Space wrap>
           <Button icon={<PlusOutlined />} onClick={() => addNode('approval')}>审批节点</Button>
           <Button icon={<PlusOutlined />} onClick={() => addNode('cc')}>抄送节点</Button>
           <Button icon={<PlusOutlined />} onClick={() => addNode('parallel')}>并行网关</Button>
           <Button icon={<PlusOutlined />} onClick={() => addNode('merge')}>汇聚节点</Button>
+          <Button icon={<ColumnHeightOutlined />} onClick={rearrangeLayout}>整理布局</Button>
           <Button onClick={() => save(false)}>保存草稿</Button>
           <Button type="primary" onClick={() => save(true)}>保存并发布</Button>
         </Space>
       </div>
+      {selNode && (
+        <div style={{ marginBottom: 8, fontSize: 12, color: '#64748b' }}>
+          <span style={{ color: '#13c2c2', fontWeight: 600 }}>青色线 /「来」</span>
+          {' '}从哪来
+          <span style={{ margin: '0 10px', color: '#e2e8f0' }}>|</span>
+          <span style={{ color: '#1677ff', fontWeight: 600 }}>蓝色线 /「去」</span>
+          {' '}往哪走
+          <span style={{ marginLeft: 10, color: '#94a3b8' }}>（点空白取消）</span>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 12 }}>
-        <div style={{ flex: 1, height: 560, border: '1px solid #f0f0f0', borderRadius: 8, background: '#fafafa' }}>
+        <div style={{
+          flex: 1, height: 720, border: '1px solid #e8ecf1', borderRadius: 10,
+          background: '#f8fafc', overflow: 'hidden',
+        }}>
           <ReactFlow
-            nodes={rfNodes} edges={rfEdges} nodeTypes={nodeTypes}
+            nodes={displayNodes} edges={displayEdges} nodeTypes={nodeTypes}
             onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
             onNodeClick={(_, n) => { setSelNode(n.id); setSelEdge(null) }}
             onEdgeClick={(_, e) => { setSelEdge(e.id); setSelNode(null) }}
             onPaneClick={() => { setSelNode(null); setSelEdge(null) }}
-            fitView proOptions={{ hideAttribution: true }}
+            fitView
+            fitViewOptions={{ padding: 0.18 }}
+            minZoom={0.25}
+            proOptions={{ hideAttribution: true }}
+            defaultEdgeOptions={{ type: 'smoothstep' }}
           >
-            <Background />
+            <Background variant={BackgroundVariant.Dots} gap={18} size={1.2} color="#cbd5e1" />
             <Controls />
             <MiniMap zoomable pannable />
           </ReactFlow>
@@ -463,7 +614,7 @@ function DesignerInner() {
               onDelete={delSelected}
             />
           ) : (
-            <Empty description="点节点或连线编辑;拖动锚点连线" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            <Empty description="点击节点或连线编辑；拖动锚点连线" image={Empty.PRESENTED_IMAGE_SIMPLE} />
           )}
         </Card>
       </div>

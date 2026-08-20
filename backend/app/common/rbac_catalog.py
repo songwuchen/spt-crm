@@ -371,6 +371,24 @@ STANDARD_ROLES = [
         ],
     },
     {
+        # 对齐简道云「230902客服内勤」：客服落实/客服补登等节点审批人（或签）
+        "code": "cs_office", "name": "230902客服内勤", "scope": "dept",
+        "desc": "简道云客服内勤岗:客户服务申请落实、产品更换客服补登等流程审批",
+        "perms": [
+            "customer:view", "service:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        # 对齐简道云「服务申请及反馈-客服安排」：客服安排1 等节点审批人（或签）
+        "code": "cs_arrange", "name": "服务申请及反馈-客服安排", "scope": "dept",
+        "desc": "简道云客服安排岗:客户服务申请及反馈「客服安排」节点审批",
+        "perms": [
+            "customer:view", "service:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
         "code": "procurement", "name": "采购专员", "scope": "dept",
         "desc": "采购部/外购:订单 + 产品;合同/交付只读",
         "perms": [

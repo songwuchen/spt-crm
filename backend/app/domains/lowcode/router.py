@@ -264,6 +264,59 @@ async def base_form_lookups(
     return ok(items)
 
 
+@router.get("/pickable-roles")
+async def pickable_roles(
+    keyword: str = Query(None, description="按角色中文名或编码筛选"),
+    codes: str | None = Query(None, description="逗号分隔的角色 code，用于回显"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """流程设计器选角色：返回角色中文名 + 成员数（无需 role:view）。"""
+    from app.domains.organization import service as org_svc
+    from app.common.rbac_sync import (
+        ensure_business_roles,
+        ensure_cs_arrange_role_members,
+        ensure_cs_office_role_members,
+    )
+
+    created = await ensure_business_roles(db, tenant_id)
+    await ensure_cs_office_role_members(db, tenant_id)
+    await ensure_cs_arrange_role_members(db, tenant_id)
+    await db.commit()
+
+    roles = await org_svc.list_roles(db, tenant_id)
+    counts = await org_svc.count_role_members(db, tenant_id, [r.id for r in roles])
+    want_codes = {c.strip() for c in (codes or "").split(",") if c.strip()}
+    kw = (keyword or "").strip().lower()
+
+    out = []
+    for r in roles:
+        if kw and kw not in (r.name or "").lower() and kw not in (r.code or "").lower():
+            continue
+        out.append({
+            "id": r.id,
+            "code": r.code,
+            "name": r.name,
+            "description": r.description,
+            "member_count": counts.get(r.id, 0),
+        })
+    # 保证回显 code 即使被 keyword 滤掉也带上
+    if want_codes:
+        have = {x["code"] for x in out}
+        for r in roles:
+            if r.code in want_codes and r.code not in have:
+                out.insert(0, {
+                    "id": r.id,
+                    "code": r.code,
+                    "name": r.name,
+                    "description": r.description,
+                    "member_count": counts.get(r.id, 0),
+                })
+    out.sort(key=lambda x: ((x.get("name") or x["code"]), x["code"]))
+    return ok(out)
+
+
 @router.get("/pickable-departments")
 async def pickable_departments(
     scope_code: str | None = Query(None, description="可选范围编码（department 类型）"),

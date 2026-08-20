@@ -114,4 +114,10 @@ export const lowcodeApi = {
     ),
   deleteInstance: (id: string) =>
     client.delete<unknown, ApiResponse<void>>(`/api/v1/lc/form-instances/${id}`),
+
+  /** 流程设计器选角色（中文名 + 成员数，无需 role:view） */
+  pickableRoles: (params?: { keyword?: string; codes?: string }) =>
+    client.get<unknown, ApiResponse<{
+      id: string; code: string; name: string; description?: string | null; member_count: number
+    }[]>>('/api/v1/lc/pickable-roles', { params }),
 }

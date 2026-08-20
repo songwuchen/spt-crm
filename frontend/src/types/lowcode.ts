@@ -360,6 +360,7 @@ export interface WfInstanceDetail {
   business_no?: string | null
   status: string
   initiator_id: string
+  initiator_name?: string | null
   form_instance_id?: string | null
   biz_type?: string | null
   biz_id?: string | null
@@ -378,6 +379,8 @@ export interface WfInstanceDetail {
   flow_steps?: WfFlowStep[]
   started_at?: string | null
   completed_at?: string | null
+  created_at?: string | null
+  updated_at?: string | null
   timeline: WfTimelineItem[]
   tasks: { id: string; assignee_id: string; status: string; opinion?: string; task_order: number }[]
   comments: { user_id: string; user_name?: string; content: string; at?: string }[]

@@ -479,14 +479,14 @@ def gen_one(key: str, title: str, entry: str, app: str, meta: dict) -> dict:
     if key in ("cs_service_request", "cs_product_replace"):
         try:
             from app.domains.lowcode.workflow_service import (
-                apply_cs_service_request_start_parallel,
+                apply_cs_service_request_start_region_first,
             )
-            if apply_cs_service_request_start_parallel(nodes, routes):
+            if apply_cs_service_request_start_region_first(nodes, routes):
                 notes.append(
-                    "发起节点：区域经理/业务经理等多条件并行（对齐简道云，勿互斥吞区域经理）"
+                    "发起节点：区域经理优先串行（有区域先审区域再业务经理；对齐简道云实单）"
                 )
         except Exception as ex:  # pragma: no cover
-            notes.append(f"发起并行补丁跳过: {ex}")
+            notes.append(f"发起区域优先补丁跳过: {ex}")
     linkage = load_linkage_pack(key)
     rules = build_rule_definitions(linkage, fields) if linkage else []
     if required_widgets:

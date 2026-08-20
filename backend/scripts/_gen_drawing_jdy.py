@@ -561,6 +561,8 @@ def build_rule_definitions(linkage: dict, fields: list[dict]) -> list[dict]:
         or []
     )
     for rule in show_rules:
+        if not isinstance(rule, dict):
+            continue
         cond = _show_rule_condition(rule, widget_slug)
         if not cond:
             continue
@@ -576,6 +578,8 @@ def build_rule_definitions(linkage: dict, fields: list[dict]) -> list[dict]:
         or []
     )
     for rule in sub_show_rules:
+        if not isinstance(rule, dict):
+            continue
         cond = _show_rule_condition(rule, widget_slug)
         if not cond:
             continue
@@ -663,12 +667,22 @@ def charger_rule(chargers: dict | None, widget_slug: dict[str, str]) -> dict:
             JDY_ROLE_NAME_TO_APPROVER_SCOPE,
             JDY_ROLE_NAME_TO_SPECIFIED_USER,
             JDY_ROLE_NAME_TO_SPECIFIED_USERS,
+            JDY_ROLE_TO_CRM_CODE,
             JDY_ROLE_TO_SCOPE_CODE,
             JDY_ROLE_TO_SPECIFIED_USER,
             JDY_ROLE_TO_SPECIFIED_USERS,
         )
         rid = str(roles[0].get("_id") or roles[0].get("id") or "")
         rname = str(roles[0].get("name") or "").strip()
+        # 0) 已映射 CRM 角色码 → 指定角色（对齐简道云用角色；成员在角色管理维护）
+        crm_role = JDY_ROLE_TO_CRM_CODE.get(rid)
+        if crm_role:
+            return {
+                "type": "specified_role",
+                "value": crm_role,
+                "exclude_initiator": True,
+                "jdy_role_hint": rname or None,
+            }
         # 1) 一人专属角色 → 指定用户
         named = JDY_ROLE_TO_SPECIFIED_USER.get(rid) or JDY_ROLE_NAME_TO_SPECIFIED_USER.get(rname)
         if named:
