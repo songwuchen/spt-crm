@@ -131,6 +131,118 @@ def build_invoice_fill_from_contract(
     }
 
 
+_INVOICE_STATUS_LABEL = {
+    "draft": "草稿",
+    "submitted": "已提交",
+    "approving": "审批中",
+    "running": "审批中",
+    "completed": "已通过",
+    "approved": "已通过",
+    "rejected": "已驳回",
+    "withdrawn": "已撤回",
+    "cancelled": "已作废",
+}
+
+
+def summarize_invoice_application_row(fi, *, form_data: dict | None = None) -> dict[str, Any]:
+    """开票申请列表行（合同详情 / 选合同提示共用）。"""
+    fd = form_data if isinstance(form_data, dict) else (getattr(fi, "form_data", None) or {})
+    status = getattr(fi, "status", None) or ""
+    total = fd.get("total_amount_adjusted")
+    if total in (None, ""):
+        total = fd.get("total_amount")
+    try:
+        amount = float(total) if total not in (None, "") else None
+    except (TypeError, ValueError):
+        amount = None
+    serial = (
+        getattr(fi, "business_no", None)
+        or fd.get("serial_no")
+        or ""
+    )
+    created = getattr(fi, "created_at", None)
+    return {
+        "id": getattr(fi, "id", None),
+        "serial_no": serial,
+        "status": status,
+        "status_label": _INVOICE_STATUS_LABEL.get(status, status or "-"),
+        "total_amount": amount,
+        "invoice_no": fd.get("invoice_no") or "",
+        "invoice_datetime": fd.get("invoice_datetime") or "",
+        "drawing_no": fd.get("drawing_no") or "",
+        "customer_name": fd.get("customer_name") or "",
+        "created_at": created.isoformat() if hasattr(created, "isoformat") else (created or ""),
+    }
+
+
+async def list_invoice_applications_for_contract(
+    db,
+    tenant_id: str,
+    *,
+    contract_id: str,
+    contract_no: str | None = None,
+    drawing_no: str | None = None,
+    peer_contract_no: str | None = None,
+    exclude_instance_id: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """按合同反查开票申请（drawing_no_select / 图纸号 / 合同号多口径匹配）。"""
+    from sqlalchemy import or_, select
+
+    from app.domains.lowcode.models import FormInstance, FormTemplate
+
+    tpl = (
+        await db.execute(
+            select(FormTemplate.id).where(
+                FormTemplate.tenant_id == tenant_id,
+                FormTemplate.code == "invoice_application",
+                FormTemplate.is_deleted.is_(False),  # noqa: E712
+            ).limit(1)
+        )
+    ).scalar_one_or_none()
+    if not tpl:
+        return []
+
+    conds = [
+        FormInstance.form_data.op("->>")("drawing_no_select") == contract_id,
+    ]
+    dn = (drawing_no or "").strip()
+    if dn:
+        conds.append(FormInstance.form_data.op("->>")("drawing_no") == dn)
+    cn = (contract_no or "").strip()
+    if cn:
+        conds.append(FormInstance.form_data.op("->>")("contract_data") == cn)
+        conds.append(FormInstance.form_data.op("->>")("dept_contract_no") == cn)
+    pn = (peer_contract_no or "").strip()
+    if pn and pn != cn:
+        conds.append(FormInstance.form_data.op("->>")("dept_contract_no") == pn)
+
+    q = (
+        select(FormInstance)
+        .where(
+            FormInstance.tenant_id == tenant_id,
+            FormInstance.template_id == tpl,
+            FormInstance.is_deleted.is_(False),  # noqa: E712
+            or_(*conds),
+        )
+        .order_by(FormInstance.created_at.desc())
+        .limit(max(1, min(int(limit or 50), 100)))
+    )
+    if exclude_instance_id:
+        q = q.where(FormInstance.id != exclude_instance_id)
+
+    rows = (await db.execute(q)).scalars().all()
+    # 去重（多字段命中同一单）
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for fi in rows:
+        if fi.id in seen:
+            continue
+        seen.add(fi.id)
+        out.append(summarize_invoice_application_row(fi))
+    return out
+
+
 def _invoice_info_fields() -> list[dict]:
     """简道云「开票信息」linkquery → CRM 只读文本字段。"""
     common = {

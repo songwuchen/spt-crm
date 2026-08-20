@@ -11,20 +11,25 @@ export function downloadFile(url: string, filename: string): Promise<void> {
     if (token) {
       xhr.setRequestHeader('Authorization', `Bearer ${token}`)
     }
+
+    const failFromBlob = (blob: Blob, fallback: string) => {
+      blob.text().then((t) => {
+        try {
+          const j = JSON.parse(t) as { message?: string }
+          reject(new Error(j.message || fallback))
+        } catch {
+          reject(new Error(fallback))
+        }
+      }).catch(() => reject(new Error(fallback)))
+    }
+
     xhr.onload = () => {
+      const blob = xhr.response as Blob
+      const ctype = (xhr.getResponseHeader('Content-Type') || '').toLowerCase()
       if (xhr.status === 200) {
-        const blob = xhr.response as Blob
         // 后端错误有时仍 200 JSON；Excel 一般为 octet-stream / spreadsheet
-        const ctype = (xhr.getResponseHeader('Content-Type') || '').toLowerCase()
         if (ctype.includes('application/json')) {
-          blob.text().then((t) => {
-            try {
-              const j = JSON.parse(t) as { message?: string }
-              reject(new Error(j.message || '导出失败'))
-            } catch {
-              reject(new Error('导出失败'))
-            }
-          }).catch(() => reject(new Error('导出失败')))
+          failFromBlob(blob, '导出失败')
           return
         }
         const a = document.createElement('a')
@@ -35,6 +40,10 @@ export function downloadFile(url: string, filename: string): Promise<void> {
         document.body.removeChild(a)
         URL.revokeObjectURL(a.href)
         resolve()
+        return
+      }
+      if (ctype.includes('application/json')) {
+        failFromBlob(blob, `导出失败（${xhr.status}）`)
         return
       }
       reject(new Error(`导出失败（${xhr.status}）`))

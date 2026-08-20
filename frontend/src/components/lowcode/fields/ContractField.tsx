@@ -137,21 +137,84 @@ export async function getContractLabelMap(ids: string[]): Promise<Record<string,
 }
 
 /** 生产卡 / 开票申请 / 发货通知选合同带出 */
+export type ContractFillMode =
+  | 'drawing_no_query'
+  | 'contract_no_select'
+  | 'invoice_application'
+  | 'shipment_notice'
+
+export type PriorInvoiceRow = {
+  id: string
+  serial_no?: string
+  status?: string
+  status_label?: string
+  total_amount?: number | null
+  invoice_no?: string
+  invoice_datetime?: string
+  drawing_no?: string
+  customer_name?: string
+  created_at?: string
+}
+
+export type ContractFillResult = {
+  fill: Record<string, unknown>
+  prior_invoices?: PriorInvoiceRow[]
+  prior_invoice_count?: number
+  prior_invoice_amount_sum?: number
+}
+
 export async function fetchProdCardContractFill(
   contractId: string,
-  mode: 'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice',
-): Promise<Record<string, unknown>> {
-  const r = await client.get<unknown, ApiResponse<{ fill?: Record<string, unknown> }>>(
+  mode: ContractFillMode,
+): Promise<ContractFillResult> {
+  const r = await client.get<unknown, ApiResponse<{
+    fill?: Record<string, unknown>
+    prior_invoices?: PriorInvoiceRow[]
+    prior_invoice_count?: number
+    prior_invoice_amount_sum?: number
+  }>>(
     `/api/v1/lc/pickable-contracts/${encodeURIComponent(contractId)}/prod-card-fill`,
     { params: { mode }, ...silent },
   )
-  return (r.data?.fill && typeof r.data.fill === 'object') ? r.data.fill : {}
+  return {
+    fill: (r.data?.fill && typeof r.data.fill === 'object') ? r.data.fill : {},
+    prior_invoices: Array.isArray(r.data?.prior_invoices) ? r.data.prior_invoices : [],
+    prior_invoice_count: r.data?.prior_invoice_count ?? 0,
+    prior_invoice_amount_sum: r.data?.prior_invoice_amount_sum,
+  }
 }
 
-export const PROD_CARD_FILL_CLEAR: Record<
-  'drawing_no_query' | 'contract_no_select' | 'invoice_application' | 'shipment_notice',
-  string[]
-> = {
+/** 开票申请选合同后：若已有申请单，弹出提示便于核对是否重复开票 */
+export function warnPriorInvoicesAfterFill(
+  mode: ContractFillMode | undefined,
+  pack: ContractFillResult,
+): void {
+  if (mode !== 'invoice_application') return
+  const rows = pack.prior_invoices || []
+  if (!rows.length) return
+  const sum = pack.prior_invoice_amount_sum
+  const sumText = sum != null && Number.isFinite(sum)
+    ? `，合计金额约 ${Number(sum).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : ''
+  const lines = rows.slice(0, 8).map((r) => {
+    const amt = r.total_amount != null
+      ? Number(r.total_amount).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : '-'
+    return `${r.serial_no || r.id}｜${r.status_label || r.status || '-'}｜金额 ${amt}｜发票号 ${r.invoice_no || '-'}`
+  })
+  const more = rows.length > 8 ? `\n…另有 ${rows.length - 8} 笔` : ''
+  Modal.warning({
+    title: `该合同已有 ${rows.length} 笔开票申请${sumText}`,
+    width: 560,
+    content: (
+      <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.6 }}>
+        {`${lines.join('\n')}${more}\n\n请确认是否仍要继续开票（允许分批开票）。`}
+      </div>
+    ),
+  })
+}
+
+export const PROD_CARD_FILL_CLEAR: Record<ContractFillMode, string[]> = {
   drawing_no_query: [
     'no_drawing_no', 'no_sales_person', 'yes_customer_name', 'prod_card_line_items',
     'tech_params', 'packaging_req', 'remark_prod_card', 'paint_req',

@@ -529,6 +529,32 @@ export function WfProcessDrawer({ open, taskId, instanceId, onClose, onDone }: {
           />
         </div>
       )}
+      {detail?.biz_type === 'contract_review' && detail.biz_id && (
+        <div className="mt-4 space-y-3">
+          <AttachmentPanel bizType="contract_review" bizId={detail.biz_id} title="附件（合同）" compact />
+          <AttachmentPanel
+            bizType="contract_review_image"
+            bizId={detail.biz_id}
+            title="图片"
+            accept="image/*"
+            compact
+          />
+          <AttachmentPanel bizType="contract_review_cost" bizId={detail.biz_id} title="成本附件" compact />
+          <AttachmentPanel
+            bizType="contract_review_feedback"
+            bizId={detail.biz_id}
+            title="反馈附件"
+            compact
+          />
+          <AttachmentPanel
+            bizType="contract_review_feedback_image"
+            bizId={detail.biz_id}
+            title="反馈图片"
+            accept="image/*"
+            compact
+          />
+        </div>
+      )}
     </>
   )
 

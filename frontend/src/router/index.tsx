@@ -19,8 +19,19 @@ function RouteError() {
 
   if (isChunkLoadError(err) || /Failed to fetch dynamically imported module/i.test(message)) {
     return (
-      <div className="flex items-center justify-center min-h-screen text-slate-600 text-sm">
-        系统已更新，正在清理缓存并刷新…
+      <div className="flex flex-col items-center justify-center min-h-screen gap-3 text-slate-600 text-sm p-8">
+        <div>系统已更新，正在清理缓存并刷新…</div>
+        <div className="text-slate-400 text-xs">若长时间无响应，请手动刷新</div>
+        <button
+          type="button"
+          className="px-4 py-2 rounded bg-primary text-white text-sm"
+          onClick={() => {
+            try { sessionStorage.removeItem('spt_chunk_recover_at') } catch { /* ignore */ }
+            if (!recoverFromStaleChunks(err)) window.location.reload()
+          }}
+        >
+          刷新页面
+        </button>
       </div>
     )
   }

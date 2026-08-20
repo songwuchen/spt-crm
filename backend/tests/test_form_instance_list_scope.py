@@ -21,6 +21,12 @@ def test_quote_management_dept_primary_maps():
     assert "sales_person" in _OWNER_PERSON_FIELDS_BY_TEMPLATE["quote_management"]
 
 
+def test_payment_registration_dept_primary_maps():
+    assert "payment_registration" in _FORM_DEPT_PRIMARY_TEMPLATES
+    assert "department" in _FORM_DEPT_FIELDS_BY_TEMPLATE["payment_registration"]
+    assert "sales_person" in _OWNER_PERSON_FIELDS_BY_TEMPLATE["payment_registration"]
+
+
 def test_instance_list_conds_includes_dept_and_name_clauses():
     conds = _instance_list_conds(
         "t1", "tpl1",
@@ -56,6 +62,23 @@ def test_quote_dept_primary_does_not_leak_by_teammate_initiator():
     assert "u-duan" in compiled
     # 本人参与仍可见；外部门靠 department 命中，不靠 teammate 发起人放大
     assert "sales_person" in compiled
+
+
+def test_payment_registration_dept_primary_scope():
+    """部门档收款登记：按单据部门可见，本人发起/业务人员仍可见。"""
+    conds = _instance_list_conds(
+        "t1", "tpl-pay",
+        owner_ids=["u-mkt-a", "u-mkt-b"],
+        owner_person_fields=["sales_person"],
+        template_code="payment_registration",
+        form_dept_scope_ids=["dept-mkt"],
+        scope_viewer_id="u-mkt-a",
+    )
+    owner_cond = conds[-1]
+    compiled = str(owner_cond.compile(compile_kwargs={"literal_binds": True}))
+    assert "department" in compiled
+    assert "sales_person" in compiled
+    assert "u-mkt-a" in compiled
 
 
 def test_form_data_text_in_literals_builds_or():

@@ -2,6 +2,7 @@
 
 import io
 import re
+import urllib.parse
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from fastapi.responses import StreamingResponse
@@ -103,9 +104,18 @@ def build_excel_multi(sheets: list[tuple[str, list[str], list[list]]]) -> io.Byt
     if not sheets:
         # keep a single valid empty sheet
         wb.active.title = "Sheet1"
+    used_titles: set[str] = set()
     for idx, (title, headers, rows) in enumerate(sheets):
         ws = wb.active if idx == 0 else wb.create_sheet()
-        ws.title = _safe_sheet_title(title or f"Sheet{idx + 1}")
+        base = _safe_sheet_title(title or f"Sheet{idx + 1}")
+        name = base
+        n = 2
+        while name in used_titles:
+            suffix = f"_{n}"
+            name = f"{base[: max(1, 31 - len(suffix))]}{suffix}"
+            n += 1
+        used_titles.add(name)
+        ws.title = name
         _style_sheet(ws, headers, rows)
 
     buf = io.BytesIO()
@@ -120,10 +130,23 @@ def build_template(title: str, headers: list[str], sample_rows: list[list] | Non
     return build_excel(title, headers, rows)
 
 
+def _content_disposition_attachment(filename: str) -> str:
+    """RFC 5987 Content-Disposition；HTTP 头必须 latin-1，中文文件名走 filename*。"""
+    raw = (filename or "export.xlsx").replace('"', "").replace("\r", "").replace("\n", "").strip()
+    if not raw:
+        raw = "export.xlsx"
+    # ASCII fallback：先去掉扩展名再清洗，避免「收款登记.xlsx」→「xlsx.xlsx」
+    stem = raw[:-5] if raw.lower().endswith(".xlsx") else raw
+    ascii_stem = re.sub(r"[^A-Za-z0-9._-]+", "_", stem).strip("._-") or "export"
+    ascii_name = f"{ascii_stem}.xlsx"
+    quoted = urllib.parse.quote(raw)
+    return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quoted}'
+
+
 def excel_response(buf: io.BytesIO, filename: str) -> StreamingResponse:
     """Wrap BytesIO in a StreamingResponse for download."""
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _content_disposition_attachment(filename)},
     )

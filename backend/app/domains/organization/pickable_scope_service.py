@@ -485,3 +485,32 @@ def scope_to_dict(s: PickableScope) -> dict:
         "created_at": s.created_at.isoformat() if s.created_at else None,
         "updated_at": s.updated_at.isoformat() if s.updated_at else None,
     }
+
+
+async def department_names_by_user_ids(
+    db: AsyncSession, tenant_id: str, user_ids: list[str],
+) -> dict[str, list[str]]:
+    """批量查用户所属部门名称（编制部门，保序去重）。"""
+    ids = [str(x).strip() for x in user_ids if x]
+    if not ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(UserDepartment.user_id, Department.name)
+            .join(Department, Department.id == UserDepartment.department_id)
+            .where(
+                UserDepartment.tenant_id == tenant_id,
+                UserDepartment.user_id.in_(ids),
+                Department.tenant_id == tenant_id,
+            )
+            .order_by(Department.name)
+        )
+    ).all()
+    out: dict[str, list[str]] = {}
+    for uid, name in rows:
+        if not name:
+            continue
+        key = str(uid)
+        if name not in out.setdefault(key, []):
+            out[key].append(name)
+    return out

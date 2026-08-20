@@ -6,9 +6,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Select, Spin } from 'antd'
 import client from '@/api/client'
 import type { ApiResponse } from '@/api/types'
+import { formatPersonOptionLabel } from '@/utils/personOptionLabel'
 
-interface UserOpt { label: string; value: string; username?: string }
-type PickableUser = { id: string; name: string; username?: string }
+interface UserOpt { label: string; value: string; username?: string; departments?: string[]; name?: string }
+type PickableUser = { id: string; name: string; username?: string; departments?: string[] }
 
 export type PickableScope = {
   scope_code?: string
@@ -29,11 +30,16 @@ function scopeKey(scope?: PickableScope | null, deptIds?: string[] | null): stri
 }
 
 function toOpts(rows: PickableUser[]): UserOpt[] {
-  return (rows || []).map((u) => ({
-    label: u.name || u.username || u.id,
-    value: u.id,
-    username: u.username || undefined,
-  }))
+  return (rows || []).map((u) => {
+    const plain = u.name || u.username || u.id
+    return {
+      label: formatPersonOptionLabel(plain, u.departments),
+      name: plain,
+      value: u.id,
+      username: u.username || undefined,
+      departments: u.departments?.length ? [...u.departments] : undefined,
+    }
+  })
 }
 
 async function fetchPickable(params?: Record<string, string>): Promise<UserOpt[]> {
@@ -212,8 +218,9 @@ export async function getPersonLabelMap(ids: string[]): Promise<Record<string, s
   if (raws.length) opts = await hydrateMissing(raws, opts)
   const map: Record<string, string> = {}
   for (const o of opts) {
-    map[o.value] = o.label
-    if (o.username) map[o.username] = o.label
+    const plain = o.name || o.label
+    map[o.value] = plain
+    if (o.username) map[o.username] = plain
   }
   const missing = raws.filter((id) => !map[id] || map[id].startsWith('未知人员'))
   if (missing.length) {
@@ -326,7 +333,7 @@ export default function PersonField({
   const nameOf = (raw: string) => {
     const hit = opts.find((o) => o.value === raw || o.username === raw)
       || selectOpts.find((o) => o.value === raw)
-    return hit?.label || hints[raw] || raw
+    return hit?.name || hit?.label || hints[raw] || raw
   }
 
   if (readonly) {

@@ -21,6 +21,8 @@ def test_apply_install_drawing_notice_fields_stages():
         {"id": "change_scheme", "type": "detail_table", "label": "修改方案"},
         {"id": "offices_multi", "type": "department", "label": "科室多选",
          "available_on_create": False, "fill_stage": "approver"},
+        {"id": "is_xiaomeng", "type": "radio", "label": "是否小萌方案",
+         "options": [{"label": "是", "value": "是"}, {"label": "否", "value": "否"}]},
     ]
     apply_install_drawing_notice_fields(fields)
     by = {f["id"]: f for f in fields}
@@ -37,6 +39,7 @@ def test_apply_install_drawing_notice_fields_stages():
     assert by["change_scheme"]["available_on_create"] is False
     assert by["offices_multi"]["type"] == "department_multi"
     assert by["project_no"]["available_on_create"] is True
+    assert by["is_xiaomeng"]["default_value"] == "否"
 
 
 def test_install_serial_no_independent_of_design_card():

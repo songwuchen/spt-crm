@@ -395,6 +395,7 @@ async def get_contract_related(
     )).scalars().all()
 
     records, invoices, milestones = [], [], []
+    invoice_applications: list = []
     if contract.project_id:
         plan_ids = [p.id for p in plans]
         # 商机下回款：优先匹配本合同计划，否则展示商机全部回款供对照
@@ -421,6 +422,17 @@ async def get_contract_related(
                 DeliveryMilestone.project_id == contract.project_id,
             ).order_by(DeliveryMilestone.sort_order)
         )).scalars().all()
+
+    from app.domains.lowcode.invoice_application_fields import (
+        list_invoice_applications_for_contract,
+    )
+    invoice_applications = await list_invoice_applications_for_contract(
+        db, tenant_id,
+        contract_id=contract_id,
+        contract_no=contract.contract_no,
+        drawing_no=contract.drawing_no,
+        peer_contract_no=contract.peer_contract_no,
+    )
 
     def _plan(p):
         return {
@@ -460,6 +472,7 @@ async def get_contract_related(
         "payment_plans": [_plan(p) for p in plans],
         "payment_records": [_rec(r) for r in records],
         "invoices": [_inv(i) for i in invoices],
+        "invoice_applications": invoice_applications,
         "milestones": [_ms(m) for m in milestones],
     })
 

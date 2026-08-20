@@ -1812,6 +1812,97 @@ def _flow_quote_finance_dept_not_parallel(
     return False
 
 
+def apply_cs_service_request_start_parallel(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    """客服类表单（申请及反馈 / 售出产品更换等）：发起多条件出边不得互斥。
+
+    简道云里「区域经理/组长不为空 → 区域经理或组长」与其它部门/补登条件可同时成立；
+    ``业务经理(审批)`` 多为 else（仅无条件命中时）。互斥组按序会吞掉区域经理。
+    区域经理→业务经理* 标 reenter，避免并行已亮业务经理时回路被 skip。
+    """
+    start_ids = {
+        str(n["id"])
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id") and n.get("type") == "start"
+    }
+    if not start_ids:
+        return False
+    by_id = {
+        str(n["id"]): n
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id")
+    }
+    region_ids = {
+        str(n["id"])
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id") and n.get("name") == "区域经理或组长"
+    }
+    biz_ids = {
+        str(n["id"])
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id")
+        and str(n.get("name") or "").startswith("业务经理")
+    }
+    changed = False
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        src = str(r.get("source") or "")
+        tgt = str(r.get("target") or "")
+        if src in start_ids:
+            if r.get("exclusive_group") or r.get("fork") != "parallel":
+                r.pop("exclusive_group", None)
+                r["fork"] = "parallel"
+                changed = True
+        if src in region_ids and tgt in biz_ids and by_id.get(tgt, {}).get("type") == "approval":
+            if not r.get("reenter"):
+                r["reenter"] = True
+                changed = True
+    return changed
+
+
+# 售出产品更换等同构：发起并行 + 区域经理回路重入
+apply_cs_product_replace_start_parallel = apply_cs_service_request_start_parallel
+
+
+def _flow_cs_service_start_not_parallel(
+    nodes: list | None, routes: list | None,
+) -> bool:
+    start_ids = {
+        str(n["id"])
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id") and n.get("type") == "start"
+    }
+    if not start_ids:
+        return False
+    region_ids = {
+        str(n["id"])
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id") and n.get("name") == "区域经理或组长"
+    }
+    biz_ids = {
+        str(n["id"])
+        for n in (nodes or [])
+        if isinstance(n, dict) and n.get("id")
+        and str(n.get("name") or "").startswith("业务经理")
+    }
+    for r in routes or []:
+        if not isinstance(r, dict) or r.get("always"):
+            continue
+        src = str(r.get("source") or "")
+        tgt = str(r.get("target") or "")
+        if src in start_ids:
+            if r.get("exclusive_group") or r.get("fork") != "parallel":
+                return True
+        if src in region_ids and tgt in biz_ids and not r.get("reenter"):
+            return True
+    return False
+
+
+_flow_cs_product_replace_start_not_parallel = _flow_cs_service_start_not_parallel
+
+
 def _flow_is_jdy_form_graph(form_code: str | None, nodes: list | None) -> bool:
     if form_code in ("drawing_requisition", "install_drawing_notice", "scheme_management"):
         return _flow_is_jdy_drawing(nodes)
@@ -1913,12 +2004,50 @@ def _drawing_flow_has_cc_end_bug(nodes: list | None, routes: list | None) -> boo
     return False
 
 
+def _route_is_always_parallel(route: dict | None) -> bool:
+    """简道云 cond=[] → ``__always is_empty``：无条件并行后继，不得进互斥组。
+
+    与 ``always: true``（抄送旁路）同类：与其它 if/else 并行，不抢占。
+    """
+    if not isinstance(route, dict):
+        return False
+    if route.get("always"):
+        return True
+    cond = route.get("condition")
+    return (
+        isinstance(cond, dict)
+        and cond.get("field") == "__always"
+        and cond.get("operator") == "is_empty"
+    )
+
+
 def _serial_exclusive_outs(outs: list) -> list:
-    """互斥组只覆盖非 parallel 出边。转采购等并行边不参与 if/else。"""
+    """互斥组只覆盖非 parallel / 非恒真并行出边。转采购、总工→总经理等并行边不参与 if/else。"""
     return [
         o for o in outs
-        if isinstance(o, dict) and o.get("fork") != "parallel"
+        if isinstance(o, dict)
+        and o.get("fork") != "parallel"
+        and not _route_is_always_parallel(o)
     ]
+
+
+def fix_always_parallel_exclusive_groups(routes: list | None) -> bool:
+    """把误打进 exclusive_group 的恒真并行边拆出来（否则总工会只走总经理、跳过财务核算）。"""
+    changed = False
+    for r in routes or []:
+        if not isinstance(r, dict):
+            continue
+        if _route_is_always_parallel(r) and r.get("exclusive_group"):
+            r.pop("exclusive_group", None)
+            changed = True
+    return changed
+
+
+def _flow_always_parallel_in_exclusive_group(routes: list | None) -> bool:
+    return any(
+        isinstance(r, dict) and _route_is_always_parallel(r) and r.get("exclusive_group")
+        for r in (routes or [])
+    )
 
 
 def _flow_missing_exclusive_groups(routes: list | None) -> bool:
@@ -3602,10 +3731,18 @@ async def _upgrade_drawing_form_flow_if_needed(
             version.node_definitions, patched_routes,
         ):
             tags.append("通知发起人须转采购≠是")
+        if form_code in ("cs_service_request", "cs_product_replace") and (
+            apply_cs_service_request_start_parallel(
+                version.node_definitions, patched_routes,
+            )
+        ):
+            tags.append("发起节点区域经理等多条件并行")
+        if fix_always_parallel_exclusive_groups(patched_routes):
+            tags.append(f"恒真并行边退出互斥组({form_code})")
         if _flow_missing_exclusive_groups(patched_routes):
             by_src: dict[str, list] = {}
             for r in patched_routes:
-                if not isinstance(r, dict) or r.get("always"):
+                if not isinstance(r, dict) or r.get("always") or _route_is_always_parallel(r):
                     continue
                 src = str(r.get("source") or "")
                 if src:
@@ -5115,6 +5252,13 @@ async def can_access_contract_via_workflow(
             WfProcessInstance.biz_id.in_(version_ids),
         )
     )).scalars().all()
+    return await _user_participates_in_instances(db, tenant_id, user_id, list(insts))
+
+
+async def _user_participates_in_instances(
+    db, tenant_id: str, user_id: str, insts: list,
+) -> bool:
+    """发起人 / 任务处理人(含已办) / 抄送人 / 当前待办的有效代理人。"""
     if not insts:
         return False
     if any(i.initiator_id == user_id for i in insts):
@@ -5164,6 +5308,27 @@ async def can_access_contract_via_workflow(
         if agent_ok:
             return True
     return False
+
+
+async def can_access_biz_via_workflow(
+    db,
+    tenant_id: str,
+    user_id: str | None,
+    *,
+    biz_type: str | None,
+    biz_id: str | None,
+) -> bool:
+    """审批相关人可只读业务单据附件（有待办即可看，不必有业务 view / attachment:download）。"""
+    if not user_id or not biz_type or not biz_id:
+        return False
+    insts = (await db.execute(
+        select(WfProcessInstance).where(
+            WfProcessInstance.tenant_id == tenant_id,
+            WfProcessInstance.biz_type == biz_type,
+            WfProcessInstance.biz_id == biz_id,
+        )
+    )).scalars().all()
+    return await _user_participates_in_instances(db, tenant_id, user_id, list(insts))
 
 
 async def can_access_form_via_workflow(
@@ -5184,55 +5349,7 @@ async def can_access_form_via_workflow(
             WfProcessInstance.form_instance_id == form_instance_id,
         )
     )).scalars().all()
-    if not insts:
-        return False
-    if any(i.initiator_id == user_id for i in insts):
-        return True
-
-    inst_ids = [i.id for i in insts]
-    has_task = (await db.execute(
-        select(WfTaskInstance.id).where(
-            WfTaskInstance.process_instance_id.in_(inst_ids),
-            WfTaskInstance.assignee_id == user_id,
-        ).limit(1)
-    )).scalar_one_or_none()
-    if has_task:
-        return True
-
-    has_cc = (await db.execute(
-        select(WfProcessCc.id).where(
-            WfProcessCc.process_instance_id.in_(inst_ids),
-            WfProcessCc.user_id == user_id,
-        ).limit(1)
-    )).scalar_one_or_none()
-    if has_cc:
-        return True
-
-    from datetime import datetime, timezone
-    from app.domains.organization.models import UserAgent
-    pending_assignees = list({
-        a for a in (await db.execute(
-            select(WfTaskInstance.assignee_id).where(
-                WfTaskInstance.process_instance_id.in_(inst_ids),
-                WfTaskInstance.status == "pending",
-            )
-        )).scalars().all() if a
-    })
-    if pending_assignees:
-        now = datetime.now(timezone.utc)
-        agent_ok = (await db.execute(
-            select(UserAgent.id).where(
-                UserAgent.tenant_id == tenant_id,
-                UserAgent.agent_id == user_id,
-                UserAgent.user_id.in_(pending_assignees),
-                UserAgent.status == "active",
-                UserAgent.start_time <= now,
-                UserAgent.end_time >= now,
-            ).limit(1)
-        )).scalar_one_or_none()
-        if agent_ok:
-            return True
-    return False
+    return await _user_participates_in_instances(db, tenant_id, user_id, list(insts))
 
 
 def _live_form_process_clause(tenant_id: str):

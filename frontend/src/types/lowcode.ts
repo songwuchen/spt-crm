@@ -181,10 +181,12 @@ export interface FormInstance {
   title?: string | null
   status: string
   initiator_id: string
+  initiator_name?: string | null
   amount?: number | null
   form_data: Record<string, unknown>
   process_instance_id?: string | null
   created_at: string
+  updated_at?: string | null
 }
 
 export interface FormInstanceDetail extends FormInstance {

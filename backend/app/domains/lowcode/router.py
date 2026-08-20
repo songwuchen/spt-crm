@@ -14,7 +14,7 @@ from app.dependencies import get_db, get_tenant_id, get_current_user, require_pe
 from app.common.schemas import ok
 from app.common.exceptions import BusinessException
 from app.common.error_codes import VALIDATION_ERROR, NOT_FOUND, FORBIDDEN
-from app.common.export import build_excel, excel_response
+from app.common.export import build_excel_multi, excel_response
 from app.domains.lowcode import schemas, service
 
 router = APIRouter(prefix="/api/v1/lc", tags=["扩展平台-表单引擎"])
@@ -124,8 +124,16 @@ async def pickable_users(
         )).all()
         for r in extra:
             by_id[r[0]] = r
+    from app.domains.organization.pickable_scope_service import department_names_by_user_ids
+
+    dept_map = await department_names_by_user_ids(db, tenant_id, list(by_id.keys()))
     out = [
-        {"id": r[0], "name": r[1] or r[2], "username": r[2]}
+        {
+            "id": r[0],
+            "name": r[1] or r[2],
+            "username": r[2],
+            "departments": dept_map.get(r[0], []),
+        }
         for r in sorted(by_id.values(), key=lambda x: (x[1] or x[2] or ""))
     ]
     return ok(out)
@@ -626,6 +634,29 @@ async def pickable_contract_prod_card_fill(
             bank_account=bank_account,
             key_clauses_json=ver.key_clauses_json if ver else None,
         )
+        from app.domains.lowcode.invoice_application_fields import (
+            list_invoice_applications_for_contract,
+        )
+        prior = await list_invoice_applications_for_contract(
+            db, tenant_id,
+            contract_id=c.id,
+            contract_no=c.contract_no,
+            drawing_no=c.drawing_no,
+            peer_contract_no=c.peer_contract_no,
+        )
+        return ok({
+            "contract_id": c.id,
+            "contract_no": c.contract_no,
+            "drawing_no": c.drawing_no,
+            "department_id": c.department_id,
+            "fill": fill,
+            "prior_invoices": prior,
+            "prior_invoice_count": len(prior),
+            "prior_invoice_amount_sum": round(
+                sum(x.get("total_amount") or 0 for x in prior if x.get("total_amount") is not None),
+                2,
+            ),
+        })
     elif mode == "shipment_notice":
         fill = build_shipment_fill_from_contract(
             contract_no=c.contract_no,
@@ -763,8 +794,11 @@ def _ver_dict(v) -> dict:
     return schemas.FormTemplateVersionOut.model_validate(v).model_dump(mode="json")
 
 
-def _inst_list_dict(i) -> dict:
-    return schemas.FormInstanceListItem.model_validate(i).model_dump(mode="json")
+def _inst_list_dict(i, name_map: dict[str, str] | None = None) -> dict:
+    d = schemas.FormInstanceListItem.model_validate(i).model_dump(mode="json")
+    if name_map is not None and getattr(i, "initiator_id", None):
+        d["initiator_name"] = name_map.get(i.initiator_id)
+    return d
 
 
 # ==================== 表单模板 ====================
@@ -1151,7 +1185,13 @@ async def list_form_instances(
         keyword=keyword, status=status, owner_ids=scope, filters=filters,
         user=user,
     )
-    return ok({"items": [_inst_list_dict(i) for i in items], "total": total, "pageNo": pageNo, "pageSize": pageSize})
+    name_map = await service.user_display_names(
+        db, tenant_id, [i.initiator_id for i in items if i.initiator_id],
+    )
+    return ok({
+        "items": [_inst_list_dict(i, name_map) for i in items],
+        "total": total, "pageNo": pageNo, "pageSize": pageSize,
+    })
 
 
 _INST_STATUS_LABELS = {
@@ -1182,10 +1222,73 @@ def _collect_ref_ids(value) -> list[str]:
     return [s] if s else []
 
 
+def _accumulate_export_ref_ids(
+    field_type: str | None,
+    value,
+    person_ids: set[str],
+    dept_ids: set[str],
+    project_ids: set[str],
+    contract_ids: set[str],
+    customer_ids: set[str],
+) -> None:
+    """按字段类型把引用 id 归入对应集合。"""
+    ids = _collect_ref_ids(value)
+    if not ids:
+        return
+    ftype = field_type or ""
+    if ftype in ("person", "person_multi"):
+        person_ids.update(ids)
+    elif ftype in ("department", "department_multi"):
+        dept_ids.update(ids)
+    elif ftype == "project":
+        project_ids.update(ids)
+    elif ftype == "contract":
+        contract_ids.update(ids)
+    elif ftype == "customer":
+        customer_ids.update(ids)
+
+
+def _scan_export_ref_ids_from_defs(
+    field_defs: list,
+    fd_data: dict,
+    person_ids: set[str],
+    dept_ids: set[str],
+    project_ids: set[str],
+    contract_ids: set[str],
+    customer_ids: set[str],
+) -> None:
+    """扫描主字段及 detail_table 子列中的人员/部门等引用 id。"""
+    for fd in field_defs:
+        if not isinstance(fd, dict) or not fd.get("id"):
+            continue
+        fid = str(fd.get("id"))
+        ftype = str(fd.get("type") or "")
+        if ftype in ("detail_table", "sub_table_data"):
+            cols = fd.get("detail_table_columns") or []
+            raw = fd_data.get(fid)
+            if not isinstance(raw, list):
+                continue
+            for row in raw:
+                if not isinstance(row, dict):
+                    continue
+                for col in cols:
+                    if not isinstance(col, dict) or not col.get("id"):
+                        continue
+                    _accumulate_export_ref_ids(
+                        col.get("type"), row.get(col.get("id")),
+                        person_ids, dept_ids, project_ids, contract_ids, customer_ids,
+                    )
+            continue
+        _accumulate_export_ref_ids(
+            ftype, fd_data.get(fid),
+            person_ids, dept_ids, project_ids, contract_ids, customer_ids,
+        )
+
+
 async def _load_export_label_maps(
     db: AsyncSession, tenant_id: str, field_defs: list, rows: list,
 ) -> dict[str, dict[str, str]]:
-    """批量把导出里的人员/部门等 id 解析成显示名。"""
+    """批量把导出里的人员/部门等 id 解析成显示名（含明细子列）。"""
     from sqlalchemy import text as sql_text
 
     person_ids: set[str] = set()
@@ -1193,24 +1296,16 @@ async def _load_export_label_maps(
     project_ids: set[str] = set()
     contract_ids: set[str] = set()
     customer_ids: set[str] = set()
-    type_by_id = {
-        str(fd.get("id")): str(fd.get("type") or "")
-        for fd in field_defs if isinstance(fd, dict) and fd.get("id")
-    }
     for inst in rows:
+        if getattr(inst, "initiator_id", None):
+            person_ids.add(str(inst.initiator_id))
         fd_data = inst.form_data or {}
-        for fid, ftype in type_by_id.items():
-            ids = _collect_ref_ids(fd_data.get(fid))
-            if ftype in ("person", "person_multi"):
-                person_ids.update(ids)
-            elif ftype in ("department", "department_multi"):
-                dept_ids.update(ids)
-            elif ftype == "project":
-                project_ids.update(ids)
-            elif ftype == "contract":
-                contract_ids.update(ids)
-            elif ftype == "customer":
-                customer_ids.update(ids)
+        if not isinstance(fd_data, dict):
+            continue
+        _scan_export_ref_ids_from_defs(
+            field_defs, fd_data,
+            person_ids, dept_ids, project_ids, contract_ids, customer_ids,
+        )
 
     async def _map(sql: str, ids: set[str]) -> dict[str, str]:
         from sqlalchemy import bindparam
@@ -1249,6 +1344,95 @@ async def _load_export_label_maps(
         "users": users, "depts": depts, "projects": projects,
         "contracts": contracts, "customers": customers,
     }
+
+
+def _export_detail_columns(detail_fd: dict, roles: set[str]) -> list[dict]:
+    """明细表导出列：有 id 且对当前角色可见。"""
+    from app.domains.lowcode.field_permission import field_visible
+
+    cols = detail_fd.get("detail_table_columns") or []
+    out: list[dict] = []
+    for col in cols:
+        if not isinstance(col, dict) or not col.get("id"):
+            continue
+        if not field_visible(col, roles):
+            continue
+        out.append(col)
+    return out
+
+
+def _build_form_export_sheets(
+    *,
+    sheet_title: str,
+    data_fields: list,
+    filtered_rows: list[tuple],
+    label_maps: dict[str, dict[str, str]],
+    roles: set[str],
+    truncated: bool,
+) -> list[tuple[str, list[str], list[list]]]:
+    """主表 + 每个明细一张 sheet。filtered_rows: [(inst, fd_data), ...]。"""
+    users = (label_maps or {}).get("users") or {}
+    main_headers = (
+        ["业务编号", "标题", "状态", "创建人", "创建时间"]
+        + [fd.get("label") or fd.get("id") for fd in data_fields]
+    )
+    main_rows: list[list] = []
+    for inst, fd_data in filtered_rows:
+        initiator_id = getattr(inst, "initiator_id", None) or ""
+        line = [
+            inst.business_no or "", inst.title or "",
+            _INST_STATUS_LABELS.get(inst.status, inst.status or ""),
+            users.get(str(initiator_id), "") if initiator_id else "",
+            inst.created_at.strftime("%Y-%m-%d %H:%M") if inst.created_at else "",
+        ]
+        line += [
+            _fmt_export_cell(fd.get("type"), fd_data.get(fd.get("id")), label_maps)
+            for fd in data_fields
+        ]
+        main_rows.append(line)
+    if truncated:
+        note = [
+            f"⚠ 数据超过导出上限 {_EXPORT_ROW_CAP} 条，已按最新时间截断，请缩小筛选范围后再导出",
+        ]
+        main_rows.append(note + [""] * (len(main_headers) - 1))
+
+    sheets: list[tuple[str, list[str], list[list]]] = [
+        (sheet_title or "表单数据", main_headers, main_rows),
+    ]
+
+    detail_fields = [
+        fd for fd in data_fields
+        if (fd.get("type") or "") in ("detail_table", "sub_table_data")
+    ]
+    for dfd in detail_fields:
+        cols = _export_detail_columns(dfd, roles)
+        d_headers = (
+            ["业务编号", "标题", "状态"]
+            + [c.get("label") or c.get("id") for c in cols]
+        )
+        d_rows: list[list] = []
+        fid = dfd.get("id")
+        for inst, fd_data in filtered_rows:
+            raw = fd_data.get(fid) if fid else None
+            if not isinstance(raw, list):
+                continue
+            base = [
+                inst.business_no or "",
+                inst.title or "",
+                _INST_STATUS_LABELS.get(inst.status, inst.status or ""),
+            ]
+            for row in raw:
+                if not isinstance(row, dict):
+                    continue
+                d_rows.append(
+                    base + [
+                        _fmt_export_cell(c.get("type"), row.get(c.get("id")), label_maps)
+                        for c in cols
+                    ]
+                )
+        sheets.append((str(dfd.get("label") or dfd.get("id") or "明细"), d_headers, d_rows))
+
+    return sheets
 
 
 def _fmt_export_cell(
@@ -1307,7 +1491,7 @@ async def export_form_instances(
     user: dict = Depends(require_permissions("form_data:view")),
     scope: "list[str] | None" = Depends(get_data_scope),
 ):
-    """导出当前筛选下的表单数据为 Excel（列＝表单字段，含业务编号/状态/创建时间）。"""
+    """导出当前筛选下的表单数据为 Excel（主表 + 每个明细子表一张 sheet，对齐简道云）。"""
     tpl, field_defs, rows = await service.export_instances(
         db, tenant_id, template_id, keyword=keyword, status=status, owner_ids=scope,
         filters=filters, limit=_EXPORT_ROW_CAP, user=user,
@@ -1316,10 +1500,9 @@ async def export_form_instances(
     from app.domains.lowcode.field_permission import field_visible, filter_read
     _roles = set(user.get("roles") or [])
     data_fields = [fd for fd in field_defs if fd.get("id") and field_visible(fd, _roles)]
-    headers = ["业务编号", "标题", "状态", "创建时间"] + [fd.get("label") or fd.get("id") for fd in data_fields]
     label_maps = await _load_export_label_maps(db, tenant_id, field_defs, rows)
-    data_rows = []
     uid = user.get("sub")
+    filtered_rows: list[tuple] = []
     for inst in rows:
         is_creator = bool(uid and (
             uid == getattr(inst, "created_by", None)
@@ -1328,22 +1511,16 @@ async def export_form_instances(
         _, fd_data = filter_read(
             field_defs, inst.form_data or {}, _roles, is_creator=is_creator,
         )
-        line = [
-            inst.business_no or "", inst.title or "",
-            _INST_STATUS_LABELS.get(inst.status, inst.status or ""),
-            inst.created_at.strftime("%Y-%m-%d %H:%M") if inst.created_at else "",
-        ]
-        line += [
-            _fmt_export_cell(fd.get("type"), fd_data.get(fd.get("id")), label_maps)
-            for fd in data_fields
-        ]
-        data_rows.append(line)
-    # 命中导出上限时显式提示截断，避免用户误以为导出完整（非静默截断）。
-    if len(rows) >= _EXPORT_ROW_CAP:
-        note = [f"⚠ 数据超过导出上限 {_EXPORT_ROW_CAP} 条，已按最新时间截断，请缩小筛选范围后再导出"]
-        data_rows.append(note + [""] * (len(headers) - 1))
-    sheet = tpl.name if tpl else "表单数据"
-    buf = build_excel(sheet, headers, data_rows)
+        filtered_rows.append((inst, fd_data))
+    sheets = _build_form_export_sheets(
+        sheet_title=(tpl.name if tpl else "表单数据"),
+        data_fields=data_fields,
+        filtered_rows=filtered_rows,
+        label_maps=label_maps,
+        roles=_roles,
+        truncated=len(rows) >= _EXPORT_ROW_CAP,
+    )
+    buf = build_excel_multi(sheets)
     fname = f"{(tpl.name if tpl else '表单数据')}.xlsx"
     return excel_response(buf, fname)
 

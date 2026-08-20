@@ -4,6 +4,7 @@ import { customerApi } from '@/api/customer'
 import { leadApi } from '@/api/lead'
 import { projectApi } from '@/api/project'
 import { serviceTicketApi } from '@/api/serviceTicket'
+import { formatPersonOptionLabel } from '@/utils/personOptionLabel'
 
 /**
  * Pre-configured remote select for user selection.
@@ -13,7 +14,7 @@ export function useUserSelect() {
   return useRemoteSelect(async (kw) => {
     const r = await userApi.list({ pageNo: 1, pageSize: 100, keyword: kw })
     return (r.data?.items || []).map((u: any) => ({
-      label: u.real_name || u.username,
+      label: formatPersonOptionLabel(u.real_name || u.username, u.departments),
       value: u.id,
     }))
   })

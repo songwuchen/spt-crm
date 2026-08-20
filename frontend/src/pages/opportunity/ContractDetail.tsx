@@ -92,6 +92,7 @@ export default function ContractDetail() {
     payment_plans: Array<Record<string, unknown>>
     payment_records: Array<Record<string, unknown>>
     invoices: Array<Record<string, unknown>>
+    invoice_applications: Array<Record<string, unknown>>
     milestones: Array<Record<string, unknown>>
   } | null>(null)
 
@@ -1115,20 +1116,64 @@ export default function ContractDetail() {
           },
           {
             key: 'invoices',
-            label: <span className="font-semibold">开票 ({related?.invoices?.length ?? 0})</span>,
+            label: <span className="font-semibold">开票 ({
+              (related?.invoice_applications?.length ?? 0) + (related?.invoices?.length ?? 0)
+            })</span>,
             children: (
-              <div className="pb-6">
-                <Table size="small" rowKey="id" pagination={false}
-                  dataSource={related?.invoices || []}
-                  locale={{ emptyText: projectId ? '暂无发票' : '无关联商机，无法展示发票' }}
-                  columns={[
-                    { title: '发票号', dataIndex: 'invoice_no', width: 160 },
-                    { title: '开票日', dataIndex: 'invoice_date', width: 120, render: (v: string) => v || '-' },
-                    { title: '金额', dataIndex: 'amount', width: 120, align: 'right' as const, render: (v: number) => formatMoney(v) },
-                    { title: '状态', dataIndex: 'status', width: 90 },
-                    { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v: string) => v || '-' },
-                  ]}
-                />
+              <div className="pb-6 space-y-6">
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="font-medium">开票申请</span>
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => navigate('/invoice-applications')}
+                    >
+                      打开开票申请列表
+                    </Button>
+                  </div>
+                  <Table
+                    size="small"
+                    rowKey="id"
+                    pagination={false}
+                    dataSource={related?.invoice_applications || []}
+                    locale={{ emptyText: '暂无关联开票申请（按合同号/图纸号匹配）' }}
+                    columns={[
+                      { title: '流水号', dataIndex: 'serial_no', width: 140, render: (v: string) => v || '-' },
+                      {
+                        title: '状态', dataIndex: 'status_label', width: 90,
+                        render: (v: string, r: Record<string, unknown>) => v || String(r.status || '-'),
+                      },
+                      {
+                        title: '金额', dataIndex: 'total_amount', width: 120, align: 'right' as const,
+                        render: (v: number) => (v == null ? '-' : formatMoney(v)),
+                      },
+                      { title: '发票号', dataIndex: 'invoice_no', width: 140, render: (v: string) => v || '-' },
+                      {
+                        title: '开票时间', dataIndex: 'invoice_datetime', width: 160,
+                        render: (v: string) => v || '-',
+                      },
+                      {
+                        title: '创建时间', dataIndex: 'created_at', width: 170,
+                        render: (v: string) => (v ? String(v).replace('T', ' ').slice(0, 19) : '-'),
+                      },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <div className="mb-2 font-medium text-slate-600">商机发票登记（收款模块）</div>
+                  <Table size="small" rowKey="id" pagination={false}
+                    dataSource={related?.invoices || []}
+                    locale={{ emptyText: projectId ? '暂无发票登记' : '无关联商机，无法展示发票登记' }}
+                    columns={[
+                      { title: '发票号', dataIndex: 'invoice_no', width: 160 },
+                      { title: '开票日', dataIndex: 'invoice_date', width: 120, render: (v: string) => v || '-' },
+                      { title: '金额', dataIndex: 'amount', width: 120, align: 'right' as const, render: (v: number) => formatMoney(v) },
+                      { title: '状态', dataIndex: 'status', width: 90 },
+                      { title: '备注', dataIndex: 'remark', ellipsis: true, render: (v: string) => v || '-' },
+                    ]}
+                  />
+                </div>
               </div>
             ),
           },

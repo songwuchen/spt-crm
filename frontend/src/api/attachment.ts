@@ -78,4 +78,25 @@ export const attachmentApi = {
       biz_type: bizType,
       biz_id: bizId,
     }),
+  /** 按 id 批量取元数据（低代码 file/image 只读表补全大小/上传人/时间） */
+  listBatch: (ids: string[]) =>
+    ids.length
+      ? client.get<unknown, ApiResponse<Array<{
+          id: string
+          original_name: string
+          content_type?: string
+          file_size: number
+          uploader_name?: string
+          created_at: string
+        }>>>('/api/v1/attachments/batch', { params: { ids: ids.join(',') } }).then((r) =>
+          (r.data || []).map((a) => ({
+            id: a.id,
+            name: a.original_name,
+            content_type: a.content_type,
+            file_size: a.file_size,
+            uploader_name: a.uploader_name,
+            created_at: a.created_at,
+          })),
+        )
+      : Promise.resolve([]),
 }

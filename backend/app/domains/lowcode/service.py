@@ -29,6 +29,27 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+async def user_display_names(
+    db: AsyncSession, tenant_id: str, user_ids: list[str] | set[str],
+) -> dict[str, str]:
+    """批量解析用户显示名（real_name 优先，否则 username）。"""
+    ids = {str(i) for i in user_ids if i}
+    if not ids:
+        return {}
+    from app.domains.auth.models import User
+    rows = (await db.execute(
+        select(User.id, User.real_name, User.username).where(
+            User.tenant_id == tenant_id,
+            User.id.in_(ids),
+        )
+    )).all()
+    out: dict[str, str] = {}
+    for uid, real_name, username in rows:
+        label = ((real_name or username or "").strip()) or str(uid)
+        out[str(uid)] = label
+    return out
+
+
 async def _assert_drawing_no_unique(
     db: AsyncSession,
     tenant_id: str,
@@ -643,6 +664,9 @@ async def sync_builtin_form_fields(
                     props = dict(fd.get("props") or {})
                     props["default_current_dept"] = True
                     fd["props"] = props
+                elif fd.get("id") == "field_26":
+                    # 对齐简道云默认选「否」；空值会导致 start 无出边并直接完成
+                    fd["default_value"] = "否"
                 elif fd.get("id") == "field_7":
                     for col in fd.get("detail_table_columns") or []:
                         if isinstance(col, dict) and col.get("id") == "field_14":
@@ -1582,6 +1606,9 @@ async def get_instance(db: AsyncSession, tenant_id: str, instance_id: str, user:
     )
     out["field_definitions"] = field_defs
     out["rule_definitions"] = rule_defs
+    if inst.initiator_id:
+        names = await user_display_names(db, tenant_id, [inst.initiator_id])
+        out["initiator_name"] = names.get(inst.initiator_id)
     return out
 
 
@@ -1986,12 +2013,14 @@ _OWNER_PERSON_FIELD_BY_TEMPLATE = {
     "invoice_application": "sales_person",
     "quote_management": "sales_person",
     "shipment_notice": "sales_person",
+    "payment_registration": "sales_person",
 }
 
 _OWNER_PERSON_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
     "invoice_application": ["sales_person"],
     "quote_management": ["sales_person"],
     "shipment_notice": ["sales_person", "purchasers", "purchaser"],
+    "payment_registration": ["sales_person"],
     "pricing_checklist_hjqd": [
         "install_applicant", "req_applicant", "cs_applicant",
         "coop_applicant", "coop_order_person",
@@ -2006,6 +2035,7 @@ _FORM_DEPT_FIELDS_BY_TEMPLATE: dict[str, list[str]] = {
     "shipment_notice": ["department"],
     "quote_management": ["department"],
     "invoice_application": ["department"],
+    "payment_registration": ["department"],
 }
 
 # 以单据部门为主的模板：可见 = 部门∈子树 | 本人参与 |（部门空且本部门成员参与）
@@ -2014,6 +2044,7 @@ _FORM_DEPT_PRIMARY_TEMPLATES: frozenset[str] = frozenset({
     "quote_management",
     "invoice_application",
     "shipment_notice",
+    "payment_registration",
 })
 
 # 部门档：业务部门等文本字段按部门名称匹配

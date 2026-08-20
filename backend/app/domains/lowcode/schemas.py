@@ -162,6 +162,7 @@ class FormInstanceOut(BaseModel):
     title: str | None = None
     status: str
     initiator_id: str
+    initiator_name: str | None = None  # API 层按 initiator_id 解析
     initiator_dept_id: str | None = None
     amount: Decimal | None = None
     form_data: dict[str, Any]
@@ -182,9 +183,11 @@ class FormInstanceListItem(BaseModel):
     title: str | None = None
     status: str
     initiator_id: str
+    initiator_name: str | None = None  # API 层按 initiator_id 解析
     amount: Decimal | None = None
     form_data: dict[str, Any]
     process_instance_id: str | None = None
     created_at: datetime
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}

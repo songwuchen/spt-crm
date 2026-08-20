@@ -12,7 +12,7 @@ import DeptField from '@/components/lowcode/fields/DeptField'
 import FileField from '@/components/lowcode/fields/FileField'
 import CustomerField from '@/components/lowcode/fields/CustomerField'
 import ContractField, {
-  fetchProdCardContractFill, PROD_CARD_FILL_CLEAR,
+  fetchProdCardContractFill, PROD_CARD_FILL_CLEAR, warnPriorInvoicesAfterFill,
 } from '@/components/lowcode/fields/ContractField'
 import TechAgreementReviewField, {
   fetchProdCardTarFill, PROD_CARD_TAR_FILL_CLEAR, resolveTarFilterIds,
@@ -377,8 +377,9 @@ export default function ApproveFieldForm({
                         patchFields(cleared)
                         return
                       }
-                      void fetchProdCardContractFill(v, fillMode).then((fill) => {
-                        patchFields({ [p.field]: v, ...fill })
+                      void fetchProdCardContractFill(v, fillMode).then((pack) => {
+                        patchFields({ [p.field]: v, ...pack.fill })
+                        warnPriorInvoicesAfterFill(fillMode, pack)
                       }).catch(() => setField(p.field, v))
                     }}
                   />

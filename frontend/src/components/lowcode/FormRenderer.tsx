@@ -21,7 +21,7 @@ import ProjectField, {
   fetchInstallNoticeProjectFill, INSTALL_NOTICE_PROJECT_FILL_CLEAR,
 } from './fields/ProjectField'
 import ContractField, {
-  fetchProdCardContractFill, PROD_CARD_FILL_CLEAR,
+  fetchProdCardContractFill, PROD_CARD_FILL_CLEAR, warnPriorInvoicesAfterFill,
 } from './fields/ContractField'
 import TechAgreementReviewField, {
   fetchProdCardTarFill, PROD_CARD_TAR_FILL_CLEAR, resolveTarFilterIds,
@@ -420,8 +420,9 @@ function FieldWidget({
               onPatch(cleared)
               return
             }
-            void fetchProdCardContractFill(v, fillMode).then((fill) => {
-              onPatch({ [field.id]: v, ...fill })
+            void fetchProdCardContractFill(v, fillMode).then((pack) => {
+              onPatch({ [field.id]: v, ...pack.fill })
+              warnPriorInvoicesAfterFill(fillMode, pack)
             }).catch(() => onChange(v))
           }}
         />

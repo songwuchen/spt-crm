@@ -330,6 +330,32 @@ export default function MobileLowcodeApprovalDetail() {
           <AttachmentPanel bizType="customer" bizId={detail.biz_id} title="附件" compact />
         </div>
       )}
+      {detail.biz_type === 'contract_review' && detail.biz_id && (
+        <div className="bg-white rounded-xl border border-slate-100 p-4 mb-3 space-y-3">
+          <AttachmentPanel bizType="contract_review" bizId={detail.biz_id} title="附件（合同）" compact />
+          <AttachmentPanel
+            bizType="contract_review_image"
+            bizId={detail.biz_id}
+            title="图片"
+            accept="image/*"
+            compact
+          />
+          <AttachmentPanel bizType="contract_review_cost" bizId={detail.biz_id} title="成本附件" compact />
+          <AttachmentPanel
+            bizType="contract_review_feedback"
+            bizId={detail.biz_id}
+            title="反馈附件"
+            compact
+          />
+          <AttachmentPanel
+            bizType="contract_review_feedback_image"
+            bizId={detail.biz_id}
+            title="反馈图片"
+            accept="image/*"
+            compact
+          />
+        </div>
+      )}
       <div className={canAct ? 'mb-3' : ''}>
         <WfFlowDynamics
           variant="page"

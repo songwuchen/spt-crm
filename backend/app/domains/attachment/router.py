@@ -398,6 +398,37 @@ async def list_by_biz(
     } for a in items])
 
 
+@router.get("/batch")
+async def batch_get_attachments(
+    ids: str = Query(..., description="逗号分隔的附件 id，最多 50 个"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """按 id 批量取附件元数据（低代码字段只读列表补全大小/上传人/时间）。"""
+    id_list = [x.strip() for x in (ids or "").split(",") if x.strip()][:50]
+    out = []
+    for aid in id_list:
+        try:
+            via_wf = await _require_attachment_download_or_wf(
+                db, tenant_id, current_user, attachment_id=aid,
+            )
+            att = await service.get_attachment(
+                db, tenant_id, aid, None if via_wf else current_user,
+            )
+        except BusinessException:
+            continue
+        out.append({
+            "id": att.id,
+            "original_name": att.original_name,
+            "content_type": att.content_type,
+            "file_size": att.file_size,
+            "uploader_name": att.uploader_name,
+            "created_at": att.created_at.isoformat() if att.created_at else "",
+        })
+    return ok(out)
+
+
 # blob: URL 在 Chrome PDF 工具栏会显示 UUID；改走带真实文件名的临时预览地址
 _PRINT_PREVIEW_TTL = 15 * 60
 _PRINT_PREVIEW_MAX = 24

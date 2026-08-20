@@ -181,6 +181,11 @@ def test_cs_product_return_initiator_defaults():
     assert defs["field"].get("form_editable") is False
 
 
+def test_start_tool_return_needs_transfer_flag():
+    """对齐简道云：工具退回须同时 field_26=否；缺省时 start 无出边（会 invent end 直接完成）。"""
+    assert _next("start", {"field_3": "工具退回"}) == []
+    assert _next("start", {"field_26": "否", "field_3": "工具退回"}) == ["n17"]
+
 def test_cs_product_return_warehouse_judge_not_at_create():
     """明细「仓库判定*」发起不可填，审批节点填写。"""
     f7 = next(

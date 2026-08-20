@@ -77,6 +77,9 @@ def apply_install_drawing_notice_fields(field_defs: list[dict[str, Any]]) -> Non
             props["project_fill"] = "install_notice"
             fd["props"] = props
             fd.pop("options", None)
+        elif fid == "is_xiaomeng":
+            # 新建默认「否」，避免未选手动选；流程按非小萌分支走
+            fd["default_value"] = "否"
         elif fid == "applicant":
             props = dict(fd.get("props") or {})
             props["default_current_user"] = True

@@ -37,7 +37,19 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
 
     try:
         user = await authenticate(db, body.username, body.password, tenant_code=body.tenant_code, client_ip=client_ip)
-    except Exception as e:
+    except BusinessException as e:
+        # 已锁定时不记失败次数，避免「锁了还在累加」导致永远解不开
+        if "账户已锁定" not in e.message:
+            try:
+                await log_action(
+                    db, tenant_id="", user_id="", user_name=body.username,
+                    action="login_failed", resource_type="auth", resource_id="",
+                    summary=f"登录失败: {body.username} from {client_ip}",
+                )
+            except Exception:
+                pass
+        raise
+    except Exception:
         try:
             await log_action(
                 db, tenant_id="", user_id="", user_name=body.username,

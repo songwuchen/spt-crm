@@ -79,6 +79,7 @@ export const contractApi = {
       payment_plans: Array<Record<string, unknown>>
       payment_records: Array<Record<string, unknown>>
       invoices: Array<Record<string, unknown>>
+      invoice_applications: Array<Record<string, unknown>>
       milestones: Array<Record<string, unknown>>
     }>>(`/api/v1/contracts/${id}/related`),
 }

@@ -52,7 +52,10 @@ JDY_DEPT_NAMES: dict[str, str] = {
 }
 
 # 仅对这些字段做部门 id 替换（人员字段另见 PERSON_COND_FIELDS）
-DEPT_COND_FIELDS = frozenset({"department", "offices", "offices_multi", "department_multi"})
+# field：客户服务申请等「所属部门」生成 slug（非 department）
+DEPT_COND_FIELDS = frozenset({
+    "department", "offices", "offices_multi", "department_multi", "field",
+})
 
 # 流程条件里的人员字段（简道云 member MongoId → CRM users.id）
 PERSON_COND_FIELDS = frozenset({

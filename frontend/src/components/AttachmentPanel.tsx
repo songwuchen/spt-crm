@@ -1,21 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Button, Table, Modal, message } from 'antd'
-import {
-  DownloadOutlined, EyeOutlined, DeleteOutlined, PaperClipOutlined,
-} from '@ant-design/icons'
+import { Button, Modal, message } from 'antd'
+import { DeleteOutlined, PaperClipOutlined } from '@ant-design/icons'
 import { attachmentApi } from '@/api/attachment'
-import AttachmentPreviewModal from '@/components/AttachmentPreviewModal'
+import AttachmentFileTable from '@/components/AttachmentFileTable'
 import client from '@/api/client'
 import type { ApiResponse } from '@/api/types'
-import { isPreviewable } from '@/utils/attachmentPreview'
+import { formatAttachmentSize } from '@/utils/attachmentDisplay'
+import type { AttachmentFileRow } from '@/utils/attachmentDisplay'
 import JdyUploadZone, { jdyMaxBytes } from '@/components/lowcode/fields/JdyUploadZone'
 
-interface AttachmentItem {
-  id: string
-  original_name: string
-  content_type?: string
+interface AttachmentItem extends AttachmentFileRow {
   file_size: number
-  uploader_name?: string
   created_at: string
 }
 
@@ -35,9 +30,7 @@ interface Props {
 }
 
 function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  return formatAttachmentSize(bytes)
 }
 
 /** 将新建时暂存的文件在业务 id 就绪后批量上传 */
@@ -123,8 +116,6 @@ export default function AttachmentPanel({
   const [list, setList] = useState<AttachmentItem[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [previewItem, setPreviewItem] = useState<AttachmentItem | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string>('')
 
   // 新建态：无 bizId 时用本地暂存（对齐简道云创建即可选附件）
   if (!bizId) {
@@ -159,10 +150,6 @@ export default function AttachmentPanel({
       setLoading={setLoading}
       uploading={uploading}
       setUploading={setUploading}
-      previewItem={previewItem}
-      setPreviewItem={setPreviewItem}
-      previewUrl={previewUrl}
-      setPreviewUrl={setPreviewUrl}
     />
   )
 }
@@ -171,7 +158,6 @@ export default function AttachmentPanel({
 function AttachmentPanelBound({
   bizType, bizId, title, accept, compact,
   list, setList, loading, setLoading, uploading, setUploading,
-  previewItem, setPreviewItem, previewUrl, setPreviewUrl,
 }: {
   bizType: string
   bizId: string
@@ -184,10 +170,6 @@ function AttachmentPanelBound({
   setLoading: (v: boolean) => void
   uploading: boolean
   setUploading: (v: boolean) => void
-  previewItem: AttachmentItem | null
-  setPreviewItem: (v: AttachmentItem | null) => void
-  previewUrl: string
-  setPreviewUrl: (v: string) => void
 }) {
   const isImage = !!accept?.startsWith('image')
   const maxBytes = jdyMaxBytes(isImage)
@@ -195,11 +177,25 @@ function AttachmentPanelBound({
   const fetchList = async () => {
     setLoading(true)
     try {
-      const res = await client.get<unknown, ApiResponse<AttachmentItem[]>>('/api/v1/attachments/by_biz', {
+      const res = await client.get<unknown, ApiResponse<Array<{
+        id: string
+        original_name: string
+        content_type?: string
+        file_size: number
+        uploader_name?: string
+        created_at: string
+      }>>>('/api/v1/attachments/by_biz', {
         params: { biz_type: bizType, biz_id: bizId },
         headers: compact ? { 'X-Silent-Error': '1' } : undefined,
       })
-      setList(res.data || [])
+      setList((res.data || []).map((a) => ({
+        id: a.id,
+        name: a.original_name,
+        content_type: a.content_type,
+        file_size: a.file_size,
+        uploader_name: a.uploader_name,
+        created_at: a.created_at,
+      })))
     } catch {
       setList([])
       if (!compact) message.error('附件列表加载失败，请刷新重试')
@@ -209,16 +205,6 @@ function AttachmentPanelBound({
   }
 
   useEffect(() => { fetchList() }, [bizType, bizId])
-
-  useEffect(() => {
-    let cancelled = false
-    if (!previewItem) { setPreviewUrl(''); return }
-    setPreviewUrl('')
-    attachmentApi.getUrl(previewItem.id, false)
-      .then((u) => { if (!cancelled) setPreviewUrl(u) })
-      .catch(() => { if (!cancelled) message.error('无法加载预览') })
-    return () => { cancelled = true }
-  }, [previewItem])
 
   const handleUploadMany = async (files: File[]) => {
     setUploading(true)
@@ -249,25 +235,9 @@ function AttachmentPanelBound({
     }
   }
 
-  const handleDownload = async (item: AttachmentItem) => {
-    try {
-      const url = await attachmentApi.getUrl(item.id, true)
-      const a = document.createElement('a')
-      a.href = url
-      a.target = '_blank'
-      a.rel = 'noreferrer'
-      a.download = item.original_name
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    } catch {
-      message.error('下载失败')
-    }
-  }
-
-  const handleDelete = async (item: AttachmentItem) => {
+  const handleDelete = async (item: AttachmentFileRow) => {
     Modal.confirm({
-      title: '确认删除', content: `确定要删除附件「${item.original_name}」？`, okType: 'danger',
+      title: '确认删除', content: `确定要删除附件「${item.name}」？`, okType: 'danger',
       onOk: async () => {
         await attachmentApi.delete(item.id)
         message.success('已删除')
@@ -276,38 +246,6 @@ function AttachmentPanelBound({
     })
   }
 
-  const previewType = previewItem ? isPreviewable(previewItem.content_type, previewItem.original_name) : false
-
-  const columns = [
-    { title: '文件名', dataIndex: 'original_name', render: (v: string, record: AttachmentItem) => {
-      const pType = isPreviewable(record.content_type, record.original_name)
-      return (
-        <span className={pType ? 'cursor-pointer text-primary hover:underline' : ''} onClick={() => pType && setPreviewItem(record)}>
-          {v}
-        </span>
-      )
-    }},
-    { title: '大小', dataIndex: 'file_size', width: 100, render: (v: number) => formatSize(v) },
-    { title: '上传人', dataIndex: 'uploader_name', width: 100 },
-    { title: '上传时间', dataIndex: 'created_at', width: 170,
-      render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-' },
-    { title: '操作', width: 140, render: (_: unknown, record: AttachmentItem) => (
-      <div className="flex gap-3">
-        {isPreviewable(record.content_type, record.original_name) && (
-          <a onClick={() => setPreviewItem(record)} className="text-primary text-sm">
-            <EyeOutlined /> 预览
-          </a>
-        )}
-        <a onClick={() => handleDownload(record)} className="text-sm">
-          <DownloadOutlined /> 下载
-        </a>
-        <a onClick={() => handleDelete(record)} className="text-rose-500 text-sm">
-          <DeleteOutlined />
-        </a>
-      </div>
-    ) },
-  ]
-
   return (
     <div className={compact ? 'rounded-lg border border-slate-100 bg-slate-50/50 p-3' : 'mb-4'}>
       <div className="mb-2">
@@ -315,25 +253,15 @@ function AttachmentPanelBound({
       </div>
       <JdyUploadZone image={isImage} uploading={uploading} onFiles={handleUploadMany} />
       <div className="mt-2">
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={list}
+        <AttachmentFileTable
+          items={list}
           loading={loading}
-          pagination={false}
-          size="small"
-          locale={{ emptyText: '暂无文件' }}
+          fetchMeta={false}
+          showDelete
+          onDelete={handleDelete}
+          compact={compact}
         />
       </div>
-
-      <AttachmentPreviewModal
-        open={!!previewItem}
-        title={previewItem?.original_name}
-        url={previewUrl}
-        kind={previewType || false}
-        loading={!!previewItem && !previewUrl}
-        onClose={() => setPreviewItem(null)}
-      />
     </div>
   )
 }

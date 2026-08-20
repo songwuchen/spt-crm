@@ -99,6 +99,31 @@ def test_n6_routing_parallel_ceo_with_finance_or_tech():
     assert set(_next("n6", {"field_24": "是"})) == {"n8", "n20"}
 
 
+def test_n6_always_edge_survives_wrong_exclusive_stamp():
+    """发布版误把 __always→总经理 打进 ex_n6 时，引擎仍应并行点亮财务核算。"""
+    from app.domains.lowcode.workflow_service import fix_always_parallel_exclusive_groups
+
+    bad = [
+        {
+            "id": "r_12", "source": "n6", "target": "n8",
+            "condition": {"field": "__always", "operator": "is_empty"},
+            "exclusive_group": "ex_n6",
+        },
+        {
+            "id": "r_25", "source": "n6", "target": "n20",
+            "condition": {"field": "field_24", "operator": "in", "value": ["是"]},
+            "exclusive_group": "ex_n6",
+        },
+        {"id": "r_23", "source": "n6", "target": "n18", "exclusive_group": "ex_n6"},
+    ]
+    eng = _eng()
+    ver = SimpleNamespace(node_definitions=[], route_definitions=bad)
+    assert set(eng._next_targets(ver, "n6", {"field_24": "否"})) == {"n8", "n18"}
+    assert fix_always_parallel_exclusive_groups(bad)
+    assert "exclusive_group" not in bad[0]
+    assert set(eng._next_targets(ver, "n6", {"field_24": "否"})) == {"n8", "n18"}
+
+
 def test_xunhan_path_includes_tech_finance_chain():
     """迅焊线（field_24=是）：部门经理 → … → 技术 → 财务 → 迅焊总经理 → 客服补登。"""
     eng = _eng()

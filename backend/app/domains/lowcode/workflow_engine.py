@@ -501,8 +501,15 @@ class WorkflowEngine:
         exclusive_groups: dict[str, list] = {}
         parallel_edges: list = []
         for r in normal:
+            # 简道云 cond=[] → __always：恒真并行，即使误标了 exclusive_group 也不进互斥
+            cond = r.get("condition") if isinstance(r, dict) else None
+            is_always_parallel = (
+                isinstance(cond, dict)
+                and cond.get("field") == "__always"
+                and cond.get("operator") == "is_empty"
+            )
             gid = r.get("exclusive_group")
-            if gid:
+            if gid and not is_always_parallel:
                 exclusive_groups.setdefault(str(gid), []).append(r)
             else:
                 parallel_edges.append(r)

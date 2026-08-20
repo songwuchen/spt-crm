@@ -94,7 +94,11 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReload = () => {
-    if (this.state.error && recoverFromStaleChunks(this.state.error)) return
+    // 强制再走一轮恢复（忽略 15s 节流），避免卡在「请稍候」无按钮
+    if (this.state.error && isChunkLoadError(this.state.error)) {
+      try { sessionStorage.removeItem('spt_chunk_recover_at') } catch { /* ignore */ }
+      if (recoverFromStaleChunks(this.state.error)) return
+    }
     window.location.reload()
   }
 
@@ -108,14 +112,16 @@ export default class ErrorBoundary extends Component<Props, State> {
             title={chunkErr ? '系统已更新' : '页面出错了'}
             subTitle={
               chunkErr
-                ? '正在清理浏览器旧缓存并刷新，请稍候…'
+                ? '正在清理浏览器旧缓存并刷新，请稍候…若长时间无响应请点下方刷新'
                 : (this.state.error?.message || '发生了未知错误，请尝试刷新页面')
             }
-            extra={chunkErr ? null : [
-              <Button key="retry" type="primary" onClick={this.handleReset}>
-                重试
-              </Button>,
-              <Button key="reload" onClick={this.handleReload}>
+            extra={[
+              ...(chunkErr ? [] : [
+                <Button key="retry" type="primary" onClick={this.handleReset}>
+                  重试
+                </Button>,
+              ]),
+              <Button key="reload" type={chunkErr ? 'primary' : 'default'} onClick={this.handleReload}>
                 刷新页面
               </Button>,
             ]}

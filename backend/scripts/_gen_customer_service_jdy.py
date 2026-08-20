@@ -395,7 +395,11 @@ def unwrap_wf(raw: dict) -> dict:
 
 
 def apply_cs_product_return_initiator_defaults(fields: list[dict], notes: list[str]) -> None:
-    """提交人/发起部门：发起时默认当前用户及其主部门（对齐简道云）。"""
+    """提交人/发起部门：发起时默认当前用户及其主部门（对齐简道云）。
+
+    「是否转相关人员」简道云 radiogroup 默认选「否」(items[].selected)；
+    CRM 若不默认，发起后 field_26 为空 → start 无出边 → 引擎 invent end 直接完成。
+    """
     for fd in fields:
         fid = fd.get("id")
         if fid == "field":
@@ -410,7 +414,11 @@ def apply_cs_product_return_initiator_defaults(fields: list[dict], notes: list[s
             fd["props"] = props
             fd.setdefault("available_on_create", True)
             fd.setdefault("fill_stage", "initiator")
-    notes.append("提交人/发起部门：发起默认当前用户及主部门")
+        elif fid == "field_26":
+            fd["default_value"] = "否"
+            fd.setdefault("available_on_create", True)
+            fd.setdefault("fill_stage", "initiator")
+    notes.append("提交人/发起部门：发起默认当前用户及主部门；是否转相关人员默认「否」")
 
 
 def apply_cs_product_return_warehouse_judge_policy(fields: list[dict], notes: list[str]) -> None:
@@ -468,6 +476,17 @@ def gen_one(key: str, title: str, entry: str, app: str, meta: dict) -> dict:
 
     nodes, routes, notes_flow = build_flow(wf_raw, fields, title)
     notes.extend(notes_flow)
+    if key in ("cs_service_request", "cs_product_replace"):
+        try:
+            from app.domains.lowcode.workflow_service import (
+                apply_cs_service_request_start_parallel,
+            )
+            if apply_cs_service_request_start_parallel(nodes, routes):
+                notes.append(
+                    "发起节点：区域经理/业务经理等多条件并行（对齐简道云，勿互斥吞区域经理）"
+                )
+        except Exception as ex:  # pragma: no cover
+            notes.append(f"发起并行补丁跳过: {ex}")
     linkage = load_linkage_pack(key)
     rules = build_rule_definitions(linkage, fields) if linkage else []
     if required_widgets:

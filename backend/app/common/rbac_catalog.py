@@ -255,7 +255,7 @@ STANDARD_ROLES = [
         # 核价清单传递：列表按单据业务部门/申请人匹配；需在用户上配置「负责业务部门」
         "code": "mkt_support", "name": "市场技术支持中心", "scope": "dept",
         "scope_by_resource": {"customer": "all"},
-        "desc": "市场技术支持:本部门业务数据;客户可看全部;核价清单按负责业务部门可见",
+        "desc": "市场技术支持:本部门业务数据;客户可看全部;核价清单/收款登记按单据部门可见",
         "perms": [
             "customer:view", "customer:create", "customer:edit",
             "contact:view", "contact:create", "contact:edit",
@@ -265,6 +265,7 @@ STANDARD_ROLES = [
             "contract:view", "contract_review:view",
             "tech_agreement_review:view",
             "product:view", "tender:view",
+            "form_data:view",
         ],
     },
     {

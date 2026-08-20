@@ -1,17 +1,17 @@
-// 附件/图片字段(file / image)。对齐简道云：虚线选择区 +「选择」+ 拖拽/粘贴 + 页内预览。
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Image, Modal, Popover, QRCode, Tooltip, message } from 'antd'
+// 附件/图片字段(file / image)。对齐简道云：虚线选择区 + 表格预览/下载。
+import { useRef, useState, type ReactNode } from 'react'
+import { Modal, Popover, QRCode, Tooltip, message } from 'antd'
 import {
-  CloseCircleFilled, EyeOutlined, PaperClipOutlined, PictureOutlined, QrcodeOutlined,
+  CloseCircleFilled, PaperClipOutlined, PictureOutlined, QrcodeOutlined,
 } from '@ant-design/icons'
 import { attachmentApi } from '@/api/attachment'
-import AttachmentPreviewModal from '@/components/AttachmentPreviewModal'
+import AttachmentFileTable from '@/components/AttachmentFileTable'
+import AttachmentFileActions from '@/components/AttachmentFileActions'
+import { useAttachmentPreview } from '@/hooks/useAttachmentPreview'
 import {
-  isMetaOnlyAttachmentId,
   normalizeFileFieldValue,
   type FileFieldAtt,
 } from '@/utils/fileFieldValue'
-import { isPreviewable } from '@/utils/attachmentPreview'
 import JdyUploadZone, { jdyMaxBytes } from '@/components/lowcode/fields/JdyUploadZone'
 
 type Att = FileFieldAtt
@@ -40,97 +40,12 @@ export default function FileField({
   const atts: Att[] = normalizeFileFieldValue(value)
   const attsRef = useRef(atts)
   attsRef.current = atts
-  const [urls, setUrls] = useState<Record<string, string>>({})
+  const { openPreview, download, previewModal } = useAttachmentPreview()
 
   const [uploading, setUploading] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
-  const [imagePreview, setImagePreview] = useState<{ url: string; name: string } | null>(null)
-  const [docPreview, setDocPreview] = useState<{ id: string; name: string; kind: 'image' | 'pdf' } | null>(null)
-  const [docPreviewUrl, setDocPreviewUrl] = useState('')
-  const [docPreviewLoading, setDocPreviewLoading] = useState(false)
   const [popoverOpen, setPopoverOpen] = useState(false)
   const maxBytes = jdyMaxBytes(image)
-
-  useEffect(() => {
-    if (downloadDenied) return
-    let alive = true
-    ;(async () => {
-      const next: Record<string, string> = { ...urls }
-      for (const a of atts) {
-        if (a.metaOnly || isMetaOnlyAttachmentId(a.id)) continue
-        if (next[a.id]) continue
-        const kind = isPreviewable(undefined, a.name)
-        if (!image && kind !== 'image' && !inCellPopover) continue
-        try { next[a.id] = await attachmentApi.getUrl(a.id, false) } catch { /* ignore */ }
-      }
-      if (alive) setUrls(next)
-    })()
-    return () => { alive = false }
-  }, [image, inCellPopover, downloadDenied, JSON.stringify(atts.map((a) => a.id))]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!docPreview) {
-      setDocPreviewUrl('')
-      setDocPreviewLoading(false)
-      return
-    }
-    let alive = true
-    setDocPreviewLoading(true)
-    setDocPreviewUrl('')
-    attachmentApi.getUrl(docPreview.id, false)
-      .then((u) => { if (alive) setDocPreviewUrl(u) })
-      .catch(() => { if (alive) message.error('无法加载预览') })
-      .finally(() => { if (alive) setDocPreviewLoading(false) })
-    return () => { alive = false }
-  }, [docPreview])
-
-  const openFile = async (id: string, download = false) => {
-    if (downloadDenied) {
-      message.warning('无权限查看附件')
-      return
-    }
-    if (isMetaOnlyAttachmentId(id)) {
-      message.info('暂无文件实体，仅同步了简道云文件名')
-      return
-    }
-    try {
-      const u = await attachmentApi.getUrl(id, download)
-      window.open(u, '_blank')
-    } catch {
-      message.error('获取文件地址失败')
-    }
-  }
-
-  const openPreview = async (a: Att) => {
-    if (downloadDenied) {
-      message.warning('无权限查看附件')
-      return
-    }
-    if (isMetaOnlyAttachmentId(a.id)) {
-      message.info('暂无文件实体，仅同步了简道云文件名')
-      return
-    }
-    const kind = isPreviewable(undefined, a.name)
-    if (!kind) {
-      await openFile(a.id, false)
-      return
-    }
-    if (kind === 'image') {
-      let url = urls[a.id]
-      if (!url) {
-        try {
-          url = await attachmentApi.getUrl(a.id, false)
-          setUrls((prev) => ({ ...prev, [a.id]: url }))
-        } catch {
-          message.error('无法加载预览')
-          return
-        }
-      }
-      setImagePreview({ url, name: a.name })
-      return
-    }
-    setDocPreview({ id: a.id, name: a.name, kind: 'pdf' })
-  }
 
   const uploadOne = async (file: File) => {
     if (downloadDenied) {
@@ -169,76 +84,30 @@ export default function FileField({
 
   const removeAtt = (id: string) => onChange(atts.filter((x) => x.id !== id))
 
-  const renderThumb = (a: Att, size: number) => {
-    const url = urls[a.id]
-    if (!url) {
-      return <PaperClipOutlined className="text-slate-400" />
-    }
-    return (
-      <Image
-        src={url}
-        alt={a.name}
-        width={size}
-        height={size}
-        className="cursor-pointer rounded object-cover"
-        preview={false}
-        onClick={() => openPreview(a)}
+  const tableItems = atts.map((a) => ({
+    id: a.id,
+    name: a.name,
+    metaOnly: a.metaOnly,
+  }))
+
+  const renderFileRow = (a: Att, editable: boolean) => (
+    <li key={a.id} className="flex min-h-9 items-center gap-2 px-2 py-1.5 text-[13px] text-slate-700">
+      <PaperClipOutlined className="text-slate-400" />
+      <span className="min-w-0 flex-1 truncate">{a.name}</span>
+      <AttachmentFileActions
+        item={a}
+        onPreview={openPreview}
+        onDownload={download}
+        showDelete={editable}
+        onDelete={editable ? () => removeAtt(a.id) : undefined}
       />
-    )
-  }
-
-  const renderFileRow = (a: Att, editable: boolean) => {
-    const previewable = !!isPreviewable(undefined, a.name)
-    return (
-      <li key={a.id} className="flex min-h-9 items-center gap-2 px-2 py-1.5 text-[13px] text-slate-700">
-        {(image || isPreviewable(undefined, a.name) === 'image') && urls[a.id]
-          ? renderThumb(a, compact ? 32 : 40)
-          : <PaperClipOutlined className="text-slate-400" />}
-        <a
-          className="min-w-0 flex-1 truncate text-slate-700 hover:text-teal-600"
-          onClick={() => (previewable ? openPreview(a) : openFile(a.id, !image))}
-        >
-          {a.name}
-        </a>
-        {previewable && (
-          <Tooltip title="预览">
-            <EyeOutlined
-              className="shrink-0 cursor-pointer text-slate-400 hover:text-teal-600"
-              onClick={() => openPreview(a)}
-            />
-          </Tooltip>
-        )}
-        {editable && (
-          <CloseCircleFilled
-            className="shrink-0 cursor-pointer text-slate-300 hover:text-rose-500"
-            onClick={() => removeAtt(a.id)}
-          />
-        )}
-      </li>
-    )
-  }
-
-  const imageLightbox = imagePreview ? (
-    <Image
-      wrapperStyle={{ display: 'none' }}
-      src={imagePreview.url}
-      preview={{
-        visible: true,
-        src: imagePreview.url,
-        onVisibleChange: (v) => { if (!v) setImagePreview(null) },
-      }}
-    />
-  ) : null
-
-  const docLightbox = (
-    <AttachmentPreviewModal
-      open={!!docPreview}
-      title={docPreview?.name}
-      url={docPreviewUrl}
-      kind={docPreview?.kind || false}
-      loading={docPreviewLoading}
-      onClose={() => setDocPreview(null)}
-    />
+      {editable && (
+        <CloseCircleFilled
+          className="shrink-0 cursor-pointer text-slate-300 hover:text-rose-500"
+          onClick={() => removeAtt(a.id)}
+        />
+      )}
+    </li>
   )
 
   const renderCellThumbs = (maxVisible = 8, size = 24) => {
@@ -254,21 +123,9 @@ export default function FileField({
     return (
       <>
         {visible.map((a) => (
-          urls[a.id] ? (
-            <Image
-              key={a.id}
-              src={urls[a.id]}
-              alt={a.name}
-              width={size}
-              height={size}
-              className="shrink-0 rounded object-cover"
-              preview={false}
-            />
-          ) : (
-            <span key={a.id} className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded bg-slate-100">
-              <PaperClipOutlined className="text-[11px] text-slate-400" />
-            </span>
-          )
+          <span key={a.id} className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded bg-slate-100 text-[11px] text-slate-500">
+            {image ? <PictureOutlined /> : <PaperClipOutlined />}
+          </span>
         ))}
         {extra > 0 && (
           <span className="shrink-0 text-[11px] text-slate-500">+{extra}</span>
@@ -300,65 +157,31 @@ export default function FileField({
     if (!atts.length) return <TextPlaceholder />
     return (
       <>
-        {cellTriggerShell(
-          atts.map((a) => (
-            <div key={a.id} className="shrink-0 cursor-pointer" onClick={() => openPreview(a)}>
-              {urls[a.id] ? (
-                <Image src={urls[a.id]} alt={a.name} width={24} height={24} className="rounded object-cover" preview={false} />
-              ) : (
-                <PaperClipOutlined className="text-slate-400" />
-              )}
+        <Popover
+          open={popoverOpen}
+          onOpenChange={setPopoverOpen}
+          content={(
+            <div className="w-[min(420px,calc(100vw-32px))]">
+              <AttachmentFileTable items={tableItems} fetchMeta compact />
             </div>
-          )),
-        )}
-        {imageLightbox}
-        {docLightbox}
+          )}
+          trigger="click"
+          placement="bottomLeft"
+          destroyOnHidden
+        >
+          {cellTriggerShell(renderCellThumbs())}
+        </Popover>
+        {previewModal}
       </>
     )
   }
 
   if (readonly) {
     if (!atts.length) return <div className="pt-1 text-slate-400">—</div>
-    if (image) {
-      return (
-        <>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {atts.map((a) => (
-              <div key={a.id} onClick={() => openPreview(a)} className="cursor-pointer">
-                {urls[a.id] ? (
-                  <Image
-                    src={urls[a.id]}
-                    alt={a.name}
-                    width={72}
-                    height={72}
-                    className="rounded object-cover"
-                    preview={false}
-                  />
-                ) : (
-                  <div className="flex max-w-[120px] flex-col items-center gap-1">
-                    <div className="flex h-[72px] w-[72px] items-center justify-center rounded bg-slate-100 text-slate-400">
-                      <PaperClipOutlined />
-                    </div>
-                    <span className="w-full truncate text-center text-xs text-slate-500" title={a.name}>
-                      {a.name}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          {imageLightbox}
-          {docLightbox}
-        </>
-      )
-    }
     return (
       <>
-        <ul className="space-y-1 pt-1">
-          {atts.map((a) => renderFileRow(a, false))}
-        </ul>
-        {imageLightbox}
-        {docLightbox}
+        <AttachmentFileTable items={tableItems} fetchMeta compact={compact} />
+        {previewModal}
       </>
     )
   }
@@ -408,8 +231,7 @@ export default function FileField({
         >
           {trigger}
         </Popover>
-        {imageLightbox}
-        {docLightbox}
+        {previewModal}
         <Modal
           title="手机扫码上传"
           open={qrOpen}
@@ -457,8 +279,7 @@ export default function FileField({
         </ul>
       )}
 
-      {imageLightbox}
-      {docLightbox}
+      {previewModal}
 
       <Modal
         title="手机扫码上传"

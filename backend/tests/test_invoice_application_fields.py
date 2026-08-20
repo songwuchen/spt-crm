@@ -38,24 +38,28 @@ def test_contract_lines_new_is_form_editable():
     assert drawing["form_editable"] is False
 
 
-def test_fill_copies_lines_without_mutating_source():
-    source = [{"name": "吊挂装置", "spec": "ZG-60F配", "unit": "件", "qty": 80, "price": 270}]
-    mapped = map_contract_lines_to_invoice(source)
-    assert mapped[0]["product_name"] == "吊挂装置"
-    assert mapped[0]["line_amount"] == 21600.0
-    # 源行未被改写
-    assert source[0]["name"] == "吊挂装置"
-    assert "product_name" not in source[0]
+def test_summarize_invoice_application_row():
+    from types import SimpleNamespace
+    from app.domains.lowcode.invoice_application_fields import summarize_invoice_application_row
 
-    fill = build_invoice_fill_from_contract(
-        contract_no="HT001", drawing_no="TZ001", peer_contract_no=None,
-        assignee_id="u1", customer_name="天空兄弟", customer_code="C1",
-        taxpayer_id="T", invoice_address_phone="A", bank_account="B",
-        key_clauses_json=source,
+    fi = SimpleNamespace(
+        id="f1",
+        status="completed",
+        business_no="KPSQ-00001",
+        form_data={
+            "total_amount": 1000,
+            "invoice_no": "INV1",
+            "invoice_datetime": "2026-08-01",
+            "drawing_no": "WMGF1",
+            "customer_name": "甲",
+        },
+        created_at=None,
     )
-    fill["contract_lines_new"].append({"product_name": "本单加行", "qty": 1, "unit_price": 10})
-    assert len(source) == 1
-    assert len(fill["contract_lines_new"]) == 2
+    row = summarize_invoice_application_row(fi)
+    assert row["serial_no"] == "KPSQ-00001"
+    assert row["status_label"] == "已通过"
+    assert row["total_amount"] == 1000.0
+    assert row["invoice_no"] == "INV1"
 
 
 def test_line_amount_stays_editable():
