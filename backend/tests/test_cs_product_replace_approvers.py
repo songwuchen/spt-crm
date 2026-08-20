@@ -28,17 +28,17 @@ def test_charger_rule_user_widgets_dept_head():
     }
 
 
-def test_charger_rule_cs_register_specified_users():
+def test_charger_rule_cs_register_maps_to_cs_office_role():
+    """客服补登 JDY 角色 → CRM 指定角色 cs_office（成员在角色管理维护）。"""
     rule = charger_rule({
         "roles": [{
             "_id": "62e9bfe0527ea90008320fab",
             "name": "7.1.2售出产品更换（补发）流程-客服补登",
         }],
     }, {})
-    assert rule["type"] == "specified_user"
-    assert isinstance(rule["value"], list)
-    assert len(rule["value"]) == 4
-    assert "0236446249514" in rule["value"]
+    assert rule["type"] == "specified_role"
+    assert rule["value"] == "cs_office"
+    assert rule.get("jdy_role_hint") == "7.1.2售出产品更换（补发）流程-客服补登"
 
 
 def test_charger_rule_chief_specified_user():
