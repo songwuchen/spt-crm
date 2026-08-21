@@ -1,0 +1,114 @@
+{
+  "wrapper_live": {
+    "status": 500,
+    "body": "Internal Server Error"
+  },
+  "note": "wrapper sync DB 不可用时用已导出成员 JSON + 流程具名节点",
+  "roles": {
+    "cs_office": {
+      "jdy_ids": [
+        "64f2a247187194000af416be",
+        "62e9bfe0527ea90008320fab",
+        "5f6c3e539a4cbe0006b74d65"
+      ],
+      "members": [
+        {
+          "username": "0236446249514",
+          "name": "李红敏"
+        },
+        {
+          "username": "181359282120075679",
+          "name": "付加婧"
+        },
+        {
+          "username": "113236314224043072",
+          "name": "张丹丹"
+        },
+        {
+          "username": "01364955133227249077",
+          "name": "段尉利"
+        }
+      ]
+    },
+    "ship_sales_outbound": {
+      "jdy_ids": [
+        "5f69a16377e34d0006f13047"
+      ],
+      "members": [
+        {
+          "username": "02366368263850",
+          "name": "司丹丹"
+        },
+        {
+          "username": "01346931076927160185",
+          "name": "段亚非"
+        },
+        {
+          "username": "0654354430671114",
+          "name": "侯静"
+        }
+      ]
+    },
+    "gate_guard": {
+      "jdy_ids": [
+        "66889a1cdc970f6d8b318231"
+      ],
+      "members": []
+    },
+      "prod_material_code": {
+        "jdy_ids": [
+          "5f55d129a526650006b36c22"
+        ],
+        "members": [
+          {
+            "username": "021519380525896869",
+            "name": "海淼"
+          },
+          {
+            "username": "02364636608946",
+            "name": "段云云"
+          }
+        ]
+      },
+    "legal": {
+      "jdy_ids": [
+        "5f69a45077e34d0006f136dd",
+        "5f69a976fbf7110006288375"
+      ],
+      "members": [
+        {
+          "username": "4723152427763414",
+          "name": "孔雪"
+        },
+        {
+          "username": "256932256424153873",
+          "name": "张孟杰"
+        }
+      ]
+    },
+    "cs_delay_approve": {
+      "jdy_ids": [
+        "5f6c3e74bb221e00067d4f39"
+      ],
+      "members": [
+        {
+          "username": "0236446249514",
+          "name": "李红敏"
+        },
+        {
+          "username": "181359282120075679",
+          "name": "付加婧"
+        },
+        {
+          "username": "113236314224043072",
+          "name": "张丹丹"
+        },
+        {
+          "username": "01364955133227249077",
+          "name": "段尉利"
+        }
+      ],
+      "note": "对齐客服内勤成员（JDY 同步库不可用）"
+    }
+  }
+}

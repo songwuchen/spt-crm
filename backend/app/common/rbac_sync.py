@@ -591,12 +591,12 @@ async def ensure_gate_guard_role_members(db, tenant_id: str) -> dict:
     }
 
 
-# 生产卡物料编码：对齐产线/单机物料编码具名节点
+# 生产卡物料编码：对齐产线/单机物料编码具名节点（简道云账号：海淼 / 段云云）
 PROD_MATERIAL_CODE_MEMBER_USERNAMES: tuple[str, ...] = (
-    "021519380525896869",  # 产线-物料编码
-    "02364636608946",  # 单机-物料编码
+    "021519380525896869",  # 海淼（产线-物料编码）
+    "02364636608946",  # 段云云（单机-物料编码）
 )
-PROD_MATERIAL_CODE_MEMBER_REAL_NAMES: tuple[str, ...] = ()
+PROD_MATERIAL_CODE_MEMBER_REAL_NAMES: tuple[str, ...] = ("海淼", "段云云")
 
 
 async def ensure_prod_material_code_role_members(db, tenant_id: str) -> dict:
@@ -605,7 +605,7 @@ async def ensure_prod_material_code_role_members(db, tenant_id: str) -> dict:
         tenant_id,
         "prod_material_code",
         PROD_MATERIAL_CODE_MEMBER_USERNAMES,
-        None,
+        PROD_MATERIAL_CODE_MEMBER_REAL_NAMES,
     )
 
 
