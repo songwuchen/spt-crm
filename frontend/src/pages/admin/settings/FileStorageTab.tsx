@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Select, Input, Switch, Button, Space, Alert, message } from 'antd'
+import { Select, Input, Switch, Button, Space, Alert, message, Divider } from 'antd'
 import { settingsApi } from '@/api/settings'
 
 type StorageType = 'local' | 'minio' | 'oss'
@@ -12,6 +12,14 @@ interface ProviderConfig {
   region?: string
   secure?: boolean
   public_base_url?: string
+}
+
+interface ImmConfig {
+  enabled?: boolean
+  project?: string
+  region?: string
+  endpoint?: string
+  from_env?: boolean
 }
 
 const STORAGE_OPTIONS = [
@@ -36,6 +44,7 @@ export default function FileStorageTab() {
   const [storageType, setStorageType] = useState<StorageType>('local')
   const [minio, setMinio] = useState<ProviderConfig>({})
   const [oss, setOss] = useState<ProviderConfig>({})
+  const [imm, setImm] = useState<ImmConfig>({ enabled: false })
   // Whether a secret is already stored on the server (masked as ***)
   const [minioHasSecret, setMinioHasSecret] = useState(false)
   const [ossHasSecret, setOssHasSecret] = useState(false)
@@ -44,7 +53,14 @@ export default function FileStorageTab() {
   const [dirty, setDirty] = useState(false)
 
   const load = () => {
-    settingsApi.getFileStorage().then((r: { data: { storage_type: StorageType; minio?: ProviderConfig; oss?: ProviderConfig } }) => {
+    settingsApi.getFileStorage().then((r: {
+      data: {
+        storage_type: StorageType
+        minio?: ProviderConfig
+        oss?: ProviderConfig
+        imm?: ImmConfig
+      }
+    }) => {
       const d = r.data
       if (!d) return
       setStorageType(d.storage_type || 'local')
@@ -52,9 +68,19 @@ export default function FileStorageTab() {
       const o = d.oss || {}
       setMinioHasSecret(m.secret_key === '***')
       setOssHasSecret(o.secret_key === '***')
-      // Don't keep the masked secret in the editable field
       setMinio({ ...m, secret_key: '' })
       setOss({ ...o, secret_key: '' })
+      setImm({
+        enabled: !!d.imm?.enabled || (!!d.imm?.project && !d.imm?.from_env),
+        project: d.imm?.project || '',
+        region: d.imm?.region || '',
+        endpoint: d.imm?.endpoint || '',
+        from_env: !!d.imm?.from_env,
+      })
+      // 仅环境变量兜底时：开关默认开，方便用户看到当前生效值
+      if (d.imm?.from_env && d.imm?.project) {
+        setImm((prev) => ({ ...prev, enabled: true, from_env: true }))
+      }
       setDirty(false)
     }).catch(() => {})
   }
@@ -63,12 +89,16 @@ export default function FileStorageTab() {
 
   const buildPayload = () => {
     const payload: Record<string, unknown> = { storage_type: storageType }
-    // Only send a provider block if it carries data, so we never clobber stored secrets
     payload.minio = { ...minio }
     payload.oss = { ...oss }
-    // Drop empty secret so the backend keeps the stored one
     if (!minio.secret_key) delete (payload.minio as ProviderConfig).secret_key
     if (!oss.secret_key) delete (payload.oss as ProviderConfig).secret_key
+    payload.imm = {
+      enabled: !!imm.enabled,
+      project: (imm.project || '').trim(),
+      region: (imm.region || '').trim(),
+      endpoint: (imm.endpoint || '').trim(),
+    }
     return payload
   }
 
@@ -95,6 +125,10 @@ export default function FileStorageTab() {
 
   const updateMinio = (patch: Partial<ProviderConfig>) => { setMinio({ ...minio, ...patch }); setDirty(true) }
   const updateOss = (patch: Partial<ProviderConfig>) => { setOss({ ...oss, ...patch }); setDirty(true) }
+  const updateImm = (patch: Partial<ImmConfig>) => {
+    setImm({ ...imm, ...patch, from_env: false })
+    setDirty(true)
+  }
 
   return (
     <div className="pb-6 max-w-xl">
@@ -164,6 +198,56 @@ export default function FileStorageTab() {
             </Field>
           </div>
         )}
+
+        <Divider orientation="left" plain className="!my-2">
+          <span className="text-slate-500 text-sm">在线文档预览（IMM）</span>
+        </Divider>
+
+        <Alert
+          type="info"
+          showIcon
+          className="!mb-0"
+          message="用于旧版 .doc / PPT 等页内阅览（对齐简道云 / spt-lowcode）"
+          description="须使用阿里云 OSS，且 IMM 项目与 Bucket 同地域。docx / PDF 仍走本地预览，不消耗 IMM。"
+        />
+
+        {storageType !== 'oss' && (
+          <Alert type="warning" showIcon message="当前存储不是阿里云 OSS，开启 IMM 后也无法预览历史非 OSS 文件。" />
+        )}
+
+        <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-100">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-700">启用 IMM WebOffice 预览</span>
+            <Switch checked={!!imm.enabled} onChange={(v) => updateImm({ enabled: v })} />
+          </div>
+          {imm.from_env && (
+            <p className="text-xs text-amber-600 m-0">当前值来自服务器环境变量；保存后将写入租户配置并优先生效。</p>
+          )}
+          <Field label="IMM 项目名称" hint="阿里云控制台 → 智能媒体管理 IMM → 项目名称">
+            <Input
+              value={imm.project || ''}
+              disabled={!imm.enabled}
+              placeholder="例如 spt-crm-imm"
+              onChange={(e) => updateImm({ project: e.target.value })}
+            />
+          </Field>
+          <Field label="Region（可选）" hint="留空则从 OSS Endpoint 推导，如 cn-hangzhou">
+            <Input
+              value={imm.region || ''}
+              disabled={!imm.enabled}
+              placeholder="cn-hangzhou"
+              onChange={(e) => updateImm({ region: e.target.value })}
+            />
+          </Field>
+          <Field label="IMM Endpoint（可选）" hint="一般留空；同地域 ECS 可用 imm-vpc.{region}.aliyuncs.com">
+            <Input
+              value={imm.endpoint || ''}
+              disabled={!imm.enabled}
+              placeholder="imm.cn-hangzhou.aliyuncs.com"
+              onChange={(e) => updateImm({ endpoint: e.target.value })}
+            />
+          </Field>
+        </div>
 
         <Space>
           <Button type="primary" loading={saving} onClick={handleSave}>保存配置</Button>

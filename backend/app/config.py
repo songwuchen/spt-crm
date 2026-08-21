@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     LEAD_REACTIVATION_DAYS: int = 180
     LEAD_REACTIVATION_SCAN_TIME: str = "09:00"
     LEAD_REACT_SKIP_REPORTER_NAMES: str = "张贺"
+    # 阿里云 IMM WebOffice（旧版 .doc / PPT 等在线预览）。留空 IMM_PROJECT = 关闭该能力。
+    # 附件须落在阿里云 OSS，且 IMM 项目与 OSS bucket 同地域。
+    IMM_PROJECT: str = ""
+    IMM_REGION: str = ""  # 留空则从 OSS endpoint 推导（oss-cn-hangzhou → cn-hangzhou）
+    IMM_ENDPOINT: str = ""  # 可选，默认 imm.{region}.aliyuncs.com
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

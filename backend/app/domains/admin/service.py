@@ -397,6 +397,8 @@ async def delete_integration(db: AsyncSession, tenant_id: str, ep_id: str):
 # ==================== Tenant: File Storage ====================
 
 _STORAGE_PROVIDERS = ("minio", "oss")
+# 在线文档预览（IMM），无密钥字段，与 OSS 配套
+_IMM_CONFIG_KEYS = ("enabled", "project", "region", "endpoint")
 
 
 async def _get_storage_row(db: AsyncSession, tenant_id: str) -> TenantStorageConfig | None:
@@ -405,15 +407,37 @@ async def _get_storage_row(db: AsyncSession, tenant_id: str) -> TenantStorageCon
     )).scalar_one_or_none()
 
 
+def _normalize_imm_config(raw: dict | None) -> dict:
+    raw = raw or {}
+    return {
+        "enabled": bool(raw.get("enabled")),
+        "project": (raw.get("project") or "").strip(),
+        "region": (raw.get("region") or "").strip(),
+        "endpoint": (raw.get("endpoint") or "").strip(),
+    }
+
+
 async def get_storage_config_masked(db: AsyncSession, tenant_id: str) -> dict:
     """Config for the settings UI — secret values masked, never returned in clear."""
     from app.common.crypto import mask_config_json
+    from app.config import settings
     row = await _get_storage_row(db, tenant_id)
     cfg = (row.config_json if row else None) or {}
+    imm = _normalize_imm_config(cfg.get("imm"))
+    # 租户未填时回显环境变量兜底（只读提示用，不写回）
+    if not imm["project"] and (settings.IMM_PROJECT or "").strip():
+        imm = {
+            **imm,
+            "project": settings.IMM_PROJECT.strip(),
+            "region": imm["region"] or (settings.IMM_REGION or "").strip(),
+            "endpoint": imm["endpoint"] or (settings.IMM_ENDPOINT or "").strip(),
+            "from_env": True,
+        }
     return {
         "storage_type": row.storage_type if row else "local",
         "minio": mask_config_json(cfg.get("minio")) or {},
         "oss": mask_config_json(cfg.get("oss")) or {},
+        "imm": imm,
     }
 
 
@@ -441,6 +465,11 @@ async def upsert_storage_config(db: AsyncSession, tenant_id: str, data: dict) ->
     for provider in _STORAGE_PROVIDERS:
         if provider in data and data[provider] is not None:
             new_config[provider] = _merge_provider(current.get(provider), data[provider])
+    if "imm" in data and data["imm"] is not None:
+        incoming = data["imm"] if isinstance(data["imm"], dict) else {}
+        # 忽略前端回显的 from_env 标记
+        incoming = {k: v for k, v in incoming.items() if k in _IMM_CONFIG_KEYS}
+        new_config["imm"] = _normalize_imm_config({**(current.get("imm") or {}), **incoming})
 
     storage_type = data.get("storage_type") or (row.storage_type if row else "local")
     if row:
@@ -455,6 +484,28 @@ async def upsert_storage_config(db: AsyncSession, tenant_id: str, data: dict) ->
     await db.commit()
     await db.refresh(row)
     return row
+
+
+async def get_imm_config(db: AsyncSession, tenant_id: str) -> dict:
+    """租户 IMM 配置；界面未配项目时回落到环境变量。显式关闭时不启用。"""
+    from app.config import settings
+    row = await _get_storage_row(db, tenant_id)
+    raw = ((row.config_json if row else None) or {}).get("imm") or {}
+    if raw.get("enabled") is False:
+        return {"enabled": False, "project": "", "region": "", "endpoint": ""}
+    cfg = _normalize_imm_config(raw)
+    if cfg["project"]:
+        return {**cfg, "enabled": True}
+    # env fallback
+    project = (settings.IMM_PROJECT or "").strip()
+    if not project:
+        return cfg
+    return {
+        "enabled": True,
+        "project": project,
+        "region": (settings.IMM_REGION or "").strip(),
+        "endpoint": (settings.IMM_ENDPOINT or "").strip(),
+    }
 
 
 async def resolve_storage_backend(db: AsyncSession, tenant_id: str, storage_type: str | None = None):

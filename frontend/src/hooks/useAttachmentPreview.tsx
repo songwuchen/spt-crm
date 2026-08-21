@@ -7,6 +7,9 @@ import {
   isBrowserUnsupportedPreview,
   canOpenAttachmentPreview,
   isBlobPreviewKind,
+  attachmentFileExt,
+  WEBOFFICE_EXCEL_FALLBACK,
+  WEBOFFICE_PPTX_FALLBACK,
 } from '@/utils/attachmentPreview'
 import {
   downloadAttachmentFile,
@@ -63,6 +66,30 @@ export function useAttachmentPreview() {
       return
     }
 
+    // IMM WebOffice：组件内部自行取凭证；若可能回退本地 Office，先拉 blob
+    if (kind === 'weboffice') {
+      const ext = attachmentFileExt(preview.name)
+      const needFallbackBlob = WEBOFFICE_EXCEL_FALLBACK.has(ext) || WEBOFFICE_PPTX_FALLBACK.has(ext)
+      let alive = true
+      setLoading(true)
+      setPreviewUrl('')
+      setFileBlob(null)
+      setTextContent('')
+      void (async () => {
+        try {
+          if (needFallbackBlob) {
+            const blob = await fetchAttachmentBlob(preview.id)
+            if (alive) setFileBlob(blob)
+          }
+        } catch {
+          // 回退 blob 失败不致命，WebOffice 仍可试；最终失败由 WebOfficeView 提示下载
+        } finally {
+          if (alive) setLoading(false)
+        }
+      })()
+      return () => { alive = false }
+    }
+
     let alive = true
     setLoading(true)
     setPreviewUrl('')
@@ -84,8 +111,8 @@ export function useAttachmentPreview() {
         }
         const u = await attachmentApi.getUrl(preview.id, false)
         if (alive) setPreviewUrl(resolveAttachmentUrl(u))
-      } catch {
-        if (alive) message.error('无法加载预览')
+      } catch (e) {
+        if (alive) message.error((e as Error)?.message || '无法加载预览')
         if (alive) setPreview(null)
       } finally {
         if (alive) setLoading(false)
@@ -114,6 +141,7 @@ export function useAttachmentPreview() {
       fileBlob={fileBlob}
       textContent={textContent}
       fileName={preview?.name}
+      attachmentId={preview?.id}
       loading={!!preview && loading}
       onClose={closePreview}
       onDownload={preview ? () => downloadAttachmentFile(preview.id, preview.name) : undefined}

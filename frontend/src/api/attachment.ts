@@ -67,9 +67,35 @@ async function getUrl(id: string, download = false): Promise<string> {
   return res.data.url
 }
 
+export type WebOfficeToken = {
+  enabled: boolean
+  reason?: 'unsupported' | 'not_configured' | 'not_oss'
+  url?: string
+  access_token?: string
+  refresh_token?: string
+}
+
+async function getWebOfficeToken(id: string, noDownload = false): Promise<WebOfficeToken> {
+  const res = await client.get<unknown, ApiResponse<WebOfficeToken>>(
+    `/api/v1/attachments/${id}/weboffice`,
+    { params: { no_download: noDownload ? 1 : 0 } },
+  )
+  return res.data
+}
+
+async function refreshWebOfficeToken(accessToken: string, refreshToken: string): Promise<WebOfficeToken> {
+  const res = await client.post<unknown, ApiResponse<WebOfficeToken>>(
+    '/api/v1/attachments/weboffice/refresh',
+    { access_token: accessToken, refresh_token: refreshToken },
+  )
+  return res.data
+}
+
 export const attachmentApi = {
   upload,
   getUrl,
+  getWebOfficeToken,
+  refreshWebOfficeToken,
   delete: (id: string) => client.delete<unknown, ApiResponse<null>>(`/api/v1/attachments/${id}`),
   /** 将已直传的附件挂到业务单据（创建页 FileField → 保存后关联） */
   link: (attachmentIds: string[], bizType: string, bizId: string) =>

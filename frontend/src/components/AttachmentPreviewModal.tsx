@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react'
 import { Modal, Button, Space } from 'antd'
 import { DownloadOutlined, FullscreenOutlined, FullscreenExitOutlined } from '@ant-design/icons'
 import OfficeFilePreview from '@/components/OfficeFilePreview'
+import WebOfficeView from '@/components/WebOfficeView'
 import type { PreviewableKind } from '@/utils/attachmentPreview'
+import {
+  attachmentFileExt,
+  WEBOFFICE_EXCEL_FALLBACK,
+  WEBOFFICE_PPTX_FALLBACK,
+} from '@/utils/attachmentPreview'
 
 type Props = {
   open: boolean
@@ -12,6 +18,7 @@ type Props = {
   fileBlob?: Blob | null
   textContent?: string
   fileName?: string
+  attachmentId?: string
   loading?: boolean
   onClose: () => void
   onDownload?: () => void
@@ -33,14 +40,14 @@ function unsupportedHint(fileName?: string): { title: string; detail: string } {
   }
   if (ext === 'doc') {
     return {
-      title: '旧版 Word（.doc）暂不支持在线阅览',
-      detail: '请下载后用 Word 打开，或另存为 .docx 后再预览。',
+      title: '旧版 Word（.doc）暂无法在线阅览',
+      detail: '请确认已开通阿里云 IMM，且文件存储在 OSS；或下载后用 Word / WPS 打开。',
     }
   }
   if (ext === 'ppt') {
     return {
-      title: '旧版 PowerPoint（.ppt）暂不支持在线阅览',
-      detail: '请下载后用 PowerPoint 打开，或另存为 .pptx 后再预览。',
+      title: '旧版 PowerPoint（.ppt）暂无法在线阅览',
+      detail: '请确认已开通阿里云 IMM；或下载后用 PowerPoint / WPS 打开。',
     }
   }
   return {
@@ -51,7 +58,8 @@ function unsupportedHint(fileName?: string): { title: string; detail: string } {
 
 /** 页内预览附件；支持放大与全屏。 */
 export default function AttachmentPreviewModal({
-  open, title, url, kind, fileBlob, textContent, fileName, loading, onClose, onDownload,
+  open, title, url, kind, fileBlob, textContent, fileName, attachmentId,
+  loading, onClose, onDownload,
 }: Props) {
   const [fullscreen, setFullscreen] = useState(false)
 
@@ -61,10 +69,14 @@ export default function AttachmentPreviewModal({
 
   const contentHeight = fullscreen
     ? 'calc(100vh - 108px)'
-    : (kind === 'pdf' ? 'min(88vh, 920px)' : 'min(82vh, 800px)')
+    : (kind === 'pdf' || kind === 'weboffice' ? 'min(88vh, 920px)' : 'min(82vh, 800px)')
 
   const officeKind = kind === 'word' || kind === 'excel' || kind === 'pptx' ? kind : null
   const hasOffice = !!(officeKind && fileBlob)
+  const ext = attachmentFileExt(fileName)
+  const webofficeFallbackKind = WEBOFFICE_EXCEL_FALLBACK.has(ext)
+    ? 'excel' as const
+    : (WEBOFFICE_PPTX_FALLBACK.has(ext) ? 'pptx' as const : null)
 
   const footer = (
     <Space>
@@ -72,7 +84,7 @@ export default function AttachmentPreviewModal({
         <Button
           icon={fullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
           onClick={() => setFullscreen((v) => !v)}
-          disabled={loading || (officeKind ? !hasOffice : !url)}
+          disabled={loading || (officeKind ? !hasOffice : (kind === 'weboffice' ? false : !url))}
         >
           {fullscreen ? '退出全屏' : '全屏'}
         </Button>
@@ -86,7 +98,7 @@ export default function AttachmentPreviewModal({
   )
 
   const hint = unsupportedHint(fileName)
-  const wide = kind === 'pdf' || officeKind || kind === 'text'
+  const wide = kind === 'pdf' || kind === 'weboffice' || officeKind || kind === 'text'
 
   return (
     <Modal
@@ -117,7 +129,7 @@ export default function AttachmentPreviewModal({
       style={fullscreen ? { top: 0, padding: 0, maxWidth: '100vw' } : { maxWidth: '96vw' }}
       wrapClassName={fullscreen ? 'attachment-preview-modal-fullscreen' : undefined}
     >
-      {loading && (
+      {loading && kind !== 'weboffice' && (
         <div className="flex h-full min-h-[240px] items-center justify-center text-slate-400">加载中…</div>
       )}
       {!loading && kind === 'unsupported' && (
@@ -146,6 +158,18 @@ export default function AttachmentPreviewModal({
       )}
       {!loading && officeKind && fileBlob && (
         <OfficeFilePreview kind={officeKind} blob={fileBlob} height={contentHeight} />
+      )}
+      {kind === 'weboffice' && attachmentId && (
+        <WebOfficeView
+          attachmentId={attachmentId}
+          height={contentHeight}
+          onDownload={onDownload}
+          fallback={
+            webofficeFallbackKind && fileBlob
+              ? <OfficeFilePreview kind={webofficeFallbackKind} blob={fileBlob} height={contentHeight} />
+              : undefined
+          }
+        />
       )}
       {!loading && kind === 'text' && textContent != null && (
         <pre

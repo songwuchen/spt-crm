@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 import uuid
@@ -608,6 +609,118 @@ async def download(
     if not url:
         raise BusinessException(message="文件下载失败，请检查存储配置")
     return RedirectResponse(url)
+
+
+async def _oss_creds_for_imm(db: AsyncSession, tenant_id: str) -> dict | None:
+    """取出租户 OSS 明文凭证，供 IMM WebOffice 签发。"""
+    from sqlalchemy import select
+    from app.common.crypto import decrypt_config_json
+    from app.domains.admin.models import TenantStorageConfig
+
+    row = (await db.execute(
+        select(TenantStorageConfig).where(TenantStorageConfig.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    cfg = decrypt_config_json(((row.config_json if row else None) or {}).get("oss")) or {}
+    ak = (cfg.get("access_key") or "").strip()
+    sk = (cfg.get("secret_key") or "").strip()
+    bucket = (cfg.get("bucket") or "").strip()
+    if not (ak and sk and bucket):
+        return None
+    return {
+        "access_key": ak,
+        "secret_key": sk,
+        "bucket": bucket,
+        "endpoint": (cfg.get("endpoint") or "").strip(),
+    }
+
+
+class WebOfficeRefreshBody(BaseModel):
+    access_token: str
+    refresh_token: str
+
+
+@router.post("/weboffice/refresh")
+async def refresh_weboffice_token(
+    body: WebOfficeRefreshBody,
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """续期 IMM WebOffice 凭证（AccessToken 约 30 分钟）。"""
+    from app.domains.admin.service import get_imm_config
+    from app.domains.attachment import weboffice_service as wos
+
+    imm = await get_imm_config(db, tenant_id)
+    if not wos.is_imm_configured(imm):
+        raise BusinessException(message="未配置在线文档预览服务（IMM）")
+    creds = await _oss_creds_for_imm(db, tenant_id)
+    if not creds:
+        raise BusinessException(message="未配置阿里云 OSS，无法续期预览凭证")
+    data = await asyncio.to_thread(
+        wos.refresh,
+        imm=imm,
+        access_key=creds["access_key"],
+        secret_key=creds["secret_key"],
+        endpoint=creds["endpoint"],
+        access_token=body.access_token,
+        refresh_token=body.refresh_token,
+    )
+    return ok(data)
+
+
+@router.get("/{attachment_id}/weboffice")
+async def get_attachment_weboffice(
+    attachment_id: str,
+    no_download: int = Query(0, description="1=关闭复制/导出/打印"),
+    tenant_id: str = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """签发 IMM WebOffice 预览凭证（.doc / PPT 等）。
+
+    未开通 IMM 或文件不在 OSS 时返回 enabled=false，前端回退本地预览/下载。
+    """
+    from app.domains.admin.service import get_imm_config
+    from app.domains.attachment import weboffice_service as wos
+
+    via_wf = await _require_attachment_download_or_wf(
+        db, tenant_id, current_user, attachment_id=attachment_id,
+    )
+    att = await service.get_attachment(
+        db, tenant_id, attachment_id, None if via_wf else current_user,
+    )
+    _check_secrecy(att, current_user)
+    from app.domains.lowcode.field_permission import assert_form_field_attachment_download
+    await assert_form_field_attachment_download(db, tenant_id, attachment_id, current_user)
+
+    name = att.original_name or ""
+    if not wos.needs_weboffice(name):
+        return ok({"enabled": False, "reason": "unsupported"})
+
+    imm = await get_imm_config(db, tenant_id)
+    if not wos.is_imm_configured(imm):
+        return ok({"enabled": False, "reason": "not_configured"})
+    if (att.storage_backend or "local") != "oss":
+        return ok({"enabled": False, "reason": "not_oss"})
+
+    creds = await _oss_creds_for_imm(db, tenant_id)
+    if not creds:
+        return ok({"enabled": False, "reason": "not_configured"})
+
+    data = await asyncio.to_thread(
+        wos.generate,
+        imm=imm,
+        access_key=creds["access_key"],
+        secret_key=creds["secret_key"],
+        bucket=creds["bucket"],
+        endpoint=creds["endpoint"],
+        storage_key=att.stored_path,
+        filename=name,
+        user_id=str(current_user.get("sub") or ""),
+        user_name=str(current_user.get("real_name") or current_user.get("username") or ""),
+        allow_download=not bool(no_download),
+    )
+    return ok({"enabled": True, **data})
 
 
 @router.delete("/{attachment_id}")
