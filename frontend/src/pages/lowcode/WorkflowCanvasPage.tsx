@@ -36,6 +36,13 @@ const MULTI_MODES = [
   { value: 'countersign', label: '会签(全部通过)' },
   { value: 'sequential', label: '顺序会签' },
 ]
+
+/** 历史别名 and_sign → 会签；Select 无匹配 option 时会直接显示英文 value */
+function normalizeMultiMode(mode?: string | null): WfNode['multi_mode'] {
+  if (mode === 'and_sign') return 'countersign'
+  if (mode === 'countersign' || mode === 'sequential' || mode === 'or_sign') return mode
+  return 'or_sign'
+}
 const OPERATORS = [
   { value: 'eq', label: '等于' }, { value: 'ne', label: '不等于' },
   { value: 'in', label: '属于(in)' }, { value: 'not_in', label: '不属于' },
@@ -663,7 +670,7 @@ function NodeConfig({ node, formFields, onName, onRule, onMode, onPatch, onDelet
           {node.type === 'approval' && (
             <>
               <div><Text type="secondary" style={{ fontSize: 12 }}>多人模式</Text>
-                <Select size="small" style={{ width: '100%' }} value={node.multi_mode || 'or_sign'} options={MULTI_MODES} onChange={onMode} /></div>
+                <Select size="small" style={{ width: '100%' }} value={normalizeMultiMode(node.multi_mode)} options={MULTI_MODES} onChange={onMode} /></div>
               <Divider style={{ margin: '8px 0' }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text type="secondary" style={{ fontSize: 12 }}>审批超时(SLA)</Text>

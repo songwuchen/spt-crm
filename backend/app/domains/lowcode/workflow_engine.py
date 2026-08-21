@@ -939,6 +939,9 @@ class WorkflowEngine:
             return
 
         mode = node.get("multi_mode") or (node.get("config") or {}).get("multi_mode") or "or_sign"
+        # and_sign：简道云/历史别名 → 标准会签 countersign
+        if mode == "and_sign":
+            mode = "countersign"
         # 超时配置(可选): {hours, action: notify/auto_approve/auto_reject/auto_transfer, transfer_to?}
         timeout = node.get("timeout") or (node.get("config") or {}).get("timeout")
         cfg: dict = {"mode": mode}
@@ -1595,6 +1598,9 @@ class WorkflowEngine:
     async def _on_task_approved(self, inst, version, task, ctx) -> None:
         ni = await self.db.get(WfNodeInstance, task.node_instance_id)
         mode = (ni.config or {}).get("mode", "or_sign")
+        # and_sign：历史/简道云对齐别名，语义同 countersign（全员通过）
+        if mode == "and_sign":
+            mode = "countersign"
         siblings = (await self.db.execute(
             select(WfTaskInstance).where(WfTaskInstance.node_instance_id == ni.id)
         )).scalars().all()

@@ -2720,7 +2720,7 @@ _JDY_REVIEW_USER = {
     "gm": "02336214315748",                   # 王思民
     "finance_opinion": "0433406811775721",    # 张光
     "design": "02364335378133",               # 曹修国
-    "finance_dir": ["02362556584221", "0433406811775721"],  # 李晋、张光（会签）
+    "finance_dir": "0433406811775721",  # 张光（业务确认无需李晋）
     "production": "01210720669288",           # 周世孔
     "procurement": "02352513566524",          # 杨霜
     "qc": "0236420233847",                    # 张国运
@@ -2963,7 +2963,8 @@ def _contract_review_flow_graph() -> tuple[list[dict], list[dict]]:
         ),
         _user_approval_node(
             "approval_finance_dir", "财务总监意见", u["finance_dir"],
-            multi_mode="and_sign",
+            # 业务确认仅张光审批（或签）；简道云原为李晋+张光会签已按业务调整
+            multi_mode="or_sign",
             # 简道云：财务/采购风险 + 账期/结论描述
             field_perms=_fp(
                 ("finance_risk", "required"), ("finance_risk_desc", "editable"),
@@ -4826,6 +4827,32 @@ def _contract_review_legal_users_aligned(
     return False
 
 
+def _contract_review_finance_dir_aligned(
+    nodes: list | None, want: list[str] | str | None = None,
+) -> bool:
+    """财务总监意见：业务确认仅张光（或签），勿保留李晋会签。"""
+    want = want if want is not None else _JDY_REVIEW_USER["finance_dir"]
+    want_list = [want] if isinstance(want, str) else list(want)
+    for n in nodes or []:
+        if not isinstance(n, dict) or n.get("id") != "approval_finance_dir":
+            continue
+        rule = n.get("approver_rule") or {}
+        if rule.get("type") != "specified_user":
+            return False
+        v = rule.get("value")
+        got = [v] if isinstance(v, str) else list(v or [])
+        mode = n.get("multi_mode") or "or_sign"
+        if mode == "and_sign":
+            mode = "countersign"
+        # 单人应或签；多人会签也不再符合当前业务
+        if got != want_list:
+            return False
+        if len(want_list) == 1 and mode == "countersign":
+            return False
+        return True
+    return False
+
+
 def apply_contract_review_named_legal_approvers(nodes: list[dict]) -> bool:
     """就地改：法务审批 specified_role=legal → 法务部具名用户（或签）。"""
     want = _JDY_REVIEW_USER["legal"]
@@ -5062,13 +5089,110 @@ async def _repair_contract_review_skipped_legal(
 
 
 async def _finish_contract_review_runtime_fix(db, tenant_id: str) -> None:
-    """升级定义后：改派在途法务主管 + 把跳过法务的单据拉回会签。"""
+    """升级定义后：改派在途法务主管 + 跳过法务拉回 + 财务总监去掉李晋待办。"""
     n_repair, eng = await _repair_contract_review_skipped_legal(db, tenant_id)
     n_reassign = await _reassign_pending_legal_sup_tasks(db, tenant_id)
-    if n_repair or n_reassign:
+    n_fin, eng2 = await _repair_contract_review_finance_dir_drop_lijin(db, tenant_id)
+    eng = eng or eng2
+    if n_repair or n_reassign or n_fin:
         await db.commit()
         if eng:
             await eng.flush_notifications(wait=True)
+
+
+async def _repair_contract_review_finance_dir_drop_lijin(
+    db, tenant_id: str,
+) -> tuple[int, "WorkflowEngine | None"]:
+    """在途「财务总监意见」：取消非张光待办；张光已通过则完成节点并推进。"""
+    from app.domains.auth.models import User
+    from app.domains.lowcode.approver_resolver import ApprovalContext
+
+    want = _JDY_REVIEW_USER["finance_dir"]
+    want_username = want[0] if isinstance(want, list) else want
+    zhang = (await db.execute(
+        select(User.id).where(User.tenant_id == tenant_id, User.username == want_username)
+    )).scalar_one_or_none()
+    if not zhang:
+        logger.warning("合同评审财务总监修复跳过：未找到用户 %s", want_username)
+        return 0, None
+
+    rows = (await db.execute(text("""
+        SELECT ni.id AS ni_id, ni.process_instance_id AS pid
+        FROM wf_node_instance ni
+        JOIN wf_process_instance pi ON pi.id = ni.process_instance_id
+        WHERE pi.tenant_id = :tid
+          AND pi.biz_type = 'contract_review'
+          AND pi.status = 'running'
+          AND ni.node_def_id = 'approval_finance_dir'
+          AND ni.status = 'running'
+    """), {"tid": tenant_id})).mappings().all()
+    if not rows:
+        return 0, None
+
+    engine = WorkflowEngine(db, tenant_id)
+    fixed = 0
+    for r in rows:
+        ni = await db.get(WfNodeInstance, r["ni_id"])
+        inst = await db.get(WfProcessInstance, r["pid"])
+        if not ni or not inst:
+            continue
+        tasks = (await db.execute(
+            select(WfTaskInstance).where(WfTaskInstance.node_instance_id == ni.id)
+        )).scalars().all()
+        cancelled_ids: list[str] = []
+        for t in tasks:
+            if t.status in ("pending", "waiting") and t.assignee_id != zhang:
+                t.status = "cancelled"
+                cancelled_ids.append(t.id)
+        if cancelled_ids:
+            engine._queue("todos_done", cancelled_ids)
+
+        cfg = dict(ni.config or {})
+        if cfg.get("mode") in ("and_sign", "countersign"):
+            cfg["mode"] = "or_sign"
+            ni.config = cfg
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(ni, "config")
+
+        tasks = (await db.execute(
+            select(WfTaskInstance).where(WfTaskInstance.node_instance_id == ni.id)
+        )).scalars().all()
+        has_pending = any(t.status in ("pending", "waiting") for t in tasks)
+        has_approved = any(
+            t.status == "approved" and t.assignee_id == zhang for t in tasks
+        )
+        # 张光已通过且无其它待办 → 完成节点并推进（等同或签完成）
+        if has_approved and not has_pending and ni.status == "running":
+            version = await _published_version(db, tenant_id, inst.process_definition_id)
+            if not version:
+                continue
+            ni.status = "completed"
+            ni.completed_at = _now()
+            await db.flush()
+            form_data = await engine._form_data(inst)
+            if not form_data and inst.biz_type == "contract_review" and inst.biz_id:
+                from app.domains.contract_review.models import ContractReview
+                cr = await db.get(ContractReview, inst.biz_id)
+                if cr:
+                    form_data = {
+                        "review_type": cr.review_type,
+                        "is_export": cr.is_export,
+                        "department_name": cr.department_name,
+                        "region_manager_id": cr.region_manager_id,
+                        "need_install": cr.need_install,
+                    }
+            ctx = ApprovalContext(
+                initiator_id=inst.initiator_id or "",
+                form_data=form_data or {},
+                nominated=dict(inst.nominated_approvers or {}),
+            )
+            await engine._advance(inst, version, ni.node_def_id, ctx)
+            fixed += 1
+            logger.info("合同评审财务总监去李晋并推进 process=%s", inst.id)
+        elif cancelled_ids:
+            fixed += 1
+            logger.info("合同评审财务总监取消非张光待办 process=%s n=%s", inst.id, len(cancelled_ids))
+    return fixed, engine if fixed else None
 
 
 def _form_need_purchase_yes(data: dict | None) -> bool:
@@ -5204,7 +5328,8 @@ async def _upgrade_contract_review_jdy_if_needed(
         version.node_definitions, legal_sup_want,
     )
     need_legal = not _contract_review_legal_users_aligned(version.node_definitions)
-    if not need_fp and not need_legal_sup and not need_legal:
+    need_fin_dir = not _contract_review_finance_dir_aligned(version.node_definitions)
+    if not need_fp and not need_legal_sup and not need_legal and not need_fin_dir:
         await _finish_contract_review_runtime_fix(db, tenant_id)
         return
 
@@ -5246,12 +5371,21 @@ async def _upgrade_contract_review_jdy_if_needed(
                 n["approver_rule"] = want_rule
                 n.setdefault("multi_mode", want_node.get("multi_mode") or "or_sign")
                 changed = True
+        if need_fin_dir and nid == "approval_finance_dir":
+            want_rule = copy.deepcopy(want_node.get("approver_rule") or {})
+            want_mode = want_node.get("multi_mode") or "or_sign"
+            if n.get("approver_rule") != want_rule or (n.get("multi_mode") or "or_sign") != want_mode:
+                n["approver_rule"] = want_rule
+                n["multi_mode"] = want_mode
+                changed = True
     if need_fp and changed:
         tags.append("风险字段审批可写")
     if need_legal_sup and changed:
         tags.append("法务主管→袁文俊")
     if need_legal and changed:
         tags.append("法务审批→具名")
+    if need_fin_dir and changed:
+        tags.append("财务总监→仅张光")
     if changed:
         await _publish_system_default_upgrade(
             db, tenant_id, d, version, patched, list(version.route_definitions or []),
@@ -6430,7 +6564,21 @@ async def _build_flow_steps(
             elif process_status == "completed":
                 # 旁路抄送误触 end 等历史数据：流程已结束但节点未关
                 display_status = "cancelled"
-        if display_status == "running" and not actor_name and assignees:
+        # 会签/多人：处理中时把每位审批人状态写进负责人，避免只显示最后操作人、漏掉待办人
+        if display_status == "running" and len(assignees) > 1:
+            _task_st = {
+                "pending": "待处理", "waiting": "排队中", "approved": "已通过",
+                "rejected": "已驳回", "cancelled": "已取消",
+            }
+            parts = [
+                f"{a['name']}({_task_st.get(a['status'], a['status'])})"
+                for a in assignees
+                if a.get("status") != "cancelled"
+            ]
+            if parts:
+                actor_name = "、".join(parts)
+            action = action or "pending"
+        elif display_status == "running" and not actor_name and assignees:
             pending_names = [a["name"] for a in assignees if a["status"] == "pending"]
             actor_name = "、".join(pending_names) if pending_names else "、".join(a["name"] for a in assignees)
             action = action or "pending"

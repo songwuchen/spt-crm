@@ -131,6 +131,27 @@ export default function WfFlowDynamics({
                         <span className="font-medium text-slate-800">{s.handler_name}</span>
                       </div>
                     )}
+                    {/* 会签等多人节点：列出每位审批人状态（避免只显示最后操作人） */}
+                    {!isCc && (s.assignees || []).length > 1 && (
+                      <div className="text-sm text-slate-500 mt-0.5 space-y-0.5">
+                        {(s.assignees || []).filter((a) => a.status !== 'cancelled').map((a) => {
+                          const st =
+                            a.status === 'pending' ? '待处理'
+                              : a.status === 'approved' ? '已通过'
+                                : a.status === 'waiting' ? '排队中'
+                                  : a.status === 'rejected' ? '已驳回'
+                                    : a.status
+                          return (
+                            <div key={a.id}>
+                              {a.name}
+                              <span className={a.status === 'pending' ? ' text-blue-600' : ''}>
+                                （{st}）
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                     {s.action && s.action !== 'pending' && !isCc && (
                       <div className="text-sm text-slate-500 mt-0.5">
                         操作：{ACTION_TXT[s.action] || s.action}

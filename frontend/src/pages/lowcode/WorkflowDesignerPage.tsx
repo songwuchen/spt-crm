@@ -19,6 +19,14 @@ const MULTI_MODES = [
   { value: 'countersign', label: '会签(全部通过)' },
   { value: 'sequential', label: '顺序会签(依次)' },
 ]
+
+/** 历史别名 and_sign → 会签；Select 无匹配 option 时会直接显示英文 value */
+function normalizeMultiMode(mode?: string | null) {
+  if (mode === 'and_sign') return 'countersign' as const
+  if (mode === 'countersign' || mode === 'sequential' || mode === 'or_sign') return mode
+  return 'or_sign' as const
+}
+
 const genId = (p: string) => p + Math.random().toString(36).slice(2, 8)
 
 export default function WorkflowDesignerPage() {
@@ -166,7 +174,7 @@ export default function WorkflowDesignerPage() {
               {n.type === 'approval' && (
                 <Col span={7}>
                   <Text type="secondary" style={{ fontSize: 12 }}>多人模式</Text>
-                  <Select size="small" style={{ width: '100%' }} value={n.multi_mode || 'or_sign'}
+                  <Select size="small" style={{ width: '100%' }} value={normalizeMultiMode(n.multi_mode)}
                     options={MULTI_MODES} onChange={(v) => patch(idx, { multi_mode: v })} />
                 </Col>
               )}
