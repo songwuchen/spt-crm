@@ -6664,7 +6664,7 @@ async def _build_flow_steps(
                 if not op:
                     op = f"节点「{n.node_name}」无审批人，自动通过"
             done_at = lg.created_at
-            out.append(_step(
+            step = _step(
                 step_key=f"{n.id}:log:{getattr(lg, 'id', id(lg))}",
                 n=n,
                 status=st,
@@ -6675,7 +6675,11 @@ async def _build_flow_steps(
                 started_at=prev_at or done_at,
                 completed_at=done_at,
                 is_current=False,
-            ))
+            )
+            # 转交卡片标签对齐简道云观感：已转交
+            if act in ("transfer", "auto_transfer"):
+                step["status_text"] = "已转交"
+            out.append(step)
             prev_at = done_at
 
         # 仍在处理中：当前待办人单独一条（转交后显示接收人）
