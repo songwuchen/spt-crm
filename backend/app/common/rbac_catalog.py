@@ -389,6 +389,38 @@ STANDARD_ROLES = [
         ],
     },
     {
+        "code": "cs_delay_approve", "name": "7.5客户服务延期申请-客服审批", "scope": "dept",
+        "desc": "简道云客服延期审批岗:客户服务延期申请「客服审批」节点",
+        "perms": [
+            "customer:view", "service:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "ship_sales_outbound", "name": "24.1发货通知流程-销售出库", "scope": "dept",
+        "desc": "简道云发货通知销售出库仓:仓库/仓库判定节点审批",
+        "perms": [
+            "order:view", "delivery:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "gate_guard", "name": "240706门岗保卫组", "scope": "dept",
+        "desc": "简道云门岗保卫组:发货通知抄送门岗",
+        "perms": [
+            "delivery:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
+        "code": "prod_material_code", "name": "1.2.8生产卡/补充流程-物料编码", "scope": "dept",
+        "desc": "简道云生产卡物料编码岗:生产卡/补充「物料编码」节点审批",
+        "perms": [
+            "order:view", "product:view",
+            "approval:approve", "approval:decide",
+        ],
+    },
+    {
         "code": "procurement", "name": "采购专员", "scope": "dept",
         "desc": "采购部/外购:订单 + 产品;合同/交付只读",
         "perms": [

@@ -17,10 +17,17 @@ def test_jdy_cs_return_role_users():
     assert JDY_ROLE_NAME_TO_SPECIFIED_USERS["230902客服内勤"] == users
 
 
-def test_cs_product_return_generated_has_no_role_approvers():
+def test_cs_product_return_generated_cs_office_role():
+    """客服办理节点应为 cs_office，其它节点不用空角色。"""
     for n in CUSTOMER_SERVICE_JDY["cs_product_return"]["flow_nodes"]:
         rule = n.get("approver_rule") or {}
-        assert rule.get("type") not in ("specified_role", "pickable_scope"), n.get("name")
+        if n.get("id") in ("n3", "n20"):
+            assert rule.get("type") == "specified_role"
+            assert rule.get("value") == "cs_office"
+            continue
+        assert rule.get("type") not in ("pickable_scope",), n.get("name")
+        if rule.get("type") == "specified_role":
+            assert rule.get("value") != "sales_manager", n.get("name")
 
 
 def test_cs_product_return_approver_upgrade():
@@ -36,9 +43,10 @@ def test_cs_product_return_approver_upgrade():
     ]
     assert _flow_cs_product_return_needs_approver_fix(nodes)
     assert apply_cs_product_return_approvers(nodes)
-    assert nodes[0]["approver_rule"]["type"] == "specified_user"
-    assert isinstance(nodes[0]["approver_rule"]["value"], list)
-    assert nodes[1]["approver_rule"]["type"] == "specified_user"
+    assert nodes[0]["approver_rule"]["type"] == "specified_role"
+    assert nodes[0]["approver_rule"]["value"] == "cs_office"
+    assert nodes[1]["approver_rule"]["type"] == "specified_role"
+    assert nodes[1]["approver_rule"]["value"] == "cs_office"
     assert nodes[2]["approver_rule"] == _cs_return_want_for_node(nodes[2])
     assert nodes[3]["approver_rule"]["type"] == "form_field_person"
     assert nodes[3]["approver_rule"]["value"] == "field_27"

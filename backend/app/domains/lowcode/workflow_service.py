@@ -975,33 +975,64 @@ _SHIPMENT_LOGISTICS_APPROVER = {
     "exclude_initiator": True,
     "jdy_role_hint": "物流审批",
 }
+_SHIPMENT_WAREHOUSE_ROLE = {
+    "type": "specified_role",
+    "value": "ship_sales_outbound",
+    "exclude_initiator": True,
+    "jdy_role_hint": "24.1发货通知流程-销售出库",
+}
+_SHIPMENT_GATE_ROLE = {
+    "type": "specified_role",
+    "value": "gate_guard",
+    "exclude_initiator": True,
+    "jdy_role_hint": "240706门岗保卫组",
+}
+_SHIPMENT_APPROVER_BY_ID: dict[str, dict] = {
+    "n1": _SHIPMENT_LOGISTICS_APPROVER,
+    "n8": _SHIPMENT_WAREHOUSE_ROLE,
+    "n10": _SHIPMENT_WAREHOUSE_ROLE,
+    "n27": _SHIPMENT_GATE_ROLE,
+}
+_SHIPMENT_APPROVER_BY_NAME: dict[str, dict] = {
+    "物流审批": _SHIPMENT_LOGISTICS_APPROVER,
+    "仓库": _SHIPMENT_WAREHOUSE_ROLE,
+    "仓库判定": _SHIPMENT_WAREHOUSE_ROLE,
+    "抄送门岗": _SHIPMENT_GATE_ROLE,
+}
 
 
 def apply_shipment_notice_approvers(nodes: list[dict]) -> bool:
-    """发货通知：物流审批用具名用户或签，不用 CRM 角色空批。"""
+    """发货通知：物流具名；仓库/仓库判定→ship_sales_outbound；抄送门岗→gate_guard。"""
     changed = False
     for n in nodes or []:
-        if not isinstance(n, dict) or n.get("name") != "物流审批":
+        if not isinstance(n, dict):
+            continue
+        want = _SHIPMENT_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _SHIPMENT_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
             continue
         cur = n.get("approver_rule") or {}
-        if (
-            cur.get("type") == _SHIPMENT_LOGISTICS_APPROVER["type"]
-            and cur.get("value") == _SHIPMENT_LOGISTICS_APPROVER["value"]
-        ):
+        if _approver_rule_matches(cur, want):
             continue
-        n["approver_rule"] = dict(_SHIPMENT_LOGISTICS_APPROVER)
-        n["multi_mode"] = "or_sign"
+        n["approver_rule"] = dict(want)
+        if want is _SHIPMENT_LOGISTICS_APPROVER:
+            n["multi_mode"] = "or_sign"
         changed = True
     return changed
 
 
 def _flow_shipment_logistics_needs_fix(nodes: list | None) -> bool:
-    want = _SHIPMENT_LOGISTICS_APPROVER["value"]
     for n in nodes or []:
-        if not isinstance(n, dict) or n.get("name") != "物流审批":
+        if not isinstance(n, dict):
             continue
-        rule = n.get("approver_rule") or {}
-        return not (rule.get("type") == "specified_user" and rule.get("value") == want)
+        want = _SHIPMENT_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _SHIPMENT_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
+            continue
+        if not _approver_rule_matches(n.get("approver_rule") or {}, want):
+            return True
     return False
 
 
@@ -1170,13 +1201,8 @@ def apply_quote_named_role_approvers(nodes: list[dict]) -> bool:
 
 
 _CS_REPLACE_CS_USERS = {
-    "type": "specified_user",
-    "value": [
-        "0236446249514",
-        "181359282120075679",
-        "113236314224043072",
-        "01364955133227249077",
-    ],
+    "type": "specified_role",
+    "value": "cs_office",
     "exclude_initiator": True,
     "jdy_role_hint": "7.1.2售出产品更换（补发）流程-客服补登",
 }
@@ -1255,7 +1281,7 @@ def _flow_cs_product_replace_needs_approver_fix(nodes: list | None) -> bool:
 
 
 def apply_cs_product_replace_approvers(nodes: list[dict]) -> bool:
-    """售出产品更换：简道云角色展开为具名用户；业务经理=业务员部门负责人。"""
+    """售出产品更换：客服节点→cs_office；业务经理=业务员部门负责人。"""
     want_by_id = {
         "n1": _CS_REPLACE_BIZ_MGR,
         "n4": _CS_REPLACE_CS_USERS,
@@ -1362,15 +1388,217 @@ def apply_cs_service_request_approvers(nodes: list[dict]) -> bool:
     return changed
 
 
-_CS_RETURN_CS_USERS = {
-    "type": "specified_user",
-    "value": [
-        "0236446249514",  # 李红敏（简道云角色 230902客服内勤）
-        "181359282120075679",  # 付加婧
-        "113236314224043072",  # 张丹丹
-        "01364955133227249077",  # 段尉利
-    ],
+_CS_DELAY_FEEDBACK_ROLE = {
+    "type": "specified_role",
+    "value": "cs_office",
     "exclude_initiator": True,
+    "jdy_role_hint": "7.5客户服务延期申请-客服反馈",
+}
+_CS_DELAY_APPROVE_ROLE = {
+    "type": "specified_role",
+    "value": "cs_delay_approve",
+    "exclude_initiator": True,
+    "jdy_role_hint": "7.5客户服务延期申请-客服审批",
+}
+_CS_DELAY_APPROVER_BY_ID: dict[str, dict] = {
+    "n3": _CS_DELAY_FEEDBACK_ROLE,
+    "n4": _CS_DELAY_APPROVE_ROLE,
+    "n7": _CS_DELAY_FEEDBACK_ROLE,
+}
+_CS_DELAY_APPROVER_BY_NAME: dict[str, dict] = {
+    "客服反馈": _CS_DELAY_FEEDBACK_ROLE,
+    "客服审批": _CS_DELAY_APPROVE_ROLE,
+    "客服备案": _CS_DELAY_FEEDBACK_ROLE,
+}
+
+
+def _flow_cs_service_delay_needs_approver_fix(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _CS_DELAY_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _CS_DELAY_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
+            continue
+        if not _approver_rule_matches(n.get("approver_rule") or {}, want):
+            return True
+    return False
+
+
+def apply_cs_service_delay_approvers(nodes: list[dict]) -> bool:
+    """客户服务延期申请：客服反馈/备案→cs_office；客服审批→cs_delay_approve。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _CS_DELAY_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _CS_DELAY_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
+            continue
+        cur = n.get("approver_rule") or {}
+        if _approver_rule_matches(cur, want):
+            continue
+        n["approver_rule"] = dict(want)
+        changed = True
+    return changed
+
+
+_CS_CORRESPONDENCE_OFFICE_ROLE = {
+    "type": "specified_role",
+    "value": "cs_office",
+    "exclude_initiator": True,
+    "jdy_role_hint": "230902客服内勤",
+}
+_CS_CORRESPONDENCE_APPROVER_BY_ID: dict[str, dict] = {
+    "n3": _CS_CORRESPONDENCE_OFFICE_ROLE,  # 内勤办理
+}
+_CS_CORRESPONDENCE_APPROVER_BY_NAME: dict[str, dict] = {
+    "内勤办理": _CS_CORRESPONDENCE_OFFICE_ROLE,
+}
+
+
+def _flow_cs_correspondence_needs_approver_fix(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _CS_CORRESPONDENCE_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _CS_CORRESPONDENCE_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
+            continue
+        if not _approver_rule_matches(n.get("approver_rule") or {}, want):
+            return True
+    return False
+
+
+def apply_cs_correspondence_approvers(nodes: list[dict]) -> bool:
+    """客服往来函件：内勤办理→cs_office。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _CS_CORRESPONDENCE_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _CS_CORRESPONDENCE_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
+            continue
+        cur = n.get("approver_rule") or {}
+        if _approver_rule_matches(cur, want):
+            continue
+        n["approver_rule"] = dict(want)
+        changed = True
+    return changed
+
+
+_XUNHAN_LEGAL_ROLE = {
+    "type": "specified_role",
+    "value": "legal",
+    "exclude_initiator": True,
+    "jdy_role_hint": "24.2.3合同/项目评审-法务审批多人",
+}
+_XUNHAN_APPROVER_BY_ID: dict[str, dict] = {
+    "n3": _XUNHAN_LEGAL_ROLE,
+}
+_XUNHAN_APPROVER_BY_NAME: dict[str, dict] = {
+    "法务审批": _XUNHAN_LEGAL_ROLE,
+}
+
+
+def _flow_xunhan_contract_review_needs_approver_fix(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _XUNHAN_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _XUNHAN_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
+            continue
+        if not _approver_rule_matches(n.get("approver_rule") or {}, want):
+            return True
+    return False
+
+
+def apply_xunhan_contract_review_approvers(nodes: list[dict]) -> bool:
+    """迅焊公司合同评审：法务审批→legal。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _XUNHAN_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _XUNHAN_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
+            continue
+        cur = n.get("approver_rule") or {}
+        if _approver_rule_matches(cur, want):
+            continue
+        n["approver_rule"] = dict(want)
+        changed = True
+    return changed
+
+
+_PROD_MATERIAL_ROLE = {
+    "type": "specified_role",
+    "value": "prod_material_code",
+    "exclude_initiator": True,
+    "jdy_role_hint": "1.2.8生产卡/补充流程-物料编码",
+}
+_PROD_LEGAL_ROLE = {
+    "type": "specified_role",
+    "value": "legal",
+    "exclude_initiator": True,
+    "jdy_role_hint": "法务办理",
+}
+_PROD_CARD_APPROVER_BY_ID: dict[str, dict] = {
+    "n5": _PROD_MATERIAL_ROLE,
+    "n45": _PROD_LEGAL_ROLE,
+}
+_PROD_CARD_APPROVER_BY_NAME: dict[str, dict] = {
+    "物料编码": _PROD_MATERIAL_ROLE,
+    "法务审核": _PROD_LEGAL_ROLE,
+}
+
+
+def _flow_prod_card_supplement_needs_approver_fix(nodes: list | None) -> bool:
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _PROD_CARD_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _PROD_CARD_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
+            continue
+        if not _approver_rule_matches(n.get("approver_rule") or {}, want):
+            return True
+    return False
+
+
+def apply_prod_card_supplement_approvers(nodes: list[dict]) -> bool:
+    """生产卡补充：物料编码→prod_material_code；法务审核→legal。"""
+    changed = False
+    for n in nodes or []:
+        if not isinstance(n, dict):
+            continue
+        want = _PROD_CARD_APPROVER_BY_ID.get(str(n.get("id") or ""))
+        if not want:
+            want = _PROD_CARD_APPROVER_BY_NAME.get(str(n.get("name") or "").strip())
+        if not want:
+            continue
+        cur = n.get("approver_rule") or {}
+        if _approver_rule_matches(cur, want):
+            continue
+        n["approver_rule"] = dict(want)
+        changed = True
+    return changed
+
+
+_CS_RETURN_CS_USERS = {
+    "type": "specified_role",
+    "value": "cs_office",
+    "exclude_initiator": True,
+    "jdy_role_hint": "230902客服内勤",
 }
 
 
@@ -1426,16 +1654,19 @@ def _flow_cs_product_return_needs_approver_fix(nodes: list | None) -> bool:
         if not isinstance(n, dict) or n.get("type") not in ("approval", "cc"):
             continue
         rule = n.get("approver_rule") or {}
-        if rule.get("type") in ("specified_role", "pickable_scope"):
-            return True
         want = _cs_return_want_for_node(n)
-        if want and not _approver_rule_matches(rule, want):
+        if want:
+            if not _approver_rule_matches(rule, want):
+                return True
+            continue
+        # 未映射节点若仍是空角色/可选范围，需要升级
+        if rule.get("type") in ("specified_role", "pickable_scope"):
             return True
     return False
 
 
 def apply_cs_product_return_approvers(nodes: list[dict]) -> bool:
-    """售出产品/工具退回：简道云角色展开为具名用户；分发/转交走表单人员字段。不用 CRM 角色。"""
+    """售出产品/工具退回：客服节点→cs_office；分发/转交走表单人员字段。"""
     changed = False
     for n in nodes or []:
         if not isinstance(n, dict):
@@ -3654,19 +3885,21 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"报价角色审批改为具名用户/可选范围({form_code})",
         )
         return
-    # 售出产品更换：业务经理/客服会签 勿用空 sales_manager
+    # 售出产品更换：业务经理/客服会签 → 部门负责人 + cs_office
+    # 不依赖 topology_ok
     if (
-        topology_ok
-        and form_code == "cs_product_replace"
+        form_code == "cs_product_replace"
         and _flow_cs_product_replace_needs_approver_fix(version.node_definitions)
     ):
         import copy
+        from app.common.rbac_sync import ensure_cs_office_role_members
+        await ensure_cs_office_role_members(db, tenant_id)
         patched = copy.deepcopy(version.node_definitions or [])
         apply_cs_product_replace_approvers(patched)
         await _publish_system_default_upgrade(
             db, tenant_id, d, version,
             patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"售出产品更换审批人改为具名用户/部门负责人({form_code})",
+            DRAWING_FORM_FLOW_DESC, f"售出产品更换客服节点改为cs_office({form_code})",
         )
         return
     # 客户服务申请及反馈：客服落实→cs_office；客服安排1→cs_arrange
@@ -3691,19 +3924,92 @@ async def _upgrade_drawing_form_flow_if_needed(
             f"客服落实/客服安排改为指定角色cs_office+cs_arrange({form_code})",
         )
         return
-    # 售出产品/工具退回：客服办理 230902客服内勤 → 具名用户
+    # 售出产品/工具退回：客服办理 → cs_office
     if (
-        topology_ok
-        and form_code == "cs_product_return"
+        form_code == "cs_product_return"
         and _flow_cs_product_return_needs_approver_fix(version.node_definitions)
     ):
         import copy
+        from app.common.rbac_sync import ensure_cs_office_role_members
+        await ensure_cs_office_role_members(db, tenant_id)
         patched = copy.deepcopy(version.node_definitions or [])
         apply_cs_product_return_approvers(patched)
         await _publish_system_default_upgrade(
             db, tenant_id, d, version,
             patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"售出产品退回审批人改为具名用户({form_code})",
+            DRAWING_FORM_FLOW_DESC, f"售出产品退回客服节点改为cs_office({form_code})",
+        )
+        return
+    # 客户服务延期申请：客服反馈/备案→cs_office；客服审批→cs_delay_approve
+    if (
+        form_code == "cs_service_delay"
+        and _flow_cs_service_delay_needs_approver_fix(version.node_definitions)
+    ):
+        import copy
+        from app.common.rbac_sync import (
+            ensure_cs_delay_approve_role_members,
+            ensure_cs_office_role_members,
+        )
+        await ensure_cs_office_role_members(db, tenant_id)
+        await ensure_cs_delay_approve_role_members(db, tenant_id)
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_cs_service_delay_approvers(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"客服延期审批改为cs_office+cs_delay_approve({form_code})",
+        )
+        return
+    # 客服往来函件：内勤办理 → cs_office
+    if (
+        form_code == "cs_correspondence"
+        and _flow_cs_correspondence_needs_approver_fix(version.node_definitions)
+    ):
+        import copy
+        from app.common.rbac_sync import ensure_cs_office_role_members
+        await ensure_cs_office_role_members(db, tenant_id)
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_cs_correspondence_approvers(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"往来函件内勤改为cs_office({form_code})",
+        )
+        return
+    # 迅焊公司合同评审：法务审批 → legal
+    if (
+        form_code == "xunhan_contract_review"
+        and _flow_xunhan_contract_review_needs_approver_fix(version.node_definitions)
+    ):
+        import copy
+        from app.common.rbac_sync import ensure_legal_role_members
+        await ensure_legal_role_members(db, tenant_id)
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_xunhan_contract_review_approvers(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"迅焊法务审批改为legal({form_code})",
+        )
+        return
+    # 生产卡补充：物料编码 / 法务审核
+    if (
+        form_code == "prod_card_supplement"
+        and _flow_prod_card_supplement_needs_approver_fix(version.node_definitions)
+    ):
+        import copy
+        from app.common.rbac_sync import (
+            ensure_legal_role_members,
+            ensure_prod_material_code_role_members,
+        )
+        await ensure_prod_material_code_role_members(db, tenant_id)
+        await ensure_legal_role_members(db, tenant_id)
+        patched = copy.deepcopy(version.node_definitions or [])
+        apply_prod_card_supplement_approvers(patched)
+        await _publish_system_default_upgrade(
+            db, tenant_id, d, version,
+            patched, version.route_definitions,
+            DRAWING_FORM_FLOW_DESC, f"生产卡物料编码/法务改为角色({form_code})",
         )
         return
     # 客服领图：研管办→郑志颖；部门指派节点填写项对齐图纸领用
@@ -3724,19 +4030,24 @@ async def _upgrade_drawing_form_flow_if_needed(
             DRAWING_FORM_FLOW_DESC, f"客服领图部门指派对齐图纸领用({form_code})",
         )
         return
-    # 发货通知：物流审批 sales_manager → 马瑞草/李娜
+    # 发货通知：物流具名 + 仓库/门岗角色
     if (
-        topology_ok
-        and form_code == "shipment_notice"
+        form_code == "shipment_notice"
         and _flow_shipment_logistics_needs_fix(version.node_definitions)
     ):
         import copy
+        from app.common.rbac_sync import (
+            ensure_gate_guard_role_members,
+            ensure_ship_sales_outbound_role_members,
+        )
+        await ensure_ship_sales_outbound_role_members(db, tenant_id)
+        await ensure_gate_guard_role_members(db, tenant_id)
         patched = copy.deepcopy(version.node_definitions or [])
         apply_shipment_notice_approvers(patched)
         await _publish_system_default_upgrade(
             db, tenant_id, d, version,
             patched, version.route_definitions,
-            DRAWING_FORM_FLOW_DESC, f"物流审批改为指定用户({form_code})",
+            DRAWING_FORM_FLOW_DESC, f"发货通知仓库/门岗改为指定角色({form_code})",
         )
         return
     # 售前服务通知：总工审批 sales_manager → 曹修国

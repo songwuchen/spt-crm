@@ -156,7 +156,7 @@ async def test_cs_return_approvers_resolve(db):
             failures.append(f"{label}: 节点缺失")
             continue
         rule = node.get("approver_rule") or {}
-        assert rule.get("type") in ("specified_user", "form_field_person"), f"{label} {rule}"
+        assert rule.get("type") in ("specified_user", "form_field_person", "specified_role"), f"{label} {rule}"
         ids = await resolver.resolve(rule, ctx)
         # CI seed 无钉钉 username 时 specified_user 解析为空（节点 empty_strategy=auto_approve）
         if ids:
@@ -165,9 +165,8 @@ async def test_cs_return_approvers_resolve(db):
 
     for nid in ("n3", "n20"):
         rule = nodes[nid]["approver_rule"]
-        assert rule["type"] == "specified_user"
-        assert isinstance(rule["value"], list)
-        assert len(rule["value"]) == 4
+        assert rule["type"] == "specified_role"
+        assert rule["value"] == "cs_office"
 
     if failures:
         pytest.fail("\n".join(failures))

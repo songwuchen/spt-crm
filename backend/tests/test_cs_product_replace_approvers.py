@@ -62,8 +62,8 @@ def test_cs_product_replace_approver_upgrade():
     assert _flow_cs_product_replace_needs_approver_fix(nodes)
     assert apply_cs_product_replace_approvers(nodes)
     assert nodes[0]["approver_rule"]["type"] == "form_field_person_dept_head"
-    assert nodes[1]["approver_rule"]["type"] == "specified_user"
-    assert isinstance(nodes[1]["approver_rule"]["value"], list)
+    assert nodes[1]["approver_rule"]["type"] == "specified_role"
+    assert nodes[1]["approver_rule"]["value"] == "cs_office"
     assert not _flow_cs_product_replace_needs_approver_fix(nodes)
 
 

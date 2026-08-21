@@ -274,15 +274,9 @@ async def pickable_roles(
 ):
     """流程设计器选角色：返回角色中文名 + 成员数（无需 role:view）。"""
     from app.domains.organization import service as org_svc
-    from app.common.rbac_sync import (
-        ensure_business_roles,
-        ensure_cs_arrange_role_members,
-        ensure_cs_office_role_members,
-    )
+    from app.common.rbac_sync import ensure_nine_flow_role_members
 
-    created = await ensure_business_roles(db, tenant_id)
-    await ensure_cs_office_role_members(db, tenant_id)
-    await ensure_cs_arrange_role_members(db, tenant_id)
+    await ensure_nine_flow_role_members(db, tenant_id)
     await db.commit()
 
     roles = await org_svc.list_roles(db, tenant_id)

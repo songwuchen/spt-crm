@@ -251,7 +251,17 @@ async def sync_all_tenants_additive(db, perms_by_code=None) -> dict:
 
 
 # 业务流程依赖、需在租户内保证存在的角色（不做全量标准同步）
-BUSINESS_ROLE_CODES = ("room_leader", "mkt_support", "cs_office", "cs_arrange")
+BUSINESS_ROLE_CODES = (
+    "room_leader",
+    "mkt_support",
+    "cs_office",
+    "cs_arrange",
+    "cs_delay_approve",
+    "ship_sales_outbound",
+    "gate_guard",
+    "prod_material_code",
+    "legal",
+)
 
 
 async def ensure_business_roles(
@@ -318,159 +328,71 @@ async def ensure_business_roles(
     return created
 
 
-# 简道云「230902客服内勤」成员 username（钉钉号）
-CS_OFFICE_MEMBER_USERNAMES: tuple[str, ...] = (
-    "0236446249514",  # 李红敏
-    "181359282120075679",  # 付加婧
-    "113236314224043072",  # 张丹丹
-    "01364955133227249077",  # 段尉利
-)
-
-
-async def ensure_cs_office_role_members(db, tenant_id: str) -> dict:
-    """确保 cs_office 角色存在，并把简道云客服内勤成员挂上（按 username 匹配已有账号）。
-
-    flush only — 调用方负责 commit。返回 {role_created, added, missing_usernames}。
-    """
+async def _ensure_role_members(
+    db,
+    tenant_id: str,
+    role_code: str,
+    usernames: tuple[str, ...] | list[str],
+    real_names: tuple[str, ...] | list[str] | None = None,
+    *,
+    prefer_real_name: str | None = None,
+) -> dict:
+    """通用：确保角色存在并按 username / real_name 挂成员。flush only。"""
     from app.domains.auth.models import User, UserRole
 
-    created_roles = await ensure_business_roles(db, tenant_id, ["cs_office"])
+    created_roles = await ensure_business_roles(db, tenant_id, [role_code])
     role = (
         await db.execute(
-            select(Role).where(Role.tenant_id == tenant_id, Role.code == "cs_office")
-        )
-    ).scalar_one_or_none()
-    if not role:
-        return {"role_created": False, "added": 0, "missing_usernames": list(CS_OFFICE_MEMBER_USERNAMES)}
-
-    users = (
-        await db.execute(
-            select(User).where(
-                User.tenant_id == tenant_id,
-                User.username.in_(CS_OFFICE_MEMBER_USERNAMES),
-            )
-        )
-    ).scalars().all()
-    by_name = {u.username: u for u in users}
-    missing = [u for u in CS_OFFICE_MEMBER_USERNAMES if u not in by_name]
-    # 本地账号 username 可能不一致：按姓名再补一次李红敏
-    if "0236446249514" in missing:
-        by_real = (
-            await db.execute(
-                select(User).where(
-                    User.tenant_id == tenant_id,
-                    User.real_name == "李红敏",
-                    User.is_active == True,  # noqa: E712
-                )
-            )
-        ).scalars().all()
-        for u in by_real:
-            if u.id not in {x.id for x in users}:
-                users.append(u)
-            missing = [x for x in missing if x != "0236446249514"]
-            break
-
-    existing_uids: set[str] = set()
-    if users:
-        existing_uids = set(
-            (
-                await db.execute(
-                    select(UserRole.user_id).where(
-                        UserRole.tenant_id == tenant_id,
-                        UserRole.role_id == role.id,
-                        UserRole.user_id.in_([u.id for u in users]),
-                    )
-                )
-            ).scalars().all()
-        )
-
-    added = 0
-    for u in users:
-        if u.id in existing_uids:
-            continue
-        db.add(UserRole(
-            id=generate_uuid(),
-            tenant_id=tenant_id,
-            user_id=u.id,
-            role_id=role.id,
-        ))
-        added += 1
-    if added:
-        await db.flush()
-    return {
-        "role_created": bool(created_roles),
-        "added": added,
-        "missing_usernames": missing,
-        "member_usernames": [u.username for u in users],
-    }
-
-
-# 简道云「服务申请及反馈-客服安排」成员（历史客服安排1 处理人抽样 + 常见客服）
-# username 为钉钉号；本地按 username / real_name 挂载已有账号
-CS_ARRANGE_MEMBER_USERNAMES: tuple[str, ...] = (
-    "1111346736487042",  # 郝明阳
-    "180140380732112364",  # 翟伟昌
-    "300937323129424490",  # 王祖贵
-    "085012640721291610",  # 史世举
-    "17592647441148729",  # 赵明
-    "181359282120075679",  # 付加婧
-    "133368656824258919",  # 张梦昭
-    "024919520734523493",  # 裴文战
-    "01365441275338173441",  # 韩志鹏
-    "136563206826262570",  # 李昊锦
-)
-CS_ARRANGE_MEMBER_REAL_NAMES: tuple[str, ...] = (
-    "郝明阳", "翟伟昌", "王祖贵", "史世举", "赵明",
-    "付加婧", "张梦昭", "裴文战", "韩志鹏", "李昊锦", "孙法成",
-)
-
-
-async def ensure_cs_arrange_role_members(db, tenant_id: str) -> dict:
-    """确保 cs_arrange 角色存在，并把简道云客服安排成员挂上。
-
-    flush only — 调用方负责 commit。返回 {role_created, added, missing_usernames}。
-    """
-    from app.domains.auth.models import User, UserRole
-
-    created_roles = await ensure_business_roles(db, tenant_id, ["cs_arrange"])
-    role = (
-        await db.execute(
-            select(Role).where(Role.tenant_id == tenant_id, Role.code == "cs_arrange")
+            select(Role).where(Role.tenant_id == tenant_id, Role.code == role_code)
         )
     ).scalar_one_or_none()
     if not role:
         return {
             "role_created": False,
             "added": 0,
-            "missing_usernames": list(CS_ARRANGE_MEMBER_USERNAMES),
+            "missing_usernames": list(usernames),
         }
 
     users = (
         await db.execute(
             select(User).where(
                 User.tenant_id == tenant_id,
-                User.username.in_(CS_ARRANGE_MEMBER_USERNAMES),
+                User.username.in_(list(usernames)),
             )
         )
-    ).scalars().all()
+    ).scalars().all() if usernames else []
     by_name = {u.username: u for u in users}
-    missing = [u for u in CS_ARRANGE_MEMBER_USERNAMES if u not in by_name]
+    missing = [u for u in usernames if u not in by_name]
 
-    # username 对不上时按中文名再补
-    have_ids = {u.id for u in users}
-    by_real = (
-        await db.execute(
-            select(User).where(
-                User.tenant_id == tenant_id,
-                User.real_name.in_(CS_ARRANGE_MEMBER_REAL_NAMES),
-                User.is_active == True,  # noqa: E712
+    if prefer_real_name and missing:
+        by_real_one = (
+            await db.execute(
+                select(User).where(
+                    User.tenant_id == tenant_id,
+                    User.real_name == prefer_real_name,
+                    User.is_active == True,  # noqa: E712
+                )
             )
-        )
-    ).scalars().all()
-    for u in by_real:
-        if u.id not in have_ids:
-            users.append(u)
-            have_ids.add(u.id)
+        ).scalars().all()
+        for u in by_real_one:
+            if u.id not in {x.id for x in users}:
+                users.append(u)
+
+    have_ids = {u.id for u in users}
+    if real_names:
+        by_real = (
+            await db.execute(
+                select(User).where(
+                    User.tenant_id == tenant_id,
+                    User.real_name.in_(list(real_names)),
+                    User.is_active == True,  # noqa: E712
+                )
+            )
+        ).scalars().all()
+        for u in by_real:
+            if u.id not in have_ids:
+                users.append(u)
+                have_ids.add(u.id)
 
     existing_uids: set[str] = set()
     if users:
@@ -505,4 +427,215 @@ async def ensure_cs_arrange_role_members(db, tenant_id: str) -> dict:
         "missing_usernames": missing,
         "member_usernames": [u.username for u in users],
         "member_names": [u.real_name or u.username for u in users],
+    }
+
+
+# 简道云「230902客服内勤」成员 username（钉钉号）
+CS_OFFICE_MEMBER_USERNAMES: tuple[str, ...] = (
+    "0236446249514",  # 李红敏
+    "181359282120075679",  # 付加婧
+    "113236314224043072",  # 张丹丹
+    "01364955133227249077",  # 段尉利
+)
+CS_OFFICE_MEMBER_REAL_NAMES: tuple[str, ...] = (
+    "李红敏", "付加婧", "张丹丹", "段尉利",
+)
+
+
+async def ensure_cs_office_role_members(db, tenant_id: str) -> dict:
+    """确保 cs_office 角色存在，并把简道云客服内勤成员挂上。"""
+    return await _ensure_role_members(
+        db,
+        tenant_id,
+        "cs_office",
+        CS_OFFICE_MEMBER_USERNAMES,
+        CS_OFFICE_MEMBER_REAL_NAMES,
+        prefer_real_name="李红敏",
+    )
+
+
+# 简道云「服务申请及反馈-客服安排」成员（历史客服安排1 处理人抽样 + 常见客服）
+CS_ARRANGE_MEMBER_USERNAMES: tuple[str, ...] = (
+    "1111346736487042",  # 郝明阳
+    "180140380732112364",  # 翟伟昌
+    "300937323129424490",  # 王祖贵
+    "085012640721291610",  # 史世举
+    "17592647441148729",  # 赵明
+    "181359282120075679",  # 付加婧
+    "133368656824258919",  # 张梦昭
+    "024919520734523493",  # 裴文战
+    "01365441275338173441",  # 韩志鹏
+    "136563206826262570",  # 李昊锦
+)
+CS_ARRANGE_MEMBER_REAL_NAMES: tuple[str, ...] = (
+    "郝明阳", "翟伟昌", "王祖贵", "史世举", "赵明",
+    "付加婧", "张梦昭", "裴文战", "韩志鹏", "李昊锦", "孙法成",
+)
+
+
+async def ensure_cs_arrange_role_members(db, tenant_id: str) -> dict:
+    """确保 cs_arrange 角色存在，并把简道云客服安排成员挂上。"""
+    return await _ensure_role_members(
+        db,
+        tenant_id,
+        "cs_arrange",
+        CS_ARRANGE_MEMBER_USERNAMES,
+        CS_ARRANGE_MEMBER_REAL_NAMES,
+    )
+
+
+# 延期「客服审批」：与客服内勤同班底（简道云未单独导出成员时按内勤挂载）
+CS_DELAY_APPROVE_MEMBER_USERNAMES = CS_OFFICE_MEMBER_USERNAMES
+CS_DELAY_APPROVE_MEMBER_REAL_NAMES = CS_OFFICE_MEMBER_REAL_NAMES
+
+
+async def ensure_cs_delay_approve_role_members(db, tenant_id: str) -> dict:
+    return await _ensure_role_members(
+        db,
+        tenant_id,
+        "cs_delay_approve",
+        CS_DELAY_APPROVE_MEMBER_USERNAMES,
+        CS_DELAY_APPROVE_MEMBER_REAL_NAMES,
+        prefer_real_name="李红敏",
+    )
+
+
+# 发货通知「销售出库」：仓库/仓库判定（历史办理人抽样）
+SHIP_SALES_OUTBOUND_MEMBER_USERNAMES: tuple[str, ...] = (
+    "02366368263850",  # 司丹丹
+    "01346931076927160185",  # 段亚非
+    "0654354430671114",  # 侯静
+)
+SHIP_SALES_OUTBOUND_MEMBER_REAL_NAMES: tuple[str, ...] = (
+    "司丹丹", "段亚非", "侯静",
+)
+
+
+async def ensure_ship_sales_outbound_role_members(db, tenant_id: str) -> dict:
+    return await _ensure_role_members(
+        db,
+        tenant_id,
+        "ship_sales_outbound",
+        SHIP_SALES_OUTBOUND_MEMBER_USERNAMES,
+        SHIP_SALES_OUTBOUND_MEMBER_REAL_NAMES,
+    )
+
+
+# 门岗保卫组：按姓名模糊匹配本地账号
+GATE_GUARD_MEMBER_USERNAMES: tuple[str, ...] = ()
+GATE_GUARD_MEMBER_REAL_NAMES: tuple[str, ...] = (
+    "门岗", "保卫", "安保",
+)
+
+
+async def ensure_gate_guard_role_members(db, tenant_id: str) -> dict:
+    """门岗：优先按姓名模糊匹配本地账号。"""
+    from app.domains.auth.models import User, UserRole
+    from sqlalchemy import or_
+
+    created_roles = await ensure_business_roles(db, tenant_id, ["gate_guard"])
+    role = (
+        await db.execute(
+            select(Role).where(Role.tenant_id == tenant_id, Role.code == "gate_guard")
+        )
+    ).scalar_one_or_none()
+    if not role:
+        return {"role_created": False, "added": 0, "missing_usernames": []}
+
+    users = (
+        await db.execute(
+            select(User).where(
+                User.tenant_id == tenant_id,
+                User.is_active == True,  # noqa: E712
+                or_(
+                    User.real_name.contains("门岗"),
+                    User.real_name.contains("保卫"),
+                    User.real_name.contains("安保"),
+                ),
+            )
+        )
+    ).scalars().all()
+
+    existing_uids: set[str] = set()
+    if users:
+        existing_uids = set(
+            (
+                await db.execute(
+                    select(UserRole.user_id).where(
+                        UserRole.tenant_id == tenant_id,
+                        UserRole.role_id == role.id,
+                        UserRole.user_id.in_([u.id for u in users]),
+                    )
+                )
+            ).scalars().all()
+        )
+    added = 0
+    for u in users:
+        if u.id in existing_uids:
+            continue
+        db.add(UserRole(
+            id=generate_uuid(),
+            tenant_id=tenant_id,
+            user_id=u.id,
+            role_id=role.id,
+        ))
+        added += 1
+    if added:
+        await db.flush()
+    return {
+        "role_created": bool(created_roles),
+        "added": added,
+        "missing_usernames": [],
+        "member_usernames": [u.username for u in users],
+        "member_names": [u.real_name or u.username for u in users],
+    }
+
+
+# 生产卡物料编码：对齐产线/单机物料编码具名节点
+PROD_MATERIAL_CODE_MEMBER_USERNAMES: tuple[str, ...] = (
+    "021519380525896869",  # 产线-物料编码
+    "02364636608946",  # 单机-物料编码
+)
+PROD_MATERIAL_CODE_MEMBER_REAL_NAMES: tuple[str, ...] = ()
+
+
+async def ensure_prod_material_code_role_members(db, tenant_id: str) -> dict:
+    return await _ensure_role_members(
+        db,
+        tenant_id,
+        "prod_material_code",
+        PROD_MATERIAL_CODE_MEMBER_USERNAMES,
+        None,
+    )
+
+
+# 合同法务：迅焊合同评审 / 生产卡法务审核
+LEGAL_MEMBER_USERNAMES: tuple[str, ...] = (
+    "4723152427763414",  # 孔雪
+    "256932256424153873",  # 张孟杰
+)
+LEGAL_MEMBER_REAL_NAMES: tuple[str, ...] = ("孔雪", "张孟杰")
+
+
+async def ensure_legal_role_members(db, tenant_id: str) -> dict:
+    return await _ensure_role_members(
+        db,
+        tenant_id,
+        "legal",
+        LEGAL_MEMBER_USERNAMES,
+        LEGAL_MEMBER_REAL_NAMES,
+    )
+
+
+async def ensure_nine_flow_role_members(db, tenant_id: str) -> dict:
+    """九流程审批角色：创建目录角色并挂成员。"""
+    await ensure_business_roles(db, tenant_id)
+    return {
+        "cs_office": await ensure_cs_office_role_members(db, tenant_id),
+        "cs_arrange": await ensure_cs_arrange_role_members(db, tenant_id),
+        "cs_delay_approve": await ensure_cs_delay_approve_role_members(db, tenant_id),
+        "ship_sales_outbound": await ensure_ship_sales_outbound_role_members(db, tenant_id),
+        "gate_guard": await ensure_gate_guard_role_members(db, tenant_id),
+        "prod_material_code": await ensure_prod_material_code_role_members(db, tenant_id),
+        "legal": await ensure_legal_role_members(db, tenant_id),
     }
