@@ -13,7 +13,11 @@ from app.domains.auth.models import User, Role, UserRole
 from app.domains.organization.models import Department, UserDepartment
 from app.domains.organization.pickable_scope_models import PickableScope
 
-# 预置范围：成员在「可选范围」页直接勾选
+# 对齐简道云角色「转新乡、工艺包装」(6942502ab4606b6b5375dc4f)
+TRANSFER_PACKAGING_MEMBER_NAMES: tuple[str, ...] = (
+    "杨光", "赵连华", "李海春", "王昌轲",
+)
+
 PRESET_SCOPES = [
     {
         "code": "room_leaders",
@@ -206,6 +210,78 @@ async def seed_quote_metallurgy_users(db: AsyncSession, tenant_id: str) -> bool:
     return True
 
 
+async def _user_ids_by_real_names(
+    db: AsyncSession, tenant_id: str, names: list[str] | tuple[str, ...],
+) -> tuple[list[str], list[str]]:
+    """按 real_name 精确匹配用户 id（保序、去重）。返回 (user_ids, missing_names)。"""
+    want = [str(n).strip() for n in names if str(n).strip()]
+    if not want:
+        return [], []
+    rows = (
+        await db.execute(
+            select(User.id, User.real_name).where(
+                User.tenant_id == tenant_id,
+                User.is_active.is_(True),
+                User.real_name.in_(want),
+            )
+        )
+    ).all()
+    by_name: dict[str, str] = {}
+    for uid, rname in rows:
+        key = str(rname or "").strip()
+        if key and key not in by_name:
+            by_name[key] = str(uid)
+    ids: list[str] = []
+    missing: list[str] = []
+    seen: set[str] = set()
+    for n in want:
+        uid = by_name.get(n)
+        if not uid:
+            missing.append(n)
+            continue
+        if uid in seen:
+            continue
+        seen.add(uid)
+        ids.append(uid)
+    return ids, missing
+
+
+async def seed_transfer_packaging_users(db: AsyncSession, tenant_id: str) -> bool:
+    """方案管理-转新乡、工艺包装：对齐简道云角色成员（fa-zxxgy）。"""
+    row = (
+        await db.execute(
+            select(PickableScope).where(
+                PickableScope.tenant_id == tenant_id,
+                PickableScope.code == "fa-zxxgy",
+            )
+        )
+    ).scalar_one_or_none()
+    if not row:
+        return False
+    user_ids, missing = await _user_ids_by_real_names(
+        db, tenant_id, TRANSFER_PACKAGING_MEMBER_NAMES,
+    )
+    if not user_ids:
+        return False
+    r = _rules(row)
+    cur = [str(u) for u in (r.get("user_ids") or []) if u]
+    if cur == user_ids and not missing:
+        return False
+    row.rules = {
+        "role_codes": [],
+        "user_ids": user_ids,
+        "dept_ids": [],
+        "include_children": True,
+    }
+    if missing:
+        import logging
+        logging.getLogger(__name__).warning(
+            "fa-zxxgy seed missing users tenant=%s names=%s",
+            tenant_id, missing,
+        )
+    return True
+
+
 async def ensure_preset_scopes(db: AsyncSession, tenant_id: str) -> list[str]:
     """确保预置可选范围存在；并把旧 role_codes 规则摊平成人员。返回新建的 code。"""
     existing_rows = list(
@@ -250,6 +326,10 @@ async def ensure_preset_scopes(db: AsyncSession, tenant_id: str) -> list[str]:
         await db.flush()
 
     if await seed_quote_metallurgy_users(db, tenant_id):
+        changed = True
+        await db.flush()
+
+    if await seed_transfer_packaging_users(db, tenant_id):
         changed = True
         await db.flush()
 

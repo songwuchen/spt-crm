@@ -64,7 +64,7 @@ JDY_ROLE_TO_CRM_CODE: dict[str, str] = {
     # 发货通知
     "5f69a16377e34d0006f13047": "ship_sales_outbound",  # 销售出库
     "66889a1cdc970f6d8b318231": "gate_guard",  # 门岗保卫组
-    # 法务（迅焊合同评审 / 生产卡法务办理）
+    # 法务（简道云「法务办理」/ 合同评审法务；CRM code=legal）
     "5f69a45077e34d0006f136dd": "legal",  # 24.2.3合同/项目评审-法务审批多人
     "5f69a976fbf7110006288375": "legal",  # 法务办理
     # 生产卡物料编码
@@ -74,6 +74,8 @@ JDY_ROLE_TO_CRM_CODE: dict[str, str] = {
 # 简道云角色 → 预置可选范围 code
 JDY_ROLE_TO_SCOPE_CODE: dict[str, str] = {
     "63815e3a7fb607000acc9195": "room_leaders",
+    # 转新乡、工艺包装（方案/图纸/生产卡等 transfer_packaging_users）
+    "6942502ab4606b6b5375dc4f": "fa-zxxgy",
     # 报价管理「冶金装备销售事业部」← 27.7核价管理流程-冶金
     "5f6c394b2ad3770006ded49a": "quote_metallurgy",
 }
@@ -81,6 +83,7 @@ JDY_ROLE_TO_SCOPE_CODE: dict[str, str] = {
 # 简道云角色名 → 审批人可选范围（charger_rule 用；id 优先）
 JDY_ROLE_NAME_TO_APPROVER_SCOPE: dict[str, str] = {
     "27.7核价管理流程-冶金": "quote_metallurgy",
+    "转新乡、工艺包装": "fa-zxxgy",
 }
 
 # 简道云「一人角色」（角色名即人名/专属岗）→ 指定用户 username（对齐合同等具名审批）
