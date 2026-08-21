@@ -26,15 +26,14 @@ export const contractApi = {
       name: string
       label: string
     }>>>('/api/v1/contracts/base-lookups', { params }),
-  /** 新建合同登记：预览下一图纸编号（WMGF / SY 与合同图纸对应表同规则） */
-  peekDrawingNo: (params?: { order_date?: string; number_attr?: string }) =>
+  /** 新建合同登记：预览下一图纸编号（按取号当天，与订货日无关） */
+  peekDrawingNo: (params?: { number_attr?: string }) =>
     client.get<unknown, ApiResponse<{ drawing_no: string; number_attr?: string }>>(
       '/api/v1/contracts/peek-drawing-no', { params },
     ),
-  /** 新建登记：重新取号（当前号仍可用则保留） */
+  /** 新建登记：重新取号（当前号仍可用则保留；按取号当天） */
   allocateDrawingNo: (body?: {
     drawing_no?: string
-    order_date?: string
     number_attr?: string
   }) =>
     client.post<unknown, ApiResponse<{ drawing_no: string; number_attr?: string }>>(

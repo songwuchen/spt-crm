@@ -1857,7 +1857,7 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         if existing:
             return await update_contract_from_openapi(db, ctx, existing, data)
 
-    from app.domains.contract.service import _resolve_create_drawing_no
+    from app.domains.contract.service import _resolve_create_drawing_no, drawing_no_apply_date_today
     reg = getattr(data, "registration_json", None) or {}
     if not isinstance(reg, dict):
         reg = {}
@@ -1865,7 +1865,8 @@ async def create_contract_from_openapi(db: AsyncSession, ctx, data) -> dict:
         db, ctx.tenant_id,
         {"sub": ctx.app_id, "real_name": "开放平台", "username": "openapi"},
         getattr(data, "drawing_no", None),
-        apply_date=getattr(data, "order_date", None) or reg.get("apply_date"),
+        # 无显式图纸号时按取号当天编号；有传入号则 trust_requested 直接采用（与订货日无关）
+        apply_date=drawing_no_apply_date_today(),
         trust_requested=bool(getattr(data, "drawing_no", None)),
     )
 

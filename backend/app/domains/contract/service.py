@@ -59,6 +59,23 @@ def normalize_number_attr(raw: str | None) -> str:
     return s if s in ("WMGF", "SY") else "WMGF"
 
 
+def drawing_no_apply_date_today() -> date_type:
+    """图纸编号年月/年段用「取号当天」，与订货日无关。"""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Asia/Shanghai")).date()
+    except Exception:
+        return datetime.now(timezone.utc).date()
+
+
+def _coerce_drawing_apply_date(apply_date: str | date_type | None) -> str:
+    """取号用日期：显式传入则用；否则取号当天（不再回落到订货日）。"""
+    if isinstance(apply_date, date_type):
+        return apply_date.isoformat()
+    s = str(apply_date).strip() if apply_date else ""
+    return s or drawing_no_apply_date_today().isoformat()
+
+
 def drawing_no_matches_attr(drawing_no: str | None, number_attr: str | None) -> bool:
     no = (drawing_no or "").strip().upper()
     attr = normalize_number_attr(number_attr)
@@ -119,7 +136,10 @@ async def peek_create_drawing_no(
     number_attr: str | None = None,
     consume: bool = False,
 ) -> str:
-    """预览/生成合同登记图纸编号（与合同图纸对应表同规则；WMGF 月序 / SY 年序）。"""
+    """预览/生成合同登记图纸编号（与合同图纸对应表同规则；WMGF 月序 / SY 年序）。
+
+    apply_date 为取号日（写入编号中的年月/年段），默认今天；与订货日无关。
+    """
     from app.domains.lowcode import service as lc_svc
     from app.domains.lowcode.builtin_templates import get_builtin
     from app.domains.lowcode.drawing_no_pool import (
@@ -135,10 +155,7 @@ async def peek_create_drawing_no(
     if not drawing_fd:
         raise BusinessException(code=BUSINESS_ERROR, message="图纸编号规则未配置")
 
-    if isinstance(apply_date, date_type):
-        apply_s = apply_date.isoformat()
-    else:
-        apply_s = (str(apply_date).strip() if apply_date else "") or datetime.now(timezone.utc).date().isoformat()
+    apply_s = _coerce_drawing_apply_date(apply_date)
 
     form_data = {"number_attr": normalize_number_attr(number_attr), "apply_date": apply_s}
     if consume:
@@ -179,10 +196,7 @@ async def allocate_create_drawing_no(
     if not drawing_fd:
         raise BusinessException(code=BUSINESS_ERROR, message="图纸编号规则未配置")
 
-    if isinstance(apply_date, date_type):
-        apply_s = apply_date.isoformat()
-    else:
-        apply_s = (str(apply_date).strip() if apply_date else "") or datetime.now(timezone.utc).date().isoformat()
+    apply_s = _coerce_drawing_apply_date(apply_date)
 
     attr = normalize_number_attr(number_attr)
     cur = (current or "").strip()
@@ -335,7 +349,8 @@ async def create_contract(db: AsyncSession, tenant_id: str, project_id: str | No
         reg = {}
     # number_lookup 为历史选数残留；编号属性 number_attr 需保留（驱动 WMGF/SY 规则）
     reg = {k: v for k, v in reg.items() if k != "number_lookup"}
-    apply_date = native.get("order_date", data.order_date) or reg.get("apply_date")
+    # 图纸编号年月按「取号当天」，与订货日无关（避免补录七月订货日出 WMGF202607xxx）
+    apply_date = drawing_no_apply_date_today()
     number_attr = normalize_number_attr(reg.get("number_attr"))
     reg["number_attr"] = number_attr
     # 采用表单图纸编号（唯一则落库）；撞号报错，由前端提示刷新取号

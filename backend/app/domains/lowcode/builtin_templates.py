@@ -322,6 +322,7 @@ BUILTIN_TEMPLATES: list[dict[str, Any]] = [
         "description": (
             "简道云「图纸档案管理」→「合同图纸对应表」(app=5b2af2c3… entry=5b2af2e1…)。"
             "编号规则：WMGF+yyyyMM+三位月序（如 WMGF202608018）；SY+yy+三位年序。"
+            "年月/年段按取号当天（日期时间），与合同登记「订货日期」无关。"
             "合同登记创建时按此规则自动生成图纸编号（不再从本表选数回填）。"
         ),
         "sync_fields": True,

@@ -13,6 +13,22 @@ async def test_contract_peek_drawing_no(client: AsyncClient, auth_headers: dict)
     assert len(no) >= 11
 
 
+async def test_contract_peek_drawing_no_ignores_order_date(client: AsyncClient, auth_headers: dict):
+    """图纸编号年月按取号当天，传订货日也不应落到订货月。"""
+    from app.domains.contract.service import drawing_no_apply_date_today
+
+    today = drawing_no_apply_date_today()
+    expect_ym = today.strftime("%Y%m")
+    r = await client.get(
+        "/api/v1/contracts/peek-drawing-no",
+        params={"order_date": "2026-07-24", "number_attr": "WMGF"},
+        headers=auth_headers,
+    )
+    assert r.json()["code"] == 0, r.text
+    no = (r.json()["data"] or {}).get("drawing_no") or ""
+    assert no.startswith(f"WMGF{expect_ym}"), no
+
+
 async def test_contract_peek_drawing_no_sy(client: AsyncClient, auth_headers: dict):
     """编号属性 SY：预览号按 SY+yy+年序。"""
     r = await client.get(

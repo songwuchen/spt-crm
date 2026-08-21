@@ -238,16 +238,23 @@ async def create_contract(
 
 @router.get("/api/v1/contracts/peek-drawing-no")
 async def peek_drawing_no(
-    order_date: str | None = Query(None, description="订货日期，影响年月/年段"),
+    order_date: str | None = Query(
+        None,
+        description="已废弃：图纸编号不再使用订货日；保留参数仅为兼容旧前端",
+        deprecated=True,
+    ),
     number_attr: str | None = Query(None, description="编号属性 WMGF|SY，默认 WMGF"),
     tenant_id: str = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("contract:create")),
 ):
-    """新建合同登记时预览下一可用图纸编号（跳过合同登记/图纸对应表已占用；必要时推进计数空洞）。"""
+    """新建合同登记时预览下一可用图纸编号（跳过合同登记/图纸对应表已占用；必要时推进计数空洞）。
+
+    编号中的年月/年段按取号当天计算，与订货日无关。
+    """
     drawing_no = await service.peek_create_drawing_no(
         db, tenant_id, current_user,
-        apply_date=order_date,
+        apply_date=None,  # 取号当天；忽略 order_date
         number_attr=number_attr,
     )
     await db.commit()
@@ -264,11 +271,14 @@ async def allocate_drawing_no(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(require_permissions("contract:create")),
 ):
-    """新建合同登记重新取号：当前号仍可用则保留，否则占号避开已占用。"""
+    """新建合同登记重新取号：当前号仍可用则保留，否则占号避开已占用。
+
+    编号中的年月/年段按取号当天计算，与订货日无关。
+    """
     drawing_no = await service.allocate_create_drawing_no(
         db, tenant_id, current_user,
         current=body.drawing_no,
-        apply_date=body.order_date,
+        apply_date=None,  # 取号当天；忽略 body.order_date
         number_attr=body.number_attr,
     )
     await db.commit()

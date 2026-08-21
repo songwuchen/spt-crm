@@ -115,14 +115,10 @@ export default function ContractList() {
   const syncAmountFromLines = (total: number) => {
     createForm.setFieldsValue({ amount_total: total || undefined })
   }
-  const refreshDrawingNoPreview = async (orderDate?: unknown, numberAttr?: unknown) => {
+  const refreshDrawingNoPreview = async (numberAttr?: unknown) => {
     try {
-      const od = formatFormDate(orderDate) || undefined
       const attr = String(numberAttr || createForm.getFieldValue(['registration_json', 'number_attr']) || 'WMGF').trim() || 'WMGF'
-      const r = await contractApi.peekDrawingNo({
-        ...(od ? { order_date: od } : {}),
-        number_attr: attr,
-      })
+      const r = await contractApi.peekDrawingNo({ number_attr: attr })
       const no = (r.data?.drawing_no || '').trim()
       if (no) createForm.setFieldsValue({ drawing_no: no })
     } catch { /* ignore */ }
@@ -131,11 +127,9 @@ export default function ContractList() {
     setRefreshingDrawingNo(true)
     try {
       const prev = String(createForm.getFieldValue('drawing_no') || '').trim()
-      const od = formatFormDate(createForm.getFieldValue('order_date')) || undefined
       const attr = String(createForm.getFieldValue(['registration_json', 'number_attr']) || 'WMGF').trim() || 'WMGF'
       const r = await contractApi.allocateDrawingNo({
         ...(prev ? { drawing_no: prev } : {}),
-        ...(od ? { order_date: od } : {}),
         number_attr: attr,
       })
       const next = (r.data?.drawing_no || '').trim()
@@ -168,7 +162,7 @@ export default function ContractList() {
     setProjOpts([])
     searchProjects()
     setCreateOpen(true)
-    void refreshDrawingNoPreview(undefined, 'WMGF')
+    void refreshDrawingNoPreview('WMGF')
   }
   const handleCreate = async (andSubmit: boolean) => {
     let v: Record<string, unknown>
@@ -476,17 +470,11 @@ export default function ContractList() {
       >
        <FieldPolicyProvider entityType="contract" form={createForm} customFieldValues={customFields} formMode="create">
         <Form form={createForm} layout="vertical" className="mt-3" scrollToFirstError
-          onValuesChange={(changed, all) => {
-            if ('order_date' in changed) {
-              void refreshDrawingNoPreview(
-                changed.order_date,
-                (all.registration_json as { number_attr?: string } | undefined)?.number_attr,
-              )
-              return
-            }
+          onValuesChange={(changed) => {
+            // 图纸编号按取号当天，与订货日无关；仅编号属性变化时重预览
             const regCh = changed.registration_json as Record<string, unknown> | undefined
             if (regCh && Object.prototype.hasOwnProperty.call(regCh, 'number_attr')) {
-              void refreshDrawingNoPreview(all.order_date, regCh.number_attr)
+              void refreshDrawingNoPreview(regCh.number_attr)
             }
           }}
         >
