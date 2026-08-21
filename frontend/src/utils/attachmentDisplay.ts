@@ -54,10 +54,25 @@ export function resolveAttachmentUrl(url: string): string {
   return `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}`
 }
 
-/** 拉取附件二进制（页内 Word / 文本预览） */
+/**
+ * 拉取附件二进制（页内 Word / Excel / PPT / 文本预览）。
+ *
+ * 必须经本服务 `proxy=1` 转发，不能直接 fetch 对象存储预签名 URL：
+ * 预签名地址跨域，且常见 OSS CORS 为 `ACAO:*`，与 `credentials: include` 不兼容，
+ * 会导致「无法加载预览」（图片用 img、下载用 a 标签不受 CORS 限制）。
+ */
 export async function fetchAttachmentBlob(id: string): Promise<Blob> {
-  const url = await attachmentApi.getUrl(id, false)
-  const res = await fetch(resolveAttachmentUrl(url), { credentials: 'include' })
+  const token = localStorage.getItem('access_token')
+  const qs = new URLSearchParams({ inline: '1', proxy: '1' })
+  const res = await fetch(`/api/v1/attachments/${encodeURIComponent(id)}/download?${qs}`, {
+    credentials: 'omit',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const ct = (res.headers.get('content-type') || '').toLowerCase()
+  if (ct.includes('application/json')) {
+    const body = await res.json().catch(() => null) as { message?: string } | null
+    throw new Error(body?.message || '无法加载预览')
+  }
   return res.blob()
 }

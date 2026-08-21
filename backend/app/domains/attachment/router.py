@@ -552,6 +552,7 @@ async def download(
     request: Request,
     token: Optional[str] = Query(None),
     inline: int = Query(0),
+    proxy: int = Query(0, description="1=经本服务转发（绕过对象存储 CORS，供页内 Office 预览）"),
     db: AsyncSession = Depends(get_db),
 ):
     current_user = await _authenticate(request, token)
@@ -582,11 +583,26 @@ async def download(
             media_type=media_type, content_disposition_type=disposition,
         )
 
-    # Object storage: redirect to a presigned URL (browser fetches directly).
     from app.domains.admin.service import resolve_storage_backend
+    from app.domains.attachment.storage import _content_disposition
     try:
         backend, _ = await resolve_storage_backend(db, tenant_id, storage_type)
-        url = backend.presign_get(att.stored_path, expires=PRESIGN_EXPIRES, filename=att.original_name, inline=bool(inline))
+        # 页内 Word/Excel 等需用 fetch 读 Blob；302 到 OSS 会受 CORS 限制，故可选本服务转发。
+        if proxy:
+            content = await backend.read(att.stored_path)
+            return Response(
+                content=content,
+                media_type=media_type,
+                headers={
+                    "Content-Disposition": _content_disposition(
+                        att.original_name or "file", bool(inline),
+                    ),
+                },
+            )
+        url = backend.presign_get(
+            att.stored_path, expires=PRESIGN_EXPIRES,
+            filename=att.original_name, inline=bool(inline),
+        )
     except StorageError:
         raise BusinessException(code=NOT_FOUND, message="文件不存在")
     if not url:
