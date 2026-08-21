@@ -6564,23 +6564,33 @@ async def _build_flow_steps(
             elif process_status == "completed":
                 # 旁路抄送误触 end 等历史数据：流程已结束但节点未关
                 display_status = "cancelled"
-        # 会签/多人：处理中时把每位审批人状态写进负责人，避免只显示最后操作人、漏掉待办人
-        if display_status == "running" and len(assignees) > 1:
+        # 处理中：负责人必须是当前待办人。转交后 last_log 是转交人，不能盖住接收人。
+        if display_status == "running" and assignees:
             _task_st = {
                 "pending": "待处理", "waiting": "排队中", "approved": "已通过",
                 "rejected": "已驳回", "cancelled": "已取消",
             }
-            parts = [
-                f"{a['name']}({_task_st.get(a['status'], a['status'])})"
-                for a in assignees
-                if a.get("status") != "cancelled"
-            ]
-            if parts:
-                actor_name = "、".join(parts)
-            action = action or "pending"
-        elif display_status == "running" and not actor_name and assignees:
-            pending_names = [a["name"] for a in assignees if a["status"] == "pending"]
-            actor_name = "、".join(pending_names) if pending_names else "、".join(a["name"] for a in assignees)
+            active = [a for a in assignees if a.get("status") != "cancelled"]
+            if action in ("transfer", "auto_transfer") and lg:
+                xfer = getattr(lg, "actor_name", None) or "上一处理人"
+                label = "自动转交" if action == "auto_transfer" else "转交"
+                op = (opinion or "").strip()
+                # 意见保留转交痕迹；操作改为 pending，避免「当前负责人=接收人 + 操作=转交」歧义
+                opinion = f"{xfer}{label}" + (f"：{op}" if op else "")
+                action = "pending"
+            if len(active) > 1:
+                parts = [
+                    f"{a['name']}({_task_st.get(a['status'], a['status'])})"
+                    for a in active
+                ]
+                if parts:
+                    actor_name = "、".join(parts)
+            else:
+                pending_names = [a["name"] for a in active if a["status"] == "pending"]
+                waiting_names = [a["name"] for a in active if a["status"] == "waiting"]
+                names = pending_names or waiting_names or [a["name"] for a in active]
+                if names:
+                    actor_name = "、".join(names)
             action = action or "pending"
         # 抄送节点：被抄送人放 assignees，供「查看抄送详情」；处理人显示为系统
         if n.node_type == "cc":
@@ -6596,7 +6606,11 @@ async def _build_flow_steps(
                 ]
             actor_name = actor_name or "系统"
             action = action or "cc"
-        end_at = n.completed_at or (getattr(lg, "created_at", None) if lg else None)
+        # 处理中耗时应持续计时；勿用转交等中间日志时间把耗时钉死
+        if display_status == "running":
+            end_at = _now()
+        else:
+            end_at = n.completed_at or (getattr(lg, "created_at", None) if lg else None)
         out.append({
             "node_instance_id": n.id,
             "node_def_id": n.node_def_id,

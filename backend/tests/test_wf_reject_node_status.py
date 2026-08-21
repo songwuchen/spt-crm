@@ -91,6 +91,46 @@ async def test_build_flow_steps_shows_cc_recipients():
 
 
 @pytest.mark.asyncio
+async def test_build_flow_steps_transfer_shows_pending_assignee():
+    """转交后流程动态应显示接收人为当前负责人，并保留转交人意见。"""
+    from app.domains.lowcode.workflow_service import _build_flow_steps
+
+    db = AsyncMock()
+    result = MagicMock()
+    result.all.return_value = [
+        ("u-from", "王东明", "wang"),
+        ("u-to", "刘松潮", "liu"),
+    ]
+    db.execute.return_value = result
+
+    task = SimpleNamespace(
+        id="t1",
+        node_instance_id="ni-1",
+        assignee_id="u-to",
+        status="pending",
+    )
+    steps = await _build_flow_steps(
+        db,
+        nodes=[_ni(node_name="设计审批1")],
+        tasks=[task],
+        logs=[_log(
+            action="transfer",
+            actor_id="u-from",
+            actor_name="王东明",
+            opinion="1、供货范围以认可图纸为准;",
+        )],
+        process_status="running",
+    )
+    assert len(steps) == 1
+    assert steps[0]["status"] == "running"
+    assert steps[0]["is_current"] is True
+    assert steps[0]["handler_name"] == "刘松潮"
+    assert steps[0]["action"] == "pending"
+    assert "王东明转交" in (steps[0]["opinion"] or "")
+    assert "供货范围" in (steps[0]["opinion"] or "")
+
+
+@pytest.mark.asyncio
 async def test_build_flow_steps_auto_approve_shows_system():
     """自动通过节点应显示系统处理人与自动通过意见。"""
     from app.domains.lowcode.workflow_service import _build_flow_steps
