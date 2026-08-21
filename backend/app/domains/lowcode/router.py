@@ -705,6 +705,15 @@ async def pickable_contract_prod_card_fill(
             ),
         })
     elif mode == "shipment_notice":
+        from app.domains.lowcode.shipment_notice_fields import (
+            sum_prior_ship_amount_for_contract,
+        )
+        prior_shipped = await sum_prior_ship_amount_for_contract(
+            db, tenant_id,
+            contract_id=c.id,
+            contract_no=c.contract_no,
+            drawing_no=c.drawing_no,
+        )
         fill = build_shipment_fill_from_contract(
             contract_no=c.contract_no,
             drawing_no=c.drawing_no,
@@ -715,6 +724,7 @@ async def pickable_contract_prod_card_fill(
             amount_total=c.amount_total,
             registration_json=c.registration_json if isinstance(c.registration_json, dict) else {},
             key_clauses_json=ver.key_clauses_json if ver else None,
+            prior_shipped_amount=prior_shipped,
         )
     else:
         fill = build_prod_card_fill_from_contract(

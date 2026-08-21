@@ -79,11 +79,32 @@ def test_shipment_notice_contract_fill_includes_ship_lines():
             "qty": 1,
             "amount": 8748,
         }],
+        prior_shipped_amount=12000,
     )
     assert len(fill["ship_lines"]) == 1
     assert fill["ship_lines"][0]["goods_name"] == "筛板"
     assert fill["ship_lines"][0]["contract_line_amount"] == 8748.0
     assert fill["ship_lines"][0]["line_contract_no"] == "WMGF202504038"
+    assert fill["ship_amount"] == 8748.0
+    assert fill["prior_shipped_amount"] == 12000.0
+    assert fill["shipped_amount_incl"] == 20748.0
+    assert fill["unshipped_amount"] == 107252.5
+
+
+def test_shipment_notice_ship_amount_is_formula():
+    defs = [
+        {"id": "ship_amount", "type": "number", "label": "发货金额"},
+        {"id": "shipped_amount_incl", "type": "number", "label": "累计已发货（含本次）"},
+        {"id": "unshipped_amount", "type": "number", "label": "未发货"},
+        {"id": "contract_amount", "type": "number", "label": "合同金额"},
+    ]
+    apply_shipment_notice_fields(defs)
+    by_id = {d["id"]: d for d in defs}
+    assert by_id["ship_amount"]["type"] == "formula"
+    assert by_id["ship_amount"]["props"]["formula"] == "SUM($ship_lines.line_amount#)"
+    assert by_id["shipped_amount_incl"]["props"]["formula"] == "$prior_shipped_amount#+$ship_amount#"
+    assert by_id["unshipped_amount"]["props"]["formula"] == "$contract_amount#-$shipped_amount_incl#"
+    assert by_id["prior_shipped_amount"]["props"]["hidden"] is True
 
 
 def test_shipment_notice_contract_field_has_fill_mode():

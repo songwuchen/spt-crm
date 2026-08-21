@@ -50,3 +50,36 @@ describe('明细合计可手改', () => {
     expect(next.total_amount).toBe(700000)
   })
 })
+
+describe('字段加减公式', () => {
+  it('多轮重算：累计=历史+本次，未发货=合同−累计', () => {
+    const fields: FieldDefinition[] = [
+      {
+        id: 'ship_amount',
+        type: 'formula',
+        label: '发货金额',
+        props: { formula: 'SUM($ship_lines.line_amount#)' },
+      },
+      {
+        id: 'shipped_amount_incl',
+        type: 'formula',
+        label: '累计',
+        props: { formula: '$prior_shipped_amount#+$ship_amount#' },
+      },
+      {
+        id: 'unshipped_amount',
+        type: 'formula',
+        label: '未发货',
+        props: { formula: '$contract_amount#-$shipped_amount_incl#' },
+      },
+    ]
+    const next = applySimpleFormulas(fields, {
+      ship_lines: [{ line_amount: 8748 }],
+      prior_shipped_amount: 12000,
+      contract_amount: 128000.5,
+    })
+    expect(next.ship_amount).toBe(8748)
+    expect(next.shipped_amount_incl).toBe(20748)
+    expect(next.unshipped_amount).toBe(107252.5)
+  })
+})

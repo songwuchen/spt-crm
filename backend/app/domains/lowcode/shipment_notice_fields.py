@@ -17,6 +17,10 @@ SHIPMENT_FILL_CLEAR = [
     "accept_docs",
     "contract_amount",
     "ship_lines",
+    "ship_amount",
+    "prior_shipped_amount",
+    "shipped_amount_incl",
+    "unshipped_amount",
 ]
 
 # 单据编号：24.1- + yyyyMMdd + 四位日序（CRM 约定，见 builtin 说明）
@@ -104,6 +108,18 @@ def map_contract_lines_to_shipment(
     return out
 
 
+def _sum_line_amounts(lines: list[dict[str, Any]]) -> float | None:
+    total = 0.0
+    has = False
+    for row in lines:
+        amt = _to_number(row.get("line_amount"))
+        if amt is None:
+            continue
+        total += amt
+        has = True
+    return round(total, 2) if has else None
+
+
 def build_shipment_fill_from_contract(
     *,
     contract_no: str | None,
@@ -115,12 +131,28 @@ def build_shipment_fill_from_contract(
     amount_total: Any = None,
     registration_json: dict | None,
     key_clauses_json: Any = None,
+    prior_shipped_amount: Any = None,
 ) -> dict[str, Any]:
-    """对齐简道云发货通知「合同号选择」linkDataMaps + 发货明细 subLink。"""
+    """对齐简道云发货通知「合同号选择」linkDataMaps + 发货明细 subLink。
+
+    金额三件套（是否售后=否时显示）对齐简道云：
+    - 合同金额 ← 合同总金额（关联查询等价：选合同时带出）
+    - 累计已发货（含本次）← MAPX(同合同历史发货金额) + 本次发货金额
+    - 未发货 ← 合同金额 − 累计已发货
+    """
     reg = registration_json if isinstance(registration_json, dict) else {}
     lines = map_contract_lines_to_shipment(
         key_clauses_json, drawing_no=drawing_no, contract_no=contract_no,
     )
+    ship_amount = _sum_line_amounts(lines)
+    prior = _to_number(prior_shipped_amount) or 0.0
+    contract_amount = _to_number(amount_total)
+    shipped_incl = None
+    if ship_amount is not None or prior:
+        shipped_incl = round(prior + (ship_amount or 0.0), 2)
+    unshipped = None
+    if contract_amount is not None and shipped_incl is not None:
+        unshipped = round(contract_amount - shipped_incl, 2)
     return {
         "consignee_unit": customer_name or "",
         "contract_no_text": drawing_no or "",
@@ -131,16 +163,95 @@ def build_shipment_fill_from_contract(
         "counterparty_contract_no": peer_contract_no or "",
         "accept_method": reg.get("accept_method") or "",
         "accept_docs": reg.get("accept_materials") or reg.get("accept_docs") or "",
-        "contract_amount": _to_number(amount_total),
+        "contract_amount": contract_amount,
         "ship_lines": lines,
+        "ship_amount": ship_amount,
+        # 历史已发（不含本次），供公式：累计=历史+本次
+        "prior_shipped_amount": round(prior, 2),
+        "shipped_amount_incl": shipped_incl,
+        "unshipped_amount": unshipped,
     }
+
+
+async def sum_prior_ship_amount_for_contract(
+    db,
+    tenant_id: str,
+    *,
+    contract_id: str,
+    contract_no: str | None = None,
+    drawing_no: str | None = None,
+    exclude_instance_id: str | None = None,
+    limit: int = 200,
+) -> float:
+    """对齐简道云 MAPX：同合同号其它发货通知的发货金额合计（不含本单）。"""
+    from sqlalchemy import or_, select
+
+    from app.domains.lowcode.models import FormInstance, FormTemplate
+
+    tpl = (
+        await db.execute(
+            select(FormTemplate.id).where(
+                FormTemplate.tenant_id == tenant_id,
+                FormTemplate.code == "shipment_notice",
+                FormTemplate.is_deleted.is_(False),  # noqa: E712
+            ).limit(1)
+        )
+    ).scalar_one_or_none()
+    if not tpl:
+        return 0.0
+
+    conds = [
+        FormInstance.form_data.op("->>")("contract_no") == contract_id,
+    ]
+    dn = (drawing_no or "").strip()
+    if dn:
+        conds.append(FormInstance.form_data.op("->>")("contract_no_text") == dn)
+    cn = (contract_no or "").strip()
+    if cn:
+        conds.append(FormInstance.form_data.op("->>")("dept_contract_no") == cn)
+
+    q = (
+        select(FormInstance)
+        .where(
+            FormInstance.tenant_id == tenant_id,
+            FormInstance.template_id == tpl,
+            FormInstance.is_deleted.is_(False),  # noqa: E712
+            or_(*conds),
+        )
+        .order_by(FormInstance.created_at.desc())
+        .limit(max(1, min(int(limit or 200), 500)))
+    )
+    if exclude_instance_id:
+        q = q.where(FormInstance.id != exclude_instance_id)
+
+    rows = (await db.execute(q)).scalars().all()
+    total = 0.0
+    seen: set[str] = set()
+    for fi in rows:
+        if fi.id in seen:
+            continue
+        seen.add(fi.id)
+        data = fi.form_data if isinstance(fi.form_data, dict) else {}
+        amt = _to_number(data.get("ship_amount"))
+        if amt is None:
+            # 无汇总时回退明细金额
+            lines = data.get("ship_lines")
+            if isinstance(lines, list):
+                sub = _sum_line_amounts([r for r in lines if isinstance(r, dict)])
+                amt = sub
+        if amt is not None:
+            total += amt
+    return round(total, 2)
 
 
 def apply_shipment_notice_fields(fields: list[dict]) -> None:
     """业务日期只选到日；合同号选择走合同控件并带出关联字段；加固单据编号流水规则。"""
+    has_prior = False
     for fd in fields:
         if not isinstance(fd, dict):
             continue
+        if fd.get("id") == "prior_shipped_amount":
+            has_prior = True
         if fd.get("id") == "serial_no":
             fd["type"] = "auto_number"
             fd["label"] = fd.get("label") or "单据编号"
@@ -168,3 +279,60 @@ def apply_shipment_notice_fields(fields: list[dict]) -> None:
             fd["props"] = props
         if fd.get("id") == "ship_lines":
             fd["description"] = (fd.get("description") or "") or "选择合同号后从合同登记明细自动带出，可在本单增删改。"
+        if fd.get("id") == "ship_amount":
+            # 对齐简道云：SUM(发货明细.金额)
+            fd["type"] = "formula"
+            fd["label"] = fd.get("label") or "发货金额"
+            fd["required"] = False
+            fd["available_on_create"] = True
+            fd["fill_stage"] = "initiator"
+            fd["form_editable"] = False
+            fd["description"] = "由发货明细「金额」自动汇总，不可编辑。"
+            fd["props"] = {"formula": "SUM($ship_lines.line_amount#)"}
+        if fd.get("id") == "contract_amount":
+            fd["form_editable"] = False
+            fd["description"] = (fd.get("description") or "") or "选自合同总金额；是否售后=否时显示。"
+        if fd.get("id") == "shipped_amount_incl":
+            # 对齐简道云：MAPX(历史发货金额) + 本次发货金额
+            fd["type"] = "formula"
+            fd["label"] = fd.get("label") or "累计已发货（含本次）"
+            fd["required"] = False
+            fd["available_on_create"] = True
+            fd["fill_stage"] = "initiator"
+            fd["form_editable"] = False
+            fd["description"] = "同合同历史发货金额合计 + 本次发货金额。"
+            fd["props"] = {"formula": "$prior_shipped_amount#+$ship_amount#"}
+        if fd.get("id") == "unshipped_amount":
+            # 对齐简道云：合同金额 − 累计已发货
+            fd["type"] = "formula"
+            fd["label"] = fd.get("label") or "未发货"
+            fd["required"] = False
+            fd["available_on_create"] = True
+            fd["fill_stage"] = "initiator"
+            fd["form_editable"] = False
+            fd["description"] = "合同金额 − 累计已发货（含本次）。"
+            fd["props"] = {"formula": "$contract_amount#-$shipped_amount_incl#"}
+        if fd.get("id") == "prior_shipped_amount":
+            fd["type"] = "number"
+            fd["label"] = fd.get("label") or "历史已发货金额"
+            fd["required"] = False
+            fd["available_on_create"] = True
+            fd["fill_stage"] = "initiator"
+            fd["form_editable"] = False
+            fd["description"] = "系统内部：同合同其它发货通知的发货金额合计（不含本单）。"
+            props = dict(fd.get("props") or {})
+            props["hidden"] = True
+            fd["props"] = props
+
+    if not has_prior:
+        fields.append({
+            "id": "prior_shipped_amount",
+            "type": "number",
+            "label": "历史已发货金额",
+            "required": False,
+            "available_on_create": True,
+            "fill_stage": "initiator",
+            "form_editable": False,
+            "props": {"hidden": True},
+            "description": "系统内部：同合同其它发货通知的发货金额合计（不含本单）。",
+        })

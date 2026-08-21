@@ -1,8 +1,9 @@
-/** 填报页轻量公式：明细行乘积（改数量/单价时）+ SUM($明细表.列#) 实时汇总。 */
+/** 填报页轻量公式：明细行乘积 + SUM($明细表.列#) + $a#±$b# 实时汇总。 */
 import type { FieldDefinition } from '@/types/lowcode'
 
 const SUM_DETAIL_RE = /^SUM\(\s*\$([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)#\s*\)$/i
 const ROW_MUL_RE = /^\$([a-zA-Z0-9_]+)#\s*\*\s*\$([a-zA-Z0-9_]+)#$/
+const BINARY_FIELD_RE = /^\$([a-zA-Z0-9_]+)#\s*([+\-])\s*\$([a-zA-Z0-9_]+)#$/
 
 function toNum(v: unknown): number | null {
   if (v == null || v === '') return null
@@ -64,22 +65,40 @@ function sumDetailCol(values: Record<string, unknown>, tableId: string, colId: s
   return round2(total)
 }
 
+function evalBinary(values: Record<string, unknown>, left: string, op: string, right: string): number {
+  const a = toNum(values[left]) ?? 0
+  const b = toNum(values[right]) ?? 0
+  return round2(op === '-' ? a - b : a + b)
+}
+
 /** 按字段定义重算可识别的公式字段；无变化时返回原对象。 */
 export function applySimpleFormulas(
   fields: FieldDefinition[],
   values: Record<string, unknown>,
 ): Record<string, unknown> {
-  let next: Record<string, unknown> | null = null
-  for (const f of fields) {
-    if (f.type !== 'formula') continue
-    const formula = String((f.props as { formula?: string } | undefined)?.formula || '').trim()
-    const m = formula.match(SUM_DETAIL_RE)
-    if (!m) continue
-    const computed = sumDetailCol(values, m[1], m[2])
-    const cur = (next || values)[f.id]
-    if (cur === computed) continue
-    if (!next) next = { ...values }
-    next[f.id] = computed
+  let next = values
+  // 多轮：SUM → 加减依赖（如累计=历史+本次、未发货=合同−累计）
+  for (let pass = 0; pass < 4; pass += 1) {
+    let changed = false
+    const base = next
+    for (const f of fields) {
+      if (f.type !== 'formula') continue
+      const formula = String((f.props as { formula?: string } | undefined)?.formula || '').trim()
+      let computed: number | null = null
+      const sum = formula.match(SUM_DETAIL_RE)
+      if (sum) {
+        computed = sumDetailCol(base, sum[1], sum[2])
+      } else {
+        const bin = formula.match(BINARY_FIELD_RE)
+        if (bin) computed = evalBinary(base, bin[1], bin[2], bin[3])
+      }
+      if (computed == null) continue
+      if (base[f.id] === computed) continue
+      if (next === values || next === base) next = { ...base }
+      next[f.id] = computed
+      changed = true
+    }
+    if (!changed) break
   }
-  return next || values
+  return next
 }

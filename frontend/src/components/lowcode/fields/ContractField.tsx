@@ -232,7 +232,7 @@ export const PROD_CARD_FILL_CLEAR: Record<ContractFillMode, string[]> = {
   shipment_notice: [
     'consignee_unit', 'contract_no_text', 'department', 'sales_person', 'dept_contract_no',
     'need_install', 'counterparty_contract_no', 'accept_method', 'accept_docs', 'contract_amount',
-    'ship_lines',
+    'ship_lines', 'ship_amount', 'prior_shipped_amount', 'shipped_amount_incl', 'unshipped_amount',
   ],
 }
 
